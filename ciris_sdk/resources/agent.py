@@ -1,4 +1,11 @@
-"""Agent resource - primary interface for communicating with the CIRIS agent."""
+"""
+Agent resource for CIRIS v1 API (Pre-Beta).
+
+Primary interface for communicating with the CIRIS agent.
+
+**WARNING**: This SDK is for the v1 API which is in pre-beta stage.
+The API interfaces may change without notice.
+"""
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
@@ -70,7 +77,16 @@ class AgentIdentity(BaseModel):
 
 
 class AgentResource:
-    """Resource for agent interaction endpoints."""
+    """
+    Resource for agent interaction endpoints (v1 API Pre-Beta).
+    
+    This is the primary interface for interacting with the CIRIS agent,
+    providing methods to send messages, retrieve conversation history,
+    and check agent status.
+    
+    Note: The v1 API consolidates many previous endpoints into this
+    streamlined interface focused on interaction over control.
+    """
 
     def __init__(self, transport: Transport) -> None:
         self._transport = transport
@@ -100,7 +116,7 @@ class AgentResource:
             json=request.dict()
         )
 
-        return InteractResponse(**result["data"])
+        return InteractResponse(**result)
 
     async def get_history(
         self,
@@ -127,11 +143,10 @@ class AgentResource:
         )
 
         # Parse timestamps in messages
-        data = result["data"]
-        for msg in data["messages"]:
+        for msg in result["messages"]:
             msg["timestamp"] = datetime.fromisoformat(msg["timestamp"])
 
-        return ConversationHistory(**data)
+        return ConversationHistory(**result)
 
     async def get_status(self) -> AgentStatus:
         """Get agent status and cognitive state.
@@ -145,11 +160,10 @@ class AgentResource:
         )
 
         # Parse timestamp if present
-        data = result["data"]
-        if data.get("last_activity"):
-            data["last_activity"] = datetime.fromisoformat(data["last_activity"])
+        if result.get("last_activity"):
+            result["last_activity"] = datetime.fromisoformat(result["last_activity"])
 
-        return AgentStatus(**data)
+        return AgentStatus(**result)
 
     async def get_identity(self) -> AgentIdentity:
         """Get agent identity and capabilities.
@@ -163,10 +177,9 @@ class AgentResource:
         )
 
         # Parse timestamp
-        data = result["data"]
-        data["created_at"] = datetime.fromisoformat(data["created_at"])
+        result["created_at"] = datetime.fromisoformat(result["created_at"])
 
-        return AgentIdentity(**data)
+        return AgentIdentity(**result)
 
     # Convenience methods for common patterns
 

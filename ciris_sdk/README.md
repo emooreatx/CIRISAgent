@@ -1,12 +1,27 @@
-# CIRIS SDK
+# CIRIS SDK - v1 API (Pre-Beta)
+
+⚠️ **WARNING: Pre-Beta Software** ⚠️
+
+This SDK is for the CIRIS v1 API which is in **pre-beta** stage. The API and SDK interfaces may change significantly without notice. No backwards compatibility is guaranteed between releases.
 
 Async client library for interacting with a running CIRIS Engine instance.
+
+## Installation
+
+```bash
+pip install ciris-sdk
+```
+
+## API Version
+
+This SDK targets the CIRIS v1 API specification. The v1 API represents a major simplification from v2, consolidating ~140 endpoints down to ~35 core endpoints while maintaining all essential functionality.
 
 ## Quick Start
 
 ```python
 from ciris_sdk import CIRISClient
 
+# Note: Using v1 API endpoints (all under /v1/ prefix)
 async def main():
     async with CIRISClient(base_url="http://localhost:8080") as client:
         # Simple interaction - no auth required for OBSERVER access
@@ -173,18 +188,28 @@ CIRIS uses a 4-role model with increasing privileges:
 The SDK also provides access to all system resources:
 
 - `client.agent` - Agent interaction (primary interface)
-- `client.memory` - Graph memory operations
-- `client.visibility` - System visibility and monitoring
-- `client.telemetry` - Metrics and resource usage
-- `client.runtime` - Runtime control (pause/resume)
+- `client.memory` - Graph memory operations  
+- `client.system` - System operations (health, time, resources, runtime, services, shutdown)
+- `client.telemetry` - Metrics and observability
 - `client.auth` - Authentication management
 - `client.audit` - Audit trail access
 - `client.wa` - Wise Authority operations
-- `client.config` - Configuration management
+- `client.config` - Configuration management (with PATCH support)
+- `client.emergency` - Emergency shutdown with cryptographic signatures
+- `client.jobs` - Async job management for expensive operations
+- WebSocket streaming - Real-time updates with channel filters
 
-## Backward Compatibility
+## Migration from v2 API
 
-The SDK maintains backward compatibility with deprecated methods:
+The v1 API consolidates many endpoints:
+
+- `/v1/runtime/*` → Use `client.system`
+- `/v1/services/*` → Use `client.system.services()`
+- `/v1/logs/*` → Use `client.telemetry.logs()` 
+- `/v1/visibility/*` → Use `client.telemetry.traces()`
+- `/v1/tools/*` → Part of `client.agent.identity()`
+
+For backward compatibility:
 
 ```python
 # Old way (deprecated)

@@ -1,3 +1,9 @@
+"""
+Telemetry resource for CIRIS v1 API (Pre-Beta).
+
+**WARNING**: This SDK is for the v1 API which is in pre-beta stage.
+The API interfaces may change without notice.
+"""
 from __future__ import annotations
 
 from typing import Dict, List, Optional, Any
@@ -15,8 +21,8 @@ class TelemetryResource:
 
         Returns comprehensive overview combining telemetry, visibility, incidents, and resource usage.
         """
-        resp = await self._transport.request("GET", "/v1/telemetry/overview")
-        return resp.json()
+        data = await self._transport.request("GET", "/v1/telemetry/overview")
+        return data
 
     async def get_metrics(self) -> Dict[str, Any]:
         """
@@ -24,8 +30,8 @@ class TelemetryResource:
 
         Returns detailed metrics with trends and breakdowns by service.
         """
-        resp = await self._transport.request("GET", "/v1/telemetry/metrics")
-        return resp.json()
+        data = await self._transport.request("GET", "/v1/telemetry/metrics")
+        return data
 
     async def get_traces(
         self,
@@ -44,8 +50,8 @@ class TelemetryResource:
         if end_time:
             params["end_time"] = end_time.isoformat()
 
-        resp = await self._transport.request("GET", "/v1/telemetry/traces", params=params)
-        return resp.json()
+        data = await self._transport.request("GET", "/v1/telemetry/traces", params=params)
+        return data
 
     async def get_logs(
         self,
@@ -70,8 +76,8 @@ class TelemetryResource:
         if service:
             params["service"] = service
 
-        resp = await self._transport.request("GET", "/v1/telemetry/logs", params=params)
-        return resp.json()
+        data = await self._transport.request("GET", "/v1/telemetry/logs", params=params)
+        return data
 
     async def query(
         self,
@@ -101,8 +107,8 @@ class TelemetryResource:
         if end_time:
             payload["end_time"] = end_time.isoformat()
 
-        resp = await self._transport.request("POST", "/v1/telemetry/query", json=payload)
-        return resp.json()
+        data = await self._transport.request("POST", "/v1/telemetry/query", json=payload)
+        return data
 
     # Legacy compatibility methods (will be deprecated)
     async def get_observability_overview(self) -> Dict[str, Any]:

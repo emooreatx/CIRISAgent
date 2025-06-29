@@ -1,4 +1,9 @@
-"""Wise Authority resource for the CIRIS SDK."""
+"""
+Wise Authority resource for CIRIS v1 API (Pre-Beta).
+
+**WARNING**: This SDK is for the v1 API which is in pre-beta stage.
+The API interfaces may change without notice.
+"""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
@@ -16,28 +21,29 @@ class WiseAuthorityResource:
     async def get_deferrals(
         self,
         status: Optional[str] = None,
-        limit: int = 100,
-        offset: int = 0
+        cursor: Optional[str] = None,
+        limit: int = 100
     ) -> Dict[str, Any]:
-        """Get list of deferrals.
+        """Get list of deferrals with cursor pagination.
 
         Args:
             status: Filter by status (pending, resolved, expired)
+            cursor: Pagination cursor from previous response
             limit: Maximum number of deferrals to return
-            offset: Number of deferrals to skip
 
         Returns:
-            Dict containing deferrals list and pagination info
+            Dict containing deferrals list, cursor, and pagination info
         """
         params = {
-            "limit": limit,
-            "offset": offset
+            "limit": limit
         }
         if status:
             params["status"] = status
+        if cursor:
+            params["cursor"] = cursor
 
-        resp = await self._transport.request("GET", "/v1/wa/deferrals", params=params)
-        return resp.json()
+        data = await self._transport.request("GET", "/v1/wa/deferrals", params=params)
+        return data
 
     async def resolve_deferral(
         self,
@@ -65,12 +71,12 @@ class WiseAuthorityResource:
         if reasoning:
             payload["reasoning"] = reasoning
 
-        resp = await self._transport.request(
+        data = await self._transport.request(
             "POST",
             f"/v1/wa/deferrals/{deferral_id}/resolve",
             json=payload
         )
-        return resp.json()
+        return data
 
     async def get_permissions(
         self,
@@ -96,8 +102,8 @@ class WiseAuthorityResource:
         if permission_type:
             params["permission_type"] = permission_type
 
-        resp = await self._transport.request("GET", "/v1/wa/permissions", params=params)
-        return resp.json()
+        data = await self._transport.request("GET", "/v1/wa/permissions", params=params)
+        return data
 
     # Helper methods for common operations
 

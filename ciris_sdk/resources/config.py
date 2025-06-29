@@ -1,3 +1,9 @@
+"""
+Configuration resource for CIRIS v1 API (Pre-Beta).
+
+**WARNING**: This SDK is for the v1 API which is in pre-beta stage.
+The API interfaces may change without notice.
+"""
 from __future__ import annotations
 
 from typing import List, Optional, Dict, Any
@@ -35,9 +41,9 @@ class ConfigResource:
         if include_sensitive:
             params["include_sensitive"] = "true"
 
-        resp = await self._transport.request("GET", "/v1/config", params=params)
+        data = await self._transport.request("GET", "/v1/config", params=params)
         configs = []
-        for item in resp.json():
+        for item in data:
             configs.append(ConfigItem(**item))
         return configs
 
@@ -57,8 +63,8 @@ class ConfigResource:
             Sensitive values will be automatically redacted based on
             the authenticated user's role.
         """
-        resp = await self._transport.request("GET", f"/v1/config/{key}")
-        return ConfigValue(**resp.json())
+        data = await self._transport.request("GET", f"/v1/config/{key}")
+        return ConfigValue(**data)
 
     async def set_config(
         self,
@@ -67,7 +73,10 @@ class ConfigResource:
         description: Optional[str] = None,
         sensitive: bool = False
     ) -> ConfigOperationResponse:
-        """Set a configuration value.
+        """Set or update a configuration value using PATCH.
+
+        Uses PATCH for partial updates, allowing you to update just the value
+        without affecting other properties like description or sensitivity.
 
         Args:
             key: The configuration key to set
@@ -81,6 +90,18 @@ class ConfigResource:
         Note:
             Setting configuration requires appropriate permissions.
             Sensitive configurations require ADMIN role or higher.
+            
+        Example:
+            # Update just the value
+            await client.config.set_config("api.timeout", 30)
+            
+            # Set with description
+            await client.config.set_config(
+                "api.key",
+                "secret123",
+                description="API key for external service",
+                sensitive=True
+            )
         """
         payload = {
             "value": value,
@@ -89,8 +110,9 @@ class ConfigResource:
         if description:
             payload["description"] = description
 
-        resp = await self._transport.request("PUT", f"/v1/config/{key}", json=payload)
-        return ConfigOperationResponse(**resp.json())
+        # Use PATCH for partial updates
+        data = await self._transport.request("PATCH", f"/v1/config/{key}", json=payload)
+        return ConfigOperationResponse(**data)
 
     async def delete_config(self, key: str) -> ConfigOperationResponse:
         """Delete a configuration key.
@@ -105,8 +127,8 @@ class ConfigResource:
             Deleting configuration requires ADMIN role or higher.
             Some system configurations may be protected from deletion.
         """
-        resp = await self._transport.request("DELETE", f"/v1/config/{key}")
-        return ConfigOperationResponse(**resp.json())
+        data = await self._transport.request("DELETE", f"/v1/config/{key}")
+        return ConfigOperationResponse(**data)
 
     async def update_config(
         self,
@@ -127,6 +149,61 @@ class ConfigResource:
             Response indicating success/failure of the operation
         """
         return await self.set_config(key, value, description)
+    
+    async def patch_config(
+        self,
+        key: str,
+        patches: List[Dict[str, Any]],
+        patch_format: str = "merge"
+    ) -> ConfigOperationResponse:
+        """Apply JSON patch operations to a configuration.
+
+        Supports two patch formats:
+        - "merge": JSON Merge Patch (RFC 7396) - simple partial updates
+        - "json-patch": JSON Patch (RFC 6902) - complex operations
+
+        Args:
+            key: The configuration key to patch
+            patches: List of patch operations (format depends on patch_format)
+            patch_format: Either "merge" or "json-patch"
+
+        Returns:
+            Response indicating success/failure of the operation
+
+        Examples:
+            # Merge patch (simple partial update)
+            await client.config.patch_config(
+                "database",
+                [{"pool_size": 50, "timeout": 30}],
+                patch_format="merge"
+            )
+            
+            # JSON Patch (complex operations)
+            await client.config.patch_config(
+                "features",
+                [
+                    {"op": "add", "path": "/new_feature", "value": True},
+                    {"op": "remove", "path": "/old_feature"},
+                    {"op": "replace", "path": "/beta_feature", "value": False}
+                ],
+                patch_format="json-patch"
+            )
+        """
+        headers = {}
+        if patch_format == "json-patch":
+            headers["Content-Type"] = "application/json-patch+json"
+            payload = patches
+        else:
+            headers["Content-Type"] = "application/merge-patch+json"
+            payload = patches[0] if len(patches) == 1 else {"patches": patches}
+            
+        data = await self._transport.request(
+            "PATCH", 
+            f"/v1/config/{key}",
+            json=payload,
+            headers=headers
+        )
+        return ConfigOperationResponse(**data)
 
     async def bulk_set(self, configs: Dict[str, Any]) -> Dict[str, ConfigOperationResponse]:
         """Set multiple configuration values at once.
