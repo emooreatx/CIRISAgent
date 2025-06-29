@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import uuid
-from datetime import datetime
 from typing import List, Optional
 
 from ciris_engine.protocols.services import WiseAuthorityService
@@ -56,9 +55,9 @@ class CLIWiseAuthorityService(WiseAuthorityService):
             "timestamp": self.time_service.get_current_time().timestamp(),
             "context": context.model_dump()
         }
-        
+
         self.deferral_log.append(deferral_entry)
-        
+
         # Enhanced CLI deferral output
         print(f"\n{'='*60}")
         print("[CIRIS DEFERRAL REPORT]")
@@ -66,7 +65,7 @@ class CLIWiseAuthorityService(WiseAuthorityService):
         print(f"Task ID: {context.task_id}")
         print(f"Reason: {context.reason}")
         print(f"Timestamp: {self.time_service.get_current_time().isoformat()}Z")
-        
+
         if context.defer_until:
             print(f"Defer until: {context.defer_until}")
         if context.priority:
@@ -78,9 +77,9 @@ class CLIWiseAuthorityService(WiseAuthorityService):
                 print(f"Attempted Action: {context.metadata['attempted_action']}")
             if "max_rounds_reached" in context.metadata and context.metadata["max_rounds_reached"] == "True":
                 print("Note: Maximum processing rounds reached")
-        
+
         print(f"{'='*60}")
-        
+
         corr = ServiceCorrelation(
             correlation_id=str(uuid.uuid4()),
             service_type="cli",

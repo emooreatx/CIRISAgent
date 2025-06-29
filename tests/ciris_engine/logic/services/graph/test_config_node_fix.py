@@ -49,32 +49,32 @@ async def services(temp_db, time_service):
     ''')
     conn.commit()
     conn.close()
-    
+
     # Create services
     secrets_db = temp_db.replace('.db', '_secrets.db')
     secrets_service = SecretsService(db_path=secrets_db, time_service=time_service)
     await secrets_service.start()
-    
+
     memory_service = LocalGraphMemoryService(
         db_path=temp_db,
         secrets_service=secrets_service,
         time_service=time_service
     )
     await memory_service.start()
-    
+
     config_service = GraphConfigService(
         graph_memory_service=memory_service,
         time_service=time_service
     )
     await config_service.start()
-    
+
     # Mock LLM service
     class MockLLMService:
         async def call_llm_structured(self, *args, **kwargs):
             return {"response": "mock"}
-    
+
     llm_service = MockLLMService()
-    
+
     # Create adaptive filter service with proper config service
     filter_service = AdaptiveFilterService(
         memory_service=memory_service,
@@ -83,7 +83,7 @@ async def services(temp_db, time_service):
         config_service=config_service
     )
     await filter_service.start()
-    
+
     yield {
         'memory': memory_service,
         'config': config_service,
@@ -91,13 +91,13 @@ async def services(temp_db, time_service):
         'secrets': secrets_service,
         'time': time_service
     }
-    
+
     # Cleanup
     await filter_service.stop()
     await config_service.stop()
     await memory_service.stop()
     await secrets_service.stop()
-    
+
     if os.path.exists(secrets_db):
         os.unlink(secrets_db)
 
@@ -106,18 +106,18 @@ async def services(temp_db, time_service):
 async def test_no_malformed_config_nodes(services):
     """Test that all CONFIG nodes are proper ConfigNode instances."""
     config_service = services['config']
-    
+
     # The filter service should have created its config properly
     filter_config = await config_service.get_config("adaptive_filter.config")
     assert filter_config is not None, "Filter config should exist"
     assert isinstance(filter_config, ConfigNode), "Should be a ConfigNode"
     assert filter_config.key == "adaptive_filter.config"
     assert filter_config.value.dict_value is not None
-    
+
     # Query all config nodes - they should all be valid ConfigNodes
     all_configs = await config_service.list_configs()
     assert len(all_configs) >= 1, "Should have at least the filter config"
-    
+
     # Verify each config has proper structure
     for key, value in all_configs.items():
         # The value should be a ConfigValue
@@ -130,29 +130,29 @@ async def test_no_malformed_config_nodes(services):
 async def test_config_node_required_fields(services):
     """Test that ConfigNode enforces required fields."""
     config_service = services['config']
-    
+
     # Set a new config
     await config_service.set_config(
         key="test.config",
         value={"nested": "data", "count": 42},
         updated_by="test_user"
     )
-    
+
     # Retrieve it
     config = await config_service.get_config("test.config")
     assert config is not None
-    
+
     # Verify all required fields are present
     assert config.key == "test.config"
     assert config.value.dict_value == {"nested": "data", "count": 42}
     assert config.updated_by == "test_user"
     assert config.updated_at is not None
     assert config.version == 1
-    
+
     # Verify it can be converted to/from GraphNode
     graph_node = config.to_graph_node()
     assert graph_node.type == NodeType.CONFIG
-    
+
     # Verify attributes contain required fields
     attrs = graph_node.attributes
     assert isinstance(attrs, dict)
@@ -160,7 +160,7 @@ async def test_config_node_required_fields(services):
     assert "value" in attrs
     assert "_node_class" in attrs
     assert attrs["_node_class"] == "ConfigNode"
-    
+
     # Verify we can reconstruct it
     reconstructed = ConfigNode.from_graph_node(graph_node)
     assert reconstructed.key == config.key
@@ -172,10 +172,10 @@ async def test_config_node_error_handling(services):
     """Test that malformed nodes are properly rejected."""
     memory_service = services['memory']
     config_service = services['config']
-    
+
     # Try to create a malformed CONFIG node directly (should fail on retrieval)
     from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope
-    
+
     malformed_node = GraphNode(
         id="config_malformed",
         type=NodeType.CONFIG,
@@ -187,16 +187,16 @@ async def test_config_node_error_handling(services):
             # Missing 'key' and 'value' fields!
         }
     )
-    
+
     # Store it directly in memory
     await memory_service.memorize(malformed_node)
-    
+
     # Try to list configs - the malformed node should be skipped with a warning
     configs = await config_service.list_configs()
-    
+
     # The malformed node should not appear in the results
     assert "malformed" not in str(configs.keys())
-    
+
     # Try to get it directly - should return None
     result = await config_service.get_config("malformed")
     assert result is None
@@ -207,12 +207,12 @@ async def test_filter_service_uses_proper_config(services):
     """Test that AdaptiveFilterService uses GraphConfigService correctly."""
     config_service = services['config']
     filter_service = services['filter']
-    
+
     # Filter service should have saved its config during initialization
     filter_config_node = await config_service.get_config("adaptive_filter.config")
     assert filter_config_node is not None
     assert filter_config_node.key == "adaptive_filter.config"
-    
+
     # The value should be a dict containing the AdaptiveFilterConfig data
     filter_config_data = filter_config_node.value.dict_value
     assert filter_config_data is not None
@@ -222,7 +222,7 @@ async def test_filter_service_uses_proper_config(services):
     assert "attention_triggers" in filter_config_data
     assert "review_triggers" in filter_config_data
     assert "llm_filters" in filter_config_data
-    
+
     # Verify the config was saved with proper metadata
     assert filter_config_node.updated_by.startswith("AdaptiveFilterService:")
     assert "Initial configuration" in filter_config_node.updated_by

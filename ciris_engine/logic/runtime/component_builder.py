@@ -25,34 +25,34 @@ from ciris_engine.logic.conscience import (
     EpistemicHumilityconscience,
 )
 from ciris_engine.logic.conscience.thought_depth_guardrail import ThoughtDepthconscience
-from ciris_engine.logic.utils.graphql_context_provider import GraphQLContextProvider, GraphQLClient
+from ciris_engine.logic.utils.graphql_context_provider import GraphQLContextProvider
 from ciris_engine.logic.utils.shutdown_manager import register_global_shutdown_handler
 
 logger = logging.getLogger(__name__)
 
 class ComponentBuilder:
     """Builds all processing components for the runtime."""
-    
+
     def __init__(self, runtime: Any):
         """
         Initialize component builder.
-        
+
         Args:
             runtime: Reference to the main runtime for access to services and config
         """
         self.runtime = runtime
         self.agent_processor: Optional[AgentProcessor] = None
-    
+
     async def build_all_components(self) -> AgentProcessor:
         """Build all processing components and return the agent processor."""
         if not self.runtime.llm_service:
             raise RuntimeError("LLM service not initialized")
-        
+
         if not self.runtime.service_registry:
             raise RuntimeError("Service registry not initialized")
-            
+
         config = self.runtime._ensure_config()
-        
+
         # For values not in EssentialConfig, use defaults
         # (These would come from GraphConfigService once fully migrated)
 
@@ -68,7 +68,7 @@ class ComponentBuilder:
         csdma_overrides = None
         if self.runtime.agent_identity and hasattr(self.runtime.agent_identity, 'core_profile'):
             csdma_overrides = self.runtime.agent_identity.core_profile.csdma_overrides
-            
+
         csdma = CSDMAEvaluator(
             service_registry=self.runtime.service_registry,
             model_name=self.runtime.llm_service.model_name,
@@ -81,7 +81,7 @@ class ComponentBuilder:
         action_selection_overrides = None
         if self.runtime.agent_identity and hasattr(self.runtime.agent_identity, 'core_profile'):
             action_selection_overrides = self.runtime.agent_identity.core_profile.action_selection_pdma_overrides
-            
+
         action_pdma = ActionSelectionPDMAEvaluator(
             service_registry=self.runtime.service_registry,
             model_name=self.runtime.llm_service.model_name,
@@ -93,7 +93,7 @@ class ComponentBuilder:
         # Create DSDMA using agent's identity
         if not self.runtime.agent_identity:
             raise RuntimeError("Cannot create DSDMA - no agent identity loaded from graph!")
-            
+
         # Create identity configuration for DSDMA
         from ciris_engine.schemas.config.agent import AgentTemplate
         identity_config = AgentTemplate(
@@ -107,25 +107,25 @@ class ComponentBuilder:
             csdma_overrides=self.runtime.agent_identity.core_profile.csdma_overrides,
             action_selection_pdma_overrides=self.runtime.agent_identity.core_profile.action_selection_pdma_overrides
         )
-        
+
         dsdma = await create_dsdma_from_identity(
             identity_config,
             self.runtime.service_registry,
             model_name=self.runtime.llm_service.model_name,
             sink=self.runtime.bus_manager,
         )
-        
+
         # Get time service directly from service_initializer (not from registry)
         time_service = getattr(self.runtime.service_initializer, 'time_service', None)
         if not time_service:
             raise RuntimeError("TimeService not available from service_initializer - required for consciences")
-        
+
         # Build consciences
         conscience_registry = conscienceRegistry()
         # Create conscience config
         from ciris_engine.logic.conscience.core import ConscienceConfig
         conscience_config = ConscienceConfig()
-        
+
         conscience_registry.register_conscience(
             "entropy",
             Entropyconscience(self.runtime.service_registry, conscience_config, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
@@ -146,20 +146,20 @@ class ComponentBuilder:
             EpistemicHumilityconscience(self.runtime.service_registry, conscience_config, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
             priority=3,
         )
-        
+
         conscience_registry.register_conscience(
             "thought_depth",
             ThoughtDepthconscience(time_service=time_service, max_depth=config.security.max_thought_depth),
             priority=4,  # Run after other consciences
         )
-        
+
         # Build context provider
         graphql_provider = GraphQLContextProvider(
             graphql_client=None,  # Remote GraphQL disabled in essential config
             memory_service=self.runtime.memory_service,
             enable_remote_graphql=False  # Remote GraphQL disabled in essential config
         )
-        
+
         # Build orchestrators
         dma_orchestrator = DMAOrchestrator(
             ethical_pdma,
@@ -171,7 +171,7 @@ class ComponentBuilder:
             llm_service=self.runtime.llm_service,
             memory_service=self.runtime.memory_service
         )
-        
+
         context_builder = ContextBuilder(
             memory_service=self.runtime.memory_service,
             graphql_provider=graphql_provider,
@@ -182,15 +182,15 @@ class ComponentBuilder:
             secrets_service=self.runtime.secrets_service,
             resource_monitor=self.runtime.resource_monitor
         )
-        
-        
+
+
         # Register core services before building action dispatcher
         await self.runtime._register_core_services()
-        
+
         # Build action handler dependencies
         # Use the BusManager from runtime instead of creating a new one
         bus_manager = self.runtime.bus_manager
-        
+
         dependencies = ActionHandlerDependencies(
             bus_manager=bus_manager,
             time_service=self.runtime.time_service,
@@ -199,16 +199,16 @@ class ComponentBuilder:
             ),
             secrets_service=getattr(self.runtime, 'secrets_service', None),
         )
-        
+
         # Register global shutdown handler
         register_global_shutdown_handler(
             lambda: self.runtime.request_shutdown("Global shutdown manager triggered")
         )
-        
+
         # Build thought processor
         if not self.runtime.essential_config:
             raise RuntimeError("AppConfig is required for ThoughtProcessor initialization")
-            
+
         thought_processor = ThoughtProcessor(
             dma_orchestrator,
             context_builder,
@@ -218,16 +218,16 @@ class ComponentBuilder:
             telemetry_service=self.runtime.telemetry_service,
             time_service=self.runtime.time_service
         )
-        
+
         # Build action dispatcher
         action_dispatcher = await self._build_action_dispatcher(dependencies)
-        
+
         # Build agent processor
         if not self.runtime.essential_config:
             raise RuntimeError("AppConfig is required for AgentProcessor initialization")
         if not self.runtime.agent_identity:
             raise RuntimeError("Agent identity is required for AgentProcessor initialization")
-            
+
         self.agent_processor = AgentProcessor(
             app_config=self.runtime.essential_config,
             agent_identity=self.runtime.agent_identity,
@@ -249,12 +249,12 @@ class ComponentBuilder:
             time_service=self.runtime.time_service,  # Add missing parameter
             runtime=self.runtime,  # Pass runtime reference for preload tasks
         )
-        
+
         return self.agent_processor
-    
+
     async def _build_action_dispatcher(self, dependencies: Any):
         """Build action dispatcher. Override in subclasses for custom sinks."""
-        config = self.runtime._ensure_config()
+        _config = self.runtime._ensure_config()
         return build_action_dispatcher(
             bus_manager=dependencies.bus_manager,
             time_service=dependencies.time_service,

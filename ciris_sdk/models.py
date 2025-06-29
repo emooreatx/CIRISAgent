@@ -238,19 +238,19 @@ class TelemetrySystemOverview(BaseModel):
     thoughts_processed_24h: int = 0
     tasks_completed_24h: int = 0
     errors_24h: int = 0
-    
+
     # Resource usage
     tokens_per_hour: float = 0.0
     cost_per_hour_cents: float = 0.0
     carbon_per_hour_grams: float = 0.0
     memory_mb: float = 0.0
     cpu_percent: float = 0.0
-    
+
     # Service health
     healthy_services: int = 0
     degraded_services: int = 0
     error_rate_percent: float = 0.0
-    
+
     # Agent activity
     current_task: Optional[str] = None
     reasoning_depth: int = 0

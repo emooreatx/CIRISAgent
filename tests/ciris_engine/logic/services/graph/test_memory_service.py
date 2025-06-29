@@ -71,10 +71,10 @@ async def test_memory_service_memorize(memory_service):
             tags=["test", "memory"]
         )
     )
-    
+
     # Store the node
     result = await memory_service.memorize(node)
-    
+
     # Verify success
     assert result.status == MemoryOpStatus.OK
     assert result.error is None
@@ -97,14 +97,14 @@ async def test_memory_service_recall(memory_service):
         }
     )
     await memory_service.memorize(node)
-    
+
     # Recall the node
     query = MemoryQuery(
         node_id="test_recall_1",
         scope=GraphScope.LOCAL
     )
     nodes = await memory_service.recall(query)
-    
+
     # Verify we got the node back
     assert len(nodes) == 1
     recalled = nodes[0]
@@ -127,11 +127,11 @@ async def test_memory_service_forget(memory_service):
         )
     )
     await memory_service.memorize(node)
-    
+
     # Forget the node
     result = await memory_service.forget(node)
     assert result.status == MemoryOpStatus.OK
-    
+
     # Try to recall - should get empty list
     query = MemoryQuery(node_id="test_forget_1", scope=GraphScope.LOCAL)
     nodes = await memory_service.recall(query)
@@ -157,10 +157,10 @@ async def test_memory_service_search(memory_service):
         )
         for i in range(5)
     ]
-    
+
     for node in nodes:
         await memory_service.memorize(node)
-    
+
     # Search by type
     from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
     filter = MemorySearchFilter(
@@ -169,7 +169,7 @@ async def test_memory_service_search(memory_service):
     )
     results = await memory_service.search("", filters=filter)
     assert len(results) == 5
-    
+
     # Search with limit - NOTE: The current implementation doesn't respect the limit filter
     filter_with_limit = MemorySearchFilter(
         node_types=[NodeType.CONCEPT],
@@ -197,16 +197,16 @@ async def test_memory_service_timeseries(memory_service):
             scope="local"
         )
         assert result.status == MemoryOpStatus.OK
-    
+
     # Recall timeseries data
     retrieved = await memory_service.recall_timeseries(
         scope="local",
         hours=24
     )
-    
+
     # Should have at least the 3 metrics we stored
     assert len(retrieved) >= 3
-    
+
     # Find our test metrics
     test_metrics = [dp for dp in retrieved if dp.metric_name == "test_metric"]
     assert len(test_metrics) >= 3
@@ -236,7 +236,7 @@ async def test_memory_service_status(memory_service):
     assert status.service_type == "graph_service"
     assert status.is_healthy is True
     assert status.metrics["secrets_enabled"] == 1.0  # Should have secrets service from fixture
-    
+
     # Add some nodes and check status
     for i in range(3):
         node = GraphNode(
@@ -249,7 +249,7 @@ async def test_memory_service_status(memory_service):
             )
         )
         await memory_service.memorize(node)
-    
+
     status = memory_service.get_status()
     assert status.is_healthy is True
 
@@ -270,17 +270,17 @@ async def test_memory_service_secrets_integration(memory_service, secrets_servic
             "updated_at": datetime.now(timezone.utc).isoformat()
         }
     )
-    
+
     # Store node - secrets should be processed
     await memory_service.memorize(node)
-    
+
     # Verify secrets service was called
     assert secrets_service.process_incoming_text.called
-    
+
     # Recall node - secrets should be decrypted
     query = MemoryQuery(node_id="secret_node", scope=GraphScope.LOCAL)
     nodes = await memory_service.recall(query)
-    
+
     assert len(nodes) == 1
 
 
@@ -298,7 +298,7 @@ async def test_memory_service_graph_query(memory_service):
         )
     )
     await memory_service.memorize(parent)
-    
+
     child = GraphNode(
         id="child_node",
         type=NodeType.CONCEPT,
@@ -312,7 +312,7 @@ async def test_memory_service_graph_query(memory_service):
         }
     )
     await memory_service.memorize(child)
-    
+
     # Query with depth
     query = MemoryQuery(
         node_id="parent_node",
@@ -321,7 +321,7 @@ async def test_memory_service_graph_query(memory_service):
         depth=1
     )
     nodes = await memory_service.recall(query)
-    
+
     # Should get parent node
     assert len(nodes) >= 1
     assert nodes[0].id == "parent_node"

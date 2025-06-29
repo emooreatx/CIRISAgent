@@ -3,8 +3,7 @@
 Manages API keys, OAuth users, and authentication state.
 """
 import hashlib
-import secrets
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict
 from datetime import datetime, timezone
 from dataclasses import dataclass
 
@@ -37,22 +36,22 @@ class OAuthUser:
 
 class APIAuthService:
     """Simple in-memory authentication service."""
-    
+
     def __init__(self):
         # In production, these would be backed by a database
         self._api_keys: Dict[str, StoredAPIKey] = {}
         self._oauth_users: Dict[str, OAuthUser] = {}
-        
+
     def _hash_key(self, api_key: str) -> str:
         """Hash an API key for storage."""
         return hashlib.sha256(api_key.encode()).hexdigest()
-    
+
     def _get_key_id(self, api_key: str) -> str:
         """Extract key ID from full API key."""
         # Key format: ciris_role_randomstring
         # Key ID is first 8 chars of the hash
         return self._hash_key(api_key)[:8]
-    
+
     async def store_api_key(
         self,
         key: str,
@@ -76,24 +75,24 @@ class APIAuthService:
             is_active=True
         )
         self._api_keys[key_hash] = stored_key
-    
+
     async def validate_api_key(self, api_key: str) -> Optional[StoredAPIKey]:
         """Validate an API key and return its info."""
         key_hash = self._hash_key(api_key)
         stored_key = self._api_keys.get(key_hash)
-        
+
         if not stored_key or not stored_key.is_active:
             return None
-        
+
         # Check expiration
         if stored_key.expires_at and stored_key.expires_at < datetime.now(timezone.utc):
             return None
-        
+
         # Update last used
         stored_key.last_used = datetime.now(timezone.utc)
-        
+
         return stored_key
-    
+
     async def list_api_keys(self) -> List[APIKeyInfo]:
         """List all API keys (without the actual keys)."""
         keys = []
@@ -109,7 +108,7 @@ class APIAuthService:
                 is_active=stored_key.is_active
             ))
         return keys
-    
+
     async def get_api_key_info(self, key_id: str) -> Optional[APIKeyInfo]:
         """Get info about a specific API key."""
         # Find key by partial hash
@@ -126,7 +125,7 @@ class APIAuthService:
                     is_active=stored_key.is_active
                 )
         return None
-    
+
     async def revoke_api_key(self, key_id: str) -> None:
         """Revoke an API key."""
         # Find key by partial hash
@@ -134,7 +133,7 @@ class APIAuthService:
             if key_hash.startswith(key_id):
                 stored_key.is_active = False
                 return
-    
+
     async def create_oauth_user(
         self,
         provider: str,
@@ -146,7 +145,7 @@ class APIAuthService:
         """Create or update an OAuth user."""
         user_id = f"{provider}:{external_id}"
         now = datetime.now(timezone.utc)
-        
+
         if user_id in self._oauth_users:
             # Update existing user
             user = self._oauth_users[user_id]
@@ -168,9 +167,9 @@ class APIAuthService:
                 last_login=now
             )
             self._oauth_users[user_id] = user
-        
+
         return user
-    
+
     async def get_user_by_oauth(
         self,
         provider: str,

@@ -7,23 +7,23 @@ from ..transport import Transport
 
 class MemoryResource:
     """Memory service client implementing MEMORIZE, RECALL, FORGET verbs.
-    
+
     The memory service provides unified access to the agent's graph memory.
     All operations work through typed GraphNode objects.
     """
-    
+
     def __init__(self, transport: Transport):
         self._transport = transport
 
     async def store(self, node: Dict[str, Any]) -> Dict[str, Any]:
         """Store typed nodes in memory (MEMORIZE).
-        
+
         This is the primary way to add information to the agent's memory.
         Requires ADMIN role.
-        
+
         Args:
             node: GraphNode data to store (as dict)
-            
+
         Returns:
             MemoryOpResult with success status and node ID
         """
@@ -48,14 +48,14 @@ class MemoryResource:
         depth: int = 1
     ) -> List[Dict[str, Any]]:
         """Flexible query interface for memory (RECALL).
-        
+
         Supports multiple query patterns:
         - By ID: Get specific node
         - By type: Filter by node type
         - By text: Natural language search
-        - By time: Temporal queries  
+        - By time: Temporal queries
         - By correlation: Find related nodes
-        
+
         Args:
             node_id: Get specific node by ID
             type: Filter by node type
@@ -69,12 +69,12 @@ class MemoryResource:
             offset: Pagination offset
             include_edges: Include relationship data
             depth: Graph traversal depth (1-3)
-            
+
         Returns:
             List of GraphNode objects (as dicts)
         """
         payload = {}
-        
+
         # Add query parameters if provided
         if node_id:
             payload["node_id"] = node_id
@@ -92,24 +92,24 @@ class MemoryResource:
             payload["scope"] = scope
         if tags:
             payload["tags"] = tags
-            
+
         # Pagination and options
         payload["limit"] = limit
         payload["offset"] = offset
         payload["include_edges"] = include_edges
         payload["depth"] = depth
-        
+
         resp = await self._transport.request("POST", "/v1/memory/query", json=payload)
         return resp.json().get("data", [])
 
     async def forget(self, node_id: str) -> Dict[str, Any]:
         """Remove specific memories (FORGET).
-        
+
         Requires ADMIN role.
-        
+
         Args:
             node_id: ID of node to forget
-            
+
         Returns:
             MemoryOpResult with success status
         """
@@ -118,12 +118,12 @@ class MemoryResource:
 
     async def get_node(self, node_id: str) -> Dict[str, Any]:
         """Get specific node by ID.
-        
+
         Direct access to a memory node.
-        
+
         Args:
             node_id: Node ID to retrieve
-            
+
         Returns:
             GraphNode object (as dict)
         """
@@ -138,15 +138,15 @@ class MemoryResource:
         type: Optional[str] = None
     ) -> Dict[str, Any]:
         """Temporal view of memories.
-        
+
         Get memories organized chronologically with time bucket counts.
-        
+
         Args:
             hours: Hours to look back (1-168)
             bucket_size: Time bucket size ("hour" or "day")
             scope: Memory scope filter
             type: Node type filter
-            
+
         Returns:
             TimelineResponse with memories and time buckets
         """
@@ -158,7 +158,7 @@ class MemoryResource:
             params["scope"] = scope
         if type:
             params["type"] = type
-            
+
         resp = await self._transport.request("GET", "/v1/memory/timeline", params=params)
         return resp.json().get("data", {})
 
@@ -166,7 +166,7 @@ class MemoryResource:
     async def memorize(self, node: Dict[str, Any]) -> Dict[str, Any]:
         """Deprecated: Use store() instead."""
         return await self.store(node)
-    
+
     async def recall(
         self,
         node_id: str,

@@ -52,31 +52,31 @@ class UserInfo:
 class AuthResource:
     """
     Authentication resource for managing API sessions.
-    
+
     Provides endpoints for:
     - Login with username/password
     - Logout to end session
     - Get current user info with permissions
     - Refresh authentication token
     """
-    
+
     def __init__(self, transport: Transport):
         self._transport = transport
-    
+
     async def login(self, username: str, password: str) -> LoginResponse:
         """
         Authenticate with username and password.
-        
+
         Currently supports ROOT user only. In production, this would
         integrate with a proper user database.
-        
+
         Args:
             username: User's username
             password: User's password
-            
+
         Returns:
             LoginResponse with access token and user details
-            
+
         Raises:
             HTTPException: If credentials are invalid
         """
@@ -84,22 +84,22 @@ class AuthResource:
             "username": username,
             "password": password
         }
-        
+
         response = await self._transport.request(
             "POST",
             "/v1/auth/login",
             json=request_data
         )
-        
+
         return LoginResponse(response.json())
-    
+
     async def logout(self) -> None:
         """
         End the current session by revoking the API key.
-        
+
         This invalidates the current authentication token,
         effectively logging out the user.
-        
+
         Raises:
             HTTPException: If not authenticated
         """
@@ -107,17 +107,17 @@ class AuthResource:
             "POST",
             "/v1/auth/logout"
         )
-    
+
     async def get_current_user(self) -> UserInfo:
         """
         Get current authenticated user information.
-        
+
         Returns details about the currently authenticated user including
         their role and all permissions based on that role.
-        
+
         Returns:
             UserInfo with user details and permissions
-            
+
         Raises:
             HTTPException: If not authenticated
         """
@@ -125,44 +125,44 @@ class AuthResource:
             "GET",
             "/v1/auth/me"
         )
-        
+
         return UserInfo(response.json())
-    
+
     async def refresh_token(self, refresh_token: Optional[str] = None) -> LoginResponse:
         """
         Refresh the current access token.
-        
+
         Creates a new access token and revokes the old one. The user must
         be authenticated to refresh their token.
-        
+
         Args:
             refresh_token: Optional refresh token (not currently used,
                          authentication is required)
-                         
+
         Returns:
             LoginResponse with new access token
-            
+
         Raises:
             HTTPException: If not authenticated
         """
         request_data = {
             "refresh_token": refresh_token or "current_token"
         }
-        
+
         response = await self._transport.request(
             "POST",
             "/v1/auth/refresh",
             json=request_data
         )
-        
+
         return LoginResponse(response.json())
-    
+
     # Convenience methods for session management
-    
+
     async def is_authenticated(self) -> bool:
         """
         Check if the client is currently authenticated.
-        
+
         Returns:
             True if authenticated, False otherwise
         """
@@ -171,14 +171,14 @@ class AuthResource:
             return True
         except Exception:
             return False
-    
+
     async def has_permission(self, permission: str) -> bool:
         """
         Check if the current user has a specific permission.
-        
+
         Args:
             permission: Permission to check (e.g., "view_messages")
-            
+
         Returns:
             True if user has permission, False otherwise
         """
@@ -187,11 +187,11 @@ class AuthResource:
             return permission in user.permissions
         except Exception:
             return False
-    
+
     async def get_role(self) -> Optional[str]:
         """
         Get the current user's role.
-        
+
         Returns:
             Role name (OBSERVER, ADMIN, AUTHORITY, ROOT) or None if not authenticated
         """

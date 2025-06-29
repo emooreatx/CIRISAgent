@@ -14,7 +14,7 @@ from ciris_engine.schemas.runtime.enums import SensitivityLevel
 from ciris_engine.schemas.secrets.core import SecretsDetectionConfig
 from ciris_engine.schemas.secrets.service import (
     SecretRecallResult, DecapsulationContext, FilterUpdateRequest,
-    FilterUpdateResult, SensitivityConfig, PatternConfig, FilterStats
+    FilterUpdateResult, FilterStats
 )
 from ciris_engine.schemas.services.core.secrets import SecretsServiceStats
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
@@ -28,11 +28,11 @@ logger = logging.getLogger(__name__)
 class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
     """
     Central service for secrets management in CIRIS Agent.
-    
+
     Provides unified interface for detection, storage, retrieval,
     and automatic decapsulation of secrets during action execution.
     """
-    
+
     def __init__(
         self,
         time_service: TimeServiceProtocol,
@@ -44,7 +44,7 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
     ):
         """
         Initialize secrets service.
-        
+
         Args:
             time_service: Time service for consistent time operations
             store: Secrets store instance (created if None)
@@ -58,30 +58,30 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
         self.filter = filter_obj or SecretsFilter(detection_config)
         self._auto_forget_enabled = True
         self._current_task_secrets: Dict[str, str] = {}  # UUID -> original_value
-        
+
     async def process_incoming_text(
-        self, 
-        text: str, 
+        self,
+        text: str,
         source_message_id: str
     ) -> Tuple[str, List[SecretReference]]:
         """
         Process incoming text for secrets detection and replacement.
-        
+
         Args:
             text: Original text to process
             context_hint: Safe context description
             source_message_id: ID of source message for tracking
-            
+
         Returns:
             Tuple of (filtered_text, secret_references)
         """
         filtered_text, detected_secrets = self.filter.filter_text(text, "")
-        
+
         if not detected_secrets:
             return text, []
-            
+
         secret_references = []
-        
+
         for detected_secret in detected_secrets:
             secret_record = SecretRecord(
                 secret_uuid=detected_secret.secret_uuid,
@@ -100,12 +100,12 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
                 auto_decapsulate_for_actions=self._get_auto_decapsulate_actions(detected_secret.sensitivity.value),
                 manual_access_only=False
             )
-            
+
             stored = await self.store.store_secret(detected_secret, source_message_id)
-            
+
             if stored:
                 self._current_task_secrets[detected_secret.secret_uuid] = detected_secret.original_value
-                
+
                 secret_ref = SecretReference(
                     uuid=detected_secret.secret_uuid,
                     description=detected_secret.description,
@@ -117,40 +117,40 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
                     last_accessed=None
                 )
                 secret_references.append(secret_ref)
-                
+
                 logger.info(
                     f"Detected and stored {detected_secret.sensitivity} secret: "
                     f"{detected_secret.description} (UUID: {detected_secret.secret_uuid})"
                 )
-                
+
         return filtered_text, secret_references
-        
+
     async def recall_secret(
-        self, 
-        secret_uuid: str, 
+        self,
+        secret_uuid: str,
         purpose: str,
         accessor: str = "agent",
         decrypt: bool = False
     ) -> Optional[SecretRecallResult]:
         """
         Recall a stored secret for agent use.
-        
+
         Args:
             secret_uuid: UUID of secret to recall
             purpose: Purpose for accessing secret (for audit)
             accessor: Who is accessing the secret
             decrypt: Whether to return decrypted value
-            
+
         Returns:
             Secret information dict or None if not found/denied
         """
         secret_record = await self.store.retrieve_secret(
             secret_uuid, decrypt
         )
-        
+
         if not secret_record:
             return None
-            
+
         if decrypt:
             decrypted_value = await self.store.decrypt_secret_value(secret_record)
             result = SecretRecallResult(
@@ -164,9 +164,9 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
                 value=None,
                 error=None
             )
-                
+
         return result
-        
+
     async def decapsulate_secrets_in_parameters(
         self,
         action_type: str,
@@ -175,33 +175,33 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
     ) -> dict:
         """
         Automatically decapsulate secrets in action parameters.
-        
+
         Args:
             action_type: Type of action being executed
             action_params: Action parameters potentially containing secret references
             context: Execution context for audit
-            
+
         Returns:
             Parameters with secrets decapsulated where appropriate
         """
         if not action_params:
             return action_params
-            
+
         result = await self._deep_decapsulate(
             action_params, action_type, context
         )
-        
+
         # Ensure we return a dict as expected
         if isinstance(result, dict):
             return result
         else:
             # This shouldn't happen if action_params is a dict
             return action_params
-        
+
     async def _deep_decapsulate(
-        self, 
-        obj: Union[dict, list, str, int, float, bool, None], 
-        action_type: str, 
+        self,
+        obj: Union[dict, list, str, int, float, bool, None],
+        action_type: str,
         context: DecapsulationContext
     ) -> Union[dict, list, str, int, float, bool, None]:
         """Recursively decapsulate secrets in nested structures."""
@@ -219,32 +219,32 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
             return list_result
         else:
             return obj
-            
+
     async def _decapsulate_string(self, text: str, action_type: str, context: DecapsulationContext) -> str:
         """Decapsulate secret references in a string."""
         import re
-        
+
         secret_pattern = r'\{SECRET:([a-f0-9-]{36}):([^}]+)\}'
-        
+
         matches = list(re.finditer(secret_pattern, text))
         if not matches:
             return text
-            
+
         result = text
-        
+
         for match in reversed(matches):
             secret_uuid = match.group(1)
             description = match.group(2)
-            
+
             secret_record = await self.store.retrieve_secret(
-                secret_uuid, 
+                secret_uuid,
                 decrypt=False
             )
-            
+
             if not secret_record:
                 logger.warning(f"Secret {secret_uuid} not found for decapsulation")
                 continue  # Leave original reference
-                
+
             if action_type in secret_record.auto_decapsulate_for_actions:
                 decrypted_value = await self.store.decrypt_secret_value(secret_record)
                 if decrypted_value:
@@ -260,9 +260,9 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
                     f"Secret {secret_uuid} not configured for auto-decapsulation "
                     f"in {action_type} actions"
                 )
-            
+
         return result
-        
+
     async def update_filter_config(
         self,
         updates: FilterUpdateRequest,
@@ -270,38 +270,38 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
     ) -> FilterUpdateResult:  # pragma: no cover - thin wrapper
         """
         Update secrets filter configuration.
-        
+
         Args:
             updates: Dictionary of configuration updates
             accessor: Who is making the update
-            
+
         Returns:
             Result of configuration update
         """
         try:
             results = []
-            
+
             # Handle pattern updates
             if updates.patterns:
                 for pattern_config in updates.patterns:
                     # Pattern operations would be handled here based on PatternConfig
-                    results.append(f"Updated pattern configuration")
-                    
-            # Handle sensitivity config updates  
+                    results.append("Updated pattern configuration")
+
+            # Handle sensitivity config updates
             if updates.sensitivity_config:
                 for level_name, sensitivity_config in updates.sensitivity_config.items():
                     # Sensitivity operations would be handled here
                     results.append(f"Updated sensitivity level: {level_name}")
-                
+
             # Create stats object
             stats = FilterStats(
                 patterns_updated=len(updates.patterns) if updates.patterns else 0,
                 sensitivity_levels_updated=len(updates.sensitivity_config) if updates.sensitivity_config else 0
             )
-            
+
             # Convert string results to dict format
             dict_results = [{"message": result} for result in results]
-            
+
             return FilterUpdateResult(
                 success=True,
                 error=None,
@@ -309,93 +309,93 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
                 accessor=accessor,
                 stats=stats
             )
-                
+
         except Exception as e:
             logger.error(f"Failed to update filter config: {e}")
             return FilterUpdateResult(
-                success=False, 
-                error=str(e), 
+                success=False,
+                error=str(e),
                 results=None,
                 accessor=accessor,
                 stats=None
             )
-            
+
     async def list_stored_secrets(
-        self, 
+        self,
         limit: int = 10
     ) -> List[SecretReference]:
         """
         List stored secrets (metadata only, no decryption).
-        
+
         Args:
             limit: Maximum number of secrets to return
-            
+
         Returns:
             List of SecretReference objects
         """
         secrets = await self.store.list_secrets(sensitivity_filter=None, pattern_filter=None)
-        
+
         limited_secrets = secrets[:limit] if secrets else []
-        
+
         return limited_secrets
-        
+
     async def forget_secret(self, secret_uuid: str, accessor: str = "agent") -> bool:
         """
         Delete/forget a stored secret.
-        
+
         Args:
             secret_uuid: UUID of secret to forget
             accessor: Who is forgetting the secret
-            
+
         Returns:
             True if successfully forgotten
         """
         deleted = await self.store.delete_secret(secret_uuid)
-        
+
         if secret_uuid in self._current_task_secrets:
             del self._current_task_secrets[secret_uuid]
-            
+
         return deleted
-        
+
     async def _auto_forget_task_secrets(self) -> List[str]:
         """
         Automatically forget secrets from current task.
-        
+
         Returns:
             List of forgotten secret UUIDs
         """
         if not self._auto_forget_enabled:
             return []
-            
+
         forgotten_secrets = []
-        
+
         for secret_uuid in list(self._current_task_secrets.keys()):
             deleted = await self.forget_secret(secret_uuid, "auto_forget")
             if deleted:
                 forgotten_secrets.append(secret_uuid)
-                
+
         self._current_task_secrets.clear()
-        
+
         if forgotten_secrets:
             logger.info(f"Auto-forgot {len(forgotten_secrets)} task secrets")
-            
+
         return forgotten_secrets
-        
+
     def _enable_auto_forget(self) -> None:
         """Enable automatic forgetting of task secrets."""
         self._auto_forget_enabled = True
-        
+
     def _disable_auto_forget(self) -> None:
         """Disable automatic forgetting of task secrets."""
         self._auto_forget_enabled = False
-        
+
     def _get_auto_decapsulate_actions(self, sensitivity: str) -> List[str]:
         """
         Get default auto-decapsulation actions based on sensitivity.
-        
+
         Args:
             sensitivity: Secret sensitivity level
-            
+
         Returns:
             List of action types that can auto-decapsulate this secret
         """
@@ -407,7 +407,7 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
             return ["tool", "speak"]  # Tool and speak actions
         else:  # LOW
             return ["tool", "speak", "memorize"]  # Most actions allowed
-            
+
     # Protocol methods for SecretsServiceProtocol
     async def encrypt(self, plaintext: str) -> str:
         """Encrypt a secret."""
@@ -417,7 +417,7 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
         import base64
         combined = salt + nonce + encrypted_value
         return base64.b64encode(combined).decode('utf-8')
-    
+
     async def decrypt(self, ciphertext: str) -> str:
         """Decrypt a secret."""
         # Direct decryption - expects base64 encoded ciphertext
@@ -432,7 +432,7 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
         except Exception as e:
             logger.error(f"Failed to decrypt: {e}")
             return ""
-    
+
     async def store_secret(self, key: str, value: str) -> None:
         """Store an encrypted secret."""
         # Create a DetectedSecret and store it
@@ -446,7 +446,7 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
             context_hint="Manual storage via API"
         )
         await self.store.store_secret(detected_secret, "manual_store")
-    
+
     async def retrieve_secret(self, key: str) -> Optional[str]:
         """Retrieve and decrypt a secret."""
         try:
@@ -457,23 +457,23 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
             return None
         except Exception:
             return None
-    
+
     async def get_filter_config(self) -> dict:
         """Get current filter configuration."""
         # Wrap the filter's get_filter_config to prevent direct access
         config_export = await self.filter.get_filter_config()
         # Convert ConfigExport to dict
         return config_export.model_dump()
-    
+
     async def get_service_stats(self) -> SecretsServiceStats:
         """Get comprehensive service statistics."""
         try:
             # Get filter stats
             filter_stats = self.filter.get_pattern_stats()
-            
+
             # Get storage stats
             all_secrets = await self.store.list_secrets()
-            
+
             # Get enabled patterns from filter stats
             # PatternStats doesn't have pattern_counts, but we can derive from the counts
             enabled_patterns = []
@@ -481,13 +481,13 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
                 enabled_patterns.extend([f"default_{i}" for i in range(filter_stats.default_patterns)])
             if filter_stats.custom_patterns > 0:
                 enabled_patterns.extend([f"custom_{i}" for i in range(filter_stats.custom_patterns)])
-            
+
             # Count recent detections (PatternStats doesn't track detections, so we'll use total patterns)
-            recent_detections = filter_stats.total_patterns
-            
+            _recent_detections = filter_stats.total_patterns
+
             # Calculate storage size (approximate)
-            storage_size_bytes = len(all_secrets) * 512  # Rough estimate: 512 bytes per secret
-            
+            _storage_size_bytes = len(all_secrets) * 512  # Rough estimate: 512 bytes per secret
+
             return SecretsServiceStats(
                 total_secrets=len(all_secrets),
                 active_filters=filter_stats.total_patterns,
@@ -495,7 +495,7 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
                 last_filter_update=None,  # We don't track this currently
                 encryption_enabled=True
             )
-            
+
         except Exception as e:
             logger.error(f"Failed to get service stats: {e}")
             # Return default stats on error
@@ -506,11 +506,11 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
                 last_filter_update=None,
                 encryption_enabled=True
             )
-    
+
     async def start(self) -> None:
         """Start the secrets service."""  # pragma: no cover - trivial
         logger.info("SecretsService started")
-        
+
     async def stop(self) -> None:
         """Stop the secrets service and clean up resources."""  # pragma: no cover - trivial
         # Auto-forget any remaining task secrets
@@ -518,7 +518,7 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
             logger.info(f"Auto-forgetting {len(self._current_task_secrets)} task secrets on shutdown")
             await self._auto_forget_task_secrets()
         logger.info("SecretsService stopped")
-    
+
     async def is_healthy(self) -> bool:
         """Check if the secrets service is healthy."""
         try:
@@ -529,16 +529,16 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
             return True
         except Exception:
             return False
-    
+
     async def reencrypt_all(self, new_master_key: bytes) -> bool:
         """
         Re-encrypt all stored secrets with a new master key.
-        
+
         This is used for key rotation and security compliance.
-        
+
         Args:
             new_master_key: New 32-byte master key for encryption
-            
+
         Returns:
             True if all secrets were successfully re-encrypted
         """
@@ -546,21 +546,21 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
             if not self.store:
                 logger.error("No secret store available for re-encryption")
                 return False
-                
+
             logger.info("Starting re-encryption of all secrets")
             success = await self.store.reencrypt_all(new_master_key)
-            
+
             if success:
                 logger.info("Successfully re-encrypted all secrets")
             else:
                 logger.error("Failed to re-encrypt some or all secrets")
-                
+
             return success
-            
+
         except Exception as e:
             logger.error(f"Re-encryption failed with error: {e}")
             return False
-    
+
     def get_capabilities(self) -> ServiceCapabilities:
         """Return capabilities this service supports."""
         from ciris_engine.schemas.services.core import ServiceCapabilities
@@ -568,7 +568,7 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
             service_name="SecretsService",
             actions=[
                 "process_incoming_text", "decapsulate_secrets_in_parameters",
-                "list_stored_secrets", "recall_secret", "update_filter_config", 
+                "list_stored_secrets", "recall_secret", "update_filter_config",
                 "forget_secret", "get_service_stats", "get_filter_config",
                 "encrypt", "decrypt", "store_secret", "retrieve_secret", "reencrypt_all"
             ],
@@ -576,7 +576,7 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
             dependencies=["TimeService"],
             metadata=None
         )
-    
+
     def get_status(self) -> ServiceStatus:
         """Get service status."""
         from ciris_engine.schemas.services.core import ServiceStatus

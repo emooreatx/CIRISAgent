@@ -4,15 +4,21 @@ Agent interaction endpoints for CIRIS API v3.0 (Simplified).
 Core endpoints for natural agent interaction.
 """
 import asyncio
+import logging
 import uuid
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
 
 from ciris_engine.schemas.api.responses import SuccessResponse
-from ciris_engine.schemas.runtime.messages import IncomingMessage, FetchedMessage
-from ciris_engine.api.dependencies.auth import require_observer, optional_auth, AuthContext
+from ciris_engine.schemas.runtime.messages import IncomingMessage
+from ciris_engine.api.dependencies.auth import require_observer, AuthContext
+from ciris_engine.schemas.api.agent import (
+    MessageContext, AgentLineage, ServiceAvailability, ActiveTask
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -21,7 +27,7 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 class InteractRequest(BaseModel):
     """Request to interact with the agent."""
     message: str = Field(..., description="Message to send to the agent")
-    context: Optional[Dict[str, Any]] = Field(None, description="Optional context")
+    context: Optional[MessageContext] = Field(None, description="Optional context")
 
 class InteractResponse(BaseModel):
     """Response from agent interaction."""
@@ -49,16 +55,16 @@ class AgentStatus(BaseModel):
     # Core identity
     agent_id: str = Field(..., description="Agent identifier")
     name: str = Field(..., description="Agent name")
-    
+
     # State information
     cognitive_state: str = Field(..., description="Current cognitive state")
     uptime_seconds: float = Field(..., description="Time since startup")
-    
+
     # Activity metrics
     messages_processed: int = Field(..., description="Total messages processed")
     last_activity: Optional[datetime] = Field(None, description="Last activity timestamp")
     current_task: Optional[str] = Field(None, description="Current task description")
-    
+
     # System state
     services_active: int = Field(..., description="Number of active services")
     memory_usage_mb: float = Field(..., description="Current memory usage in MB")
@@ -70,18 +76,18 @@ class AgentIdentity(BaseModel):
     name: str = Field(..., description="Agent name")
     purpose: str = Field(..., description="Agent's purpose")
     created_at: datetime = Field(..., description="When agent was created")
-    lineage: Dict[str, Any] = Field(..., description="Agent lineage information")
+    lineage: AgentLineage = Field(..., description="Agent lineage information")
     variance_threshold: float = Field(..., description="Identity variance threshold")
-    
+
     # Capabilities
     tools: List[str] = Field(..., description="Available tools")
     handlers: List[str] = Field(..., description="Active handlers")
-    services: Dict[str, int] = Field(..., description="Service availability")
+    services: ServiceAvailability = Field(..., description="Service availability")
     permissions: List[str] = Field(..., description="Agent permissions")
 
 # Message tracking for interact functionality
-_message_responses: Dict[str, str] = {}
-_response_events: Dict[str, asyncio.Event] = {}
+_message_responses: dict[str, str] = {}
+_response_events: dict[str, asyncio.Event] = {}
 
 # Endpoints
 
@@ -93,7 +99,7 @@ async def interact(
 ):
     """
     Send message and get response.
-    
+
     This endpoint combines the old send/ask functionality into a single interaction.
     It sends the message and waits for the agent's response (with a reasonable timeout).
     """
@@ -102,7 +108,7 @@ async def interact(
     channel_id = f"api_{auth.user_id}"  # User-specific channel
     event = asyncio.Event()
     _response_events[message_id] = event
-    
+
     # Create message
     msg = IncomingMessage(
         message_id=message_id,
@@ -112,51 +118,51 @@ async def interact(
         channel_id=channel_id,
         timestamp=datetime.now(timezone.utc).isoformat()
     )
-    
+
     # Track timing
     start_time = datetime.now(timezone.utc)
-    
+
     # Route message through adapter's handler
     if hasattr(request.app.state, 'on_message'):
         await request.app.state.on_message(msg)
     else:
         raise HTTPException(status_code=503, detail="Message handler not configured")
-    
+
     # Wait for response with timeout (30 seconds default)
     try:
         await asyncio.wait_for(event.wait(), timeout=30.0)
-        
+
         # Get response
         response_content = _message_responses.get(message_id, "I'm processing your request. Please check back shortly.")
-        
+
         # Clean up
         _response_events.pop(message_id, None)
         _message_responses.pop(message_id, None)
-        
+
         # Calculate processing time
         end_time = datetime.now(timezone.utc)
         processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
-        
+
         # Get current cognitive state
         cognitive_state = "WORK"
         runtime = getattr(request.app.state, 'runtime', None)
         if runtime and hasattr(runtime, 'state_manager'):
             cognitive_state = runtime.state_manager.current_state
-        
+
         response = InteractResponse(
             message_id=message_id,
             response=response_content,
             state=cognitive_state,
             processing_time_ms=processing_time_ms
         )
-        
+
         return SuccessResponse(data=response)
-        
+
     except asyncio.TimeoutError:
         # Clean up
         _response_events.pop(message_id, None)
         _message_responses.pop(message_id, None)
-        
+
         # Return a timeout response rather than error
         response = InteractResponse(
             message_id=message_id,
@@ -164,7 +170,7 @@ async def interact(
             state="WORK",
             processing_time_ms=30000
         )
-        
+
         return SuccessResponse(data=response)
 
 @router.get("/history", response_model=SuccessResponse[ConversationHistory])
@@ -176,12 +182,12 @@ async def get_history(
 ):
     """
     Conversation history.
-    
+
     Get the conversation history for the current user.
     """
     # Use user-specific channel
     channel_id = f"api_{auth.user_id}"
-    
+
     # Get communication service
     comm_service = getattr(request.app.state, 'communication_service', None)
     if not comm_service:
@@ -191,15 +197,15 @@ async def get_history(
             # Query conversation nodes from memory
             from ciris_engine.schemas.services.operations import MemoryQuery
             from ciris_engine.schemas.services.graph_core import GraphScope
-            
+
             query = MemoryQuery(
                 scope=GraphScope.CONVERSATION,
                 filters={"channel_id": channel_id},
                 limit=limit
             )
-            
+
             nodes = await memory_service.recall(query)
-            
+
             # Convert to conversation messages
             messages = []
             for node in nodes:
@@ -211,23 +217,23 @@ async def get_history(
                     timestamp=datetime.fromisoformat(attrs.get('timestamp', node.created_at)),
                     is_agent=attrs.get('is_agent', False)
                 ))
-            
+
             history = ConversationHistory(
                 messages=messages,
                 total_count=len(messages),
                 has_more=len(messages) == limit
             )
-            
+
             return SuccessResponse(data=history)
-    
+
     try:
         # Fetch messages from communication service
         messages = await comm_service.fetch_messages(channel_id, limit)
-        
+
         # Filter by time if specified
         if before:
             messages = [m for m in messages if datetime.fromisoformat(m.timestamp) < before]
-        
+
         # Convert to conversation messages
         conv_messages = []
         for msg in messages:
@@ -238,14 +244,14 @@ async def get_history(
                 timestamp=datetime.fromisoformat(msg.timestamp),
                 is_agent=(msg.author_id == "ciris_agent")
             ))
-        
+
         # Build response
         history = ConversationHistory(
             messages=conv_messages,
             total_count=len(conv_messages),
             has_more=len(messages) == limit
         )
-        
+
         return SuccessResponse(data=history)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -257,26 +263,26 @@ async def get_status(
 ):
     """
     Agent status and cognitive state.
-    
+
     Get comprehensive agent status including state, metrics, and current activity.
     """
     # Get runtime info
     runtime = getattr(request.app.state, 'runtime', None)
     if not runtime:
         raise HTTPException(status_code=503, detail="Runtime not available")
-    
+
     try:
         # Get cognitive state
         cognitive_state = "WORK"
         if hasattr(runtime, 'state_manager'):
             cognitive_state = runtime.state_manager.current_state
-        
+
         # Get uptime
         time_service = getattr(request.app.state, 'time_service', None)
         uptime = 0.0
         if time_service and hasattr(time_service, 'get_uptime'):
             uptime = await time_service.get_uptime()
-        
+
         # Get telemetry for metrics
         telemetry_service = getattr(request.app.state, 'telemetry_service', None)
         messages_processed = 0
@@ -288,22 +294,22 @@ async def get_status(
                     if metric.name == "messages_processed":
                         messages_processed = int(metric.current_value)
                         break
-            except:
-                pass
-        
+            except Exception as e:
+                logger.warning(f"Failed to retrieve telemetry summary: {e}. Messages processed metric will show 0.")
+
         # Get current task from task scheduler if available
         current_task = None
         task_scheduler = getattr(request.app.state, 'task_scheduler', None)
         if task_scheduler and hasattr(task_scheduler, 'get_current_task'):
             current_task = await task_scheduler.get_current_task()
-        
+
         # Get resource usage
         resource_monitor = getattr(request.app.state, 'resource_monitor', None)
         memory_usage_mb = 0.0
         if resource_monitor:
             metrics = await resource_monitor.get_current_metrics()
             memory_usage_mb = metrics.memory_mb
-        
+
         # Count active services
         service_registry = getattr(request.app.state, 'service_registry', None)
         services_active = 0
@@ -311,14 +317,14 @@ async def get_status(
             from ciris_engine.schemas.runtime.enums import ServiceType
             for service_type in ServiceType:
                 services_active += len(service_registry.get_services_by_type(service_type))
-        
+
         # Get agent identity
         agent_id = "ciris_agent"
         agent_name = "CIRIS"
         if hasattr(runtime, 'agent_identity'):
             agent_id = runtime.agent_identity.agent_id
             agent_name = runtime.agent_identity.name
-        
+
         status = AgentStatus(
             agent_id=agent_id,
             name=agent_name,
@@ -330,9 +336,9 @@ async def get_status(
             services_active=services_active,
             memory_usage_mb=memory_usage_mb
         )
-        
+
         return SuccessResponse(data=status)
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -343,27 +349,27 @@ async def get_identity(
 ):
     """
     Agent identity and capabilities.
-    
+
     Get comprehensive agent identity including capabilities, tools, and permissions.
     """
     # Get memory service to query identity
     memory_service = getattr(request.app.state, 'memory_service', None)
     if not memory_service:
         raise HTTPException(status_code=503, detail="Memory service not available")
-    
+
     try:
         # Query identity from graph
         from ciris_engine.schemas.services.operations import MemoryQuery
         from ciris_engine.schemas.services.graph_core import GraphScope
-        
+
         query = MemoryQuery(
             node_id="agent/identity",
             scope=GraphScope.IDENTITY,
             include_edges=False
         )
-        
+
         nodes = await memory_service.recall(query)
-        
+
         # Get identity data
         identity_data = {}
         if nodes:
@@ -379,55 +385,82 @@ async def get_identity(
                     'name': identity.name,
                     'purpose': identity.purpose,
                     'created_at': identity.created_at.isoformat(),
-                    'lineage': identity.lineage,
+                    'lineage': {
+                        'model': identity.lineage.get('model', 'unknown'),
+                        'version': identity.lineage.get('version', '1.0'),
+                        'parent_id': identity.lineage.get('parent_id'),
+                        'creation_context': identity.lineage.get('creation_context', 'default'),
+                        'adaptations': identity.lineage.get('adaptations', [])
+                    },
                     'variance_threshold': 0.2
                 }
-        
+
         # Get capabilities
-        
+
         # Get tool service for available tools
         tool_service = getattr(request.app.state, 'tool_service', None)
         tools = []
         if tool_service:
             tools = await tool_service.list_tools()
-        
+
         # Get handlers (these are the core action handlers)
         handlers = [
-            "observe", "speak", "tool", "reject", "ponder", 
+            "observe", "speak", "tool", "reject", "ponder",
             "defer", "memorize", "recall", "forget", "task_complete"
         ]
-        
+
         # Get service availability
-        services = {}
+        services = ServiceAvailability()
         service_registry = getattr(request.app.state, 'service_registry', None)
         if service_registry:
             from ciris_engine.schemas.runtime.enums import ServiceType
             for service_type in ServiceType:
                 providers = service_registry.get_services_by_type(service_type)
-                services[service_type.value] = len(providers)
-        
+                count = len(providers)
+                # Map to service categories
+                if 'graph' in service_type.value.lower() or service_type.value == 'MEMORY':
+                    services.graph += count
+                elif service_type.value in ['LLM', 'SECRETS']:
+                    services.core += count
+                elif service_type.value in ['TIME', 'SHUTDOWN', 'INITIALIZATION', 'VISIBILITY', 
+                                           'AUTHENTICATION', 'RESOURCE_MONITOR', 'RUNTIME_CONTROL']:
+                    services.infrastructure += count
+                elif service_type.value == 'WISE_AUTHORITY':
+                    services.governance += count
+                else:
+                    services.special += count
+
         # Get permissions (agent's core capabilities)
         permissions = [
             "communicate", "use_tools", "access_memory",
             "observe_environment", "learn", "adapt"
         ]
-        
+
         # Build response
+        lineage_data = identity_data.get('lineage', {})
+        lineage = AgentLineage(
+            model=lineage_data.get('model', 'unknown'),
+            version=lineage_data.get('version', '1.0'),
+            parent_id=lineage_data.get('parent_id'),
+            creation_context=lineage_data.get('creation_context', 'default'),
+            adaptations=lineage_data.get('adaptations', [])
+        )
+        
         response = AgentIdentity(
             agent_id=identity_data.get('agent_id', 'ciris_agent'),
             name=identity_data.get('name', 'CIRIS'),
             purpose=identity_data.get('purpose', 'Autonomous AI agent'),
             created_at=datetime.fromisoformat(identity_data.get('created_at', datetime.now(timezone.utc).isoformat())),
-            lineage=identity_data.get('lineage', {}),
+            lineage=lineage,
             variance_threshold=identity_data.get('variance_threshold', 0.2),
             tools=tools,
             handlers=handlers,
             services=services,
             permissions=permissions
         )
-        
+
         return SuccessResponse(data=response)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -439,6 +472,3 @@ async def notify_interact_response(message_id: str, content: str):
     if message_id in _response_events:
         _message_responses[message_id] = content
         _response_events[message_id].set()
-
-import logging
-logger = logging.getLogger(__name__)

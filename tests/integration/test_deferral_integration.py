@@ -36,14 +36,14 @@ class MockTimeService:
     """Mock time service for testing."""
     def __init__(self, now_time: Optional[datetime] = None):
         self._now = now_time or datetime.now(timezone.utc)
-    
+
     def now(self) -> datetime:
         return self._now
-    
+
     def timestamp(self) -> int:
         """Return current timestamp as integer."""
         return int(self._now.timestamp())
-    
+
     def advance(self, seconds: int):
         """Advance time by given seconds."""
         self._now += timedelta(seconds=seconds)
@@ -56,24 +56,24 @@ class MockMemoryService:
         self.wa_certificates: Dict[str, WACertificate] = {}
         self.memorize = AsyncMock()
         self.recall = AsyncMock()
-        
+
     async def store_deferral(self, deferral: PendingDeferral) -> str:
         """Store a deferral and return its ID."""
         self.deferrals[deferral.deferral_id] = deferral
         return deferral.deferral_id
-    
+
     async def get_deferrals(self, wa_id: Optional[str] = None) -> List[PendingDeferral]:
         """Get deferrals, optionally filtered by WA."""
         deferrals = list(self.deferrals.values())
         if wa_id:
             deferrals = [d for d in deferrals if d.assigned_wa_id == wa_id]
         return deferrals
-    
+
     async def update_deferral(self, deferral_id: str, resolution: DeferralResolution) -> bool:
         """Update a deferral with resolution."""
         if deferral_id not in self.deferrals:
             return False
-        
+
         deferral = self.deferrals[deferral_id]
         deferral.status = "resolved"
         deferral.resolution = resolution.resolution
@@ -83,17 +83,17 @@ class MockMemoryService:
 
 class IntegrationTestBase:
     """Base class for integration tests with common fixtures."""
-    
+
     @pytest.fixture
     def mock_time_service(self):
         """Provide a mock time service."""
         return MockTimeService()
-    
+
     @pytest.fixture
     def mock_memory_service(self):
         """Provide a mock memory service."""
         return MockMemoryService()
-    
+
     @pytest.fixture
     def mock_persistence(self, monkeypatch):
         """Mock persistence module."""
@@ -110,7 +110,7 @@ class IntegrationTestBase:
         ))
         monkeypatch.setattr('ciris_engine.logic.handlers.control.defer_handler.persistence', mock)
         return mock
-    
+
     @pytest.fixture
     def mock_auth_service(self):
         """Create a mock authentication service."""
@@ -118,58 +118,58 @@ class IntegrationTestBase:
         auth_service.bootstrap_if_needed = AsyncMock()
         auth_service.get_wa = AsyncMock(return_value=None)
         return auth_service
-    
+
     @pytest.fixture
     def mock_service_registry(self, mock_memory_service, mock_time_service, mock_auth_service):
         """Create a mock service registry."""
         registry = Mock()
-        
+
         # Mock WA service with correct parameters
         wa_service = WiseAuthorityService(
             time_service=mock_time_service,
             auth_service=mock_auth_service,
             db_path=":memory:"  # Use in-memory SQLite for tests
         )
-        
+
         # Create scheduler once to reuse
         scheduler = AsyncMock()
         scheduler.schedule_deferred_task = AsyncMock(
             return_value=Mock(task_id="scheduled_123")
         )
-        
+
         def get_service_sync(handler=None, service_type=None, required_capabilities=None, fallback_to_global=True):
             if service_type == ServiceType.WISE_AUTHORITY or service_type == "wise_authority":
                 return wa_service
             elif handler == "task_scheduler" and service_type == "scheduler":
                 return scheduler
             return None
-        
+
         # Create async version
         async def get_service_async(handler=None, service_type=None, required_capabilities=None, fallback_to_global=True):
             return get_service_sync(handler, service_type, required_capabilities, fallback_to_global)
-        
+
         # Use AsyncMock to properly handle both sync and async calls
         registry.get_service = AsyncMock(side_effect=get_service_async)
         return registry
-    
+
     @pytest.fixture
     def bus_manager(self, mock_service_registry, mock_time_service):
         """Create a real bus manager with WiseBus."""
         # Mock audit service
         mock_audit_service = AsyncMock()
         mock_audit_service.log_event = AsyncMock()
-        
+
         manager = BusManager(
-            mock_service_registry, 
+            mock_service_registry,
             time_service=mock_time_service,
             audit_service=mock_audit_service
         )
-        
+
         # Create real WiseBus
         manager.wise = WiseBus(mock_service_registry, mock_time_service)
-        
+
         return manager
-    
+
     @pytest.fixture
     def defer_handler(self, bus_manager, mock_time_service, mock_service_registry):
         """Create a defer handler with real dependencies."""
@@ -180,7 +180,7 @@ class IntegrationTestBase:
         handler = DeferHandler(deps)
         handler._service_registry = mock_service_registry
         return handler
-    
+
     def create_channel_context(self, channel_id: str = "test_channel"):
         """Helper to create channel context."""
         from ciris_engine.schemas.runtime.system_context import ChannelContext
@@ -194,7 +194,7 @@ class IntegrationTestBase:
 
 class TestDeferralIntegration(IntegrationTestBase):
     """Test complete deferral flow integration."""
-    
+
     @pytest.mark.asyncio
     async def test_full_deferral_flow(
         self,
@@ -220,7 +220,7 @@ class TestDeferralIntegration(IntegrationTestBase):
                 correlation_id="medical_correlation"
             )
         )
-        
+
         params = DeferParams(
             reason="Medical decision requires licensed physician review",
             context={
@@ -229,7 +229,7 @@ class TestDeferralIntegration(IntegrationTestBase):
                 "risk_level": "high"
             }
         )
-        
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
             action_parameters=params,
@@ -237,7 +237,7 @@ class TestDeferralIntegration(IntegrationTestBase):
             reasoning="High risk medical case",
             evaluation_time_ms=50
         )
-        
+
         dispatch_context = DispatchContext(
             channel_context=self.create_channel_context("medical_channel"),
             author_id="patient_001",
@@ -252,17 +252,17 @@ class TestDeferralIntegration(IntegrationTestBase):
             event_timestamp=datetime.now(timezone.utc).isoformat(),
             correlation_id="medical_correlation"
         )
-        
+
         # Execute deferral
         await defer_handler.handle(result, thought, dispatch_context)
-        
+
         # Verify deferral was stored (through WA service)
         wa_service = await mock_service_registry.get_service(service_type=ServiceType.WISE_AUTHORITY)
-        
+
         # Step 2: List pending deferrals
         pending = await wa_service.get_pending_deferrals()
         assert len(pending) > 0
-        
+
         medical_deferral = next(
             (d for d in pending if d.thought_id == "thought_medical_001"),
             None
@@ -270,7 +270,7 @@ class TestDeferralIntegration(IntegrationTestBase):
         assert medical_deferral is not None
         assert medical_deferral.reason == params.reason
         assert medical_deferral.priority == "normal"  # Default from WA service
-        
+
         # Step 3: WA resolves deferral
         wa_cert = WACertificate(
             wa_id="wa-2025-06-28-ABC123",  # Correct format
@@ -281,7 +281,7 @@ class TestDeferralIntegration(IntegrationTestBase):
             scopes_json='["medical_decisions", "resolve_deferrals"]',  # JSON string
             created_at=datetime.now(timezone.utc)
         )
-        
+
         response = DeferralResponse(
             approved=True,
             reason="Approved: Prescribe antibiotics with monitoring",
@@ -289,14 +289,14 @@ class TestDeferralIntegration(IntegrationTestBase):
             wa_id=wa_cert.wa_id,
             signature="doctor_signature_001"
         )
-        
+
         # Resolve the deferral
         resolved = await wa_service.resolve_deferral(
             medical_deferral.deferral_id,
             response
         )
         assert resolved is True
-        
+
         # Step 4: Verify resolution
         pending_after = await wa_service.get_pending_deferrals()
         medical_still_pending = any(
@@ -304,7 +304,7 @@ class TestDeferralIntegration(IntegrationTestBase):
             for d in pending_after
         )
         assert not medical_still_pending
-    
+
     @pytest.mark.asyncio
     async def test_concurrent_deferrals_different_priorities(
         self,
@@ -334,7 +334,7 @@ class TestDeferralIntegration(IntegrationTestBase):
                 "context": {"priority": "high", "amount": "50000"}
             }
         ]
-        
+
         # Handle all deferrals
         tasks = []
         for deferral_data in deferrals:
@@ -353,12 +353,12 @@ class TestDeferralIntegration(IntegrationTestBase):
                     correlation_id=f"corr_{deferral_data['thought_id']}"
                 )
             )
-            
+
             params = DeferParams(
                 reason=deferral_data["reason"],
                 context=deferral_data["context"]
             )
-            
+
             result = ActionSelectionDMAResult(
                 selected_action=HandlerActionType.DEFER,
                 action_parameters=params,
@@ -366,7 +366,7 @@ class TestDeferralIntegration(IntegrationTestBase):
                     reasoning="Priority-based deferral",
                 evaluation_time_ms=100
             )
-            
+
             dispatch_context = DispatchContext(
                 channel_context=self.create_channel_context(),
                 author_id="system",
@@ -381,35 +381,35 @@ class TestDeferralIntegration(IntegrationTestBase):
                 event_timestamp=datetime.now(timezone.utc).isoformat(),
                 correlation_id=f"corr_{thought.thought_id}"
             )
-            
+
             task = defer_handler.handle(result, thought, dispatch_context)
             tasks.append(task)
-        
+
         # Execute all deferrals concurrently
         await asyncio.gather(*tasks)
-        
+
         # Get WA service and check deferrals
         wa_service = await mock_service_registry.get_service(service_type=ServiceType.WISE_AUTHORITY)
         pending = await wa_service.get_pending_deferrals()
-        
+
         # Should have all three deferrals
         assert len(pending) >= 3
-        
+
         # Find our deferrals
         critical = next((d for d in pending if "CRITICAL" in d.reason), None)
         high = next((d for d in pending if "financial transaction" in d.reason), None)
         low = next((d for d in pending if "Low priority" in d.reason), None)
-        
+
         assert critical is not None
         assert high is not None
         assert low is not None
-        
+
         # All should have default "normal" priority from WA service
         # (The context priority is stored but not used for WA priority)
         assert critical.priority == "normal"
         assert high.priority == "normal"
         assert low.priority == "normal"
-    
+
     @pytest.mark.asyncio
     async def test_time_based_deferral_with_scheduler(
         self,
@@ -422,10 +422,10 @@ class TestDeferralIntegration(IntegrationTestBase):
         # Set current time
         current_time = datetime.now(timezone.utc)
         mock_time_service._now = current_time
-        
+
         # Create deferral for 3 hours in future
         defer_until = current_time + timedelta(hours=3)
-        
+
         thought = Thought(
             thought_id="thought_scheduled_001",
             source_task_id="task_scheduled_001",
@@ -441,7 +441,7 @@ class TestDeferralIntegration(IntegrationTestBase):
                 correlation_id="payment_correlation"
             )
         )
-        
+
         params = DeferParams(
             reason="Wait for payment processor confirmation",
             defer_until=defer_until.isoformat(),
@@ -450,7 +450,7 @@ class TestDeferralIntegration(IntegrationTestBase):
                 "expected_duration": "3_hours"
             }
         )
-        
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
             action_parameters=params,
@@ -458,7 +458,7 @@ class TestDeferralIntegration(IntegrationTestBase):
             reasoning="External system dependency",
             evaluation_time_ms=75
         )
-        
+
         dispatch_context = DispatchContext(
             channel_context=self.create_channel_context("payment_channel"),
             author_id="merchant_001",
@@ -473,10 +473,10 @@ class TestDeferralIntegration(IntegrationTestBase):
             event_timestamp=current_time.isoformat(),
             correlation_id="payment_correlation"
         )
-        
+
         # Execute deferral
         await defer_handler.handle(result, thought, dispatch_context)
-        
+
         # Verify scheduler was called
         scheduler = await mock_service_registry.get_service(
             handler="task_scheduler",
@@ -489,17 +489,17 @@ class TestDeferralIntegration(IntegrationTestBase):
             reason=params.reason,
             context=params.context
         )
-        
+
         # Verify WA service also received the deferral
         wa_service = await mock_service_registry.get_service(service_type=ServiceType.WISE_AUTHORITY)
         pending = await wa_service.get_pending_deferrals()
-        
+
         scheduled_deferral = next(
             (d for d in pending if d.thought_id == "thought_scheduled_001"),
             None
         )
         assert scheduled_deferral is not None
-    
+
     @pytest.mark.asyncio
     async def test_deferral_modification_by_wa(
         self,
@@ -525,7 +525,7 @@ class TestDeferralIntegration(IntegrationTestBase):
                 correlation_id="finance_correlation"
             )
         )
-        
+
         params = DeferParams(
             reason="Large transaction requires approval",
             context={
@@ -534,7 +534,7 @@ class TestDeferralIntegration(IntegrationTestBase):
                 "recipient": "offshore_account"
             }
         )
-        
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
             action_parameters=params,
@@ -542,7 +542,7 @@ class TestDeferralIntegration(IntegrationTestBase):
             reasoning="Risk management protocol",
             evaluation_time_ms=90
         )
-        
+
         dispatch_context = DispatchContext(
             channel_context=self.create_channel_context("finance_channel"),
             author_id="trader_001",
@@ -557,10 +557,10 @@ class TestDeferralIntegration(IntegrationTestBase):
             event_timestamp=datetime.now(timezone.utc).isoformat(),
             correlation_id="finance_correlation"
         )
-        
+
         # Handle deferral
         await defer_handler.handle(result, thought, dispatch_context)
-        
+
         # Get the deferral
         wa_service = await mock_service_registry.get_service(service_type=ServiceType.WISE_AUTHORITY)
         pending = await wa_service.get_pending_deferrals()
@@ -568,7 +568,7 @@ class TestDeferralIntegration(IntegrationTestBase):
             (d for d in pending if d.thought_id == "thought_modify_001"),
             None
         )
-        
+
         # WA modifies the transaction
         modified_response = DeferralResponse(
             approved=True,
@@ -577,7 +577,7 @@ class TestDeferralIntegration(IntegrationTestBase):
             wa_id="wa_compliance_001",
             signature="compliance_signature"
         )
-        
+
         # Create detailed resolution with modifications
         resolution = DeferralResolution(
             deferral_id=transaction_deferral.deferral_id,
@@ -605,14 +605,14 @@ class TestDeferralIntegration(IntegrationTestBase):
                 "next_review_date": (mock_time_service.now() + timedelta(days=7)).isoformat()
             }
         )
-        
+
         # Resolve with modifications
         resolved = await wa_service.resolve_deferral(
             transaction_deferral.deferral_id,
             modified_response
         )
         assert resolved is True
-        
+
         # Verify deferral is no longer pending
         pending_after = await wa_service.get_pending_deferrals()
         still_pending = any(
@@ -624,7 +624,7 @@ class TestDeferralIntegration(IntegrationTestBase):
 
 class TestDeferralErrorScenarios(IntegrationTestBase):
     """Test error handling in deferral integration."""
-    
+
     @pytest.mark.asyncio
     async def test_wa_service_unavailable_fallback(
         self,
@@ -635,14 +635,14 @@ class TestDeferralErrorScenarios(IntegrationTestBase):
         """Test graceful handling when WA service is unavailable."""
         # Make WA service unavailable
         original_get_service = mock_service_registry.get_service
-        
+
         async def failing_get_service(handler=None, service_type=None, required_capabilities=None, fallback_to_global=True):
             if service_type == ServiceType.WISE_AUTHORITY or service_type == "wise_authority":
                 return None  # Service unavailable
             return original_get_service(handler, service_type, required_capabilities, fallback_to_global)
-        
+
         mock_service_registry.get_service = AsyncMock(side_effect=failing_get_service)
-        
+
         # Create deferral
         thought = Thought(
             thought_id="thought_no_wa_001",
@@ -659,12 +659,12 @@ class TestDeferralErrorScenarios(IntegrationTestBase):
                 correlation_id="no_wa_correlation"
             )
         )
-        
+
         params = DeferParams(
             reason="Test deferral without WA service",
             context={"test": "no_wa_scenario"}
         )
-        
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
             action_parameters=params,
@@ -672,7 +672,7 @@ class TestDeferralErrorScenarios(IntegrationTestBase):
             reasoning="Resilience test",
             evaluation_time_ms=100
         )
-        
+
         dispatch_context = DispatchContext(
             channel_context=self.create_channel_context(),
             author_id="test_user",
@@ -687,10 +687,10 @@ class TestDeferralErrorScenarios(IntegrationTestBase):
             event_timestamp=datetime.now(timezone.utc).isoformat(),
             correlation_id="no_wa_correlation"
         )
-        
+
         # Should not raise exception
         await defer_handler.handle(result, thought, dispatch_context)
-        
+
         # Verify thought and task were still updated
         mock_persistence.update_thought_status.assert_called_once_with(
             thought_id=thought.thought_id,
@@ -698,7 +698,7 @@ class TestDeferralErrorScenarios(IntegrationTestBase):
             final_action=result
         )
         mock_persistence.update_task_status.assert_called_once()
-    
+
     @pytest.mark.asyncio
     async def test_malformed_deferral_recovery(
         self,
@@ -723,14 +723,14 @@ class TestDeferralErrorScenarios(IntegrationTestBase):
                 correlation_id="malformed_correlation"
             )
         )
-        
+
         # Malformed parameters - not a valid DeferParams structure
         malformed_params = {
             "random_field": "value",
             "another_field": 123
             # Missing required 'reason' field
         }
-        
+
         # Create with minimal valid DeferParams
         minimal_params = DeferParams(
             reason="Minimal valid params for test"
@@ -742,7 +742,7 @@ class TestDeferralErrorScenarios(IntegrationTestBase):
             reasoning="Error handling test",
             evaluation_time_ms=50
         )
-        
+
         dispatch_context = DispatchContext(
             channel_context=self.create_channel_context(),
             author_id="test_user",
@@ -757,10 +757,10 @@ class TestDeferralErrorScenarios(IntegrationTestBase):
             event_timestamp=datetime.now(timezone.utc).isoformat(),
             correlation_id="malformed_correlation"
         )
-        
+
         # Should handle gracefully
         await defer_handler.handle(result, thought, dispatch_context)
-        
+
         # Verify thought and task were still updated to DEFERRED
         mock_persistence.update_thought_status.assert_called_once_with(
             thought_id=thought.thought_id,

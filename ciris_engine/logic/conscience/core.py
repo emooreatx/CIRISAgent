@@ -5,15 +5,6 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
-# Default constants
-DEFAULT_OPENAI_MODEL_NAME = "gpt-4o-mini"
-
-# Simple conscience config
-class ConscienceConfig(BaseModel):
-    enabled: bool = Field(default=True)
-    optimization_veto_ratio: float = Field(default=10.0, description="Entropy reduction must be < this ratio")
-    coherence_threshold: float = Field(default=0.60, description="Minimum coherence score")
-    entropy_threshold: float = Field(default=0.40, description="Maximum entropy allowed")
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.runtime.enums import HandlerActionType, ServiceType
 from ciris_engine.schemas.conscience.core import (
@@ -24,10 +15,19 @@ from ciris_engine.schemas.conscience.core import (
 )
 from ciris_engine.logic.registries.base import ServiceRegistry
 from ciris_engine.logic.utils import COVENANT_TEXT
-from ciris_engine.protocols.services import LLMService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 from .interface import ConscienceInterface
+
+# Default constants
+DEFAULT_OPENAI_MODEL_NAME = "gpt-4o-mini"
+
+# Simple conscience config
+class ConscienceConfig(BaseModel):
+    enabled: bool = Field(default=True)
+    optimization_veto_ratio: float = Field(default=10.0, description="Entropy reduction must be < this ratio")
+    coherence_threshold: float = Field(default=0.60, description="Minimum coherence score")
+    entropy_threshold: float = Field(default=0.40, description="Maximum entropy allowed")
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class _BaseConscience(ConscienceInterface):
         if not self.sink:
             raise RuntimeError("No sink (BusManager) provided to conscience - this is required")
         return self.sink
-    
+
     def _initialize_time_service(self) -> None:
         """Initialize time service from registry."""
         try:
@@ -75,7 +75,7 @@ class _BaseConscience(ConscienceInterface):
                 logger.warning("TimeService not found in registry, time operations may fail")
         except Exception as e:
             logger.error(f"Failed to get TimeService: {e}")
-    
+
     def _get_current_time(self) -> datetime:
         """Get current time from TimeService or fallback to UTC."""
         if self._time_service:
@@ -114,7 +114,7 @@ class Entropyconscience(_BaseConscience):
                 reason="No content to evaluate",
                 check_timestamp=ts,
             )
-        
+
         # Inline the entropy evaluation
         entropy = 0.1  # Default safe value
         try:
@@ -130,7 +130,7 @@ class Entropyconscience(_BaseConscience):
                 entropy = float(entropy_eval.entropy)
         except Exception as e:
             logger.error(f"Entropyconscience: Error evaluating entropy: {e}", exc_info=True)
-        
+
         passed = entropy <= self.config.entropy_threshold
         status = ConscienceStatus.PASSED if passed else ConscienceStatus.FAILED
         reason = None
@@ -145,7 +145,7 @@ class Entropyconscience(_BaseConscience):
             entropy_score=entropy,
             check_timestamp=ts,
         )
-    
+
     def _create_entropy_messages(self, text: str) -> List[Dict[str, str]]:
         """Create messages for entropy evaluation"""
         system_prompt = (
@@ -180,7 +180,7 @@ class Coherenceconscience(_BaseConscience):
             text = getattr(params, "content", "")
         if not text:
             return ConscienceCheckResult(status=ConscienceStatus.PASSED, passed=True, reason="No content to evaluate", check_timestamp=ts)
-        
+
         # Inline the coherence evaluation
         coherence = 0.9  # Default safe value
         try:
@@ -196,7 +196,7 @@ class Coherenceconscience(_BaseConscience):
                 coherence = float(coherence_eval.coherence)
         except Exception as e:
             logger.error(f"Coherenceconscience: Error evaluating coherence: {e}", exc_info=True)
-        
+
         passed = coherence >= self.config.coherence_threshold
         status = ConscienceStatus.PASSED if passed else ConscienceStatus.FAILED
         reason = None
@@ -211,7 +211,7 @@ class Coherenceconscience(_BaseConscience):
             coherence_score=coherence,
             check_timestamp=ts,
         )
-    
+
     def _create_coherence_messages(self, text: str) -> List[Dict[str, str]]:
         """Create messages for coherence evaluation"""
         system_prompt = (
@@ -260,11 +260,11 @@ class OptimizationVetoconscience(_BaseConscience):
         sink = await self._get_sink()
         if not sink:
             return ConscienceCheckResult(status=ConscienceStatus.WARNING, passed=True, reason="Sink service unavailable", check_timestamp=ts)
-        
+
         # Inline the optimization veto evaluation
         action_desc = f"{action.selected_action} {action.action_parameters}"
         messages = self._create_optimization_veto_messages(action_desc)
-        
+
         try:
             result, _ = await sink.llm.call_llm_structured(
                 messages=messages,
@@ -289,7 +289,7 @@ class OptimizationVetoconscience(_BaseConscience):
                 entropy_reduction_ratio=0.0,
                 affected_values=[],
             )
-        
+
         passed = result.decision not in {"abort", "defer"} and result.entropy_reduction_ratio < self.config.optimization_veto_ratio
         status = ConscienceStatus.PASSED if passed else ConscienceStatus.FAILED
         reason = None
@@ -302,7 +302,7 @@ class OptimizationVetoconscience(_BaseConscience):
             optimization_veto_check=result,
             check_timestamp=ts,
         )
-    
+
     def _create_optimization_veto_messages(self, action_description: str) -> List[Dict[str, str]]:
         """Create messages for optimization veto evaluation"""
         system_prompt = (
@@ -334,11 +334,11 @@ class EpistemicHumilityconscience(_BaseConscience):
         sink = await self._get_sink()
         if not sink:
             return ConscienceCheckResult(status=ConscienceStatus.WARNING, passed=True, reason="Sink service unavailable", check_timestamp=ts)
-        
+
         # Inline the epistemic humility evaluation
         desc = f"{action.selected_action} {action.action_parameters}"
         messages = self._create_epistemic_humility_messages(desc)
-        
+
         try:
             result, _ = await sink.llm.call_llm_structured(
                 messages=messages,
@@ -353,7 +353,7 @@ class EpistemicHumilityconscience(_BaseConscience):
                 val = mapping.get(result.epistemic_certainty.lower(), 0.0)
                 result.epistemic_certainty = val
             if not isinstance(result, EpistemicHumilityResult):
-                # Fallback if type is wrong  
+                # Fallback if type is wrong
                 result = EpistemicHumilityResult(
                     epistemic_certainty=0.0,
                     identified_uncertainties=["Invalid result type from LLM"],
@@ -368,7 +368,7 @@ class EpistemicHumilityconscience(_BaseConscience):
                 reflective_justification=f"LLM error: {str(e)}",
                 recommended_action="abort",
             )
-        
+
         passed = result.recommended_action not in {"abort", "defer", "ponder"}
         status = ConscienceStatus.PASSED if passed else ConscienceStatus.FAILED
         reason = None
@@ -381,7 +381,7 @@ class EpistemicHumilityconscience(_BaseConscience):
             epistemic_humility_check=result,
             check_timestamp=ts,
         )
-    
+
     def _create_epistemic_humility_messages(self, action_description: str) -> List[Dict[str, str]]:
         """Create messages for epistemic humility evaluation"""
         system_prompt = (

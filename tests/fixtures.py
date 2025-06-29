@@ -26,7 +26,7 @@ async def runtime():
 @pytest.fixture(autouse=True)
 def ensure_pydantic_models_rebuilt():
     """Ensure Pydantic models are properly rebuilt before each test.
-    
+
     This prevents issues with forward references when tests run in different orders.
     """
     # Import and rebuild models
@@ -35,7 +35,7 @@ def ensure_pydantic_models_rebuilt():
         pass
     except ImportError:
         pass  # Schema module may not be imported yet
-    
+
     yield
-    
+
     # No cleanup needed - models will be rebuilt for next test

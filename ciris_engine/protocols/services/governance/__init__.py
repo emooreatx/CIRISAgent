@@ -13,14 +13,14 @@ from .wa_auth import (
 )
 
 __all__ = [
-    "WiseAuthorityServiceProtocol", 
+    "WiseAuthorityServiceProtocol",
     "VisibilityServiceProtocol",
     "AdaptiveFilterServiceProtocol",
     "CommunicationServiceProtocol",
     # WA Auth protocols
     "WAStore",
     "JWTService",
-    "WACrypto", 
+    "WACrypto",
     "WAAuthMiddleware",
     "OAuthService",
 ]

@@ -3,13 +3,12 @@ Schemas for DMA orchestration operations.
 
 These replace all Dict[str, Any] usage in logic/processors/support/dma_orchestrator.py.
 """
-from typing import Dict, Optional, Any
+from typing import Dict, Optional
 from pydantic import BaseModel, Field
 
-from pydantic import Field
 
 from ciris_engine.schemas.dma.results import (
-    EthicalDMAResult, CSDMAResult, DSDMAResult, ActionSelectionDMAResult
+    EthicalDMAResult, CSDMAResult, DSDMAResult
 )
 
 class DMAMetadata(BaseModel):
@@ -38,11 +37,11 @@ class DMAErrors(BaseModel):
     ethical_pdma: Optional[DMAError] = Field(None, description="Ethical PDMA error")
     csdma: Optional[DMAError] = Field(None, description="CSDMA error")
     dsdma: Optional[DMAError] = Field(None, description="DSDMA error")
-    
+
     def has_errors(self) -> bool:
         """Check if any errors occurred."""
         return any([self.ethical_pdma, self.csdma, self.dsdma])
-    
+
     def get_error_summary(self) -> str:
         """Get summary of all errors."""
         errors = []

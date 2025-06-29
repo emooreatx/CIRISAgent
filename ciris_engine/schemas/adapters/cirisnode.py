@@ -3,10 +3,9 @@ Schemas for CIRISNode client operations.
 
 These replace all Dict[str, Any] usage in cirisnode_client.py.
 """
-from typing import List, Optional, Any
+from typing import List, Optional
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
-from pydantic import Field
 
 # Request/Response schemas for benchmarks
 class SimpleBenchRequest(BaseModel):

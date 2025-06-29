@@ -3,9 +3,8 @@ Schemas for solitude processor operations.
 
 These replace all Dict[str, Any] usage in logic/processors/states/solitude_processor.py.
 """
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
-from pydantic import Field
 
 class ReflectionData(BaseModel):
     """Tracking data for reflection activities."""

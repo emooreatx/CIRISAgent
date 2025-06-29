@@ -3,16 +3,15 @@ Schemas for identity variance monitoring operations.
 
 These replace all Dict[str, Any] usage in logic/infrastructure/sub_services/identity_variance_monitor.py.
 """
-from typing import Dict, List, Optional, Set, Any
+from typing import Dict, List, Optional, Set
 from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, Field
-from pydantic import Field
 
 class VarianceImpact(str, Enum):
     """Impact levels for different types of changes (not used in variance calculation)."""
     CRITICAL = "critical"    # Core purpose/ethics changes
-    HIGH = "high"           # Capabilities/trust changes  
+    HIGH = "high"           # Capabilities/trust changes
     MEDIUM = "medium"       # Behavioral patterns
     LOW = "low"            # Preferences/templates
 

@@ -4,13 +4,12 @@ LLM service endpoints for CIRIS API v1.
 Exposes the agent's language capabilities and resource usage.
 Note: Direct generation is not exposed - use agent messages instead.
 """
-from typing import List, Dict, Any
+from typing import List
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Depends
 from pydantic import BaseModel, Field
 
 from ciris_engine.schemas.api.responses import SuccessResponse
-from ciris_engine.schemas.runtime.resources import ResourceUsage
 from ciris_engine.api.dependencies.auth import require_observer, AuthContext
 
 router = APIRouter(prefix="/llm", tags=["llm"])
@@ -60,18 +59,18 @@ async def get_llm_usage(
 ):
     """
     Token usage and costs.
-    
+
     Get LLM token consumption and associated costs.
     """
     llm_service = getattr(request.app.state, 'llm_service', None)
     if not llm_service:
         raise HTTPException(status_code=503, detail="LLM service not available")
-    
+
     try:
         # Get usage from LLM service
         if hasattr(llm_service, 'get_usage_stats'):
             stats = await llm_service.get_usage_stats()
-            
+
             usage = LLMUsage(
                 total_tokens=stats.get('total_tokens', 0),
                 input_tokens=stats.get('input_tokens', 0),
@@ -92,9 +91,9 @@ async def get_llm_usage(
                 period_start=datetime.now(timezone.utc),
                 period_end=datetime.now(timezone.utc)
             )
-        
+
         return SuccessResponse(data=usage)
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -105,13 +104,13 @@ async def get_available_models(
 ):
     """
     Available models.
-    
+
     List language models available to the agent.
     """
     llm_service = getattr(request.app.state, 'llm_service', None)
     if not llm_service:
         raise HTTPException(status_code=503, detail="LLM service not available")
-    
+
     try:
         # Get current model
         active_model = "gpt-4o-mini"  # Default
@@ -119,7 +118,7 @@ async def get_available_models(
             active_model = llm_service.model_name
         elif hasattr(llm_service, 'get_model_name'):
             active_model = await llm_service.get_model_name()
-        
+
         # Define available models
         models = [
             ModelInfo(
@@ -150,14 +149,14 @@ async def get_available_models(
                 is_active=active_model == "mock-llm"
             )
         ]
-        
+
         model_list = ModelList(
             models=models,
             active_model=active_model
         )
-        
+
         return SuccessResponse(data=model_list)
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -168,13 +167,13 @@ async def get_llm_capabilities(
 ):
     """
     Model capabilities.
-    
+
     Get capabilities of the current language model.
     """
     llm_service = getattr(request.app.state, 'llm_service', None)
     if not llm_service:
         raise HTTPException(status_code=503, detail="LLM service not available")
-    
+
     try:
         # Get model-specific capabilities
         max_tokens = 4096  # Default
@@ -182,14 +181,14 @@ async def get_llm_capabilities(
             max_tokens = llm_service.max_tokens
         elif hasattr(llm_service, 'get_max_tokens'):
             max_tokens = await llm_service.get_max_tokens()
-        
+
         capabilities = LLMCapabilities(
             structured_generation=True,
             function_calling=True,
             streaming=True,
             max_tokens=max_tokens,
             supported_languages=[
-                "English", "Spanish", "French", "German", 
+                "English", "Spanish", "French", "German",
                 "Italian", "Portuguese", "Dutch", "Russian",
                 "Chinese", "Japanese", "Korean"
             ],
@@ -201,8 +200,8 @@ async def get_llm_capabilities(
                 "few_shot_learning"
             ]
         )
-        
+
         return SuccessResponse(data=capabilities)
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

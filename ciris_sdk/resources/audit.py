@@ -8,7 +8,7 @@ from ..models import AuditEntryResponse, AuditEntryDetailResponse, AuditEntriesR
 
 class AuditResource:
     """Access audit log entries from the CIRIS Engine API.
-    
+
     The audit system provides an immutable trail of all system actions,
     supporting compliance, debugging, and observability needs.
     """
@@ -31,7 +31,7 @@ class AuditResource:
         offset: int = 0
     ) -> AuditEntriesResponse:
         """Query audit entries with flexible filtering.
-        
+
         Args:
             start_time: Start of time range to query
             end_time: End of time range to query
@@ -43,7 +43,7 @@ class AuditResource:
             outcome: Filter by outcome (success, failure)
             limit: Maximum results to return (1-1000)
             offset: Results offset for pagination
-            
+
         Returns:
             AuditEntriesResponse with entries and pagination info
         """
@@ -51,7 +51,7 @@ class AuditResource:
             "limit": limit,
             "offset": offset
         }
-        
+
         # Add optional filters
         if start_time:
             params["start_time"] = start_time.isoformat()
@@ -69,7 +69,7 @@ class AuditResource:
             params["severity"] = severity
         if outcome:
             params["outcome"] = outcome
-            
+
         resp = await self._transport.request("GET", "/v1/audit", params=params)
         data = resp.json()
         return AuditEntriesResponse(**data["data"])
@@ -81,11 +81,11 @@ class AuditResource:
         verify: bool = False
     ) -> AuditEntryDetailResponse:
         """Get specific audit entry by ID with optional verification.
-        
+
         Args:
             entry_id: The audit entry ID to retrieve
             verify: Include verification information (signature, hash chain status)
-            
+
         Returns:
             AuditEntryDetailResponse with entry and optional verification data
         """
@@ -103,16 +103,16 @@ class AuditResource:
         include_verification: bool = False
     ) -> AuditExportResponse:
         """Export audit data for compliance and analysis.
-        
+
         Args:
             start_date: Export start date
-            end_date: Export end date  
+            end_date: Export end date
             format: Export format (json, jsonl, csv)
             include_verification: Include verification data in export
-            
+
         Returns:
             AuditExportResponse with export data or download URL
-            
+
         Note:
             For small exports (<1000 entries), data is returned inline.
             For larger exports, a download URL is provided.
@@ -121,12 +121,12 @@ class AuditResource:
             "format": format,
             "include_verification": str(include_verification).lower()
         }
-        
+
         if start_date:
             params["start_date"] = start_date.isoformat()
         if end_date:
             params["end_date"] = end_date.isoformat()
-            
+
         resp = await self._transport.request("GET", "/v1/audit/export", params=params)
         data = resp.json()
         return AuditExportResponse(**data["data"])

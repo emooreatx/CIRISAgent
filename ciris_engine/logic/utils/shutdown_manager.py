@@ -64,10 +64,10 @@ class ShutdownManagerWrapper:
     """Wrapper to provide compatibility methods."""
     def __init__(self, service: ShutdownService):
         self._service = service
-        
+
     def __getattr__(self, name):
         return getattr(self._service, name)
-        
+
     async def execute_async_handlers(self) -> None:
         """Execute all registered async shutdown handlers."""
         if hasattr(self._service, '_execute_async_handlers'):
@@ -83,7 +83,7 @@ def get_shutdown_manager() -> ShutdownManagerWrapper:
 # Export for compatibility
 __all__ = [
     'get_shutdown_manager',
-    'is_global_shutdown_requested', 
+    'is_global_shutdown_requested',
     'get_global_shutdown_reason',
     'request_global_shutdown',
     'register_global_shutdown_handler',

@@ -4,6 +4,6 @@ from .time import TimeServiceConfig, TimeSnapshot, TimeServiceStatus
 
 __all__ = [
     "TimeServiceConfig",
-    "TimeSnapshot", 
+    "TimeSnapshot",
     "TimeServiceStatus",
 ]

@@ -4,11 +4,10 @@ Service metadata schemas for contract-driven architecture.
 Replaces all Dict[str, Any] metadata in service method calls.
 """
 
-from typing import Optional, Any
+from typing import Optional
 from datetime import datetime, timezone
 from uuid import UUID
 from pydantic import BaseModel, Field, ConfigDict
-from pydantic import Field, ConfigDict
 
 class ServiceMetadata(BaseModel):
     """Typed metadata for all service method calls."""
@@ -19,5 +18,5 @@ class ServiceMetadata(BaseModel):
     caller_id: Optional[str] = Field(None, description="ID of the caller")
     trace_id: Optional[str] = Field(None, description="Distributed trace ID")
     span_id: Optional[str] = Field(None, description="Span ID within trace")
-    
+
     model_config = ConfigDict(extra = "forbid")  # No arbitrary fields allowed

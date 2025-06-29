@@ -8,9 +8,9 @@ from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 logger = logging.getLogger(__name__)
 
 def create_follow_up_thought(
-    parent: Thought, 
+    parent: Thought,
     time_service: TimeServiceProtocol,
-    content: str = "", 
+    content: str = "",
     thought_type: ThoughtType = ThoughtType.FOLLOW_UP
 ) -> Thought:
     """Return a new Thought linked to ``parent``.
@@ -21,7 +21,7 @@ def create_follow_up_thought(
     """
     now = time_service.now().isoformat()
     parent_round = parent.round_number if hasattr(parent, 'round_number') else 0
-    
+
     # Just copy the context directly - channel_id flows through the schemas
     # Extract channel_id from parent
     channel_id = None
@@ -29,15 +29,15 @@ def create_follow_up_thought(
         channel_id = parent.channel_id
     elif parent.context and hasattr(parent.context, 'channel_id') and parent.context.channel_id:
         channel_id = parent.context.channel_id
-    
+
     # Cap thought depth at maximum allowed value (7)
     next_depth = min(parent.thought_depth + 1, 7)
-    
+
     # If we're already at max depth, log a warning
     if parent.thought_depth >= 7:
         logger.warning(f"Parent thought {parent.thought_id} is already at max depth {parent.thought_depth}. "
-                      f"Creating follow-up at same depth.")
-    
+                      "Creating follow-up at same depth.")
+
     follow_up = Thought(
         thought_id=str(uuid.uuid4()),
         source_task_id=parent.source_task_id,

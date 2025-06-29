@@ -38,16 +38,16 @@ class AgentStatus(BaseModel):
     # Core identity
     agent_id: str = Field(..., description="Agent identifier")
     name: str = Field(..., description="Agent name")
-    
+
     # State information
     cognitive_state: str = Field(..., description="Current cognitive state")
     uptime_seconds: float = Field(..., description="Time since startup")
-    
+
     # Activity metrics
     messages_processed: int = Field(..., description="Total messages processed")
     last_activity: Optional[datetime] = Field(None, description="Last activity timestamp")
     current_task: Optional[str] = Field(None, description="Current task description")
-    
+
     # System state
     services_active: int = Field(..., description="Number of active services")
     memory_usage_mb: float = Field(..., description="Current memory usage in MB")
@@ -61,7 +61,7 @@ class AgentIdentity(BaseModel):
     created_at: datetime = Field(..., description="When agent was created")
     lineage: Dict[str, Any] = Field(..., description="Agent lineage information")
     variance_threshold: float = Field(..., description="Identity variance threshold")
-    
+
     # Capabilities
     tools: List[str] = Field(..., description="Available tools")
     handlers: List[str] = Field(..., description="Active handlers")
@@ -71,71 +71,71 @@ class AgentIdentity(BaseModel):
 
 class AgentResource:
     """Resource for agent interaction endpoints."""
-    
+
     def __init__(self, transport: Transport) -> None:
         self._transport = transport
-    
+
     async def interact(
         self,
         message: str,
         context: Optional[Dict[str, Any]] = None
     ) -> InteractResponse:
         """Send message and get response.
-        
+
         This method combines sending a message and waiting for the agent's response.
         It's the primary way to interact with the agent.
-        
+
         Args:
             message: The message to send to the agent
             context: Optional context for the interaction
-            
+
         Returns:
             InteractResponse with message_id, response, state, and timing
         """
         request = InteractRequest(message=message, context=context)
-        
+
         result = await self._transport.request(
             "POST",
             "/v1/agent/interact",
             json=request.dict()
         )
-        
+
         return InteractResponse(**result["data"])
-    
+
     async def get_history(
         self,
         limit: int = 50,
         before: Optional[datetime] = None
     ) -> ConversationHistory:
         """Get conversation history.
-        
+
         Args:
             limit: Maximum number of messages to return (1-200, default 50)
             before: Get messages before this time
-            
+
         Returns:
             ConversationHistory with messages and metadata
         """
         params = {"limit": limit}
         if before:
             params["before"] = before.isoformat()
-            
+
         result = await self._transport.request(
             "GET",
             "/v1/agent/history",
             params=params
         )
-        
+
         # Parse timestamps in messages
         data = result["data"]
         for msg in data["messages"]:
             msg["timestamp"] = datetime.fromisoformat(msg["timestamp"])
-        
+
         return ConversationHistory(**data)
-    
+
     async def get_status(self) -> AgentStatus:
         """Get agent status and cognitive state.
-        
+
         Returns:
             AgentStatus with comprehensive state information
         """
@@ -143,17 +143,17 @@ class AgentResource:
             "GET",
             "/v1/agent/status"
         )
-        
+
         # Parse timestamp if present
         data = result["data"]
         if data.get("last_activity"):
             data["last_activity"] = datetime.fromisoformat(data["last_activity"])
-        
+
         return AgentStatus(**data)
-    
+
     async def get_identity(self) -> AgentIdentity:
         """Get agent identity and capabilities.
-        
+
         Returns:
             AgentIdentity with comprehensive identity information
         """
@@ -161,32 +161,32 @@ class AgentResource:
             "GET",
             "/v1/agent/identity"
         )
-        
+
         # Parse timestamp
         data = result["data"]
         data["created_at"] = datetime.fromisoformat(data["created_at"])
-        
+
         return AgentIdentity(**data)
-    
+
     # Convenience methods for common patterns
-    
+
     async def ask(self, question: str, context: Optional[Dict[str, Any]] = None) -> str:
         """Ask a question and get response.
-        
+
         Convenience method that wraps interact() for simple Q&A.
-        
+
         Args:
             question: Question to ask
             context: Optional context
-            
+
         Returns:
             Agent's response text
         """
         response = await self.interact(question, context)
         return response.response
-    
+
     # Backward compatibility methods (deprecated)
-    
+
     async def send_message(
         self,
         content: str,
@@ -196,9 +196,9 @@ class AgentResource:
         reference_message_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """[DEPRECATED] Use interact() instead.
-        
+
         Send a message to the agent.
-        
+
         This method is maintained for backward compatibility.
         New code should use interact() instead.
         """
@@ -208,13 +208,13 @@ class AgentResource:
             DeprecationWarning,
             stacklevel=2
         )
-        
+
         response = await self.interact(content)
         return {
             "message_id": response.message_id,
             "status": "sent"
         }
-    
+
     async def get_messages(
         self,
         channel_id: str,
@@ -222,9 +222,9 @@ class AgentResource:
         after_message_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """[DEPRECATED] Use get_history() instead.
-        
+
         Get messages from a channel.
-        
+
         This method is maintained for backward compatibility.
         New code should use get_history() instead.
         """
@@ -234,9 +234,9 @@ class AgentResource:
             DeprecationWarning,
             stacklevel=2
         )
-        
+
         history = await self.get_history(limit=limit)
-        
+
         # Convert to old format
         messages = []
         for msg in history.messages:
@@ -248,12 +248,12 @@ class AgentResource:
                 "channel_id": channel_id,
                 "timestamp": msg.timestamp.isoformat()
             })
-        
+
         return {"messages": messages}
-    
+
     async def list_channels(self) -> Dict[str, Any]:
         """[DEPRECATED] Channels are now implicit per user.
-        
+
         This method is maintained for backward compatibility.
         Returns a single default channel.
         """
@@ -263,7 +263,7 @@ class AgentResource:
             DeprecationWarning,
             stacklevel=2
         )
-        
+
         return {
             "channels": [
                 {
@@ -273,12 +273,12 @@ class AgentResource:
                 }
             ]
         }
-    
+
     async def get_capabilities(self) -> Dict[str, Any]:
         """[DEPRECATED] Use get_identity() instead.
-        
+
         Get agent capabilities.
-        
+
         This method is maintained for backward compatibility.
         New code should use get_identity() instead.
         """
@@ -288,9 +288,9 @@ class AgentResource:
             DeprecationWarning,
             stacklevel=2
         )
-        
+
         identity = await self.get_identity()
-        
+
         return {
             "tools": identity.tools,
             "handlers": identity.handlers,

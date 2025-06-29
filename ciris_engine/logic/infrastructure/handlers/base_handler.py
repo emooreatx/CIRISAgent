@@ -17,8 +17,7 @@ from ciris_engine.logic.utils.channel_utils import extract_channel_id
 from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.logic.buses import BusManager
 from ciris_engine.logic.utils.shutdown_manager import (
-    request_global_shutdown, 
-    is_global_shutdown_requested
+    request_global_shutdown
 )
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from pydantic import BaseModel, ValidationError
@@ -39,23 +38,23 @@ class ActionHandlerDependencies:
         self.secrets_service = secrets_service
         self.shutdown_callback = shutdown_callback
         self._shutdown_requested = False
-    
+
     def request_graceful_shutdown(self, reason: str = "Handler requested shutdown") -> None:
         """Request a graceful shutdown of the agent runtime."""
         if self._shutdown_requested:
             logger.debug("Shutdown already requested, ignoring duplicate request")
             return
-        
+
         self._shutdown_requested = True
         logger.critical(f"GRACEFUL SHUTDOWN REQUESTED: {reason}")
-        
+
         # Use the shutdown service if available
         if self.dependencies and self.dependencies.shutdown_service:
             asyncio.create_task(self.dependencies.shutdown_service.request_shutdown(reason))
         else:
             # Fallback to global function if service not available
             request_global_shutdown(reason)
-        
+
         if self.shutdown_callback:
             try:
                 self.shutdown_callback()
@@ -65,15 +64,15 @@ class ActionHandlerDependencies:
 
 class BaseActionHandler(ABC):
     """Abstract base class for all action handlers."""
-    
+
     def __init__(self, dependencies: ActionHandlerDependencies) -> None:
         self.dependencies = dependencies
         self.logger = logging.getLogger(self.__class__.__name__)
-        
+
         # Quick access to commonly used dependencies
         self.bus_manager = dependencies.bus_manager
         self.time_service = dependencies.time_service
-    
+
     @abstractmethod
     async def handle(
         self,
@@ -83,17 +82,16 @@ class BaseActionHandler(ABC):
     ) -> Optional[str]:
         """
         Handle the action and return follow-up thought ID if created.
-        
+
         Args:
             result: The action selection result from DMA
             thought: The thought being processed
             dispatch_context: Context for the dispatch
-            
+
         Returns:
             Optional thought ID of any follow-up thought created
         """
-        pass
-    
+
     async def _audit_log(
         self,
         action_type: HandlerActionType,
@@ -106,10 +104,10 @@ class BaseActionHandler(ABC):
             if not hasattr(self.bus_manager, 'audit_service') or not self.bus_manager.audit_service:
                 self.logger.debug("Audit service not available, skipping audit log")
                 return
-                
+
             # Convert to proper audit event type
             audit_event_type = AuditEventType(f"handler_action_{action_type.value}")
-            
+
             # Use the audit service directly (it's not a bussed service)
             await self.bus_manager.audit_service.log_event(
                 event_type=str(audit_event_type),
@@ -125,7 +123,7 @@ class BaseActionHandler(ABC):
         except Exception as e:
             self.logger.error(f"Failed to log audit event: {e}")
             # Audit failures should not break handler execution
-    
+
     async def _handle_error(
         self,
         action_type: HandlerActionType,
@@ -139,13 +137,13 @@ class BaseActionHandler(ABC):
             f"on thought {thought_id}: {error}",
             exc_info=True
         )
-        
+
         await self._audit_log(
             action_type,
             dispatch_context,
             outcome=f"error:{type(error).__name__}"
         )
-    
+
     async def _validate_and_convert_params(
         self,
         params: Any,
@@ -154,24 +152,24 @@ class BaseActionHandler(ABC):
         """Validate and convert parameters to the expected type."""
         if isinstance(params, param_class):
             return params
-            
+
         if isinstance(params, dict):
             try:
                 return param_class.model_validate(params)
             except ValidationError as e:
                 raise ValueError(f"Invalid parameters for {param_class.__name__}: {e}")
-        
+
         # Try to convert BaseModel to dict first
         if hasattr(params, 'model_dump'):
             try:
                 return param_class.model_validate(params.model_dump())
             except ValidationError as e:
                 raise ValueError(f"Invalid parameters for {param_class.__name__}: {e}")
-        
+
         raise TypeError(
             f"Expected {param_class.__name__} or dict, got {type(params).__name__}"
         )
-    
+
     async def _decapsulate_secrets_in_params(
         self,
         result: ActionSelectionDMAResult,
@@ -180,7 +178,7 @@ class BaseActionHandler(ABC):
         """Auto-decapsulate any secrets in action parameters."""
         if not self.dependencies.secrets_service:
             return result
-            
+
         try:
             # Decapsulate secrets in action parameters
             if result.action_parameters:
@@ -188,7 +186,7 @@ class BaseActionHandler(ABC):
                 params_dict = result.action_parameters
                 if hasattr(params_dict, 'model_dump'):
                     params_dict = params_dict.model_dump()
-                
+
                 decapsulated_params = await self.dependencies.secrets_service.decapsulate_secrets_in_parameters(
                     action_type=action_name,
                     action_params=params_dict,
@@ -209,7 +207,7 @@ class BaseActionHandler(ABC):
         except Exception as e:
             self.logger.error(f"Error decapsulating secrets: {e}")
             return result
-    
+
     async def _get_channel_id(
         self,
         thought: Thought,
@@ -218,7 +216,7 @@ class BaseActionHandler(ABC):
         """Extract channel ID from dispatch context or thought context."""
         # First try dispatch context
         channel_id = extract_channel_id(dispatch_context.channel_context)
-        
+
         # Fallback to thought context if needed
         if not channel_id and hasattr(thought, "context") and thought.context:
             # Try initial_task_context first
@@ -226,15 +224,15 @@ class BaseActionHandler(ABC):
                 initial_task_context = thought.context.initial_task_context
                 if initial_task_context and hasattr(initial_task_context, "channel_context"):
                     channel_id = extract_channel_id(initial_task_context.channel_context)
-            
+
             # Then try system_snapshot as fallback
             if not channel_id and hasattr(thought.context, "system_snapshot"):
                 system_snapshot = thought.context.system_snapshot
                 if system_snapshot and hasattr(system_snapshot, "channel_context"):
                     channel_id = extract_channel_id(system_snapshot.channel_context)
-        
+
         return channel_id
-    
+
     async def _send_notification(
         self,
         channel_id: str,
@@ -244,11 +242,11 @@ class BaseActionHandler(ABC):
         if not isinstance(content, str):
             self.logger.error(f"Content must be a string, got {type(content)}")  # type: ignore[unreachable]
             return False
-        
+
         if not channel_id or not content:
-            self.logger.error(f"Missing channel_id or content")
+            self.logger.error("Missing channel_id or content")
             return False
-        
+
         try:
             # Use the communication bus
             return await self.bus_manager.communication.send_message(

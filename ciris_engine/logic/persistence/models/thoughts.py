@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List, Optional, Any
+from typing import List, Optional, Any
 from ciris_engine.logic.persistence import get_db_connection
 import asyncio
 from ciris_engine.logic.persistence.utils import map_row_to_thought
@@ -135,38 +135,38 @@ def count_thoughts(db_path: Optional[str] = None) -> int:
     return count
 
 def update_thought_status(thought_id: str, status: ThoughtStatus, db_path: Optional[str] = None, final_action: Optional[Any] = None) -> bool:
-    """Update the status of a thought by ID and optionally final_action. 
-    
+    """Update the status of a thought by ID and optionally final_action.
+
     Args:
         thought_id: The ID of the thought to update
         status: ThoughtStatus enum value
         db_path: Optional database path
         final_action: ActionSelectionDMAResult object or other serializable data
         **kwargs: Additional parameters for compatibility
-        
+
     Returns:
         bool: True if updated, False otherwise
     """
     from ..db import get_db_connection
     status_val = getattr(status, "value", status)
-    
+
     try:
         with get_db_connection(db_path=db_path) as conn:
             cursor = conn.cursor()
-            
+
             # Build dynamic SQL based on what needs to be updated
             updates = ["status = ?"]
             params = [status_val]
-            
+
             # DELETED: Legacy JSON serialization. Protocol-driven approach stores schemas directly.
             # final_action storage removed - use proper schema relationships instead
-            
+
             params.append(thought_id)
-            
+
             sql = f"UPDATE thoughts SET {', '.join(updates)} WHERE thought_id = ?"
             cursor.execute(sql, params)
             conn.commit()
-            
+
             updated = cursor.rowcount > 0
             if not updated:
                 logger.warning(f"No thought found with id {thought_id} to update status.")

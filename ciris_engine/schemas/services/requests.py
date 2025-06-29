@@ -6,10 +6,8 @@ Replaces Dict[str, Any] in service method calls.
 
 from typing import (
     Any,
-    Dict,
     List,
-    Optional,
-    Type
+    Optional
 )
 from datetime import datetime, timezone
 from uuid import UUID
@@ -22,7 +20,7 @@ class ServiceRequest(BaseModel):
     """Base request for all service methods."""
     metadata: ServiceMetadata = Field(..., description="Service call metadata")
     correlation_id: UUID = Field(..., description="Correlation ID for tracing")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class ServiceResponse(BaseModel):
@@ -31,7 +29,7 @@ class ServiceResponse(BaseModel):
     correlation_id: UUID = Field(..., description="Correlation ID for tracing")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Response timestamp")
     error: Optional[str] = Field(None, description="Error message if failed")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 # Memory Service specific requests/responses
@@ -67,8 +65,8 @@ class ToolExecutionResponse(ServiceResponse):
     tool_name: str = Field(..., description="Name of tool executed")
     result: Optional[Any] = Field(None, description="Tool execution result")
     execution_time: float = Field(..., description="Execution time in seconds")
-    
-    
+
+
 # LLM Service specific requests/responses
 
 class LLMRequest(ServiceRequest):
@@ -83,8 +81,8 @@ class LLMResponse(ServiceResponse):
     text: str = Field(..., description="Generated text")
     model_used: str = Field(..., description="Model that was used")
     tokens_used: int = Field(..., description="Number of tokens used")
-    
-    
+
+
 # Audit Service specific requests/responses
 
 class AuditRequest(ServiceRequest):

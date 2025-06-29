@@ -22,7 +22,7 @@ class DatabaseConfig(BaseModel):
         Path("data/ciris_audit.db"),
         description="Audit trail database with signatures"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class ServiceEndpointsConfig(BaseModel):
@@ -43,7 +43,7 @@ class ServiceEndpointsConfig(BaseModel):
         3,
         description="Maximum LLM retry attempts"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class SecurityConfig(BaseModel):
@@ -68,7 +68,7 @@ class SecurityConfig(BaseModel):
         7,
         description="Maximum thought chain depth before auto-defer"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class OperationalLimitsConfig(BaseModel):
@@ -101,7 +101,7 @@ class OperationalLimitsConfig(BaseModel):
         2,
         description="Maximum conscience evaluation retries"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class TelemetryConfig(BaseModel):
@@ -118,7 +118,7 @@ class TelemetryConfig(BaseModel):
         24,
         description="Telemetry data retention period"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class WorkflowConfig(BaseModel):
@@ -135,13 +135,13 @@ class WorkflowConfig(BaseModel):
         True,
         description="Automatically defer when hitting limits"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class EssentialConfig(BaseModel):
     """
     Mission-critical configuration for CIRIS bootstrap.
-    
+
     This is the minimal configuration needed to start core services.
     After bootstrap, all config is migrated to GraphConfigService.
     """
@@ -169,7 +169,7 @@ class EssentialConfig(BaseModel):
         default_factory=lambda: WorkflowConfig(),
         description="Workflow processing configuration"
     )
-    
+
     # Runtime settings
     log_level: str = Field(
         "INFO",
@@ -187,7 +187,7 @@ class EssentialConfig(BaseModel):
         "default",
         description="Default template name for agent identity creation"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")  # No ambiguity allowed in mission-critical config
 
 class CIRISNodeConfig(BaseModel):
@@ -200,5 +200,5 @@ class CIRISNodeConfig(BaseModel):
         False,
         description="Whether CIRISNode integration is enabled"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")

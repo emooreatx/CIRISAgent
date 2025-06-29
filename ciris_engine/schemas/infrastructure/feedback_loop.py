@@ -3,7 +3,7 @@ Schemas for configuration feedback loop operations.
 
 These replace all Dict[str, Any] usage in logic/infrastructure/sub_services/configuration_feedback_loop.py.
 """
-from typing import Dict, List, Optional, Any
+from typing import List, Optional
 from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, Field
@@ -44,7 +44,3 @@ class AnalysisResult(BaseModel):
     timestamp: datetime = Field(..., description="Analysis timestamp")
     next_analysis_in: Optional[float] = Field(None, description="Seconds until next analysis")
     error: Optional[str] = Field(None, description="Error message if failed")
-
-
-
-

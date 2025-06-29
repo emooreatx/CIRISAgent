@@ -3,9 +3,8 @@ Schemas for CLI tool operations.
 
 These replace all Dict[str, Any] usage in logic/adapters/cli/cli_tools.py.
 """
-from typing import List, Optional, Any
+from typing import List, Optional
 from pydantic import BaseModel, Field
-from pydantic import Field
 
 class ToolParameters(BaseModel):
     """Base parameters for tool execution."""
@@ -69,4 +68,3 @@ class SearchTextResult(BaseModel):
     """Result from search_text tool."""
     matches: List[SearchMatch] = Field(default_factory=list, description="List of matches")
     error: Optional[str] = Field(None, description="Error message if failed")
-

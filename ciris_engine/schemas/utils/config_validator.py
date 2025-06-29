@@ -5,7 +5,6 @@ These replace all Dict[str, Any] usage in logic/utils/config_validator.py.
 """
 from typing import List, Optional, Any
 from pydantic import BaseModel, Field
-from pydantic import Field
 
 class ConfigData(BaseModel):
     """Configuration data for validation."""

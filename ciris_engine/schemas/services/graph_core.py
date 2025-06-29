@@ -40,7 +40,7 @@ class ConfigNodeType(str, Enum):
     USER_TRACKING = "user_tracking"
     RESPONSE_TEMPLATES = "response_templates"
     TOOL_PREFERENCES = "tool_preferences"
-    
+
     # IDENTITY scope (requires WA approval)
     BEHAVIOR_CONFIG = "behavior_config"
     ETHICAL_BOUNDARIES = "ethical_boundaries"
@@ -68,7 +68,7 @@ class GraphNodeAttributes(BaseModel):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: str = Field(..., description="Who created this node")
     tags: List[str] = Field(default_factory=list, description="Tags for categorization")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class GraphNode(BaseModel):
@@ -80,14 +80,14 @@ class GraphNode(BaseModel):
     version: int = Field(default=1, ge=1, description="Version number")
     updated_by: Optional[str] = Field(None, description="Who last updated")
     updated_at: Optional[datetime] = Field(None, description="When last updated")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class GraphEdgeAttributes(BaseModel):
     """Typed attributes for graph edges."""
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     context: Optional[str] = Field(None, description="Context of the relationship")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class GraphEdge(BaseModel):
@@ -98,7 +98,7 @@ class GraphEdge(BaseModel):
     scope: GraphScope = Field(..., description="Scope of the edge")
     weight: float = Field(default=1.0, ge=0.0, le=1.0, description="Relationship weight")
     attributes: GraphEdgeAttributes = Field(default_factory=lambda: GraphEdgeAttributes())
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
@@ -108,6 +108,6 @@ __all__ = [
     "CONFIG_SCOPE_MAP",
     "GraphNode",
     "GraphNodeAttributes",
-    "GraphEdge", 
+    "GraphEdge",
     "GraphEdgeAttributes",
 ]

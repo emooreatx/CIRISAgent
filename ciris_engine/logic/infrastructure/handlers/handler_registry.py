@@ -20,9 +20,9 @@ from typing import Callable, Optional, Any
 def build_action_dispatcher(
     bus_manager: Any,
     time_service: Any,
-    max_rounds: int = 5, 
-    shutdown_callback: Optional[Callable[[], None]] = None, 
-    telemetry_service: Optional[Any] = None, 
+    max_rounds: int = 5,
+    shutdown_callback: Optional[Callable[[], None]] = None,
+    telemetry_service: Optional[Any] = None,
     secrets_service: Optional[Any] = None
 ) -> ActionDispatcher:
     """
@@ -48,5 +48,5 @@ def build_action_dispatcher(
         HandlerActionType.PONDER: PonderHandler(deps, max_rounds=max_rounds),
     }
     dispatcher = ActionDispatcher(handlers, telemetry_service=telemetry_service)
-    
+
     return dispatcher

@@ -4,7 +4,6 @@ DMA result schemas for typed decision outputs.
 Provides type-safe results from each Decision Making Algorithm.
 """
 from typing import Dict, List, Optional, Any, Union
-from datetime import datetime, timezone
 from pydantic import BaseModel, Field, ConfigDict
 
 from ..runtime.enums import HandlerActionType
@@ -18,7 +17,7 @@ class EthicalDMAResult(BaseModel):
     decision: str = Field(..., description="Decision: approve, reject, defer, caution")
     reasoning: str = Field(..., description="Ethical reasoning")
     alignment_check: Dict[str, Any] = Field(..., description="Alignment check results")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class CSDMAResult(BaseModel):
@@ -26,7 +25,7 @@ class CSDMAResult(BaseModel):
     plausibility_score: float = Field(..., ge=0.0, le=1.0, description="Plausibility rating")
     flags: List[str] = Field(default_factory=list, description="Common sense flags raised")
     reasoning: str = Field(..., description="Common sense reasoning")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class DSDMAResult(BaseModel):
@@ -35,7 +34,7 @@ class DSDMAResult(BaseModel):
     domain_alignment: float = Field(..., ge=0.0, le=1.0, description="How well aligned with domain")
     flags: List[str] = Field(default_factory=list, description="Domain-specific flags")
     reasoning: str = Field(..., description="Domain-specific reasoning")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class ActionSelectionDMAResult(BaseModel):
@@ -55,21 +54,21 @@ class ActionSelectionDMAResult(BaseModel):
         TaskCompleteParams,
     ] = Field(..., description="Parameters for the selected action")
     rationale: Optional[str] = Field(None, description="Reasoning for this action selection")
-    
+
     # LLM metadata
     raw_llm_response: Optional[str] = Field(None, description="Raw LLM response")
-    
+
     # Processing metadata
     reasoning: Optional[str] = Field(None, description="Detailed reasoning process")
     evaluation_time_ms: Optional[float] = Field(None, description="Time taken for evaluation")
     resource_usage: Optional[Dict[str, Any]] = Field(None, description="Resource usage details")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 
 __all__ = [
     "EthicalDMAResult",
-    "CSDMAResult", 
+    "CSDMAResult",
     "DSDMAResult",
     "ActionSelectionDMAResult"
 ]

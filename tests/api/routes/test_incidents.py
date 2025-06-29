@@ -82,15 +82,15 @@ def mock_services():
     """Mock the required services."""
     # Mock incident management service
     incident_service = AsyncMock()
-    
+
     # Mock memory service
     memory_service = AsyncMock()
-    
+
     # Mock telemetry service
     telemetry_service = AsyncMock()
     telemetry_service.query_metrics = AsyncMock(return_value=[])
     telemetry_service.get_telemetry_summary = AsyncMock()
-    
+
     return {
         "incident_management": incident_service,
         "memory_service": memory_service,
@@ -101,14 +101,14 @@ def mock_services():
 def test_app(mock_services):
     """Create test app with mocked services."""
     app = create_app()
-    
+
     # Set up app state with mock services
     for service_name, service in mock_services.items():
         setattr(app.state, service_name, service)
-    
+
     # Mock auth service
     mock_auth_service = Mock()
-    
+
     # Define different responses based on the API key
     async def mock_validate_api_key(api_key: str):
         if api_key == "mock-admin-token":
@@ -117,11 +117,11 @@ def test_app(mock_services):
             return Mock(user_id="observer_user", role=UserRole.OBSERVER)
         else:
             return None
-    
+
     mock_auth_service.validate_api_key = mock_validate_api_key
     mock_auth_service._get_key_id = Mock(return_value="test_key")
     app.state.auth_service = mock_auth_service
-    
+
     return app
 
 @pytest.fixture
@@ -131,16 +131,16 @@ def client(test_app):
 
 class TestIncidentsThroughTelemetry:
     """Test incident data access through telemetry endpoints."""
-    
+
     def test_incidents_in_overview(self, client, test_app, sample_incident):
         """Test that incident count appears in telemetry overview."""
         # Mock incident service to return some incidents
         test_app.state.incident_management.get_incidents = AsyncMock(return_value=[sample_incident])
-        
+
         headers = {"Authorization": "Bearer mock-observer-token"}
         response = client.get("/v1/telemetry/overview", headers=headers)
         assert response.status_code == 200
-        
+
         data = response.json()
         # Check the wrapped response structure
         assert "data" in data
@@ -148,12 +148,12 @@ class TestIncidentsThroughTelemetry:
         # The mock returns 1 incident
         assert isinstance(data["data"]["recent_incidents"], int)
         assert data["data"]["recent_incidents"] >= 0
-    
+
     def test_query_incidents(self, client, test_app, sample_incident):
         """Test querying incidents through telemetry query endpoint."""
         # Mock incident service to return incidents
         test_app.state.incident_management.query_incidents = AsyncMock(return_value=[sample_incident])
-        
+
         # Use admin token for query endpoint
         headers = {"Authorization": "Bearer mock-admin-token"}
         response = client.post(
@@ -169,19 +169,19 @@ class TestIncidentsThroughTelemetry:
             headers=headers
         )
         assert response.status_code == 200
-        
+
         data = response.json()
         assert "data" in data
         assert data["data"]["query_type"] == "incidents"
         assert isinstance(data["data"]["results"], list)
         assert isinstance(data["data"]["total"], int)
         assert isinstance(data["data"]["execution_time_ms"], float)
-    
+
     def test_query_insights(self, client, test_app, sample_insight):
         """Test querying incident insights through telemetry."""
         # Mock incident service to return insights
         test_app.state.incident_management.get_insights = AsyncMock(return_value=[sample_insight])
-        
+
         # Use admin token
         headers = {"Authorization": "Bearer mock-admin-token"}
         response = client.post(
@@ -194,12 +194,12 @@ class TestIncidentsThroughTelemetry:
             headers=headers
         )
         assert response.status_code == 200
-        
+
         data = response.json()
         assert "data" in data
         assert data["data"]["query_type"] == "insights"
         assert isinstance(data["data"]["results"], list)
-    
+
     def test_query_requires_admin(self, client):
         """Test that telemetry query endpoint requires admin role."""
         # Test with observer token (should fail)
@@ -213,12 +213,12 @@ class TestIncidentsThroughTelemetry:
             headers=headers
         )
         assert response.status_code == 403
-    
+
     def test_query_time_filtering(self, client):
         """Test time-based filtering in queries."""
         now = datetime.now(timezone.utc)
         start_time = now - timedelta(hours=24)
-        
+
         headers = {"Authorization": "Bearer mock-admin-token"}
         response = client.post(
             "/v1/telemetry/query",
@@ -231,38 +231,38 @@ class TestIncidentsThroughTelemetry:
             headers=headers
         )
         assert response.status_code == 200
-        
+
         data = response.json()
         assert "data" in data
-    
+
     def test_incident_metrics(self, client):
         """Test that incident-related metrics appear in detailed metrics."""
         headers = {"Authorization": "Bearer mock-observer-token"}
         response = client.get("/v1/telemetry/metrics", headers=headers)
         assert response.status_code == 200
-        
+
         data = response.json()
         assert "data" in data
         assert isinstance(data["data"]["metrics"], list)
-        
+
         # Look for incident-related metrics
         metric_names = [m["name"] for m in data["data"]["metrics"]]
         # These would be populated in real implementation
         # assert "incidents_detected" in metric_names
-    
+
     def test_service_unavailable(self, client, test_app):
         """Test when incident service is not available."""
         # Remove service
         test_app.state.incident_management = None
-        
+
         # Should still work but without incident data
         headers = {"Authorization": "Bearer mock-observer-token"}
         response = client.get("/v1/telemetry/overview", headers=headers)
         assert response.status_code == 200
-        
+
         data = response.json()
         assert data["data"]["recent_incidents"] == 0
-    
+
     def test_query_aggregations(self, client):
         """Test aggregation capabilities in queries."""
         headers = {"Authorization": "Bearer mock-admin-token"}
@@ -277,9 +277,10 @@ class TestIncidentsThroughTelemetry:
             headers=headers
         )
         assert response.status_code == 200
-        
+
         data = response.json()
         assert "data" in data
         # With count aggregation, results should be aggregated
         if data["data"]["results"]:
-            assert any(r.get("aggregation") == "count" for r in data["data"]["results"])
+            # Check if aggregation is in the data field of the result
+            assert any(r.get("data", {}).get("aggregation") == "count" for r in data["data"]["results"])

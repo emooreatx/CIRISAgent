@@ -10,7 +10,7 @@ import asyncio
 import logging
 
 from ciris_engine.schemas.api.emergency import (
-    EmergencyShutdownCommand, 
+    EmergencyShutdownCommand,
     EmergencyShutdownResponse,
     EmergencyStatus
 )
@@ -21,21 +21,21 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/emergency", tags=["emergency"])
 
 @router.post(
-    "/shutdown", 
+    "/shutdown",
     response_model=EmergencyShutdownResponse,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Emergency Shutdown",
     description="""
     Emergency shutdown endpoint - NO AUTHENTICATION REQUIRED.
-    
+
     Accepts cryptographically signed shutdown commands from ROOT or AUTHORITY keys.
     Executes immediate shutdown without negotiation.
-    
+
     Requirements:
     - Command must be signed with a trusted ROOT or AUTHORITY private key
     - Timestamp must be within 5 minutes (prevents replay attacks)
     - Signature must be valid HMAC-SHA256
-    
+
     This endpoint is designed for critical situations where normal
     authentication may be compromised or unavailable.
     """
@@ -46,7 +46,7 @@ async def emergency_shutdown(
     background_tasks: BackgroundTasks
 ):
     """Execute emergency shutdown with signed command."""
-    
+
     # Get services from app state
     if not hasattr(request.app.state, 'emergency_verifier'):
         logger.error("Emergency verifier not initialized")
@@ -54,21 +54,21 @@ async def emergency_shutdown(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Emergency system not configured"
         )
-    
+
     verifier: EmergencyShutdownVerifier = request.app.state.emergency_verifier
     audit_service = getattr(request.app.state, 'audit_service', None)
     shutdown_service = getattr(request.app.state, 'shutdown_service', None)
-    
+
     if not shutdown_service:
         logger.error("Shutdown service not available")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Shutdown service not available"
         )
-    
+
     # Verify the command signature
     is_valid, authority_id = verifier.verify_command(command)
-    
+
     # Log the attempt (whether successful or not)
     if audit_service:
         try:
@@ -85,7 +85,7 @@ async def emergency_shutdown(
             )
         except Exception as e:
             logger.error(f"Failed to log emergency shutdown attempt: {e}")
-    
+
     # Handle invalid signature
     if not is_valid:
         logger.warning(f"Emergency shutdown rejected - invalid signature from {request.client.host if request.client else 'unknown'}")
@@ -93,10 +93,10 @@ async def emergency_shutdown(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid shutdown command signature"
         )
-    
+
     # Log successful verification
     logger.critical(f"EMERGENCY SHUTDOWN INITIATED by {authority_id}: {command.reason}")
-    
+
     # Log the verified shutdown command
     if audit_service:
         try:
@@ -113,39 +113,39 @@ async def emergency_shutdown(
             )
         except Exception as e:
             logger.error(f"Failed to log emergency shutdown initiation: {e}")
-    
+
     # Define shutdown task
     async def execute_shutdown():
         """Execute the emergency shutdown."""
         try:
             # Give a brief moment for response to be sent
             await asyncio.sleep(0.5)
-            
+
             # Attempt graceful shutdown with timeout
             timeout = 5 if command.force else 30
-            
+
             logger.info(f"Starting emergency shutdown with {timeout}s timeout")
             await shutdown_service.emergency_shutdown(
                 reason=f"Emergency shutdown by {authority_id}: {command.reason}",
                 timeout_seconds=timeout
             )
-            
+
         except asyncio.TimeoutError:
             logger.error("Graceful shutdown timed out, forcing termination")
             import os
             import signal
             os.kill(os.getpid(), signal.SIGKILL)
-            
+
         except Exception as e:
             logger.error(f"Error during emergency shutdown: {e}")
             # Force kill if all else fails
             import os
             import signal
             os.kill(os.getpid(), signal.SIGKILL)
-    
+
     # Schedule shutdown in background
     background_tasks.add_task(execute_shutdown)
-    
+
     # Return acceptance response
     return EmergencyShutdownResponse(
         status="accepted",
@@ -163,7 +163,7 @@ async def emergency_shutdown(
 )
 async def get_emergency_status(request: Request):
     """Get emergency system status (public endpoint)."""
-    
+
     # Check if emergency system is configured
     if not hasattr(request.app.state, 'emergency_verifier'):
         return EmergencyStatus(
@@ -172,24 +172,24 @@ async def get_emergency_status(request: Request):
             last_emergency_command=None,
             failed_attempts_24h=0
         )
-    
+
     verifier: EmergencyShutdownVerifier = request.app.state.emergency_verifier
-    
+
     # Get audit service for statistics
     audit_service = getattr(request.app.state, 'audit_service', None)
-    
+
     # Count failed attempts in last 24 hours
     failed_attempts = 0
     last_command_time = None
-    
+
     if audit_service:
         try:
             # Query recent emergency attempts
             # This is a simplified version - actual implementation would query audit logs
             pass
-        except:
-            pass
-    
+        except Exception as e:
+            logger.warning(f"Failed to query emergency attempt statistics: {e}")
+
     return EmergencyStatus(
         emergency_system_ready=True,
         trusted_authorities=len(verifier.list_authorities()),
@@ -205,19 +205,19 @@ async def initialize_emergency_system(
 ) -> EmergencyShutdownVerifier:
     """
     Initialize emergency shutdown system.
-    
+
     Should be called during app startup to configure trusted keys.
     """
     try:
         # Get trusted keys from configuration
         trusted_keys = {}
-        
+
         # Get ROOT key
         root_key = await config_service.get_config("wa_root_key")
         if root_key:
             trusted_keys["ROOT"] = root_key
             logger.info("Loaded ROOT emergency key")
-        
+
         # Get AUTHORITY keys
         authority_keys = await config_service.get_config("wa_authority_keys") or {}
         for auth_id, key in authority_keys.items():
@@ -225,12 +225,12 @@ async def initialize_emergency_system(
                 trusted_keys[auth_id] = key
             elif isinstance(key, dict) and "public_key" in key:  # Structured key
                 trusted_keys[auth_id] = key["public_key"]
-        
+
         logger.info(f"Loaded {len(authority_keys)} AUTHORITY emergency keys")
-        
+
         # Create verifier
         verifier = EmergencyShutdownVerifier(trusted_keys)
-        
+
         # Log initialization
         if audit_service:
             await audit_service.log_action(
@@ -241,9 +241,9 @@ async def initialize_emergency_system(
                     "authority_ids": list(trusted_keys.keys())
                 }
             )
-        
+
         return verifier
-        
+
     except Exception as e:
         logger.error(f"Failed to initialize emergency system: {e}")
         # Return empty verifier rather than failing startup

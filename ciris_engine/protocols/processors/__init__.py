@@ -18,7 +18,7 @@ from .base import ProcessorProtocol
 __all__ = [
     "AgentProcessorProtocol",
     "ProcessorProtocol",
-    "ProcessingSchedule", 
+    "ProcessingSchedule",
     "AgentProcessorMetrics",
     "QueueStatus",
     "StepResult"

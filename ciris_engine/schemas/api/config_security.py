@@ -5,7 +5,7 @@ Automatically detects and filters sensitive configuration values
 based on user role to prevent information leakage.
 """
 import re
-from typing import Set, Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field, field_serializer
 
@@ -13,7 +13,7 @@ from .auth import UserRole
 
 class ConfigSecurity:
     """Configuration security and filtering rules."""
-    
+
     # Patterns for sensitive keys (case-insensitive)
     SENSITIVE_PATTERNS = [
         re.compile(r".*_(key|secret|token|password|auth|credential)$", re.IGNORECASE),
@@ -21,7 +21,7 @@ class ConfigSecurity:
         re.compile(r".*(credential|certificate|private|password).*", re.IGNORECASE),
         re.compile(r"^(aws|azure|gcp|github|gitlab)_.*", re.IGNORECASE),
     ]
-    
+
     # Exact sensitive keys
     SENSITIVE_KEYS = {
         # Authentication & Security
@@ -34,13 +34,13 @@ class ConfigSecurity:
         "jwt_secret",
         "encryption_key",
         "signing_key",
-        
+
         # Database & Infrastructure
         "database_url",
         "redis_url",
         "mongodb_uri",
         "elasticsearch_url",
-        
+
         # External Services
         "openai_api_key",
         "anthropic_api_key",
@@ -48,41 +48,41 @@ class ConfigSecurity:
         "discord_bot_token",
         "slack_bot_token",
         "telegram_bot_token",
-        
+
         # Cloud Providers
         "aws_access_key_id",
         "aws_secret_access_key",
         "azure_client_secret",
         "gcp_service_account",
-        
+
         # Other Sensitive
         "smtp_password",
         "webhook_secret",
         "payment_api_key",
     }
-    
+
     @classmethod
     def is_sensitive(cls, key: str) -> bool:
         """
         Check if a configuration key is sensitive.
-        
+
         Args:
             key: Configuration key to check
-            
+
         Returns:
             True if key contains sensitive data
         """
         # Check exact matches first (faster)
         if key in cls.SENSITIVE_KEYS:
             return True
-        
+
         # Check patterns
         for pattern in cls.SENSITIVE_PATTERNS:
             if pattern.match(key):
                 return True
-        
+
         return False
-    
+
     @classmethod
     def filter_value(
         cls,
@@ -92,57 +92,57 @@ class ConfigSecurity:
     ) -> Any:
         """
         Filter a single configuration value based on role.
-        
+
         Args:
             key: Configuration key
             value: Configuration value
             role: User's role
-            
+
         Returns:
             Filtered value (may be "[REDACTED]")
         """
         if not cls.is_sensitive(key):
             return value
-        
+
         # ROOT sees everything
         if role == UserRole.ROOT:
             return value
-        
+
         # Special cases for certain roles
         if role == UserRole.ADMIN and key == "admin_users":
             return value  # Admins can see admin list
-        
+
         if role == UserRole.AUTHORITY and key == "wa_authority_keys":
             return value  # Authorities can see authority keys
-        
+
         # Everyone else gets redacted
         return "[REDACTED]"
-    
+
     @classmethod
     def filter_config(
-        cls, 
-        config: Dict[str, Any], 
+        cls,
+        config: Dict[str, Any],
         role: UserRole
     ) -> Dict[str, Any]:
         """
         Filter entire configuration dictionary based on role.
-        
+
         Args:
             config: Configuration dictionary
             role: User's role
-            
+
         Returns:
             Filtered configuration
         """
         if role == UserRole.ROOT:
             return config  # ROOT sees everything
-        
+
         filtered = {}
         for key, value in config.items():
             filtered[key] = cls.filter_value(key, value, role)
-        
+
         return filtered
-    
+
     @classmethod
     def get_visible_keys(
         cls,
@@ -151,16 +151,16 @@ class ConfigSecurity:
     ) -> Dict[str, bool]:
         """
         Get visibility status for a list of keys.
-        
+
         Args:
             all_keys: List of configuration keys
             role: User's role
-            
+
         Returns:
             Dict mapping key -> is_visible
         """
         visibility = {}
-        
+
         for key in all_keys:
             if not cls.is_sensitive(key):
                 visibility[key] = True
@@ -172,7 +172,7 @@ class ConfigSecurity:
                 visibility[key] = True
             else:
                 visibility[key] = False
-        
+
         return visibility
 
 class ConfigValueResponse(BaseModel):
@@ -183,7 +183,7 @@ class ConfigValueResponse(BaseModel):
     is_redacted: bool = Field(..., description="Whether value was redacted")
     last_updated: Optional[datetime] = Field(None, description="When value was last updated")
     updated_by: Optional[str] = Field(None, description="Who last updated this value")
-    
+
     @field_serializer('last_updated')
     def serialize_last_updated(self, last_updated: Optional[datetime], _info):
         return last_updated.isoformat() if last_updated else None
@@ -197,16 +197,16 @@ class ConfigListResponse(BaseModel):
 def filter_config_for_role(config: Dict[str, Any], role: UserRole) -> Dict[str, Any]:
     """
     Filter configuration values based on user role.
-    
+
     Args:
         config: Configuration dictionary
         role: User's role
-        
+
     Returns:
         Filtered configuration with sensitive values redacted
     """
     return ConfigSecurity.filter_config(config, role)
-    
+
 class ConfigUpdateRequest(BaseModel):
     """Request to update configuration value."""
     value: Any = Field(..., description="New configuration value")
@@ -227,11 +227,11 @@ class ConfigHistoryEntry(BaseModel):
     changed_at: datetime = Field(..., description="When change occurred")
     changed_by: str = Field(..., description="Who made the change")
     comment: Optional[str] = Field(None, description="Change comment")
-    
+
 class ConfigValidationRequest(BaseModel):
     """Request to validate configuration changes."""
     changes: Dict[str, Any] = Field(..., description="Proposed changes")
-    
+
 class ConfigValidationResponse(BaseModel):
     """Response from configuration validation."""
     valid: bool = Field(..., description="Whether all changes are valid")

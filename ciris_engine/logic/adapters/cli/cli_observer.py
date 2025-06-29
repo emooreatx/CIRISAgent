@@ -2,7 +2,7 @@ import asyncio
 import logging
 import sys
 import select
-from typing import Awaitable, Callable, Optional, Set, Any
+from typing import Awaitable, Callable, Optional, Set, Any, List
 
 from ciris_engine.schemas.runtime.messages import IncomingMessage
 from ciris_engine.schemas.services.filters_core import FilterResult
@@ -60,10 +60,10 @@ class CLIObserver(BaseObserver[IncomingMessage]):
                 # Interactive terminal - no piped input
                 logger.debug("CLI running in interactive mode")
                 return
-                
+
             # Non-interactive - check for piped input
             logger.info("Detected piped input, buffering...")
-            
+
             # Read all available lines from stdin
             while True:
                 # Use select to check if data is available with a short timeout
@@ -81,24 +81,24 @@ class CLIObserver(BaseObserver[IncomingMessage]):
                 else:
                     # No more data available
                     break
-                    
+
             if self._buffered_input:
                 logger.info(f"Buffered {len(self._buffered_input)} input lines")
                 # If we have buffered input, we're not interactive
                 self.interactive = False
-                
+
         except Exception as e:
             logger.warning(f"Error checking for piped input: {e}")
 
     async def start(self) -> None:
         """Start the observer and optional input loop."""
         logger.info("CLIObserver started")
-        
+
         # Process any buffered input first
         if self._buffered_input:
             logger.info(f"Processing {len(self._buffered_input)} buffered input lines")
             asyncio.create_task(self._process_buffered_input())
-        
+
         # Start interactive input loop if needed
         if self.interactive and self._input_task is None:
             self._input_task = asyncio.create_task(self._input_loop())
@@ -108,15 +108,15 @@ class CLIObserver(BaseObserver[IncomingMessage]):
         # Wait longer to ensure the system completes wakeup and is in WORK state
         logger.info("Waiting for system to be ready...")
         await asyncio.sleep(5.0)
-        
+
         for line in self._buffered_input:
             logger.info(f"Processing buffered input: {line}")
-            
+
             # Get channel ID from config or default to "cli"
             channel_id = "cli"
             if self.config and hasattr(self.config, 'get_home_channel_id'):
                 channel_id = self.config.get_home_channel_id()
-                
+
             msg = IncomingMessage(
                 message_id=f"cli_buffered_{asyncio.get_event_loop().time()}",
                 content=line,
@@ -124,14 +124,14 @@ class CLIObserver(BaseObserver[IncomingMessage]):
                 author_name="User",
                 channel_id=channel_id,
             )
-            
+
             await self.handle_incoming_message(msg)
-            
+
             # Small delay between messages to avoid overwhelming the system
             await asyncio.sleep(0.5)
-        
+
         logger.info("Finished processing buffered input")
-        
+
         # If not interactive, signal stop after processing
         if not self.interactive:
             logger.info("Non-interactive mode, signaling stop")
@@ -160,10 +160,14 @@ class CLIObserver(BaseObserver[IncomingMessage]):
             while not self._stop_event.is_set():
                 try:
                     line = await asyncio.to_thread(input, ">>> ")
+                except (EOFError, KeyboardInterrupt):
+                    logger.info("Input terminated (EOF or interrupt), stopping input loop")
+                    self._stop_event.set()
+                    break
                 except asyncio.CancelledError:
                     logger.debug("Input loop cancelled")
                     break
-                    
+
                 if not line:
                     continue
                 if line.lower() in {"exit", "quit", "bye"}:
@@ -174,7 +178,7 @@ class CLIObserver(BaseObserver[IncomingMessage]):
                 channel_id = "cli"
                 if self.config and hasattr(self.config, 'get_home_channel_id'):
                     channel_id = self.config.get_home_channel_id()
-                    
+
                 msg = IncomingMessage(
                     message_id=f"cli_{asyncio.get_event_loop().time()}",
                     content=line,
@@ -183,6 +187,9 @@ class CLIObserver(BaseObserver[IncomingMessage]):
                     channel_id=channel_id,
                 )
                 await self.handle_incoming_message(msg)
+        except (EOFError, KeyboardInterrupt):
+            logger.info("Input loop terminated (EOF or interrupt)")
+            self._stop_event.set()
         except asyncio.CancelledError:
             logger.debug("Input loop task cancelled")
             raise
@@ -195,68 +202,68 @@ class CLIObserver(BaseObserver[IncomingMessage]):
         """Check if a channel ID belongs to this CLI observer instance."""
         if not channel_id:
             return False
-            
+
         if channel_id == "cli":
             return True
-        
+
         # Check if it starts with "cli_" (buffered input format)
         if channel_id.startswith("cli_"):
             return True
-        
+
         if self.config and hasattr(self.config, 'get_home_channel_id'):
             config_channel = self.config.get_home_channel_id()
             if config_channel and channel_id == config_channel:
                 return True
-        
+
         import socket
         hostname_channel = socket.gethostname()
         if channel_id == hostname_channel or channel_id == f"channel/{hostname_channel}":
             return True
-        
+
         import getpass
         user_hostname = f"{getpass.getuser()}@{socket.gethostname()}"
         if channel_id == user_hostname:
             return True
-            
+
         return False
 
     async def handle_incoming_message(self, msg: IncomingMessage) -> None:
         if not isinstance(msg, IncomingMessage):
             logger.warning("CLIObserver received non-IncomingMessage")  # type: ignore[unreachable]
             return
-        
+
         is_agent_message = self.agent_id and msg.author_id == self.agent_id
-        
+
         processed_msg = await self._process_message_secrets(msg)
-        
+
         self._history.append(processed_msg)
-        
+
         if is_agent_message:
             logger.debug("Added agent's own message %s to history (no task created)", msg.message_id)
             return
-        
+
         filter_result = await self._apply_message_filtering(msg, "cli")
         if not filter_result.should_process:
             logger.debug(f"Message {msg.message_id} filtered out: {filter_result.reasoning}")
             return
-        
+
         processed_msg._filter_priority = filter_result.priority  # type: ignore[attr-defined]
         processed_msg._filter_context = filter_result.context_hints  # type: ignore[attr-defined]
         processed_msg._filter_reasoning = filter_result.reasoning  # type: ignore[attr-defined]
-        
+
         if filter_result.priority.value in ['critical', 'high']:
             logger.info(f"Processing {filter_result.priority.value} priority message {msg.message_id}: {filter_result.reasoning}")
             await self._handle_priority_observation(processed_msg, filter_result)
         else:
             await self._handle_passive_observation(processed_msg)
-            
+
         await self._recall_context(processed_msg)
 
     async def _handle_priority_observation(self, msg: IncomingMessage, filter_result: FilterResult) -> None:
         """Handle high-priority messages with immediate processing"""
         # The CLI observer should handle any CLI-related channel, not just "cli"
         # This could be "cli", "user@hostname", or any channel ID this CLI instance is responsible for
-        
+
         if self._is_cli_channel(msg.channel_id) and not self._is_agent_message(msg):
             # Create high-priority observation with enhanced context
             await self._create_priority_observation_result(msg, filter_result)
@@ -265,9 +272,8 @@ class CLIObserver(BaseObserver[IncomingMessage]):
 
     async def _handle_passive_observation(self, msg: IncomingMessage) -> None:
         """Handle passive observation routing based on channel ID and author filtering"""
-        
+
         if self._is_cli_channel(msg.channel_id) and not self._is_agent_message(msg):
             await self._create_passive_observation_result(msg)
         else:
             logger.debug("Ignoring passive message from channel %s, author %s for CLI observer", msg.channel_id, msg.author_name)
-

@@ -16,8 +16,8 @@ class PathConfig:
     retention_policy: str  # raw, aggregated, sampled
     alert_threshold_ms: float  # Alert if execution exceeds this
     sampling_rate: float = 1.0  # 1.0 = 100% sampling
-    
-@dataclass 
+
+@dataclass
 class ModulePathConfig:
     """Hot/cold path configuration for a module."""
     module_name: str
@@ -25,7 +25,7 @@ class ModulePathConfig:
     cold_types: Set[str] = field(default_factory=set)
     critical_functions: Set[str] = field(default_factory=set)
     telemetry_points: List[str] = field(default_factory=list)
-    
+
 # Global hot/cold path configuration based on ciris_mypy_toolkit analysis
 HOT_COLD_PATH_CONFIG: Dict[str, PathConfig] = {
     # CRITICAL PATHS - Always monitor with full telemetry
@@ -34,19 +34,19 @@ HOT_COLD_PATH_CONFIG: Dict[str, PathConfig] = {
     "auth_verification": PathConfig("critical", True, "raw", 5.0),
     "error_handler": PathConfig("critical", True, "raw", 20.0),
     "circuit_breaker": PathConfig("critical", True, "raw", 1.0),
-    
+
     # HOT PATHS - Core agent processing
     "thought_processing": PathConfig("hot", True, "raw", 100.0),
     "action_selection": PathConfig("hot", True, "raw", 50.0),
     "handler_invocation": PathConfig("hot", True, "raw", 200.0),
     "dma_execution": PathConfig("hot", True, "raw", 150.0),
     "conscience_check": PathConfig("hot", True, "raw", 30.0),
-    
+
     # WARM PATHS - Important but less frequent
     "context_building": PathConfig("hot", True, "aggregated", 300.0, 0.5),
     "service_lookup": PathConfig("hot", True, "aggregated", 50.0, 0.5),
     "message_processing": PathConfig("hot", True, "aggregated", 100.0, 0.8),
-    
+
     # COLD PATHS - Background operations
     "memory_operation": PathConfig("cold", False, "aggregated", 1000.0, 0.1),
     "persistence_fetch": PathConfig("cold", False, "aggregated", 500.0, 0.2),
@@ -63,15 +63,15 @@ MODULE_CONFIGS: Dict[str, ModulePathConfig] = {
         critical_functions={"process_thought", "_handle_special_cases"},
         telemetry_points=["thought_processing_started", "thought_processing_completed", "action_selected"]
     ),
-    
+
     "ciris_engine.action_handlers": ModulePathConfig(
-        module_name="action_handlers", 
+        module_name="action_handlers",
         hot_types={"ActionSelectionDMAResult", "DispatchContext", "HandlerActionType"},
         cold_types={"AuditLogEntry", "ServiceCorrelation"},
         critical_functions={"dispatch", "handle"},
         telemetry_points=["handler_invoked", "handler_completed", "handler_error"]
     ),
-    
+
     "ciris_engine.services": ModulePathConfig(
         module_name="services",
         hot_types={"ServiceProvider", "ServiceType"},
@@ -79,7 +79,7 @@ MODULE_CONFIGS: Dict[str, ModulePathConfig] = {
         critical_functions={"get_service", "register_service"},
         telemetry_points=["service_lookup", "service_registered", "service_health_check"]
     ),
-    
+
     "ciris_engine.dma": ModulePathConfig(
         module_name="dma",
         hot_types={"EthicalDMAResult", "CSDMAResult", "DSDMAResult"},
@@ -94,12 +94,12 @@ def get_path_config(metric_name: str) -> PathConfig:
     # Check exact matches first
     if metric_name in HOT_COLD_PATH_CONFIG:
         return HOT_COLD_PATH_CONFIG[metric_name]
-    
+
     # Check prefixes
     for path_name, config in HOT_COLD_PATH_CONFIG.items():
         if metric_name.startswith(path_name):
             return config
-    
+
     # Default to normal path
     return PathConfig("normal", False, "aggregated", 1000.0, 0.1)
 
@@ -120,7 +120,7 @@ def is_critical_function(module: str, function_name: str) -> bool:
 def get_telemetry_requirements(module: str, operation: str) -> dict:
     """Get telemetry requirements for a module operation."""
     path_config = get_path_config(operation)
-    
+
     return {
         "enabled": path_config.telemetry_required,
         "path_type": path_config.path_type,

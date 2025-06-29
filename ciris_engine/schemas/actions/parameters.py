@@ -8,8 +8,6 @@ from typing import (
     Dict,
     List,
     Optional,
-    TYPE_CHECKING,
-    Type,
     Union
 )
 from pydantic import BaseModel, Field, ConfigDict
@@ -59,7 +57,7 @@ class DeferParams(BaseModel):
     reason: str
     context: Optional[Dict[str, str]] = Field(default=None)
     defer_until: Optional[str] = Field(
-        None, 
+        None,
         description="ISO timestamp to reactivate task (e.g., '2025-01-20T15:00:00Z')"
     )
 
@@ -102,5 +100,5 @@ class TaskCompleteParams(BaseModel):
     completion_reason: str = "Task completed successfully"
     context: Optional[Dict[str, str]] = Field(default=None)
     positive_moment: Optional[str] = Field(None, description="Optional note about positive vibes/joy from this task")
-    
+
     model_config = ConfigDict(extra="forbid")

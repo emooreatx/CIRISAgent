@@ -4,16 +4,14 @@ Deferral schemas for CIRIS.
 Provides type-safe structures for deferral handling.
 """
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from datetime import datetime, timezone
 from enum import Enum
-from datetime import timezone
-from pydantic import Field, ConfigDict
 
 class DeferralReason(str, Enum):
     """Standard deferral reason codes."""
     conscience_FAILURE = "conscience_failure"
-    MAX_ROUNDS_REACHED = "max_rounds_reached" 
+    MAX_ROUNDS_REACHED = "max_rounds_reached"
     CHANNEL_POLICY_UPDATE = "channel_policy_update"
     INSUFFICIENT_CONTEXT = "insufficient_context"
     ETHICAL_CONCERN = "ethical_concern"
@@ -28,7 +26,7 @@ class EthicalAssessment(BaseModel):
     reasoning: str = Field(..., description="Explanation")
     principles_upheld: List[str] = Field(default_factory=list)
     principles_violated: List[str] = Field(default_factory=list)
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class CSDMAAssessment(BaseModel):
@@ -37,7 +35,7 @@ class CSDMAAssessment(BaseModel):
     practicality_score: float = Field(..., ge=0.0, le=1.0)
     flags: List[str] = Field(default_factory=list, description="Common sense flags")
     reasoning: str = Field(..., description="Explanation")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class DSDMAAssessment(BaseModel):
@@ -46,7 +44,7 @@ class DSDMAAssessment(BaseModel):
     alignment_score: float = Field(..., ge=0.0, le=1.0)
     recommendations: List[str] = Field(default_factory=list)
     reasoning: str = Field(..., description="Explanation")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class ActionHistoryItem(BaseModel):
@@ -55,7 +53,7 @@ class ActionHistoryItem(BaseModel):
     timestamp: datetime = Field(..., description="When action occurred")
     parameters: Dict[str, str] = Field(default_factory=dict, description="Action parameters")
     result: Optional[str] = Field(None, description="Action result")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class DeferralPackage(BaseModel):
@@ -64,26 +62,26 @@ class DeferralPackage(BaseModel):
     task_id: str = Field(..., description="ID of associated task")
     deferral_reason: DeferralReason = Field(..., description="Reason code")
     reason_description: str = Field(..., description="Human-readable reason")
-    
+
     # Core content
     thought_content: str = Field(..., description="The thought being deferred")
     task_description: Optional[str] = Field(None, description="Task description")
-    
+
     # Assessments (no Dict[str, Any]!)
     ethical_assessment: Optional[EthicalAssessment] = Field(None)
     csdma_assessment: Optional[CSDMAAssessment] = Field(None)
     dsdma_assessment: Optional[DSDMAAssessment] = Field(None)
-    
+
     # Context
     user_profiles: Dict[str, str] = Field(
-        default_factory=dict, 
+        default_factory=dict,
         description="User profile data as strings"
     )
     system_snapshot: Dict[str, str] = Field(
         default_factory=dict,
         description="System state as strings"
     )
-    
+
     # History
     ponder_history: List[str] = Field(
         default_factory=list,
@@ -93,13 +91,13 @@ class DeferralPackage(BaseModel):
         default_factory=list,
         description="Actions taken"
     )
-    
+
     # Metadata
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc),
         description="When package was created"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class TransportData(BaseModel):
@@ -112,7 +110,7 @@ class TransportData(BaseModel):
         default_factory=dict,
         description="Additional transport context"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class DeferralReport(BaseModel):
@@ -125,17 +123,17 @@ class DeferralReport(BaseModel):
         pattern="^(low|normal|high|critical)$",
         description="Urgency level"
     )
-    
+
     # Transport metadata (no Dict[str, Any]!)
     transport_data: TransportData = Field(..., description="Transport metadata")
     created_at: datetime = Field(..., description="Report creation time")
-    
+
     # Status tracking
     delivered: bool = Field(default=False, description="Whether delivered")
     delivered_at: Optional[datetime] = Field(None, description="Delivery timestamp")
     response_received: bool = Field(default=False, description="Whether response received")
     response_at: Optional[datetime] = Field(None, description="Response timestamp")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class DeferralResolution(BaseModel):
@@ -144,18 +142,18 @@ class DeferralResolution(BaseModel):
     wa_id: str = Field(..., description="WA who resolved")
     decision: str = Field(..., description="approve, reject, modify")
     reasoning: str = Field(..., description="Explanation of decision")
-    
+
     # Modifications if any
     modified_action: Optional[str] = Field(None, description="Modified action if changed")
     conditions: List[str] = Field(
         default_factory=list,
         description="Conditions on approval"
     )
-    
+
     # Timing
     resolved_at: datetime = Field(..., description="When resolved")
     signature: str = Field(..., description="Digital signature")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 __all__ = [

@@ -56,12 +56,12 @@ class TestSecretsToolService:
         """Test getting info for all tools."""
         tools = await tool_service.get_all_tool_info()
         assert len(tools) == 3
-        
+
         tool_names = [tool.name for tool in tools]
         assert "recall_secret" in tool_names
         assert "update_secrets_filter" in tool_names
         assert "self_help" in tool_names
-        
+
         # Check self_help tool specifically
         self_help = next(t for t in tools if t.name == "self_help")
         assert self_help.description == "Access your experience document for guidance"
@@ -73,13 +73,13 @@ class TestSecretsToolService:
         """Test successful secret recall."""
         # Setup mock
         mock_secrets_service.retrieve.return_value = "my-secret-value"
-        
+
         result = await tool_service.execute_tool("recall_secret", {
             "secret_uuid": "test-uuid",
             "purpose": "testing",
             "decrypt": True
         })
-        
+
         assert isinstance(result, ToolExecutionResult)
         assert result.status == ToolExecutionStatus.COMPLETED
         assert result.success is True
@@ -91,13 +91,13 @@ class TestSecretsToolService:
         """Test adding a pattern to secrets filter."""
         # Setup mock
         mock_secrets_service.filter.add_pattern.return_value = True
-        
+
         result = await tool_service.execute_tool("update_secrets_filter", {
             "operation": "add_pattern",
             "pattern": "API_KEY=.*",
             "pattern_type": "regex"
         })
-        
+
         assert result.status == ToolExecutionStatus.COMPLETED
         assert result.success is True
         assert result.data["operation"] == "add_pattern"
@@ -117,12 +117,12 @@ class TestSecretsToolService:
 - Retry failed operations up to 3 times
 - Log all errors for debugging
 """
-        
+
         with patch("pathlib.Path.exists", return_value=True), \
              patch("pathlib.Path.read_text", return_value=mock_content):
-            
+
             result = await tool_service.execute_tool("self_help", {})
-            
+
             assert result.status == ToolExecutionStatus.COMPLETED
             assert result.success is True
             assert result.data["content"] == mock_content
@@ -134,7 +134,7 @@ class TestSecretsToolService:
         """Test self_help when experience document doesn't exist."""
         with patch("pathlib.Path.exists", return_value=False):
             result = await tool_service.execute_tool("self_help", {})
-            
+
             assert result.status == ToolExecutionStatus.FAILED
             assert result.success is False
             assert "not found" in result.error
@@ -144,9 +144,9 @@ class TestSecretsToolService:
         """Test self_help when file read fails."""
         with patch("pathlib.Path.exists", return_value=True), \
              patch("pathlib.Path.read_text", side_effect=IOError("Permission denied")):
-            
+
             result = await tool_service.execute_tool("self_help", {})
-            
+
             assert result.status == ToolExecutionStatus.FAILED
             assert result.success is False
             assert "Permission denied" in result.error
@@ -162,7 +162,7 @@ class TestSecretsToolService:
         assert await tool_service.validate_parameters("recall_secret", {
             "secret_uuid": "test"
         }) is False  # Missing purpose
-        
+
         # Test update_secrets_filter validation
         assert await tool_service.validate_parameters("update_secrets_filter", {
             "operation": "list_patterns"
@@ -174,7 +174,7 @@ class TestSecretsToolService:
         assert await tool_service.validate_parameters("update_secrets_filter", {
             "operation": "add_pattern"
         }) is False  # Missing pattern
-        
+
         # Test self_help validation (no params required)
         assert await tool_service.validate_parameters("self_help", {}) is True
         assert await tool_service.validate_parameters("self_help", {"any": "param"}) is True
@@ -183,7 +183,7 @@ class TestSecretsToolService:
     async def test_unknown_tool(self, tool_service):
         """Test executing an unknown tool."""
         result = await tool_service.execute_tool("unknown_tool", {})
-        
+
         assert result.status == ToolExecutionStatus.FAILED
         assert result.success is False
         assert "Unknown tool" in result.error
@@ -195,11 +195,11 @@ class TestSecretsToolService:
             secrets_service=mock_secrets_service,
             time_service=mock_time_service
         )
-        
+
         # Test start
         await service.start()
         assert await service.is_healthy() is True
-        
+
         # Test stop
         await service.stop()
         # Service should still be healthy after stop (no resources to clean up)

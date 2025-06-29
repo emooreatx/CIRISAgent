@@ -3,9 +3,8 @@ Schemas for CLI adapter operations.
 
 These replace all Dict[str, Any] usage in logic/adapters/cli/cli_adapter.py.
 """
-from typing import List, Optional, Any
+from typing import List, Optional
 from pydantic import BaseModel, Field
-from pydantic import Field
 
 class CLIMessage(BaseModel):
     """A message received from or sent to CLI."""

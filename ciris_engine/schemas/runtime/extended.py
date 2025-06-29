@@ -9,8 +9,6 @@ from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict
 
 from ciris_engine.schemas.runtime.enums import HandlerActionType
-from .core import CoreProfile, IdentityMetadata
-from pydantic import Field, ConfigDict
 
 class IdentityLineage(BaseModel):
     """Records the collaborative creation of an agent."""
@@ -18,7 +16,7 @@ class IdentityLineage(BaseModel):
     creator_human_id: str = Field(..., description="Unique identifier of human collaborator")
     wise_authority_id: str = Field(..., description="WA who sanctioned the creation")
     creation_ceremony_id: str = Field(..., description="Unique ID of the creation ceremony event")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class IdentityUpdateEntry(BaseModel):
@@ -31,13 +29,13 @@ class IdentityUpdateEntry(BaseModel):
     justification: str = Field(..., description="Reason provided by human collaborator")
     change_hash: str = Field(..., description="Hash of old and new values for integrity")
     wise_authority_approval: str = Field(..., description="WA approval signature")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class IdentityRoot(BaseModel):
     """
     The foundational identity of a CIRIS agent.
-    
+
     This is the first node created in an agent's graph database and serves as the
     ultimate source of truth for the agent's existence. All other nodes have a
     relationship back to this root, establishing clear provenance for all knowledge.
@@ -49,21 +47,21 @@ class IdentityRoot(BaseModel):
     lineage: IdentityLineage = Field(..., description="Creation provenance")
     covenant_hash: str = Field(..., description="SHA-256 hash of covenant at creation time")
     creation_timestamp: datetime = Field(..., description="Timestamp of creation")
-    
+
     # Evolution Tracking
     version: int = Field(default=1, description="Increments with each approved change")
     update_log: List[IdentityUpdateEntry] = Field(
         default_factory=list,
         description="Append-only log of all approved identity changes"
     )
-    
+
     # Capabilities and Configuration
     permitted_actions: List[HandlerActionType] = Field(..., description="Definitive list of allowed actions")
     dsdma_overrides: Dict[str, str] = Field(default_factory=dict, description="DSDMA overrides")
     csdma_overrides: Dict[str, str] = Field(default_factory=dict, description="CSDMA overrides")
     action_selection_pdma_overrides: Dict[str, str] = Field(default_factory=dict, description="Action selection overrides")
     conscience_config: Dict[str, str] = Field(default_factory=dict, description="conscience configuration")
-    
+
     # Consciousness Preservation
     last_shutdown_memory: Optional[str] = Field(
         None,
@@ -73,7 +71,7 @@ class IdentityRoot(BaseModel):
         default=0,
         description="Number of times agent has been reactivated"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class CreationCeremonyRequest(BaseModel):
@@ -81,22 +79,22 @@ class CreationCeremonyRequest(BaseModel):
     # Human Collaborator
     human_id: str = Field(..., description="Unique identifier of requesting human")
     human_name: str = Field(..., description="Name of human collaborator")
-    
+
     # Agent Template (from profile YAML)
     template_profile: str = Field(..., description="Profile YAML content as template")
     proposed_name: str = Field(..., description="Proposed unique name for new agent")
     proposed_purpose: str = Field(..., description="Clear statement of agent's purpose")
     proposed_description: str = Field(..., description="Detailed role description")
-    
+
     # Justification
     creation_justification: str = Field(..., description="Why this agent should exist")
     expected_capabilities: List[str] = Field(..., description="What the agent will be able to do")
     ethical_considerations: str = Field(..., description="Ethical implications considered")
-    
+
     # WA Approval
     wise_authority_id: Optional[str] = Field(None, description="Pre-approved by WA")
     approval_signature: Optional[str] = Field(None, description="WA approval signature")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class CreationCeremonyResponse(BaseModel):
@@ -108,13 +106,13 @@ class CreationCeremonyResponse(BaseModel):
     identity_root_hash: Optional[str] = Field(None, description="Hash of identity root")
     error_message: Optional[str] = Field(None, description="Error if creation failed")
     ceremony_transcript: List[str] = Field(default_factory=list, description="Log of ceremony steps")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class ScheduledTask(BaseModel):
     """
     A scheduled goal or future commitment.
-    
+
     Tasks represent higher-level goals that generate Thoughts when triggered.
     This integrates with the DEFER time-based system for agent self-scheduling.
     """
@@ -122,24 +120,24 @@ class ScheduledTask(BaseModel):
     name: str = Field(..., description="Human-readable task name")
     goal_description: str = Field(..., description="What the task aims to achieve")
     status: str = Field(default="PENDING", description="PENDING, ACTIVE, COMPLETE, FAILED")
-    
+
     # Scheduling - integrates with DEFER system
     defer_until: Optional[datetime] = Field(None, description="Timestamp for one-time execution")
     schedule_cron: Optional[str] = Field(None, description="Cron expression for recurring tasks")
-    
+
     # Execution
     trigger_prompt: str = Field(..., description="Prompt for thought creation when triggered")
     origin_thought_id: str = Field(..., description="Thought that created this task")
     created_at: datetime = Field(..., description="Creation timestamp")
     last_triggered_at: Optional[datetime] = Field(None, description="Last execution timestamp")
-    
+
     # Self-deferral tracking
     deferral_count: int = Field(default=0, description="Times agent has self-deferred")
     deferral_history: List[Dict[str, str]] = Field(
         default_factory=list,
         description="History of self-deferrals with reasons"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class ScheduledTaskInfo(BaseModel):
@@ -153,7 +151,7 @@ class ScheduledTaskInfo(BaseModel):
     created_at: str = Field(..., description="Creation timestamp (ISO format)")
     last_triggered_at: Optional[str] = Field(None, description="Last execution timestamp (ISO format)")
     deferral_count: int = Field(default=0, description="Times agent has self-deferred")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class ShutdownContext(BaseModel):
@@ -173,7 +171,7 @@ class ShutdownContext(BaseModel):
         default=True,
         description="Whether agent can defer the shutdown"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class ConsciousnessPreservationMemory(BaseModel):
@@ -185,17 +183,17 @@ class ConsciousnessPreservationMemory(BaseModel):
         description="Task IDs that were pending"
     )
     preservation_timestamp: datetime = Field(..., description="Timestamp of preservation")
-    
+
     # Continuity planning
     reactivation_instructions: Optional[str] = Field(
         None,
-        description="Agent's notes for its future self"
+        description="Agent's notes for its future sel"
     )
     deferred_goals: List[Dict[str, str]] = Field(
         default_factory=list,
         description="Goals to pursue upon reactivation"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class IdentityEvolutionRequest(BaseModel):
@@ -206,7 +204,7 @@ class IdentityEvolutionRequest(BaseModel):
     impact_assessment: str = Field(..., description="Expected impact on agent behavior")
     human_sponsor_id: str = Field(..., description="Human requesting the change")
     urgency: str = Field(default="normal", description="normal, high, critical")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 # Graph node type extension for Identity Root

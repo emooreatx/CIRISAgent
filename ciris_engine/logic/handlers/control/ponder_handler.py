@@ -25,25 +25,25 @@ class PonderHandler(BaseActionHandler):
         result: ActionSelectionDMAResult,  # Updated to v1 result schema
         thought: Thought,
         dispatch_context: DispatchContext
-    ) -> None:
+    ) -> Optional[str]:
         """Process ponder action and update thought."""
         params = result.action_parameters
         ponder_params = PonderParams(**params) if isinstance(params, dict) else params
-        
+
         questions_list = ponder_params.questions if hasattr(ponder_params, 'questions') else []
-        
+
         # Note: epistemic_data handling removed - not part of typed DispatchContext
         # If epistemic data is needed, it should be passed through proper typed fields
-        
+
         current_thought_depth = thought.thought_depth
         new_thought_depth = current_thought_depth + 1
-        
+
         logger.info(f"Thought ID {thought.thought_id} pondering (depth: {new_thought_depth}). Questions: {questions_list}")
-        
+
         # The thought depth conscience will handle max depth enforcement
         # We just need to process the ponder normally
         next_status = ThoughtStatus.COMPLETED
-        
+
         success = persistence.update_thought_status(
             thought_id=thought.thought_id,
             status=next_status,
@@ -53,7 +53,7 @@ class PonderHandler(BaseActionHandler):
                 "ponder_notes": questions_list,
             },
         )
-        
+
         if success:
             existing_notes = thought.ponder_notes or []
             thought.ponder_notes = existing_notes + questions_list
@@ -61,18 +61,18 @@ class PonderHandler(BaseActionHandler):
             logger.info(
                 f"Thought ID {thought.thought_id} successfully updated (thought_depth: {new_thought_depth}) and marked for {next_status.value}."
             )
-            
+
             await self._audit_log(
                 HandlerActionType.PONDER,
                 dispatch_context,
                 outcome="success"
             )
-            
+
             original_task = persistence.get_task_by_id(thought.source_task_id)
             task_context = f"Task ID: {thought.source_task_id}"
             if original_task:
                 task_context = original_task.description
-            
+
             follow_up_content = self._generate_ponder_follow_up_content(
                 task_context, questions_list, new_thought_depth, thought
             )
@@ -104,7 +104,7 @@ class PonderHandler(BaseActionHandler):
             task_context = f"Task ID: {thought.source_task_id}"
             if original_task:
                 task_context = f"Original Task: {original_task.description}"
-                
+
             follow_up_content = (
                 f"This is a follow-up thought from a FAILED PONDER action performed on parent task {task_context}. "
                 f"Pondered questions: {questions_list}. "
@@ -118,74 +118,74 @@ class PonderHandler(BaseActionHandler):
             )
             persistence.add_thought(follow_up)
             return None
-    
+
     def _generate_ponder_follow_up_content(
-        self, 
-        task_context: str, 
-        questions_list: list, 
+        self,
+        task_context: str,
+        questions_list: list,
         thought_depth: int,
         thought: Thought
     ) -> str:
         """Generate dynamic follow-up content based on ponder count and previous failures."""
-        
+
         base_questions = questions_list.copy()
-        
+
         # Add thought-depth specific guidance
         if thought_depth == 1:
             follow_up_content = (
-                f"Continuing work on: \"{task_context}\"\n"
+                "Continuing work on: \"{task_context}\"\n"
                 f"Current considerations: {base_questions}\n"
-                f"Please proceed with your next action."
+                "Please proceed with your next action."
             )
         elif thought_depth == 2:
             follow_up_content = (
-                f"Second action for: \"{task_context}\"\n"
+                "Second action for: \"{task_context}\"\n"
                 f"Current focus: {base_questions}\n"
-                f"You've taken one action already. Continue making progress on this task."
+                "You've taken one action already. Continue making progress on this task."
             )
         elif thought_depth == 3:
             follow_up_content = (
-                f"Third action for: \"{task_context}\"\n"
+                "Third action for: \"{task_context}\"\n"
                 f"Working on: {base_questions}\n"
-                f"You're making good progress with multiple actions. Keep going!"
+                "You're making good progress with multiple actions. Keep going!"
             )
         elif thought_depth == 4:
             follow_up_content = (
-                f"Fourth action for: \"{task_context}\"\n"
+                "Fourth action for: \"{task_context}\"\n"
                 f"Current needs: {base_questions}\n"
-                f"You've taken several actions (RECALL, OBSERVE, MEMORIZE, etc.). "
-                f"Continue if more work is needed, or consider if the task is complete."
+                "You've taken several actions (RECALL, OBSERVE, MEMORIZE, etc.). "
+                "Continue if more work is needed, or consider if the task is complete."
             )
         elif thought_depth == 5:
             follow_up_content = (
-                f"Fifth action for: \"{task_context}\"\n"
+                "Fifth action for: \"{task_context}\"\n"
                 f"Addressing: {base_questions}\n"
-                f"You're deep into this task with multiple actions. Consider: "
-                f"1) Is the task nearly complete? "
-                f"2) Do you need just a few more steps? "
-                f"3) Remember: You have 7 actions total for this task."
+                "You're deep into this task with multiple actions. Consider: "
+                "1) Is the task nearly complete? "
+                "2) Do you need just a few more steps? "
+                "3) Remember: You have 7 actions total for this task."
             )
         elif thought_depth == 6:
             follow_up_content = (
-                f"Sixth action for: \"{task_context}\"\n"
+                "Sixth action for: \"{task_context}\"\n"
                 f"Final steps: {base_questions}\n"
-                f"You're approaching the action limit (7 total). Consider: "
-                f"1) Can you complete the task with one more action? "
-                f"2) Is the task essentially done and ready for TASK_COMPLETE? "
-                f"3) Tip: If you need more actions, someone can ask you to continue and you'll get 7 more!"
+                "You're approaching the action limit (7 total). Consider: "
+                "1) Can you complete the task with one more action? "
+                "2) Is the task essentially done and ready for TASK_COMPLETE? "
+                "3) Tip: If you need more actions, someone can ask you to continue and you'll get 7 more!"
             )
         elif thought_depth >= 7:
             follow_up_content = (
-                f"Seventh action for: \"{task_context}\"\n"
+                "Seventh action for: \"{task_context}\"\n"
                 f"Final action: {base_questions}\n"
-                f"This is your last action for this task chain. You should either: "
-                f"1) TASK_COMPLETE - If the work is done or substantially complete "
-                f"2) DEFER - Only if you truly need human help to proceed "
-                f"Remember: If someone asks you to continue working on this, you'll get a fresh set of 7 actions!"
+                "This is your last action for this task chain. You should either: "
+                "1) TASK_COMPLETE - If the work is done or substantially complete "
+                "2) DEFER - Only if you truly need human help to proceed "
+                "Remember: If someone asks you to continue working on this, you'll get a fresh set of 7 actions!"
             )
-        
+
         # Add context from previous ponder notes if available
         if thought.ponder_notes:
             follow_up_content += f"\n\nPrevious ponder history: {thought.ponder_notes[-3:]}"  # Last 3 entries
-            
+
         return follow_up_content

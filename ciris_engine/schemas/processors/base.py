@@ -14,7 +14,7 @@ class ProcessorMetrics(BaseModel):
     items_processed: int = Field(0, description="Number of items processed")
     errors: int = Field(0, description="Number of errors encountered")
     rounds_completed: int = Field(0, description="Number of processing rounds completed")
-    
+
     # Additional metrics can be added by specific processors
     additional_metrics: Dict[str, Any] = Field(default_factory=dict, description="Processor-specific metrics")
 
@@ -25,7 +25,7 @@ class ProcessorServices(BaseModel):
     memory_service: Optional[object] = Field(None, description="Memory service")
     audit_service: Optional[object] = Field(None, description="Audit service")
     telemetry_service: Optional[object] = Field(None, description="Telemetry service")
-    
+
     model_config = ConfigDict(arbitrary_types_allowed = True)
 
 class ProcessorContext(BaseModel):
@@ -34,8 +34,8 @@ class ProcessorContext(BaseModel):
     current_state: str = Field(..., description="Current agent state")
     round_number: int = Field(..., description="Current round number")
     channel_context: Optional[Dict[str, Any]] = Field(None, description="Channel context if available")
-    
-    
+
+
 class MetricsUpdate(BaseModel):
     """Update to processor metrics."""
     items_processed: Optional[int] = Field(None, description="Items processed increment")

@@ -1,4 +1,5 @@
 import asyncio
+import os
 from click.testing import CliRunner
 from unittest.mock import AsyncMock, MagicMock
 from typing import List
@@ -16,14 +17,21 @@ def test_cli_offline_non_interactive(monkeypatch):
     runtime_mock.initialize = AsyncMock()
     runtime_mock.shutdown = AsyncMock()
     runtime_mock.startup_channel_id = "cli"
-    
+    runtime_mock._shutdown_complete = True  # Mark as shutdown complete to prevent monitor task from forcing exit
+
     def mock_runtime_init(modes: List[str], **kwargs):
         return runtime_mock
-    
+
     monkeypatch.setattr("ciris_engine.logic.runtime.ciris_runtime.CIRISRuntime.__new__", lambda cls, *args, **kwargs: runtime_mock)
     monkeypatch.setattr("ciris_engine.logic.runtime.ciris_runtime.CIRISRuntime.__init__", lambda self, *args, **kwargs: None)
-    
+
     monkeypatch.setattr(main, "_run_runtime", AsyncMock())
+
+    # Mock os._exit to prevent actual exit
+    def mock_exit(code):
+        pass  # Don't actually exit
+    
+    monkeypatch.setattr("os._exit", mock_exit)
 
     real_run = asyncio.run
 

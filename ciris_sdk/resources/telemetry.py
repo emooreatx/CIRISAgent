@@ -12,7 +12,7 @@ class TelemetryResource:
     async def get_overview(self) -> Dict[str, Any]:
         """
         Get system metrics summary.
-        
+
         Returns comprehensive overview combining telemetry, visibility, incidents, and resource usage.
         """
         resp = await self._transport.request("GET", "/v1/telemetry/overview")
@@ -21,21 +21,21 @@ class TelemetryResource:
     async def get_metrics(self) -> Dict[str, Any]:
         """
         Get detailed metrics.
-        
+
         Returns detailed metrics with trends and breakdowns by service.
         """
         resp = await self._transport.request("GET", "/v1/telemetry/metrics")
         return resp.json()
 
     async def get_traces(
-        self, 
+        self,
         limit: int = 10,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None
     ) -> Dict[str, Any]:
         """
         Get reasoning traces.
-        
+
         Returns reasoning traces showing agent thought processes and decision-making.
         """
         params = {"limit": str(limit)}
@@ -43,7 +43,7 @@ class TelemetryResource:
             params["start_time"] = start_time.isoformat()
         if end_time:
             params["end_time"] = end_time.isoformat()
-            
+
         resp = await self._transport.request("GET", "/v1/telemetry/traces", params=params)
         return resp.json()
 
@@ -57,7 +57,7 @@ class TelemetryResource:
     ) -> Dict[str, Any]:
         """
         Get system logs.
-        
+
         Returns system logs from all services with filtering capabilities.
         """
         params = {"limit": str(limit)}
@@ -69,7 +69,7 @@ class TelemetryResource:
             params["level"] = level
         if service:
             params["service"] = service
-            
+
         resp = await self._transport.request("GET", "/v1/telemetry/logs", params=params)
         return resp.json()
 
@@ -84,7 +84,7 @@ class TelemetryResource:
     ) -> Dict[str, Any]:
         """
         Execute custom telemetry queries.
-        
+
         Query types: metrics, traces, logs, incidents, insights
         Requires ADMIN role.
         """
@@ -93,14 +93,14 @@ class TelemetryResource:
             "filters": filters or {},
             "limit": limit
         }
-        
+
         if aggregations:
             payload["aggregations"] = aggregations
         if start_time:
             payload["start_time"] = start_time.isoformat()
         if end_time:
             payload["end_time"] = end_time.isoformat()
-            
+
         resp = await self._transport.request("POST", "/v1/telemetry/query", json=payload)
         return resp.json()
 
@@ -120,7 +120,7 @@ class TelemetryResource:
         return await self.get_metrics()
 
     async def get_observability_traces(
-        self, 
+        self,
         limit: int = 10,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None

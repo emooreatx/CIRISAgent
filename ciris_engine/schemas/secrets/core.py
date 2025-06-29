@@ -10,12 +10,11 @@ from pydantic import BaseModel, Field, ConfigDict
 from enum import Enum
 
 from ciris_engine.schemas.runtime.enums import SensitivityLevel
-from pydantic import Field, ConfigDict
 
 class SecretType(str, Enum):
     """Standard secret types with default detection patterns"""
     API_KEYS = "api_keys"
-    BEARER_TOKENS = "bearer_tokens" 
+    BEARER_TOKENS = "bearer_tokens"
     PASSWORDS = "passwords"
     URLS_WITH_AUTH = "urls_with_auth"
     PRIVATE_KEYS = "private_keys"
@@ -34,23 +33,23 @@ class SecretRecord(BaseModel):
     encryption_key_ref: str = Field(..., description="Reference to encryption key in secure store")
     salt: bytes = Field(..., description="Cryptographic salt")
     nonce: bytes = Field(..., description="AES-GCM nonce")
-    
+
     description: str = Field(..., description="Human-readable description")
     sensitivity_level: SensitivityLevel = Field(..., description="Sensitivity level")
     detected_pattern: str = Field(..., description="Pattern that detected this secret")
     context_hint: str = Field(..., description="Safe context description")
-    
+
     created_at: datetime = Field(..., description="Creation timestamp")
     last_accessed: Optional[datetime] = Field(None, description="Last access time")
     access_count: int = Field(0, description="Number of times accessed")
     source_message_id: Optional[str] = Field(None, description="Source message ID")
-    
+
     auto_decapsulate_for_actions: List[str] = Field(
         default_factory=list,
         description="Actions that can auto-decrypt"
     )
     manual_access_only: bool = Field(False, description="Require manual access")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class SecretReference(BaseModel):
@@ -63,7 +62,7 @@ class SecretReference(BaseModel):
     auto_decapsulate_actions: List[str] = Field(..., description="Auto-decrypt actions")
     created_at: datetime = Field(..., description="Creation time")
     last_accessed: Optional[datetime] = Field(None, description="Last access")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class SecretAccessLog(BaseModel):
@@ -79,7 +78,7 @@ class SecretAccessLog(BaseModel):
     action_context: Optional[str] = Field(None, description="Action context")
     success: bool = Field(True, description="Whether access succeeded")
     failure_reason: Optional[str] = Field(None, description="Failure reason if any")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class DetectedSecret(BaseModel):
@@ -91,7 +90,7 @@ class DetectedSecret(BaseModel):
     sensitivity: SensitivityLevel = Field(..., description="Sensitivity level")
     context_hint: str = Field(..., description="Safe context description")
     replacement_text: str = Field(..., description="Text to replace secret with in context")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class SecretsFilterResult(BaseModel):
@@ -100,7 +99,7 @@ class SecretsFilterResult(BaseModel):
     detected_secrets: List[DetectedSecret] = Field(default_factory=list, description="Detected secrets")
     secrets_found: int = Field(default=0, description="Number of secrets found")
     patterns_matched: List[str] = Field(default_factory=list, description="Patterns that matched")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class RecallSecretParams(BaseModel):
@@ -108,7 +107,7 @@ class RecallSecretParams(BaseModel):
     secret_uuid: str = Field(..., description="UUID of the secret to recall")
     purpose: str = Field(..., description="Why the secret is needed (for audit)")
     decrypt: bool = Field(default=False, description="Whether to decrypt the secret value")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class SecretPattern(BaseModel):
@@ -118,7 +117,7 @@ class SecretPattern(BaseModel):
     description: str = Field(..., description="What this pattern detects")
     sensitivity: SensitivityLevel = Field(..., description="Default sensitivity")
     enabled: bool = Field(True, description="Whether pattern is active")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 def _default_secret_patterns() -> List[SecretPattern]:
@@ -154,7 +153,7 @@ class SecretsDetectionConfig(BaseModel):
         default_factory=_default_secret_patterns,
         description="Detection patterns"
     )
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class UpdateSecretsFilterParams(BaseModel):
@@ -163,11 +162,11 @@ class UpdateSecretsFilterParams(BaseModel):
         ...,
         description="Operation to perform"
     )
-    
+
     pattern: Optional[SecretPattern] = Field(None, description="Pattern for add/update operations")
     pattern_name: Optional[str] = Field(None, description="Pattern name for remove/update")
     config_updates: Optional[Dict[str, str]] = Field(None, description="Configuration updates")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class SecretStorageConfig(BaseModel):
@@ -177,7 +176,7 @@ class SecretStorageConfig(BaseModel):
     key_iterations: int = Field(100000, description="KDF iterations")
     auto_expire_days: Optional[int] = Field(None, description="Auto-expiry in days")
     require_mfa: bool = Field(False, description="Require MFA for access")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class SecretMetrics(BaseModel):
@@ -187,7 +186,7 @@ class SecretMetrics(BaseModel):
     secrets_by_sensitivity: Dict[str, int] = Field(..., description="Count by sensitivity")
     access_count_last_day: int = Field(..., description="Accesses in last 24h")
     detection_count_last_day: int = Field(..., description="Detections in last 24h")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class PatternStats(BaseModel):
@@ -198,7 +197,7 @@ class PatternStats(BaseModel):
     disabled_patterns: int = Field(0, description="Number of disabled patterns")
     builtin_patterns: bool = Field(True, description="Whether builtin patterns are enabled")
     filter_version: str = Field("v1.0", description="Filter version")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class ConfigExport(BaseModel):
@@ -211,7 +210,7 @@ class ConfigExport(BaseModel):
     sensitivity_overrides: dict = Field(default_factory=dict, description="Sensitivity overrides")
     require_confirmation_for: List[str] = Field(default_factory=list, description="Actions requiring confirmation")
     auto_decrypt_for_actions: List[str] = Field(default_factory=list, description="Actions that auto-decrypt")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class FilterConfigUpdate(BaseModel):
@@ -219,7 +218,7 @@ class FilterConfigUpdate(BaseModel):
     updates: dict = Field(..., description="Configuration updates to apply")
     update_type: str = Field("config", description="Type of update")
     validation_errors: List[str] = Field(default_factory=list, description="Validation errors if any")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 __all__ = [

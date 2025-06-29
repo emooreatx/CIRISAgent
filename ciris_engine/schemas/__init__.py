@@ -95,7 +95,7 @@ __all__ = [
     # Action contexts
     "BaseActionContext",
     "SpeakContext",
-    "ToolContext", 
+    "ToolContext",
     "ObserveContext",
     "MemorizeContext",
     "RecallContext",

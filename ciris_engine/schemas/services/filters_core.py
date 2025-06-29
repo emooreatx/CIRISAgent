@@ -37,7 +37,7 @@ class FilterTrigger(BaseModel):
     priority: FilterPriority = Field(description="Priority level when triggered")
     description: str = Field(description="Human-readable description")
     enabled: bool = Field(default=True, description="Whether trigger is active")
-    
+
     # Learning metadata
     effectiveness: float = Field(default=0.5, ge=0.0, le=1.0, description="How effective the trigger is")
     false_positive_rate: float = Field(default=0.0, ge=0.0, le=1.0, description="Rate of false positives")
@@ -46,7 +46,7 @@ class FilterTrigger(BaseModel):
     last_triggered: Optional[datetime] = Field(default=None, description="When last triggered")
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Creation timestamp")
     created_by: str = Field(default="system", description="Creator of the trigger")
-    
+
     # For learned patterns
     learned_from: Optional[str] = Field(default=None, description="Source of learned pattern")
 
@@ -63,7 +63,7 @@ class UserTrustProfile(BaseModel):
     trust_score: float = Field(default=0.5, ge=0.0, le=1.0, description="User trust score")
     flags: List[str] = Field(default_factory=list, description="Behavioral flags")
     roles: List[str] = Field(default_factory=list, description="User roles in community")
-    
+
     avg_message_length: float = Field(default=0.0, description="Average message length")
     avg_message_interval: float = Field(default=0.0, description="Average seconds between messages")
     common_triggers: List[str] = Field(default_factory=list, description="Commonly triggered filters")
@@ -75,13 +75,13 @@ class ConversationHealth(BaseModel):
     channel_id: str = Field(description="Unique channel identifier")
     sample_rate: float = Field(default=0.1, ge=0.0, le=1.0, description="Sampling rate for messages")
     health_score: float = Field(default=0.5, ge=0.0, le=1.0, description="Overall health score")
-    
+
     # Detailed metrics
     toxicity_level: float = Field(default=0.0, ge=0.0, le=1.0, description="Level of toxic content")
     engagement_level: float = Field(default=0.5, ge=0.0, le=1.0, description="User engagement level")
     topic_coherence: float = Field(default=0.5, ge=0.0, le=1.0, description="Coherence of discussion topics")
     user_satisfaction: float = Field(default=0.5, ge=0.0, le=1.0, description="Estimated user satisfaction")
-    
+
     # Sampling data
     last_sample: Optional[datetime] = Field(default=None, description="When last sampled")
     samples_today: int = Field(default=0, description="Samples taken today")
@@ -104,7 +104,7 @@ class FilterResult(BaseModel):
     should_process: bool = Field(description="Whether to process the message")
     should_defer: bool = Field(default=False, description="Whether to defer processing")
     reasoning: str = Field(description="Human-readable reasoning")
-    
+
     suggested_action: Optional[str] = Field(default=None, description="Suggested action to take")
     context_hints: List[ContextHint] = Field(default_factory=list, description="Additional context")
 
@@ -126,29 +126,29 @@ class AdaptiveFilterConfig(BaseModel):
         description="Unique configuration ID"
     )
     version: int = Field(default=1, description="Configuration version")
-    
+
     # Core attention triggers (agent always sees these)
     attention_triggers: List[FilterTrigger] = Field(default_factory=list, description="High-priority triggers")
-    
+
     # Suspicious pattern triggers
     review_triggers: List[FilterTrigger] = Field(default_factory=list, description="Triggers for review")
-    
+
     # LLM response filters (protect against malicious LLM)
     llm_filters: List[FilterTrigger] = Field(default_factory=list, description="LLM output filters")
-    
+
     # Channel-specific settings
     channel_configs: List[ChannelConfig] = Field(default_factory=list, description="Per-channel configurations")
-    
+
     # User tracking
     new_user_threshold: int = Field(default=5, description="Messages before user is trusted")
     user_profiles: Dict[str, UserTrustProfile] = Field(default_factory=dict, description="User trust profiles by user ID")
-    
+
     # Adaptive learning settings
     auto_adjust: bool = Field(default=True, description="Enable automatic adjustments")
     adjustment_interval: int = Field(default=3600, description="Seconds between adjustments")
     effectiveness_threshold: float = Field(default=0.3, description="Disable filters below this effectiveness")
     false_positive_threshold: float = Field(default=0.2, description="Review filters above this FP rate")
-    
+
     # Metadata
     last_adjustment: Optional[datetime] = Field(default=None, description="When last adjusted")
     total_messages_processed: int = Field(default=0, description="Total messages filtered")

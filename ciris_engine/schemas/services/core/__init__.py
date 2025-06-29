@@ -6,13 +6,9 @@ Critical schemas for service container, status, and capabilities.
 from typing import Dict, List, Optional, TYPE_CHECKING, Any
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field, ConfigDict
-from pydantic import Field, ConfigDict
 
 if TYPE_CHECKING:
-    from ciris_engine.protocols.services import (
-        AuditService, LLMService, MemoryService,
-        ToolService, WiseAuthorityService
-    )
+    pass
 
 class ServiceCapabilities(BaseModel):
     """Capabilities exposed by a service."""
@@ -34,18 +30,18 @@ class ServiceStatus(BaseModel):
 
 class ServiceContainer(BaseModel):
     """Type-safe container for all CIRIS services."""
-    
+
     # Core services - using Any to avoid circular imports
     llm_service: Optional[Any] = Field(None, description="LLM service for AI operations")
     memory_service: Optional[Any] = Field(None, description="Memory service for knowledge storage")
     audit_services: List[Any] = Field(default_factory=list, description="Audit services for compliance")
     tool_services: List[Any] = Field(default_factory=list, description="Tool services for capabilities")
     wa_services: List[Any] = Field(default_factory=list, description="Wise Authority services")
-    
+
     # Security services
     secrets_service: Optional[Any] = Field(None, description="Secrets management service")
     wa_auth_system: Optional[Any] = Field(None, description="WA authentication system")
-    
+
     # Infrastructure services
     telemetry_service: Optional[Any] = Field(None, description="Telemetry and monitoring")
     adaptive_filter_service: Optional[Any] = Field(None, description="Adaptive content filtering")
@@ -53,9 +49,9 @@ class ServiceContainer(BaseModel):
     transaction_orchestrator: Optional[Any] = Field(None, description="Transaction coordination")
     core_tool_service: Optional[Any] = Field(None, description="Core tool capabilities")
     maintenance_service: Optional[Any] = Field(None, description="System maintenance service")
-    
+
     model_config = ConfigDict(arbitrary_types_allowed = True)
-    
+
     def get_service_by_type(self, service_type: str) -> Optional[List[Any]]:
         """Get services by type name."""
         service_map = {
@@ -75,7 +71,7 @@ class ServiceContainer(BaseModel):
         }
         result = service_map.get(service_type, [])
         return result if isinstance(result, list) else []
-    
+
     @property
     def audit_service(self) -> Optional[Any]:
         """Get primary audit service for backward compatibility."""
@@ -88,15 +84,15 @@ class RuntimeMetrics(BaseModel):
     thoughts_generated: int = Field(..., description="Total thoughts generated")
     decisions_made: int = Field(..., description="Total decisions made")
     actions_performed: int = Field(..., description="Total actions performed")
-    
+
     # Resource usage
     memory_usage_mb: float = Field(..., description="Memory usage in MB")
     cpu_usage_percent: float = Field(..., description="CPU usage percentage")
-    
+
     # Error tracking
     error_count: int = Field(0, description="Total errors encountered")
     last_error: Optional[str] = Field(None, description="Last error message")
-    
+
     # Performance
     average_task_duration_ms: float = Field(0.0, description="Average task duration")
     average_thought_duration_ms: float = Field(0.0, description="Average thought duration")
@@ -121,15 +117,12 @@ class ServiceRegistration(BaseModel):
     dependencies: List[str] = Field(default_factory=list, description="Required services")
     status: ServiceStatus = Field(..., description="Current status")
     registered_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    
+
     # Health check
     health_check_endpoint: Optional[str] = Field(None, description="Health check endpoint")
     last_health_check: Optional[datetime] = Field(None, description="Last health check time")
 
 # Re-export schemas from submodules
-from .runtime import *
-from .runtime_config import *
-from .secrets import *
 
 __all__ = [
     # Core service schemas

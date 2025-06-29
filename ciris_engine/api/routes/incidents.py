@@ -5,7 +5,6 @@ Track and manage system incidents and problems.
 """
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from typing import List, Optional
-from datetime import datetime
 
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ciris_engine.api.dependencies.auth import require_observer, require_admin, AuthContext
@@ -17,19 +16,19 @@ async def get_incidents(
     request: Request,
     auth: AuthContext = Depends(require_observer),
     severity: Optional[str] = Query(None, description="Filter by severity"),
-    status: Optional[str] = Query(None, description="Filter by status"), 
+    status: Optional[str] = Query(None, description="Filter by status"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum incidents to return")
 ):
     """
     Get recent incidents.
-    
+
     Returns list of recent incidents with optional filtering.
     """
     incident_service = getattr(request.app.state, 'incident_management', None)
     if not incident_service:
         # Return empty list if service not available
         return SuccessResponse(data=[])
-    
+
     try:
         # Query incidents from service
         incidents = await incident_service.query_incidents(
@@ -37,7 +36,7 @@ async def get_incidents(
             status=status,
             limit=limit
         )
-        
+
         # Convert to response format
         incident_data = []
         for incident in incidents:
@@ -50,9 +49,9 @@ async def get_incidents(
                 "updated_at": incident.updated_at.isoformat() if hasattr(incident.updated_at, 'isoformat') else str(incident.updated_at),
                 "resolution": getattr(incident, 'resolution', None)
             })
-        
+
         return SuccessResponse(data=incident_data)
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -64,18 +63,18 @@ async def get_incident(
 ):
     """
     Get specific incident.
-    
+
     Returns detailed information about a specific incident.
     """
     incident_service = getattr(request.app.state, 'incident_management', None)
     if not incident_service:
         raise HTTPException(status_code=503, detail="Incident service not available")
-    
+
     try:
         incident = await incident_service.get_incident(incident_id)
         if not incident:
             raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
-        
+
         return SuccessResponse(data={
             "incident_id": incident.incident_id,
             "severity": incident.severity,
@@ -86,7 +85,7 @@ async def get_incident(
             "resolution": getattr(incident, 'resolution', None),
             "insights": getattr(incident, 'insights', [])
         })
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -101,13 +100,13 @@ async def resolve_incident(
 ):
     """
     Resolve an incident.
-    
+
     Mark an incident as resolved with resolution details. Requires ADMIN role.
     """
     incident_service = getattr(request.app.state, 'incident_management', None)
     if not incident_service:
         raise HTTPException(status_code=503, detail="Incident service not available")
-    
+
     try:
         # Resolve the incident
         updated_incident = await incident_service.resolve_incident(
@@ -116,16 +115,16 @@ async def resolve_incident(
             resolution.get('root_cause', ''),
             resolution.get('preventive_measures', [])
         )
-        
+
         if not updated_incident:
             raise HTTPException(status_code=404, detail=f"Incident {incident_id} not found")
-        
+
         return SuccessResponse(data={
             "incident_id": updated_incident.incident_id,
             "status": "resolved",
             "resolution": resolution
         })
-        
+
     except HTTPException:
         raise
     except Exception as e:

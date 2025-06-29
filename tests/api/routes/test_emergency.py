@@ -34,7 +34,7 @@ app.state.runtime = None
 
 class TestEmergencyEndpoint:
     """Test suite for emergency shutdown endpoint."""
-    
+
     @pytest.fixture
     def client(self):
         """Create test client."""
@@ -43,7 +43,7 @@ class TestEmergencyEndpoint:
         test_app.include_router(router)
         test_app.state.runtime = None
         return TestClient(test_app)
-    
+
     @pytest.fixture
     def valid_command(self):
         """Create a valid shutdown command."""
@@ -61,7 +61,7 @@ class TestEmergencyEndpoint:
             parent_command_id=None,
             relay_chain=[]
         )
-    
+
     def test_test_endpoint(self, client):
         """Test the test endpoint is accessible."""
         response = client.get("/emergency/test")
@@ -69,55 +69,55 @@ class TestEmergencyEndpoint:
         data = response.json()
         assert data["status"] == "ok"
         assert "timestamp" in data
-    
+
     def test_shutdown_invalid_command_type(self, client, valid_command):
         """Test rejection of non-SHUTDOWN_NOW commands."""
         valid_command.command_type = EmergencyCommandType.FREEZE
-        
+
         response = client.post("/emergency/shutdown", json=valid_command.model_dump(mode="json"))
         assert response.status_code == 400
         assert "Invalid command type" in response.json()["detail"]
-    
+
     def test_shutdown_expired_timestamp(self, client, valid_command):
         """Test rejection of expired commands."""
         # Set issued_at to 10 minutes ago
         valid_command.issued_at = datetime.now(timezone.utc) - timedelta(minutes=10)
-        
+
         response = client.post("/emergency/shutdown", json=valid_command.model_dump(mode="json"))
         assert response.status_code == 403
         assert "timestamp outside acceptable window" in response.json()["detail"]
-    
+
     def test_shutdown_future_timestamp(self, client, valid_command):
         """Test rejection of commands from the future."""
         # Set issued_at to 5 minutes in the future
         valid_command.issued_at = datetime.now(timezone.utc) + timedelta(minutes=5)
-        
+
         response = client.post("/emergency/shutdown", json=valid_command.model_dump(mode="json"))
         assert response.status_code == 403
         assert "timestamp outside acceptable window" in response.json()["detail"]
-    
+
     @patch('ciris_engine.api.routes.emergency.verify_signature')
     @patch('ciris_engine.api.routes.emergency.is_authorized_key')
     def test_shutdown_invalid_signature(self, mock_authorized, mock_verify, client, valid_command):
         """Test rejection of invalid signatures."""
         mock_verify.return_value = False  # Invalid signature
         mock_authorized.return_value = True
-        
+
         response = client.post("/emergency/shutdown", json=valid_command.model_dump(mode="json"))
         assert response.status_code == 403
         assert "Invalid signature" in response.json()["detail"]
-    
+
     @patch('ciris_engine.api.routes.emergency.verify_signature')
     @patch('ciris_engine.api.routes.emergency.is_authorized_key')
     def test_shutdown_unauthorized_key(self, mock_authorized, mock_verify, client, valid_command):
         """Test rejection of unauthorized keys."""
         mock_verify.return_value = True
         mock_authorized.return_value = False  # Unauthorized key
-        
+
         response = client.post("/emergency/shutdown", json=valid_command.model_dump(mode="json"))
         assert response.status_code == 403
         assert "Unauthorized public key" in response.json()["detail"]
-    
+
     @patch('ciris_engine.api.routes.emergency.verify_signature')
     @patch('ciris_engine.api.routes.emergency.is_authorized_key')
     @patch('ciris_engine.logic.registries.base.ServiceRegistry.get_service')
@@ -125,7 +125,7 @@ class TestEmergencyEndpoint:
         """Test successful shutdown with RuntimeControlService."""
         mock_verify.return_value = True
         mock_authorized.return_value = True
-        
+
         # Mock runtime service
         mock_runtime_control = Mock()
         mock_status = EmergencyShutdownStatus(
@@ -143,23 +143,23 @@ class TestEmergencyEndpoint:
             return mock_status
         mock_runtime_control.handle_emergency_shutdown = mock_handle_emergency_shutdown
         mock_registry.return_value = mock_runtime_control
-        
+
         # Also set up the app runtime state for fallback case
         mock_shutdown_service = Mock()
         async def mock_request_shutdown(reason):
             pass
         mock_shutdown_service.request_shutdown = mock_request_shutdown
-        
+
         mock_runtime = Mock()
         mock_runtime.shutdown_service = mock_shutdown_service
         client.app.state.runtime = mock_runtime
-        
+
         response = client.post("/emergency/shutdown", json=valid_command.model_dump(mode="json"))
         assert response.status_code == 200
         data = response.json()
         assert data["data"]["command_verified"] is True
         assert data["data"]["shutdown_completed"] is not None
-    
+
     @patch('ciris_engine.api.routes.emergency.verify_signature')
     @patch('ciris_engine.api.routes.emergency.is_authorized_key')
     @patch('ciris_engine.logic.registries.base.ServiceRegistry.get_service')
@@ -168,22 +168,22 @@ class TestEmergencyEndpoint:
         mock_verify.return_value = True
         mock_authorized.return_value = True
         mock_registry.side_effect = Exception("Service not found")
-        
+
         # Mock the app state
         mock_shutdown_service = Mock()
         # Make request_shutdown async
         async def mock_request_shutdown(reason):
             pass
         mock_shutdown_service.request_shutdown = mock_request_shutdown
-        
+
         mock_runtime = Mock()
         mock_runtime.shutdown_service = mock_shutdown_service
-        
+
         # Set runtime on the client's app
         client.app.state.runtime = mock_runtime
-        
+
         response = client.post("/emergency/shutdown", json=valid_command.model_dump(mode="json"))
-        
+
         # Should still work but with direct shutdown
         assert response.status_code == 200
         data = response.json()
@@ -192,45 +192,45 @@ class TestEmergencyEndpoint:
 
 class TestVerificationFunctions:
     """Test the verification helper functions."""
-    
+
     def test_verify_timestamp_valid(self):
         """Test timestamp verification with valid timestamp."""
         command = Mock()
         command.issued_at = datetime.now(timezone.utc) - timedelta(minutes=2)
         command.expires_at = None
-        
+
         assert verify_timestamp(command) is True
-    
+
     def test_verify_timestamp_too_old(self):
         """Test timestamp verification with old timestamp."""
         command = Mock()
         command.issued_at = datetime.now(timezone.utc) - timedelta(minutes=10)
         command.expires_at = None
-        
+
         assert verify_timestamp(command) is False
-    
+
     def test_verify_timestamp_future(self):
         """Test timestamp verification with future timestamp."""
         command = Mock()
         command.issued_at = datetime.now(timezone.utc) + timedelta(minutes=10)
         command.expires_at = None
-        
+
         assert verify_timestamp(command) is False
-    
+
     def test_verify_timestamp_expired(self):
         """Test timestamp verification with expired command."""
         command = Mock()
         command.issued_at = datetime.now(timezone.utc) - timedelta(minutes=2)
         command.expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
-        
+
         assert verify_timestamp(command) is False
-    
+
     @patch('ciris_engine.api.routes.emergency.CRYPTO_AVAILABLE', False)
     def test_verify_signature_no_crypto(self):
         """Test signature verification when crypto is not available."""
         command = Mock()
         assert verify_signature(command) is False
-    
+
     @patch('ciris_engine.api.routes.emergency.CRYPTO_AVAILABLE', True)
     @patch('ciris_engine.api.routes.emergency.Ed25519PublicKey')
     def test_verify_signature_valid(self, mock_key_class):
@@ -239,7 +239,7 @@ class TestVerificationFunctions:
         mock_public_key = Mock()
         mock_public_key.verify.return_value = None  # No exception means valid
         mock_key_class.from_public_bytes.return_value = mock_public_key
-        
+
         command = WASignedCommand(
             command_id="test_123",
             command_type=EmergencyCommandType.SHUTDOWN_NOW,
@@ -250,10 +250,10 @@ class TestVerificationFunctions:
             signature=MOCK_SIGNATURE,
             relay_chain=[]
         )
-        
+
         assert verify_signature(command) is True
         mock_public_key.verify.assert_called_once()
-    
+
     @patch('ciris_engine.api.routes.emergency.CRYPTO_AVAILABLE', True)
     @patch('ciris_engine.api.routes.emergency.Ed25519PublicKey')
     def test_verify_signature_invalid(self, mock_key_class):
@@ -263,7 +263,7 @@ class TestVerificationFunctions:
         from cryptography.exceptions import InvalidSignature
         mock_public_key.verify.side_effect = InvalidSignature("Bad signature")
         mock_key_class.from_public_bytes.return_value = mock_public_key
-        
+
         command = WASignedCommand(
             command_id="test_123",
             command_type=EmergencyCommandType.SHUTDOWN_NOW,
@@ -274,14 +274,14 @@ class TestVerificationFunctions:
             signature=MOCK_SIGNATURE,
             relay_chain=[]
         )
-        
+
         assert verify_signature(command) is False
 
 
 @pytest.mark.asyncio
 class TestAsyncEmergencyEndpoint:
     """Async tests for emergency endpoint."""
-    
+
     @pytest.fixture
     async def async_client(self):
         """Create async test client."""
@@ -293,7 +293,7 @@ class TestAsyncEmergencyEndpoint:
         transport = ASGITransport(app=test_app)
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             yield client
-    
+
     @pytest.fixture
     def valid_command(self):
         """Create a valid shutdown command."""
@@ -311,7 +311,7 @@ class TestAsyncEmergencyEndpoint:
             parent_command_id=None,
             relay_chain=[]
         )
-    
+
     @patch('ciris_engine.api.routes.emergency.verify_signature')
     @patch('ciris_engine.api.routes.emergency.is_authorized_key')
     @patch('ciris_engine.logic.registries.base.ServiceRegistry.get_service')
@@ -319,7 +319,7 @@ class TestAsyncEmergencyEndpoint:
         """Test async emergency shutdown with all validations passing."""
         mock_verify.return_value = True
         mock_authorized.return_value = True
-        
+
         # Mock runtime service
         mock_runtime_control = Mock()
         mock_status = EmergencyShutdownStatus(
@@ -335,22 +335,22 @@ class TestAsyncEmergencyEndpoint:
         # Use AsyncMock for the async method
         mock_runtime_control.handle_emergency_shutdown = AsyncMock(return_value=mock_status)
         mock_registry.return_value = mock_runtime_control
-        
+
         # Also set up the app runtime state (needed by FastAPI's app state)
         # Get the app from the transport
         test_app = async_client._transport.app
         mock_shutdown_service = Mock()
         mock_shutdown_service.request_shutdown = AsyncMock()
-        
+
         mock_runtime = Mock()
         mock_runtime.shutdown_service = mock_shutdown_service
         test_app.state.runtime = mock_runtime
-        
+
         response = await async_client.post(
             "/emergency/shutdown",
             json=valid_command.model_dump(mode="json")
         )
-        
+
         assert response.status_code == 200
         data = response.json()
         assert data["data"]["command_verified"] is True
@@ -358,7 +358,7 @@ class TestAsyncEmergencyEndpoint:
         # Both are valid - the test should pass either way
         assert len(data["data"]["services_stopped"]) >= 1
         assert data["data"]["exit_code"] == 0
-        
+
         # If we got 2 services, it means RuntimeControlService was used
         # If we got 1 service, it means direct shutdown was used
         # Both are acceptable outcomes for this test

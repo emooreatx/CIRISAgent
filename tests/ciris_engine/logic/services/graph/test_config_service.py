@@ -49,13 +49,13 @@ async def memory_service(temp_db, time_service):
     ''')
     conn.commit()
     conn.close()
-    
+
     # Create a secrets service for the memory service
     from ciris_engine.logic.secrets.service import SecretsService
     secrets_db = temp_db.replace('.db', '_secrets.db')
     secrets_service = SecretsService(db_path=secrets_db, time_service=time_service)
     await secrets_service.start()
-    
+
     service = LocalGraphMemoryService(
         db_path=temp_db,
         secrets_service=secrets_service,
@@ -79,7 +79,7 @@ async def test_config_service_lifecycle(config_service):
     # Start
     await config_service.start()
     # Service should be ready
-    
+
     # Stop
     await config_service.stop()
     # Should complete without error
@@ -95,7 +95,7 @@ async def test_config_service_set_and_get(config_service):
         updated_by="test_user"
     )
     # set_config returns None, not True
-    
+
     # Get the config value
     config_node = await config_service.get_config("test.setting")
     assert config_node is not None
@@ -122,21 +122,21 @@ async def test_config_service_update_config(config_service):
         value="initial",
         updated_by="test_user"
     )
-    
+
     # Verify initial value
     initial_config = await config_service.get_config("update.test")
     assert initial_config is not None
     assert initial_config.value.value == "initial"
     assert initial_config.version == 1
     initial_id = initial_config.id
-    
+
     # Update the value
     await config_service.set_config(
         key="update.test",
         value="updated",
         updated_by="test_user"
     )
-    
+
     # Verify update
     config_node = await config_service.get_config("update.test")
     assert config_node is not None
@@ -155,18 +155,18 @@ async def test_config_service_list_configs(config_service):
         "feature.enabled": True,
         "feature.limit": 100
     }
-    
+
     for key, value in configs.items():
         await config_service.set_config(
             key=key,
             value=value,
             updated_by="test_user"
         )
-    
+
     # List all configs
     all_configs = await config_service.list_configs()
     assert len(all_configs) >= 4
-    
+
     # Verify all our configs are present
     for key, expected_value in configs.items():
         assert key in all_configs
@@ -184,14 +184,14 @@ async def test_config_service_list_by_prefix(config_service):
     await config_service.set_config("db.port", 5432, updated_by="test_user")
     await config_service.set_config("api.endpoint", "https://api.example.com", updated_by="test_user")
     await config_service.set_config("api.timeout", 30, updated_by="test_user")
-    
+
     # List by prefix
     db_configs = await config_service.list_configs(prefix="db.")
     assert len(db_configs) == 2
     assert all(key.startswith("db.") for key in db_configs.keys())
     assert db_configs["db.host"].value == "localhost"
     assert db_configs["db.port"].value == 5432
-    
+
     api_configs = await config_service.list_configs(prefix="api.")
     assert len(api_configs) == 2
     assert all(key.startswith("api.") for key in api_configs.keys())
@@ -205,10 +205,10 @@ async def test_config_service_delete_config(config_service):
     # GraphConfigService doesn't have a delete_config method
     # Instead, test that configs can be overwritten
     await config_service.set_config("to.update", "value", updated_by="test_user")
-    
+
     # Overwrite with new value
     await config_service.set_config("to.update", "new_value", updated_by="test_user")
-    
+
     # Verify it's updated
     config_node = await config_service.get_config("to.update")
     assert config_node is not None
@@ -225,7 +225,7 @@ async def test_config_service_complex_values(config_service):
     await config_service.set_config("bool.value", True, updated_by="test_user")
     await config_service.set_config("list.value", ["a", "b", "c"], updated_by="test_user")
     await config_service.set_config("dict.value", {"key": "value", "nested": {"deep": True}}, updated_by="test_user")
-    
+
     # Retrieve and verify types
     assert (await config_service.get_config("string.value")).value.value == "hello"
     assert (await config_service.get_config("int.value")).value.value == 42
@@ -259,7 +259,7 @@ async def test_config_service_status(config_service):
     assert status.service_name == "GraphConfigService"
     assert status.service_type == "graph_service"  # GraphConfigService returns "graph_service"
     assert status.is_healthy is True
-    
+
     # Add some configs and check status
     for i in range(5):
         await config_service.set_config(f"test.config{i}", f"value{i}", updated_by="test_user")
@@ -269,20 +269,20 @@ async def test_config_service_status(config_service):
 async def test_config_service_versioning(config_service, time_service):
     """Test configuration versioning."""
     key = "versioned.config"
-    
+
     # Set initial version
     await config_service.set_config(key, "v1", updated_by="test_user")
-    
+
     # Get config node to check version
     v1_config = await config_service.get_config(key)
     assert v1_config is not None
     assert v1_config.version == 1
     assert v1_config.previous_version is None
     v1_id = v1_config.id
-    
+
     # Update to create new version
     await config_service.set_config(key, "v2", updated_by="test_user")
-    
+
     # Get updated config
     v2_config = await config_service.get_config(key)
     assert v2_config is not None
@@ -299,7 +299,7 @@ async def test_config_service_metadata_tracking(config_service, time_service):
         value="test_value",
         updated_by="unit_test"
     )
-    
+
     # Get the config node
     config = await config_service.get_config("metadata.test")
     assert config is not None
@@ -317,15 +317,15 @@ async def test_config_service_batch_operations(config_service):
         f"batch.item{i}": f"value{i}"
         for i in range(10)
     }
-    
+
     # Set all configs
     for key, value in batch_configs.items():
         await config_service.set_config(key, value, updated_by="test_user")
-    
+
     # Get all batch configs - returns dict
     batch_results = await config_service.list_configs(prefix="batch.")
     assert len(batch_results) == 10
-    
+
     # Verify all values
     for key, expected_value in batch_configs.items():
         assert key in batch_results
@@ -344,12 +344,12 @@ async def test_config_service_sensitive_config(config_service):
         value="sk-1234567890abcdef",
         updated_by="test_user"
     )
-    
+
     # Retrieve it
     config_node = await config_service.get_config("secrets.api_key")
     assert config_node is not None
     assert config_node.value.value == "sk-1234567890abcdef"
-    
+
     # List configs returns dict of key->ConfigValue
     configs = await config_service.list_configs(prefix="secrets.")
     assert "secrets.api_key" in configs
@@ -367,31 +367,31 @@ async def test_config_node_typed_graph_node_compliance(config_service):
         value={"nested": "dict", "count": 42},
         updated_by="test_user"
     )
-    
+
     # Get the config node
     config_node = await config_service.get_config("typed.test")
     assert config_node is not None
-    
+
     # ConfigNode uses updated_at/updated_by (not created_at/created_by)
     assert hasattr(config_node, 'updated_at')
     assert hasattr(config_node, 'updated_by')
-    
+
     # These should be populated
     assert config_node.updated_at is not None
     assert config_node.updated_by == "test_user"
-    
+
     # created_at/created_by are stored in attributes when converted to GraphNode
     assert isinstance(config_node.attributes, dict)
     assert 'created_at' in config_node.attributes
     assert 'created_by' in config_node.attributes
     assert config_node.attributes['created_by'] == "test_user"
-    
+
     # Verify it has proper type
     assert config_node.type.value == "config"  # NodeType.CONFIG
-    
+
     # Verify scope is set
     assert config_node.scope == GraphScope.LOCAL
-    
+
     # Verify conversion methods exist
     assert hasattr(config_node, 'to_graph_node')
     assert hasattr(config_node, 'from_graph_node')
@@ -402,15 +402,15 @@ async def test_config_service_no_duplicate_updates(config_service):
     """Test that setting same value doesn't create new version."""
     # Set initial value
     await config_service.set_config("duplicate.test", "same_value", updated_by="test_user")
-    
+
     # Get initial config
     v1_config = await config_service.get_config("duplicate.test")
     assert v1_config.version == 1
     v1_id = v1_config.id
-    
+
     # Set same value again
     await config_service.set_config("duplicate.test", "same_value", updated_by="test_user")
-    
+
     # Should still be version 1 with same ID
     current_config = await config_service.get_config("duplicate.test")
     assert current_config.version == 1
@@ -423,13 +423,13 @@ async def test_config_service_path_values(config_service):
     # Set Path value
     test_path = Path("/home/user/test.txt")
     await config_service.set_config("paths.test", test_path, updated_by="test_user")
-    
+
     # Get it back - should be converted to string
     config_node = await config_service.get_config("paths.test")
     assert config_node is not None
     assert config_node.value.value == "/home/user/test.txt"
     assert config_node.value.string_value == "/home/user/test.txt"
-    
+
     # List should also return string value
     configs = await config_service.list_configs(prefix="paths.")
     assert "paths.test" in configs

@@ -32,10 +32,10 @@ async def get_deferrals(
 ):
     """
     Get list of pending deferrals.
-    
+
     Returns all pending deferrals that need WA review. Can optionally
     filter by WA ID to see deferrals assigned to a specific authority.
-    
+
     Requires OBSERVER role or higher.
     """
     # Get WA service from app state
@@ -49,20 +49,20 @@ async def get_deferrals(
                 )
             ).model_dump(mode='json')
         )
-    
+
     wa_service: WiseAuthorityServiceProtocol = request.app.state.wise_authority_service
-    
+
     try:
         # Get pending deferrals
         deferrals = await wa_service.get_pending_deferrals(wa_id=wa_id)
-        
+
         response = DeferralListResponse(
             deferrals=deferrals,
             total=len(deferrals)
         )
-        
+
         return SuccessResponse(data=response)
-        
+
     except Exception as e:
         logger.error(f"Failed to get deferrals: {e}")
         raise HTTPException(
@@ -87,11 +87,11 @@ async def resolve_deferral(
 ):
     """
     Resolve a pending deferral with guidance.
-    
+
     Allows a WA with AUTHORITY role to approve, reject, or modify
     a deferred decision. The resolution includes wisdom guidance
     integrated into the decision.
-    
+
     Requires AUTHORITY role.
     """
     # Get WA service from app state
@@ -105,9 +105,9 @@ async def resolve_deferral(
                 )
             ).model_dump(mode='json')
         )
-    
+
     wa_service: WiseAuthorityServiceProtocol = request.app.state.wise_authority_service
-    
+
     try:
         # Create deferral response with integrated guidance
         deferral_response = DeferralResponse(
@@ -117,10 +117,10 @@ async def resolve_deferral(
             wa_id=auth.user_id,  # Use authenticated user as WA
             signature=f"api_{auth.user_id}_{datetime.now(timezone.utc).isoformat()}"
         )
-        
+
         # Resolve the deferral
         success = await wa_service.resolve_deferral(deferral_id, deferral_response)
-        
+
         if not success:
             raise HTTPException(
                 status_code=400,
@@ -131,17 +131,17 @@ async def resolve_deferral(
                     )
                 ).model_dump(mode='json')
             )
-        
+
         response = ResolveDeferralResponse(
             success=True,
             deferral_id=deferral_id,
             resolved_at=datetime.now(timezone.utc)
         )
-        
+
         logger.info(f"Deferral {deferral_id} resolved by {auth.user_id} with resolution: {resolve_request.resolution}")
-        
+
         return SuccessResponse(data=response)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -167,11 +167,11 @@ async def get_permissions(
 ):
     """
     Get WA permission status.
-    
+
     Returns permission status for a specific WA. If no WA ID
     is provided, returns permissions for the authenticated user.
     This simplified endpoint focuses on viewing permissions only.
-    
+
     Requires OBSERVER role or higher.
     """
     # Get WA service from app state
@@ -185,23 +185,23 @@ async def get_permissions(
                 )
             ).model_dump(mode='json')
         )
-    
+
     wa_service: WiseAuthorityServiceProtocol = request.app.state.wise_authority_service
-    
+
     try:
         # Use authenticated user's ID if no WA ID provided
         target_wa_id = wa_id or auth.user_id
-        
+
         # Get permissions
         permissions = await wa_service.list_permissions(target_wa_id)
-        
+
         response = PermissionsListResponse(
             permissions=permissions,
             wa_id=target_wa_id
         )
-        
+
         return SuccessResponse(data=response)
-        
+
     except Exception as e:
         logger.error(f"Failed to get permissions for {target_wa_id}: {e}")
         raise HTTPException(
@@ -213,5 +213,3 @@ async def get_permissions(
                 )
             ).model_dump(mode='json')
         )
-
-

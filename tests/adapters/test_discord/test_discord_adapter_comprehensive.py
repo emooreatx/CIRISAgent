@@ -10,7 +10,7 @@ from ciris_engine.logic.adapters.discord.discord_adapter import DiscordAdapter
 from ciris_engine.logic.adapters.discord.config import DiscordAdapterConfig
 from ciris_engine.schemas.services.context import GuidanceContext, DeferralContext
 from ciris_engine.schemas.services.authority_core import (
-    DeferralRequest, DeferralResponse, GuidanceRequest, 
+    DeferralRequest, DeferralResponse, GuidanceRequest,
     DeferralApprovalContext
 )
 from ciris_engine.logic.adapters.discord.discord_reaction_handler import ApprovalStatus
@@ -77,7 +77,7 @@ def discord_adapter(mock_time_service, mock_bus_manager, mock_discord_client, di
 
 class TestDiscordAdapterCore:
     """Test core Discord adapter functionality."""
-    
+
     @pytest.mark.asyncio
     async def test_adapter_initialization(self, discord_adapter):
         """Test adapter initializes correctly."""
@@ -85,7 +85,7 @@ class TestDiscordAdapterCore:
         assert discord_adapter._time_service is not None
         assert discord_adapter.bus_manager is not None
         assert discord_adapter.discord_config.deferral_channel_id == "987654321"
-        
+
         # Check all handlers are initialized
         assert discord_adapter._channel_manager is not None
         assert discord_adapter._message_handler is not None
@@ -96,58 +96,58 @@ class TestDiscordAdapterCore:
         assert discord_adapter._connection_manager is not None
         assert discord_adapter._error_handler is not None
         assert discord_adapter._rate_limiter is not None
-    
+
     @pytest.mark.asyncio
     async def test_send_message_success(self, discord_adapter, mock_discord_client):
         """Test successful message sending."""
         # Mock connection manager to return connected
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
-        
+
         # Mock channel
         mock_channel = AsyncMock()
         mock_channel.send = AsyncMock(return_value=Mock(id=123))
         discord_adapter._channel_manager.resolve_channel = AsyncMock(return_value=mock_channel)
         discord_adapter._message_handler._resolve_channel = AsyncMock(return_value=mock_channel)
-        
+
         # Send message
         result = await discord_adapter.send_message("123456789", "Test message")
-        
+
         assert result is True
         mock_channel.send.assert_called_once_with("Test message")
-        
+
         # Check telemetry was emitted
         discord_adapter.bus_manager.memory.memorize_metric.assert_called()
-    
+
     @pytest.mark.asyncio
     async def test_send_message_with_rate_limiting(self, discord_adapter):
         """Test message sending respects rate limits."""
         # Mock connection manager to return connected
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
-        
+
         # Mock rate limiter to introduce delay
         discord_adapter._rate_limiter.acquire = AsyncMock()
-        
+
         # Mock connection manager to return connected
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
-        
+
         # Mock channel
         mock_channel = AsyncMock()
         mock_channel.send = AsyncMock(return_value=Mock(id=123))
         discord_adapter._message_handler._resolve_channel = AsyncMock(return_value=mock_channel)
-        
+
         # Send message
         await discord_adapter.send_message("123456789", "Test message")
-        
+
         # Verify rate limiter was called
         discord_adapter._rate_limiter.acquire.assert_called_once()
-    
+
     @pytest.mark.asyncio
     async def test_fetch_messages(self, discord_adapter):
         """Test fetching messages from channel."""
         # Mock messages
         mock_messages = [
             Mock(
-                id=1, content="Message 1", 
+                id=1, content="Message 1",
                 author=Mock(id=111, display_name="User1", bot=False),
                 created_at=datetime.now(timezone.utc)
             ),
@@ -157,16 +157,16 @@ class TestDiscordAdapterCore:
                 created_at=datetime.now(timezone.utc)
             )
         ]
-        
+
         discord_adapter._message_handler.fetch_messages_from_channel = AsyncMock(
             return_value=[
                 Mock(id="1", content="Message 1", author_id="111", author_name="User1", is_bot=False),
                 Mock(id="2", content="Message 2", author_id="222", author_name="User2", is_bot=False)
             ]
         )
-        
+
         messages = await discord_adapter.fetch_messages("123456789", limit=10)
-        
+
         assert len(messages) == 2
         assert messages[0].content == "Message 1"
         assert messages[1].content == "Message 2"
@@ -174,7 +174,7 @@ class TestDiscordAdapterCore:
 
 class TestDiscordWiseAuthority:
     """Test WiseAuthority functionality."""
-    
+
     @pytest.mark.asyncio
     async def test_check_authorization_with_authority_role(self, discord_adapter, mock_discord_client):
         """Test authorization check for user with AUTHORITY role."""
@@ -185,18 +185,18 @@ class TestDiscordWiseAuthority:
         member_role = Mock()
         member_role.name = "Member"
         mock_member.roles = [authority_role, member_role]
-        
+
         mock_guild = Mock()
         mock_guild.get_member = Mock(side_effect=lambda x: mock_member if x == 123456 else None)
-        
+
         # Set client guilds
         discord_adapter._channel_manager.client.guilds = [mock_guild]
-        
+
         # Check authorization
         result = await discord_adapter.check_authorization("123456", "any_action")
-        
+
         assert result is True
-    
+
     @pytest.mark.asyncio
     async def test_check_authorization_observer_read_only(self, discord_adapter, mock_discord_client):
         """Test OBSERVER role can only read."""
@@ -205,33 +205,33 @@ class TestDiscordWiseAuthority:
         observer_role = Mock()
         observer_role.name = "OBSERVER"
         mock_member.roles = [observer_role]
-        
+
         mock_guild = Mock()
         mock_guild.get_member = Mock(side_effect=lambda x: mock_member if x == 123456 else None)
-        
+
         # Set client guilds
         discord_adapter._channel_manager.client.guilds = [mock_guild]
-        
+
         # Check read action - should pass
         result = await discord_adapter.check_authorization("123456", "read")
         assert result is True
-        
+
         # Check write action - should fail
         result = await discord_adapter.check_authorization("123456", "write")
         assert result is False
-    
+
     @pytest.mark.asyncio
     async def test_request_approval_with_reactions(self, discord_adapter, mock_discord_client):
         """Test approval request with reaction handling."""
         # Mock channel and message
         mock_message = Mock(id=999888777)
         mock_message.add_reaction = AsyncMock()
-        
+
         mock_channel = Mock()
         mock_channel.send = AsyncMock(return_value=mock_message)
-        
+
         discord_adapter._channel_manager.resolve_channel = AsyncMock(return_value=mock_channel)
-        
+
         # Create approval context
         context = DeferralApprovalContext(
             task_id="task123",
@@ -240,13 +240,13 @@ class TestDiscordWiseAuthority:
             action_params={"param": "value"},
             requester_id="user789"
         )
-        
+
         # Mock approval callback
         approval_received = asyncio.Event()
-        
+
         async def mock_handle_approval(approval):
             approval_received.set()
-        
+
         # Simulate approval after delay
         async def simulate_approval():
             await asyncio.sleep(0.1)
@@ -258,17 +258,17 @@ class TestDiscordWiseAuthority:
                 if mock_message.id in discord_adapter._reaction_handler._approval_callbacks:
                     callback = discord_adapter._reaction_handler._approval_callbacks[mock_message.id]
                     await callback(approval)
-        
+
         # Start approval simulation
         asyncio.create_task(simulate_approval())
-        
+
         # Request approval
         result = await discord_adapter.request_approval("test_action", context)
-        
+
         assert result is True
         assert mock_channel.send.called
         assert mock_message.add_reaction.call_count == 2  # ✅ and ❌
-    
+
     @pytest.mark.asyncio
     async def test_get_pending_deferrals(self, discord_adapter, mock_bus_manager):
         """Test retrieving pending deferrals from memory."""
@@ -288,18 +288,18 @@ class TestDiscordWiseAuthority:
                 }
             )
         ]
-        
+
         # Mock search to return our nodes when queried with the right filters
         async def mock_search(query):
             if query.get("node_type") == "DISCORD_DEFERRAL" and query.get("status") == "pending":
                 return mock_nodes
             return []
-        
+
         mock_bus_manager.memory.search = AsyncMock(side_effect=mock_search)
-        
+
         # Get pending deferrals
         deferrals = await discord_adapter.get_pending_deferrals()
-        
+
         assert len(deferrals) == 1
         assert deferrals[0].deferral_id == "def1"
         assert deferrals[0].reason == "Need more time"
@@ -307,7 +307,7 @@ class TestDiscordWiseAuthority:
 
 class TestDiscordToolExecution:
     """Test tool execution functionality."""
-    
+
     @pytest.mark.asyncio
     async def test_execute_tool_success(self, discord_adapter):
         """Test successful tool execution."""
@@ -320,19 +320,19 @@ class TestDiscordToolExecution:
             error=None,
             correlation_id="test-correlation-123"
         )
-        
+
         discord_adapter._tool_handler.execute_tool = AsyncMock(return_value=mock_result)
-        
+
         # Execute tool
         result = await discord_adapter.execute_tool("test_tool", {"param": "value"})
-        
+
         assert result.status == ToolExecutionStatus.COMPLETED
         assert result.success is True
         assert result.data["output"] == "Tool output"
-        
+
         # Check telemetry
         discord_adapter.bus_manager.memory.memorize_metric.assert_called()
-    
+
     @pytest.mark.asyncio
     async def test_list_tools(self, discord_adapter):
         """Test listing available tools."""
@@ -340,9 +340,9 @@ class TestDiscordToolExecution:
         discord_adapter._tool_handler.get_available_tools = AsyncMock(
             return_value=["tool1", "tool2", "tool3"]
         )
-        
+
         tools = await discord_adapter.list_tools()
-        
+
         assert len(tools) == 3
         assert "tool1" in tools
         assert "tool2" in tools
@@ -351,7 +351,7 @@ class TestDiscordToolExecution:
 
 class TestDiscordConnectionResilience:
     """Test connection resilience features."""
-    
+
     @pytest.mark.asyncio
     async def test_connection_manager_reconnect(self, discord_adapter):
         """Test connection manager handles reconnection."""
@@ -359,29 +359,29 @@ class TestDiscordConnectionResilience:
         await discord_adapter._connection_manager._handle_disconnected(
             Exception("Connection lost")
         )
-        
+
         assert discord_adapter._connection_manager.state == discord_adapter._connection_manager.state.__class__.DISCONNECTED
-        
+
         # Verify reconnection is scheduled
         assert discord_adapter._connection_manager.reconnect_attempts >= 0
-    
+
     @pytest.mark.asyncio
     async def test_is_healthy_check(self, discord_adapter):
         """Test health check."""
         # Mock healthy connection
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
-        
+
         assert await discord_adapter.is_healthy() is True
-        
+
         # Mock unhealthy connection
         discord_adapter._connection_manager.is_connected = Mock(return_value=False)
-        
+
         assert await discord_adapter.is_healthy() is False
 
 
 class TestDiscordErrorHandling:
     """Test error handling functionality."""
-    
+
     @pytest.mark.asyncio
     async def test_channel_not_found_error(self, discord_adapter):
         """Test handling of channel not found errors."""
@@ -389,11 +389,11 @@ class TestDiscordErrorHandling:
         discord_adapter._message_handler.send_message_to_channel = AsyncMock(
             side_effect=discord.NotFound(Mock(), "Channel not found")
         )
-        
+
         result = await discord_adapter.send_message("999999999", "Test")
-        
+
         assert result is False
-    
+
     @pytest.mark.asyncio
     async def test_rate_limit_handling(self, discord_adapter):
         """Test rate limit error handling."""
@@ -401,45 +401,45 @@ class TestDiscordErrorHandling:
         error_resp = Mock()
         error_resp.status = 429
         error_resp.headers = {"Retry-After": "5"}
-        
+
         discord_adapter._message_handler.send_message_to_channel = AsyncMock(
             side_effect=discord.HTTPException(error_resp, "Rate limited")
         )
-        
+
         # This should handle the rate limit gracefully
         result = await discord_adapter.send_message("123456789", "Test")
-        
+
         # Should fail but not raise
         assert result is False
 
 
 class TestDiscordAuditLogging:
     """Test audit logging functionality."""
-    
+
     @pytest.mark.asyncio
     async def test_audit_log_message_operations(self, discord_adapter):
         """Test audit logging for message operations."""
         # Mock audit service
         mock_audit_service = AsyncMock()
         discord_adapter._audit_logger.set_audit_service(mock_audit_service)
-        
+
         # Mock connection manager to return connected
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
-        
+
         # Mock successful message send
         mock_channel = AsyncMock()
         mock_channel.send = AsyncMock(return_value=Mock(id=123))
         discord_adapter._message_handler._resolve_channel = AsyncMock(return_value=mock_channel)
-        
+
         # Send message
         await discord_adapter.send_message("123456789", "Test message")
-        
+
         # Verify audit log was called - wait a bit for async operations
         await asyncio.sleep(0.1)
-        
+
         # Check if audit logger was set up with the service
         assert discord_adapter._audit_logger._audit_service is not None
-        
+
         # Since send_message calls _emit_telemetry which uses memorize_metric
         # Verify telemetry was called instead (since audit may be async)
         discord_adapter.bus_manager.memory.memorize_metric.assert_called()

@@ -11,8 +11,7 @@ from ciris_engine.logic.processors.support.processing_queue import ProcessingQue
 from ciris_engine.logic.config import ConfigAccessor
 from ciris_engine.schemas.processors.states import AgentState
 from ciris_engine.schemas.processors.base import (
-    ProcessorMetrics, ProcessorServices,
-    ProcessorContext, MetricsUpdate
+    ProcessorMetrics, MetricsUpdate
 )
 from ciris_engine.schemas.processors.results import ProcessingResult
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
@@ -24,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 class BaseProcessor(ABC):
     """Abstract base class for all processor types."""
-    
+
     def __init__(
         self,
         config_accessor: ConfigAccessor,
@@ -39,17 +38,17 @@ class BaseProcessor(ABC):
         self.services = services
         if services and "discord_service" in services:
             self.discord_service = services["discord_service"]
-        
+
         # Get TimeService from services
         self.time_service: TimeServiceProtocol = services.get('time_service')
         if not self.time_service:
             raise ValueError("time_service is required for processors")
-            
+
         # Get ResourceMonitor from services - REQUIRED for system snapshots
         self.resource_monitor = services.get('resource_monitor')
         if not self.resource_monitor:
             raise ValueError("resource_monitor is required for processors")
-            
+
         # Extract other commonly used services
         self.memory_service = services.get('memory_service')
         self.graphql_provider = services.get('graphql_provider')
@@ -58,24 +57,24 @@ class BaseProcessor(ABC):
         self.service_registry = services.get('service_registry')
         self.secrets_service = services.get('secrets_service')
         self.telemetry_service = services.get('telemetry_service')
-            
+
         self.metrics = ProcessorMetrics()
-    
+
     @abstractmethod
     def get_supported_states(self) -> List[AgentState]:
         """Return list of states this processor can handle."""
-    
+
     @abstractmethod
     async def can_process(self, state: AgentState) -> bool:
         """Check if this processor can handle the current state."""
-    
+
     @abstractmethod
     async def process(self, round_number: int) -> ProcessingResult:
         """
         Execute processing for one round.
         Returns metrics/results from the processing.
         """
-    
+
     async def initialize(self) -> bool:
         """
         Initialize the processor.
@@ -83,7 +82,7 @@ class BaseProcessor(ABC):
         """
         self.metrics.start_time = self.time_service.now()
         return True
-    
+
     async def cleanup(self) -> bool:
         """
         Clean up processor resources.
@@ -91,11 +90,11 @@ class BaseProcessor(ABC):
         """
         self.metrics.end_time = self.time_service.now()
         return True
-    
+
     def get_metrics(self) -> ProcessorMetrics:
         """Get processor metrics."""
         return self.metrics.model_copy()
-    
+
     def update_metrics(self, updates: MetricsUpdate) -> None:
         """Update processor metrics."""
         if updates.items_processed is not None:
@@ -106,7 +105,7 @@ class BaseProcessor(ABC):
             self.metrics.rounds_completed += updates.rounds_completed
         if updates.additional:
             self.metrics.additional_metrics.update(updates.additional)
-    
+
     async def dispatch_action(
         self,
         result: Any,
@@ -121,7 +120,7 @@ class BaseProcessor(ABC):
             # Convert dict to DispatchContext
             from ciris_engine.schemas.runtime.contexts import DispatchContext
             dispatch_ctx = DispatchContext(**context)
-                
+
             await self.action_dispatcher.dispatch(
                 action_selection_result=result,
                 thought=thought,
@@ -132,7 +131,7 @@ class BaseProcessor(ABC):
             logger.error(f"Error dispatching action: {e}", exc_info=True)
             self.metrics.errors += 1
             return False
-    
+
     async def process_thought_item(
         self,
         item: ProcessingQueueItem,
@@ -172,6 +171,6 @@ class BaseProcessor(ABC):
     async def force_defer(self, item: ProcessingQueueItem, context: Optional[dict] = None) -> None:
         """Force a DEFER action for the given thought item. Override in subclass for custom logic."""
         logger.info(f"Forcing DEFER for thought {item.thought_id}")
-    
+
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}>"

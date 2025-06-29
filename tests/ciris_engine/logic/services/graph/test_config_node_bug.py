@@ -9,7 +9,7 @@ from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, Node
 
 def test_config_node_from_graph_node_with_graphnodeattributes():
     """Test that reproduces the bug where ConfigNode.from_graph_node fails with GraphNodeAttributes.
-    
+
     The bug: When node.attributes is a GraphNodeAttributes object (not dict),
     the code sets attrs to {} and then tries to access attrs["key"], causing KeyError.
     """
@@ -29,7 +29,7 @@ def test_config_node_from_graph_node_with_graphnodeattributes():
         updated_by="test_user",
         updated_at=datetime.now(timezone.utc)
     )
-    
+
     # This should fail with the bug
     with pytest.raises(KeyError, match="key"):
         ConfigNode.from_graph_node(graph_node)
@@ -56,7 +56,7 @@ def test_config_node_from_graph_node_with_dict():
         updated_by="test_user",
         updated_at=now
     )
-    
+
     # This should work
     config_node = ConfigNode.from_graph_node(graph_node)
     assert config_node.key == "test.key"
@@ -70,7 +70,7 @@ if __name__ == "__main__":
         print("FAIL: Expected KeyError but didn't get one")
     except KeyError as e:
         print(f"SUCCESS: Got expected KeyError: {e}")
-    
+
     print("\nTesting working case...")
     test_config_node_from_graph_node_with_dict()
     print("SUCCESS: Dict attributes work fine")

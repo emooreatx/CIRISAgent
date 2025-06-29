@@ -15,7 +15,7 @@ class UserRole(str, Enum):
     ADMIN = "ADMIN"
     AUTHORITY = "AUTHORITY"
     ROOT = "ROOT"
-    
+
     @property
     def level(self) -> int:
         """Numeric privilege level for comparison."""
@@ -25,7 +25,7 @@ class UserRole(str, Enum):
             "AUTHORITY": 3,
             "ROOT": 4
         }[self.value]
-    
+
     def has_permission(self, required_role: "UserRole") -> bool:
         """Check if this role meets or exceeds required role."""
         return self.level >= required_role.level
@@ -41,7 +41,7 @@ class Permission(str, Enum):
     VIEW_AUDIT = "view_audit"
     VIEW_TOOLS = "view_tools"
     VIEW_LOGS = "view_logs"
-    
+
     # Admin permissions
     MANAGE_CONFIG = "manage_config"
     RUNTIME_CONTROL = "runtime_control"
@@ -49,12 +49,12 @@ class Permission(str, Enum):
     MANAGE_TASKS = "manage_tasks"
     MANAGE_FILTERS = "manage_filters"
     TRIGGER_ANALYSIS = "trigger_analysis"
-    
+
     # Authority permissions
     RESOLVE_DEFERRALS = "resolve_deferrals"
     PROVIDE_GUIDANCE = "provide_guidance"
     GRANT_PERMISSIONS = "grant_permissions"
-    
+
     # Root permissions
     FULL_ACCESS = "full_access"
     EMERGENCY_SHUTDOWN = "emergency_shutdown"
@@ -126,12 +126,12 @@ class AuthContext(BaseModel):
     api_key_id: Optional[str] = Field(None, description="API key ID if using key auth")
     session_id: Optional[str] = Field(None, description="Session ID if using session auth")
     authenticated_at: datetime = Field(..., description="When authentication occurred")
-    
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    
+
     # Request object (not serialized)
     request: Optional[Any] = Field(None, exclude=True)
-    
+
     @classmethod
     def from_api_key(cls, api_key: "APIKey") -> "AuthContext":
         """Create context from API key."""
@@ -142,7 +142,7 @@ class AuthContext(BaseModel):
             api_key_id=api_key.id,
             authenticated_at=datetime.now(timezone.utc)
         )
-    
+
     def has_permission(self, permission: Permission) -> bool:
         """Check if user has specific permission."""
         if self.role == UserRole.ROOT:
@@ -160,15 +160,15 @@ class APIKey(BaseModel):
     last_used: Optional[datetime] = Field(None, description="Last time key was used")
     expires_at: Optional[datetime] = Field(None, description="When key expires")
     is_active: bool = Field(True, description="Whether key is active")
-    
+
     def is_valid(self) -> bool:
         """Check if key is currently valid."""
         if not self.is_active:
             return False
-        
+
         if self.expires_at and self.expires_at < datetime.now(timezone.utc):
             return False
-        
+
         return True
 
 class LoginRequest(BaseModel):

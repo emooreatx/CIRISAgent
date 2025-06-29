@@ -9,7 +9,7 @@ from typing import Optional
 
 class TSDBConsolidationConfig(BaseModel):
     """Configuration for TSDB consolidation service."""
-    
+
     consolidation_interval_hours: int = Field(
         default=6,
         description="How often to run consolidation (hours)"
@@ -25,7 +25,7 @@ class TSDBConsolidationConfig(BaseModel):
 
 class TSDBConsolidationStatus(BaseModel):
     """Status information for TSDB consolidation service."""
-    
+
     running: bool = Field(..., description="Whether service is running")
     last_consolidation: Optional[str] = Field(None, description="ISO timestamp of last consolidation")
     next_consolidation: Optional[str] = Field(None, description="ISO timestamp of next scheduled consolidation")

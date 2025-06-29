@@ -58,7 +58,7 @@ class EpistemicData(BaseModel):
     coherence_level: float = Field(ge=0.0, le=1.0, description="Current coherence level")
     uncertainty_acknowledged: bool = Field(description="Whether uncertainty was acknowledged")
     reasoning_transparency: float = Field(ge=0.0, le=1.0, description="Transparency of reasoning")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class ConscienceCheckResult(BaseModel):
@@ -67,17 +67,17 @@ class ConscienceCheckResult(BaseModel):
     passed: bool = Field(description="Whether all checks passed")
     reason: Optional[str] = Field(default=None, description="Reason for failure/warning")
     epistemic_data: Optional[EpistemicData] = Field(default=None, description="Epistemic safety metadata")
-    
+
     # Detailed check results
     entropy_check: Optional[EntropyCheckResult] = Field(default=None, description="Entropy check result")
     coherence_check: Optional[CoherenceCheckResult] = Field(default=None, description="Coherence check result")
     optimization_veto_check: Optional[OptimizationVetoResult] = Field(default=None, description="Optimization veto result")
     epistemic_humility_check: Optional[EpistemicHumilityResult] = Field(default=None, description="Humility check result")
-    
+
     # Metrics
     entropy_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Overall entropy score")
     coherence_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Overall coherence score")
-    
+
     # Processing metadata
     check_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When check was performed")
     processing_time_ms: Optional[float] = Field(default=None, ge=0.0, description="Processing time in milliseconds")

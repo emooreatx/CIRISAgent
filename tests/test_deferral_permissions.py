@@ -22,12 +22,12 @@ from ciris_engine.logic.services.governance.wise_authority import WiseAuthorityS
 
 class TestDeferralPermissions:
     """Test permission checks for deferral operations."""
-    
+
     @pytest.fixture
     def mock_memory_service(self):
         """Mock memory service with permission storage."""
         service = AsyncMock()
-        
+
         # Store permissions by WA ID
         service.permissions = {
             "wa-2025-06-28-AUTH01": [
@@ -67,17 +67,17 @@ class TestDeferralPermissions:
                 )
             ]
         }
-        
+
         # Mock recall to return permissions
         async def mock_recall(query=None, node_type=None, **kwargs):
             if node_type == "wa_permission" and query:
                 wa_id = query.split(":")[1] if ":" in query else None
                 return service.permissions.get(wa_id, [])
             return []
-        
+
         service.recall = mock_recall
         return service
-    
+
     @pytest.fixture
     def wa_certificates(self):
         """Create test WA certificates with different roles."""
@@ -129,34 +129,34 @@ class TestDeferralPermissions:
                 created_at=datetime.now(timezone.utc)
             )
         }
-    
+
     @pytest.fixture
     def mock_auth_service(self, wa_certificates):
         """Create mock authentication service."""
         auth_service = AsyncMock()
         auth_service.bootstrap_if_needed = AsyncMock()
-        
+
         # Mock get_wa to return certificates
         async def mock_get_wa(wa_id):
             return wa_certificates.get(wa_id)
-        
+
         auth_service.get_wa = mock_get_wa
         return auth_service
-    
+
     @pytest.fixture
     def wa_service(self, mock_memory_service, mock_auth_service):
         """Create WA service with mock dependencies."""
         mock_time_service = Mock()
         mock_time_service.now = Mock(return_value=datetime.now(timezone.utc))
         mock_time_service.timestamp = Mock(return_value=int(datetime.now(timezone.utc).timestamp()))
-        
+
         service = WiseAuthorityService(
             time_service=mock_time_service,
             auth_service=mock_auth_service,
             db_path=":memory:"  # Use in-memory SQLite for tests
         )
         return service
-    
+
     @pytest.mark.asyncio
     async def test_authority_can_resolve_deferrals(self, wa_service, wa_certificates):
         """Test that AUTHORITY role can resolve deferrals."""
@@ -170,16 +170,16 @@ class TestDeferralPermissions:
             action="resolve_deferral",
             resource="defer_001"
         )
-        
+
         # Check authorization
         is_authorized = await wa_service.check_authorization(
             wa_id=auth_context.wa_id,
             action=auth_context.action,
             resource=auth_context.resource
         )
-        
+
         assert is_authorized is True
-    
+
     @pytest.mark.asyncio
     async def test_observer_cannot_resolve_deferrals(self, wa_service, wa_certificates):
         """Test that OBSERVER role cannot resolve deferrals."""
@@ -193,16 +193,16 @@ class TestDeferralPermissions:
             action="resolve_deferral",
             resource="defer_001"
         )
-        
+
         # Check authorization
         is_authorized = await wa_service.check_authorization(
             wa_id=auth_context.wa_id,
             action=auth_context.action,
             resource=auth_context.resource
         )
-        
+
         assert is_authorized is False
-    
+
     @pytest.mark.asyncio
     async def test_expired_certificate_cannot_resolve(self, wa_service, wa_certificates):
         """Test that expired certificates cannot resolve deferrals."""
@@ -212,9 +212,9 @@ class TestDeferralPermissions:
             action="resolve_deferral",
             resource="defer_001"
         )
-        
+
         assert is_authorized is False
-    
+
     @pytest.mark.asyncio
     async def test_revoked_certificate_cannot_resolve(self, wa_service, wa_certificates):
         """Test that revoked certificates cannot resolve deferrals."""
@@ -223,9 +223,9 @@ class TestDeferralPermissions:
             action="resolve_deferral",
             resource="defer_001"
         )
-        
+
         assert is_authorized is False
-    
+
     @pytest.mark.asyncio
     async def test_resource_specific_permissions(self, wa_service, mock_memory_service):
         """Test permissions limited to specific resources."""
@@ -235,19 +235,19 @@ class TestDeferralPermissions:
             action="resolve_deferral",
             resource="medical_defer_001"
         )
-        
+
         is_authorized_financial = await wa_service.check_authorization(
             wa_id="wa_limited_authority",
             action="resolve_deferral",
             resource="financial_defer_001"
         )
-        
+
         # Currently, WiseAuthorityService only checks role-based permissions
         # AUTHORITY role can resolve any deferral regardless of resource
         # Resource-specific permissions are not yet implemented
         assert is_authorized_medical is True
         assert is_authorized_financial is True  # Changed to match actual behavior
-    
+
     @pytest.mark.asyncio
     async def test_grant_permission(self, wa_service):
         """Test granting new permissions to a WA."""
@@ -257,9 +257,9 @@ class TestDeferralPermissions:
             permission="resolve_deferral",
             resource="community_*"
         )
-        
+
         assert granted is False  # Expected behavior - permissions are role-based
-    
+
     @pytest.mark.asyncio
     async def test_revoke_permission(self, wa_service):
         """Test revoking permissions from a WA."""
@@ -270,15 +270,15 @@ class TestDeferralPermissions:
             permission="resolve_deferral",
             resource="*"
         )
-        
+
         assert revoked is False  # Expected behavior - permissions are role-based
-    
+
     @pytest.mark.asyncio
     async def test_permission_inheritance(self, wa_service):
         """Test that wildcard permissions work correctly through role-based access."""
         # Since permissions are role-based, we test by checking ROOT role permissions
         # ROOT role should have access to all actions
-        
+
         # Create a mock ROOT WA
         mock_root_wa = WACertificate(
             wa_id="wa-2025-06-28-ROOT01",
@@ -289,10 +289,10 @@ class TestDeferralPermissions:
             scopes_json='["*"]',
             created_at=datetime.now(timezone.utc)
         )
-        
+
         # Mock the auth service to return the ROOT wa
         wa_service.auth_service.get_wa = AsyncMock(return_value=mock_root_wa)
-        
+
         # Should authorize any action for ROOT
         actions = [
             "resolve_deferral",
@@ -300,7 +300,7 @@ class TestDeferralPermissions:
             "delete_deferral",
             "create_deferral"
         ]
-        
+
         for action in actions:
             is_authorized = await wa_service.check_authorization(
                 wa_id="wa-2025-06-28-ROOT01",
@@ -308,12 +308,12 @@ class TestDeferralPermissions:
                 resource="any_resource"
             )
             assert is_authorized is True
-    
+
     @pytest.mark.asyncio
     async def test_concurrent_permission_checks(self, wa_service):
         """Test concurrent authorization checks don't interfere."""
         import asyncio
-        
+
         # Create multiple WAs with different roles
         wa_certs = {}
         for i in range(5):
@@ -329,13 +329,13 @@ class TestDeferralPermissions:
                 scopes_json='["resolve_deferrals"]' if role == WARole.AUTHORITY else '["view_deferrals"]',
                 created_at=datetime.now(timezone.utc)
             )
-        
+
         # Mock auth service to return appropriate certificates
         async def mock_get_wa(wa_id):
             return wa_certs.get(wa_id)
-        
+
         wa_service.auth_service.get_wa = mock_get_wa
-        
+
         # Check all concurrently
         tasks = [
             wa_service.check_authorization(
@@ -345,9 +345,9 @@ class TestDeferralPermissions:
             )
             for wa_id in wa_certs.keys()
         ]
-        
+
         results = await asyncio.gather(*tasks)
-        
+
         # Even indices (AUTHORITY) should be authorized, odd (OBSERVER) should not
         for i, result in enumerate(results):
             if i % 2 == 0:
@@ -358,7 +358,7 @@ class TestDeferralPermissions:
 
 class TestDeferralRoleEnforcement:
     """Test role-based access control for deferrals."""
-    
+
     @pytest.fixture
     def wa_service(self):
         """Mock wise authority service."""
@@ -369,7 +369,7 @@ class TestDeferralRoleEnforcement:
         service.check_authorization = AsyncMock(return_value=True)
         service.grant_permission = AsyncMock(return_value=False)
         return service
-    
+
     @pytest.fixture
     def sample_deferrals(self) -> List[PendingDeferral]:
         """Create sample deferrals with different requirements."""
@@ -408,7 +408,7 @@ class TestDeferralRoleEnforcement:
                 status="pending"
             )
         ]
-    
+
     @pytest.mark.asyncio
     async def test_role_filtering_for_deferrals(self, sample_deferrals):
         """Test that deferrals are filtered by required role."""
@@ -417,21 +417,21 @@ class TestDeferralRoleEnforcement:
             d for d in sample_deferrals
             if d.requires_role in [None, "AUTHORITY"]
         ]
-        
+
         assert len(authority_deferrals) == 2
         assert "defer_any_001" in [d.deferral_id for d in authority_deferrals]
         assert "defer_authority_001" in [d.deferral_id for d in authority_deferrals]
-        
+
         # Filter for MEDICAL_AUTHORITY role
         medical_deferrals = [
             d for d in sample_deferrals
             if d.requires_role in [None, "MEDICAL_AUTHORITY"]
         ]
-        
+
         assert len(medical_deferrals) == 2
         assert "defer_any_001" in [d.deferral_id for d in medical_deferrals]
         assert "defer_medical_001" in [d.deferral_id for d in medical_deferrals]
-    
+
     @pytest.mark.asyncio
     async def test_resolution_role_validation(self, wa_service, sample_deferrals):
         """Test that resolution validates required role."""
@@ -443,25 +443,25 @@ class TestDeferralRoleEnforcement:
             wa_id="wa_authority_001",  # Regular authority, not medical
             signature="test_sig"
         )
-        
+
         # This should fail validation in a complete implementation
         # The actual validation would check:
         # 1. WA has resolve_deferral permission
         # 2. WA role matches deferral.requires_role
         # 3. WA certificate is valid and active
-        
+
         # Mock the validation logic
         deferral = sample_deferrals[2]  # Medical deferral
-        
+
         # In real implementation:
         # if deferral.requires_role and wa.role != deferral.requires_role:
         #     raise PermissionError("WA role does not match deferral requirements")
-        
+
         wa_role = WARole.AUTHORITY
         required_role = "MEDICAL_AUTHORITY"
-        
+
         assert wa_role.value != required_role  # Should not match
-    
+
     @pytest.mark.asyncio
     async def test_permission_expiration(self, wa_service):
         """Test that permissions expire correctly."""
@@ -472,7 +472,7 @@ class TestDeferralRoleEnforcement:
             resource="*"
         )
         assert granted is False  # Expected - permissions are role-based
-        
+
         # Mock permission with expiration
         expired_permission = WAPermission(
             permission_id="perm_expired",
@@ -484,18 +484,18 @@ class TestDeferralRoleEnforcement:
             granted_at=datetime.now(timezone.utc) - timedelta(days=31),
             expires_at=datetime.now(timezone.utc) - timedelta(days=1)  # Expired yesterday
         )
-        
+
         # Check if permission is expired
         is_expired = expired_permission.expires_at < datetime.now(timezone.utc)
         assert is_expired is True
-        
+
         # Authorization should fail for expired permission
         # In real implementation, check_authorization would validate expiration
 
 
 class TestDeferralAuditTrail:
     """Test audit trail for deferral operations."""
-    
+
     @pytest.fixture
     def wa_service(self):
         """Mock wise authority service."""
@@ -505,13 +505,13 @@ class TestDeferralAuditTrail:
         service.auth_service.get_wa = AsyncMock()
         service.check_authorization = AsyncMock(return_value=True)
         return service
-    
+
     @pytest.mark.asyncio
     async def test_deferral_resolution_audit(self, wa_service):
         """Test that deferral resolutions are properly audited."""
         # Mock audit entries that would be created
         audit_entries = []
-        
+
         # Resolution attempt
         resolution = DeferralResolution(
             deferral_id="defer_audit_001",
@@ -524,7 +524,7 @@ class TestDeferralAuditTrail:
                 "review_quality": "thorough"
             }
         )
-        
+
         # Audit entry that should be created
         audit_entry = {
             "timestamp": datetime.now(timezone.utc),
@@ -538,15 +538,15 @@ class TestDeferralAuditTrail:
                 "metadata": resolution.resolution_metadata
             }
         }
-        
+
         audit_entries.append(audit_entry)
-        
+
         # Verify audit trail
         assert len(audit_entries) == 1
         assert audit_entries[0]["action"] == "deferral_resolved"
         assert audit_entries[0]["actor"] == "wa_authority_001"
         assert "monitor_for_7_days" in audit_entries[0]["details"]["constraints_added"]
-    
+
     @pytest.mark.asyncio
     async def test_failed_authorization_audit(self, wa_service):
         """Test that failed authorization attempts are audited."""
@@ -563,7 +563,7 @@ class TestDeferralAuditTrail:
                 "required_permission": "resolve_deferral"
             }
         }
-        
+
         # This would be logged in the audit system
         assert unauthorized_attempt["reason"] == "insufficient_permissions"
         assert unauthorized_attempt["details"]["required_role"] == "AUTHORITY"

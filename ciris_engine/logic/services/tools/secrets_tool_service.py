@@ -4,19 +4,18 @@ Secrets Tool Service - Provides secrets management tools.
 Implements ToolService protocol to expose RECALL_SECRET and UPDATE_SECRETS_FILTER tools.
 """
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from datetime import datetime
 from pathlib import Path
 
 from ciris_engine.protocols.services import ToolService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.adapters.tools import (
-    ToolInfo, ToolParameterSchema, ToolExecutionResult, 
+    ToolInfo, ToolParameterSchema, ToolExecutionResult,
     ToolResult, ToolExecutionStatus
 )
 from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.schemas.services.core.secrets import SecretContext
-from ciris_engine.schemas.secrets.core import SecretPattern
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 
 logger = logging.getLogger(__name__)
@@ -24,25 +23,25 @@ logger = logging.getLogger(__name__)
 
 class SecretsToolService(ToolService):
     """Service providing secrets management tools."""
-    
+
     def __init__(self, secrets_service: SecretsService, time_service: TimeServiceProtocol):
         """Initialize with secrets service and time service."""
         self.secrets_service = secrets_service
         self.time_service = time_service
         self.adapter_name = "secrets"
-        
+
     async def start(self) -> None:
         """Start the service."""
         logger.info("SecretsToolService started")
-        
+
     async def stop(self) -> None:
         """Stop the service."""
         logger.info("SecretsToolService stopped")
-        
+
     async def is_healthy(self) -> bool:
         """Check if service is healthy."""
         return True
-        
+
     async def execute_tool(self, tool_name: str, parameters: dict) -> ToolExecutionResult:
         """Execute a tool and return the result."""
         if tool_name == "recall_secret":
@@ -56,7 +55,7 @@ class SecretsToolService(ToolService):
                 success=False,
                 error=f"Unknown tool: {tool_name}"
             )
-            
+
         return ToolExecutionResult(
             tool_name=tool_name,
             status=ToolExecutionStatus.COMPLETED if result.success else ToolExecutionStatus.FAILED,
@@ -65,24 +64,24 @@ class SecretsToolService(ToolService):
             error=result.error,
             correlation_id=f"secrets_{tool_name}_{datetime.now().timestamp()}"
         )
-    
+
     async def _recall_secret(self, params: dict) -> ToolResult:
         """Recall a secret by UUID."""
         try:
             secret_uuid = params.get('secret_uuid')
             purpose = params.get('purpose', 'No purpose specified')
             decrypt = params.get('decrypt', False)
-            
+
             if not secret_uuid:
                 return ToolResult(success=False, error="secret_uuid is required")
-                
+
             # Create context for audit
             context = SecretContext(
                 operation="recall",
                 request_id=f"recall_{secret_uuid}_{self.time_service.now().timestamp()}",
                 metadata={"purpose": purpose}
             )
-            
+
             # Retrieve the secret
             if decrypt:
                 value = self.secrets_service.retrieve(secret_uuid, context)
@@ -99,73 +98,73 @@ class SecretsToolService(ToolService):
                     "pattern": secret.pattern.value,
                     "decrypted": False
                 }
-                
+
             return ToolResult(
                 success=True,
                 data=result_data
             )
-            
+
         except Exception as e:
             logger.error(f"Error recalling secret: {e}")
             return ToolResult(success=False, error=str(e))
-    
+
     async def _update_secrets_filter(self, params: dict) -> ToolResult:
         """Update secrets filter configuration."""
         try:
             operation = params.get('operation')
             if not operation:
                 return ToolResult(success=False, error="operation is required")
-                
+
             result_data = {"operation": operation}
-            
+
             if operation == "add_pattern":
                 pattern = params.get('pattern')
                 pattern_type = params.get('pattern_type', 'regex')
                 if not pattern:
                     return ToolResult(success=False, error="pattern is required for add_pattern")
-                    
+
                 self.secrets_service.filter.add_pattern(pattern, pattern_type)
                 result_data.update({"pattern": pattern, "pattern_type": pattern_type})
-                
+
             elif operation == "remove_pattern":
                 pattern = params.get('pattern')
                 if not pattern:
                     return ToolResult(success=False, error="pattern is required for remove_pattern")
-                    
+
                 self.secrets_service.filter.remove_pattern(pattern)
                 result_data.update({"pattern": pattern})
-                
+
             elif operation == "list_patterns":
                 patterns = self.secrets_service.filter.list_patterns()
                 result_data.update({"patterns": patterns})
-                
+
             elif operation == "enable":
                 enabled = params.get('enabled', True)
                 self.secrets_service.filter.enabled = enabled
                 result_data.update({"enabled": enabled})
-                
+
             else:
                 return ToolResult(success=False, error=f"Unknown operation: {operation}")
-                
+
             return ToolResult(success=True, data=result_data)
-            
+
         except Exception as e:
             logger.error(f"Error updating secrets filter: {e}")
             return ToolResult(success=False, error=str(e))
-    
+
     async def _self_help(self, parameters: dict) -> ToolResult:
         """Access the agent experience document."""
         try:
             experience_path = Path("docs/agent_experience.md")
-            
+
             if not experience_path.exists():
                 return ToolResult(
                     success=False,
                     error="Agent experience document not found at docs/agent_experience.md"
                 )
-            
+
             content = experience_path.read_text()
-            
+
             return ToolResult(
                 success=True,
                 data={
@@ -174,15 +173,15 @@ class SecretsToolService(ToolService):
                     "length": len(content)
                 }
             )
-            
+
         except Exception as e:
             logger.error(f"Error reading experience document: {e}")
             return ToolResult(success=False, error=str(e))
-    
+
     async def get_available_tools(self) -> List[str]:
         """Get list of available tool names."""
         return ["recall_secret", "update_secrets_filter", "self_help"]
-    
+
     async def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
         """Get detailed information about a specific tool."""
         if tool_name == "recall_secret":
@@ -209,7 +208,7 @@ class SecretsToolService(ToolService):
                     type="object",
                     properties={
                         "operation": {
-                            "type": "string", 
+                            "type": "string",
                             "enum": ["add_pattern", "remove_pattern", "list_patterns", "enable"],
                             "description": "Operation to perform"
                         },
@@ -235,7 +234,7 @@ class SecretsToolService(ToolService):
                 when_to_use="When you need guidance on your capabilities or best practices"
             )
         return None
-    
+
     async def get_all_tool_info(self) -> List[ToolInfo]:
         """Get information about all available tools."""
         tools = []
@@ -244,7 +243,7 @@ class SecretsToolService(ToolService):
             if tool_info:
                 tools.append(tool_info)
         return tools
-    
+
     async def validate_parameters(self, tool_name: str, parameters: dict) -> bool:
         """Validate parameters for a tool."""
         if tool_name == "recall_secret":
@@ -259,23 +258,23 @@ class SecretsToolService(ToolService):
         elif tool_name == "self_help":
             return True  # No parameters required
         return False
-    
+
     async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[ToolExecutionResult]:
         """Get result of an async tool execution."""
         # Secrets tools execute synchronously
         return None
-    
+
     async def list_tools(self) -> List[str]:
         """List available tools - required by ToolServiceProtocol."""
         return await self.get_available_tools()
-    
-    async def get_tool_schema(self, tool_name: str) -> Optional[Dict[str, Any]]:
-        """Get schema for a specific tool - required by ToolServiceProtocol."""
+
+    async def get_tool_schema(self, tool_name: str) -> Optional[ToolParameterSchema]:
+        """Get parameter schema for a specific tool - required by ToolServiceProtocol."""
         tool_info = await self.get_tool_info(tool_name)
-        if tool_info and tool_info.parameters:
-            return tool_info.parameters.model_dump()
+        if tool_info:
+            return tool_info.parameters
         return None
-    
+
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""
         return ServiceCapabilities(
@@ -292,7 +291,7 @@ class SecretsToolService(ToolService):
                 "tool_count": 3
             }
         )
-    
+
     def get_status(self) -> ServiceStatus:
         """Get current service status."""
         return ServiceStatus(

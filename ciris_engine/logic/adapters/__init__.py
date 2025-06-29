@@ -8,7 +8,7 @@ OpenAICompatibleClient = None
 _has_openai_llm = False
 
 __all__ = [
-    "load_adapter", 
+    "load_adapter",
     "BaseAdapterProtocol",
     "CIRISNodeClient"
 ]

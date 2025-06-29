@@ -8,14 +8,12 @@ the InitializationService.
 import logging
 from typing import Optional, Callable
 from ciris_engine.logic.services.lifecycle.initialization import InitializationService
-from ciris_engine.schemas.services.operations import InitializationPhase, InitializationStatus
 
 logger = logging.getLogger(__name__)
 
 # Re-export for compatibility
 class InitializationError(Exception):
     """Error during initialization."""
-    pass
 
 # Re-export enums
 __all__ = ['InitializationPhase', 'InitializationStatus', 'InitializationError', 'get_initialization_manager']

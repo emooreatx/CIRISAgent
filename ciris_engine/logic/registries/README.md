@@ -108,7 +108,7 @@ registry.register(
 Services available to all handlers as fallbacks:
 ```python
 # Register global LLM service for system-wide use
-registry.register_global(
+registry.register_service(
     service_type="llm",
     provider=fallback_llm,
     priority=Priority.NORMAL,

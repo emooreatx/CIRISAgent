@@ -8,9 +8,7 @@ from ciris_engine.schemas.config.agent import AgentTemplate
 
 # Import adapter configs to resolve forward references
 try:
-    from ciris_engine.logic.adapters.discord.config import DiscordAdapterConfig
-    from ciris_engine.logic.adapters.api.config import APIAdapterConfig
-    from ciris_engine.logic.adapters.cli.config import CLIAdapterConfig
+    pass
     # Rebuild models with resolved references
     AgentTemplate.model_rebuild()
 except Exception:
@@ -50,13 +48,13 @@ async def load_template(template_path: Optional[Path]) -> Optional[AgentTemplate
                 return yaml.safe_load(f)
 
         template_data = await asyncio.to_thread(_load_yaml, template_path)
-        
+
         if not template_data:
             logger.error(f"Template file is empty or invalid YAML: {template_path}")
             return None
-            
+
         if 'name' not in template_data:
-            template_data['name'] = template_path.stem 
+            template_data['name'] = template_path.stem
             logger.warning(f"Template 'name' not found in YAML, inferred as '{template_data['name']}' from filename: {template_path}")
 
         if "permitted_actions" in template_data:
@@ -89,10 +87,10 @@ async def load_template(template_path: Optional[Path]) -> Optional[AgentTemplate
         template = AgentTemplate(**template_data)
         logger.info(f"Successfully loaded template '{template.name}' from {template_path}")
         return template
-        
+
     except yaml.YAMLError as e:
         logger.exception(f"Error parsing YAML template file {template_path}: {e}")
     except Exception as e:
         logger.exception(f"Error loading or validating template from {template_path}: {e}")
-    
+
     return None

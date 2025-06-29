@@ -4,11 +4,10 @@ Core models for CIRIS Trinity Architecture.
 Task and Thought are the fundamental units of agent processing.
 NO Dict[str, Any] - everything is typed.
 """
-from typing import List, Optional, Any
+from typing import List, Optional
 from pydantic import BaseModel, Field, ConfigDict
 
 from .enums import TaskStatus, ThoughtStatus, ThoughtType
-from pydantic import Field, ConfigDict
 
 class TaskContext(BaseModel):
     """Typed context for tasks."""
@@ -16,7 +15,7 @@ class TaskContext(BaseModel):
     user_id: Optional[str] = Field(None, description="User who created task")
     correlation_id: str = Field(..., description="Correlation ID for tracing")
     parent_task_id: Optional[str] = Field(None, description="Parent task if nested")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class TaskOutcome(BaseModel):
@@ -26,7 +25,7 @@ class TaskOutcome(BaseModel):
     actions_taken: List[str] = Field(default_factory=list, description="Actions performed")
     memories_created: List[str] = Field(default_factory=list, description="Memory node IDs created")
     errors: List[str] = Field(default_factory=list, description="Errors encountered")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class ThoughtContext(BaseModel):
@@ -37,7 +36,7 @@ class ThoughtContext(BaseModel):
     depth: int = Field(0, description="Ponder depth (max 7)")
     parent_thought_id: Optional[str] = Field(None, description="Parent thought if pondering")
     correlation_id: str = Field(..., description="Correlation ID")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class FinalAction(BaseModel):
@@ -45,7 +44,7 @@ class FinalAction(BaseModel):
     action_type: str = Field(..., description="Action type chosen")
     action_params: dict = Field(..., description="Action parameters (will be typed per action)")
     reasoning: str = Field(..., description="Why this action was chosen")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class Task(BaseModel):
@@ -64,7 +63,7 @@ class Task(BaseModel):
     signed_by: Optional[str] = Field(None, description="WA ID that signed this task")
     signature: Optional[str] = Field(None, description="Cryptographic signature of task")
     signed_at: Optional[str] = Field(None, description="ISO8601 timestamp when signed")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class Thought(BaseModel):
@@ -83,12 +82,12 @@ class Thought(BaseModel):
     ponder_notes: Optional[List[str]] = Field(None, description="Notes from pondering")
     parent_thought_id: Optional[str] = Field(None, description="Parent if pondering")
     final_action: Optional[FinalAction] = Field(None, description="Action chosen")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 __all__ = [
     "Task",
-    "Thought", 
+    "Thought",
     "TaskContext",
     "TaskOutcome",
     "ThoughtContext",

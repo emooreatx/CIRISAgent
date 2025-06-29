@@ -108,7 +108,7 @@ class ActionDispatcher:
                 )
                 return
         # Logging handled by logger.info above
-        
+
         try:
             # Record handler invocation as HOT PATH
             if self.telemetry_service:
@@ -131,16 +131,16 @@ class ActionDispatcher:
                         "source_module": "action_dispatcher"
                     }
                 )
-            
+
             # The handler's `handle` method will take care of everything.
             follow_up_thought_id = await handler_instance.handle(action_selection_result, thought, dispatch_context)
-            
+
             # Log completion with follow-up thought ID if available
             completion_msg = f"[DISPATCHER] Handler {handler_instance.__class__.__name__} completed for action {action_type.value} on thought {thought.thought_id}"
             if follow_up_thought_id:
                 completion_msg += f" - created follow-up thought {follow_up_thought_id}"
             print(completion_msg)
-            
+
             # Record successful handler completion
             if self.telemetry_service:
                 await self.telemetry_service.record_metric(f"handler_completed_{action_type.value}")
@@ -149,7 +149,7 @@ class ActionDispatcher:
             logger.exception(
                 f"Error executing handler {handler_instance.__class__.__name__} for action {action_type.value} on thought {thought.thought_id}: {e}"
             )
-            
+
             # Record handler error
             if self.telemetry_service:
                 await self.telemetry_service.record_metric(f"handler_error_{action_type.value}")
@@ -166,4 +166,3 @@ class ActionDispatcher:
                 logger.error(
                     f"Failed to update thought {thought.thought_id} to FAILED after handler exception: {e_persist}"
                 )
-

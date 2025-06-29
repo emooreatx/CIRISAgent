@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS service_correlations (
     status TEXT NOT NULL DEFAULT 'pending',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
+
     -- TSDB fields for unified telemetry storage
     correlation_type TEXT NOT NULL DEFAULT 'service_interaction',
     timestamp TEXT, -- ISO8601 timestamp for time queries
@@ -146,19 +146,19 @@ CREATE TABLE IF NOT EXISTS audit_log (
     event_type TEXT NOT NULL,
     originator_id TEXT NOT NULL,
     event_payload TEXT,                         -- JSON payload
-    
+
     -- Hash chain fields
     sequence_number INTEGER NOT NULL,           -- Monotonic counter
     previous_hash TEXT NOT NULL,                -- SHA-256 of previous entry
     entry_hash TEXT NOT NULL,                   -- SHA-256 of this entry's content
-    
+
     -- Signature fields
     signature TEXT NOT NULL,                    -- Base64 encoded signature
     signing_key_id TEXT NOT NULL,               -- Key used to sign
-    
+
     -- Indexing
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
+
     -- Constraints
     UNIQUE(sequence_number),
     CHECK(sequence_number > 0)
@@ -180,7 +180,7 @@ CREATE TABLE IF NOT EXISTS audit_roots (
     root_hash TEXT NOT NULL,                    -- Merkle root of entries
     timestamp TEXT NOT NULL,
     external_anchor TEXT,                       -- External timestamp proof
-    
+
     UNIQUE(sequence_start, sequence_end)
 );
 
@@ -197,12 +197,12 @@ CREATE TABLE IF NOT EXISTS audit_signing_keys (
     key_size INTEGER NOT NULL DEFAULT 2048,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     revoked_at TEXT,                           -- NULL if active
-    
+
     CHECK(algorithm IN ('rsa-pss', 'ed25519'))
 );
 
 -- Create index for active key lookup
-CREATE INDEX IF NOT EXISTS idx_audit_keys_active ON audit_signing_keys(created_at) 
+CREATE INDEX IF NOT EXISTS idx_audit_keys_active ON audit_signing_keys(created_at)
 WHERE revoked_at IS NULL;
 '''
 
@@ -228,7 +228,7 @@ CREATE TABLE IF NOT EXISTS wa_cert (
   created            TEXT NOT NULL,
   last_login         TEXT,
   active             INTEGER DEFAULT 1,
-  
+
   -- Foreign key constraints
   FOREIGN KEY (parent_wa_id) REFERENCES wa_cert(wa_id)
 );

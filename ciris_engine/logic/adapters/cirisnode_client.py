@@ -43,10 +43,10 @@ class CIRISNodeClient(Service):
             }
         }
         super().__init__(config=retry_config)
-        
+
         self.service_registry = service_registry
         self._audit_service: Optional["AuditService"] = None
-        
+
         # Use base_url if provided, otherwise use default
         if base_url:
             self.base_url = base_url
@@ -55,7 +55,7 @@ class CIRISNodeClient(Service):
             node_cfg = CIRISNodeConfig()
             node_cfg.load_env_vars()
             self.base_url = node_cfg.base_url
-            
+
         self._client = httpx.AsyncClient(base_url=self.base_url)
         self._closed = False
 
@@ -103,7 +103,7 @@ class CIRISNodeClient(Service):
                 resp.raise_for_status()  # Don't retry 4xx client errors
             resp.raise_for_status()  # Raise for any other errors (will be retried)
             return await resp.json()
-            
+
         return await self.retry_with_backoff(
             _make_request,
             retryable_exceptions=(httpx.ConnectError, httpx.TimeoutException),
@@ -118,7 +118,7 @@ class CIRISNodeClient(Service):
                 resp.raise_for_status()  # Don't retry 4xx client errors
             resp.raise_for_status()  # Raise for any other errors (will be retried)
             return await resp.json()
-            
+
         return await self.retry_with_backoff(
             _make_request,
             retryable_exceptions=(httpx.ConnectError, httpx.TimeoutException),
@@ -133,7 +133,7 @@ class CIRISNodeClient(Service):
                 resp.raise_for_status()  # Don't retry 4xx client errors
             resp.raise_for_status()  # Raise for any other errors (will be retried)
             return await resp.json()
-            
+
         return await self.retry_with_backoff(
             _make_request,
             retryable_exceptions=(httpx.ConnectError, httpx.TimeoutException),

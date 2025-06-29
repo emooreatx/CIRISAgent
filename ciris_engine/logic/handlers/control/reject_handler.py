@@ -1,23 +1,14 @@
 import logging
-
-from datetime import datetime
-import re
+from typing import Optional
 
 from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.actions import RejectParams
 from ciris_engine.schemas.runtime.enums import ThoughtStatus, TaskStatus, HandlerActionType
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.runtime.contexts import DispatchContext
-from ciris_engine.schemas.runtime.system_context import ThoughtState, SystemSnapshot
 from ciris_engine.logic.utils.channel_utils import extract_channel_id
-from ciris_engine.schemas.services.filters_core import FilterTrigger, TriggerType, FilterPriority
-from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
-from ciris_engine.schemas.actions import MemorizeParams
-from ciris_engine.schemas.runtime.models import Task, ThoughtType
 from ciris_engine.logic import persistence
 from ciris_engine.logic.infrastructure.handlers.base_handler import BaseActionHandler
-from ciris_engine.logic.infrastructure.handlers.helpers import create_follow_up_thought
-from ciris_engine.logic.infrastructure.handlers.exceptions import FollowUpCreationError
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +18,7 @@ class RejectHandler(BaseActionHandler):
         result: ActionSelectionDMAResult,
         thought: Thought,
         dispatch_context: DispatchContext
-    ) -> None:
+    ) -> Optional[str]:
         raw_params = result.action_parameters
         thought_id = thought.thought_id
         parent_task_id = thought.source_task_id
@@ -46,8 +37,8 @@ class RejectHandler(BaseActionHandler):
                 final_action=result,
             )
             return
-        final_thought_status = ThoughtStatus.FAILED 
-        action_performed_successfully = False
+        final_thought_status = ThoughtStatus.FAILED
+        _action_performed_successfully = False
         follow_up_content_key_info = f"REJECT action for thought {thought_id}"
 
         if not isinstance(params, RejectParams):

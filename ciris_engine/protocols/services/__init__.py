@@ -36,7 +36,6 @@ from .lifecycle import (
 # Infrastructure service protocols
 from .infrastructure import (
     AuthenticationServiceProtocol,
-    ResourceMonitorServiceProtocol,
 )
 
 # Governance service protocols - security and oversight
@@ -55,13 +54,12 @@ from .adaptation import (
 # Legacy protocol for compatibility
 class GraphMemoryServiceProtocol(ServiceProtocol):
     """Legacy protocol for graph memory service operations."""
-    pass
 
 __all__ = [
     # Base protocols
     "Service",
     "ServiceProtocol",
-    "GraphServiceProtocol", 
+    "GraphServiceProtocol",
     "CoreServiceProtocol",
     "BaseVisibilityServiceProtocol",
     # Graph services (5)

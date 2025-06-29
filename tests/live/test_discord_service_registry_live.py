@@ -20,9 +20,9 @@ async def test_discord_runtime_service_registry_live():
 
     try:
         runtime = CIRISRuntime(
-            adapter_types=["discord"], 
-            profile_name="default", 
-            discord_bot_token=token, 
+            adapter_types=["discord"],
+            profile_name="default",
+            discord_bot_token=token,
             startup_channel_id=channel,
             # Explicitly disable API adapter to avoid port conflicts
             host=None,

@@ -4,8 +4,7 @@ Implements async tool handlers and registration for CIRIS ToolRegistry.
 """
 import discord
 from typing import Optional, Any
-from ciris_engine.schemas.adapters.tools import ToolResult, ToolExecutionStatus
-from datetime import datetime
+from ciris_engine.schemas.adapters.tools import ToolResult
 
 async def discord_delete_message(bot: discord.Client, channel_id: int, message_id: int) -> ToolResult:
     try:

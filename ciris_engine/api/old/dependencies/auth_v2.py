@@ -31,7 +31,7 @@ async def get_auth_context(
             detail="Missing authorization header",
             headers={"WWW-Authenticate": "Bearer"}
         )
-    
+
     # Extract bearer token
     if not authorization.startswith("Bearer "):
         raise HTTPException(
@@ -39,9 +39,9 @@ async def get_auth_context(
             detail="Invalid authorization format",
             headers={"WWW-Authenticate": "Bearer"}
         )
-    
+
     api_key = authorization[7:]  # Remove "Bearer " prefix
-    
+
     # Validate API key
     key_info = await auth_service.validate_api_key(api_key)
     if not key_info:
@@ -49,7 +49,7 @@ async def get_auth_context(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key"
         )
-    
+
     # Create auth context with request reference
     context = AuthContext(
         user_id=key_info.user_id,
@@ -58,10 +58,10 @@ async def get_auth_context(
         api_key_id=auth_service._get_key_id(api_key),
         authenticated_at=datetime.now(timezone.utc)
     )
-    
+
     # Attach request to context for service access in routes
     context.request = request
-    
+
     return context
 
 async def optional_auth(
@@ -72,7 +72,7 @@ async def optional_auth(
     """Optional authentication - returns None if no auth provided."""
     if not authorization:
         return None
-    
+
     try:
         return await get_auth_context(request, authorization, auth_service)
     except HTTPException:
@@ -81,10 +81,10 @@ async def optional_auth(
 def require_role(minimum_role: UserRole):
     """
     Factory for role-based access control dependencies.
-    
+
     Args:
         minimum_role: Minimum role required for access
-        
+
     Returns:
         Dependency function that validates role
     """
@@ -97,9 +97,9 @@ def require_role(minimum_role: UserRole):
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Insufficient permissions. Requires {minimum_role.value} role or higher."
             )
-        
+
         return auth
-    
+
     # Set function name for better error messages
     check_role.__name__ = f"require_{minimum_role.value.lower()}"
     return check_role

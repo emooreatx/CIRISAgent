@@ -7,14 +7,12 @@ from typing import (
     Dict,
     List,
     Optional,
-    Type,
     Union
 )
 from pydantic import BaseModel, Field, ConfigDict
 
 from ..dma.results import EthicalDMAResult, CSDMAResult, DSDMAResult, ActionSelectionDMAResult
 from ciris_engine.schemas.runtime.enums import HandlerActionType
-from pydantic import Field, ConfigDict
 from ..actions.parameters import (
     ObserveParams, SpeakParams, ToolParams, PonderParams, RejectParams,
     DeferParams, MemorizeParams, RecallParams, ForgetParams, TaskCompleteParams
@@ -26,7 +24,7 @@ class DMAResults(BaseModel):
     csdma: Optional[CSDMAResult] = Field(None, description="Common sense evaluation")
     dsdma: Optional[DSDMAResult] = Field(None, description="Domain-specific evaluation")
     errors: List[str] = Field(default_factory=list, description="Errors during evaluation")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class ConscienceApplicationResult(BaseModel):
@@ -36,19 +34,19 @@ class ConscienceApplicationResult(BaseModel):
     overridden: bool = Field(False, description="Whether action was overridden")
     override_reason: Optional[str] = Field(None, description="Reason for override")
     epistemic_data: Dict[str, str] = Field(default_factory=dict, description="Epistemic faculty data")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class ProcessedThoughtResult(BaseModel):
     """Result from thought processor containing both action and conscience data."""
     action_result: ActionSelectionDMAResult = Field(..., description="Action selection result")
     conscience_result: Optional[ConscienceApplicationResult] = Field(None, description="conscience application result")
-    
+
     @property
     def selected_action(self) -> HandlerActionType:
         """Convenience property for compatibility."""
         return self.action_result.selected_action
-    
+
     @property
     def action_parameters(self) -> Union[
         ObserveParams,
@@ -64,7 +62,7 @@ class ProcessedThoughtResult(BaseModel):
     ]:
         """Convenience property for compatibility."""
         return self.action_result.action_parameters
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class ThoughtProcessingMetrics(BaseModel):
@@ -74,7 +72,7 @@ class ThoughtProcessingMetrics(BaseModel):
     conscience_time_ms: float = Field(..., description="conscience application time")
     llm_calls: int = Field(..., description="Number of LLM calls")
     tokens_used: int = Field(..., description="Total tokens consumed")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class ProcessingError(BaseModel):
@@ -83,7 +81,7 @@ class ProcessingError(BaseModel):
     error_message: str = Field(..., description="Error message")
     component: str = Field(..., description="Component that failed")
     recoverable: bool = Field(..., description="Whether error is recoverable")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 __all__ = [

@@ -1,4 +1,3 @@
-import json
 from typing import Optional
 from ciris_engine.logic.persistence import get_db_connection
 from ciris_engine.schemas.persistence.core import DeferralPackage, DeferralReportContext
@@ -46,7 +45,7 @@ def get_deferral_report_context(message_id: str, db_path: Optional[str] = None) 
                     except Exception as e:
                         logger.warning(f"Failed to parse deferral package: {e}")
                         pkg = None
-                
+
                 return DeferralReportContext(
                     task_id=row["task_id"],
                     thought_id=row["thought_id"],

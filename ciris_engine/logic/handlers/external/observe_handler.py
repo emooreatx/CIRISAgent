@@ -11,8 +11,8 @@ from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.schemas.runtime.messages import FetchedMessage
 from ciris_engine.schemas.runtime.system_context import ChannelContext
 from ciris_engine.schemas.services.graph_core import GraphScope
-from ciris_engine.schemas.services.graph_core import GraphNode, NodeType
-from ciris_engine.logic.utils.channel_utils import extract_channel_id, create_channel_context
+from ciris_engine.schemas.services.graph_core import NodeType
+from ciris_engine.logic.utils.channel_utils import extract_channel_id
 from ciris_engine.logic import persistence
 from ciris_engine.logic.infrastructure.handlers.base_handler import BaseActionHandler
 from ciris_engine.logic.infrastructure.handlers.helpers import create_follow_up_thought
@@ -50,7 +50,7 @@ class ObserveHandler(BaseActionHandler):
                         node_type = NodeType.USER
                     else:
                         node_type = NodeType.CONCEPT
-                    
+
                     from ciris_engine.schemas.services.operations import MemoryQuery
                     query = MemoryQuery(
                         node_id=rid,
@@ -71,20 +71,20 @@ class ObserveHandler(BaseActionHandler):
         result: ActionSelectionDMAResult,
         thought: Thought,
         dispatch_context: DispatchContext,
-    ) -> None:
+    ) -> Optional[str]:
         raw_params = result.action_parameters
         thought_id = thought.thought_id
-        
+
         logger.info(f"ObserveHandler: Starting handle for thought {thought_id}")
         logger.debug(f"ObserveHandler: Parameters: {raw_params}")
         logger.debug(f"ObserveHandler: Dispatch context fields: {list(dispatch_context.__class__.model_fields.keys())}")
-        
+
         await self._audit_log(
             HandlerActionType.OBSERVE,
             dispatch_context,
             outcome="start",
         )
-        
+
         final_status = ThoughtStatus.COMPLETED
         action_performed = False
         follow_up_info = f"OBSERVE action for thought {thought_id}"
@@ -127,22 +127,22 @@ class ObserveHandler(BaseActionHandler):
 
         # Get channel context from params or dispatch
         channel_context: Optional[ChannelContext] = params.channel_context or dispatch_context.channel_context
-        
+
         # Fallback to thought context if needed
         if not channel_context and thought.context and hasattr(thought.context, 'system_snapshot'):
             channel_context = thought.context.system_snapshot.channel_context
-        
+
         # Update params with the resolved channel context
         if channel_context:
             params.channel_context = channel_context
-        
+
         # Extract channel ID for legacy API usage
         channel_id = extract_channel_id(channel_context)
         if channel_id and isinstance(channel_id, str) and channel_id.startswith("@"):
             channel_id = None
 
         # Use bus manager instead of getting services directly
-        logger.debug(f"ObserveHandler: Using bus manager for communication and memory operations")
+        logger.debug("ObserveHandler: Using bus manager for communication and memory operations")
 
         try:
             logger.info(f"ObserveHandler: Performing active observation for channel {channel_id}")
@@ -193,4 +193,3 @@ class ObserveHandler(BaseActionHandler):
                 outcome="failed_followup",
             )
             raise FollowUpCreationError from e
-

@@ -4,7 +4,7 @@ System management endpoints for CIRIS API v3.0 (Simplified).
 Consolidates health, time, resources, runtime control, services, and shutdown
 into a unified system operations interface.
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Depends, Body
 from pydantic import BaseModel, Field, field_serializer
@@ -14,10 +14,9 @@ import asyncio
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ciris_engine.api.dependencies.auth import require_observer, require_admin, AuthContext
 from ciris_engine.schemas.runtime.enums import ServiceType
-from ciris_engine.schemas.services.resources_core import ResourceSnapshot, ResourceBudget, ResourceLimit
-from ciris_engine.schemas.services.core.runtime import RuntimeStatusResponse, ProcessorControlResponse
+from ciris_engine.schemas.services.resources_core import ResourceSnapshot, ResourceBudget
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.protocols.services import ShutdownServiceProtocol
+from ciris_engine.schemas.api.telemetry import TimeSyncStatus, ServiceMetrics
 
 router = APIRouter(prefix="/system", tags=["system"])
 logger = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ class SystemHealthResponse(BaseModel):
     initialization_complete: bool = Field(..., description="Whether system initialization is complete")
     cognitive_state: Optional[str] = Field(None, description="Current cognitive state if available")
     timestamp: datetime = Field(..., description="Current server time")
-    
+
     @field_serializer('timestamp')
     def serialize_timestamp(self, timestamp: datetime, _info):
         return timestamp.isoformat() if timestamp else None
@@ -43,10 +42,10 @@ class SystemHealthResponse(BaseModel):
 class SystemTimeResponse(BaseModel):
     """System and agent time information."""
     system_time: datetime = Field(..., description="Host system time (OS time)")
-    agent_time: datetime = Field(..., description="Agent's TimeService time") 
+    agent_time: datetime = Field(..., description="Agent's TimeService time")
     uptime_seconds: float = Field(..., description="Service uptime in seconds")
-    time_sync: Dict[str, Any] = Field(..., description="Time synchronization status")
-    
+    time_sync: TimeSyncStatus = Field(..., description="Time synchronization status")
+
     @field_serializer('system_time', 'agent_time')
     def serialize_times(self, dt: datetime, _info):
         return dt.isoformat() if dt else None
@@ -82,7 +81,7 @@ class ServiceStatus(BaseModel):
     healthy: bool = Field(..., description="Whether service is healthy")
     available: bool = Field(..., description="Whether service is available")
     uptime_seconds: Optional[float] = Field(None, description="Service uptime if tracked")
-    metrics: Dict[str, Any] = Field(default_factory=dict, description="Service-specific metrics")
+    metrics: ServiceMetrics = Field(default_factory=ServiceMetrics, description="Service-specific metrics")
 
 
 class ServicesStatusResponse(BaseModel):
@@ -91,7 +90,7 @@ class ServicesStatusResponse(BaseModel):
     total_services: int = Field(..., description="Total number of services")
     healthy_services: int = Field(..., description="Number of healthy services")
     timestamp: datetime = Field(..., description="When status was collected")
-    
+
     @field_serializer('timestamp')
     def serialize_timestamp(self, timestamp: datetime, _info):
         return timestamp.isoformat() if timestamp else None
@@ -110,7 +109,7 @@ class ShutdownResponse(BaseModel):
     message: str = Field(..., description="Human-readable status message")
     shutdown_initiated: bool = Field(..., description="Whether shutdown was initiated")
     timestamp: datetime = Field(..., description="When shutdown was initiated")
-    
+
     @field_serializer('timestamp')
     def serialize_timestamp(self, timestamp: datetime, _info):
         return timestamp.isoformat() if timestamp else None
@@ -122,7 +121,7 @@ class ShutdownResponse(BaseModel):
 async def get_system_health(request: Request):
     """
     Overall system health.
-    
+
     Returns comprehensive system health including service status,
     initialization state, and current cognitive state.
     """
@@ -131,22 +130,23 @@ async def get_system_health(request: Request):
     start_time = getattr(time_service, '_start_time', None) if time_service else None
     current_time = time_service.now() if time_service else datetime.now(timezone.utc)
     uptime_seconds = (current_time - start_time).total_seconds() if start_time else 0.0
-    
+
     # Check cognitive state if runtime is available
     cognitive_state = None
     runtime = getattr(request.app.state, 'runtime', None)
     if runtime and hasattr(runtime, 'agent_processor'):
         try:
             cognitive_state = runtime.agent_processor.get_current_state()
-        except:
+        except Exception as e:
+            logger.warning(f"Failed to retrieve cognitive state: {type(e).__name__}: {str(e)} - Agent processor may not be initialized")
             pass
-    
+
     # Check initialization status
     init_complete = True
     init_service = getattr(request.app.state, 'initialization_service', None)
     if init_service and hasattr(init_service, 'is_initialized'):
         init_complete = init_service.is_initialized()
-    
+
     # Collect service health
     services = {}
     if hasattr(request.app.state, 'service_registry'):
@@ -167,20 +167,21 @@ async def get_system_health(request: Request):
                                     healthy_count += 1
                             else:
                                 healthy_count += 1  # Assume healthy if no method
-                        except:
-                            pass  # Count as unhealthy if check fails
-                    
+                        except Exception as e:
+                            logger.warning(f"Service health check failed for {service_type.value}: {type(e).__name__}: {str(e)} - Service may not implement is_healthy()")
+                            # Continue with service counted as unhealthy
+
                     services[service_type.value] = {
                         "available": len(providers),
                         "healthy": healthy_count
                     }
         except Exception as e:
             logger.error(f"Error checking service health: {e}")
-    
+
     # Determine overall status
     total_services = sum(s.get("available", 0) for s in services.values())
     healthy_services = sum(s.get("healthy", 0) for s in services.values())
-    
+
     if not init_complete:
         status = "initializing"
     elif healthy_services == total_services:
@@ -189,7 +190,7 @@ async def get_system_health(request: Request):
         status = "degraded"
     else:
         status = "critical"
-    
+
     response = SystemHealthResponse(
         status=status,
         version="3.0.0",
@@ -199,7 +200,7 @@ async def get_system_health(request: Request):
         cognitive_state=cognitive_state,
         timestamp=current_time
     )
-    
+
     return SuccessResponse(data=response)
 
 
@@ -207,7 +208,7 @@ async def get_system_health(request: Request):
 async def get_system_time(request: Request):
     """
     System time information.
-    
+
     Returns both system time (host OS) and agent time (TimeService),
     along with synchronization status.
     """
@@ -215,14 +216,14 @@ async def get_system_time(request: Request):
     time_service: Optional[TimeServiceProtocol] = getattr(request.app.state, 'time_service', None)
     if not time_service:
         raise HTTPException(status_code=503, detail="Time service not available")
-    
+
     try:
         # Get system time (actual OS time)
         system_time = datetime.now(timezone.utc)
-        
+
         # Get agent time (from TimeService)
         agent_time = time_service.now()
-        
+
         # Calculate uptime
         start_time = getattr(time_service, '_start_time', None)
         if not start_time:
@@ -230,25 +231,25 @@ async def get_system_time(request: Request):
             uptime_seconds = 0.0
         else:
             uptime_seconds = (agent_time - start_time).total_seconds()
-        
+
         # Calculate time sync status
         is_mocked = getattr(time_service, '_mock_time', None) is not None
         time_diff_ms = (agent_time - system_time).total_seconds() * 1000
-        
-        time_sync = {
-            "synchronized": not is_mocked and abs(time_diff_ms) < 1000,  # Within 1 second
-            "drift_ms": time_diff_ms,
-            "last_sync": getattr(time_service, '_last_sync', agent_time).isoformat(),
-            "sync_source": "mock" if is_mocked else "system"
-        }
-        
+
+        time_sync = TimeSyncStatus(
+            synchronized=not is_mocked and abs(time_diff_ms) < 1000,  # Within 1 second
+            drift_ms=time_diff_ms,
+            last_sync=getattr(time_service, '_last_sync', agent_time),
+            sync_source="mock" if is_mocked else "system"
+        )
+
         response = SystemTimeResponse(
             system_time=system_time,
             agent_time=agent_time,
             uptime_seconds=uptime_seconds,
             time_sync=time_sync
         )
-        
+
         return SuccessResponse(data=response)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get time information: {str(e)}")
@@ -261,19 +262,19 @@ async def get_resource_usage(
 ):
     """
     Resource usage and limits.
-    
+
     Returns current resource consumption, configured limits,
     and health status.
     """
     resource_monitor = getattr(request.app.state, 'resource_monitor', None)
     if not resource_monitor:
         raise HTTPException(status_code=503, detail="Resource monitor service not available")
-    
+
     try:
         # Get current snapshot and budget
         snapshot = resource_monitor.snapshot
         budget = resource_monitor.budget
-        
+
         # Determine health status
         if snapshot.critical:
             health_status = "critical"
@@ -281,7 +282,7 @@ async def get_resource_usage(
             health_status = "warning"
         else:
             health_status = "healthy"
-        
+
         response = ResourceUsageResponse(
             current_usage=snapshot,
             limits=budget,
@@ -289,9 +290,9 @@ async def get_resource_usage(
             warnings=snapshot.warnings,
             critical=snapshot.critical
         )
-        
+
         return SuccessResponse(data=response)
-        
+
     except Exception as e:
         logger.error(f"Error getting resource usage: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -306,18 +307,18 @@ async def control_runtime(
 ):
     """
     Runtime control actions.
-    
+
     Control agent runtime behavior. Valid actions:
     - pause: Pause message processing
     - resume: Resume message processing
     - state: Get current runtime state
-    
+
     Requires ADMIN role.
     """
     runtime_control = getattr(request.app.state, 'runtime_control', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
-    
+
     try:
         # Validate action
         valid_actions = ["pause", "resume", "state"]
@@ -326,7 +327,7 @@ async def control_runtime(
                 status_code=400,
                 detail=f"Invalid action. Must be one of: {', '.join(valid_actions)}"
             )
-        
+
         # Execute action
         if action == "pause":
             result = await runtime_control.pause_processing()
@@ -343,16 +344,17 @@ async def control_runtime(
                 queue_depth=status.queue_status.pending_thoughts + status.queue_status.pending_tasks
             )
             return SuccessResponse(data=result)
-        
+
         # Get cognitive state if available
         cognitive_state = None
         runtime = getattr(request.app.state, 'runtime', None)
         if runtime and hasattr(runtime, 'agent_processor'):
             try:
                 cognitive_state = runtime.agent_processor.get_current_state()
-            except:
+            except Exception as e:
+                logger.warning(f"Failed to retrieve cognitive state: {type(e).__name__}: {str(e)} - Agent processor may not be initialized")
                 pass
-        
+
         # Convert result to our response format
         response = RuntimeControlResponse(
             success=result.success,
@@ -361,9 +363,9 @@ async def control_runtime(
             cognitive_state=cognitive_state,
             queue_depth=result.queue_depth
         )
-        
+
         return SuccessResponse(data=response)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -377,12 +379,12 @@ async def get_services_status(
 ):
     """
     Service status.
-    
+
     Returns status of all system services including health,
     availability, and basic metrics.
     """
     services = []
-    
+
     # Collect direct services (not in registry)
     direct_services = [
         ('time_service', 'TimeService', 'infrastructure'),
@@ -400,7 +402,7 @@ async def get_services_status(
         ('adaptive_filter', 'AdaptiveFilter', 'special'),
         ('task_scheduler', 'TaskScheduler', 'special'),
     ]
-    
+
     for attr_name, service_name, service_type in direct_services:
         service = getattr(request.app.state, attr_name, None)
         if service:
@@ -412,21 +414,31 @@ async def get_services_status(
                         is_healthy = await service.is_healthy()
                     else:
                         is_healthy = service.is_healthy()
-                
+
                 # Get metrics if available
-                metrics = {}
+                metrics = ServiceMetrics()
                 if hasattr(service, 'get_status'):
                     status = service.get_status()
                     if hasattr(status, 'metrics'):
-                        metrics = status.metrics
-                
+                        # Convert dict metrics to ServiceMetrics
+                        m = status.metrics
+                        if isinstance(m, dict):
+                            metrics.uptime_seconds = m.get('uptime_seconds')
+                            metrics.requests_handled = m.get('requests_handled')
+                            metrics.error_count = m.get('error_count')
+                            metrics.avg_response_time_ms = m.get('avg_response_time_ms')
+                            metrics.memory_mb = m.get('memory_mb')
+                            metrics.custom_metrics = m
+                        else:
+                            metrics = m
+
                 # Calculate uptime if possible
                 uptime = None
                 if hasattr(service, '_start_time'):
                     start_time = getattr(service, '_start_time')
                     if start_time:
                         uptime = (datetime.now(timezone.utc) - start_time).total_seconds()
-                
+
                 services.append(ServiceStatus(
                     name=service_name,
                     type=service_type,
@@ -442,9 +454,9 @@ async def get_services_status(
                     type=service_type,
                     healthy=False,
                     available=True,
-                    metrics={"error": str(e)}
+                    metrics=ServiceMetrics(custom_metrics={"error": str(e)})
                 ))
-    
+
     # Collect registry services
     if hasattr(request.app.state, 'service_registry'):
         service_registry = request.app.state.service_registry
@@ -454,7 +466,7 @@ async def get_services_status(
             (ServiceType.WISE_AUTHORITY, 'WiseAuthority', 'governance'),
             (ServiceType.RUNTIME_CONTROL, 'RuntimeControl', 'infrastructure')
         ]
-        
+
         for service_type, service_name, category in registry_services:
             try:
                 providers = service_registry.get_services_by_type(service_type)
@@ -466,14 +478,24 @@ async def get_services_status(
                             is_healthy = await provider.is_healthy()
                         else:
                             is_healthy = provider.is_healthy()
-                    
+
                     # Get metrics if available
-                    metrics = {}
+                    metrics = ServiceMetrics()
                     if hasattr(provider, 'get_status'):
                         status = provider.get_status()
                         if hasattr(status, 'metrics'):
-                            metrics = status.metrics
-                    
+                            # Convert dict metrics to ServiceMetrics
+                            m = status.metrics
+                            if isinstance(m, dict):
+                                metrics.uptime_seconds = m.get('uptime_seconds')
+                                metrics.requests_handled = m.get('requests_handled')
+                                metrics.error_count = m.get('error_count')
+                                metrics.avg_response_time_ms = m.get('avg_response_time_ms')
+                                metrics.memory_mb = m.get('memory_mb')
+                                metrics.custom_metrics = m
+                            else:
+                                metrics = m
+
                     services.append(ServiceStatus(
                         name=service_name,
                         type=category,
@@ -483,17 +505,17 @@ async def get_services_status(
                     ))
             except Exception as e:
                 logger.error(f"Error checking registry service {service_name}: {e}")
-    
+
     # Count healthy services
     healthy_count = sum(1 for s in services if s.healthy)
-    
+
     response = ServicesStatusResponse(
         services=services,
         total_services=len(services),
         healthy_services=healthy_count,
         timestamp=datetime.now(timezone.utc)
     )
-    
+
     return SuccessResponse(data=response)
 
 
@@ -505,10 +527,10 @@ async def shutdown_system(
 ):
     """
     Graceful shutdown.
-    
+
     Initiates graceful system shutdown. Requires confirmation
     flag to prevent accidental shutdowns.
-    
+
     Requires ADMIN role.
     """
     # Validate confirmation
@@ -517,45 +539,45 @@ async def shutdown_system(
             status_code=400,
             detail="Confirmation required (confirm=true)"
         )
-    
+
     # Get shutdown service from runtime
     runtime = getattr(request.app.state, 'runtime', None)
     if not runtime:
         raise HTTPException(status_code=503, detail="Runtime not available")
-    
+
     shutdown_service = getattr(runtime, 'shutdown_service', None)
     if not shutdown_service:
         raise HTTPException(status_code=503, detail="Shutdown service not available")
-    
+
     try:
         # Check if already shutting down
         if shutdown_service.is_shutdown_requested():
             existing_reason = shutdown_service.get_shutdown_reason()
             raise HTTPException(
-                status_code=409, 
+                status_code=409,
                 detail=f"Shutdown already requested: {existing_reason}"
             )
-        
+
         # Build shutdown reason
         reason = f"{body.reason} (API shutdown by {auth.user_id})"
         if body.force:
             reason += " [FORCED]"
-        
+
         # Log shutdown request
         logger.warning(f"SHUTDOWN requested: {reason}")
-        
+
         # Execute shutdown
         await shutdown_service.request_shutdown(reason)
-        
+
         response = ShutdownResponse(
             status="initiated",
             message=f"System shutdown initiated: {reason}",
             shutdown_initiated=True,
             timestamp=datetime.now(timezone.utc)
         )
-        
+
         return SuccessResponse(data=response)
-        
+
     except HTTPException:
         raise
     except Exception as e:

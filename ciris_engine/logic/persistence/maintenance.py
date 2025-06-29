@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta
 from pathlib import Path
 import asyncio
 from typing import List, Optional, Any
@@ -93,7 +93,7 @@ class DatabaseMaintenanceService:
         ts = time_service or self.time_service
         logger.info("--- Starting Startup Database Cleanup ---")
         self.archive_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # --- Clean up thoughts with invalid/malformed context ---
         await self._cleanup_invalid_thoughts()
 
@@ -110,7 +110,7 @@ class DatabaseMaintenanceService:
                 logger.info(f"Found stale, non-terminal wakeup step task: {step_task.task_id} ('{step_task.description}') with status {step_task.status}. Marking as FAILED.")
                 update_task_status(step_task.task_id, TaskStatus.FAILED, self.time_service)
                 stale_wakeup_steps_failed_count += 1
-                
+
                 step_thoughts = get_thoughts_by_task_id(step_task.task_id)
                 for thought in step_thoughts:
                     if thought.status not in [ThoughtStatus.COMPLETED, ThoughtStatus.FAILED, ThoughtStatus.DEFERRED, ThoughtStatus.COMPLETED]:
@@ -121,7 +121,7 @@ class DatabaseMaintenanceService:
                             final_action={"status": "Task marked stale by maintenance"},
                         )
                         stale_wakeup_thoughts_failed_count += 1
-        
+
         if stale_wakeup_steps_failed_count > 0 or stale_wakeup_thoughts_failed_count > 0:
             logger.info(f"Startup cleanup: Marked {stale_wakeup_steps_failed_count} stale wakeup step tasks and {stale_wakeup_thoughts_failed_count} related thoughts as FAILED.")
 
@@ -168,7 +168,7 @@ class DatabaseMaintenanceService:
             if not source_task or source_task.status != TaskStatus.ACTIVE:
                 logger.info(f"Orphaned thought found: {thought.thought_id} (Task: {thought.source_task_id} not found or not active). Marking for deletion.")
                 thought_ids_to_delete_orphan.append(thought.thought_id)
-        
+
         if thought_ids_to_delete_orphan:
             unique_thought_ids_to_delete = list(set(thought_ids_to_delete_orphan))
             count = delete_thoughts_by_ids(unique_thought_ids_to_delete)
@@ -180,7 +180,7 @@ class DatabaseMaintenanceService:
         # --- 2. Archive tasks/thoughts older than configured hours ---
         archived_tasks_count = 0
         archived_thoughts_count = 0
-        
+
         now = ts.now()
         archive_timestamp_str = now.strftime("%Y%m%d_%H%M%S")
         older_than_timestamp = (now - timedelta(hours=self.archive_older_than_hours)).isoformat()
@@ -196,7 +196,7 @@ class DatabaseMaintenanceService:
                     if task.task_id not in self.valid_root_task_ids:
                         f.write(task.model_dump_json() + "\n")
                         task_ids_to_delete_for_archive.append(task.task_id)
-            
+
             if task_ids_to_delete_for_archive:
                 archived_tasks_count = delete_tasks_by_ids(task_ids_to_delete_for_archive)
                 task_ids_actually_archived_and_deleted.update(task_ids_to_delete_for_archive)
@@ -210,13 +210,13 @@ class DatabaseMaintenanceService:
         if thoughts_to_archive:
             thought_archive_file = self.archive_dir / f"archive_thoughts_{archive_timestamp_str}.jsonl"
             thought_ids_to_delete_for_archive: List[Any] = []
-            
+
             with open(thought_archive_file, "w") as f:
                 for thought in thoughts_to_archive:
                     if thought.source_task_id in task_ids_actually_archived_and_deleted:
                         f.write(thought.model_dump_json() + "\n")
                         thought_ids_to_delete_for_archive.append(thought.thought_id)
-            
+
             if thought_ids_to_delete_for_archive:
                 archived_thoughts_count = delete_thoughts_by_ids(thought_ids_to_delete_for_archive)
                 logger.info(f"Archived and deleted {archived_thoughts_count} thoughts (linked to archived tasks) older than {self.archive_older_than_hours} hours to {thought_archive_file}.")
@@ -224,48 +224,47 @@ class DatabaseMaintenanceService:
                 logger.info(f"No thoughts (linked to archivable tasks) older than {self.archive_older_than_hours} hours to archive.")
         else:
             logger.info(f"No thoughts older than {self.archive_older_than_hours} hours found for archiving.")
-        
+
         logger.info(f"Archival: {archived_tasks_count} tasks, {archived_thoughts_count} thoughts archived and removed.")
         logger.info("--- Finished Startup Database Cleanup ---")
-        
+
     async def _cleanup_invalid_thoughts(self) -> None:
         """Clean up thoughts with invalid or malformed context."""
         from ciris_engine.logic.persistence import get_db_connection
-        
+
         logger.info("Cleaning up thoughts with invalid context...")
-        
+
         # Get all thoughts with empty or invalid context
         sql = """
-            SELECT thought_id, context_json 
-            FROM thoughts 
-            WHERE context_json = '{}' 
+            SELECT thought_id, context_json
+            FROM thoughts
+            WHERE context_json = '{}'
                OR context_json IS NULL
                OR context_json NOT LIKE '%task_id%'
                OR context_json NOT LIKE '%correlation_id%'
         """
-        
+
         invalid_thought_ids = []
-        
+
         try:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute(sql)
                 rows = cursor.fetchall()
-                
+
                 for row in rows:
                     invalid_thought_ids.append(row["thought_id"])
-                    
+
                 if invalid_thought_ids:
                     # Delete these invalid thoughts
                     placeholders = ",".join("?" * len(invalid_thought_ids))
                     delete_sql = f"DELETE FROM thoughts WHERE thought_id IN ({placeholders})"
                     cursor.execute(delete_sql, invalid_thought_ids)
                     conn.commit()
-                    
+
                     logger.info(f"Deleted {len(invalid_thought_ids)} thoughts with invalid context")
                 else:
                     logger.info("No thoughts with invalid context found")
-                    
+
         except Exception as e:
             logger.error(f"Failed to clean up invalid thoughts: {e}", exc_info=True)
-

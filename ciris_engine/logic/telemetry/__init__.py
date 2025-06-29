@@ -28,7 +28,7 @@ from .log_collector import LogCorrelationCollector, TSDBLogHandler
 
 __all__ = [
     "ResourceMonitor",
-    "ResourceSignalBus", 
+    "ResourceSignalBus",
     "BasicTelemetryCollector",
     "SecurityFilter",
     "BaseCollector",

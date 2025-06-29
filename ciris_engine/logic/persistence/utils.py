@@ -1,7 +1,6 @@
 import json
 from typing import Any
 from ciris_engine.schemas.runtime.models import Task, Thought, ThoughtContext, TaskContext, TaskOutcome, FinalAction
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
 import logging
 import uuid
@@ -52,12 +51,12 @@ def map_row_to_task(row: Any) -> Task:
             row_dict["outcome"] = None
     else:
         row_dict["outcome"] = None
-    
+
     # Remove database-specific columns that aren't in the Task schema
     for k in ["context_json", "outcome_json", "retry_count"]:
         if k in row_dict:
             del row_dict[k]
-    
+
     try:
         row_dict["status"] = TaskStatus(row_dict["status"])
     except Exception:

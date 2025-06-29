@@ -45,7 +45,7 @@ async def test_secrets_service_lifecycle(secrets_service):
     # Start
     await secrets_service.start()
     # Service initialization happens in __init__
-    
+
     # Stop
     await secrets_service.stop()
     # Should complete without error
@@ -60,10 +60,10 @@ async def test_secrets_service_store_and_retrieve(secrets_service):
         text=text_with_secret,
         source_message_id="test-msg-1"
     )
-    
+
     # Check that secret was detected and replaced
     assert "sk-1234567890abcdefghij" not in filtered_text
-    
+
     # If no secrets detected with default patterns, test manual storage
     if len(secret_refs) == 0:
         # Use the direct store_secret method for testing
@@ -74,7 +74,7 @@ async def test_secrets_service_store_and_retrieve(secrets_service):
         # Get the first secret reference
         secret_ref = secret_refs[0]
         assert isinstance(secret_ref, SecretReference)
-        
+
         # Retrieve the secret
         recall_result = await secrets_service.recall_secret(
             secret_uuid=secret_ref.uuid,
@@ -92,13 +92,13 @@ async def test_secrets_service_filter_string(secrets_service):
     """Test filtering strings for secrets."""
     # String with potential secrets that match default patterns
     test_string = "My api_key: sk-1234567890abcdefghij and Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
-    
+
     # Process the string
     filtered, secret_refs = await secrets_service.process_incoming_text(
-        text=test_string, 
+        text=test_string,
         source_message_id="test_context"
     )
-    
+
     # Check if any secrets were detected
     if len(secret_refs) > 0:
         # Should detect and replace secrets
@@ -116,10 +116,10 @@ async def test_secrets_service_list_secrets(secrets_service):
     # Store some secrets using the direct API
     await secrets_service.store_secret("test-key-1", "secret1")
     await secrets_service.store_secret("test-key-2", "secret2")
-    
+
     # List all secrets
     secrets = await secrets_service.list_stored_secrets(limit=10)
-    
+
     # Should return a list (might be empty if storage isn't persistent in tests)
     assert isinstance(secrets, list)
     assert all(isinstance(s, SecretReference) for s in secrets)
@@ -130,11 +130,11 @@ async def test_secrets_service_delete_secret(secrets_service):
     """Test deleting a secret."""
     # Store a secret using direct API
     await secrets_service.store_secret("test-delete-key", "to-delete")
-    
+
     # Delete it
     deleted = await secrets_service.forget_secret("test-delete-key")
     assert deleted is True
-    
+
     # Try to retrieve - should fail
     retrieved = await secrets_service.retrieve_secret("test-delete-key")
     assert retrieved is None
@@ -148,21 +148,21 @@ async def test_secrets_service_reencrypt_all(secrets_service):
     # Store some secrets first
     await secrets_service.store_secret("reencrypt-key-1", "secret-value-1")
     await secrets_service.store_secret("reencrypt-key-2", "secret-value-2")
-    
+
     # Verify we can retrieve them
     val1 = await secrets_service.retrieve_secret("reencrypt-key-1")
     assert val1 == "secret-value-1"
-    
+
     # Re-encrypt with a new key
     new_key = b'new-test-master-key-32-bytes!!!!'  # 32 bytes
     success = await secrets_service.reencrypt_all(new_key)
     assert success is True
-    
+
     # Verify secrets are still retrievable after re-encryption
     # (The service should handle the key change internally)
-    val1_after = await secrets_service.retrieve_secret("reencrypt-key-1") 
+    val1_after = await secrets_service.retrieve_secret("reencrypt-key-1")
     val2_after = await secrets_service.retrieve_secret("reencrypt-key-2")
-    
+
     # Note: The current implementation might not support retrieving with the new key
     # without reinitializing the service. This tests the re-encryption process itself.
 
@@ -199,13 +199,13 @@ async def test_secrets_service_metadata_tracking(secrets_service):
     """Test that secret metadata is properly tracked."""
     # Store a secret using direct API
     await secrets_service.store_secret("test-metadata-key", "metadata-test")
-    
+
     # Get secret metadata
     secrets = await secrets_service.list_stored_secrets(limit=10)
-    
+
     # Find our secret
     secret_meta = next((s for s in secrets if s.uuid == "test-metadata-key"), None)
-    
+
     # The direct store_secret may not show up in list_stored_secrets
     # which tracks detected secrets, not manually stored ones
     # So just verify the list operation works
@@ -219,11 +219,11 @@ async def test_secrets_service_duplicate_detection(secrets_service):
     # Use the direct API to test duplicate handling
     await secrets_service.store_secret("dup-key-1", "duplicate-value")
     await secrets_service.store_secret("dup-key-2", "duplicate-value")
-    
+
     # Both should be stored and retrievable
     val1 = await secrets_service.retrieve_secret("dup-key-1")
     val2 = await secrets_service.retrieve_secret("dup-key-2")
-    
+
     assert val1 == "duplicate-value"
     assert val2 == "duplicate-value"
 
@@ -238,7 +238,7 @@ async def test_secrets_service_invalid_reference(secrets_service):
         decrypt=True
     )
     assert result is None or result.found is False
-    
+
     # Try to delete non-existent secret
     deleted = await secrets_service.forget_secret("nonexistent-uuid")
     assert deleted is False
@@ -248,9 +248,9 @@ async def test_secrets_service_invalid_reference(secrets_service):
 async def test_secrets_service_encryption_error_handling(secrets_service):
     """Test handling of encryption errors."""
     # Mock encryption to fail on the store
-    with patch.object(secrets_service.store, 'encrypt_secret', 
+    with patch.object(secrets_service.store, 'encrypt_secret',
                      side_effect=Exception("Encryption failed")):
-        
+
         # Store should handle error gracefully
         try:
             await secrets_service.store_secret("error-key", "test-value")
@@ -271,7 +271,7 @@ async def test_secrets_service_pattern_detection(secrets_service):
         ("normal text without secrets", False),
         ("The temperature is 25 degrees", False)
     ]
-    
+
     for text, should_contain_secrets in test_cases:
         filtered, refs = await secrets_service.process_incoming_text(text, "test")
         has_secrets = "SECRET:" in filtered or len(refs) > 0

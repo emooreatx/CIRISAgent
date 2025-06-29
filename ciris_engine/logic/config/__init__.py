@@ -16,7 +16,7 @@ from .db_paths import (
 
 __all__ = [
     "ConfigBootstrap",
-    "ConfigAccessor", 
+    "ConfigAccessor",
     "get_env_var",
     "get_sqlite_db_full_path",
     "get_secrets_db_full_path",

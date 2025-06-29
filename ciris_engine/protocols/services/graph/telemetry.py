@@ -8,12 +8,12 @@ from ...runtime.base import GraphServiceProtocol
 
 class TelemetryServiceProtocol(GraphServiceProtocol, Protocol):
     """Protocol for telemetry service."""
-    
+
     @abstractmethod
     async def record_metric(self, metric_name: str, value: float, tags: Optional[Dict[str, str]] = None) -> None:
         """Record a telemetry metric."""
         ...
-    
+
     @abstractmethod
     async def query_metrics(
         self,
@@ -24,7 +24,7 @@ class TelemetryServiceProtocol(GraphServiceProtocol, Protocol):
     ) -> List[Dict[str, Any]]:
         """Query metrics."""
         ...
-    
+
     @abstractmethod
     async def get_metric_summary(self, metric_name: str, window_minutes: int = 60) -> Dict[str, float]:
         """Get metric summary statistics."""

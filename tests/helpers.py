@@ -29,7 +29,7 @@ def create_test_dispatch_context(
     """Create a DispatchContext with all required fields for testing."""
     if event_timestamp is None:
         event_timestamp = datetime.now(timezone.utc).isoformat()
-    
+
     # Create channel context if not provided
     if channel_context is None:
         if channel_id:
@@ -41,7 +41,7 @@ def create_test_dispatch_context(
                 channel_id="",
                 channel_type="test"
             )
-    
+
     return DispatchContext(
         channel_context=channel_context,
         author_id=author_id,

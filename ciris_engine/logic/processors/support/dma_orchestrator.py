@@ -4,8 +4,7 @@ from typing import Dict, Optional, TYPE_CHECKING, Any
 
 from ciris_engine.logic.dma.pdma import EthicalPDMAEvaluator
 from ciris_engine.schemas.processors.dma import (
-    DMAMetadata, InitialDMAResults, DMAError, DMAErrors,
-    ActionSelectionContext, CircuitBreakerStatus, DMAOrchestratorStatus
+    DMAMetadata, InitialDMAResults, DMAError, DMAErrors
 )
 from ciris_engine.logic.dma.csdma import CSDMAEvaluator
 from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
@@ -252,31 +251,31 @@ class DMAOrchestrator:
     ) -> ActionSelectionDMAResult:
         """Run ActionSelectionPDMAEvaluator sequentially after DMAs."""
         triaged = {}
-        
+
         triaged["original_thought"] = actual_thought
         triaged["processing_context"] = processing_context
         triaged["ethical_pdma_result"] = dma_results.ethical_pdma
         triaged["csdma_result"] = dma_results.csdma
         triaged["dsdma_result"] = dma_results.dsdma
-        
+
         # Check if this is a conscience retry from the context
         if hasattr(processing_context, 'is_conscience_retry') and processing_context.is_conscience_retry:
             triaged["retry_with_guidance"] = True
-        
+
         channel_id = None
-        
+
         # Try to get channel_id from various sources
         if processing_context.system_snapshot and processing_context.system_snapshot.channel_context:
             channel_id = extract_channel_id(processing_context.system_snapshot.channel_context)
-        
+
         if not channel_id and processing_context.initial_task_context:
             channel_context = getattr(processing_context.initial_task_context, 'channel_context', None)
             if channel_context:
                 channel_id = extract_channel_id(channel_context)
-        
-        
+
+
         triaged.setdefault("current_thought_depth", actual_thought.thought_depth)
-        
+
         if self.app_config and hasattr(self.app_config, 'workflow'):
             triaged.setdefault("max_rounds", self.app_config.workflow.max_rounds)
         else:
@@ -285,19 +284,18 @@ class DMAOrchestrator:
 
         # Get identity from persistence tier
         from ciris_engine.logic.persistence.models import get_identity_for_context
-        from ciris_engine.schemas.runtime.enums import HandlerActionType
-        
+
         identity_info = get_identity_for_context()
         triaged["agent_identity"] = identity_info.model_dump()  # Convert to dict for backward compatibility
-        
+
         logger.debug(f"Using identity '{identity_info.agent_name}' for thought {thought_item.thought_id}")
-        
+
         # Get permitted actions directly from identity
         permitted_actions = identity_info.permitted_actions
-        
+
         # Identity MUST have permitted actions - no defaults in a mission critical system
         triaged["permitted_actions"] = permitted_actions
-        
+
         # Pass through conscience feedback if available
         if hasattr(thought_item, 'conscience_feedback') and thought_item.conscience_feedback:
             triaged["conscience_feedback"] = thought_item.conscience_feedback
@@ -314,7 +312,7 @@ class DMAOrchestrator:
         except Exception as e:
             logger.error(f"ActionSelectionPDMA failed: {e}", exc_info=True)
             raise
-        
+
         if isinstance(result, ActionSelectionDMAResult):
             return result
         else:

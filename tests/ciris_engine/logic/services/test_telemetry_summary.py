@@ -37,7 +37,7 @@ class TestTelemetrySummary:
         service._start_time = datetime(2024, 1, 1, 0, 0, 0)
         return service
 
-    def create_mock_metrics(self, base_time: datetime, metric_name: str, 
+    def create_mock_metrics(self, base_time: datetime, metric_name: str,
                            values: List[float], service: str = "test_service") -> List[Dict[str, Any]]:
         """Helper to create mock metric data."""
         metrics = []
@@ -58,8 +58,8 @@ class TestTelemetrySummary:
         async def mock_query_metrics(metric_name, start_time, end_time, tags=None):
             if metric_name == "llm.tokens.total":
                 return self.create_mock_metrics(
-                    mock_time_service.now(), 
-                    metric_name, 
+                    mock_time_service.now(),
+                    metric_name,
                     [100, 200, 150, 300]  # 750 total
                 )
             elif metric_name == "llm.cost.cents":
@@ -97,8 +97,8 @@ class TestTelemetrySummary:
             nonlocal call_count
             call_count += 1
             return self.create_mock_metrics(
-                mock_time_service.now(), 
-                metric_name, 
+                mock_time_service.now(),
+                metric_name,
                 [100]
             )
 
@@ -134,7 +134,7 @@ class TestTelemetrySummary:
 
         # Should return empty summary on error
         summary = await telemetry_service.get_telemetry_summary()
-        
+
         assert isinstance(summary, TelemetrySummary)
         assert summary.tokens_per_hour == 0.0
         assert summary.cost_per_hour_cents == 0.0
@@ -157,11 +157,11 @@ class TestTelemetrySummary:
                 return metrics
             elif metric_name == "llm.latency.ms":
                 return [
-                    {"metric_name": metric_name, "value": 150.0, "timestamp": mock_time_service.now(), 
+                    {"metric_name": metric_name, "value": 150.0, "timestamp": mock_time_service.now(),
                      "tags": {"service": "openai"}},
-                    {"metric_name": metric_name, "value": 200.0, "timestamp": mock_time_service.now(), 
+                    {"metric_name": metric_name, "value": 200.0, "timestamp": mock_time_service.now(),
                      "tags": {"service": "openai"}},
-                    {"metric_name": metric_name, "value": 100.0, "timestamp": mock_time_service.now(), 
+                    {"metric_name": metric_name, "value": 100.0, "timestamp": mock_time_service.now(),
                      "tags": {"service": "anthropic"}},
                 ]
             return []
@@ -192,19 +192,19 @@ class TestResourceUsageCalculation:
     def test_llama_model_cost_calculation(self):
         """Test cost calculation for Llama models."""
         from ciris_engine.schemas.runtime.resources import ResourceUsage
-        
+
         # Simulate the cost calculation logic
         model_name = "meta-llama/Llama-4-Scout-17B-16E-Instruct"
         prompt_tokens = 1000000  # 1M tokens
         completion_tokens = 500000  # 500K tokens
-        
+
         # Cost calculation for Llama
         if "llama" in model_name.lower():
             input_cost_cents = (prompt_tokens / 1_000_000) * 10.0  # $0.10 per 1M
             output_cost_cents = (completion_tokens / 1_000_000) * 10.0  # $0.10 per 1M
-        
+
         total_cost_cents = input_cost_cents + output_cost_cents
-        
+
         assert input_cost_cents == 10.0  # $0.10
         assert output_cost_cents == 5.0   # $0.05
         assert total_cost_cents == 15.0  # $0.15
@@ -214,14 +214,14 @@ class TestResourceUsageCalculation:
         # Test Llama 17B model
         model_name = "meta-llama/Llama-4-Scout-17B-16E-Instruct"
         total_tokens = 10000  # 10K tokens
-        
+
         if "llama" in model_name.lower() and "17B" in model_name:
             energy_kwh = (total_tokens / 1000) * 0.0002  # Lower energy use
         else:
             energy_kwh = (total_tokens / 1000) * 0.0003
-        
+
         carbon_grams = energy_kwh * 500.0  # 500g CO2 per kWh
-        
+
         assert energy_kwh == 0.002  # 0.002 kWh
         assert carbon_grams == 1.0   # 1g CO2
 
@@ -232,7 +232,7 @@ class TestResourceUsageCalculation:
             ("gpt-4o", 1_000_000, 1_000_000, 250.0, 1000.0),    # $2.50 + $10.00
             ("gpt-3.5-turbo", 1_000_000, 1_000_000, 50.0, 150.0), # $0.50 + $1.50
         ]
-        
+
         for model_name, input_tokens, output_tokens, expected_input_cost, expected_output_cost in test_cases:
             if model_name.startswith("gpt-4o-mini"):
                 input_cost = (input_tokens / 1_000_000) * 15.0
@@ -243,7 +243,7 @@ class TestResourceUsageCalculation:
             elif model_name.startswith("gpt-3.5-turbo"):
                 input_cost = (input_tokens / 1_000_000) * 50.0
                 output_cost = (output_tokens / 1_000_000) * 150.0
-            
+
             assert input_cost == expected_input_cost
             assert output_cost == expected_output_cost
 
@@ -255,7 +255,7 @@ class TestSystemSnapshotIntegration:
     async def test_system_snapshot_includes_telemetry(self):
         """Test that build_system_snapshot includes telemetry summary."""
         from ciris_engine.logic.context.system_snapshot import build_system_snapshot
-        
+
         # Create mocks
         mock_telemetry_service = Mock()
         mock_telemetry_summary = TelemetrySummary(
@@ -269,10 +269,10 @@ class TestSystemSnapshotIntegration:
             errors_24h=2
         )
         mock_telemetry_service.get_telemetry_summary = AsyncMock(return_value=mock_telemetry_summary)
-        
+
         mock_resource_monitor = Mock()
         mock_resource_monitor.snapshot = Mock(critical=[], healthy=True)
-        
+
         # Build snapshot
         snapshot = await build_system_snapshot(
             task=None,
@@ -280,7 +280,7 @@ class TestSystemSnapshotIntegration:
             resource_monitor=mock_resource_monitor,
             telemetry_service=mock_telemetry_service
         )
-        
+
         # Verify telemetry is included
         assert snapshot.telemetry_summary is not None
         assert snapshot.telemetry_summary.tokens_per_hour == 1000.0
@@ -290,7 +290,7 @@ class TestSystemSnapshotIntegration:
         """Test formatting of system snapshot with telemetry data."""
         from ciris_engine.logic.formatters.system_snapshot import format_system_snapshot
         from ciris_engine.schemas.runtime.system_context import SystemSnapshot
-        
+
         # Create snapshot with telemetry
         telemetry_summary = TelemetrySummary(
             window_start=datetime.now() - timedelta(hours=24),
@@ -307,7 +307,7 @@ class TestSystemSnapshotIntegration:
             error_rate_percent=2.5,
             service_calls={"openai": 100, "memory": 50}
         )
-        
+
         snapshot = SystemSnapshot(
             system_counts={
                 "pending_tasks": 5,
@@ -315,10 +315,10 @@ class TestSystemSnapshotIntegration:
             },
             telemetry_summary=telemetry_summary
         )
-        
+
         # Format the snapshot
         formatted = format_system_snapshot(snapshot)
-        
+
         # Verify output contains telemetry data
         assert "=== Resource Usage ===" in formatted
         assert "Tokens (Current Hour): 1,500 tokens, $0.75, 15.0g CO2" in formatted

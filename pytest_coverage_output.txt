@@ -1,0 +1,1273 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.3, pytest-8.3.5, pluggy-1.5.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /home/emoore/CIRISAgent
+configfile: pytest.ini
+plugins: cov-6.1.1, anyio-4.9.0, Faker-37.3.0, asyncio-0.26.0
+asyncio: mode=Mode.AUTO, asyncio_default_fixture_loop_scope=function, asyncio_default_test_loop_scope=function
+collecting ... collected 813 items
+
+tests/adapters/test_base_observer_numeric_ids.py::TestBaseObserverNumericIds::test_passive_observation_includes_numeric_id PASSED [  0%]
+tests/adapters/test_base_observer_numeric_ids.py::TestBaseObserverNumericIds::test_conversation_history_includes_numeric_ids PASSED [  0%]
+tests/adapters/test_base_observer_numeric_ids.py::TestBaseObserverNumericIds::test_priority_observation_includes_numeric_id PASSED [  0%]
+tests/adapters/test_base_observer_numeric_ids.py::TestBaseObserverNumericIds::test_recall_context_uses_numeric_ids SKIPPED [  0%]
+tests/adapters/test_discord/test_discord_adapter_comprehensive.py::TestDiscordAdapterCore::test_adapter_initialization PASSED [  0%]
+tests/adapters/test_discord/test_discord_adapter_comprehensive.py::TestDiscordAdapterCore::test_send_message_success PASSED [  0%]
+tests/adapters/test_discord/test_discord_adapter_comprehensive.py::TestDiscordAdapterCore::test_send_message_with_rate_limiting PASSED [  0%]
+tests/adapters/test_discord/test_discord_adapter_comprehensive.py::TestDiscordAdapterCore::test_fetch_messages PASSED [  0%]
+tests/adapters/test_discord/test_discord_adapter_comprehensive.py::TestDiscordWiseAuthority::test_check_authorization_with_authority_role PASSED [  1%]
+tests/adapters/test_discord/test_discord_adapter_comprehensive.py::TestDiscordWiseAuthority::test_check_authorization_observer_read_only PASSED [  1%]
+tests/adapters/test_discord/test_discord_adapter_comprehensive.py::TestDiscordWiseAuthority::test_request_approval_with_reactions PASSED [  1%]
+tests/adapters/test_discord/test_discord_adapter_comprehensive.py::TestDiscordWiseAuthority::test_get_pending_deferrals PASSED [  1%]
+tests/adapters/test_discord/test_discord_adapter_comprehensive.py::TestDiscordToolExecution::test_execute_tool_success PASSED [  1%]
+tests/adapters/test_discord/test_discord_adapter_comprehensive.py::TestDiscordToolExecution::test_list_tools PASSED [  1%]
+tests/adapters/test_discord/test_discord_adapter_comprehensive.py::TestDiscordConnectionResilience::test_connection_manager_reconnect PASSED [  1%]
+tests/adapters/test_discord/test_discord_adapter_comprehensive.py::TestDiscordConnectionResilience::test_is_healthy_check PASSED [  1%]
+tests/adapters/test_discord/test_discord_adapter_comprehensive.py::TestDiscordErrorHandling::test_channel_not_found_error PASSED [  2%]
+tests/adapters/test_discord/test_discord_adapter_comprehensive.py::TestDiscordErrorHandling::test_rate_limit_handling PASSED [  2%]
+tests/adapters/test_discord/test_discord_adapter_comprehensive.py::TestDiscordAuditLogging::test_audit_log_message_operations PASSED [  2%]
+tests/adapters/test_discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_adapter_initialization PASSED [  2%]
+tests/adapters/test_discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_send_message_success PASSED [  2%]
+tests/adapters/test_discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_send_message_failure PASSED [  2%]
+tests/adapters/test_discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_fetch_messages PASSED [  2%]
+tests/adapters/test_discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_request_guidance PASSED [  2%]
+tests/adapters/test_discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_escalate_to_human PASSED [  3%]
+tests/adapters/test_discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_list_tools PASSED [  3%]
+tests/adapters/test_discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_execute_tool PASSED [  3%]
+tests/adapters/test_discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_telemetry_emission PASSED [  3%]
+tests/adapters/test_discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_start_stop_lifecycle PASSED [  3%]
+tests/adapters/test_discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_channel_not_found PASSED [  3%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordVisionHelper::test_vision_helper_initialization PASSED [  3%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordVisionHelper::test_process_image_attachment PASSED [  3%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordVisionHelper::test_vision_helper_no_api_key PASSED [  4%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordErrorHandler::test_handle_channel_not_found PASSED [  4%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordErrorHandler::test_handle_forbidden_error PASSED [  4%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordErrorHandler::test_handle_rate_limit_error PASSED [  4%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordErrorHandler::test_error_threshold_escalation PASSED [  4%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordRateLimiter::test_global_rate_limit PASSED [  4%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordRateLimiter::test_endpoint_normalization PASSED [  4%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordRateLimiter::test_update_from_headers PASSED [  4%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordEmbedFormatter::test_create_base_embed PASSED [  5%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordEmbedFormatter::test_format_guidance_request PASSED [  5%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordEmbedFormatter::test_format_approval_request PASSED [  5%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordEmbedFormatter::test_format_tool_execution PASSED [  5%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordThreadManager::test_create_thread PASSED [  5%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordThreadManager::test_get_or_create_thread PASSED [  5%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordThreadManager::test_archive_old_threads PASSED [  5%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordAccessControl::test_check_channel_access_with_override PASSED [  5%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordAccessControl::test_check_operation_permissions PASSED [  6%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordAccessControl::test_global_role_permissions PASSED [  6%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordAuditLogger::test_log_operation_with_audit_service PASSED [  6%]
+tests/adapters/test_discord/test_discord_components.py::TestDiscordAuditLogger::test_log_operation_without_audit_service PASSED [  6%]
+tests/adapters/test_discord/test_discord_message_handler.py::TestDiscordMessageHandler::test_send_message_success PASSED [  6%]
+tests/adapters/test_discord/test_discord_message_handler.py::TestDiscordMessageHandler::test_send_message_channel_not_found PASSED [  6%]
+tests/adapters/test_discord/test_discord_message_handler.py::TestDiscordMessageHandler::test_send_message_with_error PASSED [  6%]
+tests/adapters/test_discord/test_discord_message_handler.py::TestDiscordMessageHandler::test_fetch_messages_success PASSED [  6%]
+tests/adapters/test_discord/test_discord_message_handler.py::TestDiscordMessageHandler::test_fetch_messages_empty_channel PASSED [  7%]
+tests/adapters/test_discord/test_discord_message_handler.py::TestDiscordMessageHandler::test_convert_to_incoming_message SKIPPED [  7%]
+tests/adapters/test_discord/test_discord_message_handler.py::TestDiscordMessageHandler::test_filter_bot_messages PASSED [  7%]
+tests/adapters/test_discord/test_discord_message_handler.py::TestDiscordMessageHandler::test_handle_message_with_callback SKIPPED [  7%]
+tests/adapters/test_discord/test_discord_message_handler.py::TestDiscordMessageHandler::test_handle_bot_message_ignored SKIPPED [  7%]
+tests/adapters/test_discord/test_discord_simple.py::test_discord_import PASSED [  7%]
+tests/adapters/test_discord/test_discord_simple.py::test_discord_adapter_exists PASSED [  7%]
+tests/adapters/test_discord_deferrals.py::TestDiscordDeferrals::test_deferral_notification_sent PASSED [  7%]
+tests/adapters/test_discord_deferrals.py::TestDiscordDeferrals::test_list_deferrals_command PASSED [  7%]
+tests/adapters/test_discord_deferrals.py::TestDiscordDeferrals::test_resolve_deferral_approve PASSED [  8%]
+tests/adapters/test_discord_deferrals.py::TestDiscordDeferrals::test_resolve_deferral_reject PASSED [  8%]
+tests/adapters/test_discord_deferrals.py::TestDiscordDeferrals::test_unauthorized_resolution_attempt PASSED [  8%]
+tests/adapters/test_discord_deferrals.py::TestDiscordDeferrals::test_batch_deferral_notifications PASSED [  8%]
+tests/adapters/test_discord_deferrals.py::TestDiscordDeferrals::test_deferral_with_context_display PASSED [  8%]
+tests/adapters/test_discord_deferrals.py::TestDiscordDeferrals::test_invalid_wa_command PASSED [  8%]
+tests/adapters/test_discord_deferrals.py::TestDiscordDeferrals::test_deferral_resolution_with_modification PASSED [  8%]
+tests/adapters/test_discord_deferrals.py::TestDiscordDeferralIntegration::test_full_discord_deferral_flow PASSED [  8%]
+tests/adapters/test_mock_llm_comprehensive.py::TestMockLLMComprehensive::test_ethical_dma_result PASSED [  9%]
+tests/adapters/test_mock_llm_comprehensive.py::TestMockLLMComprehensive::test_cs_dma_result PASSED [  9%]
+tests/adapters/test_mock_llm_comprehensive.py::TestMockLLMComprehensive::test_ds_dma_result PASSED [  9%]
+tests/adapters/test_mock_llm_comprehensive.py::TestMockLLMComprehensive::test_action_selection_result PASSED [  9%]
+tests/adapters/test_mock_llm_comprehensive.py::TestMockLLMComprehensive::test_dsdma_llm_output PASSED [  9%]
+tests/adapters/test_mock_llm_comprehensive.py::TestMockLLMComprehensive::test_optimization_veto_result PASSED [  9%]
+tests/adapters/test_mock_llm_comprehensive.py::TestMockLLMComprehensive::test_epistemic_humility_result PASSED [  9%]
+tests/adapters/test_mock_llm_comprehensive.py::TestMockLLMComprehensive::test_entropy_result PASSED [  9%]
+tests/adapters/test_mock_llm_comprehensive.py::TestMockLLMComprehensive::test_coherence_result PASSED [ 10%]
+tests/adapters/test_mock_llm_comprehensive.py::TestMockLLMComprehensive::test_all_schemas_serializable PASSED [ 10%]
+tests/adapters/test_mock_llm_comprehensive.py::TestMockLLMComprehensive::test_mock_response_consistency PASSED [ 10%]
+tests/adapters/test_mock_llm_service.py::test_mock_llm_structured_outputs PASSED [ 10%]
+tests/api/routes/test_audit.py::TestAuditEndpoints::test_get_audit_entries_observer PASSED [ 10%]
+tests/api/routes/test_audit.py::TestAuditEndpoints::test_get_audit_entries_with_filters PASSED [ 10%]
+tests/api/routes/test_audit.py::TestAuditEndpoints::test_get_audit_entries_unauthorized PASSED [ 10%]
+tests/api/routes/test_audit.py::TestAuditEndpoints::test_get_specific_audit_entry PASSED [ 10%]
+tests/api/routes/test_audit.py::TestAuditEndpoints::test_get_audit_entry_not_found PASSED [ 11%]
+tests/api/routes/test_audit.py::TestAuditEndpoints::test_search_audit_trails PASSED [ 11%]
+tests/api/routes/test_audit.py::TestAuditEndpoints::test_verify_audit_entry_admin_only PASSED [ 11%]
+tests/api/routes/test_audit.py::TestAuditEndpoints::test_export_audit_data_admin_only PASSED [ 11%]
+tests/api/routes/test_audit.py::TestAuditEndpoints::test_export_audit_data_with_date_range PASSED [ 11%]
+tests/api/routes/test_audit.py::TestAuditEndpoints::test_export_invalid_format PASSED [ 11%]
+tests/api/routes/test_audit.py::TestAuditEndpoints::test_pagination PASSED [ 11%]
+tests/api/routes/test_audit.py::TestAuditEndpoints::test_service_unavailable PASSED [ 11%]
+tests/api/routes/test_audit.py::TestAuditEndpoints::test_time_range_query PASSED [ 12%]
+tests/api/routes/test_audit.py::TestAuditEndpoints::test_complex_search PASSED [ 12%]
+tests/api/routes/test_auth.py::TestLoginEndpoint::test_login_success PASSED [ 12%]
+tests/api/routes/test_auth.py::TestLoginEndpoint::test_login_invalid_username PASSED [ 12%]
+tests/api/routes/test_auth.py::TestLoginEndpoint::test_login_invalid_password PASSED [ 12%]
+tests/api/routes/test_auth.py::TestLoginEndpoint::test_login_no_config_service PASSED [ 12%]
+tests/api/routes/test_auth.py::TestLoginEndpoint::test_login_no_root_credentials PASSED [ 12%]
+tests/api/routes/test_auth.py::TestLogoutEndpoint::test_logout_success PASSED [ 12%]
+tests/api/routes/test_auth.py::TestLogoutEndpoint::test_logout_no_api_key_id PASSED [ 13%]
+tests/api/routes/test_auth.py::TestGetCurrentUserEndpoint::test_get_current_user_root PASSED [ 13%]
+tests/api/routes/test_auth.py::TestGetCurrentUserEndpoint::test_get_current_user_admin PASSED [ 13%]
+tests/api/routes/test_auth.py::TestGetCurrentUserEndpoint::test_get_current_user_observer PASSED [ 13%]
+tests/api/routes/test_auth.py::TestRefreshTokenEndpoint::test_refresh_token_success_root PASSED [ 13%]
+tests/api/routes/test_auth.py::TestRefreshTokenEndpoint::test_refresh_token_success_admin PASSED [ 13%]
+tests/api/routes/test_auth.py::TestRefreshTokenEndpoint::test_refresh_token_no_auth PASSED [ 13%]
+tests/api/routes/test_auth.py::TestRefreshTokenEndpoint::test_refresh_token_no_old_key_id PASSED [ 13%]
+tests/api/routes/test_config_filters.py::TestFilterConfigRetrieval::test_list_filter_configs PASSED [ 14%]
+tests/api/routes/test_config_filters.py::TestFilterConfigRetrieval::test_get_specific_filter_rule PASSED [ 14%]
+tests/api/routes/test_config_filters.py::TestFilterConfigUpdate::test_update_filter_settings PASSED [ 14%]
+tests/api/routes/test_config_filters.py::TestFilterConfigUpdate::test_add_filter_rule PASSED [ 14%]
+tests/api/routes/test_config_filters.py::TestFilterConfigUpdate::test_disable_filter_rule PASSED [ 14%]
+tests/api/routes/test_config_filters.py::TestFilterConfigUpdate::test_remove_filter_rule PASSED [ 14%]
+tests/api/routes/test_config_filters.py::TestFilterConfigUpdate::test_update_filter_requires_admin PASSED [ 14%]
+tests/api/routes/test_config_filters.py::TestFilterStats::test_read_filter_stats PASSED [ 14%]
+tests/api/routes/test_emergency.py::TestEmergencyEndpoint::test_test_endpoint PASSED [ 15%]
+tests/api/routes/test_emergency.py::TestEmergencyEndpoint::test_shutdown_invalid_command_type PASSED [ 15%]
+tests/api/routes/test_emergency.py::TestEmergencyEndpoint::test_shutdown_expired_timestamp PASSED [ 15%]
+tests/api/routes/test_emergency.py::TestEmergencyEndpoint::test_shutdown_future_timestamp PASSED [ 15%]
+tests/api/routes/test_emergency.py::TestEmergencyEndpoint::test_shutdown_invalid_signature PASSED [ 15%]
+tests/api/routes/test_emergency.py::TestEmergencyEndpoint::test_shutdown_unauthorized_key PASSED [ 15%]
+tests/api/routes/test_emergency.py::TestEmergencyEndpoint::test_shutdown_with_runtime_service PASSED [ 15%]
+tests/api/routes/test_emergency.py::TestEmergencyEndpoint::test_shutdown_without_runtime_service PASSED [ 15%]
+tests/api/routes/test_emergency.py::TestVerificationFunctions::test_verify_timestamp_valid PASSED [ 15%]
+tests/api/routes/test_emergency.py::TestVerificationFunctions::test_verify_timestamp_too_old PASSED [ 16%]
+tests/api/routes/test_emergency.py::TestVerificationFunctions::test_verify_timestamp_future PASSED [ 16%]
+tests/api/routes/test_emergency.py::TestVerificationFunctions::test_verify_timestamp_expired PASSED [ 16%]
+tests/api/routes/test_emergency.py::TestVerificationFunctions::test_verify_signature_no_crypto PASSED [ 16%]
+tests/api/routes/test_emergency.py::TestVerificationFunctions::test_verify_signature_valid PASSED [ 16%]
+tests/api/routes/test_emergency.py::TestVerificationFunctions::test_verify_signature_invalid PASSED [ 16%]
+tests/api/routes/test_emergency.py::TestAsyncEmergencyEndpoint::test_async_shutdown_success PASSED [ 16%]
+tests/api/routes/test_incidents.py::TestIncidentsThroughTelemetry::test_incidents_in_overview PASSED [ 16%]
+tests/api/routes/test_incidents.py::TestIncidentsThroughTelemetry::test_query_incidents PASSED [ 17%]
+tests/api/routes/test_incidents.py::TestIncidentsThroughTelemetry::test_query_insights PASSED [ 17%]
+tests/api/routes/test_incidents.py::TestIncidentsThroughTelemetry::test_query_requires_admin PASSED [ 17%]
+tests/api/routes/test_incidents.py::TestIncidentsThroughTelemetry::test_query_time_filtering PASSED [ 17%]
+tests/api/routes/test_incidents.py::TestIncidentsThroughTelemetry::test_incident_metrics PASSED [ 17%]
+tests/api/routes/test_incidents.py::TestIncidentsThroughTelemetry::test_service_unavailable PASSED [ 17%]
+tests/api/routes/test_incidents.py::TestIncidentsThroughTelemetry::test_query_aggregations PASSED [ 17%]
+tests/api/routes/test_memory_simplified.py::TestMemoryStore::test_store_memory_success PASSED [ 17%]
+tests/api/routes/test_memory_simplified.py::TestMemoryStore::test_store_memory_requires_admin PASSED [ 18%]
+tests/api/routes/test_memory_simplified.py::TestMemoryQuery::test_query_by_id PASSED [ 18%]
+tests/api/routes/test_memory_simplified.py::TestMemoryQuery::test_query_by_text PASSED [ 18%]
+tests/api/routes/test_memory_simplified.py::TestMemoryQuery::test_query_by_type PASSED [ 18%]
+tests/api/routes/test_memory_simplified.py::TestMemoryQuery::test_query_with_time_filter PASSED [ 18%]
+tests/api/routes/test_memory_simplified.py::TestMemoryQuery::test_query_related_nodes PASSED [ 18%]
+tests/api/routes/test_memory_simplified.py::TestMemoryQuery::test_query_requires_params PASSED [ 18%]
+tests/api/routes/test_memory_simplified.py::TestMemoryDelete::test_forget_memory_success PASSED [ 18%]
+tests/api/routes/test_memory_simplified.py::TestMemoryDelete::test_forget_memory_not_found PASSED [ 19%]
+tests/api/routes/test_memory_simplified.py::TestMemoryDelete::test_forget_requires_admin PASSED [ 19%]
+tests/api/routes/test_memory_simplified.py::TestMemoryGet::test_get_memory_by_id PASSED [ 19%]
+tests/api/routes/test_memory_simplified.py::TestMemoryGet::test_get_memory_not_found PASSED [ 19%]
+tests/api/routes/test_memory_simplified.py::TestMemoryTimeline::test_timeline_view PASSED [ 19%]
+tests/api/routes/test_memory_simplified.py::TestMemoryTimeline::test_timeline_with_filters PASSED [ 19%]
+tests/api/routes/test_memory_simplified.py::TestMemoryTimeline::test_timeline_bucket_sizes PASSED [ 19%]
+tests/api/routes/test_resources.py::test_get_resource_usage_success PASSED [ 19%]
+tests/api/routes/test_resources.py::test_get_resource_usage_critical_status PASSED [ 20%]
+tests/api/routes/test_resources.py::test_get_resource_usage_healthy_status PASSED [ 20%]
+tests/api/routes/test_resources.py::test_get_resource_usage_no_service PASSED [ 20%]
+tests/api/routes/test_resources.py::test_get_resource_usage_requires_auth PASSED [ 20%]
+tests/api/routes/test_resources.py::test_resource_monitor_exception_handling PASSED [ 20%]
+tests/api/routes/test_shutdown.py::TestShutdownEndpoint::test_shutdown_success PASSED [ 20%]
+tests/api/routes/test_shutdown.py::TestShutdownEndpoint::test_shutdown_forced PASSED [ 20%]
+tests/api/routes/test_shutdown.py::TestShutdownEndpoint::test_shutdown_no_confirmation PASSED [ 20%]
+tests/api/routes/test_shutdown.py::TestShutdownEndpoint::test_shutdown_already_requested PASSED [ 21%]
+tests/api/routes/test_shutdown.py::TestShutdownEndpoint::test_shutdown_no_runtime PASSED [ 21%]
+tests/api/routes/test_shutdown.py::TestShutdownEndpoint::test_shutdown_no_service PASSED [ 21%]
+tests/api/routes/test_shutdown.py::TestShutdownEndpoint::test_shutdown_error PASSED [ 21%]
+tests/api/routes/test_shutdown.py::TestShutdownInHealthStatus::test_health_shows_shutdown_status PASSED [ 21%]
+tests/api/routes/test_shutdown.py::TestAuthRequirements::test_shutdown_requires_admin PASSED [ 21%]
+tests/api/routes/test_system.py::test_system_health PASSED               [ 21%]
+tests/api/routes/test_system.py::test_system_time PASSED                 [ 21%]
+tests/api/routes/test_system.py::test_system_resources_requires_auth PASSED [ 22%]
+tests/api/routes/test_system.py::test_system_resources_with_auth PASSED  [ 22%]
+tests/api/routes/test_system.py::test_runtime_control_pause PASSED       [ 22%]
+tests/api/routes/test_system.py::test_runtime_control_resume PASSED      [ 22%]
+tests/api/routes/test_system.py::test_runtime_control_state PASSED       [ 22%]
+tests/api/routes/test_system.py::test_runtime_control_invalid_action PASSED [ 22%]
+tests/api/routes/test_system.py::test_services_status PASSED             [ 22%]
+tests/api/routes/test_system.py::test_shutdown_without_confirmation PASSED [ 22%]
+tests/api/routes/test_system.py::test_shutdown_with_confirmation PASSED  [ 23%]
+tests/api/routes/test_system.py::test_shutdown_already_requested PASSED  [ 23%]
+tests/api/routes/test_system.py::test_time_service_not_available PASSED  [ 23%]
+tests/api/routes/test_system.py::test_runtime_control_not_available PASSED [ 23%]
+tests/api/routes/test_telemetry.py::TestTelemetryEndpoints::test_get_telemetry_overview PASSED [ 23%]
+tests/api/routes/test_telemetry.py::TestTelemetryEndpoints::test_get_detailed_metrics PASSED [ 23%]
+tests/api/routes/test_telemetry.py::TestTelemetryEndpoints::test_get_reasoning_traces PASSED [ 23%]
+tests/api/routes/test_telemetry.py::TestTelemetryEndpoints::test_get_system_logs PASSED [ 23%]
+tests/api/routes/test_telemetry.py::TestTelemetryEndpoints::test_custom_telemetry_query PASSED [ 23%]
+tests/api/routes/test_telemetry.py::TestTelemetryEndpoints::test_traces_with_time_range PASSED [ 24%]
+tests/api/routes/test_telemetry.py::TestTelemetryEndpoints::test_logs_with_filters PASSED [ 24%]
+tests/api/routes/test_telemetry.py::TestTelemetryEndpoints::test_service_unavailable PASSED [ 24%]
+tests/api/routes/test_telemetry.py::TestTelemetryEndpoints::test_query_requires_admin PASSED [ 24%]
+tests/api/routes/test_time.py::test_get_system_time PASSED               [ 24%]
+tests/api/routes/test_time.py::test_get_system_time_no_service PASSED    [ 24%]
+tests/api/routes/test_time.py::test_get_system_time_includes_uptime PASSED [ 24%]
+tests/api/routes/test_time.py::test_get_system_time_no_start_time PASSED [ 24%]
+tests/api/routes/test_time.py::test_get_system_time_sync_info PASSED     [ 25%]
+tests/api/routes/test_time.py::test_get_system_time_mocked PASSED        [ 25%]
+tests/api/routes/test_time.py::test_system_time_error_handling PASSED    [ 25%]
+tests/api/routes/test_time.py::test_metadata_in_response PASSED          [ 25%]
+tests/api/routes/test_time.py::test_system_time_consolidated_info PASSED [ 25%]
+tests/api/routes/test_time.py::test_system_time_drift_calculation PASSED [ 25%]
+tests/api/routes/test_wa.py::TestGetDeferrals::test_get_deferrals_success PASSED [ 25%]
+tests/api/routes/test_wa.py::TestGetDeferrals::test_get_deferrals_filtered PASSED [ 25%]
+tests/api/routes/test_wa.py::TestGetDeferrals::test_get_deferrals_unauthorized PASSED [ 26%]
+tests/api/routes/test_wa.py::TestResolveDeferral::test_resolve_deferral_approve PASSED [ 26%]
+tests/api/routes/test_wa.py::TestResolveDeferral::test_resolve_deferral_reject PASSED [ 26%]
+tests/api/routes/test_wa.py::TestResolveDeferral::test_resolve_deferral_insufficient_permissions PASSED [ 26%]
+tests/api/routes/test_wa.py::TestPermissions::test_get_permissions PASSED [ 26%]
+tests/api/test_api_all.py::test_api_status SKIPPED (CIRIS API server...) [ 26%]
+tests/api/test_api_all.py::test_api_messages SKIPPED (CIRIS API serv...) [ 26%]
+tests/api/test_api_all.py::test_api_wa_deferrals SKIPPED (CIRIS API ...) [ 26%]
+tests/api/test_api_all.py::test_api_audit SKIPPED (CIRIS API server ...) [ 27%]
+tests/api/test_api_all.py::test_api_logs SKIPPED (CIRIS API server i...) [ 27%]
+tests/api/test_api_all.py::test_api_memory SKIPPED (CIRIS API server...) [ 27%]
+tests/api/test_api_core.py::test_comms_send_and_receive SKIPPED (CIR...) [ 27%]
+tests/api/test_api_core.py::test_logs_tail SKIPPED (CIRIS API server...) [ 27%]
+tests/api/test_api_core.py::test_audit_entries SKIPPED (CIRIS API se...) [ 27%]
+tests/api/test_api_core.py::test_tools_list_and_detail SKIPPED (CIRI...) [ 27%]
+tests/api/test_api_enhanced_endpoints.py::test_messages_with_correlations SKIPPED [ 27%]
+tests/api/test_api_enhanced_endpoints.py::test_memory_search SKIPPED     [ 28%]
+tests/api/test_api_enhanced_endpoints.py::test_memory_recall SKIPPED     [ 28%]
+tests/api/test_api_enhanced_endpoints.py::test_memory_forget SKIPPED     [ 28%]
+tests/api/test_api_enhanced_endpoints.py::test_memory_timeseries SKIPPED [ 28%]
+tests/api/test_api_enhanced_endpoints.py::test_audit_query SKIPPED (...) [ 28%]
+tests/api/test_api_enhanced_endpoints.py::test_audit_log SKIPPED (CI...) [ 28%]
+tests/api/test_api_enhanced_endpoints.py::test_tool_validation SKIPPED   [ 28%]
+tests/api/test_api_enhanced_endpoints.py::test_ls_home_tool SKIPPED      [ 28%]
+tests/api/test_api_enhanced_endpoints.py::test_messages_empty_channel SKIPPED [ 29%]
+tests/api/test_api_enhanced_endpoints.py::test_memory_invalid_scope SKIPPED [ 29%]
+tests/api/test_api_enhanced_endpoints.py::test_audit_query_edge_cases SKIPPED [ 29%]
+tests/api/test_api_enhanced_endpoints.py::test_concurrent_message_handling SKIPPED [ 29%]
+tests/api/test_api_healthy_server.py::TestHealthyServerAPI::test_health_endpoint_basic SKIPPED [ 29%]
+tests/api/test_api_healthy_server.py::TestHealthyServerAPI::test_health_endpoint_adapters SKIPPED [ 29%]
+tests/api/test_api_healthy_server.py::TestHealthyServerAPI::test_health_endpoint_services SKIPPED [ 29%]
+tests/api/test_api_healthy_server.py::TestHealthyServerAPI::test_health_endpoint_processor SKIPPED [ 29%]
+tests/api/test_api_healthy_server.py::TestHealthyServerAPI::test_telemetry_endpoint_basic SKIPPED [ 30%]
+tests/api/test_api_healthy_server.py::TestHealthyServerAPI::test_telemetry_adapters_info SKIPPED [ 30%]
+tests/api/test_api_healthy_server.py::TestHealthyServerAPI::test_telemetry_services_info SKIPPED [ 30%]
+tests/api/test_api_healthy_server.py::TestHealthyServerAPI::test_telemetry_processor_state SKIPPED [ 30%]
+tests/api/test_api_healthy_server.py::TestHealthyServerAPI::test_telemetry_configuration SKIPPED [ 30%]
+tests/api/test_api_healthy_server.py::TestHealthyServerAPI::test_telemetry_runtime_metrics SKIPPED [ 30%]
+tests/api/test_api_healthy_server.py::TestHealthyServerAPI::test_metrics_endpoint_basic SKIPPED [ 30%]
+tests/api/test_api_healthy_server.py::TestHealthyServerAPI::test_metrics_history_endpoint SKIPPED [ 30%]
+tests/api/test_api_healthy_server.py::TestHealthyServerAPI::test_health_and_telemetry_consistency SKIPPED [ 30%]
+tests/api/test_api_healthy_server.py::TestHealthyServerAPI::test_service_health_threshold_logic SKIPPED [ 31%]
+tests/api/test_api_healthy_server.py::TestProcessorControl::test_processor_control_endpoints SKIPPED [ 31%]
+tests/api/test_api_memory.py::test_memory_scopes_and_entries SKIPPED     [ 31%]
+tests/api/test_api_memory.py::test_memory_store_and_query SKIPPED (C...) [ 31%]
+tests/api/test_api_runtime.py::test_status SKIPPED (CIRIS API server...) [ 31%]
+tests/api/test_api_runtime.py::test_messages_post_and_get SKIPPED (C...) [ 31%]
+tests/api/test_api_runtime.py::test_tools_list_and_detail SKIPPED (C...) [ 31%]
+tests/api/test_api_runtime.py::test_guidance SKIPPED (CIRIS API serv...) [ 31%]
+tests/api/test_api_runtime.py::test_defer SKIPPED (CIRIS API server ...) [ 32%]
+tests/api/test_api_runtime.py::test_audit SKIPPED (CIRIS API server ...) [ 32%]
+tests/api/test_api_runtime.py::test_logs_tail SKIPPED (CIRIS API ser...) [ 32%]
+tests/api/test_api_wa.py::test_wa_deferrals_list SKIPPED (CIRIS API ...) [ 32%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_start PASSED [ 32%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_stop PASSED [ 32%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_send_message PASSED [ 32%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_send_message_with_embed PASSED [ 32%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_send_message_too_long PASSED [ 33%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_channel_manager_resolve_channel PASSED [ 33%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_channel_manager_resolve_channel_not_found PASSED [ 33%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_channel_manager_validate_access PASSED [ 33%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_connection_state PASSED [ 33%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_channel_manager_client_ready PASSED [ 33%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_error_handler_message_error PASSED [ 33%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_rate_limiter PASSED [ 33%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_embed_formatter PASSED [ 34%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_delete_message PASSED [ 34%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_delete_message_not_found PASSED [ 34%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_edit_message PASSED [ 34%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_add_reaction PASSED [ 34%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_get_capabilities PASSED [ 34%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_connection_error_handling PASSED [ 34%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_rate_limit_handling PASSED [ 34%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordAdapter::test_get_status PASSED [ 35%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordObserver::test_handle_incoming_message PASSED [ 35%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordObserver::test_handle_message_from_unmonitored_channel PASSED [ 35%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordObserver::test_start PASSED [ 35%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordObserver::test_stop PASSED [ 35%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordErrorHandler::test_handle_command_not_found PASSED [ 35%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordErrorHandler::test_handle_missing_permissions PASSED [ 35%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordErrorHandler::test_handle_generic_error PASSED [ 35%]
+tests/ciris_engine/logic/adapters/discord/test_discord_adapter_unit.py::TestDiscordErrorHandler::test_format_error_message PASSED [ 36%]
+tests/ciris_engine/logic/dma/test_action_instruction_generator.py::TestActionInstructionGenerator::test_init PASSED [ 36%]
+tests/ciris_engine/logic/dma/test_action_instruction_generator.py::TestActionInstructionGenerator::test_generate_action_instructions_basic PASSED [ 36%]
+tests/ciris_engine/logic/dma/test_action_instruction_generator.py::TestActionInstructionGenerator::test_recall_schema_format PASSED [ 36%]
+tests/ciris_engine/logic/dma/test_action_instruction_generator.py::TestActionInstructionGenerator::test_memorize_schema_format PASSED [ 36%]
+tests/ciris_engine/logic/dma/test_action_instruction_generator.py::TestActionInstructionGenerator::test_defer_schema_format PASSED [ 36%]
+tests/ciris_engine/logic/dma/test_action_instruction_generator.py::TestActionInstructionGenerator::test_tool_schema_without_registry PASSED [ 36%]
+tests/ciris_engine/logic/dma/test_action_instruction_generator.py::TestActionInstructionGenerator::test_tool_schema_with_registry PASSED [ 36%]
+tests/ciris_engine/logic/dma/test_action_instruction_generator.py::TestActionInstructionGenerator::test_simplify_schema PASSED [ 37%]
+tests/ciris_engine/logic/dma/test_action_instruction_generator.py::TestActionInstructionGenerator::test_extract_type PASSED [ 37%]
+tests/ciris_engine/logic/dma/test_action_instruction_generator.py::TestActionInstructionGenerator::test_get_action_guidance PASSED [ 37%]
+tests/ciris_engine/logic/dma/test_action_instruction_generator.py::TestActionInstructionGenerator::test_all_actions_have_schemas PASSED [ 37%]
+tests/ciris_engine/logic/dma/test_action_instruction_generator.py::TestToolDiscoveryIntegration::test_get_all_tools_with_multiple_services PASSED [ 37%]
+tests/ciris_engine/logic/dma/test_action_instruction_numeric_ids.py::TestActionInstructionNumericIds::test_memorize_instruction_includes_numeric_id_guidance PASSED [ 37%]
+tests/ciris_engine/logic/dma/test_action_instruction_numeric_ids.py::TestActionInstructionNumericIds::test_recall_instruction_includes_numeric_id_guidance PASSED [ 37%]
+tests/ciris_engine/logic/dma/test_action_instruction_numeric_ids.py::TestActionInstructionNumericIds::test_forget_instruction_includes_numeric_id_guidance PASSED [ 37%]
+tests/ciris_engine/logic/dma/test_action_instruction_numeric_ids.py::TestActionInstructionNumericIds::test_full_action_instructions_include_memory_guidance PASSED [ 38%]
+tests/ciris_engine/logic/dma/test_action_instruction_numeric_ids.py::TestActionInstructionNumericIds::test_memorize_schema_format PASSED [ 38%]
+tests/ciris_engine/logic/dma/test_action_instruction_numeric_ids.py::TestActionInstructionNumericIds::test_recall_schema_format PASSED [ 38%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler.py::test_tool_execution_success PASSED [ 38%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler.py::test_tool_execution_failure PASSED [ 38%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler.py::test_tool_parameter_validation_error PASSED [ 38%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler.py::test_tool_execution_timeout PASSED [ 38%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler.py::test_tool_with_complex_parameters PASSED [ 38%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler.py::test_tool_execution_exception PASSED [ 38%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler.py::test_tool_with_empty_parameters PASSED [ 39%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler.py::test_follow_up_creation_failure PASSED [ 39%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler.py::test_tool_unauthorized_access PASSED [ 39%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler.py::test_secrets_decapsulation PASSED [ 39%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler.py::test_tool_result_formatting PASSED [ 39%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler.py::test_correlation_id_generation PASSED [ 39%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler.py::test_audit_logging PASSED [ 39%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler_discovery.py::test_tool_parameter_validation_strict PASSED [ 39%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler_discovery.py::test_tool_parameter_type_validation PASSED [ 40%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler_discovery.py::test_tool_with_optional_parameters PASSED [ 40%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler_discovery.py::test_tool_with_enum_validation PASSED [ 40%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler_discovery.py::test_tool_with_array_parameters PASSED [ 40%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler_discovery.py::test_tool_cost_tracking PASSED [ 40%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler_discovery.py::test_tool_categorization PASSED [ 40%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler_discovery.py::test_tool_when_to_use_guidance PASSED [ 40%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler_discovery.py::test_tool_discovery_caching PASSED [ 40%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler_discovery.py::test_tool_parameter_defaults PASSED [ 41%]
+tests/ciris_engine/logic/handlers/external/test_tool_handler_discovery.py::test_tool_not_found_handling PASSED [ 41%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_initialization_in_constructor PASSED [ 41%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_start_processing PASSED [ 41%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_process_single_round PASSED [ 41%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_state_transition PASSED [ 41%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_handle_processor_error PASSED [ 41%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_max_consecutive_errors PASSED [ 41%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_round_timeout PASSED [ 42%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_stop_processing PASSED [ 42%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_emergency_stop PASSED [ 42%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_get_current_state PASSED [ 42%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_get_state_history PASSED [ 42%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_get_processor_metrics PASSED [ 42%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_validate_transition PASSED [ 42%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_transition_to_same_state PASSED [ 42%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_processor_not_found PASSED [ 43%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_state_transition_delay PASSED [ 43%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_cleanup PASSED [ 43%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_max_rounds_limit PASSED [ 43%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_record_state_transition PASSED [ 43%]
+tests/ciris_engine/logic/processors/core/test_main_processor.py::TestAgentProcessor::test_processor_initialization_failure PASSED [ 43%]
+tests/ciris_engine/logic/processors/core/test_thought_processor.py::TestThoughtProcessor::test_process_thought PASSED [ 43%]
+tests/ciris_engine/logic/processors/core/test_thought_processor.py::TestThoughtProcessor::test_process_thought_with_ponder PASSED [ 43%]
+tests/ciris_engine/logic/processors/core/test_thought_processor.py::TestThoughtProcessor::test_process_thought_with_defer PASSED [ 44%]
+tests/ciris_engine/logic/processors/core/test_thought_processor.py::TestThoughtProcessor::test_process_thought_with_error PASSED [ 44%]
+tests/ciris_engine/logic/processors/core/test_thought_processor.py::TestThoughtProcessor::test_process_thought_with_circuit_breaker PASSED [ 44%]
+tests/ciris_engine/logic/processors/core/test_thought_processor.py::TestThoughtProcessor::test_process_thought_with_conscience PASSED [ 44%]
+tests/ciris_engine/logic/processors/core/test_thought_processor.py::TestThoughtProcessor::test_process_thought_task_complete PASSED [ 44%]
+tests/ciris_engine/logic/processors/core/test_thought_processor.py::TestThoughtProcessor::test_process_thought_with_context PASSED [ 44%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_get_supported_states PASSED [ 44%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_can_process_dream_state PASSED [ 44%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_initialize PASSED [ 45%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_process_entering_phase PASSED [ 45%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_process_consolidating_phase PASSED [ 45%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_process_analyzing_phase PASSED [ 45%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_process_configuring_phase PASSED [ 45%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_process_planning_phase PASSED [ 45%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_process_exiting_phase PASSED [ 45%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_cleanup PASSED [ 45%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_memory_consolidation_task PASSED [ 46%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_process_behavioral_insights PASSED [ 46%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_self_configuration_task PASSED [ 46%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_dream_session_tracking PASSED [ 46%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_minimum_dream_duration PASSED [ 46%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_maximum_dream_duration PASSED [ 46%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_error_handling_in_phase PASSED [ 46%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_pulse_activity_tracking PASSED [ 46%]
+tests/ciris_engine/logic/processors/states/test_dream_processor.py::TestDreamProcessor::test_benchmarking_mode PASSED [ 46%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_initialize PASSED [ 47%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_initialize_already_initialized PASSED [ 47%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_runtime_basic_functionality PASSED [ 47%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_initialization_flag PASSED [ 47%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_shutdown PASSED [ 47%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_initialize_infrastructure PASSED [ 47%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_build_components PASSED [ 47%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_start_adapters PASSED [ 47%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_register_adapter_services PASSED [ 48%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_timeout_configuration PASSED [ 48%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_run_with_error SKIPPED [ 48%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_get_status PASSED [ 48%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_get_services PASSED [ 48%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_get_services_not_initialized PASSED [ 48%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_request_shutdown PASSED [ 48%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_adapter_types PASSED [ 48%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_multiple_adapters PASSED [ 49%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntime::test_mock_llm_configuration PASSED [ 49%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntimeAsync::test_run SKIPPED [ 49%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntimeAsync::test_run_not_initialized SKIPPED [ 49%]
+tests/ciris_engine/logic/runtime/test_ciris_runtime.py::TestCIRISRuntimeAsync::test_run_with_timeout SKIPPED [ 49%]
+tests/ciris_engine/logic/runtime/test_dual_llm_service.py::TestDualLLMService::test_single_llm_service_without_second_key PASSED [ 49%]
+tests/ciris_engine/logic/runtime/test_dual_llm_service.py::TestDualLLMService::test_dual_llm_service_with_second_key PASSED [ 49%]
+tests/ciris_engine/logic/runtime/test_dual_llm_service.py::TestDualLLMService::test_second_llm_config_from_env PASSED [ 49%]
+tests/ciris_engine/logic/runtime/test_dual_llm_service.py::TestDualLLMService::test_both_services_started PASSED [ 50%]
+tests/ciris_engine/logic/runtime/test_service_initializer.py::TestServiceInitializer::test_initialize_all PASSED [ 50%]
+tests/ciris_engine/logic/runtime/test_service_initializer.py::TestServiceInitializer::test_initialize_infrastructure PASSED [ 50%]
+tests/ciris_engine/logic/runtime/test_service_initializer.py::TestServiceInitializer::test_initialize_database PASSED [ 50%]
+tests/ciris_engine/logic/runtime/test_service_initializer.py::TestServiceInitializer::test_initialize_memory PASSED [ 50%]
+tests/ciris_engine/logic/runtime/test_service_initializer.py::TestServiceInitializer::test_initialize_identity PASSED [ 50%]
+tests/ciris_engine/logic/runtime/test_service_initializer.py::TestServiceInitializer::test_initialize_security PASSED [ 50%]
+tests/ciris_engine/logic/runtime/test_service_initializer.py::TestServiceInitializer::test_initialize_services PASSED [ 50%]
+tests/ciris_engine/logic/runtime/test_service_initializer.py::TestServiceInitializer::test_initialize_llm_service_mock PASSED [ 51%]
+tests/ciris_engine/logic/runtime/test_service_initializer.py::TestServiceInitializer::test_initialize_llm_service_real PASSED [ 51%]
+tests/ciris_engine/logic/runtime/test_service_initializer.py::TestServiceInitializer::test_service_cleanup PASSED [ 51%]
+tests/ciris_engine/logic/runtime/test_service_initializer.py::TestServiceInitializer::test_service_stop_with_error PASSED [ 51%]
+tests/ciris_engine/logic/runtime/test_service_initializer.py::TestServiceInitializer::test_services_are_set PASSED [ 51%]
+tests/ciris_engine/logic/runtime/test_service_initializer.py::TestServiceInitializer::test_verify_initialization PASSED [ 51%]
+tests/ciris_engine/logic/runtime/test_service_initializer.py::TestServiceInitializer::test_verify_initialization_missing_service PASSED [ 51%]
+tests/ciris_engine/logic/runtime/test_service_initializer.py::TestServiceInitializer::test_service_count PASSED [ 51%]
+tests/ciris_engine/logic/runtime/test_service_initializer.py::TestServiceInitializer::test_initialization_order_dependencies PASSED [ 52%]
+tests/ciris_engine/logic/services/governance/test_visibility_service.py::test_visibility_service_lifecycle PASSED [ 52%]
+tests/ciris_engine/logic/services/governance/test_visibility_service.py::test_visibility_service_capabilities PASSED [ 52%]
+tests/ciris_engine/logic/services/governance/test_visibility_service.py::test_visibility_service_status PASSED [ 52%]
+tests/ciris_engine/logic/services/governance/test_visibility_service.py::test_visibility_empty_state PASSED [ 52%]
+tests/ciris_engine/logic/services/governance/test_visibility_service.py::test_visibility_with_active_task PASSED [ 52%]
+tests/ciris_engine/logic/services/governance/test_visibility_service.py::test_visibility_with_active_thoughts PASSED [ 52%]
+tests/ciris_engine/logic/services/governance/test_visibility_service.py::test_visibility_with_recent_decisions PASSED [ 52%]
+tests/ciris_engine/logic/services/governance/test_visibility_service.py::test_visibility_reasoning_depth PASSED [ 53%]
+tests/ciris_engine/logic/services/governance/test_visibility_service.py::test_get_reasoning_trace_no_task PASSED [ 53%]
+tests/ciris_engine/logic/services/governance/test_visibility_service.py::test_get_reasoning_trace_with_thoughts PASSED [ 53%]
+tests/ciris_engine/logic/services/governance/test_visibility_service.py::test_get_decision_history_no_task PASSED [ 53%]
+tests/ciris_engine/logic/services/governance/test_visibility_service.py::test_get_decision_history_with_decisions PASSED [ 53%]
+tests/ciris_engine/logic/services/governance/test_visibility_service.py::test_explain_action PASSED [ 53%]
+tests/ciris_engine/logic/services/governance/test_visibility_service.py::test_explain_action_no_thought PASSED [ 53%]
+tests/ciris_engine/logic/services/governance/test_visibility_service.py::test_explain_action_no_final_action PASSED [ 53%]
+tests/ciris_engine/logic/services/governance/test_wise_authority_service.py::test_wise_authority_lifecycle PASSED [ 53%]
+tests/ciris_engine/logic/services/governance/test_wise_authority_service.py::test_check_authorization PASSED [ 54%]
+tests/ciris_engine/logic/services/governance/test_wise_authority_service.py::test_request_approval PASSED [ 54%]
+tests/ciris_engine/logic/services/governance/test_wise_authority_service.py::test_send_deferral PASSED [ 54%]
+tests/ciris_engine/logic/services/governance/test_wise_authority_service.py::test_get_pending_deferrals PASSED [ 54%]
+tests/ciris_engine/logic/services/governance/test_wise_authority_service.py::test_resolve_deferral PASSED [ 54%]
+tests/ciris_engine/logic/services/governance/test_wise_authority_service.py::test_wise_authority_capabilities PASSED [ 54%]
+tests/ciris_engine/logic/services/governance/test_wise_authority_service.py::test_wise_authority_status PASSED [ 54%]
+tests/ciris_engine/logic/services/governance/test_wise_authority_service.py::test_list_permissions PASSED [ 54%]
+tests/ciris_engine/logic/services/governance/test_wise_authority_service.py::test_fetch_guidance PASSED [ 55%]
+tests/ciris_engine/logic/services/governance/test_wise_authority_service.py::test_get_guidance PASSED [ 55%]
+tests/ciris_engine/logic/services/governance/test_wise_authority_service.py::test_grant_revoke_permissions PASSED [ 55%]
+tests/ciris_engine/logic/services/governance/test_wise_authority_service.py::test_deferral_with_modified_time PASSED [ 55%]
+tests/ciris_engine/logic/services/graph/test_audit_service.py::test_audit_service_lifecycle PASSED [ 55%]
+tests/ciris_engine/logic/services/graph/test_audit_service.py::test_audit_service_log_action PASSED [ 55%]
+tests/ciris_engine/logic/services/graph/test_audit_service.py::test_audit_service_log_event PASSED [ 55%]
+tests/ciris_engine/logic/services/graph/test_audit_service.py::test_audit_service_get_audit_trail PASSED [ 55%]
+tests/ciris_engine/logic/services/graph/test_audit_service.py::test_audit_service_query_audit_trail PASSED [ 56%]
+tests/ciris_engine/logic/services/graph/test_audit_service.py::test_audit_service_verify_integrity PASSED [ 56%]
+tests/ciris_engine/logic/services/graph/test_audit_service.py::test_audit_service_capabilities PASSED [ 56%]
+tests/ciris_engine/logic/services/graph/test_audit_service.py::test_audit_service_status PASSED [ 56%]
+tests/ciris_engine/logic/services/graph/test_audit_service.py::test_audit_service_log_conscience_event PASSED [ 56%]
+tests/ciris_engine/logic/services/graph/test_audit_service.py::test_audit_service_export_data PASSED [ 56%]
+tests/ciris_engine/logic/services/graph/test_audit_service.py::test_audit_service_error_handling PASSED [ 56%]
+tests/ciris_engine/logic/services/graph/test_audit_service.py::test_audit_service_cache_management PASSED [ 56%]
+tests/ciris_engine/logic/services/graph/test_audit_service.py::test_audit_service_get_verification_report PASSED [ 57%]
+tests/ciris_engine/logic/services/graph/test_audit_service.py::test_audit_service_health_check PASSED [ 57%]
+tests/ciris_engine/logic/services/graph/test_audit_service_unit.py::TestGraphAuditService::test_start_stop PASSED [ 57%]
+tests/ciris_engine/logic/services/graph/test_audit_service_unit.py::TestGraphAuditService::test_log_event PASSED [ 57%]
+tests/ciris_engine/logic/services/graph/test_audit_service_unit.py::TestGraphAuditService::test_log_action PASSED [ 57%]
+tests/ciris_engine/logic/services/graph/test_audit_service_unit.py::TestGraphAuditService::test_log_authentication_failure PASSED [ 57%]
+tests/ciris_engine/logic/services/graph/test_audit_service_unit.py::TestGraphAuditService::test_log_configuration_change PASSED [ 57%]
+tests/ciris_engine/logic/services/graph/test_audit_service_unit.py::TestGraphAuditService::test_log_data_access PASSED [ 57%]
+tests/ciris_engine/logic/services/graph/test_audit_service_unit.py::TestGraphAuditService::test_log_error PASSED [ 58%]
+tests/ciris_engine/logic/services/graph/test_audit_service_unit.py::TestGraphAuditService::test_query_audit_trail PASSED [ 58%]
+tests/ciris_engine/logic/services/graph/test_audit_service_unit.py::TestGraphAuditService::test_get_audit_trail PASSED [ 58%]
+tests/ciris_engine/logic/services/graph/test_audit_service_unit.py::TestGraphAuditService::test_verify_audit_integrity PASSED [ 58%]
+tests/ciris_engine/logic/services/graph/test_audit_service_unit.py::TestGraphAuditService::test_export_audit_data PASSED [ 58%]
+tests/ciris_engine/logic/services/graph/test_audit_service_unit.py::TestGraphAuditService::test_get_capabilities PASSED [ 58%]
+tests/ciris_engine/logic/services/graph/test_audit_service_unit.py::TestGraphAuditService::test_get_status PASSED [ 58%]
+tests/ciris_engine/logic/services/graph/test_audit_service_unit.py::TestGraphAuditService::test_concurrent_log_events PASSED [ 58%]
+tests/ciris_engine/logic/services/graph/test_audit_service_unit.py::TestGraphAuditService::test_log_with_large_metadata PASSED [ 59%]
+tests/ciris_engine/logic/services/graph/test_audit_service_unit.py::TestGraphAuditService::test_get_node_type PASSED [ 59%]
+tests/ciris_engine/logic/services/graph/test_config_node_bug.py::test_config_node_from_graph_node_with_graphnodeattributes PASSED [ 59%]
+tests/ciris_engine/logic/services/graph/test_config_node_bug.py::test_config_node_from_graph_node_with_dict PASSED [ 59%]
+tests/ciris_engine/logic/services/graph/test_config_node_fix.py::test_no_malformed_config_nodes PASSED [ 59%]
+tests/ciris_engine/logic/services/graph/test_config_node_fix.py::test_config_node_required_fields PASSED [ 59%]
+tests/ciris_engine/logic/services/graph/test_config_node_fix.py::test_config_node_error_handling PASSED [ 59%]
+tests/ciris_engine/logic/services/graph/test_config_node_fix.py::test_filter_service_uses_proper_config PASSED [ 59%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_service_lifecycle PASSED [ 60%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_service_set_and_get PASSED [ 60%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_service_get_nonexistent PASSED [ 60%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_service_update_config PASSED [ 60%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_service_list_configs PASSED [ 60%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_service_list_by_prefix PASSED [ 60%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_service_delete_config PASSED [ 60%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_service_complex_values PASSED [ 60%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_service_capabilities PASSED [ 61%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_service_status PASSED [ 61%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_service_versioning PASSED [ 61%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_service_metadata_tracking PASSED [ 61%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_service_batch_operations PASSED [ 61%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_service_sensitive_config PASSED [ 61%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_node_typed_graph_node_compliance PASSED [ 61%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_service_no_duplicate_updates PASSED [ 61%]
+tests/ciris_engine/logic/services/graph/test_config_service.py::test_config_service_path_values PASSED [ 61%]
+tests/ciris_engine/logic/services/graph/test_config_service_bootstrap.py::test_config_bootstrap_bug_reproduction PASSED [ 62%]
+tests/ciris_engine/logic/services/graph/test_config_service_bootstrap.py::test_config_node_serialization_fix PASSED [ 62%]
+tests/ciris_engine/logic/services/graph/test_config_service_bootstrap.py::test_direct_graph_node_creation PASSED [ 62%]
+tests/ciris_engine/logic/services/graph/test_config_service_bootstrap.py::test_config_service_with_restart PASSED [ 62%]
+tests/ciris_engine/logic/services/graph/test_filter_config_bug.py::test_filter_config_bug PASSED [ 62%]
+tests/ciris_engine/logic/services/graph/test_filter_config_bug.py::test_old_node_format_compatibility PASSED [ 62%]
+tests/ciris_engine/logic/services/graph/test_incident_service.py::test_incident_service_lifecycle PASSED [ 62%]
+tests/ciris_engine/logic/services/graph/test_incident_service.py::test_incident_service_process_recent_incidents PASSED [ 62%]
+tests/ciris_engine/logic/services/graph/test_incident_service.py::test_incident_service_pattern_detection PASSED [ 63%]
+tests/ciris_engine/logic/services/graph/test_incident_service.py::test_incident_service_no_incidents PASSED [ 63%]
+tests/ciris_engine/logic/services/graph/test_incident_service.py::test_incident_service_time_clusters PASSED [ 63%]
+tests/ciris_engine/logic/services/graph/test_incident_service.py::test_incident_service_capabilities PASSED [ 63%]
+tests/ciris_engine/logic/services/graph/test_incident_service.py::test_incident_service_status PASSED [ 63%]
+tests/ciris_engine/logic/services/graph/test_incident_service.py::test_incident_service_error_handling PASSED [ 63%]
+tests/ciris_engine/logic/services/graph/test_incident_service.py::test_incident_service_problem_creation PASSED [ 63%]
+tests/ciris_engine/logic/services/graph/test_incident_service.py::test_incident_service_recommendations PASSED [ 63%]
+tests/ciris_engine/logic/services/graph/test_incident_service.py::test_incident_node_serialization PASSED [ 64%]
+tests/ciris_engine/logic/services/graph/test_incident_service.py::test_problem_node_serialization PASSED [ 64%]
+tests/ciris_engine/logic/services/graph/test_incident_service.py::test_incident_insight_node_serialization PASSED [ 64%]
+tests/ciris_engine/logic/services/graph/test_memory_service.py::test_memory_service_memorize PASSED [ 64%]
+tests/ciris_engine/logic/services/graph/test_memory_service.py::test_memory_service_recall PASSED [ 64%]
+tests/ciris_engine/logic/services/graph/test_memory_service.py::test_memory_service_forget PASSED [ 64%]
+tests/ciris_engine/logic/services/graph/test_memory_service.py::test_memory_service_search PASSED [ 64%]
+tests/ciris_engine/logic/services/graph/test_memory_service.py::test_memory_service_timeseries PASSED [ 64%]
+tests/ciris_engine/logic/services/graph/test_memory_service.py::test_memory_service_capabilities PASSED [ 65%]
+tests/ciris_engine/logic/services/graph/test_memory_service.py::test_memory_service_status PASSED [ 65%]
+tests/ciris_engine/logic/services/graph/test_memory_service.py::test_memory_service_secrets_integration PASSED [ 65%]
+tests/ciris_engine/logic/services/graph/test_memory_service.py::test_memory_service_graph_query PASSED [ 65%]
+tests/ciris_engine/logic/services/graph/test_telemetry_service.py::test_telemetry_service_lifecycle PASSED [ 65%]
+tests/ciris_engine/logic/services/graph/test_telemetry_service.py::test_telemetry_service_record_metric PASSED [ 65%]
+tests/ciris_engine/logic/services/graph/test_telemetry_service.py::test_telemetry_service_process_snapshot PASSED [ 65%]
+tests/ciris_engine/logic/services/graph/test_telemetry_service.py::test_telemetry_service_query_metrics PASSED [ 65%]
+tests/ciris_engine/logic/services/graph/test_telemetry_service.py::test_telemetry_service_aggregation PASSED [ 66%]
+tests/ciris_engine/logic/services/graph/test_telemetry_service.py::test_telemetry_service_different_metric_types PASSED [ 66%]
+tests/ciris_engine/logic/services/graph/test_telemetry_service.py::test_telemetry_service_capabilities PASSED [ 66%]
+tests/ciris_engine/logic/services/graph/test_telemetry_service.py::test_telemetry_service_status PASSED [ 66%]
+tests/ciris_engine/logic/services/graph/test_telemetry_service.py::test_telemetry_service_tags_and_metadata PASSED [ 66%]
+tests/ciris_engine/logic/services/graph/test_telemetry_service.py::test_telemetry_service_performance_metrics PASSED [ 66%]
+tests/ciris_engine/logic/services/graph/test_telemetry_service.py::test_telemetry_service_error_handling PASSED [ 66%]
+tests/ciris_engine/logic/services/graph/test_telemetry_service.py::test_telemetry_service_batch_recording PASSED [ 66%]
+tests/ciris_engine/logic/services/graph/test_telemetry_service.py::test_telemetry_service_resource_usage PASSED [ 67%]
+tests/ciris_engine/logic/services/graph/test_telemetry_service.py::test_telemetry_service_health_check PASSED [ 67%]
+tests/ciris_engine/logic/services/graph/test_telemetry_service.py::test_telemetry_service_get_node_type PASSED [ 67%]
+tests/ciris_engine/logic/services/graph/test_tsdb_consolidation_service.py::test_tsdb_service_lifecycle PASSED [ 67%]
+tests/ciris_engine/logic/services/graph/test_tsdb_consolidation_service.py::test_tsdb_service_consolidate_period PASSED [ 67%]
+tests/ciris_engine/logic/services/graph/test_tsdb_consolidation_service.py::test_tsdb_service_auto_consolidation PASSED [ 67%]
+tests/ciris_engine/logic/services/graph/test_tsdb_consolidation_service.py::test_tsdb_service_cleanup_old_data PASSED [ 67%]
+tests/ciris_engine/logic/services/graph/test_tsdb_consolidation_service.py::test_tsdb_service_resource_aggregation PASSED [ 67%]
+tests/ciris_engine/logic/services/graph/test_tsdb_consolidation_service.py::test_tsdb_service_capabilities PASSED [ 68%]
+tests/ciris_engine/logic/services/graph/test_tsdb_consolidation_service.py::test_tsdb_service_status PASSED [ 68%]
+tests/ciris_engine/logic/services/graph/test_tsdb_consolidation_service.py::test_tsdb_service_get_summary_for_period PASSED [ 68%]
+tests/ciris_engine/logic/services/graph/test_tsdb_consolidation_service.py::test_tsdb_service_action_summary PASSED [ 68%]
+tests/ciris_engine/logic/services/graph/test_tsdb_consolidation_service.py::test_tsdb_service_error_handling PASSED [ 68%]
+tests/ciris_engine/logic/services/graph/test_tsdb_consolidation_service.py::test_tsdb_service_typed_node_conversion PASSED [ 68%]
+tests/ciris_engine/logic/services/graph/test_tsdb_consolidation_service.py::test_tsdb_service_period_already_consolidated PASSED [ 68%]
+tests/ciris_engine/logic/services/graph/test_tsdb_consolidation_service.py::test_tsdb_service_node_type PASSED [ 68%]
+tests/ciris_engine/logic/services/infrastructure/test_authentication_service.py::test_auth_service_lifecycle PASSED [ 69%]
+tests/ciris_engine/logic/services/infrastructure/test_authentication_service.py::test_wa_certificate_creation PASSED [ 69%]
+tests/ciris_engine/logic/services/infrastructure/test_authentication_service.py::test_adapter_observer_creation PASSED [ 69%]
+tests/ciris_engine/logic/services/infrastructure/test_authentication_service.py::test_channel_token_creation PASSED [ 69%]
+tests/ciris_engine/logic/services/infrastructure/test_authentication_service.py::test_gateway_token_creation PASSED [ 69%]
+tests/ciris_engine/logic/services/infrastructure/test_authentication_service.py::test_wa_update PASSED [ 69%]
+tests/ciris_engine/logic/services/infrastructure/test_authentication_service.py::test_wa_revocation PASSED [ 69%]
+tests/ciris_engine/logic/services/infrastructure/test_authentication_service.py::test_password_hashing PASSED [ 69%]
+tests/ciris_engine/logic/services/infrastructure/test_authentication_service.py::test_keypair_generation PASSED [ 69%]
+tests/ciris_engine/logic/services/infrastructure/test_authentication_service.py::test_data_signing PASSED [ 70%]
+tests/ciris_engine/logic/services/infrastructure/test_authentication_service.py::test_auth_service_capabilities PASSED [ 70%]
+tests/ciris_engine/logic/services/infrastructure/test_authentication_service.py::test_auth_service_status PASSED [ 70%]
+tests/ciris_engine/logic/services/infrastructure/test_authentication_service.py::test_last_login_update PASSED [ 70%]
+tests/ciris_engine/logic/services/infrastructure/test_authentication_service.py::test_list_all_was PASSED [ 70%]
+tests/ciris_engine/logic/services/infrastructure/test_resource_monitor.py::test_resource_monitor_lifecycle PASSED [ 70%]
+tests/ciris_engine/logic/services/infrastructure/test_resource_monitor.py::test_resource_monitor_get_snapshot PASSED [ 70%]
+tests/ciris_engine/logic/services/infrastructure/test_resource_monitor.py::test_resource_monitor_check_limits PASSED [ 70%]
+tests/ciris_engine/logic/services/infrastructure/test_resource_monitor.py::test_resource_monitor_status PASSED [ 71%]
+tests/ciris_engine/logic/services/infrastructure/test_resource_monitor.py::test_resource_monitor_continuous_monitoring PASSED [ 71%]
+tests/ciris_engine/logic/services/infrastructure/test_resource_monitor.py::test_resource_monitor_record_tokens PASSED [ 71%]
+tests/ciris_engine/logic/services/infrastructure/test_resource_monitor.py::test_resource_monitor_check_available PASSED [ 71%]
+tests/ciris_engine/logic/services/infrastructure/test_resource_monitor.py::test_resource_monitor_signal_bus PASSED [ 71%]
+tests/ciris_engine/logic/services/infrastructure/test_resource_monitor.py::test_resource_monitor_update_snapshot PASSED [ 71%]
+tests/ciris_engine/logic/services/infrastructure/test_resource_monitor.py::test_resource_monitor_is_healthy PASSED [ 71%]
+tests/ciris_engine/logic/services/infrastructure/test_resource_monitor.py::test_resource_monitor_cooldown PASSED [ 71%]
+tests/ciris_engine/logic/services/infrastructure/test_resource_monitor.py::test_resource_monitor_get_capabilities PASSED [ 72%]
+tests/ciris_engine/logic/services/lifecycle/test_initialization_service.py::test_initialization_service_lifecycle PASSED [ 72%]
+tests/ciris_engine/logic/services/lifecycle/test_initialization_service.py::test_initialization_service_register_step PASSED [ 72%]
+tests/ciris_engine/logic/services/lifecycle/test_initialization_service.py::test_initialization_service_initialize PASSED [ 72%]
+tests/ciris_engine/logic/services/lifecycle/test_initialization_service.py::test_initialization_service_with_verifier PASSED [ 72%]
+tests/ciris_engine/logic/services/lifecycle/test_initialization_service.py::test_initialization_service_failed_verification PASSED [ 72%]
+tests/ciris_engine/logic/services/lifecycle/test_initialization_service.py::test_initialization_service_non_critical_failure PASSED [ 72%]
+tests/ciris_engine/logic/services/lifecycle/test_initialization_service.py::test_initialization_service_capabilities PASSED [ 72%]
+tests/ciris_engine/logic/services/lifecycle/test_initialization_service.py::test_initialization_service_status PASSED [ 73%]
+tests/ciris_engine/logic/services/lifecycle/test_initialization_service.py::test_initialization_service_get_status_details PASSED [ 73%]
+tests/ciris_engine/logic/services/lifecycle/test_initialization_service.py::test_initialization_service_timeout PASSED [ 73%]
+tests/ciris_engine/logic/services/lifecycle/test_shutdown_service.py::test_shutdown_service_lifecycle PASSED [ 73%]
+tests/ciris_engine/logic/services/lifecycle/test_shutdown_service.py::test_shutdown_service_request_shutdown PASSED [ 73%]
+tests/ciris_engine/logic/services/lifecycle/test_shutdown_service.py::test_shutdown_service_register_handler PASSED [ 73%]
+tests/ciris_engine/logic/services/lifecycle/test_shutdown_service.py::test_shutdown_service_async_handler PASSED [ 73%]
+tests/ciris_engine/logic/services/lifecycle/test_shutdown_service.py::test_shutdown_service_wait_for_shutdown PASSED [ 73%]
+tests/ciris_engine/logic/services/lifecycle/test_shutdown_service.py::test_shutdown_service_capabilities PASSED [ 74%]
+tests/ciris_engine/logic/services/lifecycle/test_shutdown_service.py::test_shutdown_service_status PASSED [ 74%]
+tests/ciris_engine/logic/services/lifecycle/test_shutdown_service.py::test_shutdown_service_multiple_handlers PASSED [ 74%]
+tests/ciris_engine/logic/services/lifecycle/test_shutdown_service.py::test_shutdown_service_thread_safety PASSED [ 74%]
+tests/ciris_engine/logic/services/lifecycle/test_time_service.py::test_time_service_lifecycle PASSED [ 74%]
+tests/ciris_engine/logic/services/lifecycle/test_time_service.py::test_time_service_now PASSED [ 74%]
+tests/ciris_engine/logic/services/lifecycle/test_time_service.py::test_time_service_now_iso PASSED [ 74%]
+tests/ciris_engine/logic/services/lifecycle/test_time_service.py::test_time_service_timestamp PASSED [ 74%]
+tests/ciris_engine/logic/services/lifecycle/test_time_service.py::test_time_service_capabilities PASSED [ 75%]
+tests/ciris_engine/logic/services/lifecycle/test_time_service.py::test_time_service_status PASSED [ 75%]
+tests/ciris_engine/logic/services/lifecycle/test_time_service.py::test_time_service_consistency PASSED [ 75%]
+tests/ciris_engine/logic/services/lifecycle/test_time_service.py::test_time_service_mocking PASSED [ 75%]
+tests/ciris_engine/logic/services/runtime/test_llm_service.py::test_llm_service_lifecycle PASSED [ 75%]
+tests/ciris_engine/logic/services/runtime/test_llm_service.py::test_llm_service_call_structured PASSED [ 75%]
+tests/ciris_engine/logic/services/runtime/test_llm_service.py::test_llm_service_retry_logic PASSED [ 75%]
+tests/ciris_engine/logic/services/runtime/test_llm_service.py::test_llm_service_max_retries_exceeded PASSED [ 75%]
+tests/ciris_engine/logic/services/runtime/test_llm_service.py::test_llm_service_capabilities PASSED [ 76%]
+tests/ciris_engine/logic/services/runtime/test_llm_service.py::test_llm_service_status PASSED [ 76%]
+tests/ciris_engine/logic/services/runtime/test_llm_service.py::test_llm_service_temperature_override PASSED [ 76%]
+tests/ciris_engine/logic/services/runtime/test_llm_service.py::test_llm_service_model_override PASSED [ 76%]
+tests/ciris_engine/logic/services/runtime/test_llm_service.py::test_llm_service_pydantic_response PASSED [ 76%]
+tests/ciris_engine/logic/services/runtime/test_llm_service.py::test_llm_service_error_handling PASSED [ 76%]
+tests/ciris_engine/logic/services/runtime/test_secrets_service.py::test_secrets_service_lifecycle PASSED [ 76%]
+tests/ciris_engine/logic/services/runtime/test_secrets_service.py::test_secrets_service_store_and_retrieve PASSED [ 76%]
+tests/ciris_engine/logic/services/runtime/test_secrets_service.py::test_secrets_service_filter_string PASSED [ 76%]
+tests/ciris_engine/logic/services/runtime/test_secrets_service.py::test_secrets_service_list_secrets PASSED [ 77%]
+tests/ciris_engine/logic/services/runtime/test_secrets_service.py::test_secrets_service_delete_secret PASSED [ 77%]
+tests/ciris_engine/logic/services/runtime/test_secrets_service.py::test_secrets_service_reencrypt_all PASSED [ 77%]
+tests/ciris_engine/logic/services/runtime/test_secrets_service.py::test_secrets_service_capabilities PASSED [ 77%]
+tests/ciris_engine/logic/services/runtime/test_secrets_service.py::test_secrets_service_status PASSED [ 77%]
+tests/ciris_engine/logic/services/runtime/test_secrets_service.py::test_secrets_service_metadata_tracking PASSED [ 77%]
+tests/ciris_engine/logic/services/runtime/test_secrets_service.py::test_secrets_service_duplicate_detection PASSED [ 77%]
+tests/ciris_engine/logic/services/runtime/test_secrets_service.py::test_secrets_service_invalid_reference PASSED [ 77%]
+tests/ciris_engine/logic/services/runtime/test_secrets_service.py::test_secrets_service_encryption_error_handling PASSED [ 78%]
+tests/ciris_engine/logic/services/runtime/test_secrets_service.py::test_secrets_service_pattern_detection PASSED [ 78%]
+tests/ciris_engine/logic/services/test_insight_processing.py::test_feedback_loop_stores_insights_as_concept_nodes PASSED [ 78%]
+tests/ciris_engine/logic/services/test_insight_processing.py::test_dream_processor_queries_behavioral_insights PASSED [ 78%]
+tests/ciris_engine/logic/services/test_insight_processing.py::test_all_insights_processed_without_filtering PASSED [ 78%]
+tests/ciris_engine/logic/services/test_insight_processing.py::test_feedback_loop_stores_all_detected_patterns PASSED [ 78%]
+tests/ciris_engine/logic/services/test_insight_processing.py::test_integration_feedback_loop_to_dream_processor PASSED [ 78%]
+tests/ciris_engine/logic/services/test_insight_processing.py::test_dream_processor_handles_missing_attributes PASSED [ 78%]
+tests/ciris_engine/logic/services/test_telemetry_summary.py::TestTelemetrySummary::test_get_telemetry_summary_basic PASSED [ 79%]
+tests/ciris_engine/logic/services/test_telemetry_summary.py::TestTelemetrySummary::test_telemetry_summary_caching PASSED [ 79%]
+tests/ciris_engine/logic/services/test_telemetry_summary.py::TestTelemetrySummary::test_telemetry_summary_error_handling PASSED [ 79%]
+tests/ciris_engine/logic/services/test_telemetry_summary.py::TestTelemetrySummary::test_telemetry_summary_service_breakdown PASSED [ 79%]
+tests/ciris_engine/logic/services/test_telemetry_summary.py::TestResourceUsageCalculation::test_llama_model_cost_calculation PASSED [ 79%]
+tests/ciris_engine/logic/services/test_telemetry_summary.py::TestResourceUsageCalculation::test_carbon_footprint_calculation PASSED [ 79%]
+tests/ciris_engine/logic/services/test_telemetry_summary.py::TestResourceUsageCalculation::test_openai_model_costs PASSED [ 79%]
+tests/ciris_engine/logic/services/test_telemetry_summary.py::TestSystemSnapshotIntegration::test_system_snapshot_includes_telemetry PASSED [ 79%]
+tests/ciris_engine/logic/services/test_telemetry_summary.py::TestSystemSnapshotIntegration::test_system_snapshot_formatting_with_telemetry PASSED [ 80%]
+tests/ciris_engine/logic/services/tools/test_secrets_tool_service.py::TestSecretsToolService::test_get_available_tools PASSED [ 80%]
+tests/ciris_engine/logic/services/tools/test_secrets_tool_service.py::TestSecretsToolService::test_get_all_tool_info PASSED [ 80%]
+tests/ciris_engine/logic/services/tools/test_secrets_tool_service.py::TestSecretsToolService::test_recall_secret_success PASSED [ 80%]
+tests/ciris_engine/logic/services/tools/test_secrets_tool_service.py::TestSecretsToolService::test_update_secrets_filter_add_pattern PASSED [ 80%]
+tests/ciris_engine/logic/services/tools/test_secrets_tool_service.py::TestSecretsToolService::test_self_help_success PASSED [ 80%]
+tests/ciris_engine/logic/services/tools/test_secrets_tool_service.py::TestSecretsToolService::test_self_help_file_not_found PASSED [ 80%]
+tests/ciris_engine/logic/services/tools/test_secrets_tool_service.py::TestSecretsToolService::test_self_help_read_error PASSED [ 80%]
+tests/ciris_engine/logic/services/tools/test_secrets_tool_service.py::TestSecretsToolService::test_validate_parameters PASSED [ 81%]
+tests/ciris_engine/logic/services/tools/test_secrets_tool_service.py::TestSecretsToolService::test_unknown_tool PASSED [ 81%]
+tests/ciris_engine/logic/services/tools/test_secrets_tool_service.py::TestSecretsToolService::test_service_lifecycle PASSED [ 81%]
+tests/ciris_engine/logic/utils/test_graphql_context_search.py::TestGraphQLContextSearch::test_enrich_context_uses_search_for_users PASSED [ 81%]
+tests/ciris_engine/logic/utils/test_graphql_context_search.py::TestGraphQLContextSearch::test_search_matches_exact_username PASSED [ 81%]
+tests/ciris_engine/logic/utils/test_graphql_context_search.py::TestGraphQLContextSearch::test_search_checks_multiple_name_fields PASSED [ 81%]
+tests/ciris_engine/logic/utils/test_graphql_context_search.py::TestGraphQLContextSearch::test_handles_search_errors_gracefully PASSED [ 81%]
+tests/ciris_engine/logic/utils/test_graphql_context_search.py::TestGraphQLContextSearch::test_handles_multiple_authors PASSED [ 81%]
+tests/handlers/test_speak_handler.py::TestSpeakHandler::test_successful_message_send PASSED [ 82%]
+tests/handlers/test_speak_handler.py::TestSpeakHandler::test_communication_failure PASSED [ 82%]
+tests/handlers/test_speak_handler.py::TestSpeakHandler::test_missing_channel_id PASSED [ 82%]
+tests/handlers/test_speak_handler.py::TestSpeakHandler::test_different_content_types PASSED [ 82%]
+tests/handlers/test_speak_handler.py::TestSpeakHandler::test_parameter_validation_error PASSED [ 82%]
+tests/handlers/test_speak_handler.py::TestSpeakHandler::test_audit_trail PASSED [ 82%]
+tests/handlers/test_speak_handler.py::TestSpeakHandler::test_multiple_channels PASSED [ 82%]
+tests/handlers/test_speak_handler.py::TestSpeakHandler::test_communication_bus_exception PASSED [ 82%]
+tests/handlers/test_speak_handler.py::TestSpeakHandler::test_service_correlation_tracking PASSED [ 83%]
+tests/handlers/test_speak_handler.py::TestSpeakHandler::test_secret_decapsulation PASSED [ 83%]
+tests/handlers/test_speak_handler.py::TestBuildSpeakErrorContext::test_notification_failed_error PASSED [ 83%]
+tests/handlers/test_speak_handler.py::TestBuildSpeakErrorContext::test_channel_unavailable_error PASSED [ 83%]
+tests/handlers/test_speak_handler.py::TestBuildSpeakErrorContext::test_content_rejected_error PASSED [ 83%]
+tests/handlers/test_speak_handler.py::TestBuildSpeakErrorContext::test_service_timeout_error PASSED [ 83%]
+tests/handlers/test_speak_handler.py::TestBuildSpeakErrorContext::test_unknown_error PASSED [ 83%]
+tests/handlers/test_speak_handler.py::TestBuildSpeakErrorContext::test_long_content_truncation PASSED [ 83%]
+tests/handlers/test_speak_handler.py::TestEdgeCases::test_follow_up_creation_failure PASSED [ 84%]
+tests/handlers/test_speak_handler.py::TestEdgeCases::test_missing_task PASSED [ 84%]
+tests/handlers/test_speak_handler.py::TestEdgeCases::test_concurrent_message_sends PASSED [ 84%]
+tests/integration/test_deferral_integration.py::TestDeferralIntegration::test_full_deferral_flow PASSED [ 84%]
+tests/integration/test_deferral_integration.py::TestDeferralIntegration::test_concurrent_deferrals_different_priorities PASSED [ 84%]
+tests/integration/test_deferral_integration.py::TestDeferralIntegration::test_time_based_deferral_with_scheduler PASSED [ 84%]
+tests/integration/test_deferral_integration.py::TestDeferralIntegration::test_deferral_modification_by_wa PASSED [ 84%]
+tests/integration/test_deferral_integration.py::TestDeferralErrorScenarios::test_wa_service_unavailable_fallback PASSED [ 84%]
+tests/integration/test_deferral_integration.py::TestDeferralErrorScenarios::test_malformed_deferral_recovery PASSED [ 84%]
+tests/integration/test_dual_llm_integration.py::test_dual_llm_service_real_initialization SKIPPED [ 85%]
+tests/integration/test_dual_llm_simple.py::test_dual_llm_direct SKIPPED  [ 85%]
+tests/integration/test_full_cycle.py::test_full_thought_cycle PASSED     [ 85%]
+tests/integration/test_observe_handler_integration.py::test_real_observe_handler PASSED [ 85%]
+tests/integration/test_observe_handler_integration.py::test_edge_cases_real_handler PASSED [ 85%]
+tests/integration/test_observe_handler_integration.py::test_no_messages PASSED [ 85%]
+tests/integration/test_observe_handler_integration.py::test_no_memory_service PASSED [ 85%]
+tests/integration/test_observe_handler_integration.py::test_message_field_variations PASSED [ 85%]
+tests/live/test_discord_service_registry_live.py::test_discord_runtime_service_registry_live SKIPPED [ 86%]
+tests/test_all_startup_fixes.py::test_full_startup_and_wakeup PASSED     [ 86%]
+tests/test_cli_offline.py::test_cli_offline_non_interactive PASSED       [ 86%]
+tests/test_defer_handler.py::TestDeferHandler::test_basic_deferral_success PASSED [ 86%]
+tests/test_defer_handler.py::TestDeferHandler::test_time_based_deferral PASSED [ 86%]
+tests/test_defer_handler.py::TestDeferHandler::test_deferral_with_minimal_params PASSED [ 86%]
+tests/test_defer_handler.py::TestDeferHandler::test_deferral_when_wise_authority_fails PASSED [ 86%]
+tests/test_defer_handler.py::TestDeferHandler::test_deferral_with_task_metadata PASSED [ 86%]
+tests/test_defer_handler.py::TestDeferHandler::test_system_task_not_deferred PASSED [ 87%]
+tests/test_defer_handler.py::TestDeferHandler::test_concurrent_deferrals PASSED [ 87%]
+tests/test_defer_handler.py::TestDeferHandler::test_deferral_with_priority PASSED [ 87%]
+tests/test_defer_handler.py::TestDeferralLifecycle::test_list_pending_deferrals PASSED [ 87%]
+tests/test_defer_handler.py::TestDeferralLifecycle::test_filter_deferrals_by_wa PASSED [ 87%]
+tests/test_defer_handler.py::TestDeferralLifecycle::test_resolve_deferral_approve PASSED [ 87%]
+tests/test_defer_handler.py::TestDeferralLifecycle::test_resolve_deferral_reject PASSED [ 87%]
+tests/test_defer_handler.py::TestDeferralLifecycle::test_resolve_deferral_modify PASSED [ 87%]
+tests/test_defer_handler.py::TestDeferralLifecycle::test_unauthorized_resolution_attempt PASSED [ 88%]
+tests/test_defer_handler.py::TestDeferralLifecycle::test_deferral_expiration_handling PASSED [ 88%]
+tests/test_defer_handler.py::TestDeferralLifecycle::test_deferral_notification_flow PASSED [ 88%]
+tests/test_deferral_permissions.py::TestDeferralPermissions::test_authority_can_resolve_deferrals PASSED [ 88%]
+tests/test_deferral_permissions.py::TestDeferralPermissions::test_observer_cannot_resolve_deferrals PASSED [ 88%]
+tests/test_deferral_permissions.py::TestDeferralPermissions::test_expired_certificate_cannot_resolve PASSED [ 88%]
+tests/test_deferral_permissions.py::TestDeferralPermissions::test_revoked_certificate_cannot_resolve PASSED [ 88%]
+tests/test_deferral_permissions.py::TestDeferralPermissions::test_resource_specific_permissions PASSED [ 88%]
+tests/test_deferral_permissions.py::TestDeferralPermissions::test_grant_permission PASSED [ 89%]
+tests/test_deferral_permissions.py::TestDeferralPermissions::test_revoke_permission PASSED [ 89%]
+tests/test_deferral_permissions.py::TestDeferralPermissions::test_permission_inheritance PASSED [ 89%]
+tests/test_deferral_permissions.py::TestDeferralPermissions::test_concurrent_permission_checks PASSED [ 89%]
+tests/test_deferral_permissions.py::TestDeferralRoleEnforcement::test_role_filtering_for_deferrals PASSED [ 89%]
+tests/test_deferral_permissions.py::TestDeferralRoleEnforcement::test_resolution_role_validation PASSED [ 89%]
+tests/test_deferral_permissions.py::TestDeferralRoleEnforcement::test_permission_expiration PASSED [ 89%]
+tests/test_deferral_permissions.py::TestDeferralAuditTrail::test_deferral_resolution_audit PASSED [ 89%]
+tests/test_deferral_permissions.py::TestDeferralAuditTrail::test_failed_authorization_audit PASSED [ 90%]
+tests/test_discord_cli_failover.py::test_run_discord_uses_env PASSED     [ 90%]
+tests/test_discord_cli_failover.py::test_discord_runtime_cli_fallback SKIPPED [ 90%]
+tests/test_final_startup_fixes.py::test_complete_startup PASSED          [ 90%]
+tests/test_graph_scopes.py::test_identity_graph_updates SKIPPED (upd...) [ 90%]
+tests/test_llm_memory_responses.py::test_action_selection_produces_correct_memory_schemas PASSED [ 90%]
+tests/test_main_entrypoint.py::test_main_function_existence PASSED       [ 90%]
+tests/test_main_entrypoint.py::test_helper_functions_exist PASSED        [ 90%]
+tests/test_main_entrypoint.py::test_ciris_runtime_initialization PASSED  [ 91%]
+tests/test_memory_handlers.py::test_memorize_handler_with_graph_node PASSED [ 91%]
+tests/test_memory_handlers.py::test_recall_handler_with_query PASSED     [ 91%]
+tests/test_memory_handlers.py::test_memorize_handler_error_handling PASSED [ 91%]
+tests/test_memory_handlers_comprehensive.py::TestMemorizeHandler::test_memorize_success PASSED [ 91%]
+tests/test_memory_handlers_comprehensive.py::TestMemorizeHandler::test_memorize_identity_node_without_wa_authorization PASSED [ 91%]
+tests/test_memory_handlers_comprehensive.py::TestMemorizeHandler::test_memorize_identity_node_with_wa_authorization PASSED [ 91%]
+tests/test_memory_handlers_comprehensive.py::TestMemorizeHandler::test_memorize_invalid_parameters PASSED [ 91%]
+tests/test_memory_handlers_comprehensive.py::TestMemorizeHandler::test_memorize_memory_service_error PASSED [ 92%]
+tests/test_memory_handlers_comprehensive.py::TestMemorizeHandler::test_memorize_exception_handling PASSED [ 92%]
+tests/test_memory_handlers_comprehensive.py::TestMemorizeHandler::test_memorize_node_with_different_attributes PASSED [ 92%]
+tests/test_memory_handlers_comprehensive.py::TestRecallHandler::test_recall_by_node_id_success PASSED [ 92%]
+tests/test_memory_handlers_comprehensive.py::TestRecallHandler::test_recall_by_query_success PASSED [ 92%]
+tests/test_memory_handlers_comprehensive.py::TestRecallHandler::test_recall_no_results PASSED [ 92%]
+tests/test_memory_handlers_comprehensive.py::TestRecallHandler::test_recall_invalid_parameters PASSED [ 92%]
+tests/test_memory_handlers_comprehensive.py::TestRecallHandler::test_recall_with_all_parameters PASSED [ 92%]
+tests/test_memory_handlers_comprehensive.py::TestForgetHandler::test_forget_success PASSED [ 92%]
+tests/test_memory_handlers_comprehensive.py::TestForgetHandler::test_forget_identity_scope_without_wa PASSED [ 93%]
+tests/test_memory_handlers_comprehensive.py::TestForgetHandler::test_forget_environment_scope_with_wa PASSED [ 93%]
+tests/test_memory_handlers_comprehensive.py::TestForgetHandler::test_forget_with_no_audit_flag PASSED [ 93%]
+tests/test_memory_handlers_comprehensive.py::TestForgetHandler::test_forget_invalid_params_dict SKIPPED [ 93%]
+tests/test_memory_handlers_comprehensive.py::TestForgetHandler::test_forget_invalid_params_type PASSED [ 93%]
+tests/test_memory_handlers_comprehensive.py::TestForgetHandler::test_forget_permission_denied PASSED [ 93%]
+tests/test_memory_handlers_comprehensive.py::TestForgetHandler::test_forget_failed_operation PASSED [ 93%]
+tests/test_memory_handlers_comprehensive.py::TestMemoryHandlersIntegration::test_memorize_recall_forget_workflow PASSED [ 93%]
+tests/test_memory_handlers_comprehensive.py::TestMemoryHandlersIntegration::test_concurrent_memory_operations PASSED [ 94%]
+tests/test_memory_handlers_comprehensive.py::TestMemoryHandlersIntegration::test_large_node_handling PASSED [ 94%]
+tests/test_memory_integration.py::test_memory_operations PASSED          [ 94%]
+tests/test_memory_schemas.py::test_memorize_params_validation PASSED     [ 94%]
+tests/test_memory_schemas.py::test_old_to_new_memorize_mapping PASSED    [ 94%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_normal_message_processing PASSED [ 94%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_no_memory_service PASSED [ 94%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_no_channel_id PASSED [ 94%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_empty_messages PASSED [ 95%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_none_messages PASSED [ 95%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_malformed_messages PASSED [ 95%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_duplicate_author_handling PASSED [ 95%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_recall_error_handling PASSED [ 95%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_message_structure_validation PASSED [ 95%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_id_format_consistency PASSED [ 95%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_scope_coverage PASSED [ 95%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_channel_id_variations[123-3] PASSED [ 96%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_channel_id_variations[-0] PASSED [ 96%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_channel_id_variations[None-0] PASSED [ 96%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_author_id_variations[valid_user_123-True] PASSED [ 96%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_author_id_variations[-False] PASSED [ 96%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_author_id_variations[None-False] PASSED [ 96%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_author_id_variations[0-True] PASSED [ 96%]
+tests/test_observe_handler_recall_logic.py::TestObserveHandlerRecallLogic::test_author_id_variations[user with spaces-True] PASSED [ 96%]
+tests/test_startup_issues_fixed.py::test_startup_and_shutdown PASSED     [ 97%]
+tests/test_task_persistence_fix.py::test_task_persistence_with_retry_count PASSED [ 97%]
+tests/test_thought_depth_propagation.py::TestThoughtDepthPropagation::test_create_follow_up_thought_increments_thought_depth PASSED [ 97%]
+tests/test_thought_depth_propagation.py::TestThoughtDepthPropagation::test_create_follow_up_from_pondered_thought PASSED [ 97%]
+tests/test_thought_depth_propagation.py::TestThoughtDepthPropagation::test_create_follow_up_chain_maintains_count PASSED [ 97%]
+tests/test_thought_depth_propagation.py::TestThoughtDepthPropagation::test_ponder_handler_creates_correct_follow_up_count PASSED [ 97%]
+tests/test_thought_depth_propagation.py::TestThoughtDepthPropagation::test_ponder_handler_dynamic_content_generation PASSED [ 97%]
+tests/test_thought_depth_propagation.py::TestThoughtDepthPropagation::test_max_rounds_behavior_with_thought_depth PASSED [ 97%]
+tests/test_thought_depth_propagation.py::TestThoughtDepthPropagation::test_thought_depth_increment_edge_cases[0-1] PASSED [ 98%]
+tests/test_thought_depth_propagation.py::TestThoughtDepthPropagation::test_thought_depth_increment_edge_cases[1-2] PASSED [ 98%]
+tests/test_thought_depth_propagation.py::TestThoughtDepthPropagation::test_thought_depth_increment_edge_cases[2-3] PASSED [ 98%]
+tests/test_thought_depth_propagation.py::TestThoughtDepthPropagation::test_thought_depth_increment_edge_cases[5-6] PASSED [ 98%]
+tests/test_thought_depth_propagation.py::TestThoughtDepthPropagation::test_thought_depth_increment_edge_cases[6-7] PASSED [ 98%]
+tests/test_wise_bus_deferrals.py::TestWiseBusDeferrals::test_send_deferral_success PASSED [ 98%]
+tests/test_wise_bus_deferrals.py::TestWiseBusDeferrals::test_send_deferral_with_string_defer_until PASSED [ 98%]
+tests/test_wise_bus_deferrals.py::TestWiseBusDeferrals::test_send_deferral_no_defer_until PASSED [ 98%]
+tests/test_wise_bus_deferrals.py::TestWiseBusDeferrals::test_send_deferral_service_not_available PASSED [ 99%]
+tests/test_wise_bus_deferrals.py::TestWiseBusDeferrals::test_send_deferral_service_exception PASSED [ 99%]
+tests/test_wise_bus_deferrals.py::TestWiseBusDeferrals::test_fetch_guidance_success PASSED [ 99%]
+tests/test_wise_bus_deferrals.py::TestWiseBusDeferrals::test_fetch_guidance_no_service PASSED [ 99%]
+tests/test_wise_bus_deferrals.py::TestWiseBusDeferrals::test_request_review PASSED [ 99%]
+tests/test_wise_bus_deferrals.py::TestWiseBusDeferrals::test_bus_capability_filtering PASSED [ 99%]
+tests/test_wise_bus_deferrals.py::TestWiseBusDeferrals::test_concurrent_deferral_requests PASSED [ 99%]
+tests/test_wise_bus_deferrals.py::TestWiseBusErrorHandling::test_invalid_defer_until_format PASSED [ 99%]
+tests/test_wise_bus_deferrals.py::TestWiseBusErrorHandling::test_process_message_warning PASSED [100%]
+
+=============================== warnings summary ===============================
+tests/api/routes/test_emergency.py::TestEmergencyEndpoint::test_shutdown_with_runtime_service
+tests/api/routes/test_emergency.py::TestEmergencyEndpoint::test_shutdown_without_runtime_service
+tests/api/routes/test_emergency.py::TestAsyncEmergencyEndpoint::test_async_shutdown_success
+  /home/emoore/.local/lib/python3.12/site-packages/fastapi/routing.py:212: RuntimeWarning: coroutine 'AsyncMockMixin._execute_mock_call' was never awaited
+    return await dependant.call(**values)
+  Enable tracemalloc to get traceback where the object was allocated.
+  See https://docs.pytest.org/en/stable/how-to/capture-warnings.html#resource-warnings for more info.
+
+tests/api/routes/test_incidents.py::TestIncidentsThroughTelemetry::test_incidents_in_overview
+  /home/emoore/.local/lib/python3.12/site-packages/pydantic/type_adapter.py:572: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `int` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...h' id='136233538514496'>, input_type=AsyncMock])
+    PydanticSerializationUnexpectedValue(Expected `int` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...h' id='136233538518240'>, input_type=AsyncMock])
+    PydanticSerializationUnexpectedValue(Expected `int` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...h' id='136233538571296'>, input_type=AsyncMock])
+    PydanticSerializationUnexpectedValue(Expected `int` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...h' id='136233538575040'>, input_type=AsyncMock])
+    PydanticSerializationUnexpectedValue(Expected `float` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...r' id='136233538578928'>, input_type=AsyncMock])
+    PydanticSerializationUnexpectedValue(Expected `float` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...s' id='136233538582768'>, input_type=AsyncMock])
+    PydanticSerializationUnexpectedValue(Expected `float` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...s' id='136233548991280'>, input_type=AsyncMock])
+    PydanticSerializationUnexpectedValue(Expected `float` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...t' id='136233538623232'>, input_type=AsyncMock])
+    return self.serializer.to_python(
+
+tests/api/routes/test_incidents.py::TestIncidentsThroughTelemetry::test_service_unavailable
+  /home/emoore/.local/lib/python3.12/site-packages/pydantic/type_adapter.py:572: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `int` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...h' id='136233538625728'>, input_type=AsyncMock])
+    PydanticSerializationUnexpectedValue(Expected `int` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...h' id='136233538744400'>, input_type=AsyncMock])
+    PydanticSerializationUnexpectedValue(Expected `int` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...h' id='136233537978784'>, input_type=AsyncMock])
+    PydanticSerializationUnexpectedValue(Expected `int` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...h' id='136233538682272'>, input_type=AsyncMock])
+    PydanticSerializationUnexpectedValue(Expected `float` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...r' id='136233537990640'>, input_type=AsyncMock])
+    PydanticSerializationUnexpectedValue(Expected `float` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...s' id='136233537981808'>, input_type=AsyncMock])
+    PydanticSerializationUnexpectedValue(Expected `float` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...s' id='136233548810240'>, input_type=AsyncMock])
+    PydanticSerializationUnexpectedValue(Expected `float` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...t' id='136233538222848'>, input_type=AsyncMock])
+    return self.serializer.to_python(
+
+tests/api/routes/test_telemetry.py::TestTelemetryEndpoints::test_get_telemetry_overview
+  /home/emoore/.local/lib/python3.12/site-packages/pydantic/type_adapter.py:572: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...e' id='136233534872832'>, input_type=AsyncMock])
+    PydanticSerializationUnexpectedValue(Expected `str` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...n' id='136233536873888'>, input_type=AsyncMock])
+    PydanticSerializationUnexpectedValue(Expected `int` - serialized value may not be as expected [input_value=<AsyncMock name='mock.get...h' id='136233534876576'>, input_type=AsyncMock])
+    return self.serializer.to_python(
+
+tests/ciris_engine/logic/runtime/test_service_initializer.py: 4 warnings
+tests/ciris_engine/logic/services/graph/test_config_node_fix.py: 9 warnings
+tests/ciris_engine/logic/services/graph/test_config_service.py: 41 warnings
+tests/ciris_engine/logic/services/graph/test_config_service_bootstrap.py: 34 warnings
+  /home/emoore/CIRISAgent/ciris_engine/logic/persistence/models/graph.py:44: DeprecationWarning: The default datetime adapter is deprecated as of Python 3.12; see the sqlite3 documentation for suggested replacement recipes
+    conn.execute(sql, params)
+
+tests/ciris_engine/logic/services/runtime/test_llm_service.py: 10 warnings
+tests/integration/test_dual_llm_simple.py: 1 warning
+tests/test_all_startup_fixes.py: 1 warning
+  /home/emoore/.local/lib/python3.12/site-packages/instructor/client.py:398: DeprecationWarning: FUNCTIONS is deprecated and will be removed in future versions
+    instructor.Mode.FUNCTIONS,
+
+tests/test_all_startup_fixes.py: 15 warnings
+  /home/emoore/.local/lib/python3.12/site-packages/instructor/process_response.py:222: DeprecationWarning: FUNCTIONS is deprecated and will be removed in future versions
+    if mode == Mode.FUNCTIONS:
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.12.3-final-0 ________________
+
+Name                                                                            Stmts   Miss   Cover   Missing
+--------------------------------------------------------------------------------------------------------------
+ciris_engine/__init__.py                                                            4      0 100.00%
+ciris_engine/api/app.py                                                            20      4  80.00%   23-26, 56
+ciris_engine/api/dependencies/auth.py                                              39      8  79.49%   37, 48, 73-79
+ciris_engine/api/routes/__init__.py                                                 2      0 100.00%
+ciris_engine/api/routes/agent.py                                                  199    137  31.16%   101-168, 183-251, 264-337, 350-434, 439-441
+ciris_engine/api/routes/audit.py                                                  120     27  77.50%   143-144, 184-189, 205-222, 229-230, 287-288, 325-336, 345, 358-359
+ciris_engine/api/routes/auth.py                                                    64      3  95.31%   67-69
+ciris_engine/api/routes/config.py                                                 103     27  73.79%   57, 64-68, 96-97, 112, 119, 135-138, 154, 159, 176, 199-202, 217, 222, 232, 236-239
+ciris_engine/api/routes/emergency.py                                              115     23  80.00%   20-22, 74, 76, 89-91, 140, 208-209, 213-218, 228, 232, 251-254
+ciris_engine/api/routes/health.py                                                  42     26  38.10%   23, 32-71
+ciris_engine/api/routes/incidents.py                                               47     35  25.53%   28-57, 70-93, 107-132
+ciris_engine/api/routes/llm.py                                                     78     38  51.28%   66-99, 111-162, 174-208
+ciris_engine/api/routes/memory.py                                                 170     23  86.47%   104, 109-110, 133, 152, 154, 156, 196, 198, 206, 212-213, 228, 252-253, 271, 301-303, 352-353, 368, 390-391
+ciris_engine/api/routes/resources.py                                              184    124  32.61%   39, 49, 68, 97-119, 131-150, 163-243, 255-346, 360-437
+ciris_engine/api/routes/runtime.py                                                183    135  26.23%   65-73, 86-94, 107-115, 128-136, 149-172, 184-208, 221-236, 249-257, 269-277, 289-297, 314-348, 361-391, 409-432
+ciris_engine/api/routes/system.py                                                 269     38  85.87%   141-142, 158-178, 185, 188-191, 353-354, 369-370, 463-485
+ciris_engine/api/routes/telemetry.py                                              353     79  77.62%   139, 171-172, 186-187, 198-199, 203-209, 238-239, 243-247, 266-267, 333-338, 345, 347, 375-376, 446-447, 451-490, 533, 535, 537, 548, 562-564, 621-634, 643-660, 709-714, 727-728
+ciris_engine/api/routes/time.py                                                    74     39  47.30%   25, 36, 48, 58-75, 85-112, 122-147
+ciris_engine/api/routes/wa.py                                                      54     15  72.22%   43, 66-68, 99, 125, 145-149, 179, 205-207
+ciris_engine/api/services/auth_service.py                                          79     41  48.10%   43-44, 48, 54, 66-78, 82-95, 99-111, 116-128, 133-136, 147-172, 180-181
+ciris_engine/logic/__init__.py                                                      0      0 100.00%
+ciris_engine/logic/adapters/__init__.py                                            29     11  62.07%   29-30, 35-43
+ciris_engine/logic/adapters/base.py                                                45     21  53.33%   74-84, 91-92, 95-96, 99-106, 118-132, 141
+ciris_engine/logic/adapters/base_observer.py                                      136     56  58.82%   61-63, 66-85, 97-115, 121, 124-147, 150-172, 180-187, 338-339
+ciris_engine/logic/adapters/cirisnode_client.py                                   124     88  29.03%   22-23, 55-57, 64-80, 84, 88-90, 94, 97, 100-107, 115-122, 130-137, 146-161, 165-180, 184-199, 203-218, 222-237, 246-262, 272-294
+ciris_engine/logic/adapters/cli/__init__.py                                         2      0 100.00%
+ciris_engine/logic/adapters/cli/adapter.py                                         96     50  47.92%   30-31, 35, 39-46, 80-94, 135-172, 176-180
+ciris_engine/logic/adapters/cli/cli_adapter.py                                    241    166  31.12%   73-83, 91-117, 130-175, 188, 201-257, 268, 272, 285-295, 303, 309, 319-347, 350-353, 360-372, 376-388, 392-404, 408-435, 463-493, 497-498, 502-503, 519, 523-549, 553-557, 577-582, 586-593, 597-605
+ciris_engine/logic/adapters/cli/cli_observer.py                                   156    106  32.05%   61-62, 71-88, 99-100, 109-138, 142-155, 164-185, 187-188, 191-192, 196-221, 224-253, 260-264, 269-272
+ciris_engine/logic/adapters/cli/cli_tools.py                                      124    124   0.00%   1-217
+ciris_engine/logic/adapters/cli/cli_wa_service.py                                  59     59   0.00%   1-96
+ciris_engine/logic/adapters/cli/config.py                                          55     22  60.00%   31, 38-39, 47, 51, 55, 59, 63-89
+ciris_engine/logic/adapters/discord/__init__.py                                     2      0 100.00%
+ciris_engine/logic/adapters/discord/adapter.py                                    219    198   9.59%   22-103, 108-114, 117-124, 128-155, 158-189, 192-393, 396-422
+ciris_engine/logic/adapters/discord/config.py                                     102     71  30.39%   8, 43-66, 70-82, 86-93, 97-101, 105-140, 145-173
+ciris_engine/logic/adapters/discord/discord_access_control.py                     107     34  68.22%   41, 43, 46-49, 81, 147, 155, 199-205, 217-230, 248, 264-265, 278-286, 298-302, 314
+ciris_engine/logic/adapters/discord/discord_adapter.py                            490    255  47.96%   43, 79-80, 120-127, 138, 140, 143, 156-157, 236-237, 246-248, 253-313, 323, 334, 348-350, 356-357, 369-370, 408, 418-419, 445, 467-469, 475-485, 496-497, 508, 519, 534-536, 540-558, 562-599, 603-634, 638-661, 665-810, 815-827, 857, 861, 865, 869-876, 888, 916-917, 931, 941-951, 960-972, 981-984, 1004-1008, 1016, 1044-1045, 1072-1079, 1085-1086, 1092-1110, 1126-1127, 1137-1138, 1142-1155, 1170-1198
+ciris_engine/logic/adapters/discord/discord_audit.py                               47     10  78.72%   10-11, 32-33, 80, 89-90, 126, 146, 191
+ciris_engine/logic/adapters/discord/discord_channel_manager.py                     99     60  39.39%   37, 45, 57-58, 69, 74-79, 92, 95-96, 107, 111-112, 123-133, 141-159, 167-171, 179-191, 202-226
+ciris_engine/logic/adapters/discord/discord_connection_manager.py                 159     82  48.43%   10, 64-65, 73-74, 78-108, 112-122, 136, 141-142, 148, 156-163, 168-169, 186-187, 191-200, 205-206, 209-210, 217-226, 233-235, 267-282, 293-300
+ciris_engine/logic/adapters/discord/discord_embed_formatter.py                    142     48  66.20%   93-111, 214-246, 258-280, 308, 311, 314, 317, 337-353
+ciris_engine/logic/adapters/discord/discord_error_handler.py                      138     53  61.59%   78, 115-122, 125-128, 156-187, 204-206, 210-211, 258, 268, 284-319
+ciris_engine/logic/adapters/discord/discord_guidance_handler.py                   208    176  15.38%   8-9, 33-34, 42, 50, 62-91, 102-116, 131-181, 201-243, 256-288, 300-302, 314-339, 350-361, 367-369, 374, 382, 391-436, 443-445
+ciris_engine/logic/adapters/discord/discord_message_handler.py                     76     28  63.16%   29, 42, 55-60, 65, 81, 111, 135-157, 169
+ciris_engine/logic/adapters/discord/discord_observer.py                           211    161  23.70%   67, 73-85, 97-98, 114-186, 190-207, 213, 221-238, 242-413
+ciris_engine/logic/adapters/discord/discord_rate_limiter.py                        99     14  85.86%   39-40, 58-59, 155-158, 167-174, 259
+ciris_engine/logic/adapters/discord/discord_reaction_handler.py                   117     75  35.90%   10, 57-58, 66, 85-123, 132-174, 185-198, 206-229, 237, 241-242
+ciris_engine/logic/adapters/discord/discord_slash_commands.py                     167    167   0.00%   2-413
+ciris_engine/logic/adapters/discord/discord_thread_manager.py                     143     73  48.95%   9, 56, 75-76, 82, 85-86, 101, 123-125, 152-153, 157-167, 181-185, 198-208, 226-236, 254, 279-285, 298, 309-318, 330-352
+ciris_engine/logic/adapters/discord/discord_tool_handler.py                       109     78  28.44%   18, 40-41, 49, 57, 72-156, 175-181, 189-198, 202-261, 265-270, 282-294, 306, 317-320
+ciris_engine/logic/adapters/discord/discord_tools.py                               45     45   0.00%   5-100
+ciris_engine/logic/adapters/discord/discord_vision_helper.py                       95     60  36.84%   42, 51, 60-62, 67, 79-141, 152-173, 185-203, 219
+ciris_engine/logic/audit/__init__.py                                                4      0 100.00%
+ciris_engine/logic/audit/hash_chain.py                                            134     71  47.01%   31, 66, 98-100, 104-184, 188-224, 229, 257-259
+ciris_engine/logic/audit/signature_manager.py                                     185     99  46.49%   42, 47-49, 72-77, 84-91, 95-123, 128, 141, 159-182, 187, 191, 207-209, 217-220, 223-224, 227-228, 244-249, 253-273, 277-288, 292-308, 312-341, 359-364
+ciris_engine/logic/audit/verifier.py                                              157    122  22.29%   36, 46, 54-103, 107-134, 141-152, 163-167, 171-186, 195-232, 242-279, 288-326, 330-372
+ciris_engine/logic/buses/__init__.py                                                9      0 100.00%
+ciris_engine/logic/buses/base_bus.py                                               75     37  50.67%   65-71, 75-82, 86-109, 118, 139, 143, 153-159
+ciris_engine/logic/buses/bus_manager.py                                            58     27  53.45%   68-76, 80-88, 92-95, 99, 103-109
+ciris_engine/logic/buses/communication_bus.py                                      66     38  42.42%   11, 61-73, 87-101, 114-128, 132-138, 142-164
+ciris_engine/logic/buses/llm_bus.py                                               215     99  53.95%   11, 50-52, 57-59, 138, 154, 179-195, 230, 278, 283-317, 327-328, 349-356, 377-445, 449-465, 469-482, 486-493, 497-504, 508-514, 518-521
+ciris_engine/logic/buses/memory_bus.py                                            130     85  34.62%   9, 66-85, 102-116, 129-148, 162-175, 191-192, 196-198, 215-216, 223-225, 240-256, 267-280, 285-292, 296-303, 309
+ciris_engine/logic/buses/runtime_control_bus.py                                   205    167  18.54%   11, 56-77, 91-131, 145-162, 173-197, 211-244, 260-282, 296-309, 317-344, 352-379, 387-413, 421-441, 452-459, 463-470, 474
+ciris_engine/logic/buses/tool_bus.py                                               96     73  23.96%   16, 47-69, 83-96, 105-118, 127-140, 144-151, 159-172, 179-192, 196-203, 207
+ciris_engine/logic/buses/wise_bus.py                                               57     12  78.95%   12, 61-69, 107-109
+ciris_engine/logic/config/__init__.py                                               5      0 100.00%
+ciris_engine/logic/config/bootstrap.py                                             91     75  17.58%   23-28, 34-87, 111-138, 147-184
+ciris_engine/logic/config/config_accessor.py                                      115     67  41.74%   44-46, 75-87, 102-104, 109-115, 122-124, 128-133, 137-142, 146-147, 153, 160-161, 173-181, 185-206
+ciris_engine/logic/config/db_paths.py                                              23     11  52.17%   38-43, 55-60, 65
+ciris_engine/logic/config/env_utils.py                                             29      5  82.76%   14, 20-22, 34
+ciris_engine/logic/conscience/__init__.py                                           5      0 100.00%
+ciris_engine/logic/conscience/build_deferral_package.py                             0      0 100.00%
+ciris_engine/logic/conscience/core.py                                             172     96  44.19%   59, 64, 69-77, 84-85, 96-141, 151-161, 172-207, 217-251, 262, 276-278, 333-377, 387-403
+ciris_engine/logic/conscience/interface.py                                          4      0 100.00%
+ciris_engine/logic/conscience/registry.py                                          24      2  91.67%   44-45
+ciris_engine/logic/conscience/thought_depth_guardrail.py                           35     19  45.71%   28-32, 42-133
+ciris_engine/logic/context/__init__.py                                              4      0 100.00%
+ciris_engine/logic/context/builder.py                                             144     82  43.06%   58-61, 66-99, 110-117, 121-123, 127-129, 132-135, 138-141, 144-151, 154-164, 169-171, 174-176, 181, 183, 188-189, 194, 225
+ciris_engine/logic/context/secrets_snapshot.py                                     14      0 100.00%
+ciris_engine/logic/context/system_snapshot.py                                     175     49  72.00%   38-39, 43, 60, 67-71, 75-78, 82-83, 89, 127-129, 167-178, 231, 240-241, 244-249, 265-266, 268-269, 275-276, 278-282, 290-291, 327, 345, 347
+ciris_engine/logic/dma/__init__.py                                                  6      0 100.00%
+ciris_engine/logic/dma/action_selection/__init__.py                                 4      0 100.00%
+ciris_engine/logic/dma/action_selection/action_instruction_generator.py           171     61  64.33%   66, 162, 177-255, 265-292, 359-361
+ciris_engine/logic/dma/action_selection/context_builder.py                        141     30  78.72%   131-132, 136-140, 162-163, 188, 205-219, 221, 237-249, 298, 313, 326, 331-334, 351-355
+ciris_engine/logic/dma/action_selection/faculty_integration.py                     67     55  17.91%   15, 23-61, 65-73, 84-144, 154-164
+ciris_engine/logic/dma/action_selection/special_cases.py                           61     27  55.74%   27, 35-44, 59, 69-79, 95, 102-107, 112-135
+ciris_engine/logic/dma/action_selection_pdma.py                                    96     27  71.88%   85, 92-100, 113-127, 135, 140, 160-163, 188-193, 206-212
+ciris_engine/logic/dma/base_dma.py                                                 76     32  57.89%   15, 68-71, 75, 77, 83-87, 98-101, 113-120, 132-148, 153
+ciris_engine/logic/dma/csdma.py                                                    73     22  69.86%   59-62, 69, 118, 134-140, 146-150, 154, 178-183, 195
+ciris_engine/logic/dma/dma_executor.py                                             74     33  55.41%   24, 45-81, 91-110, 141, 145
+ciris_engine/logic/dma/dsdma_base.py                                               99     39  60.61%   62-64, 92-95, 106-120, 131-137, 149-161, 173, 207-218, 236-244
+ciris_engine/logic/dma/exceptions.py                                                2      0 100.00%
+ciris_engine/logic/dma/factory.py                                                  61     19  68.85%   29-30, 35-36, 41-42, 77-78, 82-83, 94, 96, 99-101, 119-120, 144-145
+ciris_engine/logic/dma/pdma.py                                                     54     11  79.63%   43-45, 63, 75-77, 107-110
+ciris_engine/logic/dma/prompt_loader.py                                            55     14  74.55%   30, 33, 52, 59, 64-69, 90, 98, 106, 125
+ciris_engine/logic/formatters/__init__.py                                           5      0 100.00%
+ciris_engine/logic/formatters/escalation.py                                        10      5  50.00%   7-12
+ciris_engine/logic/formatters/prompt_blocks.py                                     38     27  28.95%   7-20, 24-32, 47, 57-60
+ciris_engine/logic/formatters/system_snapshot.py                                   48      8  83.33%   21-25, 85-87
+ciris_engine/logic/formatters/user_profiles.py                                     19     15  21.05%   10-29
+ciris_engine/logic/handlers/control/defer_handler.py                               83     18  78.31%   28-31, 50, 54, 67, 90-91, 130-154
+ciris_engine/logic/handlers/control/ponder_handler.py                              69     19  72.46%   88-120, 147, 159-178
+ciris_engine/logic/handlers/control/reject_handler.py                              56     34  39.29%   31-85, 90
+ciris_engine/logic/handlers/external/observe_handler.py                           108     67  37.96%   52, 75-195
+ciris_engine/logic/handlers/external/speak_handler.py                              80      6  92.50%   23, 67, 70-72, 170
+ciris_engine/logic/handlers/external/tool_handler.py                               60      0 100.00%
+ciris_engine/logic/handlers/memory/forget_handler.py                               77     14  81.82%   27-42, 84-101
+ciris_engine/logic/handlers/memory/memorize_handler.py                             63      0 100.00%
+ciris_engine/logic/handlers/memory/recall_handler.py                               49      6  87.76%   24-29, 79
+ciris_engine/logic/handlers/terminal/task_complete_handler.py                      90     75  16.67%   22-110, 114-132, 136-151, 155-184
+ciris_engine/logic/infrastructure/handlers/__init__.py                              2      0 100.00%
+ciris_engine/logic/infrastructure/handlers/action_dispatcher.py                    74     36  51.35%   36, 55-59, 62-74, 79-93, 102-109, 141, 148-166
+ciris_engine/logic/infrastructure/handlers/base_handler.py                        108     32  70.37%   45-64, 165-171, 208-211, 226-228, 232-234, 245-246
+ciris_engine/logic/infrastructure/handlers/exceptions.py                            1      0 100.00%
+ciris_engine/logic/infrastructure/handlers/handler_registry.py                     19      0 100.00%
+ciris_engine/logic/infrastructure/handlers/helpers.py                              19      2  89.47%   29, 38
+ciris_engine/logic/infrastructure/sub_services/configuration_feedback_loop.py     274    219  20.07%   16, 64-70, 82-114, 124-152, 156-178, 182-240, 244-293, 297-363, 368, 395-396, 406-424, 434-453, 457-507, 513, 519, 523-564, 568-578, 583-594, 599-612, 617-620, 624-639, 647, 652-657, 661, 665-666, 686-687
+ciris_engine/logic/infrastructure/sub_services/identity_variance_monitor.py       287    247  13.94%   54-63, 69-82, 90-150, 165-219, 231-276, 280-314, 322-388, 402-427, 434-452, 456-487, 491-510, 514-538, 542-596, 601-611, 616-622, 627-633, 637-643, 651-672, 676-698, 702-721, 725-740, 748, 753-758, 762, 766
+ciris_engine/logic/persistence/__init__.py                                          4      0 100.00%
+ciris_engine/logic/persistence/analytics.py                                        45     20  55.56%   18, 23-29, 37-45, 49, 53-54
+ciris_engine/logic/persistence/db/__init__.py                                       4      0 100.00%
+ciris_engine/logic/persistence/db/core.py                                          33      6  81.82%   34, 37, 40, 69-71
+ciris_engine/logic/persistence/db/migration_runner.py                              28      4  85.71%   43-46
+ciris_engine/logic/persistence/maintenance.py                                     170     77  54.71%   39-43, 47-48, 52-60, 64-74, 78, 82, 137-138, 145-151, 154-155, 158-159, 167-170, 173-176, 192-205, 211-224, 256, 260-265, 269-270
+ciris_engine/logic/persistence/models/__init__.py                                   7      0 100.00%
+ciris_engine/logic/persistence/models/correlations.py                             232    169  27.16%   28, 57-59, 62-88, 91-164, 168-255, 271, 282-284, 287-289, 308, 310-311, 330, 342-348, 369-371, 378-480
+ciris_engine/logic/persistence/models/deferral.py                                  37     29  21.62%   10-26, 33-62
+ciris_engine/logic/persistence/models/graph.py                                     90     46  48.89%   22-24, 48-50, 71-73, 82-84, 87-110, 113-121, 124-145
+ciris_engine/logic/persistence/models/identity.py                                  84     46  45.24%   40-57, 83-84, 95-97, 119-159, 180-221, 243, 259-261, 276-278
+ciris_engine/logic/persistence/models/tasks.py                                    163     64  60.74%   11, 18, 29-30, 43-44, 70-72, 83-86, 100-102, 123-134, 166-209, 221-223
+ciris_engine/logic/persistence/models/thoughts.py                                 152     47  69.08%   16, 27-28, 53-55, 66-69, 78-91, 104-105, 110-120, 133-134, 172, 176-178, 192-194, 215-216
+ciris_engine/logic/persistence/utils.py                                            77     31  59.74%   21-29, 50-52, 63-65, 78-85, 87-91, 95-104, 112-114
+ciris_engine/logic/processors/__init__.py                                          11      0 100.00%
+ciris_engine/logic/processors/core/base_processor.py                               86     32  62.79%   21, 41, 46, 51, 92-93, 97, 120-134, 150-165, 169, 174
+ciris_engine/logic/processors/core/main_processor.py                              528    243  53.98%   26, 60, 74, 152-165, 168-169, 176-177, 185-201, 206-207, 217-223, 253-255, 258-260, 270-274, 282-285, 304-306, 317, 338-341, 344, 351-357, 360-366, 369, 373-375, 386-392, 397-404, 432-468, 478, 481, 486-487, 494-500, 527, 537-538, 543, 562-580, 584-589, 607-613, 624-639, 645-649, 655-658, 664-666, 670-685, 694-695, 704-709, 712-717, 732, 748, 751, 754, 757, 760-763, 783-813, 826-878, 907-909, 919-921, 940-942
+ciris_engine/logic/processors/core/thought_processor.py                           341    168  50.73%   66-77, 81-94, 121, 144, 156-166, 179-186, 244-246, 254-257, 261, 272-274, 287-293, 385-392, 396, 405-406, 454, 464-503, 522-523, 529, 531-534, 536, 543, 549-558, 571-576, 584-585, 597-612, 621-627, 639-666, 676-773
+ciris_engine/logic/processors/states/dream_processor.py                           587    268  54.34%   33-36, 157-159, 166-167, 184-185, 194, 196, 294-328, 338-339, 347, 396-404, 408-412, 424-425, 439-440, 472-491, 514-523, 528-529, 572, 580, 593-596, 602, 611-612, 618-621, 630-657, 670-671, 675-705, 709-740, 744-777, 786-846, 861-862, 877-878, 892-894, 925-926, 932-961, 965-997, 1001-1023, 1028, 1058-1059, 1065, 1084-1113, 1122, 1138-1140, 1148-1149, 1237-1257
+ciris_engine/logic/processors/states/play_processor.py                             38     21  44.74%   37, 44-58, 66-83, 90-104, 116, 132-133, 137-144
+ciris_engine/logic/processors/states/shutdown_processor.py                        166    126  24.10%   29, 67, 71, 79-100, 104-184, 191-264, 269-287, 298-351, 359-363
+ciris_engine/logic/processors/states/solitude_processor.py                        159    117  26.42%   54, 58, 65-110, 119-130, 134-163, 170-201, 210-229, 234-247, 251-252, 256-262, 273-286, 290-292, 296-298, 309-311, 315-319
+ciris_engine/logic/processors/states/wakeup_processor.py                          292    162  44.52%   38-44, 64, 75, 124-125, 135-137, 141-142, 145-148, 155, 175-177, 188-210, 218-246, 250-260, 264-271, 283, 303, 335-384, 440, 448-449, 453-471, 481-502, 506-507, 511, 515, 519, 524-531, 535-536, 548
+ciris_engine/logic/processors/states/work_processor.py                            132     90  31.82%   9-11, 52, 64, 68, 72-136, 145-171, 175, 179-207, 214-222, 226, 234, 247, 252-264, 268-269, 273-285
+ciris_engine/logic/processors/support/dma_orchestrator.py                         144     65  54.86%   34, 120, 131-143, 146, 157-243, 270, 273-275, 283-284, 314-316, 321-322
+ciris_engine/logic/processors/support/processing_queue.py                          39      3  92.31%   38, 60, 64
+ciris_engine/logic/processors/support/state_manager.py                             84     12  85.71%   85, 94, 124-130, 159, 168, 177, 181-182
+ciris_engine/logic/processors/support/task_manager.py                             104     81  22.12%   14, 28-30, 41-74, 81-99, 104-107, 112-120, 124-130, 134-203, 207, 211, 215-227
+ciris_engine/logic/processors/support/thought_escalation.py                        41     27  34.15%   11, 25, 29-35, 39-45, 49-55, 59-65, 77-98, 102-108
+ciris_engine/logic/processors/support/thought_manager.py                          108     83  23.15%   33-100, 104-112, 120-149, 153, 164-179, 189-215, 224-228, 232, 236
+ciris_engine/logic/registries/__init__.py                                           3      0 100.00%
+ciris_engine/logic/registries/base.py                                             224     80  64.29%   220-221, 240-242, 258, 263-271, 289-293, 296-297, 302-305, 314-318, 340, 345, 362, 393-415, 432-436, 462-464, 468-471, 487-505, 509-514, 521-523
+ciris_engine/logic/registries/circuit_breaker.py                                   74     20  72.97%   62-63, 68, 73, 80-82, 96, 106-108, 112-115, 129-133
+ciris_engine/logic/runtime/__init__.py                                              3      0 100.00%
+ciris_engine/logic/runtime/adapter_manager.py                                     226    226   0.00%   8-514
+ciris_engine/logic/runtime/ciris_runtime.py                                       541    279  48.43%   84, 88-89, 92, 130, 142, 150, 154, 159, 163, 167, 176-182, 204-205, 210, 218-219, 233, 237-238, 242, 268-272, 278, 395-396, 413-414, 416-417, 419-420, 432-433, 446, 451-453, 467-468, 485, 490-491, 501, 523, 553-562, 567-568, 581, 591, 599-600, 615-623, 640-647, 658-764, 769-946, 950-1004
+ciris_engine/logic/runtime/component_builder.py                                    72      7  90.28%   49, 52, 95, 121, 210, 227, 229
+ciris_engine/logic/runtime/identity_manager.py                                     78     40  48.72%   43-61, 67-68, 79-82, 86-97, 102-118, 162-163, 169-170
+ciris_engine/logic/runtime/modular_service_loader.py                              116    116   0.00%   7-189
+ciris_engine/logic/runtime/module_loader.py                                        98     98   0.00%   7-169
+ciris_engine/logic/runtime/runtime_interface.py                                     1      0 100.00%
+ciris_engine/logic/runtime/service_initializer.py                                 335     84  74.93%   137-143, 148-187, 209-215, 241-242, 276-277, 285-287, 317-318, 322-323, 327-328, 350-376, 499-501, 508, 513-515, 562, 693-694, 698-699, 703-705, 714-746, 751, 804-805
+ciris_engine/logic/secrets/__init__.py                                              7      0 100.00%
+ciris_engine/logic/secrets/encryption.py                                           65     27  58.46%   32, 111-121, 125, 139-150, 159-173
+ciris_engine/logic/secrets/filter.py                                              112     58  48.21%   47-48, 70, 91-92, 129, 134-140, 144-153, 158-162, 168, 173-182, 194-204, 219-238, 243-258, 267-273, 277
+ciris_engine/logic/secrets/service.py                                             201    104  48.26%   162, 187-199, 208-221, 225-264, 356, 367-382, 386, 390, 406-409, 415-419, 424-434, 458-459, 464-466, 470-502, 518-519, 524-531, 547-548, 556, 560-562
+ciris_engine/logic/secrets/store.py                                               167     35  79.04%   78, 230-233, 365-366, 369-370, 492, 496, 500, 504-510, 514-543, 554-555, 572-574, 590-592, 596
+ciris_engine/logic/services/adaptation/__init__.py                                  0      0 100.00%
+ciris_engine/logic/services/adaptation/self_configuration.py                      235    175  25.53%   17, 88-110, 114-125, 129-158, 166-188, 194-214, 223-273, 285-299, 303-322, 330-347, 351-380, 384-401, 406-413, 418-430, 434-444, 448, 466, 488, 499-539, 547-558, 566-596, 608-626, 635-663
+ciris_engine/logic/services/governance/__init__.py                                  0      0 100.00%
+ciris_engine/logic/services/governance/filter.py                                  279    201  27.96%   52, 71, 188-250, 269-318, 322-335, 341, 345-366, 370-377, 381-387, 391-395, 399-405, 409-423, 427-434, 438-450, 455, 458, 469-471, 475-493, 504-522, 526-544, 548-549, 564-565, 582
+ciris_engine/logic/services/governance/visibility.py                              162     19  88.27%   109-110, 120-121, 141, 193, 222-226, 235-236, 297-301, 339, 347-348
+ciris_engine/logic/services/governance/wise_authority.py                          131     13  90.08%   73, 134, 209, 275-277, 303, 312-313, 361-363, 388
+ciris_engine/logic/services/graph/__init__.py                                       3      0 100.00%
+ciris_engine/logic/services/graph/audit_service.py                                414    191  53.86%   26, 45-47, 95, 128-134, 158, 162-166, 183-184, 229-232, 298, 339, 343-344, 371-373, 391, 404-412, 418-420, 441-443, 489-495, 528-537, 543-546, 550-585, 634-635, 688, 701-703, 708, 715, 776, 788, 794, 828, 835-840, 844-857, 861-866, 870-896, 900-936, 941, 958, 971-994, 999-1042, 1068-1076, 1089-1097, 1112-1147
+ciris_engine/logic/services/graph/base.py                                          54     25  53.70%   18, 46, 50, 64, 76, 88, 99-109, 120-138
+ciris_engine/logic/services/graph/config_service.py                                98      5  94.90%   69, 90-91, 104, 196
+ciris_engine/logic/services/graph/incident_service.py                             234     20  91.45%   69, 118, 125-127, 138-139, 159-160, 184, 204, 210, 334, 359, 378, 404, 470, 476, 522, 527
+ciris_engine/logic/services/graph/memory_service.py                               276     69  75.00%   39, 61-63, 92-94, 108-110, 128, 150-151, 166, 170, 172, 176, 182-202, 207, 211, 213, 217, 224, 268-269, 299, 321, 325, 329, 357-359, 424-426, 432-484, 502, 520-521, 546-548, 615-616, 620-621, 625, 629
+ciris_engine/logic/services/graph/telemetry_service.py                            330     98  70.30%   102-116, 121, 140-141, 153, 180, 183, 243-244, 261-262, 269, 290, 298, 330, 349-351, 369-413, 417, 430-472, 513-515, 524-540, 553-567, 579-593, 626-629, 633-637, 682-683, 742
+ciris_engine/logic/services/graph/tsdb_consolidation_service.py                   245     69  71.84%   20, 76-89, 94, 104-105, 124-125, 150-151, 154, 192, 197, 202, 206-208, 213, 234-235, 275, 285, 287-288, 335-336, 354, 397, 416-423, 427, 468-469, 482, 500-504, 511-515, 519-537
+ciris_engine/logic/services/infrastructure/authentication.py                      552    263  52.36%   97-100, 186, 190-223, 237-259, 306, 337, 341, 343, 346, 371, 432, 451-452, 475, 486-500, 515, 520, 529-535, 542, 560-563, 614-642, 653-676, 684-686, 715-716, 721-722, 734-762, 766-776, 780-796, 809-834, 838, 842-856, 861-875, 879-932, 948-1017, 1021, 1027-1028, 1032, 1041, 1046-1047, 1056-1108, 1117-1147, 1155-1177, 1188-1202, 1211-1212, 1216, 1224, 1228, 1256-1281, 1314-1315, 1349, 1356-1357
+ciris_engine/logic/services/infrastructure/resource_monitor.py                    129      4  96.90%   86, 94, 149, 163
+ciris_engine/logic/services/lifecycle/__init__.py                                   0      0 100.00%
+ciris_engine/logic/services/lifecycle/initialization.py                           129     11  91.47%   96, 152, 176-184, 193, 223-224
+ciris_engine/logic/services/lifecycle/scheduler.py                                201    133  33.83%   41-43, 84-90, 102-103, 116, 140, 146-147, 154-155, 162-178, 182-225, 229-264, 268-284, 288-291, 317-348, 360-367, 371-384, 403-415, 424-431, 438-439, 453-455, 478-488, 500-510, 514
+ciris_engine/logic/services/lifecycle/shutdown.py                                 116     45  61.21%   37-39, 82, 149-153, 170-171, 175-186, 190-192, 196, 213-253
+ciris_engine/logic/services/lifecycle/time.py                                      26      1  96.15%   60
+ciris_engine/logic/services/memory_service/__init__.py                              2      0 100.00%
+ciris_engine/logic/services/runtime/__init__.py                                     0      0 100.00%
+ciris_engine/logic/services/runtime/llm_service.py                                179     57  68.16%   39, 86-87, 106, 134, 152, 157-181, 235-256, 264, 270, 286-287, 297-298, 314-315, 318-319, 324-331, 365-367
+ciris_engine/logic/services/tools/__init__.py                                       2      0 100.00%
+ciris_engine/logic/services/tools/secrets_tool_service.py                         137     39  71.53%   77, 90, 94-97, 108-110, 117, 125, 130-148, 152-154, 237, 255, 261, 266, 270, 274-277, 281, 298
+ciris_engine/logic/telemetry/__init__.py                                            6      6   0.00%   14-29
+ciris_engine/logic/telemetry/core.py                                               96     96   0.00%   1-178
+ciris_engine/logic/telemetry/hot_cold_config.py                                    38     38   0.00%   8-124
+ciris_engine/logic/telemetry/log_collector.py                                      81     81   0.00%   8-177
+ciris_engine/logic/telemetry/resource_monitor.py                                    2      2   0.00%   4-9
+ciris_engine/logic/telemetry/security.py                                           57     57   0.00%   1-82
+ciris_engine/logic/utils/__init__.py                                                5      0 100.00%
+ciris_engine/logic/utils/channel_utils.py                                          24      6  75.00%   22, 25, 33, 35, 37, 65
+ciris_engine/logic/utils/constants.py                                              21      3  85.71%   20-22
+ciris_engine/logic/utils/context_utils.py                                          62     17  72.58%   6, 45-46, 54, 67-69, 89, 93-95, 99, 109-113
+ciris_engine/logic/utils/graphql_context_provider.py                               89     30  66.29%   17-18, 21-38, 47, 61, 69, 83-98, 107, 142-143
+ciris_engine/logic/utils/incident_capture_handler.py                               82     27  67.07%   22, 58-60, 71, 92-96, 100-145, 149-156, 160-166, 187
+ciris_engine/logic/utils/initialization_manager.py                                 28      8  71.43%   37-38, 42-43, 47-48, 52-53
+ciris_engine/logic/utils/logging_config.py                                         64     14  78.12%   41-43, 46, 66, 79-80, 111-117
+ciris_engine/logic/utils/profile_loader.py                                         69     69   0.00%   1-98
+ciris_engine/logic/utils/profile_manager.py                                         3      3   0.00%   7-11
+ciris_engine/logic/utils/runtime_utils.py                                          38     28  26.32%   15, 22-56
+ciris_engine/logic/utils/shutdown_manager.py                                       44     11  75.00%   48-49, 53-54, 58-60, 69, 73-74, 80
+ciris_engine/logic/utils/task_formatters.py                                        25     25   0.00%   3-57
+ciris_engine/logic/utils/user_utils.py                                             36     33   8.33%   14-56
+ciris_engine/protocols/__init__.py                                                  0      0 100.00%
+ciris_engine/protocols/adapters/__init__.py                                         0      0 100.00%
+ciris_engine/protocols/adapters/base.py                                             9      9   0.00%   7-135
+ciris_engine/protocols/audit/__init__.py                                            0      0 100.00%
+ciris_engine/protocols/buses/__init__.py                                            0      0 100.00%
+ciris_engine/protocols/config/__init__.py                                           0      0 100.00%
+ciris_engine/protocols/conscience/__init__.py                                       0      0 100.00%
+ciris_engine/protocols/context/__init__.py                                          0      0 100.00%
+ciris_engine/protocols/data/__init__.py                                             0      0 100.00%
+ciris_engine/protocols/dma/__init__.py                                              0      0 100.00%
+ciris_engine/protocols/dma/base.py                                                 13      0 100.00%
+ciris_engine/protocols/faculties.py                                                 2      0 100.00%
+ciris_engine/protocols/formatters/__init__.py                                       0      0 100.00%
+ciris_engine/protocols/handlers/__init__.py                                         0      0 100.00%
+ciris_engine/protocols/infrastructure/__init__.py                                   0      0 100.00%
+ciris_engine/protocols/infrastructure/base.py                                      12     12   0.00%   7-235
+ciris_engine/protocols/persistence/__init__.py                                      0      0 100.00%
+ciris_engine/protocols/processors/__init__.py                                       3      3   0.00%   9-18
+ciris_engine/protocols/processors/agent.py                                          3      3   0.00%   11-13
+ciris_engine/protocols/processors/base.py                                           4      4   0.00%   8-12
+ciris_engine/protocols/registries/__init__.py                                       0      0 100.00%
+ciris_engine/protocols/runtime/__init__.py                                          0      0 100.00%
+ciris_engine/protocols/runtime/base.py                                             10      7  30.00%   11-17
+ciris_engine/protocols/secrets/__init__.py                                          0      0 100.00%
+ciris_engine/protocols/services/__init__.py                                        10      0 100.00%
+ciris_engine/protocols/services/adaptation/__init__.py                              2      0 100.00%
+ciris_engine/protocols/services/adaptation/self_configuration.py                    7      2  71.43%   16-19
+ciris_engine/protocols/services/governance/__init__.py                              6      0 100.00%
+ciris_engine/protocols/services/governance/communication.py                         4      0 100.00%
+ciris_engine/protocols/services/governance/filter.py                                4      0 100.00%
+ciris_engine/protocols/services/governance/visibility.py                            4      0 100.00%
+ciris_engine/protocols/services/governance/wa_auth.py                               4      0 100.00%
+ciris_engine/protocols/services/governance/wise_authority.py                        6      0 100.00%
+ciris_engine/protocols/services/graph/__init__.py                                   6      0 100.00%
+ciris_engine/protocols/services/graph/audit.py                                      7      0 100.00%
+ciris_engine/protocols/services/graph/config.py                                     5      1  80.00%   9
+ciris_engine/protocols/services/graph/incident.py                                   4      4   0.00%   8-14
+ciris_engine/protocols/services/graph/memory.py                                     7      0 100.00%
+ciris_engine/protocols/services/graph/telemetry.py                                  4      0 100.00%
+ciris_engine/protocols/services/graph/tsdb_consolidation.py                         5      5   0.00%   8-14
+ciris_engine/protocols/services/infrastructure/__init__.py                          3      0 100.00%
+ciris_engine/protocols/services/infrastructure/authentication.py                    8      2  75.00%   19-20
+ciris_engine/protocols/services/infrastructure/resource_monitor.py                  4      1  75.00%   14
+ciris_engine/protocols/services/lifecycle/__init__.py                               5      0 100.00%
+ciris_engine/protocols/services/lifecycle/initialization.py                         5      0 100.00%
+ciris_engine/protocols/services/lifecycle/scheduler.py                              5      0 100.00%
+ciris_engine/protocols/services/lifecycle/shutdown.py                               3      0 100.00%
+ciris_engine/protocols/services/lifecycle/time.py                                   4      0 100.00%
+ciris_engine/protocols/services/runtime/__init__.py                                 5      0 100.00%
+ciris_engine/protocols/services/runtime/llm.py                                      8      0 100.00%
+ciris_engine/protocols/services/runtime/runtime_control.py                          5      0 100.00%
+ciris_engine/protocols/services/runtime/secrets.py                                  6      0 100.00%
+ciris_engine/protocols/services/runtime/tool.py                                     3      0 100.00%
+ciris_engine/protocols/telemetry/__init__.py                                        0      0 100.00%
+ciris_engine/protocols/utils/__init__.py                                            0      0 100.00%
+ciris_engine/schemas/__init__.py                                                    8      0 100.00%
+ciris_engine/schemas/actions/__init__.py                                            2      0 100.00%
+ciris_engine/schemas/actions/parameters.py                                         58      1  98.28%   98
+ciris_engine/schemas/adapters/__init__.py                                           2      0 100.00%
+ciris_engine/schemas/adapters/cirisnode.py                                         66      0 100.00%
+ciris_engine/schemas/adapters/cli.py                                               49      0 100.00%
+ciris_engine/schemas/adapters/cli_tools.py                                         42     42   0.00%   6-71
+ciris_engine/schemas/adapters/graphql_core.py                                      58      0 100.00%
+ciris_engine/schemas/adapters/registration.py                                      15      1  93.33%   35
+ciris_engine/schemas/adapters/tools.py                                             36      0 100.00%
+ciris_engine/schemas/api/auth.py                                                  125      9  92.80%   138, 148-150, 166-172
+ciris_engine/schemas/api/config_security.py                                        86     29  66.28%   77, 82, 108-119, 137-144, 162-176, 189, 208
+ciris_engine/schemas/api/responses.py                                              31      0 100.00%
+ciris_engine/schemas/api/wa.py                                                     18      0 100.00%
+ciris_engine/schemas/audit/__init__.py                                              2      0 100.00%
+ciris_engine/schemas/audit/core.py                                                 78      0 100.00%
+ciris_engine/schemas/audit/hash_chain.py                                           28      0 100.00%
+ciris_engine/schemas/audit/verification.py                                         67      0 100.00%
+ciris_engine/schemas/buses/__init__.py                                              0      0 100.00%
+ciris_engine/schemas/config/__init__.py                                             3      0 100.00%
+ciris_engine/schemas/config/agent.py                                               14      0 100.00%
+ciris_engine/schemas/config/essential.py                                           56      0 100.00%
+ciris_engine/schemas/conscience/__init__.py                                         3      0 100.00%
+ciris_engine/schemas/conscience/core.py                                            53      0 100.00%
+ciris_engine/schemas/conscience/results.py                                         11      0 100.00%
+ciris_engine/schemas/context/__init__.py                                            0      0 100.00%
+ciris_engine/schemas/data/__init__.py                                               0      0 100.00%
+ciris_engine/schemas/dma/__init__.py                                                2      0 100.00%
+ciris_engine/schemas/dma/core.py                                                  101     15  85.15%   63-66, 71-73, 78, 87-94, 99-101
+ciris_engine/schemas/dma/decisions.py                                              29      0 100.00%
+ciris_engine/schemas/dma/results.py                                                31      0 100.00%
+ciris_engine/schemas/formatters/__init__.py                                         0      0 100.00%
+ciris_engine/schemas/handlers/__init__.py                                           2      0 100.00%
+ciris_engine/schemas/handlers/context.py                                           50     50   0.00%   6-84
+ciris_engine/schemas/handlers/contexts.py                                          47      0 100.00%
+ciris_engine/schemas/handlers/core.py                                              86      0 100.00%
+ciris_engine/schemas/handlers/schemas.py                                           19      0 100.00%
+ciris_engine/schemas/infrastructure/__init__.py                                     0      0 100.00%
+ciris_engine/schemas/infrastructure/base.py                                       144    144   0.00%   6-185
+ciris_engine/schemas/infrastructure/behavioral_patterns.py                         80      7  91.25%   22, 36, 51, 66, 82, 99, 113
+ciris_engine/schemas/infrastructure/feedback_loop.py                               32      0 100.00%
+ciris_engine/schemas/infrastructure/identity_variance.py                           47      0 100.00%
+ciris_engine/schemas/infrastructure/oauth.py                                       61     61   0.00%   6-86
+ciris_engine/schemas/infrastructure/wa_cli_wizard.py                               26     26   0.00%   6-41
+ciris_engine/schemas/persistence/__init__.py                                        2      0 100.00%
+ciris_engine/schemas/persistence/core.py                                           71      0 100.00%
+ciris_engine/schemas/persistence/tables.py                                         12      0 100.00%
+ciris_engine/schemas/processors/__init__.py                                         2      0 100.00%
+ciris_engine/schemas/processors/base.py                                            26      0 100.00%
+ciris_engine/schemas/processors/cognitive.py                                       39      0 100.00%
+ciris_engine/schemas/processors/core.py                                            43      2  95.35%   50, 66
+ciris_engine/schemas/processors/dma.py                                             54      8  85.19%   48-55
+ciris_engine/schemas/processors/main.py                                            66     66   0.00%   6-89
+ciris_engine/schemas/processors/results.py                                         31      0 100.00%
+ciris_engine/schemas/processors/solitude.py                                        42      0 100.00%
+ciris_engine/schemas/processors/states.py                                           9      0 100.00%
+ciris_engine/schemas/processors/status.py                                          17      0 100.00%
+ciris_engine/schemas/registries/__init__.py                                         0      0 100.00%
+ciris_engine/schemas/registries/base.py                                            30     30   0.00%   6-47
+ciris_engine/schemas/runtime/__init__.py                                            0      0 100.00%
+ciris_engine/schemas/runtime/adapter_management.py                                 43      0 100.00%
+ciris_engine/schemas/runtime/audit.py                                              27      0 100.00%
+ciris_engine/schemas/runtime/contexts.py                                           27      0 100.00%
+ciris_engine/schemas/runtime/core.py                                               72      0 100.00%
+ciris_engine/schemas/runtime/enums.py                                              89      1  98.88%   17
+ciris_engine/schemas/runtime/extended.py                                          117      0 100.00%
+ciris_engine/schemas/runtime/memory.py                                             32      0 100.00%
+ciris_engine/schemas/runtime/messages.py                                           32      0 100.00%
+ciris_engine/schemas/runtime/models.py                                             62      0 100.00%
+ciris_engine/schemas/runtime/processing_context.py                                 12      0 100.00%
+ciris_engine/schemas/runtime/protocols_core.py                                     48      0 100.00%
+ciris_engine/schemas/runtime/resources.py                                          13      0 100.00%
+ciris_engine/schemas/runtime/system_context.py                                    128      1  99.22%   231
+ciris_engine/schemas/secrets/__init__.py                                            0      0 100.00%
+ciris_engine/schemas/secrets/core.py                                              136      0 100.00%
+ciris_engine/schemas/secrets/service.py                                            40      0 100.00%
+ciris_engine/schemas/services/__init__.py                                           3      0 100.00%
+ciris_engine/schemas/services/authority/__init__.py                                 0      0 100.00%
+ciris_engine/schemas/services/authority/wise_authority.py                          85      0 100.00%
+ciris_engine/schemas/services/authority_core.py                                   160      3  98.12%   75-76, 87
+ciris_engine/schemas/services/capabilities.py                                      27      0 100.00%
+ciris_engine/schemas/services/community_core.py                                    44     44   0.00%   7-72
+ciris_engine/schemas/services/context.py                                           58      0 100.00%
+ciris_engine/schemas/services/core/__init__.py                                     76      5  93.42%   12, 61-77, 82
+ciris_engine/schemas/services/core/runtime.py                                     141      0 100.00%
+ciris_engine/schemas/services/core/runtime_config.py                               55      0 100.00%
+ciris_engine/schemas/services/core/secrets.py                                      40      0 100.00%
+ciris_engine/schemas/services/discord_nodes.py                                     51      0 100.00%
+ciris_engine/schemas/services/feedback_core.py                                     66      0 100.00%
+ciris_engine/schemas/services/filters_core.py                                     125      0 100.00%
+ciris_engine/schemas/services/graph/__init__.py                                     0      0 100.00%
+ciris_engine/schemas/services/graph/audit.py                                       50      0 100.00%
+ciris_engine/schemas/services/graph/incident.py                                   130      0 100.00%
+ciris_engine/schemas/services/graph/memory.py                                      40      0 100.00%
+ciris_engine/schemas/services/graph/node_data.py                                   91     91   0.00%   6-158
+ciris_engine/schemas/services/graph/telemetry.py                                   47      0 100.00%
+ciris_engine/schemas/services/graph/tsdb_consolidation.py                          12     12   0.00%   7-33
+ciris_engine/schemas/services/graph_core.py                                        63      0 100.00%
+ciris_engine/schemas/services/graph_typed_nodes.py                                 60     17  71.67%   62, 72, 85, 90, 105, 109, 111, 118, 127-139
+ciris_engine/schemas/services/lifecycle/__init__.py                                 2      0 100.00%
+ciris_engine/schemas/services/lifecycle/initialization.py                          20      1  95.00%   21
+ciris_engine/schemas/services/lifecycle/time.py                                    18      0 100.00%
+ciris_engine/schemas/services/llm.py                                               49      0 100.00%
+ciris_engine/schemas/services/metadata.py                                          14      0 100.00%
+ciris_engine/schemas/services/nodes.py                                            200     27  86.50%   83-102, 186, 192, 255-290, 303-305, 498-531, 547-550, 593-596
+ciris_engine/schemas/services/operations.py                                        51      0 100.00%
+ciris_engine/schemas/services/requests.py                                          50      0 100.00%
+ciris_engine/schemas/services/resources_core.py                                    99     15  84.85%   124-130, 134-138, 143, 148, 153
+ciris_engine/schemas/services/shutdown.py                                          42      0 100.00%
+ciris_engine/schemas/services/special/__init__.py                                   0      0 100.00%
+ciris_engine/schemas/services/special/self_configuration.py                       170      0 100.00%
+ciris_engine/schemas/services/visibility.py                                        45      0 100.00%
+ciris_engine/schemas/telemetry/__init__.py                                          0      0 100.00%
+ciris_engine/schemas/telemetry/collector.py                                        34     34   0.00%   6-51
+ciris_engine/schemas/telemetry/core.py                                            118      0 100.00%
+ciris_engine/schemas/utils/__init__.py                                              0      0 100.00%
+ciris_engine/schemas/utils/config_validator.py                                     23     23   0.00%   6-40
+--------------------------------------------------------------------------------------------------------------
+TOTAL                                                                           27618  11670  57.74%
+Coverage HTML written to dir htmlcov
+========== 751 passed, 62 skipped, 121 warnings in 237.85s (0:03:57) ===========

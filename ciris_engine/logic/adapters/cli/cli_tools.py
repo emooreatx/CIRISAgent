@@ -1,14 +1,12 @@
 import os
 import asyncio
 import uuid
-from datetime import datetime
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from ciris_engine.schemas.adapters.cli_tools import (
-    ToolParameters, ListFilesParams, ListFilesResult,
-    ReadFileParams, ReadFileResult, WriteFileParams, WriteFileResult,
-    ShellCommandParams, ShellCommandResult, SearchTextParams, SearchTextResult,
-    SearchMatch
+    ListFilesParams, ListFilesResult, ReadFileParams,
+    ReadFileResult, WriteFileParams, WriteFileResult, ShellCommandParams,
+    ShellCommandResult, SearchTextParams, SearchTextResult, SearchMatch
 )
 from ciris_engine.schemas.telemetry.core import (
     ServiceCorrelation,
@@ -19,7 +17,9 @@ from ciris_engine.logic import persistence
 
 from ciris_engine.protocols.services import ToolService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.schemas.adapters.tools import ToolExecutionResult, ToolExecutionStatus, ToolInfo, ToolParameterSchema, ToolResult
+from ciris_engine.schemas.adapters.tools import (
+    ToolExecutionResult, ToolExecutionStatus, ToolInfo, ToolParameterSchema
+)
 
 class CLIToolService(ToolService):
     """Simple ToolService providing local filesystem browsing."""
@@ -59,7 +59,7 @@ class CLIToolService(ToolService):
         persistence.add_correlation(corr)
 
         start_time = self._time_service.timestamp()
-        
+
         if tool_name not in self._tools:
             result = {"error": f"Unknown tool: {tool_name}"}
             success = False
@@ -74,7 +74,7 @@ class CLIToolService(ToolService):
                 success = False
                 error_msg = str(e)
 
-        execution_time = (self._time_service.timestamp() - start_time) * 1000  # milliseconds
+        _execution_time = (self._time_service.timestamp() - start_time) * 1000  # milliseconds
 
         tool_result = ToolExecutionResult(
             tool_name=tool_name,
@@ -102,7 +102,7 @@ class CLIToolService(ToolService):
         """List files using typed parameters."""
         # Parse parameters
         list_params = ListFilesParams.model_validate(params)
-        
+
         try:
             files = sorted(os.listdir(list_params.path))
             result = ListFilesResult(files=files, path=list_params.path)
@@ -116,12 +116,12 @@ class CLIToolService(ToolService):
         try:
             # Parse and validate parameters
             read_params = ReadFileParams.model_validate(params)
-            
+
             with open(read_params.path, "r") as f:
                 content = f.read()
                 result = ReadFileResult(content=content, path=read_params.path)
                 return result.model_dump()
-        except ValueError as e:
+        except ValueError:
             # Parameter validation error
             result = ReadFileResult(error="path parameter required")
             return result.model_dump()
@@ -134,11 +134,11 @@ class CLIToolService(ToolService):
         try:
             # Parse and validate parameters
             write_params = WriteFileParams.model_validate(params)
-            
+
             await asyncio.to_thread(self._write_file_sync, write_params.path, write_params.content)
             result = WriteFileResult(status="written", path=write_params.path)
             return result.model_dump()
-        except ValueError as e:
+        except ValueError:
             # Parameter validation error
             result = WriteFileResult(error="path parameter required")
             return result.model_dump()
@@ -155,21 +155,21 @@ class CLIToolService(ToolService):
         try:
             # Parse and validate parameters
             shell_params = ShellCommandParams.model_validate(params)
-            
+
             proc = await asyncio.create_subprocess_shell(
-                shell_params.command, 
-                stdout=asyncio.subprocess.PIPE, 
+                shell_params.command,
+                stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await proc.communicate()
-            
+
             result = ShellCommandResult(
                 stdout=stdout.decode(),
                 stderr=stderr.decode(),
                 returncode=proc.returncode
             )
             return result.model_dump()
-        except ValueError as e:
+        except ValueError:
             # Parameter validation error
             result = ShellCommandResult(error="command parameter required")
             return result.model_dump()
@@ -182,16 +182,16 @@ class CLIToolService(ToolService):
         try:
             # Parse and validate parameters
             search_params = SearchTextParams.model_validate(params)
-            
+
             matches: List[SearchMatch] = []
             lines = await asyncio.to_thread(self._read_lines_sync, search_params.path)
             for idx, line in enumerate(lines, 1):
                 if search_params.pattern in line:
                     matches.append(SearchMatch(line=idx, text=line.strip()))
-            
+
             result = SearchTextResult(matches=matches)
             return result.model_dump()
-        except ValueError as e:
+        except ValueError:
             # Parameter validation error
             result = SearchTextResult(error="pattern and path required")
             return result.model_dump()
@@ -215,3 +215,51 @@ class CLIToolService(ToolService):
 
     async def validate_parameters(self, tool_name: str, parameters: dict) -> bool:
         return tool_name in self._tools
+
+    async def list_tools(self) -> List[str]:
+        """List available tools - required by ToolServiceProtocol."""
+        return list(self._tools.keys())
+
+    async def get_tool_schema(self, tool_name: str) -> Optional[ToolParameterSchema]:
+        """Get parameter schema for a specific tool - required by ToolServiceProtocol."""
+        # Define schemas for each tool
+        schemas = {
+            "list_files": ToolParameterSchema(
+                type="object",
+                properties={
+                    "path": {"type": "string", "description": "Directory path to list files from", "default": "."}
+                },
+                required=[]
+            ),
+            "read_file": ToolParameterSchema(
+                type="object",
+                properties={
+                    "path": {"type": "string", "description": "File path to read"}
+                },
+                required=["path"]
+            ),
+            "write_file": ToolParameterSchema(
+                type="object",
+                properties={
+                    "path": {"type": "string", "description": "File path to write"},
+                    "content": {"type": "string", "description": "Content to write to file"}
+                },
+                required=["path", "content"]
+            ),
+            "shell_command": ToolParameterSchema(
+                type="object",
+                properties={
+                    "command": {"type": "string", "description": "Shell command to execute"}
+                },
+                required=["command"]
+            ),
+            "search_text": ToolParameterSchema(
+                type="object",
+                properties={
+                    "path": {"type": "string", "description": "Directory path to search in"},
+                    "pattern": {"type": "string", "description": "Text pattern to search for"}
+                },
+                required=["path", "pattern"]
+            )
+        }
+        return schemas.get(tool_name)

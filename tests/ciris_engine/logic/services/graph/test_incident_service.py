@@ -20,14 +20,14 @@ def mock_memory_bus():
     mock = Mock()
     mock.memorize = AsyncMock(return_value=MemoryOpResult(status=MemoryOpStatus.OK))
     mock.recall = AsyncMock(return_value=[])
-    
+
     # Mock the service registry for direct memory service access
     mock_registry = Mock()
     mock_memory_service = Mock()
     mock_memory_service.search = AsyncMock(return_value=[])
     mock_registry.get_service = Mock(return_value=mock_memory_service)
     mock._service_registry = mock_registry
-    
+
     return mock
 
 
@@ -56,7 +56,7 @@ async def test_incident_service_lifecycle(incident_service):
     # Start
     await incident_service.start()
     assert incident_service._started is True
-    
+
     # Stop
     await incident_service.stop()
     assert incident_service._started is False
@@ -67,7 +67,7 @@ async def test_incident_service_process_recent_incidents(incident_service, mock_
     """Test processing recent incidents to generate insights."""
     # Create typed IncidentNode instances
     current_time = mock_time_service.now()
-    
+
     incident1 = IncidentNode(
         id="inc1",
         type=NodeType.AUDIT_ENTRY,
@@ -84,7 +84,7 @@ async def test_incident_service_process_recent_incidents(incident_service, mock_
         updated_by="test",
         updated_at=current_time
     )
-    
+
     incident2 = IncidentNode(
         id="inc2",
         type=NodeType.AUDIT_ENTRY,
@@ -101,7 +101,7 @@ async def test_incident_service_process_recent_incidents(incident_service, mock_
         updated_by="test",
         updated_at=current_time
     )
-    
+
     incident3 = IncidentNode(
         id="inc3",
         type=NodeType.AUDIT_ENTRY,
@@ -118,27 +118,27 @@ async def test_incident_service_process_recent_incidents(incident_service, mock_
         updated_by="test",
         updated_at=current_time
     )
-    
+
     # Convert to GraphNodes for mock return
     mock_incident_nodes = [
         incident1.to_graph_node(),
         incident2.to_graph_node(),
         incident3.to_graph_node()
     ]
-    
+
     # Mock the memory service search to return incidents
     mock_memory_service = mock_memory_bus._service_registry.get_service()
     mock_memory_service.search = AsyncMock(return_value=mock_incident_nodes)
-    
+
     # Process incidents
     insight = await incident_service.process_recent_incidents(hours=24)
-    
+
     assert insight is not None
     assert isinstance(insight, IncidentInsightNode)
     assert insight.insight_type == "PERIODIC_ANALYSIS"
     assert len(insight.source_incidents) == 3
     assert insight.details["incident_count"] == 3
-    
+
     # With only 3 incidents, no patterns detected, so no recommendations
     # This is correct behavior - we need more incidents to detect patterns
     assert len(insight.behavioral_adjustments) == 0
@@ -150,7 +150,7 @@ async def test_incident_service_pattern_detection(incident_service, mock_memory_
     """Test pattern detection in incidents."""
     # Create incidents with patterns
     current_time = mock_time_service.now()
-    
+
     similar_incident_nodes = []
     for i in range(5):
         incident = IncidentNode(
@@ -170,13 +170,13 @@ async def test_incident_service_pattern_detection(incident_service, mock_memory_
             updated_at=current_time
         )
         similar_incident_nodes.append(incident.to_graph_node())
-    
+
     mock_memory_service = mock_memory_bus._service_registry.get_service()
     mock_memory_service.search = AsyncMock(return_value=similar_incident_nodes)
-    
+
     # Process to detect patterns
     insight = await incident_service.process_recent_incidents(hours=24)
-    
+
     # Should detect the recurring pattern
     assert insight.details["pattern_count"] > 0
     assert "timeout" in str(insight.behavioral_adjustments).lower() or \
@@ -189,22 +189,22 @@ async def test_incident_service_no_incidents(incident_service, mock_memory_bus):
     # Mock empty search result
     mock_memory_service = mock_memory_bus._service_registry.get_service()
     mock_memory_service.search = AsyncMock(return_value=[])
-    
+
     # Process incidents
     insight = await incident_service.process_recent_incidents(hours=24)
-    
+
     assert insight is not None
     assert insight.details["incident_count"] == 0
     assert insight.summary.startswith("No incidents detected")
 
 
-@pytest.mark.asyncio 
+@pytest.mark.asyncio
 async def test_incident_service_time_clusters(incident_service, mock_memory_bus, mock_time_service):
     """Test detection of time-based incident clusters."""
     # Create a cluster of incidents
     current_time = mock_time_service.now()
     base_time = current_time - timedelta(hours=2)
-    
+
     cluster_incident_nodes = []
     for i in range(5):
         incident = IncidentNode(
@@ -224,13 +224,13 @@ async def test_incident_service_time_clusters(incident_service, mock_memory_bus,
             updated_at=current_time
         )
         cluster_incident_nodes.append(incident.to_graph_node())
-    
+
     mock_memory_service = mock_memory_bus._service_registry.get_service()
     mock_memory_service.search = AsyncMock(return_value=cluster_incident_nodes)
-    
+
     # Process incidents
     insight = await incident_service.process_recent_incidents(hours=24)
-    
+
     # Should detect time clustering
     assert insight.details["incident_count"] == 5
     assert len(insight.behavioral_adjustments) > 0 or len(insight.configuration_changes) > 0
@@ -239,7 +239,7 @@ async def test_incident_service_time_clusters(incident_service, mock_memory_bus,
 def test_incident_service_capabilities(incident_service):
     """Test IncidentService.get_capabilities() returns correct info."""
     caps = incident_service.get_capabilities()
-    
+
     assert isinstance(caps, ServiceCapabilities)
     assert caps.service_name == "IncidentManagementService"
     assert "process_recent_incidents" in caps.actions
@@ -254,7 +254,7 @@ def test_incident_service_capabilities(incident_service):
 def test_incident_service_status(incident_service):
     """Test IncidentService.get_status() returns correct status."""
     status = incident_service.get_status()
-    
+
     assert isinstance(status, ServiceStatus)
     assert status.service_name == "IncidentManagementService"
     assert status.service_type == "graph_service"
@@ -266,10 +266,10 @@ async def test_incident_service_error_handling(incident_service, mock_memory_bus
     # Make search raise an error
     mock_memory_service = mock_memory_bus._service_registry.get_service()
     mock_memory_service.search.side_effect = Exception("Database error")
-    
+
     # Should handle error gracefully
     insight = await incident_service.process_recent_incidents(hours=24)
-    
+
     # Should return no incidents insight
     assert insight is not None
     assert insight.details["incident_count"] == 0
@@ -280,7 +280,7 @@ async def test_incident_service_problem_creation(incident_service, mock_memory_b
     """Test problem node creation from incident patterns."""
     # Create many similar incidents
     current_time = mock_time_service.now()
-    
+
     incident_nodes = []
     # Create 10 timeout errors (should trigger pattern detection)
     for i in range(10):
@@ -301,18 +301,18 @@ async def test_incident_service_problem_creation(incident_service, mock_memory_b
             updated_at=current_time
         )
         incident_nodes.append(incident.to_graph_node())
-    
+
     mock_memory_service = mock_memory_bus._service_registry.get_service()
     mock_memory_service.search = AsyncMock(return_value=incident_nodes)
-    
+
     # Process incidents
     insight = await incident_service.process_recent_incidents(hours=24)
-    
+
     # Should have detected patterns and created problems
     assert insight.details["pattern_count"] > 0
     assert insight.details["problem_count"] > 0
     assert len(insight.source_problems) > 0
-    
+
     # Check that problem nodes were memorized
     assert mock_memory_bus.memorize.called
     # Should have memorized at least one problem and the insight
@@ -323,7 +323,7 @@ async def test_incident_service_problem_creation(incident_service, mock_memory_b
 async def test_incident_service_recommendations(incident_service, mock_memory_bus, mock_time_service):
     """Test generation of specific recommendations based on incident types."""
     current_time = mock_time_service.now()
-    
+
     # Create incidents with different types of issues
     mem_incident = IncidentNode(
         id="mem1",
@@ -341,7 +341,7 @@ async def test_incident_service_recommendations(incident_service, mock_memory_bu
         updated_by="test",
         updated_at=current_time
     )
-    
+
     timeout_incident = IncidentNode(
         id="timeout1",
         type=NodeType.AUDIT_ENTRY,
@@ -358,12 +358,12 @@ async def test_incident_service_recommendations(incident_service, mock_memory_bu
         updated_by="test",
         updated_at=current_time
     )
-    
+
     incident_nodes = [
         mem_incident.to_graph_node(),
         timeout_incident.to_graph_node()
     ]
-    
+
     # Add more of each type to trigger pattern detection
     for i in range(3):
         mem_inc = IncidentNode(
@@ -382,7 +382,7 @@ async def test_incident_service_recommendations(incident_service, mock_memory_bu
             updated_by="test",
             updated_at=current_time
         )
-        
+
         timeout_inc = IncidentNode(
             id=f"timeout{i+2}",
             type=NodeType.AUDIT_ENTRY,
@@ -399,22 +399,22 @@ async def test_incident_service_recommendations(incident_service, mock_memory_bu
             updated_by="test",
             updated_at=current_time
         )
-        
+
         incident_nodes.extend([
             mem_inc.to_graph_node(),
             timeout_inc.to_graph_node()
         ])
-    
+
     mock_memory_service = mock_memory_bus._service_registry.get_service()
     mock_memory_service.search = AsyncMock(return_value=incident_nodes)
-    
+
     # Process incidents
     insight = await incident_service.process_recent_incidents(hours=24)
-    
+
     # Should have memory-related recommendations
     all_recommendations = insight.behavioral_adjustments + insight.configuration_changes
     recommendations_text = " ".join(all_recommendations).lower()
-    
+
     assert "memory" in recommendations_text
     assert "timeout" in recommendations_text
     assert len(insight.behavioral_adjustments) > 0
@@ -453,10 +453,10 @@ async def test_incident_node_serialization():
         updated_by="test_user",
         updated_at=datetime.now(timezone.utc)
     )
-    
+
     # Convert to GraphNode
     graph_node = incident.to_graph_node()
-    
+
     # Verify GraphNode structure
     assert graph_node.id == "test_incident_1"
     assert graph_node.type == NodeType.AUDIT_ENTRY
@@ -466,10 +466,10 @@ async def test_incident_node_serialization():
     assert graph_node.attributes["incident_type"] == "ERROR"
     assert graph_node.attributes["severity"] == "HIGH"
     assert graph_node.attributes["status"] == "OPEN"
-    
+
     # Reconstruct from GraphNode
     reconstructed = IncidentNode.from_graph_node(graph_node)
-    
+
     # Verify all fields match
     assert reconstructed.id == incident.id
     assert reconstructed.incident_type == incident.incident_type
@@ -487,7 +487,7 @@ async def test_incident_node_serialization():
 async def test_problem_node_serialization():
     """Test that ProblemNode properly serializes to/from GraphNode."""
     current_time = datetime.now(timezone.utc)
-    
+
     problem = ProblemNode(
         id="problem_test_1",
         type=NodeType.CONCEPT,
@@ -506,19 +506,19 @@ async def test_problem_node_serialization():
         updated_by="test_user",
         updated_at=current_time
     )
-    
+
     # Convert to GraphNode
     graph_node = problem.to_graph_node()
-    
+
     # Verify GraphNode structure
     assert graph_node.id == "problem_test_1"
     assert graph_node.type == NodeType.CONCEPT
     assert graph_node.scope == GraphScope.IDENTITY
     assert graph_node.attributes["_node_class"] == "ProblemNode"
-    
+
     # Reconstruct from GraphNode
     reconstructed = ProblemNode.from_graph_node(graph_node)
-    
+
     # Verify all fields match
     assert reconstructed.id == problem.id
     assert reconstructed.problem_statement == problem.problem_statement
@@ -534,7 +534,7 @@ async def test_problem_node_serialization():
 async def test_incident_insight_node_serialization():
     """Test that IncidentInsightNode properly serializes to/from GraphNode."""
     current_time = datetime.now(timezone.utc)
-    
+
     insight = IncidentInsightNode(
         id="insight_test_1",
         type=NodeType.CONCEPT,
@@ -558,19 +558,19 @@ async def test_incident_insight_node_serialization():
         updated_by="test_user",
         updated_at=current_time
     )
-    
+
     # Convert to GraphNode
     graph_node = insight.to_graph_node()
-    
+
     # Verify GraphNode structure
     assert graph_node.id == "insight_test_1"
     assert graph_node.type == NodeType.CONCEPT
     assert graph_node.scope == GraphScope.LOCAL
     assert graph_node.attributes["_node_class"] == "IncidentInsightNode"
-    
+
     # Reconstruct from GraphNode
     reconstructed = IncidentInsightNode.from_graph_node(graph_node)
-    
+
     # Verify all fields match
     assert reconstructed.id == insight.id
     assert reconstructed.insight_type == insight.insight_type

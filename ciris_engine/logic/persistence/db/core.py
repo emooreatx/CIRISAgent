@@ -1,7 +1,6 @@
 import sqlite3
 import logging
 from typing import Optional
-from datetime import datetime
 from ciris_engine.logic.config.db_paths import get_sqlite_db_full_path
 from ciris_engine.schemas.persistence.tables import (
     TASKS_TABLE_V1 as tasks_table_v1,
@@ -55,14 +54,14 @@ def initialize_database(db_path: Optional[str] = None) -> None:
                 audit_signing_keys_table_v1,
                 wa_cert_table_v1,
             ]
-            
+
             for table_sql in base_tables:
                 conn.executescript(table_sql)
-            
+
             conn.commit()
-        
+
         run_migrations(db_path)
-            
+
         logger.info(
             f"Database initialized at {db_path or get_sqlite_db_full_path()}"
         )

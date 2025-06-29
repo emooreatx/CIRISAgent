@@ -43,7 +43,7 @@ async def auth_service(temp_db, time_service):
         key_dir=None
     )
     await service.start()
-    
+
     # Mock some methods for testing
     service.get_wa = AsyncMock(return_value=MagicMock(
         wa_id="wa-2025-06-24-TEST01",
@@ -52,7 +52,7 @@ async def auth_service(temp_db, time_service):
         created_at=datetime.now(timezone.utc)
     ))
     service.bootstrap_if_needed = AsyncMock()
-    
+
     yield service
     await service.stop()
 
@@ -76,7 +76,7 @@ async def test_wise_authority_lifecycle(wise_authority_service):
     # Service should be ready
     assert wise_authority_service._started is True
     assert await wise_authority_service.is_healthy()
-    
+
     # Stop
     await wise_authority_service.stop()
     # Should complete without error
@@ -87,7 +87,7 @@ async def test_wise_authority_lifecycle(wise_authority_service):
 async def test_check_authorization(wise_authority_service, auth_service):
     """Test authorization checking."""
     await wise_authority_service.start()
-    
+
     # Test ROOT authorization - can do everything
     auth_service.get_wa.return_value = MagicMock(
         wa_id="wa-2025-06-24-ROOT01",
@@ -96,7 +96,7 @@ async def test_check_authorization(wise_authority_service, auth_service):
     )
     assert await wise_authority_service.check_authorization("wa-2025-06-24-ROOT01", "mint_wa") is True
     assert await wise_authority_service.check_authorization("wa-2025-06-24-ROOT01", "approve_deferrals") is True
-    
+
     # Test AUTHORITY authorization - can't mint WAs
     auth_service.get_wa.return_value = MagicMock(
         wa_id="wa-2025-06-24-AUTH01",
@@ -105,7 +105,7 @@ async def test_check_authorization(wise_authority_service, auth_service):
     )
     assert await wise_authority_service.check_authorization("wa-2025-06-24-AUTH01", "approve_deferrals") is True
     assert await wise_authority_service.check_authorization("wa-2025-06-24-AUTH01", "mint_wa") is False
-    
+
     # Test OBSERVER authorization - limited permissions
     auth_service.get_wa.return_value = MagicMock(
         wa_id="wa-2025-06-24-OBS01",
@@ -121,14 +121,14 @@ async def test_check_authorization(wise_authority_service, auth_service):
 async def test_request_approval(wise_authority_service, time_service, auth_service):
     """Test requesting approval for actions."""
     await wise_authority_service.start()
-    
+
     # Test auto-approval for ROOT
     auth_service.get_wa.return_value = MagicMock(
         wa_id="wa-2025-06-24-ROOT01",
         role=WARole.ROOT,
         active=True
     )
-    
+
     context = DeferralApprovalContext(
         task_id="task-123",
         thought_id="thought-456",
@@ -137,11 +137,11 @@ async def test_request_approval(wise_authority_service, time_service, auth_servi
         requester_id="wa-2025-06-24-ROOT01",
         channel_id="test-channel"
     )
-    
+
     # ROOT should auto-approve
     approved = await wise_authority_service.request_approval("read_data", context)
     assert approved is True
-    
+
     # Test deferral for unauthorized action
     # Update mock to return OBSERVER
     auth_service.get_wa.return_value = MagicMock(
@@ -149,11 +149,11 @@ async def test_request_approval(wise_authority_service, time_service, auth_servi
         role=WARole.OBSERVER,
         active=True
     )
-    
+
     context.requester_id = "wa-2025-06-24-OBS01"  # Observer can't approve
     approved = await wise_authority_service.request_approval("approve_deferrals", context)
     assert approved is False
-    
+
     # Should have created a deferral
     assert len(wise_authority_service.deferrals) == 1
 
@@ -162,7 +162,7 @@ async def test_request_approval(wise_authority_service, time_service, auth_servi
 async def test_send_deferral(wise_authority_service, time_service):
     """Test sending deferrals."""
     await wise_authority_service.start()
-    
+
     # Create a deferral request
     deferral = DeferralRequest(
         task_id="task-789",
@@ -171,10 +171,10 @@ async def test_send_deferral(wise_authority_service, time_service):
         defer_until=time_service.now() + timedelta(hours=24),
         context={"action": "delete_user_data", "user_id": "user-123"}
     )
-    
+
     # Send deferral
     deferral_id = await wise_authority_service.send_deferral(deferral)
-    
+
     assert deferral_id is not None
     assert deferral_id.startswith("defer_")
     assert len(wise_authority_service.deferrals) == 1
@@ -185,7 +185,7 @@ async def test_send_deferral(wise_authority_service, time_service):
 async def test_get_pending_deferrals(wise_authority_service, time_service):
     """Test getting pending deferrals."""
     await wise_authority_service.start()
-    
+
     # Add some deferrals
     for i in range(3):
         deferral = DeferralRequest(
@@ -196,11 +196,11 @@ async def test_get_pending_deferrals(wise_authority_service, time_service):
             context={"test": f"value-{i}"}
         )
         await wise_authority_service.send_deferral(deferral)
-    
+
     # Get all pending deferrals
     pending = await wise_authority_service.get_pending_deferrals()
     assert len(pending) == 3
-    
+
     # Check deferral structure
     first = pending[0]
     assert hasattr(first, 'deferral_id')
@@ -214,7 +214,7 @@ async def test_get_pending_deferrals(wise_authority_service, time_service):
 async def test_resolve_deferral(wise_authority_service, time_service):
     """Test resolving deferrals."""
     await wise_authority_service.start()
-    
+
     # Create and send a deferral
     deferral = DeferralRequest(
         task_id="task-resolve",
@@ -224,7 +224,7 @@ async def test_resolve_deferral(wise_authority_service, time_service):
         context={}
     )
     deferral_id = await wise_authority_service.send_deferral(deferral)
-    
+
     # Resolve it
     response = DeferralResponse(
         approved=True,
@@ -232,10 +232,10 @@ async def test_resolve_deferral(wise_authority_service, time_service):
         wa_id="wa-2025-06-24-AUTH01",
         signature="test-signature"
     )
-    
+
     resolved = await wise_authority_service.resolve_deferral(deferral_id, response)
     assert resolved is True
-    
+
     # Check it was marked as resolved
     context = wise_authority_service.deferrals[deferral_id]
     assert context.metadata["resolved"] is True
@@ -266,7 +266,7 @@ def test_wise_authority_capabilities(wise_authority_service):
 async def test_wise_authority_status(wise_authority_service):
     """Test WiseAuthorityService.get_status() returns correct status."""
     await wise_authority_service.start()
-    
+
     status = wise_authority_service.get_status()
     assert isinstance(status, ServiceStatus)
     assert status.service_name == "WiseAuthorityService"
@@ -281,7 +281,7 @@ async def test_wise_authority_status(wise_authority_service):
 async def test_list_permissions(wise_authority_service, auth_service):
     """Test listing permissions for a WA."""
     await wise_authority_service.start()
-    
+
     # Test ROOT permissions
     auth_service.get_wa.return_value = MagicMock(
         wa_id="wa-2025-06-24-ROOT01",
@@ -292,7 +292,7 @@ async def test_list_permissions(wise_authority_service, auth_service):
     permissions = await wise_authority_service.list_permissions("wa-2025-06-24-ROOT01")
     assert len(permissions) > 0
     assert any(p.permission_name == "*" for p in permissions)
-    
+
     # Test AUTHORITY permissions
     auth_service.get_wa.return_value = MagicMock(
         wa_id="wa-2025-06-24-AUTH01",
@@ -304,7 +304,7 @@ async def test_list_permissions(wise_authority_service, auth_service):
     assert len(permissions) > 0
     assert any(p.permission_name == "approve_deferrals" for p in permissions)
     assert not any(p.permission_name == "*" for p in permissions)
-    
+
     # Test OBSERVER permissions
     auth_service.get_wa.return_value = MagicMock(
         wa_id="wa-2025-06-24-OBS01",
@@ -323,7 +323,7 @@ async def test_list_permissions(wise_authority_service, auth_service):
 async def test_fetch_guidance(wise_authority_service):
     """Test fetching guidance from WAs."""
     await wise_authority_service.start()
-    
+
     # Create a guidance context
     context = GuidanceContext(
         thought_id="thought-guid-01",
@@ -332,7 +332,7 @@ async def test_fetch_guidance(wise_authority_service):
         ethical_considerations=["user_safety", "data_privacy"],
         domain_context={"action": "data_export"}
     )
-    
+
     # Fetch guidance (should return None as no WA has provided guidance yet)
     guidance = await wise_authority_service.fetch_guidance(context)
     assert guidance is None  # No guidance available in test environment
@@ -342,7 +342,7 @@ async def test_fetch_guidance(wise_authority_service):
 async def test_get_guidance(wise_authority_service):
     """Test getting guidance through protocol method."""
     await wise_authority_service.start()
-    
+
     # Create a guidance request
     request = GuidanceRequest(
         context="Should I proceed with user data deletion?",
@@ -350,10 +350,10 @@ async def test_get_guidance(wise_authority_service):
         recommendation="Confirm with user",
         urgency="high"
     )
-    
+
     # Get guidance
     response = await wise_authority_service.get_guidance(request)
-    
+
     assert isinstance(response, GuidanceResponse)
     assert response.wa_id == "system"  # No WA guidance available
     assert response.reasoning == "No Wise Authority guidance available yet"
@@ -364,7 +364,7 @@ async def test_get_guidance(wise_authority_service):
 async def test_grant_revoke_permissions(wise_authority_service):
     """Test permission grant/revoke (currently role-based only)."""
     await wise_authority_service.start()
-    
+
     # Try to grant permission (should fail - permissions are role-based)
     granted = await wise_authority_service.grant_permission(
         wa_id="wa-2025-06-24-TEST01",
@@ -372,7 +372,7 @@ async def test_grant_revoke_permissions(wise_authority_service):
         resource="sensitive_data"
     )
     assert granted is False  # Can't grant dynamic permissions in beta
-    
+
     # Try to revoke permission (should fail - permissions are role-based)
     revoked = await wise_authority_service.revoke_permission(
         wa_id="wa-2025-06-24-TEST01",
@@ -386,7 +386,7 @@ async def test_grant_revoke_permissions(wise_authority_service):
 async def test_deferral_with_modified_time(wise_authority_service, time_service):
     """Test resolving deferral with modified time."""
     await wise_authority_service.start()
-    
+
     # Create and send a deferral
     original_defer_time = time_service.now() + timedelta(hours=1)
     deferral = DeferralRequest(
@@ -397,7 +397,7 @@ async def test_deferral_with_modified_time(wise_authority_service, time_service)
         context={}
     )
     deferral_id = await wise_authority_service.send_deferral(deferral)
-    
+
     # Resolve with modified time
     new_defer_time = time_service.now() + timedelta(hours=48)
     response = DeferralResponse(
@@ -407,10 +407,10 @@ async def test_deferral_with_modified_time(wise_authority_service, time_service)
         wa_id="wa-2025-06-24-AUTH01",
         signature="test-signature"
     )
-    
+
     resolved = await wise_authority_service.resolve_deferral(deferral_id, response)
     assert resolved is True
-    
+
     # Check the defer time was updated
     context = wise_authority_service.deferrals[deferral_id]
     assert context.defer_until == new_defer_time

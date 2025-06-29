@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import List, Optional, Dict, Any
 
 from ..models import (
-    ProcessorControlResponse, AdapterInfo, AdapterLoadRequest, 
+    ProcessorControlResponse, AdapterInfo, AdapterLoadRequest,
     AdapterOperationResponse, RuntimeStatus, ConfigOperationResponse
 )
 from ..transport import Transport
@@ -54,7 +54,7 @@ class RuntimeResource:
             config=config or {},
             auto_start=auto_start
         ).model_dump(exclude_none=True)
-        
+
         resp = await self._transport.request("POST", "/v1/runtime/adapters", json=payload)
         return AdapterOperationResponse(**resp.json())
 
@@ -66,7 +66,7 @@ class RuntimeResource:
         """Unload an adapter instance."""
         params = {"force": str(force).lower()} if force else {}
         resp = await self._transport.request(
-            "DELETE", 
+            "DELETE",
             f"/v1/runtime/adapters/{adapter_id}",
             params=params
         )
@@ -100,7 +100,7 @@ class RuntimeResource:
             params["path"] = path
         if include_sensitive:
             params["include_sensitive"] = "true"
-        
+
         resp = await self._transport.request("GET", "/v1/runtime/config", params=params)
         return resp.json()
 
@@ -121,7 +121,7 @@ class RuntimeResource:
         }
         if reason:
             payload["reason"] = reason
-        
+
         resp = await self._transport.request("PUT", "/v1/runtime/config", json=payload)
         return ConfigOperationResponse(**resp.json())
 
@@ -134,7 +134,7 @@ class RuntimeResource:
         payload = {"config_data": config_data}
         if config_path:
             payload["config_path"] = config_path
-        
+
         resp = await self._transport.request("POST", "/v1/runtime/config/validate", json=payload)
         return resp.json()
 
@@ -159,9 +159,9 @@ class RuntimeResource:
         payload = {"scope": scope}
         if config_path:
             payload["config_path"] = config_path
-        
+
         resp = await self._transport.request(
-            "POST", 
+            "POST",
             f"/v1/runtime/profiles/{profile_name}/load",
             json=payload
         )
@@ -214,7 +214,7 @@ class RuntimeResource:
         }
         if backup_name:
             payload["backup_name"] = backup_name
-        
+
         resp = await self._transport.request("POST", "/v1/runtime/config/backup", json=payload)
         return resp.json()
 

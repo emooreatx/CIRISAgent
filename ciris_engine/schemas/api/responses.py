@@ -3,7 +3,7 @@ Base response schemas for CIRIS API v1.
 
 All API responses follow these patterns - NO Dict[str, Any]!
 """
-from typing import Generic, TypeVar, Optional, Any
+from typing import Generic, TypeVar, Optional
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field, field_serializer
 
@@ -14,7 +14,7 @@ class ResponseMetadata(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     request_id: Optional[str] = Field(None, description="Request tracking ID")
     duration_ms: Optional[int] = Field(None, description="Request processing duration")
-    
+
     @field_serializer('timestamp')
     def serialize_timestamp(self, timestamp: datetime, _info):
         return timestamp.isoformat() if timestamp else None

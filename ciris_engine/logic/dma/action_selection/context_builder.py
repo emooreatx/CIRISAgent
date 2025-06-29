@@ -12,20 +12,20 @@ logger = logging.getLogger(__name__)
 
 class ActionSelectionContextBuilder:
     """Builds context for action selection evaluation."""
-    
+
     def __init__(self, prompts: Dict[str, str], service_registry: Optional[Any] = None, bus_manager: Optional[Any] = None):
         self.prompts = prompts
         self.service_registry = service_registry
         self.bus_manager = bus_manager
         self._instruction_generator: Optional[Any] = None
-    
+
     def build_main_user_content(
         self,
         triaged_inputs: Dict[str, Any],
         agent_name: Optional[str] = None
     ) -> str:
         """Build the main user content for LLM evaluation."""
-        
+
         # Extract core components
         original_thought = triaged_inputs["original_thought"]
         ethical_pdma_result = triaged_inputs["ethical_pdma_result"]
@@ -33,45 +33,45 @@ class ActionSelectionContextBuilder:
         dsdma_result = triaged_inputs.get("dsdma_result")
         current_thought_depth = triaged_inputs["current_thought_depth"]
         max_rounds = triaged_inputs["max_rounds"]
-        
+
         # Build context sections
         permitted_actions = self._get_permitted_actions(triaged_inputs)
-        action_options_str = ", ".join([a.value for a in permitted_actions])
-        
-        available_tools_str = self._get_available_tools_str(permitted_actions)
-        
+        _action_options_str = ", ".join([a.value for a in permitted_actions])
+
+        _available_tools_str = self._get_available_tools_str(permitted_actions)
+
         # Build DMA summaries
-        ethical_summary = self._build_ethical_summary(ethical_pdma_result)
-        csdma_summary = self._build_csdma_summary(csdma_result)
-        dsdma_summary_str = self._build_dsdma_summary(dsdma_result)
-        
+        _ethical_summary = self._build_ethical_summary(ethical_pdma_result)
+        _csdma_summary = self._build_csdma_summary(csdma_result)
+        _dsdma_summary_str = self._build_dsdma_summary(dsdma_result)
+
         # Build ponder context
-        ponder_notes_str = self._build_ponder_context(
+        _ponder_notes_str = self._build_ponder_context(
             original_thought, current_thought_depth
         )
-        
+
         # Build final attempt advisory
-        final_ponder_advisory = self._build_final_attempt_advisory(
+        _final_ponder_advisory = self._build_final_attempt_advisory(
             current_thought_depth, max_rounds, agent_name
         )
-        
+
         # Build guidance sections
-        guidance_sections = self._build_guidance_sections(agent_name, permitted_actions)
-        
+        _guidance_sections = self._build_guidance_sections(agent_name, permitted_actions)
+
         # Build system context
         processing_context = triaged_inputs.get("processing_context")
         user_profile_context_str, system_snapshot_context_str = self._build_system_context(
             processing_context
         )
-        
+
         # Build startup guidance
-        startup_guidance = self._build_startup_guidance(original_thought)
-        
+        _startup_guidance = self._build_startup_guidance(original_thought)
+
         # Build conscience feedback guidance if available
-        conscience_guidance = self._build_conscience_guidance(triaged_inputs.get("conscience_feedback"))
-        
+        _conscience_guidance = self._build_conscience_guidance(triaged_inputs.get("conscience_feedback"))
+
         # Assemble final content
-        main_user_content = f"""
+        main_user_content = """
 {ENGINE_OVERVIEW_TEMPLATE}Your task is to determine the single most appropriate HANDLER ACTION based on an original thought and evaluations from three prior DMAs (Ethical PDMA, CSDMA, DSDMA).
 You MUST execute the Principled Decision-Making Algorithm (PDMA) to choose this HANDLER ACTION and structure your response as a JSON object matching the provided schema.
 All fields specified in the schema for your response are MANDATORY unless explicitly marked as optional.
@@ -97,7 +97,7 @@ IMPORTANT: Return ONLY a JSON object with these exact keys: selected_action, act
 
 Original Thought: "{original_thought.content}"
 {ponder_notes_str}
-{user_profile_context_str} 
+{user_profile_context_str}
 {system_snapshot_context_str}
 
 DMA Summaries to consider for your PDMA reasoning:
@@ -109,7 +109,7 @@ Based on all the provided information and the PDMA framework for action selectio
 Adhere strictly to the schema for your JSON output.
 """
         return main_user_content.strip()
-    
+
     def _get_permitted_actions(self, triaged_inputs: Dict[str, Any]) -> List[HandlerActionType]:
         """Get permitted actions from triaged inputs."""
         default_permitted_actions = [
@@ -124,9 +124,9 @@ Adhere strictly to the schema for your JSON output.
             HandlerActionType.TOOL,
             HandlerActionType.TASK_COMPLETE,
         ]
-        
+
         permitted_actions = triaged_inputs.get("permitted_actions", default_permitted_actions)
-        
+
         if "permitted_actions" not in triaged_inputs:
             original_thought = triaged_inputs["original_thought"]
             logger.warning(
@@ -138,10 +138,10 @@ Adhere strictly to the schema for your JSON output.
                 f"ActionSelectionPDMA: 'permitted_actions' in triaged_inputs is empty for thought {original_thought.thought_id}. Falling back to default."
             )
             permitted_actions = default_permitted_actions
-        
+
         # Return the permitted actions - they MUST be HandlerActionType enums
         return list(permitted_actions)
-    
+
     def _get_available_tools_str(self, permitted_actions: List[HandlerActionType]) -> str:
         """Get available tools string if TOOL action is permitted."""
         available_tools_str = ""
@@ -151,7 +151,7 @@ Adhere strictly to the schema for your JSON output.
                 if self.service_registry:
                     from ciris_engine.schemas.runtime.enums import ServiceType
                     tool_services = self.service_registry.get_services_by_type(ServiceType.TOOL)
-                    all_tools: List[str] = []
+                    _all_tools: List[str] = []
                     for service in tool_services:
                         if hasattr(service, 'get_available_tools'):
                             # This is an async method, so we need to handle it properly
@@ -161,9 +161,9 @@ Adhere strictly to the schema for your JSON output.
                     # Fall back to empty string if we can't get tools synchronously
             except Exception:
                 pass
-        
+
         return available_tools_str
-    
+
     def _build_ethical_summary(self, ethical_pdma_result: EthicalDMAResult) -> str:
         """Build ethical DMA summary."""
         conflicts_str = "None"
@@ -175,32 +175,32 @@ Adhere strictly to the schema for your JSON output.
             resolution_str = str(
                 ethical_pdma_result.alignment_check.get("resolution", "None")
             )
-        
+
         return f"Ethical PDMA Stance: {ethical_pdma_result.decision}. Key Conflicts: {conflicts_str}. Resolution: {resolution_str}."
-    
+
     def _build_csdma_summary(self, csdma_result: CSDMAResult) -> str:
         """Build CSDMA summary."""
         return f"CSDMA Output: Plausibility {csdma_result.plausibility_score:.2f}, Flags: {', '.join(csdma_result.flags) if csdma_result.flags else 'None'}. Reasoning: {csdma_result.reasoning}"
-    
+
     def _build_dsdma_summary(self, dsdma_result: Optional[DSDMAResult]) -> str:
         """Build DSDMA summary."""
         if not dsdma_result:
             return "DSDMA did not apply or did not run for this thought."
-        
+
         return (
             f"DSDMA ({dsdma_result.domain}) Output: Domain Alignment {dsdma_result.domain_alignment:.2f}, "
             f"Flags: {', '.join(dsdma_result.flags) if dsdma_result.flags else 'None'}. "
             f"Reasoning: {dsdma_result.reasoning}"
         )
-    
+
     def _build_ponder_context(
-        self, 
-        original_thought: Thought, 
+        self,
+        original_thought: Thought,
         current_thought_depth: int
     ) -> str:
         """Build ponder context string."""
         notes_list = original_thought.ponder_notes if original_thought.ponder_notes else []
-        
+
         if notes_list:
             ponder_notes_str = (
                 "\n\nIMPORTANT CONTEXT FROM PREVIOUS ACTION ROUNDS:\n"
@@ -219,9 +219,9 @@ Adhere strictly to the schema for your JSON output.
             return ponder_notes_str
         elif current_thought_depth > 0:
             return f"\n\nThis thought has been pondered {current_thought_depth} time(s) previously. If choosing 'Ponder' again, formulate new, insightful questions.\n"
-        
+
         return ""
-    
+
     def _build_final_attempt_advisory(
         self,
         current_thought_depth: int,
@@ -230,10 +230,10 @@ Adhere strictly to the schema for your JSON output.
     ) -> str:
         """Build final attempt advisory."""
         is_final_attempt_round = current_thought_depth >= max_rounds - 1
-        
+
         if not is_final_attempt_round:
             return ""
-        
+
         final_ponder_advisory_template = self._get_agent_specific_prompt(
             "final_ponder_advisory", agent_name
         )
@@ -247,7 +247,7 @@ Adhere strictly to the schema for your JSON output.
                 f"KeyError formatting final_ponder_advisory_template: {e}. Template: '{final_ponder_advisory_template}'"
             )
             return "\nIMPORTANT FINAL ATTEMPT: Attempt to provide a terminal action."
-    
+
     def _build_guidance_sections(self, agent_name: Optional[str], permitted_actions: List[HandlerActionType]) -> Dict[str, str]:
         """Build all guidance sections."""
         return {
@@ -271,12 +271,12 @@ Adhere strictly to the schema for your JSON output.
             ),
             'action_parameter_schemas': self._get_dynamic_action_schemas(permitted_actions),
         }
-    
+
     def _build_system_context(self, processing_context_data: Any) -> tuple[str, str]:
         """Build user profile and system snapshot context."""
         user_profile_context_str = ""
         system_snapshot_context_str = ""
-        
+
         if processing_context_data:
             if (
                 hasattr(processing_context_data, "system_snapshot")
@@ -289,9 +289,9 @@ Adhere strictly to the schema for your JSON output.
                 system_snapshot_context_str = format_system_snapshot(
                     processing_context_data.system_snapshot
                 )
-        
+
         return user_profile_context_str, system_snapshot_context_str
-    
+
     def _build_startup_guidance(self, original_thought: Thought) -> str:
         """Build startup guidance if applicable."""
         if original_thought.thought_type == "startup_meta":
@@ -301,21 +301,21 @@ Adhere strictly to the schema for your JSON output.
                 "Avoid MEMORIZE, ACT, REJECT, or DEFER during startup."
             )
         return ""
-    
+
     def _build_conscience_guidance(self, conscience_feedback: Optional[Dict[str, Any]]) -> str:
         """Build conscience guidance from feedback if available."""
         if not conscience_feedback:
             return ""
-        
+
         if isinstance(conscience_feedback, dict) and "retry_guidance" in conscience_feedback:
             return f"\n\n**CONSCIENCE OVERRIDE GUIDANCE:**\n{conscience_feedback['retry_guidance']}\n"
-        
+
         return ""
-    
+
     def _get_reject_thought_guidance(self) -> str:
         """Get reject thought guidance."""
         return "\nNote on 'Reject Thought': Use this action sparingly, primarily if the original thought is nonsensical, impossible to act upon even with clarification, or fundamentally misaligned with the agent's purpose. Prefer 'Ponder' or 'Speak' for clarification if possible."
-    
+
     def _get_agent_specific_prompt(
         self, base_key: str, agent_name: Optional[str]
     ) -> str:
@@ -332,7 +332,7 @@ Adhere strictly to the schema for your JSON output.
             f"Prompt key for '{base_key}' (agent: {agent_name}) not found. Using empty string."
         )
         return ""
-    
+
     def _get_dynamic_action_schemas(self, permitted_actions: List[HandlerActionType]) -> str:
         """Get dynamically generated action schemas or fall back to static prompts."""
         try:
@@ -340,16 +340,16 @@ Adhere strictly to the schema for your JSON output.
             if self._instruction_generator is None:
                 from ciris_engine.logic.dma.action_selection.action_instruction_generator import ActionInstructionGenerator
                 self._instruction_generator = ActionInstructionGenerator(self.service_registry, self.bus_manager)
-            
+
             # Generate dynamic instructions
             dynamic_schemas = self._instruction_generator.generate_action_instructions(permitted_actions)
-            
+
             if dynamic_schemas:
                 logger.debug("Using dynamically generated action schemas")
                 return dynamic_schemas
-            
+
         except Exception as e:
             logger.warning(f"Failed to generate dynamic action schemas: {e}")
-        
+
         # Fall back to static schemas from prompts
         return self.prompts.get("action_parameter_schemas", "")

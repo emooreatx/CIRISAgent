@@ -3,7 +3,7 @@ Runtime Control service endpoints for CIRIS API v1.
 
 Controls agent runtime behavior (requires ADMIN).
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Depends
 from pydantic import BaseModel, Field
@@ -19,6 +19,8 @@ from ciris_engine.schemas.services.core.runtime import (
 )
 # CognitiveState import removed - using string values directly
 from ciris_engine.api.dependencies.auth import require_admin, require_authority, AuthContext
+from ciris_engine.schemas.api.runtime import StateTransitionResult, ProcessingSpeedResult
+from ciris_engine.schemas.api.agent import ActiveTask
 
 router = APIRouter(prefix="/runtime", tags=["runtime"])
 
@@ -59,13 +61,13 @@ async def get_runtime_status(
 ):
     """
     Runtime status.
-    
+
     Get current runtime operational status.
     """
     runtime_control = getattr(request.app.state, 'runtime_control', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
-    
+
     try:
         status = await runtime_control.get_runtime_status()
         return SuccessResponse(data=status)
@@ -80,13 +82,13 @@ async def pause_processing(
 ):
     """
     Pause processing.
-    
+
     Pause agent message processing.
     """
     runtime_control = getattr(request.app.state, 'runtime_control', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
-    
+
     try:
         result = await runtime_control.pause_processing()
         return SuccessResponse(data=result)
@@ -101,13 +103,13 @@ async def resume_processing(
 ):
     """
     Resume processing.
-    
+
     Resume agent message processing.
     """
     runtime_control = getattr(request.app.state, 'runtime_control', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
-    
+
     try:
         result = await runtime_control.resume_processing()
         return SuccessResponse(data=result)
@@ -121,14 +123,14 @@ async def single_step_processing(
 ):
     """
     Single step processing.
-    
+
     Execute a single processing step and pause.
     Useful for debugging and step-through analysis.
     """
     runtime_control = getattr(request.app.state, 'runtime_control', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
-    
+
     try:
         result = await runtime_control.single_step()
         return SuccessResponse(data=result)
@@ -143,13 +145,13 @@ async def change_cognitive_state(
 ):
     """
     Change cognitive state.
-    
+
     Transition agent to a different cognitive state.
     """
     runtime_control = getattr(request.app.state, 'runtime_control', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
-    
+
     try:
         # Use runtime control to change state
         # This is a simplified version - actual implementation may vary
@@ -166,29 +168,29 @@ async def change_cognitive_state(
                 processor_state="running",
                 queue_depth=0
             )
-        
+
         return SuccessResponse(data=result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/tasks", response_model=SuccessResponse[List[Dict[str, Any]]])
+@router.get("/tasks", response_model=SuccessResponse[List[ActiveTask]])
 async def get_active_tasks(
     request: Request,
     auth: AuthContext = Depends(require_admin)
 ):
     """
     Active tasks.
-    
+
     Get list of currently active tasks.
     """
     runtime_control = getattr(request.app.state, 'runtime_control', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
-    
+
     try:
         # Get queue status which includes task info
         queue_status = await runtime_control.get_processor_queue_status()
-        
+
         # Extract active tasks
         tasks = []
         if hasattr(queue_status, 'active_tasks'):
@@ -196,13 +198,15 @@ async def get_active_tasks(
         elif hasattr(queue_status, 'pending_tasks'):
             # Use pending tasks as proxy
             for i, task in enumerate(queue_status.pending_tasks[:10]):
-                tasks.append({
-                    "task_id": f"task_{i}",
-                    "type": "processing",
-                    "status": "active" if i == 0 else "pending",
-                    "created_at": datetime.now(timezone.utc).isoformat()
-                })
-        
+                tasks.append(ActiveTask(
+                    task_id=f"task_{i}",
+                    type="processing",
+                    status="active" if i == 0 else "pending",
+                    description=None,
+                    created_at=datetime.now(timezone.utc),
+                    priority=None
+                ))
+
         return SuccessResponse(data=tasks)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -215,22 +219,22 @@ async def emergency_stop(
 ):
     """
     Emergency stop.
-    
+
     Immediately stop all agent processing.
     """
     runtime_control = getattr(request.app.state, 'runtime_control', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
-    
+
     try:
         # Log emergency stop
         import logging
         logger = logging.getLogger(__name__)
         logger.critical(f"EMERGENCY STOP requested by {auth.user_id}: {body.reason}")
-        
+
         # Shutdown runtime
         result = await runtime_control.shutdown_runtime(body.reason)
-        
+
         return SuccessResponse(data=result)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -243,13 +247,13 @@ async def get_runtime_events(
 ):
     """
     Runtime events.
-    
+
     Get recent runtime events for debugging.
     """
     runtime_control = getattr(request.app.state, 'runtime_control', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
-    
+
     try:
         events = runtime_control.get_events_history(limit=limit)
         return SuccessResponse(data=events)
@@ -263,13 +267,13 @@ async def get_service_health(
 ):
     """
     Service health status.
-    
+
     Get comprehensive health status of all services.
     """
     runtime_control = getattr(request.app.state, 'runtime_control', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
-    
+
     try:
         health = await runtime_control.get_service_health_status()
         return SuccessResponse(data=health)
@@ -283,20 +287,20 @@ async def get_runtime_snapshot(
 ):
     """
     Runtime state snapshot.
-    
+
     Get complete snapshot of runtime state.
     """
     runtime_control = getattr(request.app.state, 'runtime_control', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
-    
+
     try:
         snapshot = await runtime_control.get_runtime_snapshot()
         return SuccessResponse(data=snapshot)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/state/{state}", response_model=SuccessResponse[Dict[str, Any]])
+@router.post("/state/{state}", response_model=SuccessResponse[StateTransitionResult])
 async def force_state_transition(
     request: Request,
     state: str,
@@ -305,43 +309,44 @@ async def force_state_transition(
 ):
     """
     Force state transition.
-    
+
     Force the processor to transition to a specific state.
     Requires AUTHORITY role as this can disrupt normal processing.
-    
+
     Valid states: WAKEUP, WORK, PLAY, SOLITUDE, DREAM, SHUTDOWN
     """
     runtime_control = getattr(request.app.state, 'runtime_control', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control not available")
-    
+
     try:
         # Validate state
         valid_states = ["WAKEUP", "WORK", "PLAY", "SOLITUDE", "DREAM", "SHUTDOWN"]
         if state.upper() not in valid_states:
             raise HTTPException(status_code=400, detail=f"Invalid state. Must be one of: {', '.join(valid_states)}")
-        
+
         # Get agent processor
         if not hasattr(runtime_control, 'runtime') or not hasattr(runtime_control.runtime, 'agent_processor'):
             raise HTTPException(status_code=503, detail="Agent processor not available")
-        
+
         processor = runtime_control.runtime.agent_processor
-        
+
         # Force state transition
         success = await processor.force_state_transition(state.upper(), body.reason)
-        
+
         # Get new state
         current_state = processor.get_current_state()
-        
-        result = {
-            "success": success,
-            "target_state": state.upper(),
-            "current_state": current_state,
-            "reason": body.reason
-        }
-        
+
+        result = StateTransitionResult(
+            success=success,
+            target_state=state.upper(),
+            current_state=current_state,
+            reason=body.reason,
+            transition_time_ms=None  # Would measure in real implementation
+        )
+
         return SuccessResponse(data=result)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -354,24 +359,24 @@ async def get_queue_status(
 ):
     """
     Get processing queue status.
-    
+
     Returns detailed information about the processing queue including
     pending items, active processing, and priority distribution.
     """
     runtime_control = getattr(request.app.state, 'runtime_control', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control not available")
-    
+
     try:
         # Get agent processor
         if not hasattr(runtime_control, 'runtime') or not hasattr(runtime_control.runtime, 'agent_processor'):
             raise HTTPException(status_code=503, detail="Agent processor not available")
-        
+
         processor = runtime_control.runtime.agent_processor
-        
+
         # Get queue status
         queue_status = processor.get_queue_status()
-        
+
         # Convert to API schema if needed
         if hasattr(queue_status, '__dict__'):
             # It's a protocol object, convert to dict
@@ -384,13 +389,13 @@ async def get_queue_status(
                 "priority_distribution": queue_status.priority_distribution
             }
             queue_status = ProcessorQueueStatus(**status_data)
-        
+
         return SuccessResponse(data=queue_status)
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/speed", response_model=SuccessResponse[Dict[str, Any]])
+@router.post("/speed", response_model=SuccessResponse[ProcessingSpeedResult])
 async def set_processing_speed(
     request: Request,
     body: ProcessingSpeedRequest,
@@ -398,35 +403,36 @@ async def set_processing_speed(
 ):
     """
     Set processing speed.
-    
+
     Adjust the processing speed multiplier.
     - 1.0 = normal speed
     - 0.5 = half speed
     - 2.0 = double speed
-    
+
     Requires ADMIN role.
     """
     runtime_control = getattr(request.app.state, 'runtime_control', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control not available")
-    
+
     try:
         # Get agent processor
         if not hasattr(runtime_control, 'runtime') or not hasattr(runtime_control.runtime, 'agent_processor'):
             raise HTTPException(status_code=503, detail="Agent processor not available")
-        
+
         processor = runtime_control.runtime.agent_processor
-        
+
         # Set processing speed
         await processor.set_processing_speed(body.multiplier)
-        
-        result = {
-            "success": True,
-            "multiplier": body.multiplier,
-            "description": f"Processing speed set to {body.multiplier}x"
-        }
-        
+
+        result = ProcessingSpeedResult(
+            success=True,
+            multiplier=body.multiplier,
+            description=f"Processing speed set to {body.multiplier}x",
+            effective_immediately=True
+        )
+
         return SuccessResponse(data=result)
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

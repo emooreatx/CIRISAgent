@@ -18,14 +18,14 @@ class CliPlatform(Service):
         # Initialize the parent Service class
         super().__init__(config=kwargs.get('adapter_config'))
         self.runtime = runtime
-        
+
         # Generate stable adapter_id for observer persistence
         import os
         import socket
         # This adapter_id is used by AuthenticationService to find/create observer certificates
         self.adapter_id = f"cli_{os.getenv('USER', 'unknown')}@{socket.gethostname()}"
         logger.info(f"CLI adapter initialized with adapter_id: {self.adapter_id}")
-        
+
         if "adapter_config" in kwargs and kwargs["adapter_config"] is not None:
             self.config = kwargs["adapter_config"]
             logger.info(f"CLI adapter using provided config: interactive={self.config.interactive}")
@@ -33,7 +33,7 @@ class CliPlatform(Service):
             self.config = CLIAdapterConfig()
             if "interactive" in kwargs:
                 self.config.interactive = bool(kwargs["interactive"])
-            
+
             template = getattr(runtime, 'template', None)
             if template and hasattr(template, 'cli_config') and template.cli_config:
                 try:
@@ -44,9 +44,9 @@ class CliPlatform(Service):
                             logger.debug(f"CliPlatform: Set config {key} = {value} from template")
                 except Exception as e:
                     logger.debug(f"CliPlatform: Could not load config from template: {e}")
-            
+
             self.config.load_env_vars()
-        
+
         self.cli_adapter = CLIAdapter(
             runtime=runtime,
             interactive=self.config.interactive,
@@ -55,12 +55,12 @@ class CliPlatform(Service):
             config=self.config
         )
         logger.info(f"CliPlatform created CLIAdapter instance: {id(self.cli_adapter)}")
-        
+
         # Get time service from runtime
         time_service = None
         if hasattr(self.runtime, 'service_initializer') and self.runtime.service_initializer:
             time_service = getattr(self.runtime.service_initializer, 'time_service', None)
-        
+
         # Create CLI observer
         self.cli_observer = CLIObserver(
             on_observe=lambda _: asyncio.sleep(0),  # Not used in multi-service pattern
@@ -73,20 +73,20 @@ class CliPlatform(Service):
             interactive=self.config.interactive,
             config=self.config
         )
-    
+
 
     async def _handle_incoming_message(self, msg: IncomingMessage) -> None:
         """Handle incoming messages from the CLI adapter by routing through observer."""
         logger.debug(f"CliPlatform: Received message: {msg.message_id}")
-        
+
         if not self.cli_observer:
             logger.warning("CliPlatform: CLIObserver not available.")
             return
-        
+
         if not isinstance(msg, IncomingMessage):
             logger.warning(f"CliPlatform: Expected IncomingMessage, got {type(msg)}. Cannot process.")  # type: ignore[unreachable]
             return
-        
+
         try:
             await self.cli_observer.handle_incoming_message(msg)
             logger.debug("CliPlatform: Message sent to CLIObserver")
@@ -133,10 +133,10 @@ class CliPlatform(Service):
     async def run_lifecycle(self, agent_run_task: asyncio.Task[Any]) -> None:
         """Run the CLI platform lifecycle."""
         logger.info("CliPlatform: Running lifecycle.")
-        
+
         # Create tasks to monitor
         tasks = [agent_run_task]
-        
+
         # If we have an observer, monitor its stop event
         if self.cli_observer and hasattr(self.cli_observer, '_stop_event'):
             stop_event_task = asyncio.create_task(
@@ -144,11 +144,11 @@ class CliPlatform(Service):
                 name="CLIObserverStopEvent"
             )
             tasks.append(stop_event_task)
-        
+
         try:
             # Wait for either agent task to complete or observer to signal stop
             done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-            
+
             # Check what completed
             for task in done:
                 if task.get_name() == "CLIObserverStopEvent":
@@ -158,12 +158,12 @@ class CliPlatform(Service):
                     request_global_shutdown("CLI non-interactive mode completed")
                 elif task == agent_run_task:
                     logger.info("CliPlatform: Agent run task completed")
-                    
+
             # Cancel any remaining tasks
             for task in pending:
                 if not task.done():
                     task.cancel()
-                    
+
         except asyncio.CancelledError:
             logger.info("CliPlatform: Lifecycle was cancelled.")
         except Exception as e:

@@ -96,29 +96,29 @@ class ResourceSnapshot(BaseModel):
 
 class ResourceCost(BaseModel):
     """Environmental and financial cost of AI operations"""
-    
+
     # Token usage
     tokens_used: int = Field(default=0, ge=0, description="Total tokens consumed")
-    
+
     # Financial cost
     cost_cents: float = Field(default=0.0, ge=0.0, description="Cost in cents USD")
     cost_per_token_cents: float = Field(default=0.002, description="Cost per token in cents")
-    
+
     # Environmental impact (estimates based on research)
     water_ml: float = Field(default=0.0, ge=0.0, description="Water usage in milliliters")
     water_per_token_ml: float = Field(default=0.05, description="Water per token in ml (50ml per 1k tokens)")
-    
+
     carbon_g: float = Field(default=0.0, ge=0.0, description="Carbon emissions in grams CO2")
     carbon_per_token_g: float = Field(default=0.002, description="Carbon per token in grams (2g per 1k tokens)")
-    
+
     # Energy consumption
     energy_kwh: float = Field(default=0.0, ge=0.0, description="Energy consumption in kilowatt-hours")
     energy_per_token_kwh: float = Field(default=0.00001, description="Energy per token in kWh")
-    
+
     # Metadata
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When costs were calculated")
     model_used: Optional[str] = Field(default=None, description="Model that incurred these costs")
-    
+
     def calculate_from_tokens(self, tokens: int, model: Optional[str] = None) -> None:
         """Calculate all costs from token count"""
         self.tokens_used = tokens
@@ -128,7 +128,7 @@ class ResourceCost(BaseModel):
         self.energy_kwh = tokens * self.energy_per_token_kwh
         self.model_used = model
         self.timestamp = datetime.now(timezone.utc)
-    
+
     def add_usage(self, other: 'ResourceCost') -> None:
         """Add another resource cost to this one"""
         self.tokens_used += other.tokens_used
@@ -136,17 +136,17 @@ class ResourceCost(BaseModel):
         self.water_ml += other.water_ml
         self.carbon_g += other.carbon_g
         self.energy_kwh += other.energy_kwh
-    
+
     @property
     def cost_dollars(self) -> float:
         """Get cost in dollars"""
         return self.cost_cents / 100.0
-    
+
     @property
     def water_liters(self) -> float:
         """Get water usage in liters"""
         return self.water_ml / 1000.0
-    
+
     @property
     def carbon_kg(self) -> float:
         """Get carbon emissions in kilograms"""

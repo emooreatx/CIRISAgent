@@ -3,9 +3,8 @@ Schemas for registry operations.
 
 These replace all Dict[str, Any] usage in logic/registries/base.py.
 """
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
-from pydantic import Field
 
 class ServiceMetadata(BaseModel):
     """Metadata for a registered service."""

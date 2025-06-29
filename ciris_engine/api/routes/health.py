@@ -3,11 +3,14 @@ Health check endpoints for CIRIS API.
 """
 from fastapi import APIRouter, Request
 from datetime import datetime, timezone
-from typing import Dict, Any
+from typing import Dict
 from pydantic import BaseModel, Field, field_serializer
 import asyncio
+import logging
 
 from ciris_engine.schemas.api.responses import SuccessResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -17,7 +20,7 @@ class HealthStatus(BaseModel):
     version: str = Field(..., description="API version")
     timestamp: datetime = Field(..., description="Current server time")
     services: Dict[str, Dict[str, int]] = Field(..., description="Service health summary")
-    
+
     @field_serializer('timestamp')
     def serialize_timestamp(self, timestamp: datetime, _info):
         return timestamp.isoformat() if timestamp else None
@@ -26,7 +29,7 @@ class HealthStatus(BaseModel):
 async def health_check(request: Request):
     """
     Health check endpoint.
-    
+
     Returns current system health and service availability.
     """
     health_status = HealthStatus(
@@ -35,7 +38,7 @@ async def health_check(request: Request):
         timestamp=datetime.now(timezone.utc),
         services={}
     )
-    
+
     # Check service health if available
     if hasattr(request.app.state, 'service_registry'):
         service_registry = request.app.state.service_registry
@@ -56,9 +59,10 @@ async def health_check(request: Request):
                                     healthy_count += 1
                             else:
                                 healthy_count += 1  # Assume healthy if no method
-                        except:
-                            pass  # Count as unhealthy if check fails
-                    
+                        except Exception as e:
+                            logger.warning(f"Service health check failed for {service_type.value}: {type(e).__name__}: {str(e)} - Service may not implement is_healthy()")
+                            # Continue with service counted as unhealthy
+
                     health_status.services[service_type.value] = {
                         "available": len(providers),
                         "healthy": healthy_count
@@ -67,5 +71,5 @@ async def health_check(request: Request):
             # Log but don't fail health check
             import logging
             logging.error(f"Error checking service health: {e}")
-    
+
     return SuccessResponse(data=health_status)

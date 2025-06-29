@@ -10,7 +10,7 @@ from datetime import datetime
 
 class TimeServiceConfig(BaseModel):
     """Configuration for Time Service."""
-    
+
     enable_mocking: bool = Field(
         default=True,
         description="Whether to allow time mocking for tests"
@@ -22,7 +22,7 @@ class TimeServiceConfig(BaseModel):
 
 class TimeSnapshot(BaseModel):
     """A snapshot of time information."""
-    
+
     current_time: datetime = Field(..., description="Current time in UTC")
     current_iso: str = Field(..., description="Current time as ISO string")
     current_timestamp: float = Field(..., description="Current Unix timestamp")
@@ -31,7 +31,7 @@ class TimeSnapshot(BaseModel):
 
 class TimeServiceStatus(BaseModel):
     """Extended status for Time Service."""
-    
+
     service_name: str = Field(default="TimeService")
     is_healthy: bool = Field(..., description="Service health")
     uptime_seconds: float = Field(..., description="Service uptime")

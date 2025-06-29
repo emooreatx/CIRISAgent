@@ -6,7 +6,6 @@ Type-safe schemas for audit service operations.
 from datetime import datetime, timezone
 from typing import Dict, Optional
 from pydantic import BaseModel, Field, ConfigDict
-from pydantic import Field, ConfigDict
 
 class AuditActionContext(BaseModel):
     """Context for an audited action."""
@@ -15,7 +14,7 @@ class AuditActionContext(BaseModel):
     handler_name: str = Field(..., description="Name of the action handler")
     parameters: Dict[str, str] = Field(default_factory=dict, description="Action parameters")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class AuditConscienceResult(BaseModel):
@@ -24,7 +23,7 @@ class AuditConscienceResult(BaseModel):
     reason: Optional[str] = Field(None, description="Reason for allow/deny")
     modifications: Dict[str, str] = Field(default_factory=dict, description="Suggested modifications")
     risk_level: Optional[str] = Field(None, description="Assessed risk level")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class AuditRequest(BaseModel):
@@ -36,7 +35,7 @@ class AuditRequest(BaseModel):
     actor: str = Field(..., description="Who/what performed the action")
     details: Dict[str, str] = Field(..., description="Event details")
     outcome: Optional[str] = Field(None, description="Event outcome")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 __all__ = [

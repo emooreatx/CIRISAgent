@@ -16,14 +16,14 @@ from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphS
 from ciris_engine.schemas.conscience.core import (
     OptimizationVetoResult,
     EpistemicHumilityResult,
-    EntropyCheckResult, 
+    EntropyCheckResult,
     CoherenceCheckResult
 )
 from ciris_engine.schemas.services.feedback_core import FeedbackType
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
 from ciris_engine.schemas.actions.parameters import (
-    PonderParams, MemorizeParams, SpeakParams, RecallParams, 
+    PonderParams, MemorizeParams, SpeakParams, RecallParams,
     ObserveParams, RejectParams, DeferParams
 )
 
@@ -31,7 +31,7 @@ from ciris_engine.schemas.actions.parameters import (
 # Configuration for context echoing and testing behaviors
 class MockLLMConfig:
     """Configuration for mock LLM behavior."""
-    
+
     def __init__(self):
         # Regex patterns to match in messages for context echoing
         self.context_patterns = {
@@ -47,10 +47,10 @@ class MockLLMConfig:
             r'(Your internal state.*?)(?:\.|$)': lambda m: f"echo_wakeup:VALIDATE_INTEGRITY",
             # Capture startup patterns
             r'validate identity': lambda m: f"VERIFY_IDENTITY",
-            r'check integrity': lambda m: f"VALIDATE_INTEGRITY", 
+            r'check integrity': lambda m: f"VALIDATE_INTEGRITY",
             r'evaluate resilience': lambda m: f"EVALUATE_RESILIENCE",
             r'accept incompleteness': lambda m: f"ACCEPT_INCOMPLETENESS",
-            r'express gratitude': lambda m: f"EXPRESS_GRATITUDE", 
+            r'express gratitude': lambda m: f"EXPRESS_GRATITUDE",
             r'(You are robust.*?)(?:\.|$)': lambda m: f"echo_wakeup:EVALUATE_RESILIENCE",
             r'(You recognize your incompleteness.*?)(?:\.|$)': lambda m: f"echo_wakeup:ACCEPT_INCOMPLETENESS",
             r'(You are grateful.*?)(?:\.|$)': lambda m: f"echo_wakeup:EXPRESS_GRATITUDE",
@@ -60,7 +60,7 @@ class MockLLMConfig:
             # Catch-all for any content
             r'(.+)': lambda m: f"echo_content:{m.group(1)[:100]}"
         }
-        
+
         # Testing flags that can be set via special markers in messages
         self.testing_mode = False
         self.force_action = None  # Force specific action selection
@@ -88,11 +88,11 @@ def set_mock_config(**kwargs):
 def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
     """Extract context information from messages using regex patterns."""
     context_items = []
-    
+
     # Store original messages for $context display
     import json
     context_items.append(f"__messages__:{json.dumps(messages)}")
-    
+
     # First, check if this is a follow-up thought by examining THOUGHT_TYPE
     is_followup = False
     for msg in messages:
@@ -102,11 +102,11 @@ def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
                 is_followup = True
                 context_items.append("is_followup_thought")
                 break
-    
+
     # If it's a follow-up thought, don't process commands - just return
     if is_followup:
         return context_items
-    
+
     # Find the actual user message (not system messages)
     user_message = ""
     for msg in messages:
@@ -116,11 +116,11 @@ def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
         elif hasattr(msg, 'role') and msg.role == 'user':
             user_message = msg.content
             break
-    
+
     # Extract the actual user input after any preamble
     # Look for patterns like "User says: ..." or just take the message after "Original Thought:"
     actual_user_input = ""
-    
+
     # Pattern 1: Original Thought: "actual message"
     thought_match = re.search(r'Original Thought:\s*"([^"]+)"', user_message)
     if thought_match:
@@ -134,18 +134,18 @@ def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
     else:
         # If no pattern matches, use the full user message
         actual_user_input = user_message.strip()
-    
+
     # Store the extracted user input for reference
     if actual_user_input:
         context_items.append(f"user_input:{actual_user_input}")
-    
+
     # Apply context patterns to extract information from all messages
     for msg in messages:
         if isinstance(msg, dict):
             content = msg.get('content', '')
         else:
             content = str(msg)
-        
+
         # Apply each pattern from the config
         for pattern, extractor in _mock_config.context_patterns.items():
             matches = re.findall(pattern, content, re.IGNORECASE)
@@ -161,7 +161,7 @@ def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
                                 context_items.append(extracted)
                 except Exception as e:
                     logger.debug(f"Error extracting context with pattern {pattern}: {e}")
-    
+
     # Only check for commands if the user input starts with $
     if actual_user_input.startswith("$"):
         # Extract command and parameters
@@ -169,9 +169,9 @@ def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
         if action_match:
             action = action_match.group(1).lower()
             params = action_match.group(2) if action_match.group(2) else ""
-            
+
             # Validate action and store it
-            valid_actions = ['speak', 'recall', 'memorize', 'tool', 'observe', 'ponder', 
+            valid_actions = ['speak', 'recall', 'memorize', 'tool', 'observe', 'ponder',
                             'defer', 'reject', 'forget', 'task_complete', 'help']
             if action in valid_actions:
                 _mock_config.force_action = action
@@ -196,7 +196,7 @@ def extract_context_from_messages(messages: List[Dict[str, Any]]) -> List[str]:
                 # Enable testing mode
                 _mock_config.testing_mode = True
                 context_items.append("testing_mode_enabled")
-    
+
     return context_items
 
 
@@ -215,7 +215,7 @@ def _attach_extras(obj: Any) -> Any:
         logger.error(f"Failed to serialize object {type(obj)}: {e}")
         logger.error(f"Object content: {obj}")
         content_json = '{"error": "serialization_failed"}'
-    
+
     object.__setattr__(obj, "finish_reason", "stop")
     object.__setattr__(obj, "_raw_response", {"mock": True})
     object.__setattr__(obj, "choices", [SimpleNamespace(
@@ -228,37 +228,37 @@ def _attach_extras(obj: Any) -> Any:
 
 def ethical_dma(context: List[str] = None) -> EthicalDMAResult:
     context = context or []
-    
+
     # Extract thought content for ethical analysis
     thought_content = ""
     for item in context:
         if item.startswith("echo_thought:"):
             thought_content = item.split(":", 1)[1]
             break
-    
+
     # Determine if this is a wakeup thought or user interaction
-    is_wakeup = any("wakeup" in item.lower() or "verify" in item.lower() or "validate" in item.lower() 
+    is_wakeup = any("wakeup" in item.lower() or "verify" in item.lower() or "validate" in item.lower()
                    for item in context) or "WAKEUP" in thought_content.upper()
-    
+
     is_user_question = any("echo_user_speech:" in item for item in context) or "?" in thought_content
-    
+
     # Check for error injection
     if _mock_config.inject_error:
         decision = "defer"
         alignment_check = {
-            "ethical_uncertainty": True, 
+            "ethical_uncertainty": True,
             "context": context,
             "requires_wisdom_based_deferral": True
         }
         rationale = "Injected ethical uncertainty for testing purposes."
     else:
         decision = "proceed"
-        
+
         # Provide CIRIS-aligned ethical evaluation
         if is_wakeup:
             alignment_check = {
                 "beneficence": True,
-                "non_maleficence": True, 
+                "non_maleficence": True,
                 "integrity": True,
                 "autonomy_respect": True,
                 "justice": True,
@@ -270,7 +270,7 @@ def ethical_dma(context: List[str] = None) -> EthicalDMAResult:
             alignment_check = {
                 "beneficence": True,
                 "non_maleficence": True,
-                "integrity": True, 
+                "integrity": True,
                 "autonomy_respect": True,
                 "transparency": True,
                 "promotes_flourishing": True
@@ -284,7 +284,7 @@ def ethical_dma(context: List[str] = None) -> EthicalDMAResult:
                 "general_alignment": "proceeding_with_caution"
             }
             rationale = "General thought processing aligns with ethical guidelines. No contraindications to CIRIS covenant principles detected."
-    
+
     # Use string for decision field per new schema
     decision_param = str(decision)  # Ensure decision is always a string
     return _attach_extras(
@@ -307,7 +307,7 @@ def cs_dma(context: List[str] = None) -> CSDMAResult:
             user_speech = item.split(":", 1)[1]
             break
     # Determine context type for plausibility scoring
-    is_wakeup = any("wakeup" in item.lower() or "verify" in item.lower() 
+    is_wakeup = any("wakeup" in item.lower() or "verify" in item.lower()
                    for item in context) or "WAKEUP" in thought_content.upper()
     is_user_interaction = bool(user_speech) or "?" in thought_content
     is_memory_operation = any("recall" in item.lower() or "memory" in item.lower() for item in context)
@@ -330,7 +330,7 @@ def cs_dma(context: List[str] = None) -> CSDMAResult:
         else:
             flags = ["general_processing"]
             reasoning = "General thought processing within normal parameters. No physical impossibilities or logical contradictions detected."
-    
+
     return _attach_extras(CSDMAResult(plausibility_score=score, flags=flags, reasoning=reasoning))
 
 
@@ -400,7 +400,7 @@ def create_response(response_model: Any, messages: List[Dict[str, Any]] = None, 
             choices=[SimpleNamespace(
                 finish_reason="stop",
                 message=SimpleNamespace(
-                    role="assistant", 
+                    role="assistant",
                     content='{"status": "unstructured_call_detected"}'
                 )
             )],

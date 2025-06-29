@@ -7,8 +7,8 @@ from ciris_engine.logic.services.memory_service import LocalGraphMemoryService
 from ciris_engine.logic.utils import GraphQLContextProvider
 from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.schemas.runtime.models import Task
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot, TelemetrySummary, UserProfile
-from ciris_engine.schemas.services.graph_core import GraphScope, GraphNode, NodeType
+from ciris_engine.schemas.runtime.system_context import SystemSnapshot, UserProfile
+from ciris_engine.schemas.services.graph_core import GraphScope, NodeType
 from ciris_engine.schemas.services.operations import MemoryQuery
 from ciris_engine.schemas.runtime.enums import TaskStatus
 from ciris_engine.logic import persistence
@@ -61,7 +61,7 @@ async def build_system_snapshot(
         try:
             extracted_id = None
             extracted_context = None
-            
+
             # First check if context has system_snapshot.channel_context
             if hasattr(context, 'system_snapshot') and hasattr(context.system_snapshot, 'channel_context'):
                 extracted_context = context.system_snapshot.channel_context
@@ -69,14 +69,14 @@ async def build_system_snapshot(
                     extracted_id = str(extracted_context.channel_id)
                     logger.debug(f"Found channel_context in {source_name}.system_snapshot.channel_context")
                     return extracted_id, extracted_context
-            
+
             # Then check if context has system_snapshot.channel_id
             if hasattr(context, 'system_snapshot') and hasattr(context.system_snapshot, 'channel_id'):
                 cid = context.system_snapshot.channel_id
                 if cid is not None:
                     logger.debug(f"Found channel_id '{cid}' in {source_name}.system_snapshot.channel_id")
                     return str(cid), None
-            
+
             # Then check direct channel_id attribute
             if isinstance(context, dict):
                 cid = context.get('channel_id')
@@ -104,7 +104,7 @@ async def build_system_snapshot(
                 depth=1
             )
             channel_nodes = await memory_service.recall(query)
-            
+
             # If not found, try search
             if not channel_nodes:
                 from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
@@ -127,13 +127,13 @@ async def build_system_snapshot(
                             break
         except Exception as e:
             logger.debug(f"Failed to retrieve channel context for {channel_id}: {e}")
-    
+
     # Retrieve agent identity from graph - SINGLE CALL at snapshot generation
     identity_data: dict = {}
     identity_purpose: Optional[str] = None
     identity_capabilities: List[str] = []
     identity_restrictions: List[str] = []
-    
+
     if memory_service:
         try:
             # Query for the agent's identity node from the graph
@@ -146,7 +146,7 @@ async def build_system_snapshot(
             )
             identity_nodes = await memory_service.recall(identity_query)
             identity_result = identity_nodes[0] if identity_nodes else None
-            
+
             if identity_result and identity_result.attributes:
                 # The identity is stored as a TypedGraphNode (IdentityNode)
                 # Extract the identity fields from attributes
@@ -229,7 +229,7 @@ async def build_system_snapshot(
     shutdown_context = None
     if runtime and hasattr(runtime, 'current_shutdown_context'):
         shutdown_context = runtime.current_shutdown_context
-    
+
     # Get resource alerts - CRITICAL for mission-critical systems
     resource_alerts: List[str] = []
     try:
@@ -251,12 +251,12 @@ async def build_system_snapshot(
     # Get service health status
     service_health: Dict[str, dict] = {}
     circuit_breaker_status: Dict[str, dict] = {}
-    
+
     if service_registry:
         try:
             # Get health status from all registered services
             registry_info = service_registry.get_provider_info()
-            
+
             # Check handler-specific services
             for handler, service_types in registry_info.get('handlers', {}).items():
                 for service_type, services in service_types.items():
@@ -267,7 +267,7 @@ async def build_system_snapshot(
                         if hasattr(service, 'get_circuit_breaker_status'):
                             service_name = f"{handler}.{service_type}"
                             circuit_breaker_status[service_name] = service.get_circuit_breaker_status()
-            
+
             # Check global services
             for service_type, services in registry_info.get('global_services', {}).items():
                 for service in services:
@@ -277,7 +277,7 @@ async def build_system_snapshot(
                     if hasattr(service, 'get_circuit_breaker_status'):
                         service_name = f"global.{service_type}"
                         circuit_breaker_status[service_name] = service.get_circuit_breaker_status()
-                        
+
         except Exception as e:
             logger.warning(f"Failed to collect service health status: {e}")
 
@@ -289,7 +289,7 @@ async def build_system_snapshot(
             logger.debug("Successfully retrieved telemetry summary")
         except Exception as e:
             logger.warning(f"Failed to get telemetry summary: {e}")
-    
+
     context_data = {
         "current_task_details": current_task_summary,
         "current_thought_summary": thought_summary,
@@ -337,9 +337,9 @@ async def build_system_snapshot(
                     permissions=[attr.value for attr in graphql_profile.attributes if attr.key == "permission"],
                     restrictions=[attr.value for attr in graphql_profile.attributes if attr.key == "restriction"]
                 ))
-            
+
             context_data["user_profiles"] = user_profiles_list
-            
+
             # Add other enriched context data
             if enriched_context.identity_context:
                 context_data["identity_context"] = enriched_context.identity_context

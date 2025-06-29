@@ -23,7 +23,7 @@ class AuditEventType(str, Enum):
     HANDLER_ACTION_PONDER = "handler_action_ponder"
     HANDLER_ACTION_OBSERVE = "handler_action_observe"
     HANDLER_ACTION_TASK_COMPLETE = "handler_action_task_complete"
-    
+
     # System events
     SYSTEM_EVENT = "system_event"
     SECURITY_EVENT = "security_event"
@@ -44,12 +44,12 @@ class EventPayload(BaseModel):
     result: Optional[str] = Field(default=None, description="Result of action")
     error: Optional[str] = Field(default=None, description="Error message if failed")
     duration_ms: Optional[float] = Field(default=None, ge=0.0, description="Duration in milliseconds")
-    
+
     # Additional context
     user_id: Optional[str] = Field(default=None, description="User involved")
     channel_id: Optional[str] = Field(default=None, description="Channel involved")
     service_name: Optional[str] = Field(default=None, description="Service involved")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class AuditEvent(BaseModel):
@@ -73,13 +73,13 @@ class AuditLogEntry(BaseModel):
     target_id: Optional[str] = Field(default=None, description="ID of target component")
     event_summary: str = Field(description="Human-readable event summary")
     event_payload: Optional[EventPayload] = Field(default=None, description="Structured event data")
-    
+
     # Additional metadata
     agent_template: Optional[str] = Field(default=None, description="Agent template in use")
     round_number: Optional[int] = Field(default=None, ge=0, description="Processing round number")
     thought_id: Optional[str] = Field(default=None, description="Associated thought ID")
     task_id: Optional[str] = Field(default=None, description="Associated task ID")
-    
+
     # Hash chain fields
     previous_hash: Optional[str] = Field(default=None, description="Hash of previous entry for tamper detection")
     entry_hash: Optional[str] = Field(default=None, description="Hash of this entry")
@@ -93,11 +93,11 @@ class AuditSummary(BaseModel):
     events_by_outcome: List[Tuple[str, int]] = Field(default_factory=list, description="Count by outcome")
     error_count: int = Field(ge=0, default=0, description="Number of error events")
     security_event_count: int = Field(ge=0, default=0, description="Number of security events")
-    
+
     # Time range
     earliest_event: Optional[datetime] = Field(default=None, description="Timestamp of earliest event")
     latest_event: Optional[datetime] = Field(default=None, description="Timestamp of latest event")
-    
+
     model_config = ConfigDict(extra = "forbid")
 
 class AuditQuery(BaseModel):

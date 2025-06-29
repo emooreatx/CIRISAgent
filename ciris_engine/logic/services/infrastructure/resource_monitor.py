@@ -173,7 +173,7 @@ class ResourceMonitorService(ResourceMonitorServiceProtocol, ServiceProtocol):
             return row[0] if row else 0
         except Exception:  # pragma: no cover - DB errors unlikely in tests
             return 0
-    
+
     def get_status(self) -> ServiceStatus:
         """Get service status as required by ServiceProtocol."""
         return ServiceStatus(
@@ -192,11 +192,11 @@ class ResourceMonitorService(ResourceMonitorServiceProtocol, ServiceProtocol):
             last_error=None,
             last_health_check=self.time_service.now()
         )
-    
+
     async def is_healthy(self) -> bool:
         """Check if service is healthy."""
         return self.snapshot.healthy
-    
+
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities as required by ServiceProtocol."""
         return ServiceCapabilities(
@@ -204,7 +204,7 @@ class ResourceMonitorService(ResourceMonitorServiceProtocol, ServiceProtocol):
             actions=[
                 "resource_monitoring",
                 "cpu_tracking",
-                "memory_tracking", 
+                "memory_tracking",
                 "token_rate_limiting",
                 "thought_counting",
                 "resource_signals"

@@ -3,7 +3,7 @@ Schemas for identity variance and behavioral pattern tracking.
 
 Replaces Dict[str, Any] in identity_variance_monitor.py and configuration_feedback_loop.py.
 """
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict, field_serializer
 
@@ -14,9 +14,9 @@ class BehavioralPattern(BaseModel):
     evidence: List[str] = Field(default_factory=list, description="Evidence supporting this pattern")
     first_seen: datetime = Field(..., description="When pattern was first observed")
     last_seen: datetime = Field(..., description="Most recent occurrence")
-    
+
     model_config = ConfigDict()
-    
+
     @field_serializer('first_seen', 'last_seen')
     def serialize_datetime(self, dt: datetime) -> str:
         return dt.isoformat()
@@ -28,9 +28,9 @@ class ActionFrequency(BaseModel):
     evidence: List[str] = Field(default_factory=list, description="Recent examples")
     last_seen: datetime = Field(..., description="Most recent occurrence")
     daily_average: Optional[float] = Field(None, description="Average occurrences per day")
-    
+
     model_config = ConfigDict()
-    
+
     @field_serializer('last_seen')
     def serialize_datetime(self, dt: datetime) -> str:
         return dt.isoformat()
@@ -43,9 +43,9 @@ class EthicalBoundary(BaseModel):
     is_violated: bool = Field(False, description="Whether boundary is currently violated")
     violation_count: int = Field(0, description="Number of violations detected")
     last_violation: Optional[datetime] = Field(None, description="Most recent violation")
-    
+
     model_config = ConfigDict()
-    
+
     @field_serializer('last_violation')
     def serialize_datetime(self, dt: Optional[datetime]) -> Optional[str]:
         return dt.isoformat() if dt else None
@@ -58,9 +58,9 @@ class IdentityMetric(BaseModel):
     variance: float = Field(..., description="Variance from baseline (percentage)")
     is_within_bounds: bool = Field(..., description="Whether variance is acceptable")
     timestamp: datetime = Field(..., description="When measurement was taken")
-    
+
     model_config = ConfigDict()
-    
+
     @field_serializer('timestamp')
     def serialize_datetime(self, dt: datetime) -> str:
         return dt.isoformat()
@@ -74,9 +74,9 @@ class IdentityVarianceReport(BaseModel):
     behavioral_patterns: List[BehavioralPattern] = Field(default_factory=list, description="Detected patterns")
     ethical_boundaries: List[EthicalBoundary] = Field(default_factory=list, description="Ethical boundary status")
     recommendations: List[str] = Field(default_factory=list, description="Recommended adjustments")
-    
+
     model_config = ConfigDict()
-    
+
     @field_serializer('timestamp')
     def serialize_datetime(self, dt: datetime) -> str:
         return dt.isoformat()
@@ -91,9 +91,9 @@ class TemporalPattern(BaseModel):
     first_detected: datetime = Field(..., description="When pattern was first detected")
     last_observed: datetime = Field(..., description="Most recent occurrence")
     metrics: Dict[str, float] = Field(default_factory=dict, description="Associated metrics")
-    
+
     model_config = ConfigDict()
-    
+
     @field_serializer('first_detected', 'last_observed')
     def serialize_datetime(self, dt: datetime) -> str:
         return dt.isoformat()
@@ -105,9 +105,9 @@ class FeedbackLoopAnalysis(BaseModel):
     underused_capabilities: List[str] = Field(default_factory=list, description="Capabilities not being used")
     suggested_adjustments: List[str] = Field(default_factory=list, description="Recommended config changes")
     reliability_level: float = Field(0.5, description="Reliability of recommendations (0.0-1.0)")
-    
+
     model_config = ConfigDict()
-    
+
     @field_serializer('timestamp')
     def serialize_datetime(self, dt: datetime) -> str:
         return dt.isoformat()
