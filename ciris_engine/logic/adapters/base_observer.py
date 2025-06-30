@@ -1,6 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Awaitable, Callable, Generic, List, Optional, Set, TypeVar, cast, Any
+from typing import Awaitable, Callable, Dict, Generic, List, Optional, Set, TypeVar, cast, Any
 
 from pydantic import BaseModel
 
@@ -119,13 +119,64 @@ class BaseObserver(Generic[MessageT], ABC):
     async def _get_recall_ids(self, msg: MessageT) -> Set[str]:
         return {f"channel/{getattr(msg, 'channel_id', 'cli')}"}
 
+    async def _get_correlation_history(self, channel_id: str, limit: int = PASSIVE_CONTEXT_LIMIT) -> List[Dict[str, Any]]:
+        """Get message history from correlations database."""
+        from ciris_engine.logic.persistence import get_correlations_by_channel
+        
+        try:
+            correlations = get_correlations_by_channel(
+                channel_id=channel_id,
+                limit=limit
+            )
+            
+            history = []
+            for corr in correlations:
+                if corr.action_type == "speak" and corr.request_data:
+                    # Agent message
+                    content = ""
+                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
+                        content = corr.request_data.parameters.get("content", "")
+                    
+                    history.append({
+                        "author": "CIRIS",
+                        "author_id": self.agent_id or "ciris",
+                        "content": content,
+                        "timestamp": corr.timestamp or corr.created_at,
+                        "is_agent": True
+                    })
+                    
+                elif corr.action_type == "observe" and corr.request_data:
+                    # User message
+                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
+                        params = corr.request_data.parameters
+                        history.append({
+                            "author": params.get("author_name", "User"),
+                            "author_id": params.get("author_id", "unknown"),
+                            "content": params.get("content", ""),
+                            "timestamp": corr.timestamp or corr.created_at,
+                            "is_agent": False
+                        })
+            
+            return history
+            
+        except Exception as e:
+            logger.warning(f"Failed to get correlation history: {e}")
+            # Fallback to empty history
+            return []
+    
     async def _recall_context(self, msg: MessageT) -> None:
         if not self.memory_service:
             return
         recall_ids = await self._get_recall_ids(msg)
-        for m in self._history[-PASSIVE_CONTEXT_LIMIT:]:
-            if getattr(m, "author_id", None):
-                recall_ids.add(f"user/{m.author_id}")  # type: ignore[attr-defined]
+        
+        # Get user IDs from correlation history
+        channel_id = getattr(msg, "channel_id", "system")
+        history = await self._get_correlation_history(channel_id, PASSIVE_CONTEXT_LIMIT)
+        
+        for hist_msg in history:
+            if hist_msg.get("author_id"):
+                recall_ids.add(f"user/{hist_msg['author_id']}")
+        
         from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
         for rid in recall_ids:
             for scope in (
@@ -217,14 +268,9 @@ class BaseObserver(Generic[MessageT], ABC):
                 }
             )
 
-            # Build message history context
-            history_context = []
-            for hist_msg in self._history[-PASSIVE_CONTEXT_LIMIT:]:
-                history_context.append({
-                    "author": getattr(hist_msg, "author_name", "Unknown"),
-                    "content": getattr(hist_msg, "content", ""),
-                    "timestamp": getattr(hist_msg, "timestamp", "")
-                })
+            # Get message history from correlations instead of in-memory
+            channel_id = getattr(msg, "channel_id", "system")
+            history_context = await self._get_correlation_history(channel_id, PASSIVE_CONTEXT_LIMIT)
 
             task = Task(
                 task_id=str(uuid.uuid4()),
@@ -246,11 +292,11 @@ class BaseObserver(Generic[MessageT], ABC):
 
             # Build conversation context for thought
             conversation_lines = ["=== CONVERSATION HISTORY (Last 10 messages) ==="]
-            for i, hist_msg in enumerate(self._history[-PASSIVE_CONTEXT_LIMIT:], 1):
-                author = getattr(hist_msg, "author_name", "Unknown")
-                author_id = getattr(hist_msg, "author_id", "unknown")
-                content = getattr(hist_msg, "content", "")
-                _timestamp = getattr(hist_msg, "timestamp", "")
+            for i, hist_msg in enumerate(history_context, 1):
+                author = hist_msg.get("author", "Unknown")
+                author_id = hist_msg.get("author_id", "unknown")
+                content = hist_msg.get("content", "")
+                _timestamp = hist_msg.get("timestamp", "")
                 conversation_lines.append(f"{i}. @{author} (ID: {author_id}): {content}")
 
             conversation_lines.append("\n=== CURRENT MESSAGE TO RESPOND TO ===")

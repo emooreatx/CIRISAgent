@@ -3,19 +3,19 @@
 from .interface import ConscienceInterface
 from .registry import conscienceRegistry
 from .core import (
-    Entropyconscience,
-    Coherenceconscience,
-    OptimizationVetoconscience,
-    EpistemicHumilityconscience,
+    EntropyConscience,
+    CoherenceConscience,
+    OptimizationVetoConscience,
+    EpistemicHumilityConscience,
 )
-from .thought_depth_guardrail import ThoughtDepthconscience
+from .thought_depth_guardrail import ThoughtDepthGuardrail
 
 __all__ = [
     "ConscienceInterface",
     "conscienceRegistry",
-    "Entropyconscience",
-    "Coherenceconscience",
-    "OptimizationVetoconscience",
-    "EpistemicHumilityconscience",
-    "ThoughtDepthconscience",
+    "EntropyConscience",
+    "CoherenceConscience",
+    "OptimizationVetoConscience",
+    "EpistemicHumilityConscience",
+    "ThoughtDepthGuardrail",
 ]

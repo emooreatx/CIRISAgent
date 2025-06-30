@@ -370,6 +370,76 @@ def get_correlations_by_type_and_time(
         logger.exception("Failed to fetch correlations by type %s: %s", correlation_type, e)
         return []
 
+def get_correlations_by_channel(
+    channel_id: str,
+    limit: int = 50,
+    before: Optional[datetime] = None,
+    db_path: Optional[str] = None
+) -> List[ServiceCorrelation]:
+    """Get correlations for a specific channel (for message history)."""
+    sql = """
+        SELECT * FROM service_correlations
+        WHERE (
+            (action_type = 'speak' AND json_extract(request_data, '$.channel_id') = ?) OR
+            (action_type = 'observe' AND json_extract(request_data, '$.channel_id') = ?)
+        )
+    """
+    params: List[Any] = [channel_id, channel_id]
+    
+    if before:
+        sql += " AND timestamp < ?"
+        before_str = before.isoformat() if hasattr(before, 'isoformat') else str(before)
+        params.append(before_str)
+    
+    sql += " ORDER BY timestamp DESC LIMIT ?"
+    params.append(limit)
+    
+    try:
+        with get_db_connection(db_path=db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            
+            correlations = []
+            for row in rows:
+                # Parse timestamp if present
+                timestamp = None
+                if row["timestamp"]:
+                    try:
+                        # Handle both 'Z' and '+00:00' formats
+                        timestamp_str = row["timestamp"]
+                        if timestamp_str.endswith('Z'):
+                            timestamp_str = timestamp_str[:-1] + '+00:00'
+                        timestamp = datetime.fromisoformat(timestamp_str)
+                    except (ValueError, AttributeError):
+                        timestamp = None
+                
+                # Build the correlation without None values for optional fields
+                correlation_data = {
+                    "correlation_id": row["correlation_id"],
+                    "service_type": row["service_type"],
+                    "handler_name": row["handler_name"],
+                    "action_type": row["action_type"],
+                    "request_data": json.loads(row["request_data"]) if row["request_data"] else None,
+                    "response_data": json.loads(row["response_data"]) if row["response_data"] else None,
+                    "status": ServiceCorrelationStatus(row["status"]),
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"],
+                    "correlation_type": CorrelationType(row["correlation_type"] or "service_interaction"),
+                    "timestamp": timestamp or datetime.now(timezone.utc),
+                    "tags": json.loads(row["tags"]) if row["tags"] else {},
+                    "retention_policy": row["retention_policy"] or "raw",
+                }
+                
+                correlations.append(ServiceCorrelation(**correlation_data))
+            
+            # Reverse to get chronological order (oldest first)
+            correlations.reverse()
+            return correlations
+    except Exception as e:
+        logger.exception("Failed to fetch correlations for channel %s: %s", channel_id, e)
+        return []
+
 def get_metrics_timeseries(
     query: MetricsQuery,
     db_path: Optional[str] = None

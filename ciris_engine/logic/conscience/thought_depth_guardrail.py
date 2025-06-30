@@ -7,6 +7,7 @@ overrides the action to DEFER, ensuring proper escalation to humans.
 
 import logging
 from typing import Optional
+from datetime import datetime
 
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.conscience.core import ConscienceCheckResult, ConscienceStatus, EpistemicData
@@ -15,10 +16,13 @@ from ciris_engine.schemas.actions import DeferParams
 from ciris_engine.logic.conscience.interface import ConscienceInterface
 # TODO: Refactor to use dependency injection instead of get_config
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.logic import persistence
+from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, TraceContext, ServiceCorrelationStatus
+from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
 
 logger = logging.getLogger(__name__)
 
-class ThoughtDepthconscience(ConscienceInterface):
+class ThoughtDepthGuardrail(ConscienceInterface):
     """Enforces maximum thought depth by deferring when limit is reached."""
 
     def __init__(self, time_service: TimeServiceProtocol, max_depth: Optional[int] = None):
@@ -39,12 +43,68 @@ class ThoughtDepthconscience(ConscienceInterface):
         context: dict,
     ) -> ConscienceCheckResult:
         """Check if thought depth exceeds maximum allowed."""
+        start_time = datetime.utcnow()
         timestamp = self._time_service.now()
 
         # Get the thought from context
         thought = context.get("thought")
+        thought_id = thought.thought_id if thought and hasattr(thought, 'thought_id') else 'unknown'
+        task_id = thought.source_task_id if thought and hasattr(thought, 'source_task_id') else 'unknown'
+        
+        # Create trace for guardrail execution
+        trace_id = f"task_{task_id}_{thought_id}"
+        span_id = f"thought_depth_guardrail_{thought_id}"
+        parent_span_id = f"thought_processor_{thought_id}"
+        
+        trace_context = TraceContext(
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
+            span_name="thought_depth_guardrail_check",
+            span_kind="internal",
+            baggage={
+                "thought_id": thought_id,
+                "task_id": task_id,
+                "guardrail_type": "thought_depth",
+                "max_depth": str(self.max_depth)
+            }
+        )
+        
+        correlation = ServiceCorrelation(
+            correlation_id=f"trace_{span_id}_{start_time.timestamp()}",
+            correlation_type=CorrelationType.TRACE_SPAN,
+            service_type="guardrail",
+            handler_name="ThoughtDepthGuardrail",
+            action_type="check",
+            created_at=start_time,
+            updated_at=start_time,
+            timestamp=start_time,
+            trace_context=trace_context,
+            tags={
+                "thought_id": thought_id,
+                "task_id": task_id,
+                "component_type": "guardrail",
+                "guardrail_type": "thought_depth",
+                "trace_depth": "4"
+            }
+        )
+        
+        # Add correlation
+        persistence.add_correlation(correlation, self._time_service)
         if not thought:
             logger.warning("No thought provided to ThoughtDepthconscience")
+            # Update correlation with completion
+            end_time = datetime.utcnow()
+            update_req = CorrelationUpdateRequest(
+                correlation_id=correlation.correlation_id,
+                response_data={
+                    "success": "true",
+                    "result_summary": "No thought provided to check",
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                },
+                status=ServiceCorrelationStatus.COMPLETED
+            )
+            persistence.update_correlation(update_req, self._time_service)
             return ConscienceCheckResult(
                 status=ConscienceStatus.PASSED,
                 passed=True,
@@ -68,6 +128,18 @@ class ThoughtDepthconscience(ConscienceInterface):
         }
 
         if action.selected_action in terminal_actions:
+            # Update correlation with completion
+            end_time = datetime.utcnow()
+            update_req = CorrelationUpdateRequest(
+                correlation_id=correlation.correlation_id,
+                response_data={
+                    "success": "true",
+                    "result_summary": f"Terminal action {action.selected_action} at depth {current_depth}",
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                },
+                status=ServiceCorrelationStatus.COMPLETED
+            )
+            persistence.update_correlation(update_req, self._time_service)
             return ConscienceCheckResult(
                 status=ConscienceStatus.PASSED,
                 passed=True,
@@ -116,6 +188,18 @@ class ThoughtDepthconscience(ConscienceInterface):
                 total_evaluation_time_ms=0.0
             )
 
+            # Update correlation with failure (depth exceeded)
+            end_time = datetime.utcnow()
+            update_req = CorrelationUpdateRequest(
+                correlation_id=correlation.correlation_id,
+                response_data={
+                    "success": "false",
+                    "result_summary": f"Maximum thought depth ({self.max_depth}) reached - deferring to human",
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                },
+                status=ServiceCorrelationStatus.FAILED
+            )
+            persistence.update_correlation(update_req, self._time_service)
             return ConscienceCheckResult(
                 status=ConscienceStatus.FAILED,
                 passed=False,
@@ -130,6 +214,18 @@ class ThoughtDepthconscience(ConscienceInterface):
             )
 
         # Depth is within limits
+        # Update correlation with success
+        end_time = datetime.utcnow()
+        update_req = CorrelationUpdateRequest(
+            correlation_id=correlation.correlation_id,
+            response_data={
+                "success": "true",
+                "result_summary": f"Thought depth {current_depth} within limit of {self.max_depth}",
+                "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+            },
+            status=ServiceCorrelationStatus.COMPLETED
+        )
+        persistence.update_correlation(update_req, self._time_service)
         return ConscienceCheckResult(
             status=ConscienceStatus.PASSED,
             passed=True,

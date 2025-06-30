@@ -13,6 +13,7 @@ from ciris_engine.schemas.processors.states import AgentState
 from ciris_engine.schemas.processors.state import StateTransitionRecord
 from ciris_engine.logic import persistence
 from ciris_engine.schemas.runtime.models import Thought, ThoughtStatus
+from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, TraceContext, ServiceRequestData, ServiceResponseData
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
 from ciris_engine.logic.utils.context_utils import build_dispatch_context
 
@@ -371,6 +372,46 @@ class AgentProcessor:
 
     async def _process_single_thought(self, thought: Thought) -> bool:
         """Process a single thought and dispatch its action, with comprehensive error handling."""
+        start_time = datetime.utcnow()
+        trace_id = f"task_{thought.source_task_id or 'unknown'}_{thought.thought_id}"
+        span_id = f"agent_processor_{thought.thought_id}"
+        
+        # Create TRACE_SPAN correlation for this thought processing
+        trace_context = TraceContext(
+            trace_id=trace_id,
+            span_id=span_id,
+            span_name="process_single_thought",
+            span_kind="internal",
+            baggage={
+                "thought_id": thought.thought_id,
+                "task_id": thought.source_task_id or "",
+                "processor_state": self.state_manager.get_state().value
+            }
+        )
+        
+        correlation = ServiceCorrelation(
+            correlation_id=f"trace_{span_id}_{start_time.timestamp()}",
+            correlation_type=CorrelationType.TRACE_SPAN,
+            service_type="agent_processor",
+            handler_name="AgentProcessor",
+            action_type="process_thought",
+            created_at=start_time,
+            updated_at=start_time,
+            timestamp=start_time,
+            trace_context=trace_context,
+            tags={
+                "thought_id": thought.thought_id,
+                "task_id": thought.source_task_id or "",
+                "component_type": "agent_processor",
+                "trace_depth": "1",
+                "thought_type": thought.thought_type.value if thought.thought_type else "unknown",
+                "processor_state": self.state_manager.get_state().value
+            }
+        )
+        
+        # Add correlation to track this processing
+        persistence.add_correlation(correlation, self._time_service)
+        
         try:
             # Create processing queue item
             item = ProcessingQueueItem.from_thought(thought)
@@ -384,6 +425,16 @@ class AgentProcessor:
                     status=ThoughtStatus.FAILED,
                     final_action={"error": f"No processor for state {self.state_manager.get_state()}"}
                 )
+                # Update correlation with failure
+                end_time = datetime.utcnow()
+                correlation.response_data = ServiceResponseData(
+                    success=False,
+                    error_message=f"No processor for state {self.state_manager.get_state()}",
+                    execution_time_ms=(end_time - start_time).total_seconds() * 1000,
+                    response_timestamp=end_time
+                )
+                correlation.updated_at = end_time
+                persistence.update_correlation(correlation.correlation_id, correlation, self._time_service)
                 return False
 
             # Use fallback-aware process_thought_item
@@ -396,6 +447,16 @@ class AgentProcessor:
                     status=ThoughtStatus.FAILED,
                     final_action={"error": f"Processor error: {e}"}
                 )
+                # Update correlation with failure
+                end_time = datetime.utcnow()
+                correlation.response_data = ServiceResponseData(
+                    success=False,
+                    error_message=f"Processor error: {e}",
+                    execution_time_ms=(end_time - start_time).total_seconds() * 1000,
+                    response_timestamp=end_time
+                )
+                correlation.updated_at = end_time
+                persistence.update_correlation(correlation.correlation_id, correlation, self._time_service)
                 return False
 
             if result:
@@ -431,6 +492,16 @@ class AgentProcessor:
                         status=ThoughtStatus.FAILED,
                         final_action={"error": f"Dispatch error: {e}"}
                     )
+                    # Update correlation with dispatch failure
+                    end_time = datetime.utcnow()
+                    correlation.response_data = ServiceResponseData(
+                        success=False,
+                        error_message=f"Dispatch error: {e}",
+                        execution_time_ms=(end_time - start_time).total_seconds() * 1000,
+                        response_timestamp=end_time
+                    )
+                    correlation.updated_at = end_time
+                    persistence.update_correlation(correlation.correlation_id, correlation, self._time_service)
                     return False
             else:
                 try:
@@ -438,6 +509,16 @@ class AgentProcessor:
                     updated_thought = await persistence.async_get_thought_by_id(thought.thought_id)
                     if updated_thought and updated_thought.status in [ThoughtStatus.COMPLETED, ThoughtStatus.FAILED]:
                         logger.debug(f"Thought {thought.thought_id} was already handled with status {updated_thought.status.value}")
+                        # Update correlation - thought was already handled
+                        end_time = datetime.utcnow()
+                        correlation.response_data = ServiceResponseData(
+                            success=True,
+                            result_summary=f"Thought already handled with status {updated_thought.status.value}",
+                            execution_time_ms=(end_time - start_time).total_seconds() * 1000,
+                            response_timestamp=end_time
+                        )
+                        correlation.updated_at = end_time
+                        persistence.update_correlation(correlation.correlation_id, correlation, self._time_service)
                         return True
                     else:
                         logger.warning(f"No result from processing thought {thought.thought_id}")
@@ -460,6 +541,21 @@ class AgentProcessor:
                 )
             except Exception as update_error:
                 logger.error(f"Failed to update thought status after critical error: {update_error}", exc_info=True)
+            
+            # Update correlation with critical error
+            end_time = datetime.utcnow()
+            correlation.response_data = ServiceResponseData(
+                success=False,
+                error_message=f"Critical processing error: {e}",
+                execution_time_ms=(end_time - start_time).total_seconds() * 1000,
+                response_timestamp=end_time
+            )
+            correlation.updated_at = end_time
+            correlation.tags["task_status"] = "FAILED"
+            try:
+                persistence.update_correlation(correlation.correlation_id, correlation, self._time_service)
+            except Exception as corr_error:
+                logger.error(f"Failed to update correlation after critical error: {corr_error}")
             raise
 
     async def stop_processing(self) -> None:

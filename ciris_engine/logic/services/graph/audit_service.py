@@ -32,6 +32,8 @@ from ciris_engine.schemas.runtime.audit import AuditActionContext, AuditConscien
 # TSDB functionality integrated into graph nodes
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.services.nodes import AuditEntry as AuditEntryNode, AuditEntryContext
+# Type alias for protocol compatibility
+AuditEntry = AuditEntryNode
 from ciris_engine.schemas.services.operations import MemoryOpStatus
 from ciris_engine.schemas.services.graph.audit import (
     AuditEventData, VerificationReport, AuditQuery
@@ -383,9 +385,10 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         thought_id: Optional[str] = None,
         task_id: Optional[str] = None,
         limit: int = 100
-    ) -> List[AuditRequest]:
+    ) -> List[AuditEntry]:
         """Query audit trail with filters."""
         try:
+            
             # Calculate time range
             hours = self._calculate_hours(start_time, end_time)
 
@@ -410,9 +413,24 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
                     continue
 
                 # Convert to AuditEntry
-                entry = self._tsdb_to_audit_entry(data)
-                if entry:
-                    results.append(entry)
+                audit_request = self._tsdb_to_audit_entry(data)
+                if audit_request:
+                    # Convert AuditRequest to AuditEntry for API
+                    audit_entry = AuditEntryNode(
+                        id=f"audit_{audit_request.entry_id}",
+                        action=audit_request.event_type,
+                        actor=audit_request.actor,
+                        timestamp=audit_request.timestamp,
+                        context=AuditEntryContext(
+                            service_name=audit_request.details.get("handler_name", ""),
+                            correlation_id=audit_request.entity_id,
+                            additional_data=audit_request.details
+                        ),
+                        signature=None,  # Would be in the data if present
+                        hash_chain=None,  # Would be in the data if present
+                        scope=GraphScope.LOCAL
+                    )
+                    results.append(audit_entry)
 
             # Sort and limit
             results.sort(key=lambda x: x.timestamp, reverse=True)

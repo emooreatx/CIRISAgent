@@ -23,6 +23,47 @@ class APICommunicationService(CommunicationServiceProtocol):
     async def send_message(self, channel_id: str, content: str) -> bool:
         """Send message through API response or WebSocket."""
         try:
+            # Create a "speak" correlation for this outgoing message
+            from ciris_engine.logic import persistence
+            from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus
+            from ciris_engine.schemas.telemetry.core import ServiceRequestData, ServiceResponseData
+            import uuid
+            
+            correlation_id = str(uuid.uuid4())
+            now = datetime.now(timezone.utc)
+            
+            # Create correlation for the outgoing message
+            correlation = ServiceCorrelation(
+                correlation_id=correlation_id,
+                service_type="api",
+                handler_name="APIAdapter",
+                action_type="speak",
+                request_data=ServiceRequestData(
+                    service_type="api",
+                    method_name="speak",
+                    channel_id=channel_id,
+                    parameters={
+                        "content": content,
+                        "channel_id": channel_id
+                    },
+                    request_timestamp=now
+                ),
+                response_data=ServiceResponseData(
+                    success=True,
+                    result_summary="Message sent",
+                    execution_time_ms=0,
+                    response_timestamp=now
+                ),
+                status=ServiceCorrelationStatus.COMPLETED,
+                created_at=now,
+                updated_at=now,
+                timestamp=now
+            )
+            
+            # Get time service if available (passed from adapter)
+            time_service = getattr(self, '_time_service', None)
+            persistence.add_correlation(correlation, time_service)
+            logger.debug(f"Created speak correlation for channel {channel_id}")
             # If it's a WebSocket channel, send through WebSocket
             if channel_id and channel_id.startswith("ws:"):
                 client_id = channel_id[3:]  # Remove "ws:" prefix
@@ -131,9 +172,66 @@ class APICommunicationService(CommunicationServiceProtocol):
         limit: int = 50,
         before: Optional[datetime] = None,
     ) -> List[Dict[str, Any]]:
-        """Retrieve messages from a channel - not implemented for API."""
-        # API doesn't store messages, they're handled by request/response
-        return []
+        """Retrieve messages from a channel using the correlations database."""
+        from ciris_engine.logic.persistence import get_correlations_by_channel
+        from ciris_engine.schemas.runtime.messages import FetchedMessage
+        
+        try:
+            # Get correlations for this channel
+            correlations = get_correlations_by_channel(
+                channel_id=channel_id,
+                limit=limit,
+                before=before
+            )
+            
+            messages = []
+            for corr in correlations:
+                # Extract message data from correlation
+                if corr.action_type == "speak" and corr.request_data:
+                    # This is an outgoing message from the agent
+                    content = ""
+                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
+                        content = corr.request_data.parameters.get("content", "")
+                    
+                    messages.append({
+                        "message_id": corr.correlation_id,
+                        "author_id": "ciris",  # Agent messages
+                        "author_name": "CIRIS",
+                        "content": content,
+                        "timestamp": corr.timestamp or corr.created_at,
+                        "channel_id": channel_id,
+                        "is_agent_message": True
+                    })
+                elif corr.action_type == "observe" and corr.request_data:
+                    # This is an incoming message from a user
+                    content = ""
+                    author_id = "unknown"
+                    author_name = "User"
+                    
+                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
+                        params = corr.request_data.parameters
+                        content = params.get("content", "")
+                        author_id = params.get("author_id", "unknown")
+                        author_name = params.get("author_name", "User")
+                    
+                    messages.append({
+                        "message_id": corr.correlation_id,
+                        "author_id": author_id,
+                        "author_name": author_name,
+                        "content": content,
+                        "timestamp": corr.timestamp or corr.created_at,
+                        "channel_id": channel_id,
+                        "is_agent_message": False
+                    })
+            
+            # Sort by timestamp
+            messages.sort(key=lambda m: m["timestamp"])
+            
+            return messages
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch messages from correlations for channel {channel_id}: {e}")
+            return []
     
     async def start(self) -> None:
         """Start the communication service."""

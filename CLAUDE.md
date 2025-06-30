@@ -134,8 +134,8 @@ python test_api_v1_comprehensive.py
 ### API Authentication
 ```python
 # Default development credentials
-username = "root"
-password = "ciris_root_password"
+username = "admin"
+password = "ciris_admin_password"
 ```
 
 ## Key Principles

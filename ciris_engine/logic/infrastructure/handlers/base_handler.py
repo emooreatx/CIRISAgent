@@ -6,6 +6,7 @@ import asyncio
 import logging
 from typing import Any, Callable, Optional, Type, TypeVar
 from abc import ABC, abstractmethod
+from datetime import datetime
 
 from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
@@ -22,6 +23,9 @@ from ciris_engine.logic.utils.shutdown_manager import (
 )
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from pydantic import BaseModel, ValidationError
+from ciris_engine.logic import persistence
+from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, TraceContext, ServiceCorrelationStatus
+from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
 
 T = TypeVar('T', bound=BaseModel)
 
@@ -75,6 +79,10 @@ class BaseActionHandler(ABC):
         # Quick access to commonly used dependencies
         self.bus_manager = dependencies.bus_manager
         self.time_service = dependencies.time_service
+        
+        # Track current correlation for tracing
+        self._current_correlation: Optional[ServiceCorrelation] = None
+        self._trace_start_time: Optional[datetime] = None
 
     @abstractmethod
     async def handle(
@@ -239,6 +247,76 @@ class BaseActionHandler(ABC):
                     channel_id = extract_channel_id(system_snapshot.channel_context)
 
         return channel_id
+    
+    def _create_trace_correlation(
+        self,
+        dispatch_context: DispatchContext,
+        action_type: HandlerActionType
+    ) -> None:
+        """Create a trace correlation for handler execution."""
+        self._trace_start_time = datetime.utcnow()
+        
+        # Create trace for handler execution
+        trace_id = f"task_{dispatch_context.task_id or 'unknown'}_{dispatch_context.thought_id or 'unknown'}"
+        span_id = f"{self.__class__.__name__.lower()}_{dispatch_context.thought_id or 'unknown'}"
+        parent_span_id = f"thought_processor_{dispatch_context.thought_id or 'unknown'}"
+        
+        trace_context = TraceContext(
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
+            span_name=f"{self.__class__.__name__}_handle",
+            span_kind="internal",
+            baggage={
+                "thought_id": dispatch_context.thought_id or "",
+                "task_id": dispatch_context.task_id or "",
+                "handler_type": self.__class__.__name__,
+                "action_type": action_type.value
+            }
+        )
+        
+        self._current_correlation = ServiceCorrelation(
+            correlation_id=f"trace_{span_id}_{datetime.utcnow().timestamp()}",
+            correlation_type=CorrelationType.TRACE_SPAN,
+            service_type="handler",
+            handler_name=self.__class__.__name__,
+            action_type=action_type.value,
+            created_at=self._trace_start_time,
+            updated_at=self._trace_start_time,
+            timestamp=self._trace_start_time,
+            trace_context=trace_context,
+            tags={
+                "thought_id": dispatch_context.thought_id or "",
+                "task_id": dispatch_context.task_id or "",
+                "component_type": "handler",
+                "handler_type": self.__class__.__name__,
+                "trace_depth": "5"
+            }
+        )
+        
+        # Add correlation
+        persistence.add_correlation(self._current_correlation, self.time_service)
+    
+    def _update_trace_correlation(
+        self,
+        success: bool,
+        result_summary: str
+    ) -> None:
+        """Update the trace correlation with results."""
+        if not self._current_correlation or not self._trace_start_time:
+            return
+            
+        end_time = datetime.utcnow()
+        update_req = CorrelationUpdateRequest(
+            correlation_id=self._current_correlation.correlation_id,
+            response_data={
+                "success": str(success).lower(),
+                "result_summary": result_summary,
+                "execution_time_ms": str((end_time - self._trace_start_time).total_seconds() * 1000)
+            },
+            status=ServiceCorrelationStatus.COMPLETED if success else ServiceCorrelationStatus.FAILED
+        )
+        persistence.update_correlation(update_req, self.time_service)
 
     async def _send_notification(
         self,

@@ -205,18 +205,21 @@ async def get_history(
         
         # Convert to response format
         messages = []
-        for msg in user_messages[-limit:]:  # Get last N messages
+        
+        # First, expand all messages (user + response pairs)
+        all_messages = []
+        for msg in user_messages:
             # Add user message
-            messages.append(ConversationMessage(
+            all_messages.append(ConversationMessage(
                 id=msg['message_id'],
                 author=msg['author_id'],
                 content=msg['content'],
                 timestamp=datetime.fromisoformat(msg['timestamp']) if isinstance(msg['timestamp'], str) else msg['timestamp'],
                 is_agent=False
             ))
-            # Add agent response
+            # Add agent response if exists
             if msg.get('response'):
-                messages.append(ConversationMessage(
+                all_messages.append(ConversationMessage(
                     id=f"{msg['message_id']}_response",
                     author="Scout",
                     content=msg['response'],
@@ -224,10 +227,16 @@ async def get_history(
                     is_agent=True
                 ))
         
+        # Now take only the last 'limit' messages
+        if len(all_messages) > limit:
+            messages = all_messages[-limit:]
+        else:
+            messages = all_messages
+        
         history = ConversationHistory(
             messages=messages,
             total_count=len(user_messages),
-            has_more=len(user_messages) > limit
+            has_more=len(user_messages) > len(messages)  # Fixed: has_more should be based on actual truncation
         )
         
         return SuccessResponse(data=history)
@@ -276,8 +285,9 @@ async def get_history(
             return SuccessResponse(data=history)
 
     try:
-        # Fetch messages from communication service
-        messages = await comm_service.fetch_messages(channel_id, limit)
+        # Fetch messages from communication service (fetch more to allow filtering)
+        fetch_limit = limit * 2 if before else limit
+        messages = await comm_service.fetch_messages(channel_id, fetch_limit)
 
         # Filter by time if specified
         if before:
@@ -285,7 +295,7 @@ async def get_history(
 
         # Convert to conversation messages
         conv_messages = []
-        for msg in messages:
+        for msg in messages[:limit]:  # Apply limit after filtering
             conv_messages.append(ConversationMessage(
                 id=msg.id,
                 author=msg.author_name or msg.author_id,
@@ -297,8 +307,8 @@ async def get_history(
         # Build response
         history = ConversationHistory(
             messages=conv_messages,
-            total_count=len(conv_messages),
-            has_more=len(messages) == limit
+            total_count=len(messages),  # Total before limiting
+            has_more=len(messages) > limit
         )
 
         return SuccessResponse(data=history)

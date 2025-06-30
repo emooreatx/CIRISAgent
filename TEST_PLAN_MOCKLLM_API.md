@@ -35,8 +35,9 @@ The MockLLM provides deterministic responses with special command syntax:
 ### Configuration
 - **LLM**: MockLLM (deterministic responses)
 - **Adapter**: API (RESTful + WebSocket)
-- **Mode**: Development (all auth disabled for testing)
+- **Mode**: Development (simple username/password auth)
 - **Services**: All 19 services operational
+- **Default Credentials**: admin/ciris_admin_password
 
 ## Test Categories
 
@@ -77,9 +78,14 @@ import asyncio
 from ciris_sdk import CIRISClient
 
 async def test_basic_interaction():
+    # First login to get API key
+    client = CIRISClient(base_url="http://localhost:8080")
+    login_response = await client.auth.login("admin", "ciris_admin_password")
+    
+    # Use the API key for subsequent requests
     client = CIRISClient(
         base_url="http://localhost:8080",
-        api_key="ciris_admin_password"
+        api_key=login_response.access_token
     )
     
     # Test simple interaction

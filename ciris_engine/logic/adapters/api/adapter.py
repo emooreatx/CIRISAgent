@@ -54,11 +54,17 @@ class ApiPlatform(Service):
         self._server = None
         self._server_task = None
         
-        # Observer for API events
+        # Observer for API events (metrics tracking)
         self.observer = APIObserver(adapter_id="api", runtime=runtime)
+        
+        # Message observer for handling incoming messages (will be created in start())
+        self.message_observer = None
         
         # Communication service for API responses
         self.communication = APICommunicationService()
+        # Pass time service if available
+        if hasattr(runtime, 'time_service'):
+            self.communication._time_service = runtime.time_service
         
         # Runtime control service
         self.runtime_control = APIRuntimeControlService(runtime)
@@ -143,39 +149,62 @@ class ApiPlatform(Service):
         self.app.state.runtime_control_service = self.runtime_control
         logger.info("Injected runtime_control_service")
         
-        # Set up message handler function
-        if hasattr(runtime, 'process_message'):
-            self.app.state.on_message = runtime.process_message
-            logger.info("Set up on_message handler")
-        elif hasattr(runtime, 'agent_processor') and hasattr(runtime.agent_processor, 'process_message'):
-            self.app.state.on_message = runtime.agent_processor.process_message
-            logger.info("Set up on_message handler from agent_processor")
-        else:
-            # Create a simple mock handler for API mode
-            # Store message history for the mock handler
-            self.app.state.message_history = []
-            
-            async def mock_handler(msg):
-                logger.info(f"Mock handler received message: {msg.content}")
-                # Import here to avoid circular dependency
-                from ciris_engine.logic.adapters.api.routes.agent import store_message_response
-                # Store a simple response
-                response = f"I received your message: '{msg.content}'. In API mock mode, I cannot process it fully. The answer to 2+2 is 4."
+        # Set up message handler to use the message observer and create correlations
+        async def handle_message_via_observer(msg):
+            """Handle incoming messages by creating passive observations."""
+            if self.message_observer:
+                # Create an "observe" correlation for this incoming message
+                from ciris_engine.logic import persistence
+                from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus
+                from ciris_engine.schemas.telemetry.core import ServiceRequestData, ServiceResponseData
+                import uuid
+                from datetime import datetime, timezone
                 
-                # Store in history
-                self.app.state.message_history.append({
-                    "message_id": msg.message_id,
-                    "author_id": msg.author_id,
-                    "content": msg.content,
-                    "response": response,
-                    "timestamp": msg.timestamp,
-                    "channel_id": msg.channel_id
-                })
+                correlation_id = str(uuid.uuid4())
+                now = datetime.now(timezone.utc)
                 
-                await store_message_response(msg.message_id, response)
-            
-            self.app.state.on_message = mock_handler
-            logger.info("Set up mock message handler for API mode")
+                # Create correlation for the incoming message
+                correlation = ServiceCorrelation(
+                    correlation_id=correlation_id,
+                    service_type="api",
+                    handler_name="APIAdapter",
+                    action_type="observe",
+                    request_data=ServiceRequestData(
+                        service_type="api",
+                        method_name="observe",
+                        channel_id=msg.channel_id,
+                        parameters={
+                            "content": msg.content,
+                            "author_id": msg.author_id,
+                            "author_name": msg.author_name,
+                            "message_id": msg.message_id
+                        },
+                        request_timestamp=now
+                    ),
+                    response_data=ServiceResponseData(
+                        success=True,
+                        result_summary="Message observed",
+                        execution_time_ms=0,
+                        response_timestamp=now
+                    ),
+                    status=ServiceCorrelationStatus.COMPLETED,
+                    created_at=now,
+                    updated_at=now,
+                    timestamp=now
+                )
+                
+                # Get time service if available
+                time_service = getattr(runtime, 'time_service', None)
+                persistence.add_correlation(correlation, time_service)
+                logger.debug(f"Created observe correlation for message {msg.message_id}")
+                
+                # Pass to observer for task creation
+                await self.message_observer.handle_incoming_message(msg)
+            else:
+                logger.error("Message observer not available")
+        
+        self.app.state.on_message = handle_message_via_observer
+        logger.info("Set up message handler via observer pattern with correlation tracking")
         if hasattr(runtime, 'agent_processor') and runtime.agent_processor is not None:
             self.app.state.agent_processor = runtime.agent_processor
             logger.info("Injected agent_processor")
@@ -216,10 +245,31 @@ class ApiPlatform(Service):
         await self.communication.start()
         logger.info("Started API communication service")
         
+        # Create message observer for handling incoming messages
+        from ciris_engine.logic.adapters.base_observer import BaseObserver
+        from ciris_engine.schemas.runtime.messages import IncomingMessage
+        
+        class APIMessageObserver(BaseObserver[IncomingMessage]):
+            """Observer for API messages that creates passive observations."""
+            pass
+        
+        self.message_observer = APIMessageObserver(
+            on_observe=lambda _: asyncio.sleep(0),
+            bus_manager=getattr(self.runtime, 'bus_manager', None),
+            memory_service=getattr(self.runtime, 'memory_service', None),
+            agent_id=getattr(self.runtime, 'agent_id', None),
+            filter_service=getattr(self.runtime, 'adaptive_filter_service', None),
+            secrets_service=getattr(self.runtime, 'secrets_service', None),
+            time_service=getattr(self.runtime, 'time_service', None),
+            origin_service="api"
+        )
+        await self.message_observer.start()
+        logger.info("Started API message observer")
+        
         # Inject services now that they're initialized
         self._inject_services()
         
-        # Start observer
+        # Start metrics observer
         await self.observer.start()
         
         # Configure uvicorn

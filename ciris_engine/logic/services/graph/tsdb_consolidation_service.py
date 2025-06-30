@@ -14,11 +14,11 @@ Design principles:
 
 import asyncio
 import logging
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING, Dict, Any
 
 if TYPE_CHECKING:
     from ciris_engine.logic.registries.base import ServiceRegistry
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
@@ -186,9 +186,9 @@ class TSDBConsolidationService(BaseGraphService):
                 logger.info("Period already consolidated, skipping")
             else:
                 # Step 2: Consolidate the period
-                summary = await self._consolidate_period(period_start, period_end)
-                if summary:
-                    logger.info(f"Created summary: {summary.id} ({summary.source_node_count} nodes)")
+                summaries = await self._consolidate_period(period_start, period_end)
+                if summaries:
+                    logger.info(f"Created {len(summaries)} summary nodes for period")
 
             # Step 3: Clean up old raw nodes
             deleted_count = await self._cleanup_old_nodes()
@@ -222,12 +222,44 @@ class TSDBConsolidationService(BaseGraphService):
         self,
         period_start: datetime,
         period_end: datetime
-    ) -> Optional[TSDBSummary]:
-        """Consolidate TSDB nodes for a specific 6-hour period."""
+    ) -> List[GraphNode]:
+        """Consolidate all correlation types for a specific 6-hour period."""
         if not self._memory_bus:
             logger.error("No memory bus available")
-            return None
+            return []
 
+        summaries_created = []
+        
+        # 1. METRIC_DATAPOINT → TSDBSummary
+        metric_summary = await self._consolidate_metrics(period_start, period_end)
+        if metric_summary:
+            summaries_created.append(metric_summary)
+        
+        # 2. SERVICE_INTERACTION → ConversationSummaryNode
+        conversation_summary = await self._consolidate_conversations(period_start, period_end)
+        if conversation_summary:
+            summaries_created.append(conversation_summary)
+        
+        # 3. LOG_ENTRY → Removed (logs stay on disk, incident service handles)
+        
+        # 4. TRACE_SPAN → TraceSummaryNode
+        trace_summary = await self._consolidate_traces(period_start, period_end)
+        if trace_summary:
+            summaries_created.append(trace_summary)
+        
+        # 5. AUDIT_EVENT → AuditSummaryNode
+        audit_summary = await self._consolidate_audits(period_start, period_end)
+        if audit_summary:
+            summaries_created.append(audit_summary)
+        
+        return summaries_created
+    
+    async def _consolidate_metrics(
+        self,
+        period_start: datetime,
+        period_end: datetime
+    ) -> Optional[TSDBSummary]:
+        """Consolidate METRIC_DATAPOINT correlations into TSDBSummary."""
         # Query TSDB nodes for this period
         tsdb_nodes = await self._query_tsdb_nodes(period_start, period_end)
 
@@ -325,7 +357,7 @@ class TSDBConsolidationService(BaseGraphService):
             metadata={"consolidated_period": True}
         )
 
-        if result.status.value != "OK":
+        if result.status != MemoryOpStatus.OK:
             logger.error(f"Failed to store summary: {result.error}")
             return None
 
@@ -528,3 +560,397 @@ class TSDBConsolidationService(BaseGraphService):
             return result
 
         return []
+    async def _consolidate_conversations(
+        self,
+        period_start: datetime,
+        period_end: datetime
+    ) -> Optional[GraphNode]:
+        """Consolidate SERVICE_INTERACTION correlations into ConversationSummaryNode."""
+        from ciris_engine.schemas.services.conversation_summary_node import ConversationSummaryNode
+        from ciris_engine.logic.persistence import get_correlations_by_channel
+        
+        if not self._memory_bus:
+            return None
+        
+        # Query SERVICE_INTERACTION correlations
+        correlations = await self._memory_bus.recall_timeseries(
+            scope="local",
+            hours=int((period_end - period_start).total_seconds() / 3600),
+            correlation_types=["service_interaction"]
+        )
+        
+        if not correlations:
+            logger.info(f"No SERVICE_INTERACTION correlations found for period {period_start} to {period_end}")
+            return None
+        
+        logger.info(f"Found {len(correlations)} SERVICE_INTERACTION correlations to consolidate")
+        
+        # Group by channel and build conversation history
+        conversations_by_channel: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        unique_users = set()
+        action_counts = defaultdict(int)
+        service_calls = defaultdict(int)
+        total_response_time = 0.0
+        response_count = 0
+        error_count = 0
+        
+        for corr in correlations:
+            # Extract from correlation
+            if hasattr(corr, 'request_data') and corr.request_data:
+                channel_id = corr.request_data.channel_id or "unknown"
+                
+                # Build message entry
+                msg_entry = {
+                    "timestamp": corr.timestamp.isoformat() if corr.timestamp else corr.created_at.isoformat(),
+                    "action_type": corr.action_type,
+                    "correlation_id": corr.correlation_id
+                }
+                
+                # Extract based on action type
+                if corr.action_type in ["speak", "observe"]:
+                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
+                        params = corr.request_data.parameters
+                        msg_entry.update({
+                            "content": params.get("content", ""),
+                            "author_id": params.get("author_id", "unknown"),
+                            "author_name": params.get("author_name", "Unknown")
+                        })
+                        
+                        if params.get("author_id"):
+                            unique_users.add(params["author_id"])
+                
+                conversations_by_channel[channel_id].append(msg_entry)
+                action_counts[corr.action_type] += 1
+                
+                # Track service calls
+                service_calls[corr.service_type] += 1
+                
+                # Track response times
+                if hasattr(corr, 'response_data') and corr.response_data:
+                    if hasattr(corr.response_data, 'execution_time_ms'):
+                        total_response_time += corr.response_data.execution_time_ms
+                        response_count += 1
+                    
+                    if not corr.response_data.success:
+                        error_count += 1
+        
+        # Calculate metrics
+        total_messages = sum(len(msgs) for msgs in conversations_by_channel.values())
+        messages_by_channel = {ch: len(msgs) for ch, msgs in conversations_by_channel.items()}
+        avg_response_time = total_response_time / response_count if response_count > 0 else 0.0
+        success_rate = 1.0 - (error_count / len(correlations)) if len(correlations) > 0 else 1.0
+        
+        # Sort conversations by timestamp
+        for channel_id in conversations_by_channel:
+            conversations_by_channel[channel_id].sort(key=lambda x: x["timestamp"])
+        
+        # Create summary node
+        summary = ConversationSummaryNode(
+            id=f"conversation_summary_{period_start.strftime('%Y%m%d_%H')}",
+            period_start=period_start,
+            period_end=period_end,
+            period_label=self._get_period_label(period_start),
+            conversations_by_channel=dict(conversations_by_channel),
+            total_messages=total_messages,
+            messages_by_channel=messages_by_channel,
+            unique_users=len(unique_users),
+            user_list=list(unique_users),
+            action_counts=dict(action_counts),
+            service_calls=dict(service_calls),
+            avg_response_time_ms=avg_response_time,
+            total_processing_time_ms=total_response_time,
+            error_count=error_count,
+            success_rate=success_rate,
+            source_correlation_count=len(correlations),
+            scope=GraphScope.LOCAL
+        )
+        
+        # Store summary
+        result = await self._memory_bus.memorize(
+            node=summary.to_graph_node(),
+            handler_name="tsdb_consolidation",
+            metadata={"consolidated_conversation": True}
+        )
+        
+        if result.status != MemoryOpStatus.OK:
+            logger.error(f"Failed to store conversation summary: {result.error}")
+            return None
+        
+        return summary.to_graph_node()
+    
+    
+    async def _consolidate_traces(
+        self,
+        period_start: datetime,
+        period_end: datetime
+    ) -> Optional[GraphNode]:
+        """Consolidate TRACE_SPAN correlations into TraceSummaryNode."""
+        from ciris_engine.schemas.services.trace_summary_node import TraceSummaryNode
+        from collections import defaultdict
+        
+        if not self._memory_bus:
+            return None
+        
+        # Query TRACE_SPAN correlations
+        correlations = await self._memory_bus.recall_timeseries(
+            scope="local",
+            hours=int((period_end - period_start).total_seconds() / 3600),
+            correlation_types=["trace_span"]
+        )
+        
+        if not correlations:
+            logger.info(f"No TRACE_SPAN correlations found for period {period_start} to {period_end}")
+            return None
+        
+        logger.info(f"Found {len(correlations)} TRACE_SPAN correlations to consolidate")
+        
+        # Initialize metrics
+        unique_tasks = set()
+        unique_thoughts = set()
+        tasks_by_status = defaultdict(int)
+        thoughts_by_type = defaultdict(int)
+        component_calls = defaultdict(int)
+        component_failures = defaultdict(int)
+        component_latencies = defaultdict(list)
+        dma_decisions = defaultdict(int)
+        guardrail_violations = defaultdict(int)
+        handler_actions = defaultdict(int)
+        errors_by_component = defaultdict(int)
+        trace_depths = []
+        task_processing_times = []
+        total_errors = 0
+        
+        for corr in correlations:
+            if hasattr(corr, 'tags') and corr.tags:
+                # Extract task/thought IDs
+                task_id = corr.tags.get('task_id')
+                thought_id = corr.tags.get('thought_id')
+                if task_id:
+                    unique_tasks.add(task_id)
+                if thought_id:
+                    unique_thoughts.add(thought_id)
+                
+                # Component tracking
+                component_type = corr.tags.get('component_type', 'unknown')
+                component_calls[component_type] += 1
+                
+                # Extract metrics from response data
+                if hasattr(corr, 'response_data') and corr.response_data:
+                    if not corr.response_data.success:
+                        component_failures[component_type] += 1
+                        errors_by_component[component_type] += 1
+                        total_errors += 1
+                    
+                    if hasattr(corr.response_data, 'execution_time_ms'):
+                        component_latencies[component_type].append(corr.response_data.execution_time_ms)
+                        if task_id and component_type == 'agent_processor':
+                            task_processing_times.append(corr.response_data.execution_time_ms)
+                
+                # Track specific component patterns
+                if component_type == 'dma':
+                    dma_type = corr.tags.get('dma_type', 'unknown')
+                    dma_decisions[dma_type] += 1
+                elif component_type == 'guardrail':
+                    if corr.tags.get('violation', 'false') == 'true':
+                        guardrail_type = corr.tags.get('guardrail_type', 'unknown')
+                        guardrail_violations[guardrail_type] += 1
+                elif component_type == 'handler':
+                    action_type = corr.tags.get('action_type', 'unknown')
+                    handler_actions[action_type] += 1
+                
+                # Track trace depth
+                trace_depth = int(corr.tags.get('trace_depth', 0))
+                if trace_depth > 0:
+                    trace_depths.append(trace_depth)
+                
+                # Track task status
+                if task_id and corr.tags.get('task_status'):
+                    tasks_by_status[corr.tags['task_status']] += 1
+                
+                # Track thought type
+                if thought_id and corr.tags.get('thought_type'):
+                    thoughts_by_type[corr.tags['thought_type']] += 1
+        
+        # Calculate latency percentiles
+        component_latency_stats = {}
+        for component, latencies in component_latencies.items():
+            if latencies:
+                sorted_latencies = sorted(latencies)
+                component_latency_stats[component] = {
+                    'avg': sum(latencies) / len(latencies),
+                    'p95': sorted_latencies[int(len(sorted_latencies) * 0.95)],
+                    'p99': sorted_latencies[int(len(sorted_latencies) * 0.99)]
+                }
+        
+        # Calculate task processing percentiles
+        avg_task_time = 0.0
+        p95_task_time = 0.0
+        p99_task_time = 0.0
+        if task_processing_times:
+            sorted_times = sorted(task_processing_times)
+            avg_task_time = sum(task_processing_times) / len(task_processing_times)
+            p95_task_time = sorted_times[int(len(sorted_times) * 0.95)]
+            p99_task_time = sorted_times[int(len(sorted_times) * 0.99)]
+        
+        # Calculate trace depth metrics
+        max_trace_depth = max(trace_depths) if trace_depths else 0
+        avg_trace_depth = sum(trace_depths) / len(trace_depths) if trace_depths else 0.0
+        
+        # Calculate error rate
+        total_calls = sum(component_calls.values())
+        error_rate = total_errors / total_calls if total_calls > 0 else 0.0
+        
+        # Calculate avg thoughts per task
+        avg_thoughts_per_task = len(unique_thoughts) / len(unique_tasks) if unique_tasks else 0.0
+        
+        # Create summary node
+        summary = TraceSummaryNode(
+            id=f"trace_summary_{period_start.strftime('%Y%m%d_%H')}",
+            period_start=period_start,
+            period_end=period_end,
+            period_label=self._get_period_label(period_start),
+            total_tasks_processed=len(unique_tasks),
+            tasks_by_status=dict(tasks_by_status),
+            unique_task_ids=unique_tasks,
+            total_thoughts_processed=len(unique_thoughts),
+            thoughts_by_type=dict(thoughts_by_type),
+            avg_thoughts_per_task=avg_thoughts_per_task,
+            component_calls=dict(component_calls),
+            component_failures=dict(component_failures),
+            component_latency_ms=component_latency_stats,
+            dma_decisions=dict(dma_decisions),
+            guardrail_violations=dict(guardrail_violations),
+            handler_actions=dict(handler_actions),
+            avg_task_processing_time_ms=avg_task_time,
+            p95_task_processing_time_ms=p95_task_time,
+            p99_task_processing_time_ms=p99_task_time,
+            total_processing_time_ms=sum(task_processing_times),
+            total_errors=total_errors,
+            errors_by_component=dict(errors_by_component),
+            error_rate=error_rate,
+            max_trace_depth=max_trace_depth,
+            avg_trace_depth=avg_trace_depth,
+            source_correlation_count=len(correlations),
+            scope=GraphScope.LOCAL
+        )
+        
+        # Store summary
+        result = await self._memory_bus.memorize(
+            node=summary.to_graph_node(),
+            handler_name="tsdb_consolidation",
+            metadata={"consolidated_trace": True}
+        )
+        
+        if result.status != MemoryOpStatus.OK:
+            logger.error(f"Failed to store trace summary: {result.error}")
+            return None
+        
+        return summary.to_graph_node()
+    
+    async def _consolidate_audits(
+        self,
+        period_start: datetime,
+        period_end: datetime
+    ) -> Optional[GraphNode]:
+        """Consolidate AUDIT_EVENT correlations into AuditSummaryNode with hash."""
+        from ciris_engine.schemas.services.audit_summary_node import AuditSummaryNode
+        from collections import defaultdict
+        
+        if not self._memory_bus:
+            return None
+        
+        # Query AUDIT_EVENT correlations
+        correlations = await self._memory_bus.recall_timeseries(
+            scope="local",
+            hours=int((period_end - period_start).total_seconds() / 3600),
+            correlation_types=["audit_event"]
+        )
+        
+        if not correlations:
+            logger.info(f"No AUDIT_EVENT correlations found for period {period_start} to {period_end}")
+            return None
+        
+        logger.info(f"Found {len(correlations)} AUDIT_EVENT correlations to consolidate")
+        
+        # Collect metrics and event IDs for hashing
+        event_ids = []
+        events_by_type = defaultdict(int)
+        events_by_actor = defaultdict(int)
+        events_by_service = defaultdict(int)
+        failed_auth_attempts = 0
+        permission_denials = 0
+        emergency_shutdowns = 0
+        config_changes = 0
+        first_event_id = None
+        last_event_id = None
+        
+        # Sort by timestamp to ensure chronological order
+        sorted_correlations = sorted(correlations, key=lambda c: c.timestamp if hasattr(c, 'timestamp') else c.created_at)
+        
+        for i, corr in enumerate(sorted_correlations):
+            # Extract event ID
+            event_id = corr.correlation_id
+            event_ids.append(event_id)
+            
+            if i == 0:
+                first_event_id = event_id
+            if i == len(sorted_correlations) - 1:
+                last_event_id = event_id
+            
+            # Extract metrics from tags
+            if hasattr(corr, 'tags') and corr.tags:
+                event_type = corr.tags.get('event_type', 'unknown')
+                actor = corr.tags.get('actor', 'unknown')
+                service = corr.tags.get('service', 'unknown')
+                
+                events_by_type[event_type] += 1
+                events_by_actor[actor] += 1
+                events_by_service[service] += 1
+                
+                # Track security events
+                if event_type == 'AUTH_FAILURE':
+                    failed_auth_attempts += 1
+                elif event_type == 'PERMISSION_DENIED':
+                    permission_denials += 1
+                elif event_type == 'EMERGENCY_SHUTDOWN':
+                    emergency_shutdowns += 1
+                elif event_type in ['CONFIG_CREATE', 'CONFIG_UPDATE', 'CONFIG_DELETE']:
+                    config_changes += 1
+        
+        # Compute audit hash
+        audit_hash = AuditSummaryNode.compute_audit_hash(event_ids)
+        
+        # Create summary node
+        summary = AuditSummaryNode(
+            id=f"audit_summary_{period_start.strftime('%Y%m%d_%H')}",
+            period_start=period_start,
+            period_end=period_end,
+            period_label=self._get_period_label(period_start),
+            audit_hash=audit_hash,
+            hash_algorithm="sha256",
+            total_audit_events=len(correlations),
+            events_by_type=dict(events_by_type),
+            events_by_actor=dict(events_by_actor),
+            events_by_service=dict(events_by_service),
+            failed_auth_attempts=failed_auth_attempts,
+            permission_denials=permission_denials,
+            emergency_shutdowns=emergency_shutdowns,
+            config_changes=config_changes,
+            first_event_id=first_event_id,
+            last_event_id=last_event_id,
+            source_correlation_count=len(correlations),
+            scope=GraphScope.LOCAL
+        )
+        
+        # Store summary
+        result = await self._memory_bus.memorize(
+            node=summary.to_graph_node(),
+            handler_name="tsdb_consolidation",
+            metadata={"consolidated_audit": True}
+        )
+        
+        if result.status != MemoryOpStatus.OK:
+            logger.error(f"Failed to store audit summary: {result.error}")
+            return None
+        
+        return summary.to_graph_node()

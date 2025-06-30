@@ -19,12 +19,12 @@ from ciris_engine.logic.dma.action_selection_pdma import ActionSelectionPDMAEval
 from ciris_engine.logic.dma.factory import create_dsdma_from_identity
 from ciris_engine.logic.conscience import (
     conscienceRegistry,
-    Entropyconscience,
-    Coherenceconscience,
-    OptimizationVetoconscience,
-    EpistemicHumilityconscience,
+    EntropyConscience,
+    CoherenceConscience,
+    OptimizationVetoConscience,
+    EpistemicHumilityConscience,
 )
-from ciris_engine.logic.conscience.thought_depth_guardrail import ThoughtDepthconscience
+from ciris_engine.logic.conscience.thought_depth_guardrail import ThoughtDepthGuardrail
 from ciris_engine.logic.utils.graphql_context_provider import GraphQLContextProvider
 from ciris_engine.logic.utils.shutdown_manager import register_global_shutdown_handler
 
@@ -128,28 +128,28 @@ class ComponentBuilder:
 
         conscience_registry.register_conscience(
             "entropy",
-            Entropyconscience(self.runtime.service_registry, conscience_config, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
+            EntropyConscience(self.runtime.service_registry, conscience_config, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
             priority=0,
         )
         conscience_registry.register_conscience(
             "coherence",
-            Coherenceconscience(self.runtime.service_registry, conscience_config, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
+            CoherenceConscience(self.runtime.service_registry, conscience_config, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
             priority=1,
         )
         conscience_registry.register_conscience(
             "optimization_veto",
-            OptimizationVetoconscience(self.runtime.service_registry, conscience_config, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
+            OptimizationVetoConscience(self.runtime.service_registry, conscience_config, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
             priority=2,
         )
         conscience_registry.register_conscience(
             "epistemic_humility",
-            EpistemicHumilityconscience(self.runtime.service_registry, conscience_config, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
+            EpistemicHumilityConscience(self.runtime.service_registry, conscience_config, self.runtime.llm_service.model_name, self.runtime.bus_manager, time_service),
             priority=3,
         )
 
         conscience_registry.register_conscience(
             "thought_depth",
-            ThoughtDepthconscience(time_service=time_service, max_depth=config.security.max_thought_depth),
+            ThoughtDepthGuardrail(time_service=time_service, max_depth=config.security.max_thought_depth),
             priority=4,  # Run after other consciences
         )
 

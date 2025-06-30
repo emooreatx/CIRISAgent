@@ -100,24 +100,20 @@ class TestBaseObserverNumericIds:
     @pytest.mark.asyncio
     async def test_conversation_history_includes_numeric_ids(self, observer, time_service):
         """Test that conversation history includes numeric IDs for all messages."""
-        # Add some messages to history
-        observer._history = [
-            DiscordMessage(
-                message_id="msg1",
-                author_id="111111111111111111",
-                author_name="User1",
-                content="First message",
-                channel_id="1234567890",
-                is_bot=False
-            ),
-            DiscordMessage(
-                message_id="msg2",
-                author_id="222222222222222222",
-                author_name="User2",
-                content="Second message",
-                channel_id="1234567890",
-                is_bot=False
-            )
+        # Mock conversation history from correlations
+        mock_history = [
+            {
+                "author": "User1",
+                "author_id": "111111111111111111",
+                "content": "First message",
+                "timestamp": "2024-01-01T00:00:00Z"
+            },
+            {
+                "author": "User2",
+                "author_id": "222222222222222222",
+                "content": "Second message",
+                "timestamp": "2024-01-01T00:01:00Z"
+            }
         ]
 
         # Current message
@@ -136,10 +132,11 @@ class TestBaseObserverNumericIds:
             nonlocal captured_thought
             captured_thought = thought
 
-        # Patch persistence
+        # Patch persistence and correlation history
         with patch('ciris_engine.logic.persistence.add_task'):
             with patch('ciris_engine.logic.persistence.add_thought', side_effect=capture_thought):
-                await observer._create_passive_observation_result(current_msg)
+                with patch.object(observer, '_get_correlation_history', return_value=mock_history):
+                    await observer._create_passive_observation_result(current_msg)
 
         # Verify all messages in history have numeric IDs
         assert captured_thought is not None

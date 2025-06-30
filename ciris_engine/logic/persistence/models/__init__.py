@@ -38,6 +38,7 @@ from .correlations import (
     update_correlation,
     get_correlation,
     get_correlations_by_task_and_action,
+    get_correlations_by_channel,
 )
 from .identity import (
     store_agent_identity,
@@ -82,6 +83,7 @@ __all__ = [
     "update_correlation",
     "get_correlation",
     "get_correlations_by_task_and_action",
+    "get_correlations_by_channel",
     "store_agent_identity",
     "retrieve_agent_identity",
     "update_agent_identity",

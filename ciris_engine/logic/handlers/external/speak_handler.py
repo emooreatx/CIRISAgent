@@ -45,6 +45,9 @@ class SpeakHandler(BaseActionHandler):
         dispatch_context: DispatchContext
     ) -> Optional[str]:
         thought_id = thought.thought_id
+        
+        # Create trace correlation for handler execution
+        self._create_trace_correlation(dispatch_context, HandlerActionType.SPEAK)
 
         try:
             # Auto-decapsulate any secrets in the action parameters
@@ -59,6 +62,8 @@ class SpeakHandler(BaseActionHandler):
                 final_action=result,
             )
             follow_up_text = f"SPEAK action failed for thought {thought_id}. Reason: {e}"
+            # Update trace correlation with failure
+            self._update_trace_correlation(False, f"Parameter validation failed: {str(e)}")
             try:
                 fu = create_follow_up_thought(parent=thought, time_service=self.time_service, content=follow_up_text)
                 # Simple: ensure channel_id is in the thought context
@@ -179,5 +184,10 @@ class SpeakHandler(BaseActionHandler):
             await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, e)
             raise FollowUpCreationError from e
 
+        # Update trace correlation with success
+        self._update_trace_correlation(
+            success, 
+            f"Message {'sent' if success else 'failed'} to channel {channel_id}"
+        )
 
         return follow_up_thought_id
