@@ -111,9 +111,9 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         # Get time service from registry if not provided
         if not self._time_service and registry:
             from ciris_engine.schemas.runtime.enums import ServiceType
-            time_services = registry.get_all_by_type(ServiceType.TIME)
+            time_services = registry.get_services_by_type(ServiceType.TIME)
             if time_services:
-                self._time_service = time_services[0].provider
+                self._time_service = time_services[0]
 
     def _now(self) -> datetime:
         """Get current time from time service."""

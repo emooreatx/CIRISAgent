@@ -48,7 +48,7 @@ from .governance import (
 
 # Adaptation service protocols - self-improvement
 from .adaptation import (
-    SelfConfigurationServiceProtocol,
+    SelfObservationServiceProtocol,
 )
 
 # Legacy protocol for compatibility
@@ -84,7 +84,7 @@ __all__ = [
     "AdaptiveFilterServiceProtocol",
     "CommunicationService",
     # Adaptation services (1)
-    "SelfConfigurationServiceProtocol",
+    "SelfObservationServiceProtocol",
     # Legacy
     "GraphMemoryServiceProtocol",
 ]

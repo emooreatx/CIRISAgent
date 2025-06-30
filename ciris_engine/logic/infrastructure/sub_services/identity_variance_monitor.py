@@ -75,7 +75,7 @@ class IdentityVarianceMonitor(Service):
         if not self._wa_bus and registry:
             try:
                 from ciris_engine.logic.buses import WiseBus
-                self._wa_bus = WiseBus(registry)
+                self._wa_bus = WiseBus(registry, self._time_service)
             except Exception as e:
                 logger.error(f"Failed to initialize WA bus: {e}")
 
@@ -765,3 +765,20 @@ class IdentityVarianceMonitor(Service):
             "initialize_baseline", "check_variance", "monitor_identity_drift",
             "trigger_wa_review", "analyze_behavioral_patterns"
         ]
+    
+    def get_status(self) -> Any:
+        """Get service status for Service base class."""
+        from ciris_engine.schemas.services.core import ServiceStatus
+        return ServiceStatus(
+            service_name="IdentityVarianceMonitor",
+            service_type="INFRASTRUCTURE",
+            is_healthy=self._memory_bus is not None,
+            uptime_seconds=0.0,  # Would need to track start time
+            last_error=None,
+            metrics={
+                "current_variance": self.current_variance,
+                "has_baseline": float(self._baseline_snapshot is not None),
+                "checks_performed": float(len(self._variance_history))
+            },
+            last_health_check=self._time_service.now()
+        )

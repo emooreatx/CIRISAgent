@@ -333,7 +333,8 @@ class ServiceRegistry:
         if service_type_enum in self._services:
             for provider in self._services[service_type_enum]:
                 # Only include healthy services
-                if provider.circuit_breaker and provider.circuit_breaker.is_available():
+                # Include if no circuit breaker OR circuit breaker is available
+                if not provider.circuit_breaker or provider.circuit_breaker.is_available():
                     if provider.instance not in all_services:
                         all_services.append(provider.instance)
 

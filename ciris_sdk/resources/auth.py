@@ -1,5 +1,8 @@
 """
-Authentication resource for CIRIS SDK.
+Authentication resource for CIRIS v1 API (Pre-Beta).
+
+**WARNING**: This SDK is for the v1 API which is in pre-beta stage.
+The API interfaces may change without notice.
 
 Provides clean session management with the 4-role model:
 - OBSERVER: Read-only access to system state
@@ -91,7 +94,7 @@ class AuthResource:
             json=request_data
         )
 
-        return LoginResponse(response.json())
+        return LoginResponse(response)
 
     async def logout(self) -> None:
         """
@@ -126,7 +129,7 @@ class AuthResource:
             "/v1/auth/me"
         )
 
-        return UserInfo(response.json())
+        return UserInfo(response)
 
     async def refresh_token(self, refresh_token: Optional[str] = None) -> LoginResponse:
         """
@@ -155,7 +158,7 @@ class AuthResource:
             json=request_data
         )
 
-        return LoginResponse(response.json())
+        return LoginResponse(response)
 
     # Convenience methods for session management
 

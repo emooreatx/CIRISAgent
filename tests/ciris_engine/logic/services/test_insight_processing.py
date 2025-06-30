@@ -1,15 +1,15 @@
 """
-Test insight processing flow between ConfigurationFeedbackLoop and DreamProcessor.
+Test insight processing flow between PatternAnalysisLoop and DreamProcessor.
 
 This tests that:
-1. ConfigurationFeedbackLoop stores insights as CONCEPT nodes with insight_type='behavioral_pattern'
+1. PatternAnalysisLoop stores insights as CONCEPT nodes with insight_type='behavioral_pattern'
 2. DreamProcessor queries and processes these insights during dream cycles
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timedelta, timezone
 
-from ciris_engine.logic.infrastructure.sub_services.configuration_feedback_loop import ConfigurationFeedbackLoop
+from ciris_engine.logic.infrastructure.sub_services.pattern_analysis_loop import PatternAnalysisLoop
 from ciris_engine.logic.processors.states.dream_processor import DreamProcessor
 from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
 from ciris_engine.schemas.infrastructure.feedback_loop import DetectedPattern, PatternType, PatternMetrics
@@ -53,7 +53,7 @@ class MockTimeService(TimeServiceProtocol):
 
 @pytest.mark.asyncio
 async def test_feedback_loop_stores_insights_as_concept_nodes():
-    """Test that ConfigurationFeedbackLoop stores insights as CONCEPT nodes."""
+    """Test that PatternAnalysisLoop stores insights as CONCEPT nodes."""
     # Setup
     time_service = MockTimeService()
     memory_bus = MagicMock(spec=MemoryBus)
@@ -62,7 +62,7 @@ async def test_feedback_loop_stores_insights_as_concept_nodes():
         reason="Success"
     ))
 
-    feedback_loop = ConfigurationFeedbackLoop(
+    feedback_loop = PatternAnalysisLoop(
         time_service=time_service,
         memory_bus=memory_bus
     )
@@ -247,7 +247,7 @@ async def test_feedback_loop_stores_all_detected_patterns():
         reason="Success"
     ))
 
-    feedback_loop = ConfigurationFeedbackLoop(
+    feedback_loop = PatternAnalysisLoop(
         time_service=time_service,
         memory_bus=memory_bus
     )
@@ -311,7 +311,7 @@ async def test_integration_feedback_loop_to_dream_processor():
     memory_bus.search = AsyncMock(side_effect=mock_search)
 
     # Create feedback loop and store insights
-    feedback_loop = ConfigurationFeedbackLoop(
+    feedback_loop = PatternAnalysisLoop(
         time_service=time_service,
         memory_bus=memory_bus
     )

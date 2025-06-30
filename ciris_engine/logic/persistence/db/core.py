@@ -1,6 +1,7 @@
 import sqlite3
 import logging
 from typing import Optional
+from datetime import datetime
 from ciris_engine.logic.config.db_paths import get_sqlite_db_full_path
 from ciris_engine.schemas.persistence.tables import (
     TASKS_TABLE_V1 as tasks_table_v1,
@@ -18,11 +19,28 @@ from .migration_runner import run_migrations
 
 logger = logging.getLogger(__name__)
 
+
+# Custom datetime adapter and converter for SQLite
+def adapt_datetime(ts):
+    """Convert datetime to ISO 8601 string."""
+    return ts.isoformat()
+
+
+def convert_datetime(val):
+    """Convert ISO 8601 string back to datetime."""
+    return datetime.fromisoformat(val.decode())
+
+
+# Register the adapter and converter
+sqlite3.register_adapter(datetime, adapt_datetime)
+sqlite3.register_converter("timestamp", convert_datetime)
+
+
 def get_db_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     """Establishes a connection to the SQLite database with foreign key support."""
     if db_path is None:
         db_path = get_sqlite_db_full_path()
-    conn = sqlite3.connect(db_path, check_same_thread=False)
+    conn = sqlite3.connect(db_path, check_same_thread=False, detect_types=sqlite3.PARSE_DECLTYPES)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn

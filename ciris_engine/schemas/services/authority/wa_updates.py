@@ -94,7 +94,7 @@ class WACertificateUpdateResponse(BaseModel):
 
 class WABulkUpdate(BaseModel):
     """Request to update multiple WA certificates."""
-    wa_ids: List[str] = Field(..., min_items=1, description="List of WA IDs to update")
+    wa_ids: List[str] = Field(..., min_length=1, description="List of WA IDs to update")
     update: WACertificateUpdate = Field(..., description="Update to apply to all certificates")
     
     @field_validator("wa_ids")

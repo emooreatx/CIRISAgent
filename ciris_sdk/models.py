@@ -22,6 +22,12 @@ class GraphNode(BaseModel):
     version: int = Field(default=1, ge=1, description="Version number")
     updated_by: Optional[str] = Field(None, description="Who last updated")
     updated_at: Optional[datetime] = Field(None, description="When last updated")
+    
+    class Config:
+        # Ensure datetime serialization works
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 class MemoryOpResult(BaseModel):
     """Result of memory operations."""
@@ -198,11 +204,11 @@ class AuditEntryDetailResponse(BaseModel):
     previous_entry_id: Optional[str] = None
 
 class AuditEntriesResponse(BaseModel):
-    """List of audit entries."""
+    """List of audit entries with cursor pagination."""
     entries: List[AuditEntryResponse]
-    total: int
-    offset: int = 0
-    limit: int = 100
+    cursor: Optional[str] = None
+    has_more: bool = False
+    total_matches: Optional[int] = None  # Only if requested
 
 class AuditExportResponse(BaseModel):
     """Audit export response."""

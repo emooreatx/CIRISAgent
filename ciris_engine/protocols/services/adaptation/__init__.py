@@ -1,7 +1,7 @@
 """Special service protocols."""
 
-from .self_configuration import SelfConfigurationServiceProtocol
+from .self_observation import SelfObservationServiceProtocol
 
 __all__ = [
-    "SelfConfigurationServiceProtocol",
+    "SelfObservationServiceProtocol",
 ]
