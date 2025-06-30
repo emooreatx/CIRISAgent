@@ -728,6 +728,14 @@ class AgentProcessor:
         else:
             return {"state": current_state.value, "round_number": round_number, "error": "No processor available"}
 
+    def get_current_state(self) -> str:
+        """Get current processing state.
+        
+        Returns:
+            Current AgentState value as string
+        """
+        return self.state_manager.get_state().value
+
     def get_status(self) -> dict:
         """Get current processor status."""
         status: dict = {

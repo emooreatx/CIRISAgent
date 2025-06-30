@@ -7,6 +7,7 @@ The API interfaces may change without notice.
 from __future__ import annotations
 
 from typing import List, Optional, Dict, Any
+from datetime import datetime
 
 from ..models import ConfigItem, ConfigValue, ConfigOperationResponse
 from ..transport import Transport
@@ -42,10 +43,26 @@ class ConfigResource:
             params["include_sensitive"] = "true"
 
         data = await self._transport.request("GET", "/v1/config", params=params)
-        configs = []
-        for item in data:
-            configs.append(ConfigItem(**item))
-        return configs
+        
+        # Handle both dict and list responses
+        if isinstance(data, dict):
+            # Convert dict to list of ConfigItems
+            configs = []
+            for key, value in data.items():
+                configs.append(ConfigItem(
+                    key=key,
+                    value=value,
+                    description=None,
+                    sensitive=False,
+                    redacted=False
+                ))
+            return configs
+        else:
+            # Assume it's already a list
+            configs = []
+            for item in data:
+                configs.append(ConfigItem(**item))
+            return configs
 
     async def get_config(self, key: str) -> ConfigValue:
         """Get a specific configuration value by key.
@@ -64,7 +81,18 @@ class ConfigResource:
             the authenticated user's role.
         """
         data = await self._transport.request("GET", f"/v1/config/{key}")
-        return ConfigValue(**data)
+        # Handle SuccessResponse wrapper
+        if "data" in data:
+            data = data["data"]
+        # Return ConfigValue with the right fields
+        return ConfigValue(
+            key=data.get("key", key),
+            value=data.get("value"),
+            description=data.get("description"),
+            sensitive=data.get("is_sensitive", False),
+            last_modified=data.get("updated_at"),
+            modified_by=data.get("updated_by")
+        )
 
     async def set_config(
         self,
@@ -110,9 +138,23 @@ class ConfigResource:
         if description:
             payload["description"] = description
 
-        # Use PATCH for partial updates
-        data = await self._transport.request("PATCH", f"/v1/config/{key}", json=payload)
-        return ConfigOperationResponse(**data)
+        # Use PUT for updates (API doesn't support PATCH yet)
+        data = await self._transport.request("PUT", f"/v1/config/{key}", json=payload)
+        
+        # Convert ConfigItemResponse to ConfigOperationResponse
+        if "key" in data and "value" in data:
+            # This is a ConfigItemResponse, convert it
+            return ConfigOperationResponse(
+                success=True,
+                operation="set",
+                timestamp=data.get("updated_at", datetime.now().isoformat()),
+                key=data.get("key"),
+                new_value=data.get("value"),
+                message=f"Config '{key}' updated successfully"
+            )
+        else:
+            # Already in the expected format
+            return ConfigOperationResponse(**data)
 
     async def delete_config(self, key: str) -> ConfigOperationResponse:
         """Delete a configuration key.
@@ -254,3 +296,37 @@ class ConfigResource:
                 matching.append(config)
 
         return matching
+    
+    # Aliases for backward compatibility with tests
+    async def get_all(self) -> Dict[str, Any]:
+        """Get all configuration as a dictionary. Alias for list_configs."""
+        configs = await self.list_configs()
+        return {config.key: config.value for config in configs}
+    
+    async def get(self, key: str) -> Any:
+        """Get configuration value by key. Alias for get_config."""
+        config = await self.get_config(key)
+        # Extract the actual value from nested structure
+        if isinstance(config.value, dict):
+            # Check if this is a full node object
+            if "value" in config.value and isinstance(config.value["value"], dict):
+                # This is a ConfigNode with nested ConfigValue
+                config_value = config.value["value"]
+                # Extract the actual value from ConfigValue
+                for field_name, field_value in config_value.items():
+                    if field_value is not None:
+                        return field_value
+            else:
+                # Direct ConfigValue dict
+                for field_name, field_value in config.value.items():
+                    if field_value is not None:
+                        return field_value
+        return config.value
+    
+    async def set(self, key: str, value: Any) -> Any:
+        """Set configuration value. Alias for set_config."""
+        result = await self.set_config(key, value)
+        # Return just the value for backward compatibility
+        if hasattr(result, 'new_value'):
+            return result.new_value
+        return value

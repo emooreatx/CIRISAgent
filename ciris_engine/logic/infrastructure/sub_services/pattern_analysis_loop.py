@@ -1,8 +1,8 @@
 """
-Configuration Feedback Loop Service
+Pattern Analysis Loop Service
 
-Implements the continuous feedback loop between metrics and configuration updates.
-This enables autonomous adaptation based on observed patterns and performance.
+Analyzes agent behavior patterns and generates insights for self-observation.
+This enables the agent to learn from its own patterns and behaviors.
 """
 
 import logging
@@ -32,12 +32,11 @@ logger = logging.getLogger(__name__)
 
 # ConfigurationUpdate now imported from schemas
 
-class ConfigurationFeedbackLoop(Service):
+class PatternAnalysisLoop(Service):
     """
-    Service that creates a continuous feedback loop between system metrics
-    and configuration updates.
+    Service that analyzes behavioral patterns and generates insights for agent learning.
 
-    Flow: Metrics → Pattern Detection → Adaptation Proposals → Config Updates → New Behavior
+    Flow: Metrics → Pattern Detection → Insight Generation → Agent Learning
     """
 
     def __init__(
@@ -70,13 +69,13 @@ class ConfigurationFeedbackLoop(Service):
 
     async def analyze_and_adapt(self, force: bool = False) -> AnalysisResult:
         """
-        Main entry point: Analyze metrics and store insights for agent introspection.
+        Main entry point: Analyze patterns and store insights for agent learning.
 
         Args:
             force: Force analysis even if not due
 
         Returns:
-            Summary of analysis and insights stored
+            Summary of patterns detected and insights generated
         """
         try:
             # Check if analysis is due

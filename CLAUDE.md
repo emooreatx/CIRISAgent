@@ -23,7 +23,7 @@ The CIRIS codebase follows strict typing principles:
 
 This ensures type safety, validation, and clear contracts throughout the system.
 
-## Current Status (June 29, 2025)
+## Current Status (June 30, 2025)
 
 ### 🎉 Major Achievements
 
@@ -32,20 +32,22 @@ This ensures type safety, validation, and clear contracts throughout the system.
    - All data structures use Pydantic schemas
    - Full type validation throughout the system
 
-2. **Service Architecture**: Exactly 19 services
+2. **Service Architecture**: Exactly 19 services ✅
    - Graph Services (6): memory, audit, config, telemetry, incident_management, tsdb_consolidation
    - Core Services (2): llm, secrets
    - Infrastructure Services (7): time, shutdown, initialization, visibility, authentication, resource_monitor, runtime_control
    - Governance Services (1): wise_authority
-   - Special Services (3): self_configuration, adaptive_filter, task_scheduler
+   - Special Services (3): self_observation, adaptive_filter, task_scheduler
+   - **All 19 services healthy and operational**
 
 3. **API v1.0**: Fully Operational
    - All 35 endpoints implemented and tested
-   - 100% test pass rate (34/34 endpoints)
+   - 100% test pass rate (35/35 endpoints) ✅
    - Role-based access control (OBSERVER/ADMIN/AUTHORITY/SYSTEM_ADMIN)
    - Emergency shutdown with Ed25519 signatures
    - Default dev credentials: admin/ciris_admin_password
    - WebSocket support for real-time streaming
+   - Runtime control service fully integrated
 
 4. **Typed Graph Node System**
    - 11 active TypedGraphNode classes with full validation
@@ -64,6 +66,14 @@ This ensures type safety, validation, and clear contracts throughout the system.
    - Services separated by concern
    - No circular dependencies
    - All logic under `logic/` directory
+   - SelfConfiguration renamed to SelfObservation (complete refactor)
+
+7. **Test Suite Health**
+   - 661 tests passing (was 658)
+   - Only 12 warnings (down from 128)
+   - Fixed Pydantic v2 deprecations
+   - Fixed SQLite datetime adapter warnings
+   - All SDK endpoint tests passing
 
 ## Architecture Overview
 

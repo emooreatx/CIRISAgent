@@ -1,7 +1,7 @@
 """
-Self-configuration service schemas.
+Self-observation service schemas.
 
-Replaces Dict[str, Any] in self-configuration operations.
+Replaces Dict[str, Any] in self-observation operations.
 """
 from typing import Dict, List, Optional, Union
 from datetime import datetime, timezone
@@ -10,16 +10,16 @@ from enum import Enum
 
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 
-class AdaptationState(str, Enum):
-    """Current state of the self-configuration system."""
+class ObservationState(str, Enum):
+    """Current state of the self-observation system."""
     LEARNING = "learning"          # Gathering data, no changes yet
-    PROPOSING = "proposing"        # Actively proposing adaptations
+    PROPOSING = "proposing"        # Actively proposing observations
     ADAPTING = "adapting"          # Applying approved changes
     STABILIZING = "stabilizing"    # Waiting for changes to settle
     REVIEWING = "reviewing"        # Under WA review for variance
 
 class ProcessSnapshotResult(BaseModel):
-    """Result of processing a system snapshot for adaptation."""
+    """Result of processing a system snapshot for observation."""
     patterns_detected: int = Field(0, description="Number of patterns detected")
     proposals_generated: int = Field(0, description="Number of proposals generated")
     changes_applied: int = Field(0, description="Number of changes applied")
@@ -27,10 +27,10 @@ class ProcessSnapshotResult(BaseModel):
     requires_review: bool = Field(False, description="Whether WA review is required")
     error: Optional[str] = Field(None, description="Error message if processing failed")
 
-class AdaptationCycleResult(BaseModel):
-    """Result of running an adaptation cycle."""
+class ObservationCycleResult(BaseModel):
+    """Result of running an observation cycle."""
     cycle_id: str = Field(..., description="Unique cycle identifier")
-    state: AdaptationState = Field(..., description="Current adaptation state")
+    state: ObservationState = Field(..., description="Current observation state")
     started_at: datetime = Field(..., description="When cycle started")
     completed_at: Optional[datetime] = Field(None, description="When cycle completed")
 
@@ -57,7 +57,7 @@ class AdaptationCycleResult(BaseModel):
     error: Optional[str] = Field(None, description="Error if cycle failed")
 
 class CycleEventData(BaseModel):
-    """Data for adaptation cycle events."""
+    """Data for observation cycle events."""
     event_type: str = Field(..., description="Type of event")
     cycle_id: str = Field(..., description="Associated cycle ID")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -73,10 +73,10 @@ class CycleEventData(BaseModel):
         default_factory=dict, description="Additional event metadata"
     )
 
-class AdaptationStatus(BaseModel):
-    """Current status of the adaptation system."""
-    is_active: bool = Field(..., description="Whether adaptation is active")
-    current_state: AdaptationState = Field(..., description="Current state")
+class ObservationStatus(BaseModel):
+    """Current status of the observation system."""
+    is_active: bool = Field(..., description="Whether observation is active")
+    current_state: ObservationState = Field(..., description="Current state")
     cycles_completed: int = Field(..., description="Total cycles completed")
     last_cycle_at: Optional[datetime] = Field(None, description="Last cycle time")
 
@@ -118,7 +118,7 @@ class ReviewOutcome(BaseModel):
     new_constraints: List[str] = Field(default_factory=list, description="New constraints added")
 
     # Actions
-    resume_adaptation: bool = Field(True, description="Whether to resume adaptation")
+    resume_observation: bool = Field(True, description="Whether to resume observation")
     new_variance_limit: Optional[float] = Field(None, description="New variance limit if changed")
 
 # ========== New Schemas for Enhanced Protocol ==========
@@ -170,8 +170,8 @@ class ObservabilitySignal(BaseModel):
     source: str = Field(..., description="Source service or component")
     details: Dict[str, Union[str, int, float, bool, List]] = Field(default_factory=dict)
 
-class AdaptationOpportunity(BaseModel):
-    """An opportunity for system adaptation."""
+class ObservationOpportunity(BaseModel):
+    """An opportunity for system observation."""
     opportunity_id: str = Field(..., description="Unique identifier")
     trigger_signals: List[ObservabilitySignal] = Field(..., description="Signals that triggered this")
     proposed_changes: List[ConfigurationChange] = Field(..., description="Proposed changes")
@@ -193,38 +193,38 @@ class ObservabilityAnalysis(BaseModel):
     anomalies_detected: List[str] = Field(default_factory=list, description="Anomalies found")
 
     # Opportunities
-    adaptation_opportunities: List[AdaptationOpportunity] = Field(default_factory=list)
+    observation_opportunities: List[ObservationOpportunity] = Field(default_factory=list)
 
     # Health assessment
     system_health_score: float = Field(100.0, description="Overall health 0-100")
     component_health: Dict[str, float] = Field(default_factory=dict)
 
-class AdaptationImpact(BaseModel):
-    """Measured impact of an adaptation."""
+class ObservationImpact(BaseModel):
+    """Measured impact of an observation."""
     dimension: str = Field(..., description="Impact dimension measured")
-    baseline_value: float = Field(..., description="Value before adaptation")
-    current_value: float = Field(..., description="Value after adaptation")
+    baseline_value: float = Field(..., description="Value before observation")
+    current_value: float = Field(..., description="Value after observation")
     improvement_percent: float = Field(..., description="Percentage improvement")
     measurement_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-class AdaptationEffectiveness(BaseModel):
-    """Overall effectiveness of an adaptation across all dimensions."""
-    adaptation_id: str = Field(..., description="Adaptation being measured")
+class ObservationEffectiveness(BaseModel):
+    """Overall effectiveness of an observation across all dimensions."""
+    observation_id: str = Field(..., description="Observation being measured")
     measurement_period_hours: int = Field(24, description="Measurement period")
 
     # Impact by dimension
-    performance_impact: Optional[AdaptationImpact] = Field(None)
-    error_impact: Optional[AdaptationImpact] = Field(None)
-    resource_impact: Optional[AdaptationImpact] = Field(None)
-    stability_impact: Optional[AdaptationImpact] = Field(None)
-    user_satisfaction_impact: Optional[AdaptationImpact] = Field(None)
+    performance_impact: Optional[ObservationImpact] = Field(None)
+    error_impact: Optional[ObservationImpact] = Field(None)
+    resource_impact: Optional[ObservationImpact] = Field(None)
+    stability_impact: Optional[ObservationImpact] = Field(None)
+    user_satisfaction_impact: Optional[ObservationImpact] = Field(None)
 
     # Overall assessment
     overall_effectiveness: float = Field(0.0, description="Overall effectiveness score")
     recommendation: str = Field(..., description="keep, modify, rollback")
 
 class PatternRecord(BaseModel):
-    """A learned adaptation pattern."""
+    """A learned observation pattern."""
     pattern_id: str = Field(..., description="Unique pattern identifier")
     trigger_conditions: List[ObservabilitySignal] = Field(..., description="What triggers this")
     successful_applications: int = Field(0, description="Times successfully applied")
@@ -247,10 +247,10 @@ class ServiceImprovementReport(BaseModel):
     report_period_start: datetime = Field(..., description="Report period start")
     report_period_end: datetime = Field(..., description="Report period end")
 
-    # Adaptation summary
-    total_adaptations: int = Field(0, description="Total adaptations in period")
-    successful_adaptations: int = Field(0, description="Successful adaptations")
-    rolled_back_adaptations: int = Field(0, description="Adaptations rolled back")
+    # Observation summary
+    total_observations: int = Field(0, description="Total observations in period")
+    successful_observations: int = Field(0, description="Successful observations")
+    rolled_back_observations: int = Field(0, description="Observations rolled back")
 
     # Impact summary
     average_performance_improvement: float = Field(0.0, description="Avg performance gain %")
@@ -271,21 +271,21 @@ class ServiceImprovementReport(BaseModel):
 # Re-export SystemSnapshot from runtime context
 
 __all__ = [
-    "AdaptationState",
+    "ObservationState",
     "ProcessSnapshotResult",
-    "AdaptationCycleResult",
+    "ObservationCycleResult",
     "CycleEventData",
-    "AdaptationStatus",
+    "ObservationStatus",
     "ReviewOutcome",
     "AgentIdentityRoot",
     "ConfigurationChange",
     "ChangeApprovalResult",
     "RollbackResult",
     "ObservabilitySignal",
-    "AdaptationOpportunity",
+    "ObservationOpportunity",
     "ObservabilityAnalysis",
-    "AdaptationImpact",
-    "AdaptationEffectiveness",
+    "ObservationImpact",
+    "ObservationEffectiveness",
     "PatternRecord",
     "PatternLibrarySummary",
     "ServiceImprovementReport",

@@ -1,5 +1,5 @@
 """
-Protocol for Self-Configuration Service - Pattern detection and learning.
+Protocol for Self-Observation Service - Pattern detection and learning.
 
 This service observes system behavior, detects patterns, and stores insights
 for the agent's autonomous adaptation within its identity bounds.
@@ -19,9 +19,9 @@ if TYPE_CHECKING:
         ActionFrequency, TemporalPattern
     )
 
-class SelfConfigurationServiceProtocol(ServiceProtocol, Protocol):
+class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
     """
-    Protocol for self-configuration service.
+    Protocol for self-observation service.
 
     Implements continuous observation and pattern detection to enable
     autonomous adaptation through stored insights.

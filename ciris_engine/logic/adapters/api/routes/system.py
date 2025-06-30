@@ -318,7 +318,7 @@ async def control_runtime(
 
     Requires ADMIN role.
     """
-    runtime_control = getattr(request.app.state, 'runtime_control', None)
+    runtime_control = getattr(request.app.state, 'runtime_control_service', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
 
@@ -333,18 +333,32 @@ async def control_runtime(
 
         # Execute action
         if action == "pause":
-            result = await runtime_control.pause_processing()
+            success = await runtime_control.pause_processing(body.reason or "API request")
+            result = RuntimeControlResponse(
+                success=success,
+                message="Processing paused" if success else "Already paused",
+                processor_state="paused" if success else "unknown",
+                cognitive_state="UNKNOWN",
+                queue_depth=0
+            )
         elif action == "resume":
-            result = await runtime_control.resume_processing()
+            success = await runtime_control.resume_processing()
+            result = RuntimeControlResponse(
+                success=success,
+                message="Processing resumed" if success else "Not paused",
+                processor_state="active" if success else "unknown",
+                cognitive_state="UNKNOWN",
+                queue_depth=0
+            )
         elif action == "state":
             # Get current state without changing it
             status = await runtime_control.get_runtime_status()
             result = RuntimeControlResponse(
                 success=True,
                 message="Current runtime state retrieved",
-                processor_state=status.processor_state,
-                cognitive_state=status.cognitive_state,
-                queue_depth=status.queue_status.pending_thoughts + status.queue_status.pending_tasks
+                processor_state="paused" if status.get("paused", False) else "active",
+                cognitive_state=status.get("cognitive_state", "UNKNOWN"),
+                queue_depth=0  # Not tracked in simplified version
             )
             return SuccessResponse(data=result)
 
@@ -397,11 +411,12 @@ async def get_services_status(
         ('audit_service', 'AuditService', 'graph'),
         ('config_service', 'ConfigService', 'graph'),
         ('telemetry_service', 'TelemetryService', 'graph'),
-        ('incident_service', 'IncidentManagement', 'graph'),
+        ('incident_management_service', 'IncidentManagement', 'graph'),
         ('tsdb_service', 'TSDBConsolidation', 'graph'),
+        ('secrets_service', 'SecretsService', 'core'),
         ('visibility_service', 'VisibilityService', 'infrastructure'),
         ('auth_service', 'AuthenticationService', 'infrastructure'),
-        ('self_config_service', 'SelfConfiguration', 'special'),
+        ('self_observation_service', 'SelfObservation', 'special'),
         ('adaptive_filter', 'AdaptiveFilter', 'special'),
         ('task_scheduler', 'TaskScheduler', 'special'),
     ]

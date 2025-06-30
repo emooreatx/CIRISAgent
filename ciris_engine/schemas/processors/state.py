@@ -4,7 +4,7 @@ Replaces Dict[str, Any] usage in state history and transitions.
 """
 from datetime import datetime
 from typing import Any, Dict, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from ciris_engine.schemas.processors.states import AgentState
 
@@ -16,8 +16,7 @@ class StateTransitionRecord(BaseModel):
     to_state: str = Field(description="State after transition")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional transition metadata")
     
-    class Config:
-        frozen = True  # Make immutable once created
+    model_config = ConfigDict(frozen=True)  # Make immutable once created
 
 
 class StateTransitionRequest(BaseModel):

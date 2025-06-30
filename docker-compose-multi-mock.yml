@@ -1,0 +1,255 @@
+services:
+  ciris_mock_llm_container0:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: ciris_mock_llm_container0
+    ports:
+      - "8080:8080"
+    environment:
+      - CIRIS_MODE=api
+      - CIRIS_LOG_LEVEL=INFO
+      - CIRIS_LLM_PROVIDER=mock
+      - CIRIS_MEMORY_ENGINE=in_memory
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8080
+      - CIRIS_CONTAINER_ID=0
+    volumes:
+      - ./logs/container0:/app/logs
+      - ./data/container0:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    command: ["python", "main.py", "--adapter", "api", "--template", "datum", "--mock-llm", "--host", "0.0.0.0", "--port", "8080"]
+
+  ciris_mock_llm_container1:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: ciris_mock_llm_container1
+    ports:
+      - "8081:8080"
+    environment:
+      - CIRIS_MODE=api
+      - CIRIS_LOG_LEVEL=INFO
+      - CIRIS_LLM_PROVIDER=mock
+      - CIRIS_MEMORY_ENGINE=in_memory
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8080
+      - CIRIS_CONTAINER_ID=1
+    volumes:
+      - ./logs/container1:/app/logs
+      - ./data/container1:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    command: ["python", "main.py", "--adapter", "api", "--template", "datum", "--mock-llm", "--host", "0.0.0.0", "--port", "8080"]
+
+  ciris_mock_llm_container2:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: ciris_mock_llm_container2
+    ports:
+      - "8082:8080"
+    environment:
+      - CIRIS_MODE=api
+      - CIRIS_LOG_LEVEL=INFO
+      - CIRIS_LLM_PROVIDER=mock
+      - CIRIS_MEMORY_ENGINE=in_memory
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8080
+      - CIRIS_CONTAINER_ID=2
+    volumes:
+      - ./logs/container2:/app/logs
+      - ./data/container2:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    command: ["python", "main.py", "--adapter", "api", "--template", "datum", "--mock-llm", "--host", "0.0.0.0", "--port", "8080"]
+
+  ciris_mock_llm_container3:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: ciris_mock_llm_container3
+    ports:
+      - "8083:8080"
+    environment:
+      - CIRIS_MODE=api
+      - CIRIS_LOG_LEVEL=INFO
+      - CIRIS_LLM_PROVIDER=mock
+      - CIRIS_MEMORY_ENGINE=in_memory
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8080
+      - CIRIS_CONTAINER_ID=3
+    volumes:
+      - ./logs/container3:/app/logs
+      - ./data/container3:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    command: ["python", "main.py", "--adapter", "api", "--template", "datum", "--mock-llm", "--host", "0.0.0.0", "--port", "8080"]
+
+  ciris_mock_llm_container4:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: ciris_mock_llm_container4
+    ports:
+      - "8084:8080"
+    environment:
+      - CIRIS_MODE=api
+      - CIRIS_LOG_LEVEL=INFO
+      - CIRIS_LLM_PROVIDER=mock
+      - CIRIS_MEMORY_ENGINE=in_memory
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8080
+      - CIRIS_CONTAINER_ID=4
+    volumes:
+      - ./logs/container4:/app/logs
+      - ./data/container4:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    command: ["python", "main.py", "--adapter", "api", "--template", "datum", "--mock-llm", "--host", "0.0.0.0", "--port", "8080"]
+
+  ciris_mock_llm_container5:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: ciris_mock_llm_container5
+    ports:
+      - "8085:8080"
+    environment:
+      - CIRIS_MODE=api
+      - CIRIS_LOG_LEVEL=INFO
+      - CIRIS_LLM_PROVIDER=mock
+      - CIRIS_MEMORY_ENGINE=in_memory
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8080
+      - CIRIS_CONTAINER_ID=5
+    volumes:
+      - ./logs/container5:/app/logs
+      - ./data/container5:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    command: ["python", "main.py", "--adapter", "api", "--template", "datum", "--mock-llm", "--host", "0.0.0.0", "--port", "8080"]
+
+  ciris_mock_llm_container6:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: ciris_mock_llm_container6
+    ports:
+      - "8086:8080"
+    environment:
+      - CIRIS_MODE=api
+      - CIRIS_LOG_LEVEL=INFO
+      - CIRIS_LLM_PROVIDER=mock
+      - CIRIS_MEMORY_ENGINE=in_memory
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8080
+      - CIRIS_CONTAINER_ID=6
+    volumes:
+      - ./logs/container6:/app/logs
+      - ./data/container6:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    command: ["python", "main.py", "--adapter", "api", "--template", "datum", "--mock-llm", "--host", "0.0.0.0", "--port", "8080"]
+
+  ciris_mock_llm_container7:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: ciris_mock_llm_container7
+    ports:
+      - "8087:8080"
+    environment:
+      - CIRIS_MODE=api
+      - CIRIS_LOG_LEVEL=INFO
+      - CIRIS_LLM_PROVIDER=mock
+      - CIRIS_MEMORY_ENGINE=in_memory
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8080
+      - CIRIS_CONTAINER_ID=7
+    volumes:
+      - ./logs/container7:/app/logs
+      - ./data/container7:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    command: ["python", "main.py", "--adapter", "api", "--template", "datum", "--mock-llm", "--host", "0.0.0.0", "--port", "8080"]
+
+  ciris_mock_llm_container8:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: ciris_mock_llm_container8
+    ports:
+      - "8088:8080"
+    environment:
+      - CIRIS_MODE=api
+      - CIRIS_LOG_LEVEL=INFO
+      - CIRIS_LLM_PROVIDER=mock
+      - CIRIS_MEMORY_ENGINE=in_memory
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8080
+      - CIRIS_CONTAINER_ID=8
+    volumes:
+      - ./logs/container8:/app/logs
+      - ./data/container8:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    command: ["python", "main.py", "--adapter", "api", "--template", "datum", "--mock-llm", "--host", "0.0.0.0", "--port", "8080"]
+
+  ciris_mock_llm_container9:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: ciris_mock_llm_container9
+    ports:
+      - "8089:8080"
+    environment:
+      - CIRIS_MODE=api
+      - CIRIS_LOG_LEVEL=INFO
+      - CIRIS_LLM_PROVIDER=mock
+      - CIRIS_MEMORY_ENGINE=in_memory
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8080
+      - CIRIS_CONTAINER_ID=9
+    volumes:
+      - ./logs/container9:/app/logs
+      - ./data/container9:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    command: ["python", "main.py", "--adapter", "api", "--template", "datum", "--mock-llm", "--host", "0.0.0.0", "--port", "8080"]
+
+networks:
+  default:
+    name: ciris_multi_network
+    driver: bridge

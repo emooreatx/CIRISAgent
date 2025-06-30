@@ -1,38 +1,46 @@
 """
-Self-Configuration Service
+Self-Observation Service
 
-Orchestrates all self-configuration components to enable autonomous adaptation
-within safe ethical boundaries. This is the master coordinator that ties together:
-- IdentityVarianceMonitor (tracks drift from baseline)
-- ConfigurationFeedbackLoop (detects patterns and stores insights)
-- UnifiedTelemetryService (provides the data flow)
+Enables the agent to observe its own behavior patterns and generate insights
+for continuous learning. This service coordinates:
+- IdentityVarianceMonitor (tracks drift from baseline identity)
+- PatternAnalysisLoop (detects patterns and stores insights)
+- Configurable pattern detection algorithms (via graph config)
 
-Together, these enable the agent to learn and adapt while maintaining its core identity.
+The agent can modify its own observation algorithms through graph configuration,
+enabling meta-learning and self-directed analytical evolution.
 """
 
 import logging
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING, Dict, Any
+from collections import defaultdict
 
 if TYPE_CHECKING:
     from ciris_engine.logic.registries.base import ServiceRegistry
-from ciris_engine.schemas.services.special.self_configuration import (
-    AdaptationCycleResult, CycleEventData, AdaptationStatus,
+from ciris_engine.schemas.services.special.self_observation import (
+    ObservationCycleResult, CycleEventData, ObservationStatus,
     ReviewOutcome, ObservabilityAnalysis,
-    AdaptationOpportunity, AdaptationEffectiveness,
+    ObservationOpportunity, ObservationEffectiveness,
     PatternLibrarySummary, ServiceImprovementReport
+)
+from ciris_engine.schemas.infrastructure.feedback_loop import (
+    PatternType, DetectedPattern, AnalysisResult
+)
+from ciris_engine.schemas.infrastructure.behavioral_patterns import (
+    ActionFrequency, TemporalPattern
 )
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from enum import Enum
 
 from ciris_engine.logic.adapters.base import Service
-from ciris_engine.protocols.services import SelfConfigurationServiceProtocol
+from ciris_engine.protocols.services import SelfObservationServiceProtocol
 from ciris_engine.protocols.runtime.base import ServiceProtocol
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.runtime.core import AgentIdentityRoot
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.logic.infrastructure.sub_services.identity_variance_monitor import IdentityVarianceMonitor
-from ciris_engine.logic.infrastructure.sub_services.configuration_feedback_loop import ConfigurationFeedbackLoop
+from ciris_engine.logic.infrastructure.sub_services.pattern_analysis_loop import PatternAnalysisLoop
 from ciris_engine.logic.services.graph.telemetry_service import GraphTelemetryService
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 
@@ -40,8 +48,8 @@ from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
 
-class AdaptationState(str, Enum):
-    """Current state of the self-configuration system."""
+class ObservationState(str, Enum):
+    """Current state of the self-observation system."""
     LEARNING = "learning"          # Gathering data, no changes yet
     PROPOSING = "proposing"        # Actively proposing adaptations
     ADAPTING = "adapting"          # Applying approved changes
@@ -49,11 +57,11 @@ class AdaptationState(str, Enum):
     REVIEWING = "reviewing"        # Under WA review for variance
 
 @dataclass
-class AdaptationCycle:
-    """Represents one complete adaptation cycle."""
+class ObservationCycle:
+    """Represents one complete observation and analysis cycle."""
     cycle_id: str
     started_at: datetime
-    state: AdaptationState
+    state: ObservationState
     patterns_detected: int
     proposals_generated: int
     changes_applied: int
@@ -61,9 +69,9 @@ class AdaptationCycle:
     variance_after: Optional[float]
     completed_at: Optional[datetime]
 
-class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, ServiceProtocol):
+class SelfObservationService(Service, SelfObservationServiceProtocol, ServiceProtocol):
     """
-    Master service that orchestrates self-configuration and autonomous adaptation.
+    Service that enables self-observation, pattern detection, and insight generation.
 
     This service:
     1. Coordinates between variance monitoring, pattern detection, and telemetry
@@ -80,25 +88,25 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
         time_service: TimeServiceProtocol,
         memory_bus: Optional[MemoryBus] = None,
         variance_threshold: float = 0.20,
-        adaptation_interval_hours: int = 6,
+        observation_interval_hours: int = 6,
         stabilization_period_hours: int = 24
     ) -> None:
         super().__init__()
         self._time_service = time_service
         self._memory_bus = memory_bus
         self._variance_threshold = variance_threshold
-        self._adaptation_interval = timedelta(hours=adaptation_interval_hours)
+        self._observation_interval = timedelta(hours=observation_interval_hours)
         self._stabilization_period = timedelta(hours=stabilization_period_hours)
 
         # Component services
         self._variance_monitor: Optional[IdentityVarianceMonitor] = None
-        self._feedback_loop: Optional[ConfigurationFeedbackLoop] = None
+        self._pattern_loop: Optional[PatternAnalysisLoop] = None
         self._telemetry_service: Optional[GraphTelemetryService] = None
 
         # State tracking
-        self._current_state = AdaptationState.LEARNING
-        self._current_cycle: Optional[AdaptationCycle] = None
-        self._adaptation_history: List[AdaptationCycle] = []
+        self._current_state = ObservationState.LEARNING
+        self._current_cycle: Optional[ObservationCycle] = None
+        self._adaptation_history: List[ObservationCycle] = []
         self._last_adaptation = self._time_service.now()
         # No more pending proposals - agent decides through thoughts
 
@@ -135,13 +143,13 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
                 self._variance_monitor.set_service_registry(self._service_registry)
 
             # Create feedback loop
-            self._feedback_loop = ConfigurationFeedbackLoop(
+            self._pattern_loop = PatternAnalysisLoop(
                 time_service=self._time_service,
                 memory_bus=self._memory_bus,
-                analysis_interval_hours=int(self._adaptation_interval.total_seconds() / 3600)
+                analysis_interval_hours=int(self._observation_interval.total_seconds() / 3600)
             )
             if self._service_registry:
-                self._feedback_loop.set_service_registry(self._service_registry)
+                self._pattern_loop.set_service_registry(self._service_registry)
 
             # Create telemetry service
             self._telemetry_service = GraphTelemetryService(
@@ -169,11 +177,11 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
 
         # Store initialization event
         init_node = GraphNode(
-            id=f"self_config_init_{int(self._time_service.now().timestamp())}",
+            id=f"self_observation_init_{int(self._time_service.now().timestamp())}",
             type=NodeType.CONCEPT,
             scope=GraphScope.IDENTITY,
             attributes={
-                "event_type": "self_configuration_initialized",
+                "event_type": "self_observation_initialized",
                 "baseline_id": baseline_id,
                 "variance_threshold": self._variance_threshold,
                 "timestamp": self._time_service.now().isoformat()
@@ -181,12 +189,12 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
         )
 
         if self._memory_bus:
-            await self._memory_bus.memorize(init_node, handler_name="self_configuration")
+            await self._memory_bus.memorize(init_node, handler_name="self_observation")
 
         return baseline_id
 
 
-    async def _should_run_adaptation_cycle(self) -> bool:
+    async def _should_run_observation_cycle(self) -> bool:
         """Check if it's time to run an adaptation cycle."""
         # Don't run if in emergency stop
         if self._emergency_stop:
@@ -197,11 +205,11 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
             return False
 
         # Check state-based conditions
-        if self._current_state == AdaptationState.REVIEWING:
+        if self._current_state == ObservationState.REVIEWING:
             # Wait for WA review to complete
             return False
 
-        if self._current_state == AdaptationState.STABILIZING:
+        if self._current_state == ObservationState.STABILIZING:
             # Check if stabilization period has passed
             time_since_last = self._time_service.now() - self._last_adaptation
             if time_since_last < self._stabilization_period:
@@ -209,9 +217,9 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
 
         # Check interval
         time_since_last = self._time_service.now() - self._last_adaptation
-        return time_since_last >= self._adaptation_interval
+        return time_since_last >= self._observation_interval
 
-    async def _run_adaptation_cycle(self) -> AdaptationCycleResult:
+    async def _run_observation_cycle(self) -> ObservationCycleResult:
         """
         Run a variance check cycle.
 
@@ -223,7 +231,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
             if self._variance_monitor:
                 variance_report = await self._variance_monitor.check_variance()
             else:
-                return AdaptationCycleResult(
+                return ObservationCycleResult(
                     cycle_id="no_monitor",
                     state=self._current_state,
                     started_at=self._time_service.now(),
@@ -241,13 +249,13 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
 
             if variance_report.requires_wa_review:
                 # Variance too high - enter review state
-                self._current_state = AdaptationState.REVIEWING
+                self._current_state = ObservationState.REVIEWING
                 await self._store_cycle_event("variance_exceeded", {
                     "variance": variance_report.total_variance,
                     "threshold": self._variance_threshold
                 })
 
-            return AdaptationCycleResult(
+            return ObservationCycleResult(
                 cycle_id=cycle_id,
                 state=self._current_state,
                 started_at=self._time_service.now(),
@@ -268,7 +276,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
                 self._emergency_stop = True
                 logger.error("Emergency stop activated after repeated failures")
 
-            return AdaptationCycleResult(
+            return ObservationCycleResult(
                 cycle_id="error",
                 state=self._current_state,
                 started_at=self._time_service.now(),
@@ -294,9 +302,9 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
         )
 
         if self._memory_bus:
-            await self._memory_bus.memorize(event_node, handler_name="self_configuration")
+            await self._memory_bus.memorize(event_node, handler_name="self_observation")
 
-    async def _store_cycle_summary(self, cycle: AdaptationCycle) -> None:
+    async def _store_cycle_summary(self, cycle: ObservationCycle) -> None:
         """Store a summary of the completed adaptation cycle."""
         summary_node = GraphNode(
             id=f"cycle_summary_{cycle.cycle_id}",
@@ -319,13 +327,13 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
         if self._memory_bus:
             await self._memory_bus.memorize(
                 node=summary_node,
-                handler_name="self_configuration",
+                handler_name="self_observation",
                 metadata={"cycle_summary": True}
             )
 
-    async def get_adaptation_status(self) -> AdaptationStatus:
-        """Get current status of the self-configuration system."""
-        status = AdaptationStatus(
+    async def get_adaptation_status(self) -> ObservationStatus:
+        """Get current status of the self-observation system."""
+        status = ObservationStatus(
             is_active=not self._emergency_stop,
             current_state=self._current_state,
             cycles_completed=len(self._adaptation_history),
@@ -338,24 +346,24 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
             rollback_rate=0.0,  # TODO: Track rollbacks
             identity_stable=self._consecutive_failures < 3,
             time_since_last_change=(self._time_service.now() - self._last_adaptation).total_seconds() if self._last_adaptation else None,
-            under_review=self._current_state == AdaptationState.REVIEWING,
-            review_reason="Variance exceeded threshold" if self._current_state == AdaptationState.REVIEWING else None
+            under_review=self._current_state == ObservationState.REVIEWING,
+            review_reason="Variance exceeded threshold" if self._current_state == ObservationState.REVIEWING else None
         )
 
         return status
 
     async def resume_after_review(self, review_outcome: ReviewOutcome) -> None:
         """Resume self-configuration after WA review."""
-        if self._current_state != AdaptationState.REVIEWING:
+        if self._current_state != ObservationState.REVIEWING:
             logger.warning("Resume called but not in REVIEWING state")
             return
 
         # Process review outcome
         if review_outcome.decision == "approve":
-            self._current_state = AdaptationState.STABILIZING
+            self._current_state = ObservationState.STABILIZING
             logger.info("WA review approved - entering stabilization")
         else:
-            self._current_state = AdaptationState.LEARNING
+            self._current_state = ObservationState.LEARNING
             logger.info("WA review rejected - returning to learning")
 
         # Reset failure counter on successful review
@@ -375,7 +383,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
         )
 
         if self._memory_bus:
-            await self._memory_bus.memorize(review_node, handler_name="self_configuration")
+            await self._memory_bus.memorize(review_node, handler_name="self_observation")
 
     async def emergency_stop(self, reason: str) -> None:
         """Activate emergency stop for self-configuration."""
@@ -396,19 +404,19 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
         )
 
         if self._memory_bus:
-            await self._memory_bus.memorize(stop_node, handler_name="self_configuration")
+            await self._memory_bus.memorize(stop_node, handler_name="self_observation")
 
     async def start(self) -> None:
         """Start the self-configuration service."""
         # Start component services
         if self._variance_monitor:
             await self._variance_monitor.start()
-        if self._feedback_loop:
-            await self._feedback_loop.start()
+        if self._pattern_loop:
+            await self._pattern_loop.start()
         if self._telemetry_service:
             await self._telemetry_service.start()
 
-        logger.info("SelfConfigurationService started - enabling autonomous adaptation within ethical bounds")
+        logger.info("SelfObservationService started - enabling autonomous observation and learning")
 
     async def stop(self) -> None:
         """Stop the service."""
@@ -420,12 +428,12 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
         # Stop component services
         if self._variance_monitor:
             await self._variance_monitor.stop()
-        if self._feedback_loop:
-            await self._feedback_loop.stop()
+        if self._pattern_loop:
+            await self._pattern_loop.stop()
         if self._telemetry_service:
             await self._telemetry_service.stop()
 
-        logger.info("SelfConfigurationService stopped")
+        logger.info("SelfObservationService stopped")
 
     async def is_healthy(self) -> bool:
         """Check if the service is healthy."""
@@ -435,7 +443,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
         # Check component health
         components_healthy = all([
             await self._variance_monitor.is_healthy() if self._variance_monitor else False,
-            await self._feedback_loop.is_healthy() if self._feedback_loop else False,
+            await self._pattern_loop.is_healthy() if self._pattern_loop else False,
             await self._telemetry_service.is_healthy() if self._telemetry_service else False
         ])
 
@@ -444,7 +452,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""
         return ServiceCapabilities(
-            service_name="SelfConfigurationService",
+            service_name="SelfObservationService",
             actions=["adapt_configuration", "monitor_identity", "process_feedback", "emergency_stop"],
             version="1.0.0",
             dependencies=["variance_monitor", "feedback_loop", "telemetry_service"],
@@ -462,7 +470,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
     def get_status(self) -> ServiceStatus:
         """Get current service status."""
         return ServiceStatus(
-            service_name="SelfConfigurationService",
+            service_name="SelfObservationService",
             service_type="SPECIAL",
             is_healthy=not self._emergency_stop and self._consecutive_failures < self._max_failures,
             uptime_seconds=0.0,  # Would need to track start time
@@ -519,12 +527,12 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
             depth=1
         )
 
-        insights = await self._memory_bus.recall(query, handler_name="self_configuration")
+        insights = await self._memory_bus.recall(query, handler_name="self_observation")
 
         # Process insights into opportunities
         for insight in insights:
             if insight.attributes.get("actionable", False):
-                opportunity = AdaptationOpportunity(
+                opportunity = ObservationOpportunity(
                     opportunity_id=f"opp_{insight.id}",
                     signal_type=insight.attributes.get("pattern_type", "unknown"),
                     description=insight.attributes.get("description", ""),
@@ -537,14 +545,14 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
 
         return analysis
 
-    async def trigger_adaptation_cycle(self) -> AdaptationCycleResult:
+    async def trigger_adaptation_cycle(self) -> ObservationCycleResult:
         """
         Manually trigger an adaptation assessment cycle.
 
         This now just runs a variance check.
         """
         if self._emergency_stop:
-            return AdaptationCycleResult(
+            return ObservationCycleResult(
                 cycle_id="manual_trigger_blocked",
                 state=self._current_state,
                 started_at=self._time_service.now(),
@@ -554,7 +562,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
             )
 
         # Run variance check
-        return await self._run_adaptation_cycle()
+        return await self._run_observation_cycle()
 
     async def get_pattern_library(self) -> PatternLibrarySummary:
         """
@@ -583,7 +591,7 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
             depth=1
         )
 
-        patterns = await self._memory_bus.recall(query, handler_name="self_configuration")
+        patterns = await self._memory_bus.recall(query, handler_name="self_observation")
 
         summary.total_patterns = len(patterns)
 
@@ -599,14 +607,14 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
     async def measure_adaptation_effectiveness(
         self,
         adaptation_id: str
-    ) -> AdaptationEffectiveness:
+    ) -> ObservationEffectiveness:
         """
         Measure if an adaptation actually improved the system.
 
         Since adaptations are now agent-driven, effectiveness
         is measured by variance stability.
         """
-        effectiveness = AdaptationEffectiveness(
+        effectiveness = ObservationEffectiveness(
             adaptation_id=adaptation_id,
             measured_at=self._time_service.now(),
             metrics_before={},
@@ -662,3 +670,263 @@ class SelfConfigurationService(Service, SelfConfigurationServiceProtocol, Servic
             report.recommendations.append("Investigate variance check failures")
 
         return report
+
+    # ========== Pattern Detection Protocol Methods ==========
+
+    async def analyze_patterns(self, force: bool = False) -> AnalysisResult:
+        """
+        Analyze recent system behavior and detect patterns.
+        
+        Delegates to the PatternAnalysisLoop component.
+        """
+        if self._pattern_loop:
+            return await self._pattern_loop.analyze_and_adapt(force=force)
+        
+        # Return empty result if no pattern loop
+        return AnalysisResult(
+            status="no_pattern_loop",
+            patterns_detected=0,
+            insights_stored=0,
+            timestamp=self._time_service.now(),
+            error="Pattern analysis loop not initialized"
+        )
+
+    async def get_detected_patterns(
+        self,
+        pattern_type: Optional[PatternType] = None,
+        hours: int = 24
+    ) -> List[DetectedPattern]:
+        """
+        Get recently detected patterns.
+        
+        Queries the pattern loop for detected patterns.
+        """
+        if not self._pattern_loop:
+            return []
+            
+        # Get patterns from the pattern loop
+        all_patterns = list(self._pattern_loop._detected_patterns.values())
+        
+        # Filter by time window
+        cutoff_time = self._time_service.now() - timedelta(hours=hours)
+        recent_patterns = [
+            p for p in all_patterns 
+            if p.detected_at >= cutoff_time
+        ]
+        
+        # Filter by type if specified
+        if pattern_type:
+            recent_patterns = [
+                p for p in recent_patterns 
+                if p.pattern_type == pattern_type
+            ]
+            
+        return recent_patterns
+
+    async def get_action_frequency(self, hours: int = 24) -> Dict[str, ActionFrequency]:
+        """
+        Get frequency analysis of agent actions.
+        
+        Analyzes telemetry data to compute action frequencies.
+        """
+        action_frequencies: Dict[str, ActionFrequency] = {}
+        
+        if not self._memory_bus:
+            return action_frequencies
+            
+        # Query telemetry nodes from memory
+        from ciris_engine.schemas.services.operations import MemoryQuery
+        query = MemoryQuery(
+            node_id="telemetry_metrics",
+            scope=GraphScope.LOCAL,
+            type=NodeType.METRIC,
+            include_edges=False,
+            depth=1
+        )
+        
+        try:
+            telemetry_nodes = await self._memory_bus.recall(query, handler_name="self_observation")
+            
+            # Count actions in the time window
+            cutoff_time = self._time_service.now() - timedelta(hours=hours)
+            action_counts: Dict[str, List[datetime]] = defaultdict(list)
+            
+            for node in telemetry_nodes:
+                if node.attributes.get("action"):
+                    action_name = node.attributes["action"]
+                    timestamp_str = node.attributes.get("timestamp")
+                    if timestamp_str:
+                        timestamp = datetime.fromisoformat(timestamp_str)
+                        if timestamp >= cutoff_time:
+                            action_counts[action_name].append(timestamp)
+            
+            # Build frequency objects
+            for action, timestamps in action_counts.items():
+                timestamps_sorted = sorted(timestamps)
+                daily_average = len(timestamps) / (hours / 24.0) if hours > 0 else 0.0
+                
+                action_frequencies[action] = ActionFrequency(
+                    action=action,
+                    count=len(timestamps),
+                    evidence=[ts.isoformat() for ts in timestamps_sorted[-3:]],  # Last 3 examples
+                    last_seen=timestamps_sorted[-1] if timestamps_sorted else self._time_service.now(),
+                    daily_average=daily_average
+                )
+                
+        except Exception as e:
+            logger.error(f"Failed to get action frequency: {e}")
+            
+        return action_frequencies
+
+    async def get_pattern_insights(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """
+        Get stored pattern insights from graph memory.
+        """
+        insights = []
+        
+        if not self._memory_bus:
+            return insights
+            
+        # Query insight nodes
+        from ciris_engine.schemas.services.operations import MemoryQuery
+        query = MemoryQuery(
+            node_id="pattern_insights",
+            scope=GraphScope.LOCAL,
+            type=NodeType.CONCEPT,
+            include_edges=False,
+            depth=1
+        )
+        
+        try:
+            insight_nodes = await self._memory_bus.recall(query, handler_name="self_observation")
+            
+            # Convert to dicts and sort by timestamp
+            for node in insight_nodes[:limit]:
+                insights.append({
+                    "id": node.id,
+                    "pattern_type": node.attributes.get("pattern_type", "unknown"),
+                    "description": node.attributes.get("description", ""),
+                    "detected_at": node.attributes.get("detected_at", ""),
+                    "confidence": node.attributes.get("confidence", 0.0),
+                    "actionable": node.attributes.get("actionable", False),
+                    "metadata": node.attributes.get("metadata", {})
+                })
+                
+        except Exception as e:
+            logger.error(f"Failed to get pattern insights: {e}")
+            
+        return insights
+
+    async def get_learning_summary(self) -> Dict[str, Any]:
+        """
+        Get summary of what the system has learned.
+        """
+        patterns = await self.get_detected_patterns(hours=168)  # 1 week
+        action_freq = await self.get_action_frequency(hours=168)
+        insights = await self.get_pattern_insights(limit=10)
+        
+        # Group patterns by type
+        patterns_by_type = defaultdict(int)
+        for pattern in patterns:
+            patterns_by_type[pattern.pattern_type.value] += 1
+            
+        # Find most/least used actions
+        sorted_actions = sorted(
+            action_freq.items(), 
+            key=lambda x: x[1].count, 
+            reverse=True
+        )
+        most_used = [name for name, _ in sorted_actions[:5]]
+        least_used = [name for name, _ in sorted_actions[-5:] if _.count > 0]
+        
+        return {
+            "total_patterns_detected": len(patterns),
+            "patterns_by_type": dict(patterns_by_type),
+            "total_insights_stored": len(insights),
+            "most_recent_insights": insights[:3],
+            "action_statistics": {
+                "total_unique_actions": len(action_freq),
+                "most_frequent_actions": most_used,
+                "rarely_used_actions": least_used
+            },
+            "adaptation_cycles_completed": len(self._adaptation_history),
+            "current_variance": self._variance_monitor.current_variance if self._variance_monitor else 0.0,
+            "learning_enabled": not self._emergency_stop,
+            "last_analysis": self._last_adaptation.isoformat() if self._last_adaptation else None
+        }
+
+    async def get_temporal_patterns(self, hours: int = 168) -> List[TemporalPattern]:
+        """
+        Get temporal patterns (daily, weekly cycles).
+        """
+        temporal_patterns = []
+        
+        # Get patterns of temporal type
+        patterns = await self.get_detected_patterns(
+            pattern_type=PatternType.TEMPORAL,
+            hours=hours
+        )
+        
+        # Convert to TemporalPattern objects
+        for pattern in patterns:
+            temporal_patterns.append(TemporalPattern(
+                pattern_id=pattern.pattern_id,
+                pattern_type=pattern.metrics.metadata.get("temporal_type", "unknown"),
+                time_window=pattern.metrics.metadata.get("time_window", ""),
+                activity_description=pattern.description,
+                occurrence_count=pattern.metrics.occurrence_count,
+                first_detected=pattern.detected_at,
+                last_observed=pattern.detected_at,  # Would need to track this separately
+                metrics={
+                    "average_value": pattern.metrics.average_value,
+                    "peak_value": pattern.metrics.peak_value,
+                    "data_points": float(pattern.metrics.data_points)
+                }
+            ))
+            
+        return temporal_patterns
+
+    async def get_pattern_effectiveness(self, pattern_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get effectiveness metrics for a specific pattern.
+        """
+        # This would need to track whether acting on patterns improved outcomes
+        # For now, return a simple structure
+        
+        # Check if pattern exists
+        if self._pattern_loop and pattern_id in self._pattern_loop._detected_patterns:
+            pattern = self._pattern_loop._detected_patterns[pattern_id]
+            
+            return {
+                "pattern_id": pattern_id,
+                "pattern_type": pattern.pattern_type.value,
+                "times_applied": 0,  # Would need to track this
+                "success_rate": 0.0,  # Would need to track outcomes
+                "average_improvement": 0.0,  # Would need metrics
+                "last_applied": None,
+                "recommendation": "monitor"  # or "apply", "ignore"
+            }
+            
+        return None
+
+    async def get_analysis_status(self) -> Dict[str, Any]:
+        """
+        Get current analysis status.
+        """
+        time_since_last = self._time_service.now() - self._last_adaptation
+        next_analysis_in = max(
+            0,
+            self._observation_interval.total_seconds() - time_since_last.total_seconds()
+        )
+        
+        return {
+            "service_active": not self._emergency_stop,
+            "last_analysis": self._last_adaptation.isoformat(),
+            "next_analysis_in_seconds": next_analysis_in,
+            "patterns_in_buffer": len(self._pattern_loop._detected_patterns) if self._pattern_loop else 0,
+            "total_patterns_detected": len(self._pattern_history),
+            "variance_monitor_healthy": await self._variance_monitor.is_healthy() if self._variance_monitor else False,
+            "pattern_loop_healthy": await self._pattern_loop.is_healthy() if self._pattern_loop else False,
+            "current_state": self._current_state.value,
+            "consecutive_failures": self._consecutive_failures
+        }

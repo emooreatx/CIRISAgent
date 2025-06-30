@@ -356,8 +356,8 @@ async def export_audit_data(
     try:
         # Export data
         export_data = await audit_service.export_audit_data(
-            start_date=start_date,
-            end_date=end_date,
+            start_time=start_date,
+            end_time=end_date,
             format=format
         )
 

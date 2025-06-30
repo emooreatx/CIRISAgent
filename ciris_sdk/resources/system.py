@@ -5,7 +5,7 @@ Consolidates health, time, resources, runtime control, services, and shutdown
 into a unified system operations interface matching API v3.0.
 """
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 
 from ..transport import Transport
@@ -27,7 +27,7 @@ class SystemHealthResponse(BaseModel):
 class TimeSyncStatus(BaseModel):
     """Time synchronization status."""
     synchronized: bool = Field(..., description="Whether time is synchronized")
-    drift_ms: int = Field(..., description="Time drift in milliseconds")
+    drift_ms: float = Field(..., description="Time drift in milliseconds")
     last_sync: datetime = Field(..., description="Last sync timestamp")
 
 
@@ -35,9 +35,9 @@ class SystemTimeResponse(BaseModel):
     """System and agent time information with timezone details."""
     system_time: datetime = Field(..., description="Host system time (OS time) in UTC")
     agent_time: datetime = Field(..., description="Agent's TimeService time in UTC")
-    server_timezone: str = Field(..., description="Server's local timezone (e.g., 'America/New_York')")
-    utc_offset: str = Field(..., description="Current UTC offset (e.g., '-05:00')")
-    is_dst: bool = Field(..., description="Whether daylight saving time is active")
+    server_timezone: Optional[str] = Field(default="UTC", description="Server's local timezone (e.g., 'America/New_York')")
+    utc_offset: Optional[str] = Field(default="+00:00", description="Current UTC offset (e.g., '-05:00')")
+    is_dst: Optional[bool] = Field(default=False, description="Whether daylight saving time is active")
     uptime_seconds: float = Field(..., description="Service uptime in seconds")
     time_sync: TimeSyncStatus = Field(..., description="Time synchronization status")
 
@@ -46,17 +46,31 @@ class ResourceSnapshot(BaseModel):
     """Current resource usage snapshot."""
     memory_mb: float = Field(..., description="Memory usage in MB")
     cpu_percent: float = Field(..., description="CPU usage percentage")
-    open_files: int = Field(..., description="Number of open files")
-    threads: int = Field(..., description="Number of threads")
-    timestamp: datetime = Field(..., description="When snapshot was taken")
+    open_files: Optional[int] = Field(default=0, description="Number of open files")
+    threads: Optional[int] = Field(default=0, description="Number of threads")
+    timestamp: Optional[datetime] = Field(default=None, description="When snapshot was taken")
 
 
 class ResourceBudget(BaseModel):
     """Resource limits/budget."""
-    max_memory_mb: float = Field(..., description="Maximum memory in MB")
-    max_cpu_percent: float = Field(..., description="Maximum CPU percentage")
-    max_open_files: int = Field(..., description="Maximum open files")
-    max_threads: int = Field(..., description="Maximum threads")
+    max_memory_mb: Optional[float] = Field(default=None, description="Maximum memory in MB")
+    max_cpu_percent: Optional[float] = Field(default=None, description="Maximum CPU percentage")
+    max_open_files: Optional[int] = Field(default=None, description="Maximum open files")
+    max_threads: Optional[int] = Field(default=None, description="Maximum threads")
+    
+    @classmethod
+    def from_api_response(cls, data: Dict[str, Any]) -> "ResourceBudget":
+        """Convert API response format to ResourceBudget."""
+        if "memory_mb" in data and isinstance(data["memory_mb"], dict):
+            # Handle nested format from API
+            return cls(
+                max_memory_mb=data["memory_mb"].get("limit"),
+                max_cpu_percent=data.get("cpu_percent", {}).get("limit"),
+                max_open_files=data.get("open_files", {}).get("limit"),
+                max_threads=data.get("threads", {}).get("limit")
+            )
+        # Handle flat format
+        return cls(**data)
 
 
 class ResourceUsageResponse(BaseModel):
@@ -82,7 +96,7 @@ class ServiceMetrics(BaseModel):
     requests_total: Optional[int] = None
     requests_failed: Optional[int] = None
     average_latency_ms: Optional[float] = None
-    custom_metrics: Dict[str, Any] = Field(default_factory=dict)
+    custom_metrics: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
 class ServiceStatus(BaseModel):
@@ -153,6 +167,22 @@ class SystemResource:
         Requires: OBSERVER role
         """
         result = await self._transport.request("GET", "/v1/system/resources")
+        
+        # Handle limits conversion
+        if "limits" in result and isinstance(result["limits"], dict):
+            result["limits"] = ResourceBudget.from_api_response(result["limits"])
+            
+        # Handle current_usage conversion
+        if "current_usage" in result and isinstance(result["current_usage"], dict):
+            # Ensure missing fields have defaults
+            current = result["current_usage"]
+            if "open_files" not in current:
+                current["open_files"] = 0
+            if "threads" not in current:
+                current["threads"] = 0
+            if "timestamp" not in current:
+                current["timestamp"] = datetime.now(timezone.utc).isoformat()
+                
         return ResourceUsageResponse(**result)
     
     async def runtime_control(self, action: str, reason: Optional[str] = None) -> RuntimeControlResponse:

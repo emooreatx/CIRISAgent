@@ -5,16 +5,18 @@ import logging
 from typing import Any, Dict, Optional
 from datetime import datetime, timezone
 
-from ciris_engine.protocols.services.runtime.runtime_control import RuntimeControlServiceProtocol
+from ciris_engine.logic.adapters.base import Service
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 
 logger = logging.getLogger(__name__)
 
 
-class APIRuntimeControlService(RuntimeControlServiceProtocol):
+class APIRuntimeControlService(Service):
     """Runtime control exposed through API."""
     
     def __init__(self, runtime: Any) -> None:
         """Initialize API runtime control."""
+        super().__init__()
         self.runtime = runtime
         self._paused = False
         self._pause_reason: Optional[str] = None
@@ -141,3 +143,45 @@ class APIRuntimeControlService(RuntimeControlServiceProtocol):
             "shutdown_completed": datetime.now(timezone.utc),
             "exit_code": 0
         }
+    
+    # Service interface methods
+    
+    async def start(self) -> None:
+        """Start the runtime control service."""
+        logger.info("API Runtime Control Service started")
+    
+    async def stop(self) -> None:
+        """Stop the runtime control service."""
+        logger.info("API Runtime Control Service stopped")
+    
+    async def is_healthy(self) -> bool:
+        """Check if service is healthy."""
+        return True
+    
+    def get_capabilities(self) -> ServiceCapabilities:
+        """Get service capabilities."""
+        return ServiceCapabilities(
+            service_name="APIRuntimeControlService",
+            actions=["pause_processing", "resume_processing", "request_state_transition", "get_runtime_status", "handle_emergency_shutdown"],
+            version="1.0.0",
+            dependencies=[],
+            metadata={
+                "description": "Runtime control service for API adapter",
+                "features": ["pause_resume", "state_transitions", "emergency_shutdown"]
+            }
+        )
+    
+    def get_status(self) -> ServiceStatus:
+        """Get current service status."""
+        return ServiceStatus(
+            service_name="APIRuntimeControlService",
+            service_type="RUNTIME_CONTROL",
+            is_healthy=True,
+            uptime_seconds=0.0,  # Would need to track start time
+            last_error=None,
+            metrics={
+                "paused": float(self._paused),
+                "pause_duration": float((datetime.now(timezone.utc) - self._pause_time).total_seconds() if self._pause_time and self._paused else 0)
+            },
+            last_health_check=datetime.now(timezone.utc)
+        )

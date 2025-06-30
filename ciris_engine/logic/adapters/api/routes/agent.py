@@ -89,6 +89,15 @@ class AgentIdentity(BaseModel):
 _message_responses: dict[str, str] = {}
 _response_events: dict[str, asyncio.Event] = {}
 
+
+async def store_message_response(message_id: str, response: str) -> None:
+    """Store a response and notify waiting request."""
+    _message_responses[message_id] = response
+    event = _response_events.get(message_id)
+    if event:
+        event.set()
+
+
 # Endpoints
 
 @router.post("/interact", response_model=SuccessResponse[InteractResponse])
@@ -187,6 +196,41 @@ async def get_history(
     """
     # Use user-specific channel
     channel_id = f"api_{auth.user_id}"
+    
+    # Check for mock message history first
+    message_history = getattr(request.app.state, 'message_history', None)
+    if message_history is not None:
+        # Filter messages for this user
+        user_messages = [m for m in message_history if m.get('channel_id') == channel_id]
+        
+        # Convert to response format
+        messages = []
+        for msg in user_messages[-limit:]:  # Get last N messages
+            # Add user message
+            messages.append(ConversationMessage(
+                id=msg['message_id'],
+                author=msg['author_id'],
+                content=msg['content'],
+                timestamp=datetime.fromisoformat(msg['timestamp']) if isinstance(msg['timestamp'], str) else msg['timestamp'],
+                is_agent=False
+            ))
+            # Add agent response
+            if msg.get('response'):
+                messages.append(ConversationMessage(
+                    id=f"{msg['message_id']}_response",
+                    author="Scout",
+                    content=msg['response'],
+                    timestamp=datetime.fromisoformat(msg['timestamp']) if isinstance(msg['timestamp'], str) else msg['timestamp'],
+                    is_agent=True
+                ))
+        
+        history = ConversationHistory(
+            messages=messages,
+            total_count=len(user_messages),
+            has_more=len(user_messages) > limit
+        )
+        
+        return SuccessResponse(data=history)
 
     # Get communication service
     comm_service = getattr(request.app.state, 'communication_service', None)

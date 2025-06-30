@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from ..transport import Transport
 from ..pagination import PageIterator, PaginatedResponse, QueryParams
+from ..models import GraphNode as ModelsGraphNode
 
 
 # Request/Response Models for v1 API
@@ -20,6 +21,7 @@ class MemoryStoreResponse(BaseModel):
     success: bool = Field(..., description="Whether the operation succeeded")
     node_id: str = Field(..., description="ID of the stored node")
     message: Optional[str] = Field(None, description="Status message")
+    operation: str = Field(default="MEMORIZE", description="Operation performed")
 
 
 class MemoryQueryRequest(BaseModel):
@@ -44,13 +46,8 @@ class MemoryQueryRequest(BaseModel):
     depth: int = Field(1, ge=1, le=3, description="Graph traversal depth")
 
 
-class GraphNode(BaseModel):
-    """Basic graph node structure."""
-    id: str = Field(..., description="Unique node identifier")
-    type: str = Field(..., description="Node type")
-    attributes: Dict[str, Any] = Field(default_factory=dict, description="Node attributes")
-    created_at: datetime = Field(..., description="Creation timestamp")
-    updated_at: datetime = Field(..., description="Last update timestamp")
+# Use GraphNode from models.py instead of redefining
+GraphNode = ModelsGraphNode
 
 
 class MemoryQueryResponse(BaseModel):
@@ -64,7 +61,7 @@ class MemoryQueryResponse(BaseModel):
 class TimelineResponse(BaseModel):
     """Timeline view of memories."""
     memories: List[GraphNode] = Field(..., description="Recent memories")
-    buckets: List[Dict[str, Any]] = Field(..., description="Time bucket counts")
+    buckets: Union[List[Dict[str, Any]], Dict[str, int]] = Field(..., description="Time bucket counts")
     total: int = Field(..., description="Total memories in timeframe")
 
 
@@ -83,7 +80,7 @@ class MemoryResource:
     def __init__(self, transport: Transport):
         self._transport = transport
 
-    async def store(self, node: Dict[str, Any]) -> MemoryStoreResponse:
+    async def store(self, node: Union[Dict[str, Any], GraphNode]) -> MemoryStoreResponse:
         """
         Store typed nodes in memory (MEMORIZE).
 
@@ -91,12 +88,13 @@ class MemoryResource:
         Requires: ADMIN role
 
         Args:
-            node: GraphNode data to store (as dict)
+            node: GraphNode data to store (as dict or GraphNode instance)
 
         Returns:
             MemoryStoreResponse with success status and node ID
         
         Example:
+            # Using dict
             node = {
                 "type": "CONCEPT",
                 "attributes": {
@@ -107,13 +105,61 @@ class MemoryResource:
             }
             result = await client.memory.store(node)
             print(f"Stored node: {result.node_id}")
+            
+            # Using GraphNode
+            node = GraphNode(
+                id="my-node",
+                type="CONCEPT", 
+                scope="local",
+                attributes={"name": "quantum_computing"}
+            )
+            result = await client.memory.store(node)
         """
-        payload = {"node": node}
+        # Convert GraphNode to dict if necessary
+        if isinstance(node, (GraphNode, ModelsGraphNode)):
+            # Handle both Pydantic v1 (dict) and v2 (model_dump)
+            if hasattr(node, 'model_dump'):
+                node_dict = node.model_dump(exclude_none=True)
+            else:
+                node_dict = node.dict(exclude_none=True)
+        else:
+            node_dict = node
+            
+        payload = {"node": node_dict}
         result = await self._transport.request("POST", "/v1/memory/store", json=payload)
+        
+        # Handle API response format
+        if isinstance(result, dict):
+            # Check if wrapped in SuccessResponse
+            if "data" in result:
+                api_result = result["data"]
+            else:
+                api_result = result
+                
+            # Convert MemoryOpResult to MemoryStoreResponse
+            if api_result and "status" in api_result:
+                return MemoryStoreResponse(
+                    success=api_result.get("status", "error").lower() in ["ok", "success"],
+                    node_id=node_dict.get("id", ""),
+                    message=api_result.get("reason"),
+                    operation="MEMORIZE"
+                )
+                
+        # Fallback - assume it's a MemoryOpResult
+        if isinstance(result, dict) and "status" in result:
+            return MemoryStoreResponse(
+                success=result.get("status", "error").lower() in ["ok", "success"],
+                node_id=node_dict.get("id", ""),
+                message=result.get("reason"),
+                operation="MEMORIZE"
+            )
+            
+        # Last resort - try direct mapping
         return MemoryStoreResponse(**result)
 
     async def query(
         self,
+        query: Optional[str] = None,  # Allow positional query parameter for backward compatibility
         *,
         type: Optional[str] = None,
         tags: Optional[List[str]] = None,
@@ -127,7 +173,7 @@ class MemoryResource:
         include_edges: bool = False,
         depth: int = 1,
         include_total: bool = False
-    ) -> MemoryQueryResponse:
+    ) -> Union[MemoryQueryResponse, List[GraphNode]]:
         """
         Flexible query interface for memory (RECALL).
 
@@ -178,6 +224,10 @@ class MemoryResource:
                 include_edges=True
             )
         """
+        # Handle backward compatibility - query parameter stays as query
+        if query is not None and text is None:
+            text = query
+            
         payload: Dict[str, Any] = {
             "limit": limit,
             "include_edges": include_edges,
@@ -196,7 +246,8 @@ class MemoryResource:
         if related_to:
             payload["related_to"] = related_to
         if text:
-            payload["text"] = text
+            # API expects 'query' not 'text'
+            payload["query"] = text
         
         # Add custom filters
         if filters:
@@ -211,7 +262,37 @@ class MemoryResource:
             payload["include_total"] = include_total
 
         result = await self._transport.request("POST", "/v1/memory/query", json=payload)
-        return MemoryQueryResponse(**result)
+        
+        # Handle API response format
+        if isinstance(result, dict) and "data" in result:
+            # API wraps response in SuccessResponse
+            nodes_data = result["data"]
+            if isinstance(nodes_data, list):
+                # Direct list of nodes
+                response = MemoryQueryResponse(
+                    nodes=[GraphNode(**node) for node in nodes_data],
+                    cursor=None,
+                    has_more=False,
+                    total_matches=len(nodes_data)
+                )
+            else:
+                # Already a query response
+                response = MemoryQueryResponse(**nodes_data)
+        elif isinstance(result, list):
+            # Direct list of nodes (legacy format)
+            response = MemoryQueryResponse(
+                nodes=[GraphNode(**node) for node in result],
+                cursor=None,
+                has_more=False,
+                total_matches=len(result)
+            )
+        else:
+            response = MemoryQueryResponse(**result)
+        
+        # For backward compatibility, if called with positional query arg, return just the nodes
+        if query is not None:
+            return response.nodes
+        return response
     
     def query_iter(
         self,
@@ -296,6 +377,18 @@ class MemoryResource:
         """
         result = await self._transport.request("GET", f"/v1/memory/{node_id}")
         return GraphNode(**result)
+    
+    async def recall(self, node_id: str) -> GraphNode:
+        """
+        Alias for get_node for backward compatibility.
+        
+        Args:
+            node_id: Node ID to retrieve
+
+        Returns:
+            GraphNode object
+        """
+        return await self.get_node(node_id)
 
     async def get_timeline(
         self,
@@ -340,6 +433,19 @@ class MemoryResource:
 
         result = await self._transport.request("GET", "/v1/memory/timeline", params=params)
         return TimelineResponse(**result)
+    
+    async def timeline(self, hours: int = 24, limit: int = 20) -> TimelineResponse:
+        """
+        Alias for get_timeline for backward compatibility.
+        
+        Args:
+            hours: Hours to look back (1-168)
+            limit: Maximum memories to return
+        
+        Returns:
+            TimelineResponse
+        """
+        return await self.get_timeline(hours=hours)
 
     # Convenience methods for common queries
     

@@ -206,6 +206,41 @@ class CIRISRuntime:
     @property
     def maintenance_service(self) -> Optional[Any]:
         return self.service_initializer.maintenance_service if self.service_initializer else None
+    
+    @property
+    def shutdown_service(self) -> Optional[Any]:
+        """Access to shutdown service."""
+        return self.service_initializer.shutdown_service if self.service_initializer else None
+    
+    @property
+    def initialization_service(self) -> Optional[Any]:
+        """Access to initialization service."""
+        return self.service_initializer.initialization_service if self.service_initializer else None
+    
+    @property
+    def tsdb_consolidation_service(self) -> Optional[Any]:
+        """Access to TSDB consolidation service."""
+        return self.service_initializer.tsdb_consolidation_service if self.service_initializer else None
+    
+    @property
+    def secrets_service(self) -> Optional[Any]:
+        """Access to secrets service."""
+        return self.service_initializer.secrets_service if self.service_initializer else None
+    
+    @property
+    def adaptive_filter_service(self) -> Optional[Any]:
+        """Access to adaptive filter service."""
+        return self.service_initializer.adaptive_filter_service if self.service_initializer else None
+    
+    @property
+    def self_observation_service(self) -> Optional[Any]:
+        """Access to self observation service."""
+        return self.service_initializer.self_observation_service if self.service_initializer else None
+    
+    @property
+    def visibility_service(self) -> Optional[Any]:
+        """Access to visibility service."""
+        return self.service_initializer.visibility_service if self.service_initializer else None
 
     def _ensure_shutdown_event(self) -> None:
         """Ensure shutdown event is created when needed in async context."""

@@ -70,6 +70,8 @@ class ServiceInitializer:
         self.tsdb_consolidation_service: Optional[Any] = None  # Will be TSDBConsolidationService
         self.resource_monitor_service: Optional[Any] = None  # Will be ResourceMonitorService
         self.config_service: Optional[Any] = None  # Will be GraphConfigService
+        self.self_observation_service: Optional[Any] = None  # Will be SelfObservationService
+        self.visibility_service: Optional[Any] = None  # Will be VisibilityService
 
         # Module management
         self.module_loader: Optional[Any] = None  # Will be ModuleLoader
@@ -485,6 +487,32 @@ This directory contains critical cryptographic keys for the CIRIS system.
         )
         await self.tsdb_consolidation_service.start()
         logger.info("TSDB consolidation service initialized - creating permanent memory summaries every 6 hours")
+        
+        # Initialize self observation service
+        from ciris_engine.logic.services.adaptation.self_observation import SelfObservationService
+        self.self_observation_service = SelfObservationService(
+            time_service=self.time_service,
+            memory_bus=self.bus_manager.memory,
+            variance_threshold=0.20,  # 20% max variance from baseline
+            observation_interval_hours=6
+        )
+        # Set service registry so it can initialize components
+        if self.service_registry:
+            self.self_observation_service._set_service_registry(self.service_registry)
+        # Start the service for API mode (in other modes DREAM processor starts it)
+        await self.self_observation_service.start()
+        logger.info("Self observation service initialized and started")
+        
+        # Initialize visibility service
+        from ciris_engine.logic.services.governance.visibility import VisibilityService
+        from ciris_engine.logic.persistence import get_sqlite_db_full_path
+        self.visibility_service = VisibilityService(
+            bus_manager=self.bus_manager,
+            time_service=self.time_service,
+            db_path=get_sqlite_db_full_path()
+        )
+        await self.visibility_service.start()
+        logger.info("Visibility service initialized - providing reasoning transparency")
 
     async def _initialize_llm_services(self, config: Any) -> None:
         """Initialize LLM service(s) based on configuration.
@@ -650,6 +678,9 @@ This directory contains critical cryptographic keys for the CIRIS system.
             key_path=str(audit_key_path),
             retention_days=retention_days
         )
+        # Set service registry so it can access memory bus
+        if self.service_registry:
+            graph_audit.set_service_registry(self.service_registry)
         await graph_audit.start()
         self.audit_services.append(graph_audit)
         logger.info("Consolidated GraphAuditService started")

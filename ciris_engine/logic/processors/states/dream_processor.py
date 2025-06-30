@@ -17,7 +17,7 @@ from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.services.operations import MemoryQuery
 from ciris_engine.schemas.runtime.enums import HandlerActionType, TaskStatus, ThoughtStatus
-from ciris_engine.logic.services.adaptation.self_configuration import SelfConfigurationService
+from ciris_engine.logic.services.adaptation.self_observation import SelfObservationService
 from ciris_engine.logic.services.graph.telemetry_service import GraphTelemetryService
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.buses.communication_bus import CommunicationBus
@@ -117,7 +117,7 @@ class DreamProcessor(BaseProcessor):
         self.cirisnode_client: Optional[CIRISNodeClient] = None
 
         # Service components
-        self.self_config_service: Optional[SelfConfigurationService] = None
+        self.self_observation_service: Optional[SelfObservationService] = None
         self.telemetry_service: Optional[GraphTelemetryService] = None
         self.memory_bus: Optional[MemoryBus] = None
         self.communication_bus: Optional[CommunicationBus] = None
@@ -294,11 +294,11 @@ class DreamProcessor(BaseProcessor):
             self.communication_bus = CommunicationBus(self.service_registry)
 
             # Initialize self-configuration service
-            self.self_config_service = SelfConfigurationService(
+            self.self_observation_service = SelfObservationService(
                 memory_bus=self.memory_bus,
                 adaptation_interval_hours=6  # Match our dream schedule
             )
-            self.self_config_service._set_service_registry(self.service_registry)
+            self.self_observation_service._set_service_registry(self.service_registry)
 
             # Initialize telemetry service
             self.telemetry_service = GraphTelemetryService(
@@ -309,7 +309,7 @@ class DreamProcessor(BaseProcessor):
 
             # Initialize identity baseline if needed
             if self.identity_manager and self.identity_manager.agent_identity:
-                await self.self_config_service.initialize_identity_baseline(
+                await self.self_observation_service.initialize_identity_baseline(
                     self.identity_manager.agent_identity
                 )
 
@@ -330,7 +330,7 @@ class DreamProcessor(BaseProcessor):
             return
 
         # Initialize services if not done
-        if not self.self_config_service:
+        if not self.self_observation_service:
             await self._initialize_services()
 
         # Calculate duration

@@ -22,6 +22,12 @@ class GraphNode(BaseModel):
     version: int = Field(default=1, ge=1, description="Version number")
     updated_by: Optional[str] = Field(None, description="Who last updated")
     updated_at: Optional[datetime] = Field(None, description="When last updated")
+    
+    class Config:
+        # Ensure datetime serialization works
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
 
 class MemoryOpResult(BaseModel):
     """Result of memory operations."""

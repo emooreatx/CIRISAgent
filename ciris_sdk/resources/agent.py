@@ -7,7 +7,7 @@ Primary interface for communicating with the CIRIS agent.
 The API interfaces may change without notice.
 """
 from typing import Any, Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from ..transport import Transport
 
@@ -25,6 +25,17 @@ class InteractResponse(BaseModel):
     response: str = Field(..., description="Agent's response")
     state: str = Field(..., description="Agent's cognitive state after processing")
     processing_time_ms: int = Field(..., description="Time taken to process")
+    
+    # Aliases for backward compatibility
+    @property
+    def interaction_id(self) -> str:
+        """Alias for message_id for backward compatibility."""
+        return self.message_id
+    
+    @property
+    def timestamp(self) -> datetime:
+        """Current timestamp for backward compatibility."""
+        return datetime.now(timezone.utc)
 
 class ConversationMessage(BaseModel):
     """Message in conversation history."""
@@ -39,6 +50,17 @@ class ConversationHistory(BaseModel):
     messages: List[ConversationMessage] = Field(..., description="Message history")
     total_count: int = Field(..., description="Total messages")
     has_more: bool = Field(..., description="Whether more messages exist")
+    
+    # Aliases for backward compatibility
+    @property
+    def interactions(self) -> List[ConversationMessage]:
+        """Alias for messages for backward compatibility."""
+        return self.messages
+    
+    @property
+    def total(self) -> int:
+        """Alias for total_count for backward compatibility."""
+        return self.total_count
 
 class AgentStatus(BaseModel):
     """Agent status and cognitive state."""
@@ -58,6 +80,12 @@ class AgentStatus(BaseModel):
     # System state
     services_active: int = Field(..., description="Number of active services")
     memory_usage_mb: float = Field(..., description="Current memory usage in MB")
+    
+    # Alias for backward compatibility
+    @property
+    def processor_state(self) -> str:
+        """Alias for cognitive_state for backward compatibility."""
+        return self.cognitive_state
 
 class AgentIdentity(BaseModel):
     """Agent identity and capabilities."""
@@ -74,6 +102,14 @@ class AgentIdentity(BaseModel):
     handlers: List[str] = Field(..., description="Active handlers")
     services: Dict[str, int] = Field(..., description="Service availability")
     permissions: List[str] = Field(..., description="Agent permissions")
+    
+    # Alias for backward compatibility
+    @property
+    def version(self) -> str:
+        """Version from lineage for backward compatibility."""
+        if isinstance(self.lineage, dict):
+            return self.lineage.get('version', '1.0')
+        return '1.0'
 
 
 class AgentResource:
@@ -110,10 +146,16 @@ class AgentResource:
         """
         request = InteractRequest(message=message, context=context)
 
+        # Handle both Pydantic v1 (dict) and v2 (model_dump)
+        if hasattr(request, 'model_dump'):
+            request_data = request.model_dump()
+        else:
+            request_data = request.dict()
+            
         result = await self._transport.request(
             "POST",
             "/v1/agent/interact",
-            json=request.dict()
+            json=request_data
         )
 
         return InteractResponse(**result)
@@ -181,6 +223,16 @@ class AgentResource:
 
         return AgentIdentity(**result)
 
+    async def stream(self, websocket_url: Optional[str] = None):
+        """
+        WebSocket streaming interface (placeholder).
+        
+        Note: Full WebSocket support will be added in a future release.
+        For now, this method exists to satisfy interface requirements.
+        """
+        # This is a placeholder - actual WebSocket implementation would go here
+        raise NotImplementedError("WebSocket streaming not yet implemented in SDK")
+    
     # Convenience methods for common patterns
 
     async def ask(self, question: str, context: Optional[Dict[str, Any]] = None) -> str:

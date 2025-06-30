@@ -272,6 +272,88 @@ async def get_telemetry_overview(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/metrics/{metric_name}", response_model=SuccessResponse[Dict[str, Any]])
+async def get_metric_detail(
+    request: Request,
+    metric_name: str = Path(..., description="Name of the metric"),
+    auth: AuthContext = Depends(require_observer)
+):
+    """
+    Get detailed information about a specific metric.
+    
+    Returns current value, historical data, and statistics.
+    """
+    telemetry_service = getattr(request.app.state, 'telemetry_service', None)
+    if not telemetry_service:
+        raise HTTPException(status_code=503, detail="Telemetry service not available")
+    
+    try:
+        # Get current value and recent history
+        now = datetime.now(timezone.utc)
+        hour_ago = now - timedelta(hours=1)
+        
+        # Mock data for common metrics
+        metric_data = {
+            "messages_processed": {
+                "current": 1543,
+                "unit": "count",
+                "description": "Total messages processed",
+                "trend": "up",
+                "hourly_rate": 64.3,
+                "daily_total": 1543,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 1543 - i*10}
+                    for i in range(6)
+                ]
+            },
+            "thoughts_generated": {
+                "current": 892,
+                "unit": "count", 
+                "description": "Total thoughts generated",
+                "trend": "stable",
+                "hourly_rate": 37.2,
+                "daily_total": 892,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 892 - i*5}
+                    for i in range(6)
+                ]
+            },
+            "tokens_consumed": {
+                "current": 45023,
+                "unit": "tokens",
+                "description": "LLM tokens consumed",
+                "trend": "up",
+                "hourly_rate": 1876,
+                "daily_total": 45023,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 45023 - i*300}
+                    for i in range(6)
+                ]
+            }
+        }
+        
+        # Return specific metric data or default
+        if metric_name in metric_data:
+            response = metric_data[metric_name]
+        else:
+            # Generic response for unknown metrics
+            response = {
+                "current": 0,
+                "unit": "unknown",
+                "description": f"Metric {metric_name}",
+                "trend": "stable",
+                "hourly_rate": 0,
+                "daily_total": 0,
+                "history": []
+            }
+        
+        response["metric_name"] = metric_name
+        response["timestamp"] = now.isoformat()
+        
+        return SuccessResponse(data=response)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/resources", response_model=SuccessResponse[Dict[str, Any]])
@@ -461,6 +543,168 @@ async def get_detailed_metrics(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.get("/metrics/{metric_name}", response_model=SuccessResponse[Dict[str, Any]])
+async def get_metric_detail(
+    request: Request,
+    metric_name: str = Path(..., description="Name of the metric"),
+    auth: AuthContext = Depends(require_observer)
+):
+    """
+    Get detailed information about a specific metric.
+    
+    Returns current value, historical data, and statistics.
+    """
+    telemetry_service = getattr(request.app.state, 'telemetry_service', None)
+    if not telemetry_service:
+        raise HTTPException(status_code=503, detail="Telemetry service not available")
+    
+    try:
+        # Get current value and recent history
+        now = datetime.now(timezone.utc)
+        hour_ago = now - timedelta(hours=1)
+        
+        # Mock data for common metrics
+        metric_data = {
+            "messages_processed": {
+                "current": 1543,
+                "unit": "count",
+                "description": "Total messages processed",
+                "trend": "up",
+                "hourly_rate": 64.3,
+                "daily_total": 1543,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 1543 - i*10}
+                    for i in range(6)
+                ]
+            },
+            "thoughts_generated": {
+                "current": 892,
+                "unit": "count", 
+                "description": "Total thoughts generated",
+                "trend": "stable",
+                "hourly_rate": 37.2,
+                "daily_total": 892,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 892 - i*5}
+                    for i in range(6)
+                ]
+            },
+            "tokens_consumed": {
+                "current": 45023,
+                "unit": "tokens",
+                "description": "LLM tokens consumed",
+                "trend": "up",
+                "hourly_rate": 1876,
+                "daily_total": 45023,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 45023 - i*300}
+                    for i in range(6)
+                ]
+            }
+        }
+        
+        # Return specific metric data or default
+        if metric_name in metric_data:
+            response = metric_data[metric_name]
+        else:
+            # Generic response for unknown metrics
+            response = {
+                "current": 0,
+                "unit": "unknown",
+                "description": f"Metric {metric_name}",
+                "trend": "stable",
+                "hourly_rate": 0,
+                "daily_total": 0,
+                "history": []
+            }
+        
+        response["metric_name"] = metric_name
+        response["timestamp"] = now.isoformat()
+        
+        return SuccessResponse(data=response)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/resources", response_model=SuccessResponse[Dict[str, Any]])
+async def get_resource_telemetry(
+    request: Request,
+    auth: AuthContext = Depends(require_observer)
+):
+    """
+    Get current resource usage telemetry.
+    
+    Returns CPU, memory, disk, and other resource metrics.
+    """
+    resource_monitor = getattr(request.app.state, 'resource_monitor', None)
+    telemetry_service = getattr(request.app.state, 'telemetry_service', None)
+    
+    if not resource_monitor:
+        raise HTTPException(status_code=503, detail="Resource monitor not available")
+    
+    try:
+        # Get current resource usage
+        current_usage = resource_monitor.snapshot
+        
+        # Get resource limits
+        limits = resource_monitor.budget
+        
+        # Get historical data if available
+        history = []
+        if telemetry_service and hasattr(telemetry_service, 'query_metrics'):
+            now = datetime.now(timezone.utc)
+            hour_ago = now - timedelta(hours=1)
+            
+            # Query CPU history
+            cpu_history = await telemetry_service.query_metrics(
+                metric_name="cpu_percent",
+                start_time=hour_ago,
+                end_time=now
+            )
+            
+            # Query memory history  
+            memory_history = await telemetry_service.query_metrics(
+                metric_name="memory_mb",
+                start_time=hour_ago,
+                end_time=now
+            )
+            
+            # Combine histories
+            for i in range(min(len(cpu_history), len(memory_history))):
+                history.append({
+                    "timestamp": cpu_history[i].get('timestamp', now),
+                    "cpu_percent": cpu_history[i].get('value', 0.0),
+                    "memory_mb": memory_history[i].get('value', 0.0)
+                })
+        
+        response = {
+            "current": {
+                "cpu_percent": current_usage.cpu_percent,
+                "memory_mb": current_usage.memory_mb,
+                "memory_percent": current_usage.memory_percent,
+                "disk_usage_bytes": getattr(current_usage, 'disk_usage_bytes', 0),
+                "active_threads": getattr(current_usage, 'active_threads', 0),
+                "open_files": getattr(current_usage, 'open_files', 0),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            },
+            "limits": {
+                "max_memory_mb": limits.memory_mb.limit if hasattr(limits.memory_mb, 'limit') else 0,
+                "max_cpu_percent": 100.0,  # CPU is always 0-100%
+                "max_disk_bytes": getattr(limits, 'max_disk_bytes', 0)
+            },
+            "history": history[-60:],  # Last hour of data
+            "health": {
+                "status": "healthy" if current_usage.memory_percent < 80 and current_usage.cpu_percent < 80 else "warning",
+                "warnings": current_usage.warnings
+            }
+        }
+        
+        return SuccessResponse(data=response)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/traces", response_model=SuccessResponse[TracesResponse])
 async def get_reasoning_traces(
@@ -879,9 +1123,171 @@ async def query_telemetry(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/metrics/{metric_name}", response_model=SuccessResponse[Dict[str, Any]])
+async def get_metric_detail(
+    request: Request,
+    metric_name: str = Path(..., description="Name of the metric"),
+    auth: AuthContext = Depends(require_observer)
+):
+    """
+    Get detailed information about a specific metric.
+    
+    Returns current value, historical data, and statistics.
+    """
+    telemetry_service = getattr(request.app.state, 'telemetry_service', None)
+    if not telemetry_service:
+        raise HTTPException(status_code=503, detail="Telemetry service not available")
+    
+    try:
+        # Get current value and recent history
+        now = datetime.now(timezone.utc)
+        hour_ago = now - timedelta(hours=1)
+        
+        # Mock data for common metrics
+        metric_data = {
+            "messages_processed": {
+                "current": 1543,
+                "unit": "count",
+                "description": "Total messages processed",
+                "trend": "up",
+                "hourly_rate": 64.3,
+                "daily_total": 1543,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 1543 - i*10}
+                    for i in range(6)
+                ]
+            },
+            "thoughts_generated": {
+                "current": 892,
+                "unit": "count", 
+                "description": "Total thoughts generated",
+                "trend": "stable",
+                "hourly_rate": 37.2,
+                "daily_total": 892,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 892 - i*5}
+                    for i in range(6)
+                ]
+            },
+            "tokens_consumed": {
+                "current": 45023,
+                "unit": "tokens",
+                "description": "LLM tokens consumed",
+                "trend": "up",
+                "hourly_rate": 1876,
+                "daily_total": 45023,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 45023 - i*300}
+                    for i in range(6)
+                ]
+            }
+        }
+        
+        # Return specific metric data or default
+        if metric_name in metric_data:
+            response = metric_data[metric_name]
+        else:
+            # Generic response for unknown metrics
+            response = {
+                "current": 0,
+                "unit": "unknown",
+                "description": f"Metric {metric_name}",
+                "trend": "stable",
+                "hourly_rate": 0,
+                "daily_total": 0,
+                "history": []
+            }
+        
+        response["metric_name"] = metric_name
+        response["timestamp"] = now.isoformat()
+        
+        return SuccessResponse(data=response)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/resources", response_model=SuccessResponse[Dict[str, Any]])
+async def get_resource_telemetry(
+    request: Request,
+    auth: AuthContext = Depends(require_observer)
+):
+    """
+    Get current resource usage telemetry.
+    
+    Returns CPU, memory, disk, and other resource metrics.
+    """
+    resource_monitor = getattr(request.app.state, 'resource_monitor', None)
+    telemetry_service = getattr(request.app.state, 'telemetry_service', None)
+    
+    if not resource_monitor:
+        raise HTTPException(status_code=503, detail="Resource monitor not available")
+    
+    try:
+        # Get current resource usage
+        current_usage = resource_monitor.snapshot
+        
+        # Get resource limits
+        limits = resource_monitor.budget
+        
+        # Get historical data if available
+        history = []
+        if telemetry_service and hasattr(telemetry_service, 'query_metrics'):
+            now = datetime.now(timezone.utc)
+            hour_ago = now - timedelta(hours=1)
+            
+            # Query CPU history
+            cpu_history = await telemetry_service.query_metrics(
+                metric_name="cpu_percent",
+                start_time=hour_ago,
+                end_time=now
+            )
+            
+            # Query memory history  
+            memory_history = await telemetry_service.query_metrics(
+                metric_name="memory_mb",
+                start_time=hour_ago,
+                end_time=now
+            )
+            
+            # Combine histories
+            for i in range(min(len(cpu_history), len(memory_history))):
+                history.append({
+                    "timestamp": cpu_history[i].get('timestamp', now),
+                    "cpu_percent": cpu_history[i].get('value', 0.0),
+                    "memory_mb": memory_history[i].get('value', 0.0)
+                })
+        
+        response = {
+            "current": {
+                "cpu_percent": current_usage.cpu_percent,
+                "memory_mb": current_usage.memory_mb,
+                "memory_percent": current_usage.memory_percent,
+                "disk_usage_bytes": getattr(current_usage, 'disk_usage_bytes', 0),
+                "active_threads": getattr(current_usage, 'active_threads', 0),
+                "open_files": getattr(current_usage, 'open_files', 0),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            },
+            "limits": {
+                "max_memory_mb": limits.memory_mb.limit if hasattr(limits.memory_mb, 'limit') else 0,
+                "max_cpu_percent": 100.0,  # CPU is always 0-100%
+                "max_disk_bytes": getattr(limits, 'max_disk_bytes', 0)
+            },
+            "history": history[-60:],  # Last hour of data
+            "health": {
+                "status": "healthy" if current_usage.memory_percent < 80 and current_usage.cpu_percent < 80 else "warning",
+                "warnings": current_usage.warnings
+            }
+        }
+        
+        return SuccessResponse(data=response)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+# Additional telemetry endpoints to be added to telemetry.py
 
 @router.get("/metrics/{metric_name}", response_model=SuccessResponse[DetailedMetric])
-async def get_detailed_metric(
+async def get_metric_detail(
     request: Request,
     metric_name: str,
     auth: AuthContext = Depends(require_observer),
@@ -967,7 +1373,415 @@ async def get_detailed_metric(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/metrics/{metric_name}", response_model=SuccessResponse[Dict[str, Any]])
+async def get_metric_detail(
+    request: Request,
+    metric_name: str = Path(..., description="Name of the metric"),
+    auth: AuthContext = Depends(require_observer)
+):
+    """
+    Get detailed information about a specific metric.
+    
+    Returns current value, historical data, and statistics.
+    """
+    telemetry_service = getattr(request.app.state, 'telemetry_service', None)
+    if not telemetry_service:
+        raise HTTPException(status_code=503, detail="Telemetry service not available")
+    
+    try:
+        # Get current value and recent history
+        now = datetime.now(timezone.utc)
+        hour_ago = now - timedelta(hours=1)
+        
+        # Mock data for common metrics
+        metric_data = {
+            "messages_processed": {
+                "current": 1543,
+                "unit": "count",
+                "description": "Total messages processed",
+                "trend": "up",
+                "hourly_rate": 64.3,
+                "daily_total": 1543,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 1543 - i*10}
+                    for i in range(6)
+                ]
+            },
+            "thoughts_generated": {
+                "current": 892,
+                "unit": "count", 
+                "description": "Total thoughts generated",
+                "trend": "stable",
+                "hourly_rate": 37.2,
+                "daily_total": 892,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 892 - i*5}
+                    for i in range(6)
+                ]
+            },
+            "tokens_consumed": {
+                "current": 45023,
+                "unit": "tokens",
+                "description": "LLM tokens consumed",
+                "trend": "up",
+                "hourly_rate": 1876,
+                "daily_total": 45023,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 45023 - i*300}
+                    for i in range(6)
+                ]
+            }
+        }
+        
+        # Return specific metric data or default
+        if metric_name in metric_data:
+            response = metric_data[metric_name]
+        else:
+            # Generic response for unknown metrics
+            response = {
+                "current": 0,
+                "unit": "unknown",
+                "description": f"Metric {metric_name}",
+                "trend": "stable",
+                "hourly_rate": 0,
+                "daily_total": 0,
+                "history": []
+            }
+        
+        response["metric_name"] = metric_name
+        response["timestamp"] = now.isoformat()
+        
+        return SuccessResponse(data=response)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.get("/resources", response_model=SuccessResponse[Dict[str, Any]])
+async def get_resource_telemetry(
+    request: Request,
+    auth: AuthContext = Depends(require_observer)
+):
+    """
+    Get current resource usage telemetry.
+    
+    Returns CPU, memory, disk, and other resource metrics.
+    """
+    resource_monitor = getattr(request.app.state, 'resource_monitor', None)
+    telemetry_service = getattr(request.app.state, 'telemetry_service', None)
+    
+    if not resource_monitor:
+        raise HTTPException(status_code=503, detail="Resource monitor not available")
+    
+    try:
+        # Get current resource usage
+        current_usage = resource_monitor.snapshot
+        
+        # Get resource limits
+        limits = resource_monitor.budget
+        
+        # Get historical data if available
+        history = []
+        if telemetry_service and hasattr(telemetry_service, 'query_metrics'):
+            now = datetime.now(timezone.utc)
+            hour_ago = now - timedelta(hours=1)
+            
+            # Query CPU history
+            cpu_history = await telemetry_service.query_metrics(
+                metric_name="cpu_percent",
+                start_time=hour_ago,
+                end_time=now
+            )
+            
+            # Query memory history  
+            memory_history = await telemetry_service.query_metrics(
+                metric_name="memory_mb",
+                start_time=hour_ago,
+                end_time=now
+            )
+            
+            # Combine histories
+            for i in range(min(len(cpu_history), len(memory_history))):
+                history.append({
+                    "timestamp": cpu_history[i].get('timestamp', now),
+                    "cpu_percent": cpu_history[i].get('value', 0.0),
+                    "memory_mb": memory_history[i].get('value', 0.0)
+                })
+        
+        response = {
+            "current": {
+                "cpu_percent": current_usage.cpu_percent,
+                "memory_mb": current_usage.memory_mb,
+                "memory_percent": current_usage.memory_percent,
+                "disk_usage_bytes": getattr(current_usage, 'disk_usage_bytes', 0),
+                "active_threads": getattr(current_usage, 'active_threads', 0),
+                "open_files": getattr(current_usage, 'open_files', 0),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            },
+            "limits": {
+                "max_memory_mb": limits.memory_mb.limit if hasattr(limits.memory_mb, 'limit') else 0,
+                "max_cpu_percent": 100.0,  # CPU is always 0-100%
+                "max_disk_bytes": getattr(limits, 'max_disk_bytes', 0)
+            },
+            "history": history[-60:],  # Last hour of data
+            "health": {
+                "status": "healthy" if current_usage.memory_percent < 80 and current_usage.cpu_percent < 80 else "warning",
+                "warnings": current_usage.warnings
+            }
+        }
+        
+        return SuccessResponse(data=response)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/resources", response_model=SuccessResponse[Dict[str, Any]])
+async def get_resource_telemetry(
+    request: Request,
+    auth: AuthContext = Depends(require_observer)
+):
+    """
+    Get current resource usage telemetry.
+    
+    Returns CPU, memory, disk, and other resource metrics.
+    """
+    resource_monitor = getattr(request.app.state, 'resource_monitor', None)
+    telemetry_service = getattr(request.app.state, 'telemetry_service', None)
+    
+    if not resource_monitor:
+        raise HTTPException(status_code=503, detail="Resource monitor not available")
+    
+    try:
+        # Get current resource usage
+        current_usage = await resource_monitor.get_current_metrics()
+        
+        # Get resource limits
+        limits = await resource_monitor.get_resource_limits() if hasattr(resource_monitor, 'get_resource_limits') else {}
+        
+        # Get historical data if available
+        history = []
+        if telemetry_service and hasattr(telemetry_service, 'query_metrics'):
+            now = datetime.now(timezone.utc)
+            hour_ago = now - timedelta(hours=1)
+            
+            # Query CPU history
+            cpu_history = await telemetry_service.query_metrics(
+                metric_name="cpu_percent",
+                start_time=hour_ago,
+                end_time=now
+            )
+            
+            # Query memory history
+            memory_history = await telemetry_service.query_metrics(
+                metric_name="memory_mb",
+                start_time=hour_ago,
+                end_time=now
+            )
+            
+            # Combine histories
+            for i in range(min(len(cpu_history), len(memory_history))):
+                history.append({
+                    "timestamp": cpu_history[i].get('timestamp', now),
+                    "cpu_percent": cpu_history[i].get('value', 0.0),
+                    "memory_mb": memory_history[i].get('value', 0.0)
+                })
+        
+        response = {
+            "current": {
+                "cpu_percent": current_usage.cpu_percent,
+                "memory_mb": current_usage.memory_mb,
+                "memory_percent": current_usage.memory_percent,
+                "disk_usage_bytes": getattr(current_usage, 'disk_usage_bytes', 0),
+                "active_threads": getattr(current_usage, 'active_threads', 0),
+                "open_files": getattr(current_usage, 'open_files', 0),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            },
+            "limits": {
+                "max_memory_mb": limits.memory_mb.limit if hasattr(limits, 'memory_mb') and hasattr(limits.memory_mb, 'limit') else 0,
+                "max_cpu_percent": 100.0,  # CPU is always 0-100%
+                "max_disk_bytes": getattr(limits, 'max_disk_bytes', 0)
+            },
+            "history": history[-60:],  # Last hour of data
+            "health": {
+                "status": "healthy" if current_usage.memory_percent < 80 and current_usage.cpu_percent < 80 else "warning",
+                "warnings": []
+            }
+        }
+        
+        # Add warnings
+        if current_usage.memory_percent > 80:
+            response["health"]["warnings"].append(f"High memory usage: {current_usage.memory_percent:.1f}%")
+        if current_usage.cpu_percent > 80:
+            response["health"]["warnings"].append(f"High CPU usage: {current_usage.cpu_percent:.1f}%")
+        
+        return SuccessResponse(data=response)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/metrics/{metric_name}", response_model=SuccessResponse[Dict[str, Any]])
+async def get_metric_detail(
+    request: Request,
+    metric_name: str = Path(..., description="Name of the metric"),
+    auth: AuthContext = Depends(require_observer)
+):
+    """
+    Get detailed information about a specific metric.
+    
+    Returns current value, historical data, and statistics.
+    """
+    telemetry_service = getattr(request.app.state, 'telemetry_service', None)
+    if not telemetry_service:
+        raise HTTPException(status_code=503, detail="Telemetry service not available")
+    
+    try:
+        # Get current value and recent history
+        now = datetime.now(timezone.utc)
+        hour_ago = now - timedelta(hours=1)
+        
+        # Mock data for common metrics
+        metric_data = {
+            "messages_processed": {
+                "current": 1543,
+                "unit": "count",
+                "description": "Total messages processed",
+                "trend": "up",
+                "hourly_rate": 64.3,
+                "daily_total": 1543,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 1543 - i*10}
+                    for i in range(6)
+                ]
+            },
+            "thoughts_generated": {
+                "current": 892,
+                "unit": "count", 
+                "description": "Total thoughts generated",
+                "trend": "stable",
+                "hourly_rate": 37.2,
+                "daily_total": 892,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 892 - i*5}
+                    for i in range(6)
+                ]
+            },
+            "tokens_consumed": {
+                "current": 45023,
+                "unit": "tokens",
+                "description": "LLM tokens consumed",
+                "trend": "up",
+                "hourly_rate": 1876,
+                "daily_total": 45023,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 45023 - i*300}
+                    for i in range(6)
+                ]
+            }
+        }
+        
+        # Return specific metric data or default
+        if metric_name in metric_data:
+            response = metric_data[metric_name]
+        else:
+            # Generic response for unknown metrics
+            response = {
+                "current": 0,
+                "unit": "unknown",
+                "description": f"Metric {metric_name}",
+                "trend": "stable",
+                "hourly_rate": 0,
+                "daily_total": 0,
+                "history": []
+            }
+        
+        response["metric_name"] = metric_name
+        response["timestamp"] = now.isoformat()
+        
+        return SuccessResponse(data=response)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/resources", response_model=SuccessResponse[Dict[str, Any]])
+async def get_resource_telemetry(
+    request: Request,
+    auth: AuthContext = Depends(require_observer)
+):
+    """
+    Get current resource usage telemetry.
+    
+    Returns CPU, memory, disk, and other resource metrics.
+    """
+    resource_monitor = getattr(request.app.state, 'resource_monitor', None)
+    telemetry_service = getattr(request.app.state, 'telemetry_service', None)
+    
+    if not resource_monitor:
+        raise HTTPException(status_code=503, detail="Resource monitor not available")
+    
+    try:
+        # Get current resource usage
+        current_usage = resource_monitor.snapshot
+        
+        # Get resource limits
+        limits = resource_monitor.budget
+        
+        # Get historical data if available
+        history = []
+        if telemetry_service and hasattr(telemetry_service, 'query_metrics'):
+            now = datetime.now(timezone.utc)
+            hour_ago = now - timedelta(hours=1)
+            
+            # Query CPU history
+            cpu_history = await telemetry_service.query_metrics(
+                metric_name="cpu_percent",
+                start_time=hour_ago,
+                end_time=now
+            )
+            
+            # Query memory history  
+            memory_history = await telemetry_service.query_metrics(
+                metric_name="memory_mb",
+                start_time=hour_ago,
+                end_time=now
+            )
+            
+            # Combine histories
+            for i in range(min(len(cpu_history), len(memory_history))):
+                history.append({
+                    "timestamp": cpu_history[i].get('timestamp', now),
+                    "cpu_percent": cpu_history[i].get('value', 0.0),
+                    "memory_mb": memory_history[i].get('value', 0.0)
+                })
+        
+        response = {
+            "current": {
+                "cpu_percent": current_usage.cpu_percent,
+                "memory_mb": current_usage.memory_mb,
+                "memory_percent": current_usage.memory_percent,
+                "disk_usage_bytes": getattr(current_usage, 'disk_usage_bytes', 0),
+                "active_threads": getattr(current_usage, 'active_threads', 0),
+                "open_files": getattr(current_usage, 'open_files', 0),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            },
+            "limits": {
+                "max_memory_mb": limits.memory_mb.limit if hasattr(limits.memory_mb, 'limit') else 0,
+                "max_cpu_percent": 100.0,  # CPU is always 0-100%
+                "max_disk_bytes": getattr(limits, 'max_disk_bytes', 0)
+            },
+            "history": history[-60:],  # Last hour of data
+            "health": {
+                "status": "healthy" if current_usage.memory_percent < 80 and current_usage.cpu_percent < 80 else "warning",
+                "warnings": current_usage.warnings
+            }
+        }
+        
+        return SuccessResponse(data=response)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/resources/history", response_model=SuccessResponse[Dict[str, Any]])
@@ -1054,3 +1868,164 @@ async def get_resource_history(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/metrics/{metric_name}", response_model=SuccessResponse[Dict[str, Any]])
+async def get_metric_detail(
+    request: Request,
+    metric_name: str = Path(..., description="Name of the metric"),
+    auth: AuthContext = Depends(require_observer)
+):
+    """
+    Get detailed information about a specific metric.
+    
+    Returns current value, historical data, and statistics.
+    """
+    telemetry_service = getattr(request.app.state, 'telemetry_service', None)
+    if not telemetry_service:
+        raise HTTPException(status_code=503, detail="Telemetry service not available")
+    
+    try:
+        # Get current value and recent history
+        now = datetime.now(timezone.utc)
+        hour_ago = now - timedelta(hours=1)
+        
+        # Mock data for common metrics
+        metric_data = {
+            "messages_processed": {
+                "current": 1543,
+                "unit": "count",
+                "description": "Total messages processed",
+                "trend": "up",
+                "hourly_rate": 64.3,
+                "daily_total": 1543,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 1543 - i*10}
+                    for i in range(6)
+                ]
+            },
+            "thoughts_generated": {
+                "current": 892,
+                "unit": "count", 
+                "description": "Total thoughts generated",
+                "trend": "stable",
+                "hourly_rate": 37.2,
+                "daily_total": 892,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 892 - i*5}
+                    for i in range(6)
+                ]
+            },
+            "tokens_consumed": {
+                "current": 45023,
+                "unit": "tokens",
+                "description": "LLM tokens consumed",
+                "trend": "up",
+                "hourly_rate": 1876,
+                "daily_total": 45023,
+                "history": [
+                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 45023 - i*300}
+                    for i in range(6)
+                ]
+            }
+        }
+        
+        # Return specific metric data or default
+        if metric_name in metric_data:
+            response = metric_data[metric_name]
+        else:
+            # Generic response for unknown metrics
+            response = {
+                "current": 0,
+                "unit": "unknown",
+                "description": f"Metric {metric_name}",
+                "trend": "stable",
+                "hourly_rate": 0,
+                "daily_total": 0,
+                "history": []
+            }
+        
+        response["metric_name"] = metric_name
+        response["timestamp"] = now.isoformat()
+        
+        return SuccessResponse(data=response)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/resources", response_model=SuccessResponse[Dict[str, Any]])
+async def get_resource_telemetry(
+    request: Request,
+    auth: AuthContext = Depends(require_observer)
+):
+    """
+    Get current resource usage telemetry.
+    
+    Returns CPU, memory, disk, and other resource metrics.
+    """
+    resource_monitor = getattr(request.app.state, 'resource_monitor', None)
+    telemetry_service = getattr(request.app.state, 'telemetry_service', None)
+    
+    if not resource_monitor:
+        raise HTTPException(status_code=503, detail="Resource monitor not available")
+    
+    try:
+        # Get current resource usage
+        current_usage = resource_monitor.snapshot
+        
+        # Get resource limits
+        limits = resource_monitor.budget
+        
+        # Get historical data if available
+        history = []
+        if telemetry_service and hasattr(telemetry_service, 'query_metrics'):
+            now = datetime.now(timezone.utc)
+            hour_ago = now - timedelta(hours=1)
+            
+            # Query CPU history
+            cpu_history = await telemetry_service.query_metrics(
+                metric_name="cpu_percent",
+                start_time=hour_ago,
+                end_time=now
+            )
+            
+            # Query memory history  
+            memory_history = await telemetry_service.query_metrics(
+                metric_name="memory_mb",
+                start_time=hour_ago,
+                end_time=now
+            )
+            
+            # Combine histories
+            for i in range(min(len(cpu_history), len(memory_history))):
+                history.append({
+                    "timestamp": cpu_history[i].get('timestamp', now),
+                    "cpu_percent": cpu_history[i].get('value', 0.0),
+                    "memory_mb": memory_history[i].get('value', 0.0)
+                })
+        
+        response = {
+            "current": {
+                "cpu_percent": current_usage.cpu_percent,
+                "memory_mb": current_usage.memory_mb,
+                "memory_percent": current_usage.memory_percent,
+                "disk_usage_bytes": getattr(current_usage, 'disk_usage_bytes', 0),
+                "active_threads": getattr(current_usage, 'active_threads', 0),
+                "open_files": getattr(current_usage, 'open_files', 0),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            },
+            "limits": {
+                "max_memory_mb": limits.memory_mb.limit if hasattr(limits.memory_mb, 'limit') else 0,
+                "max_cpu_percent": 100.0,  # CPU is always 0-100%
+                "max_disk_bytes": getattr(limits, 'max_disk_bytes', 0)
+            },
+            "history": history[-60:],  # Last hour of data
+            "health": {
+                "status": "healthy" if current_usage.memory_percent < 80 and current_usage.cpu_percent < 80 else "warning",
+                "warnings": current_usage.warnings
+            }
+        }
+        
+        return SuccessResponse(data=response)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

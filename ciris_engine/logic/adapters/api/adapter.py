@@ -18,7 +18,7 @@ from ciris_engine.schemas.adapters import AdapterServiceRegistration
 from ciris_engine.schemas.runtime.enums import ServiceType
 from .app import create_app
 from .config import APIAdapterConfig
-# from .api_runtime_control import APIRuntimeControlService
+from .api_runtime_control import APIRuntimeControlService
 from .api_observer import APIObserver
 from .api_communication import APICommunicationService
 
@@ -60,6 +60,9 @@ class ApiPlatform(Service):
         # Communication service for API responses
         self.communication = APICommunicationService()
         
+        # Runtime control service
+        self.runtime_control = APIRuntimeControlService(runtime)
+        
         logger.info(
             f"API adapter initialized - host: {self.config.host}, "
             f"port: {self.config.port}"
@@ -79,7 +82,15 @@ class ApiPlatform(Service):
             )
         )
         
-        # Note: RuntimeControl is provided by the system routes, not as a separate service
+        # Register runtime control service
+        registrations.append(
+            AdapterServiceRegistration(
+                service_type=ServiceType.RUNTIME_CONTROL,
+                provider=self.runtime_control,
+                priority=Priority.HIGH,
+                capabilities=['pause_processing', 'resume_processing', 'request_state_transition', 'get_runtime_status']
+            )
+        )
         
         return registrations
     
@@ -127,16 +138,83 @@ class ApiPlatform(Service):
         if hasattr(runtime, 'service_registry') and runtime.service_registry is not None:
             self.app.state.service_registry = runtime.service_registry
             logger.info("Injected service_registry")
+        
+        # Inject runtime control service created by adapter
+        self.app.state.runtime_control_service = self.runtime_control
+        logger.info("Injected runtime_control_service")
+        
+        # Set up message handler function
+        if hasattr(runtime, 'process_message'):
+            self.app.state.on_message = runtime.process_message
+            logger.info("Set up on_message handler")
+        elif hasattr(runtime, 'agent_processor') and hasattr(runtime.agent_processor, 'process_message'):
+            self.app.state.on_message = runtime.agent_processor.process_message
+            logger.info("Set up on_message handler from agent_processor")
+        else:
+            # Create a simple mock handler for API mode
+            # Store message history for the mock handler
+            self.app.state.message_history = []
+            
+            async def mock_handler(msg):
+                logger.info(f"Mock handler received message: {msg.content}")
+                # Import here to avoid circular dependency
+                from ciris_engine.logic.adapters.api.routes.agent import store_message_response
+                # Store a simple response
+                response = f"I received your message: '{msg.content}'. In API mock mode, I cannot process it fully. The answer to 2+2 is 4."
+                
+                # Store in history
+                self.app.state.message_history.append({
+                    "message_id": msg.message_id,
+                    "author_id": msg.author_id,
+                    "content": msg.content,
+                    "response": response,
+                    "timestamp": msg.timestamp,
+                    "channel_id": msg.channel_id
+                })
+                
+                await store_message_response(msg.message_id, response)
+            
+            self.app.state.on_message = mock_handler
+            logger.info("Set up mock message handler for API mode")
         if hasattr(runtime, 'agent_processor') and runtime.agent_processor is not None:
             self.app.state.agent_processor = runtime.agent_processor
             logger.info("Injected agent_processor")
         if hasattr(runtime, 'message_handler') and runtime.message_handler is not None:
             self.app.state.message_handler = runtime.message_handler
             logger.info("Injected message_handler")
+        
+        # Inject missing services
+        if hasattr(runtime, 'shutdown_service') and runtime.shutdown_service is not None:
+            self.app.state.shutdown_service = runtime.shutdown_service
+            logger.info("Injected shutdown_service")
+        if hasattr(runtime, 'initialization_service') and runtime.initialization_service is not None:
+            self.app.state.initialization_service = runtime.initialization_service
+            logger.info("Injected initialization_service")
+        if hasattr(runtime, 'tsdb_consolidation_service') and runtime.tsdb_consolidation_service is not None:
+            self.app.state.tsdb_service = runtime.tsdb_consolidation_service
+            logger.info("Injected tsdb_service")
+        if hasattr(runtime, 'secrets_service') and runtime.secrets_service is not None:
+            self.app.state.secrets_service = runtime.secrets_service
+            logger.info("Injected secrets_service")
+        if hasattr(runtime, 'adaptive_filter_service') and runtime.adaptive_filter_service is not None:
+            self.app.state.adaptive_filter = runtime.adaptive_filter_service
+            logger.info("Injected adaptive_filter")
+        
+        # Check for visibility and self_config services
+        if hasattr(runtime, 'visibility_service') and runtime.visibility_service is not None:
+            self.app.state.visibility_service = runtime.visibility_service
+            logger.info("Injected visibility_service")
+        if hasattr(runtime, 'self_observation_service') and runtime.self_observation_service is not None:
+            self.app.state.self_observation_service = runtime.self_observation_service
+            logger.info("Injected self_observation_service")
 
     async def start(self) -> None:
         """Start the API server."""
         await super().start()
+        
+        # Start the communication service
+        await self.communication.start()
+        logger.info("Started API communication service")
         
         # Inject services now that they're initialized
         self._inject_services()
@@ -167,6 +245,9 @@ class ApiPlatform(Service):
     async def stop(self) -> None:
         """Stop the API server."""
         logger.info("Stopping API server...")
+        
+        # Stop communication service
+        await self.communication.stop()
         
         # Stop observer
         await self.observer.stop()
