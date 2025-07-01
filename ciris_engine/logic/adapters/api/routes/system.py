@@ -4,7 +4,7 @@ System management endpoints for CIRIS API v3.0 (Simplified).
 Consolidates health, time, resources, runtime control, services, and shutdown
 into a unified system operations interface.
 """
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Depends, Body
 from pydantic import BaseModel, Field, field_serializer
@@ -17,6 +17,10 @@ from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.services.resources_core import ResourceSnapshot, ResourceBudget
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.api.telemetry import TimeSyncStatus, ServiceMetrics
+from ciris_engine.schemas.runtime.adapter_management import (
+    AdapterLoadRequest, AdapterOperationResult, AdapterListResponse,
+    AdapterStatus as AdapterStatusSchema, AdapterConfig, AdapterMetrics
+)
 
 router = APIRouter(prefix="/system", tags=["system"])
 logger = logging.getLogger(__name__)
@@ -113,6 +117,13 @@ class ShutdownResponse(BaseModel):
     @field_serializer('timestamp')
     def serialize_timestamp(self, timestamp: datetime, _info):
         return timestamp.isoformat() if timestamp else None
+
+
+class AdapterActionRequest(BaseModel):
+    """Request for adapter operations."""
+    config: Optional[Dict[str, Any]] = Field(None, description="Adapter configuration")
+    auto_start: bool = Field(True, description="Whether to auto-start the adapter")
+    force: bool = Field(False, description="Force the operation")
 
 
 # Endpoints
@@ -600,4 +611,251 @@ async def shutdown_system(
         raise
     except Exception as e:
         logger.error(f"Error initiating shutdown: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Adapter Management Endpoints
+
+@router.get("/adapters", response_model=SuccessResponse[AdapterListResponse])
+async def list_adapters(
+    request: Request,
+    auth: AuthContext = Depends(require_observer)
+):
+    """
+    List all loaded adapters.
+    
+    Returns information about all currently loaded adapter instances
+    including their type, status, and basic metrics.
+    """
+    runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    if not runtime_control:
+        raise HTTPException(status_code=503, detail="Runtime control service not available")
+    
+    try:
+        # Get adapter list from runtime control service
+        adapters = await runtime_control.list_adapters()
+        
+        # Convert to response format
+        adapter_statuses = []
+        for adapter in adapters:
+            adapter_statuses.append(AdapterStatusSchema(
+                adapter_id=adapter.adapter_id,
+                adapter_type=adapter.adapter_type,
+                is_running=adapter.is_running,
+                loaded_at=adapter.loaded_at,
+                services_registered=adapter.services_registered,
+                config_params=adapter.config_params,
+                metrics=adapter.metrics
+            ))
+        
+        running_count = sum(1 for a in adapter_statuses if a.is_running)
+        
+        response = AdapterListResponse(
+            adapters=adapter_statuses,
+            total_count=len(adapter_statuses),
+            running_count=running_count
+        )
+        
+        return SuccessResponse(data=response)
+        
+    except Exception as e:
+        logger.error(f"Error listing adapters: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/adapters/{adapter_id}", response_model=SuccessResponse[AdapterStatusSchema])
+async def get_adapter_status(
+    adapter_id: str,
+    request: Request,
+    auth: AuthContext = Depends(require_observer)
+):
+    """
+    Get detailed status of a specific adapter.
+    
+    Returns comprehensive information about an adapter instance
+    including configuration, metrics, and service registrations.
+    """
+    runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    if not runtime_control:
+        raise HTTPException(status_code=503, detail="Runtime control service not available")
+    
+    try:
+        # Get adapter info from runtime control service
+        adapter_info = await runtime_control.get_adapter_info(adapter_id)
+        
+        if not adapter_info:
+            raise HTTPException(status_code=404, detail=f"Adapter '{adapter_id}' not found")
+        
+        # Convert to response format
+        status = AdapterStatusSchema(
+            adapter_id=adapter_info.adapter_id,
+            adapter_type=adapter_info.adapter_type,
+            is_running=adapter_info.status == "RUNNING",
+            loaded_at=adapter_info.started_at,
+            services_registered=[],  # Not exposed via AdapterInfo
+            config_params=AdapterConfig(
+                adapter_type=adapter_info.adapter_type,
+                enabled=True,
+                settings={}
+            ),
+            metrics=AdapterMetrics(
+                messages_processed=adapter_info.messages_processed,
+                errors_count=adapter_info.error_count,
+                uptime_seconds=(datetime.now(timezone.utc) - adapter_info.started_at).total_seconds() if adapter_info.started_at else 0,
+                last_error=adapter_info.last_error
+            ) if adapter_info.messages_processed > 0 or adapter_info.error_count > 0 else None
+        )
+        
+        return SuccessResponse(data=status)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting adapter status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/adapters/{adapter_type}", response_model=SuccessResponse[AdapterOperationResult])
+async def load_adapter(
+    adapter_type: str,
+    body: AdapterActionRequest,
+    request: Request,
+    auth: AuthContext = Depends(require_admin)
+):
+    """
+    Load a new adapter instance.
+    
+    Dynamically loads and starts a new adapter of the specified type.
+    Requires ADMIN role.
+    
+    Adapter types: cli, api, discord
+    """
+    runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    if not runtime_control:
+        raise HTTPException(status_code=503, detail="Runtime control service not available")
+    
+    try:
+        # Generate adapter ID if not provided
+        import uuid
+        adapter_id = f"{adapter_type}_{uuid.uuid4().hex[:8]}"
+        
+        # Load adapter through runtime control service
+        result = await runtime_control.load_adapter(
+            adapter_type=adapter_type,
+            adapter_id=adapter_id,
+            config=body.config,
+            auto_start=body.auto_start
+        )
+        
+        # Convert response
+        response = AdapterOperationResult(
+            success=result.success,
+            adapter_id=result.adapter_id,
+            adapter_type=adapter_type,
+            message=result.error if not result.success else f"Adapter {result.adapter_id} loaded successfully",
+            error=result.error,
+            details={"timestamp": result.timestamp.isoformat()}
+        )
+        
+        return SuccessResponse(data=response)
+        
+    except Exception as e:
+        logger.error(f"Error loading adapter: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/adapters/{adapter_id}", response_model=SuccessResponse[AdapterOperationResult])
+async def unload_adapter(
+    adapter_id: str,
+    request: Request,
+    auth: AuthContext = Depends(require_admin)
+):
+    """
+    Unload an adapter instance.
+    
+    Stops and removes an adapter from the runtime.
+    Will fail if it's the last communication-capable adapter.
+    Requires ADMIN role.
+    """
+    runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    if not runtime_control:
+        raise HTTPException(status_code=503, detail="Runtime control service not available")
+    
+    try:
+        # Unload adapter through runtime control service
+        result = await runtime_control.unload_adapter(
+            adapter_id=adapter_id,
+            force=False  # Never force, respect safety checks
+        )
+        
+        # Convert response
+        response = AdapterOperationResult(
+            success=result.success,
+            adapter_id=result.adapter_id,
+            adapter_type=result.adapter_type,
+            message=result.error if not result.success else f"Adapter {result.adapter_id} unloaded successfully",
+            error=result.error,
+            details={"timestamp": result.timestamp.isoformat()}
+        )
+        
+        return SuccessResponse(data=response)
+        
+    except Exception as e:
+        logger.error(f"Error unloading adapter: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/adapters/{adapter_id}/reload", response_model=SuccessResponse[AdapterOperationResult])
+async def reload_adapter(
+    adapter_id: str,
+    body: AdapterActionRequest,
+    request: Request,
+    auth: AuthContext = Depends(require_admin)
+):
+    """
+    Reload an adapter with new configuration.
+    
+    Stops the adapter and restarts it with new configuration.
+    Useful for applying configuration changes without full restart.
+    Requires ADMIN role.
+    """
+    runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    if not runtime_control:
+        raise HTTPException(status_code=503, detail="Runtime control service not available")
+    
+    try:
+        # Get current adapter info to preserve type
+        adapter_info = await runtime_control.get_adapter_info(adapter_id)
+        if not adapter_info:
+            raise HTTPException(status_code=404, detail=f"Adapter '{adapter_id}' not found")
+        
+        # First unload the adapter
+        unload_result = await runtime_control.unload_adapter(adapter_id, force=False)
+        if not unload_result.success:
+            raise HTTPException(status_code=400, detail=f"Failed to unload adapter: {unload_result.error}")
+        
+        # Then reload with new config
+        load_result = await runtime_control.load_adapter(
+            adapter_type=adapter_info.adapter_type,
+            adapter_id=adapter_id,
+            config=body.config,
+            auto_start=body.auto_start
+        )
+        
+        # Convert response
+        response = AdapterOperationResult(
+            success=load_result.success,
+            adapter_id=load_result.adapter_id,
+            adapter_type=adapter_info.adapter_type,
+            message=f"Adapter reloaded: {load_result.message}" if load_result.success else f"Reload failed: {load_result.error}",
+            error=load_result.error,
+            details={"timestamp": load_result.timestamp.isoformat()}
+        )
+        
+        return SuccessResponse(data=response)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error reloading adapter: {e}")
         raise HTTPException(status_code=500, detail=str(e))

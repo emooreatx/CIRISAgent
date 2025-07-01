@@ -243,3 +243,20 @@ class BaseAdapter(Service):
             })
         
         return context
+    
+    def get_channel_list(self) -> List[Dict[str, Any]]:
+        """
+        Get list of available channels for this adapter.
+        
+        Returns:
+            List of channel information dicts with at least:
+            - channel_id: str
+            - channel_name: Optional[str]
+            - channel_type: str (adapter type)
+            - is_active: bool
+            - last_activity: Optional[datetime]
+        
+        This base implementation returns empty list.
+        Subclasses should override to provide actual channels.
+        """
+        return []

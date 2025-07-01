@@ -64,23 +64,11 @@ class CliPlatform(Service):
         )
         logger.info(f"CliPlatform created CLIAdapter instance: {id(self.cli_adapter)}")
 
-        # Get time service from runtime
-        time_service = None
-        if hasattr(self.runtime, 'service_initializer') and self.runtime.service_initializer:
-            time_service = getattr(self.runtime.service_initializer, 'time_service', None)
-
-        # Create CLI observer
-        self.cli_observer = CLIObserver(
-            on_observe=lambda _: asyncio.sleep(0),  # Not used in multi-service pattern
-            memory_service=getattr(self.runtime, 'memory_service', None),
-            agent_id=getattr(self.runtime, 'agent_id', None),
-            bus_manager=getattr(self.runtime, 'bus_manager', None),  # multi_service_sink returns bus_manager now
-            filter_service=getattr(self.runtime, 'filter_service', None),
-            secrets_service=getattr(self.runtime, 'secrets_service', None),
-            time_service=time_service,
-            interactive=self.config.interactive,
-            config=self.config
-        )
+        # CLI observer will be created in start() when services are available
+        self.cli_observer = None
+        self.on_observe = self._handle_incoming_message
+        self.bus_manager = getattr(runtime, 'bus_manager', None)
+        self.observer_wa_id = None  # Will be set by auth service if available
 
 
     async def _handle_incoming_message(self, msg: IncomingMessage) -> None:
@@ -133,6 +121,29 @@ class CliPlatform(Service):
     async def start(self) -> None:
         """Start the CLI adapter and observer."""
         logger.info("CliPlatform: Starting...")
+        
+        # Create CLI observer now that services are available
+        if not self.cli_observer:
+            logger.info("Creating CLI observer with available services")
+            # Get services from runtime's service_initializer
+            service_initializer = getattr(self.runtime, 'service_initializer', None)
+            if service_initializer:
+                self.cli_observer = CLIObserver(
+                    on_observe=self.on_observe,
+                    bus_manager=self.bus_manager,
+                    memory_service=getattr(service_initializer, 'memory_service', None),
+                    agent_id=getattr(self.runtime, 'agent_id', None),
+                    filter_service=getattr(service_initializer, 'filter_service', None),
+                    secrets_service=getattr(service_initializer, 'secrets_service', None),
+                    time_service=getattr(service_initializer, 'time_service', None),
+                    interactive=self.config.interactive,
+                    config=self.config
+                )
+                logger.info(f"Created CLI observer with secrets_service: {service_initializer.secrets_service is not None}")
+            else:
+                logger.error("No service_initializer available - cannot create CLI observer")
+                raise RuntimeError("Service initializer not available")
+        
         await self.cli_adapter.start()
         if self.cli_observer:
             await self.cli_observer.start()

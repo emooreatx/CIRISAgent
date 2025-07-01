@@ -289,6 +289,71 @@ async def build_system_snapshot(
             logger.debug("Successfully retrieved telemetry summary")
         except Exception as e:
             logger.warning(f"Failed to get telemetry summary: {e}")
+    
+    # Get adapter channels for agent visibility
+    adapter_channels: Dict[str, List[Dict[str, Any]]] = {}
+    if runtime and hasattr(runtime, 'adapter_manager'):
+        try:
+            adapter_manager = runtime.adapter_manager
+            # Get all active adapters
+            for adapter_name, adapter in adapter_manager._adapters.items():
+                if hasattr(adapter, 'get_channel_list'):
+                    channels = adapter.get_channel_list()
+                    if channels:
+                        # Extract adapter type from channel_type in first channel
+                        adapter_type = channels[0].get('channel_type', adapter_name.lower())
+                        adapter_channels[adapter_type] = channels
+                        logger.debug(f"Found {len(channels)} channels for {adapter_type} adapter")
+        except Exception as e:
+            logger.warning(f"Failed to get adapter channels: {e}")
+    
+    # Get available tools from all adapters via tool bus
+    available_tools: Dict[str, List[Dict[str, Any]]] = {}
+    if runtime and hasattr(runtime, 'bus_manager') and hasattr(runtime, 'service_registry'):
+        try:
+            bus_manager = runtime.bus_manager
+            service_registry = runtime.service_registry
+            
+            # Get all tool services from registry
+            tool_services = service_registry.get_services_by_type('tool')
+            
+            for tool_service in tool_services:
+                # Get adapter context from the tool service
+                adapter_id = getattr(tool_service, 'adapter_id', 'unknown')
+                
+                # Get available tools from this service
+                if hasattr(tool_service, 'get_available_tools'):
+                    tools = await tool_service.get_available_tools()
+                    
+                    # Get detailed info for each tool
+                    tool_infos = []
+                    for tool_name in tools:
+                        tool_info = {
+                            'name': tool_name,
+                            'adapter_id': adapter_id
+                        }
+                        
+                        # Try to get additional info
+                        if hasattr(tool_service, 'get_tool_info'):
+                            try:
+                                detailed_info = await tool_service.get_tool_info(tool_name)
+                                if detailed_info:
+                                    tool_info['description'] = getattr(detailed_info, 'description', '')
+                            except Exception:
+                                pass
+                        
+                        tool_infos.append(tool_info)
+                    
+                    if tool_infos:
+                        # Group by adapter type (extract from adapter_id)
+                        adapter_type = adapter_id.split('_')[0] if '_' in adapter_id else adapter_id
+                        if adapter_type not in available_tools:
+                            available_tools[adapter_type] = []
+                        available_tools[adapter_type].extend(tool_infos)
+                        logger.debug(f"Found {len(tool_infos)} tools for {adapter_type} adapter")
+                        
+        except Exception as e:
+            logger.warning(f"Failed to get available tools: {e}")
 
     context_data = {
         "current_task_details": current_task_summary,
@@ -313,6 +378,8 @@ async def build_system_snapshot(
         "circuit_breaker_status": circuit_breaker_status,
         "resource_alerts": resource_alerts,  # CRITICAL mission-critical alerts
         "telemetry_summary": telemetry_summary,  # Resource usage data
+        "adapter_channels": adapter_channels,  # Available channels by adapter
+        "available_tools": available_tools,  # Available tools by adapter
         **secrets_data,
     }
 

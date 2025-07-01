@@ -35,6 +35,10 @@ class TraceSummaryNode(TypedGraphNode):
         default_factory=set,
         description="Set of unique task IDs processed"
     )
+    task_summaries: Dict[str, Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Elegant task summaries showing handler selections per thought"
+    )
     
     # Thought-level metrics
     total_thoughts_processed: int = Field(0, description="Total thoughts processed")
@@ -122,6 +126,7 @@ class TraceSummaryNode(TypedGraphNode):
             "total_tasks_processed": self.total_tasks_processed,
             "tasks_by_status": self.tasks_by_status,
             "unique_task_ids": list(self.unique_task_ids),  # Convert set to list
+            "task_summaries": self.task_summaries,
             
             # Thought metrics
             "total_thoughts_processed": self.total_thoughts_processed,
@@ -194,6 +199,7 @@ class TraceSummaryNode(TypedGraphNode):
             total_tasks_processed=attrs.get("total_tasks_processed", 0),
             tasks_by_status=attrs.get("tasks_by_status", {}),
             unique_task_ids=set(attrs.get("unique_task_ids", [])),  # Convert list to set
+            task_summaries=attrs.get("task_summaries", {}),
             
             # Thought metrics
             total_thoughts_processed=attrs.get("total_thoughts_processed", 0),

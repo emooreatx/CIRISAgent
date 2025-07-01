@@ -83,6 +83,24 @@ class APICommunicationService(CommunicationServiceProtocol):
             
             # Otherwise, queue for HTTP response
             await self._response_queue.put({"channel_id": channel_id, "content": content})
+            
+            # Check if there's a waiting interact request for this channel
+            if channel_id and channel_id.startswith("api_"):
+                # Try to find the message ID for this channel
+                try:
+                    # Access the app state through the runtime's adapter
+                    if hasattr(self, '_app_state'):
+                        message_channel_map = getattr(self._app_state, 'message_channel_map', {})
+                        message_id = message_channel_map.get(channel_id)
+                        if message_id:
+                            from ciris_engine.logic.adapters.api.routes.agent import notify_interact_response
+                            await notify_interact_response(message_id, content)
+                            logger.info(f"Notified interact response for message {message_id} in channel {channel_id}")
+                            # Clean up the mapping
+                            del message_channel_map[channel_id]
+                except Exception as e:
+                    logger.debug(f"Could not notify interact response: {e}")
+            
             return True
             
         except Exception as e:
@@ -190,7 +208,11 @@ class APICommunicationService(CommunicationServiceProtocol):
                 if corr.action_type == "speak" and corr.request_data:
                     # This is an outgoing message from the agent
                     content = ""
-                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
+                    # Handle both dict and Pydantic model cases
+                    if isinstance(corr.request_data, dict):
+                        params = corr.request_data.get("parameters", {})
+                        content = params.get("content", "")
+                    elif hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
                         content = corr.request_data.parameters.get("content", "")
                     
                     messages.append({
@@ -208,7 +230,13 @@ class APICommunicationService(CommunicationServiceProtocol):
                     author_id = "unknown"
                     author_name = "User"
                     
-                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
+                    # Handle both dict and Pydantic model cases
+                    if isinstance(corr.request_data, dict):
+                        params = corr.request_data.get("parameters", {})
+                        content = params.get("content", "")
+                        author_id = params.get("author_id", "unknown")
+                        author_name = params.get("author_name", "User")
+                    elif hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
                         params = corr.request_data.parameters
                         content = params.get("content", "")
                         author_id = params.get("author_id", "unknown")

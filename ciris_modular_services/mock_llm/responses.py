@@ -32,8 +32,10 @@ class MockLLMConfig:
         self.context_patterns = {
             r'user.*?says?.*?"([^"]+)"': lambda m: f"echo_user_speech:{m.group(1)}",
             r'thought.*content.*"([^"]+)"': lambda m: f"echo_thought:{m.group(1)}",
-            r'channel.*?[\'"]([^\'"]+)[\'"]': lambda m: f"echo_channel:{m.group(1)}",
-            r'channel\s+([#@]?[\w-]+)': lambda m: f"echo_channel:{m.group(1)}",
+            # More specific channel patterns to avoid false matches
+            r'channel_id[=:]\s*[\'"]([a-zA-Z0-9_\-@\.]+)[\'"]': lambda m: f"echo_channel:{m.group(1)}",
+            r'channel_id[=:]\s*([a-zA-Z0-9_\-@\.]+)(?:\s|$)': lambda m: f"echo_channel:{m.group(1)}",
+            r'channel\s+([#@]?[a-zA-Z0-9_\-]+)(?:\s|$)': lambda m: f"echo_channel:{m.group(1)}" if len(m.group(1)) > 3 else None,
             r'(?:search.*memory|memory.*search).*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_memory_query:{m.group(1)}",
             r'domain.*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_domain:{m.group(1)}",
             # Catch-all for any content
@@ -86,6 +88,21 @@ def extract_context_from_messages(messages: List[dict]) -> List[str]:
                 actual_thought_content = thought_match.group(1)
                 # Add this to context items so it gets processed properly
                 context_items.append(f"echo_thought:{actual_thought_content}")
+                
+                # If the thought is a command, also add it as user_input and task
+                if actual_thought_content.startswith('$'):
+                    context_items.append(f"user_input:{actual_thought_content}")
+                    context_items.append(f"task:{actual_thought_content}")
+                    # Also parse and add the forced action for action_selection
+                    parts = actual_thought_content.split(None, 1)
+                    action = parts[0][1:].lower()  # Remove $ and lowercase
+                    params = parts[1] if len(parts) > 1 else ""
+                    valid_actions = ['speak', 'recall', 'memorize', 'tool', 'observe', 'ponder', 
+                                   'defer', 'reject', 'forget', 'task_complete']
+                    if action in valid_actions:
+                        context_items.append(f"forced_action:{action}")
+                        if params:
+                            context_items.append(f"action_params:{params}")
                 break
     
     # Combine all message content
@@ -101,7 +118,9 @@ def extract_context_from_messages(messages: List[dict]) -> List[str]:
         matches = re.finditer(pattern, full_content, re.IGNORECASE)
         for match in matches:
             try:
-                context_items.append(extractor(match))
+                result = extractor(match)
+                if result is not None:  # Skip None results from conditional extractors
+                    context_items.append(result)
             except Exception:
                 continue
     

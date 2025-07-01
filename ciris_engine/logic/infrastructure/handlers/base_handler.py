@@ -232,6 +232,17 @@ class BaseActionHandler(ABC):
         # First try dispatch context
         channel_id = extract_channel_id(dispatch_context.channel_context)
 
+        # Try thought's direct channel_id field
+        if not channel_id and hasattr(thought, "channel_id") and thought.channel_id:
+            channel_id = thought.channel_id
+            self.logger.debug(f"Found channel_id in thought.channel_id: {channel_id}")
+
+        # Try thought.context.channel_id
+        if not channel_id and hasattr(thought, "context") and thought.context:
+            if hasattr(thought.context, "channel_id") and thought.context.channel_id:
+                channel_id = thought.context.channel_id
+                self.logger.debug(f"Found channel_id in thought.context.channel_id: {channel_id}")
+
         # Fallback to thought context if needed
         if not channel_id and hasattr(thought, "context") and thought.context:
             # Try initial_task_context first
@@ -245,6 +256,17 @@ class BaseActionHandler(ABC):
                 system_snapshot = thought.context.system_snapshot
                 if system_snapshot and hasattr(system_snapshot, "channel_context"):
                     channel_id = extract_channel_id(system_snapshot.channel_context)
+
+        # If still no channel_id, try to get it from the task
+        if not channel_id and thought.source_task_id:
+            task = persistence.get_task_by_id(thought.source_task_id)
+            if task:
+                if task.channel_id:
+                    channel_id = task.channel_id
+                    self.logger.debug(f"Found channel_id in task.channel_id: {channel_id}")
+                elif task.context and task.context.channel_id:
+                    channel_id = task.context.channel_id
+                    self.logger.debug(f"Found channel_id in task.context.channel_id: {channel_id}")
 
         return channel_id
     

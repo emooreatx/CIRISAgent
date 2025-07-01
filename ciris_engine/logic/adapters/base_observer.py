@@ -390,3 +390,66 @@ class BaseObserver(Generic[MessageT], ABC):
             }
             for m in msgs
         ]
+
+    async def handle_incoming_message(self, msg: MessageT) -> None:
+        """Standard message handling flow for all observers."""
+        # Check if this is the agent's own message
+        is_agent_message = self._is_agent_message(msg)
+        
+        # Process message for secrets detection and replacement
+        processed_msg = await self._process_message_secrets(msg)
+        
+        # Allow subclasses to enhance the message (e.g., vision processing)
+        processed_msg = await self._enhance_message(processed_msg)
+        
+        # Add ALL messages to history (including agent's own)
+        self._history.append(processed_msg)
+        
+        # If it's the agent's message, stop here (no task creation)
+        if is_agent_message:
+            logger.debug("Added agent's own message to history (no task created)")
+            return
+        
+        # Apply adaptive filtering to determine message priority and processing
+        filter_result = await self._apply_message_filtering(msg, self.origin_service)
+        if not filter_result.should_process:
+            logger.debug(f"Message filtered out: {filter_result.reasoning}")
+            return
+        
+        # Add filter context to message for downstream processing
+        setattr(processed_msg, '_filter_priority', filter_result.priority)
+        setattr(processed_msg, '_filter_context', filter_result.context_hints)
+        setattr(processed_msg, '_filter_reasoning', filter_result.reasoning)
+        
+        # Process based on priority
+        if filter_result.priority.value in ['critical', 'high']:
+            logger.info(f"Processing {filter_result.priority.value} priority message: {filter_result.reasoning}")
+            await self._handle_priority_observation(processed_msg, filter_result)
+        else:
+            await self._handle_passive_observation(processed_msg)
+        
+        # Recall relevant context
+        await self._recall_context(processed_msg)
+    
+    async def _enhance_message(self, msg: MessageT) -> MessageT:
+        """Hook for subclasses to enhance messages (e.g., vision processing)."""
+        return msg
+    
+    async def _handle_priority_observation(self, msg: MessageT, filter_result: Any) -> None:
+        """Handle high-priority messages - to be implemented by subclasses"""
+        # Default implementation: check if message should be processed by this observer
+        if await self._should_process_message(msg):
+            await self._create_priority_observation_result(msg, filter_result)
+        else:
+            logger.debug(f"Ignoring priority message from channel {getattr(msg, 'channel_id', 'unknown')}")
+    
+    async def _handle_passive_observation(self, msg: MessageT) -> None:
+        """Handle passive observation routing - to be implemented by subclasses"""
+        if await self._should_process_message(msg):
+            await self._create_passive_observation_result(msg)
+        else:
+            logger.debug(f"Ignoring passive message from channel {getattr(msg, 'channel_id', 'unknown')}")
+    
+    async def _should_process_message(self, msg: MessageT) -> bool:
+        """Check if this observer should process the message - to be overridden by subclasses."""
+        return True  # Default: process all messages

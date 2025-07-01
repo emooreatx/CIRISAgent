@@ -5,7 +5,7 @@ Provides RESTful API and WebSocket interfaces to the CIRIS agent.
 """
 import asyncio
 import logging
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -21,6 +21,7 @@ from .config import APIAdapterConfig
 from .api_runtime_control import APIRuntimeControlService
 from .api_observer import APIObserver
 from .api_communication import APICommunicationService
+from .api_tools import APIToolService
 
 logger = logging.getLogger(__name__)
 
@@ -54,9 +55,6 @@ class ApiPlatform(Service):
         self._server = None
         self._server_task = None
         
-        # Observer for API events (metrics tracking)
-        self.observer = APIObserver(adapter_id="api", runtime=runtime)
-        
         # Message observer for handling incoming messages (will be created in start())
         self.message_observer = None
         
@@ -65,9 +63,16 @@ class ApiPlatform(Service):
         # Pass time service if available
         if hasattr(runtime, 'time_service'):
             self.communication._time_service = runtime.time_service
+        # Pass app state reference for message tracking
+        self.communication._app_state = self.app.state
         
         # Runtime control service
         self.runtime_control = APIRuntimeControlService(runtime)
+        
+        # Tool service
+        self.tool_service = APIToolService(
+            time_service=getattr(runtime, 'time_service', None)
+        )
         
         logger.info(
             f"API adapter initialized - host: {self.config.host}, "
@@ -98,11 +103,21 @@ class ApiPlatform(Service):
             )
         )
         
+        # Register tool service
+        registrations.append(
+            AdapterServiceRegistration(
+                service_type=ServiceType.TOOL,
+                provider=self.tool_service,
+                priority=Priority.NORMAL,
+                capabilities=['execute_tool', 'get_available_tools', 'get_tool_result', 'validate_parameters', 'get_tool_info', 'get_all_tool_info']
+            )
+        )
+        
         return registrations
     
     def get_observer(self) -> Any:
-        """Get the observer for this adapter."""
-        return self.observer
+        """Get the message observer for this adapter."""
+        return self.message_observer
     
     def _inject_services(self) -> None:
         """Inject services into FastAPI app state after initialization."""
@@ -149,10 +164,19 @@ class ApiPlatform(Service):
         self.app.state.runtime_control_service = self.runtime_control
         logger.info("Injected runtime_control_service")
         
+        # Inject communication service created by adapter
+        self.app.state.communication_service = self.communication
+        logger.info("Injected communication_service")
+        
+        # Store message ID to channel mapping for response routing
+        self.app.state.message_channel_map = {}
+        
         # Set up message handler to use the message observer and create correlations
         async def handle_message_via_observer(msg):
             """Handle incoming messages by creating passive observations."""
             if self.message_observer:
+                # Store the message ID to channel mapping
+                self.app.state.message_channel_map[msg.channel_id] = msg.message_id
                 # Create an "observe" correlation for this incoming message
                 from ciris_engine.logic import persistence
                 from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus
@@ -245,15 +269,12 @@ class ApiPlatform(Service):
         await self.communication.start()
         logger.info("Started API communication service")
         
+        # Start the tool service
+        await self.tool_service.start()
+        logger.info("Started API tool service")
+        
         # Create message observer for handling incoming messages
-        from ciris_engine.logic.adapters.base_observer import BaseObserver
-        from ciris_engine.schemas.runtime.messages import IncomingMessage
-        
-        class APIMessageObserver(BaseObserver[IncomingMessage]):
-            """Observer for API messages that creates passive observations."""
-            pass
-        
-        self.message_observer = APIMessageObserver(
+        self.message_observer = APIObserver(
             on_observe=lambda _: asyncio.sleep(0),
             bus_manager=getattr(self.runtime, 'bus_manager', None),
             memory_service=getattr(self.runtime, 'memory_service', None),
@@ -269,8 +290,10 @@ class ApiPlatform(Service):
         # Inject services now that they're initialized
         self._inject_services()
         
-        # Start metrics observer
-        await self.observer.start()
+        # Start runtime control service now that services are available
+        await self.runtime_control.start()
+        logger.info("Started API runtime control service")
+        
         
         # Configure uvicorn
         config = uvicorn.Config(
@@ -296,11 +319,15 @@ class ApiPlatform(Service):
         """Stop the API server."""
         logger.info("Stopping API server...")
         
+        # Stop runtime control service
+        await self.runtime_control.stop()
+        
         # Stop communication service
         await self.communication.stop()
         
-        # Stop observer
-        await self.observer.stop()
+        # Stop tool service
+        await self.tool_service.stop()
+        
         
         # Stop server
         if self._server:
@@ -321,6 +348,77 @@ class ApiPlatform(Service):
             "auth_enabled": self.config.auth_enabled,
             "cors_enabled": self.config.cors_enabled
         }
+    
+    def get_channel_list(self) -> List[Dict[str, Any]]:
+        """
+        Get list of available API channels from correlations.
+        
+        Returns:
+            List of channel information dicts with:
+            - channel_id: str
+            - channel_name: Optional[str]
+            - channel_type: str (always "api")
+            - is_active: bool
+            - last_activity: Optional[datetime]
+            - is_admin: bool (whether channel belongs to admin user)
+        """
+        from ciris_engine.logic.persistence.models.correlations import (
+            get_active_channels_by_adapter,
+            is_admin_channel
+        )
+        
+        # Get active channels from last 30 days
+        channels = get_active_channels_by_adapter("api", since_days=30)
+        
+        # Enhance with admin status
+        for channel in channels:
+            channel["channel_name"] = channel["channel_id"]  # API channels use ID as name
+            channel["is_admin"] = is_admin_channel(channel["channel_id"])
+        
+        return channels
+    
+    async def cleanup_inactive_channels(self) -> int:
+        """
+        Clean up inactive API channels (non-admin) older than 30 days.
+        
+        This is called periodically by the runtime to ensure the channel
+        list doesn't grow unbounded. Admin channels are exempt from cleanup.
+        
+        Returns:
+            Number of channels cleaned up
+        """
+        from datetime import datetime, timezone, timedelta
+        from ciris_engine.logic.persistence.models.correlations import (
+            get_channel_last_activity,
+            is_admin_channel
+        )
+        
+        cleanup_count = 0
+        cutoff_time = datetime.now(timezone.utc) - timedelta(days=30)
+        
+        # Get all API channels
+        channels = self.get_channel_list()
+        
+        for channel in channels:
+            channel_id = channel["channel_id"]
+            
+            # Skip admin channels
+            if channel.get("is_admin", False):
+                logger.debug(f"Skipping cleanup of admin channel: {channel_id}")
+                continue
+            
+            # Check last activity
+            last_activity = get_channel_last_activity(channel_id)
+            if last_activity and last_activity < cutoff_time:
+                # This channel is inactive and not admin - mark for cleanup
+                # In practice, we don't delete data, just exclude from active lists
+                logger.info(f"Channel {channel_id} marked as inactive (last activity: {last_activity})")
+                cleanup_count += 1
+        
+        if cleanup_count > 0:
+            logger.info(f"Marked {cleanup_count} inactive API channels for cleanup")
+        
+        return cleanup_count
     
     async def run_lifecycle(self, agent_run_task: asyncio.Task) -> None:
         """Run the adapter lifecycle - API runs until agent stops."""

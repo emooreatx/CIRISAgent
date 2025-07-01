@@ -55,40 +55,67 @@ class CLIObserver(BaseObserver[IncomingMessage]):
     def _check_for_piped_input(self) -> None:
         """Check if there's piped input available and buffer it."""
         try:
+            # Always respect the interactive setting passed in from configuration
+            # Only check for piped input if we might need to buffer it
+            
             # Check if stdin has data available (non-blocking)
             if sys.stdin.isatty():
                 # Interactive terminal - no piped input
-                logger.debug("CLI running in interactive mode")
+                logger.debug("CLI running in interactive terminal")
                 return
 
-            # Non-interactive - check for piped input
-            logger.info("Detected piped input, buffering...")
+            # stdin is not a tty - could be piped input or running in certain environments
+            logger.info("stdin is not a tty - checking for piped input")
 
-            # Read all available lines from stdin
-            while True:
-                # Use select to check if data is available with a short timeout
-                ready, _, _ = select.select([sys.stdin], [], [], 0.1)
-                if ready:
-                    line = sys.stdin.readline()
-                    if line:
-                        line = line.rstrip('\n')
-                        if line:  # Ignore empty lines
-                            self._buffered_input.append(line)
-                            logger.debug(f"Buffered input: {line}")
+            # Only try to read if we're actually in a pipe/redirect situation
+            # and there's data immediately available
+            import os
+            if hasattr(sys.stdin, 'fileno'):
+                # Use os.fstat to check if stdin is a pipe or regular file
+                stat_info = os.fstat(sys.stdin.fileno())
+                import stat
+                
+                # Only read if it's a pipe or regular file with content
+                if stat.S_ISFIFO(stat_info.st_mode) or (stat.S_ISREG(stat_info.st_mode) and stat_info.st_size > 0):
+                    logger.info("Detected piped/redirected input, buffering...")
+                    
+                    # Read all available lines from stdin
+                    while True:
+                        # Use select to check if data is available with a short timeout
+                        ready, _, _ = select.select([sys.stdin], [], [], 0.1)
+                        if ready:
+                            line = sys.stdin.readline()
+                            if line:
+                                line = line.rstrip('\n')
+                                if line:  # Ignore empty lines
+                                    self._buffered_input.append(line)
+                                    logger.debug(f"Buffered input: {line}")
+                            else:
+                                # EOF reached
+                                break
+                        else:
+                            # No more data available
+                            break
+
+                    if self._buffered_input:
+                        logger.info(f"Buffered {len(self._buffered_input)} input lines")
+                        # Only switch to non-interactive if we actually have piped input
+                        # AND interactive mode wasn't explicitly requested
+                        if self.interactive:
+                            logger.info("Keeping interactive mode as explicitly requested despite piped input")
+                        else:
+                            logger.info("Non-interactive mode confirmed due to piped input")
                     else:
-                        # EOF reached
-                        break
+                        # No input buffered
+                        logger.info("No piped input detected, keeping configured interactive mode")
                 else:
-                    # No more data available
-                    break
-
-            if self._buffered_input:
-                logger.info(f"Buffered {len(self._buffered_input)} input lines")
-                # If we have buffered input, we're not interactive
-                self.interactive = False
+                    # Not a pipe or file, keep configured mode
+                    logger.debug("stdin is not a pipe or file, keeping configured interactive mode")
 
         except Exception as e:
             logger.warning(f"Error checking for piped input: {e}")
+            # On error, keep configured interactive mode
+            logger.debug("Keeping configured interactive mode after error")
 
     async def start(self) -> None:
         """Start the observer and optional input loop."""
@@ -227,53 +254,9 @@ class CLIObserver(BaseObserver[IncomingMessage]):
 
         return False
 
-    async def handle_incoming_message(self, msg: IncomingMessage) -> None:
-        if not isinstance(msg, IncomingMessage):
-            logger.warning("CLIObserver received non-IncomingMessage")
-            return
+    async def _should_process_message(self, msg: IncomingMessage) -> bool:
+        """Check if CLI observer should process this message."""
+        return self._is_cli_channel(msg.channel_id)
 
-        is_agent_message = self.agent_id and msg.author_id == self.agent_id
-
-        processed_msg = await self._process_message_secrets(msg)
-
-        self._history.append(processed_msg)
-
-        if is_agent_message:
-            logger.debug("Added agent's own message %s to history (no task created)", msg.message_id)
-            return
-
-        filter_result = await self._apply_message_filtering(msg, "cli")
-        if not filter_result.should_process:
-            logger.debug(f"Message {msg.message_id} filtered out: {filter_result.reasoning}")
-            return
-
-        processed_msg._filter_priority = filter_result.priority  # type: ignore[attr-defined]
-        processed_msg._filter_context = filter_result.context_hints  # type: ignore[attr-defined]
-        processed_msg._filter_reasoning = filter_result.reasoning  # type: ignore[attr-defined]
-
-        if filter_result.priority.value in ['critical', 'high']:
-            logger.info(f"Processing {filter_result.priority.value} priority message {msg.message_id}: {filter_result.reasoning}")
-            await self._handle_priority_observation(processed_msg, filter_result)
-        else:
-            await self._handle_passive_observation(processed_msg)
-
-        await self._recall_context(processed_msg)
-
-    async def _handle_priority_observation(self, msg: IncomingMessage, filter_result: FilterResult) -> None:
-        """Handle high-priority messages with immediate processing"""
-        # The CLI observer should handle any CLI-related channel, not just "cli"
-        # This could be "cli", "user@hostname", or any channel ID this CLI instance is responsible for
-
-        if self._is_cli_channel(msg.channel_id) and not self._is_agent_message(msg):
-            # Create high-priority observation with enhanced context
-            await self._create_priority_observation_result(msg, filter_result)
-        else:
-            logger.debug("Ignoring priority message from channel %s, author %s for CLI observer", msg.channel_id, msg.author_name)
-
-    async def _handle_passive_observation(self, msg: IncomingMessage) -> None:
-        """Handle passive observation routing based on channel ID and author filtering"""
-
-        if self._is_cli_channel(msg.channel_id) and not self._is_agent_message(msg):
-            await self._create_passive_observation_result(msg)
-        else:
-            logger.debug("Ignoring passive message from channel %s, author %s for CLI observer", msg.channel_id, msg.author_name)
+    # Remove the custom _handle_priority_observation and _handle_passive_observation
+    # since they just check _is_cli_channel which is now done in _should_process_message

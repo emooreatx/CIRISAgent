@@ -7,7 +7,10 @@ authors = ["CIRIS Team"]
 [tool.poetry.dependencies]
 python = "^3.10"
 ciris_engine = {path = "../../..", develop = true}
+ciris_sdk = {path = "../../../ciris_sdk", develop = true}
 uvicorn = "*"
+fastapi = "*"
+python-multipart = "*"
 
 [build-system]
 requires = ["poetry-core"]

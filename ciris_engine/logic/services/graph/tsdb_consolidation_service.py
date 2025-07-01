@@ -684,7 +684,13 @@ class TSDBConsolidationService(BaseGraphService):
         period_start: datetime,
         period_end: datetime
     ) -> Optional[GraphNode]:
-        """Consolidate TRACE_SPAN correlations into TraceSummaryNode."""
+        """Consolidate TRACE_SPAN correlations into TraceSummaryNode.
+        
+        Elegantly consolidates traces into task summaries showing:
+        - Tasks processed with their final status
+        - Handlers selected by each thought
+        - Key performance metrics
+        """
         from ciris_engine.schemas.services.trace_summary_node import TraceSummaryNode
         from collections import defaultdict
         
@@ -704,7 +710,8 @@ class TSDBConsolidationService(BaseGraphService):
         
         logger.info(f"Found {len(correlations)} TRACE_SPAN correlations to consolidate")
         
-        # Initialize metrics
+        # Initialize metrics with focus on task summaries
+        task_summaries = {}  # task_id -> {status, thoughts: [{id, handler}], duration}
         unique_tasks = set()
         unique_thoughts = set()
         tasks_by_status = defaultdict(int)
@@ -712,26 +719,50 @@ class TSDBConsolidationService(BaseGraphService):
         component_calls = defaultdict(int)
         component_failures = defaultdict(int)
         component_latencies = defaultdict(list)
-        dma_decisions = defaultdict(int)
-        guardrail_violations = defaultdict(int)
         handler_actions = defaultdict(int)
         errors_by_component = defaultdict(int)
-        trace_depths = []
         task_processing_times = []
         total_errors = 0
         
+        # Build task summaries showing handler selections
         for corr in correlations:
             if hasattr(corr, 'tags') and corr.tags:
-                # Extract task/thought IDs
                 task_id = corr.tags.get('task_id')
                 thought_id = corr.tags.get('thought_id')
-                if task_id:
+                component_type = corr.tags.get('component_type', 'unknown')
+                
+                # Initialize task summary if needed
+                if task_id and task_id not in task_summaries:
+                    task_summaries[task_id] = {
+                        'status': 'processing',
+                        'thoughts': [],
+                        'start_time': corr.timestamp,
+                        'end_time': corr.timestamp,
+                        'handlers_selected': []
+                    }
                     unique_tasks.add(task_id)
+                
+                # Track thoughts and their handler selections
                 if thought_id:
                     unique_thoughts.add(thought_id)
+                    if task_id and component_type == 'handler':
+                        # Track handler selection for this thought
+                        action_type = corr.tags.get('action_type', 'unknown')
+                        task_summaries[task_id]['thoughts'].append({
+                            'thought_id': thought_id,
+                            'handler': action_type,
+                            'timestamp': corr.timestamp
+                        })
+                        task_summaries[task_id]['handlers_selected'].append(action_type)
+                        handler_actions[action_type] += 1
+                
+                # Track task completion
+                if task_id and corr.tags.get('task_status'):
+                    task_summaries[task_id]['status'] = corr.tags['task_status']
+                    task_summaries[task_id]['end_time'] = corr.timestamp
+                    tasks_by_status[corr.tags['task_status']] += 1
                 
                 # Component tracking
-                component_type = corr.tags.get('component_type', 'unknown')
                 component_calls[component_type] += 1
                 
                 # Extract metrics from response data
@@ -743,29 +774,6 @@ class TSDBConsolidationService(BaseGraphService):
                     
                     if hasattr(corr.response_data, 'execution_time_ms'):
                         component_latencies[component_type].append(corr.response_data.execution_time_ms)
-                        if task_id and component_type == 'agent_processor':
-                            task_processing_times.append(corr.response_data.execution_time_ms)
-                
-                # Track specific component patterns
-                if component_type == 'dma':
-                    dma_type = corr.tags.get('dma_type', 'unknown')
-                    dma_decisions[dma_type] += 1
-                elif component_type == 'guardrail':
-                    if corr.tags.get('violation', 'false') == 'true':
-                        guardrail_type = corr.tags.get('guardrail_type', 'unknown')
-                        guardrail_violations[guardrail_type] += 1
-                elif component_type == 'handler':
-                    action_type = corr.tags.get('action_type', 'unknown')
-                    handler_actions[action_type] += 1
-                
-                # Track trace depth
-                trace_depth = int(corr.tags.get('trace_depth', 0))
-                if trace_depth > 0:
-                    trace_depths.append(trace_depth)
-                
-                # Track task status
-                if task_id and corr.tags.get('task_status'):
-                    tasks_by_status[corr.tags['task_status']] += 1
                 
                 # Track thought type
                 if thought_id and corr.tags.get('thought_type'):
@@ -782,6 +790,12 @@ class TSDBConsolidationService(BaseGraphService):
                     'p99': sorted_latencies[int(len(sorted_latencies) * 0.99)]
                 }
         
+        # Calculate task processing times from summaries
+        for task_id, summary in task_summaries.items():
+            if summary['start_time'] and summary['end_time']:
+                duration_ms = (summary['end_time'] - summary['start_time']).total_seconds() * 1000
+                task_processing_times.append(duration_ms)
+        
         # Calculate task processing percentiles
         avg_task_time = 0.0
         p95_task_time = 0.0
@@ -792,9 +806,9 @@ class TSDBConsolidationService(BaseGraphService):
             p95_task_time = sorted_times[int(len(sorted_times) * 0.95)]
             p99_task_time = sorted_times[int(len(sorted_times) * 0.99)]
         
-        # Calculate trace depth metrics
-        max_trace_depth = max(trace_depths) if trace_depths else 0
-        avg_trace_depth = sum(trace_depths) / len(trace_depths) if trace_depths else 0.0
+        # Calculate trace depth metrics (simplified)
+        max_trace_depth = max(len(s['thoughts']) for s in task_summaries.values()) if task_summaries else 0
+        avg_trace_depth = sum(len(s['thoughts']) for s in task_summaries.values()) / len(task_summaries) if task_summaries else 0.0
         
         # Calculate error rate
         total_calls = sum(component_calls.values())
@@ -803,7 +817,7 @@ class TSDBConsolidationService(BaseGraphService):
         # Calculate avg thoughts per task
         avg_thoughts_per_task = len(unique_thoughts) / len(unique_tasks) if unique_tasks else 0.0
         
-        # Create summary node
+        # Create summary node with elegant task summaries
         summary = TraceSummaryNode(
             id=f"trace_summary_{period_start.strftime('%Y%m%d_%H')}",
             period_start=period_start,
@@ -812,19 +826,20 @@ class TSDBConsolidationService(BaseGraphService):
             total_tasks_processed=len(unique_tasks),
             tasks_by_status=dict(tasks_by_status),
             unique_task_ids=unique_tasks,
+            task_summaries=task_summaries,  # Include elegant task summaries
             total_thoughts_processed=len(unique_thoughts),
             thoughts_by_type=dict(thoughts_by_type),
             avg_thoughts_per_task=avg_thoughts_per_task,
             component_calls=dict(component_calls),
             component_failures=dict(component_failures),
             component_latency_ms=component_latency_stats,
-            dma_decisions=dict(dma_decisions),
-            guardrail_violations=dict(guardrail_violations),
+            dma_decisions=defaultdict(int),  # Simplified - focus on handler actions
+            guardrail_violations=defaultdict(int),  # Simplified
             handler_actions=dict(handler_actions),
             avg_task_processing_time_ms=avg_task_time,
             p95_task_processing_time_ms=p95_task_time,
             p99_task_processing_time_ms=p99_task_time,
-            total_processing_time_ms=sum(task_processing_times),
+            total_processing_time_ms=sum(task_processing_times) if task_processing_times else 0.0,
             total_errors=total_errors,
             errors_by_component=dict(errors_by_component),
             error_rate=error_rate,

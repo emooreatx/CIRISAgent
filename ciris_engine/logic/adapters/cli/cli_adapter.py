@@ -599,3 +599,34 @@ Tools available:
         import uuid
         import os
         return f"cli_{os.getpid()}_{uuid.uuid4().hex[:8]}"
+    
+    def get_channel_list(self) -> List[Dict[str, Any]]:
+        """
+        Get list of available CLI channels from correlations.
+        
+        Returns:
+            List of channel information dicts with:
+            - channel_id: str
+            - channel_name: Optional[str]
+            - channel_type: str (always "cli")
+            - is_active: bool
+            - last_activity: Optional[datetime]
+        """
+        from ciris_engine.logic.persistence.models.correlations import get_active_channels_by_adapter
+        
+        # Get active channels from last 30 days
+        channels = get_active_channels_by_adapter("cli", since_days=30)
+        
+        # Add channel names
+        for channel in channels:
+            # CLI channels can include descriptive names
+            if "_" in channel["channel_id"]:
+                parts = channel["channel_id"].split("_", 2)
+                if len(parts) >= 3:
+                    channel["channel_name"] = f"CLI Session {parts[1]}"
+                else:
+                    channel["channel_name"] = channel["channel_id"]
+            else:
+                channel["channel_name"] = channel["channel_id"]
+        
+        return channels

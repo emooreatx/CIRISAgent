@@ -77,13 +77,24 @@ class SpeakHandler(BaseActionHandler):
                 await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, fe)
                 raise FollowUpCreationError from fe
 
-        # Get channel ID from thought/task context - no other options
-        channel_id = await self._get_channel_id(thought, dispatch_context)
+        # Get channel ID - first check params, then fall back to thought/task context
+        channel_id = None
+        
+        # First, check if channel is specified in params
+        if params.channel_context:
+            channel_id = extract_channel_id(params.channel_context)
+            if channel_id:
+                logger.info(f"SPEAK: Using channel_id '{channel_id}' from params.channel_context")
+        
+        # Fall back to thought/task context if not in params
         if not channel_id:
-            logger.error(f"CRITICAL: No channel_id found in thought {thought_id} context")
-            raise ValueError(f"Channel ID is required for SPEAK action - none found in thought {thought_id}")
-
-        logger.info(f"SPEAK: Using channel_id '{channel_id}' from context")
+            channel_id = await self._get_channel_id(thought, dispatch_context)
+            if channel_id:
+                logger.info(f"SPEAK: Using channel_id '{channel_id}' from thought/task context")
+        
+        if not channel_id:
+            logger.error(f"CRITICAL: No channel_id found in params or thought {thought_id} context")
+            raise ValueError(f"Channel ID is required for SPEAK action - none found in params or thought {thought_id}")
 
         event_summary = params.content
         await self._audit_log(

@@ -15,6 +15,7 @@ from datetime import datetime
 
 from ciris_engine.logic.adapters.base import Service
 from ciris_engine.schemas.infrastructure.base import ServiceRegistration
+from ciris_engine.schemas.adapters.registration import AdapterServiceRegistration
 from ciris_engine.logic.adapters import load_adapter
 from ciris_engine.logic.config import ConfigBootstrap
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
@@ -405,20 +406,21 @@ class RuntimeAdapterManager(AdapterManagerInterface):
 
             registrations = instance.adapter.get_services_to_register()
             for reg in registrations:
-                if not isinstance(reg, ServiceRegistration):
+                if not isinstance(reg, (ServiceRegistration, AdapterServiceRegistration)):
                     logger.error(f"Adapter {instance.adapter.__class__.__name__} provided invalid ServiceRegistration: {reg}")
                     continue
 
                 service_key = f"{reg.service_type.value}:{reg.provider.__class__.__name__}"
 
                 # All services are global now
+                # AdapterServiceRegistration doesn't have priority_group or strategy
                 self.runtime.service_registry.register_service(
                     service_type=reg.service_type,  # Pass ServiceType enum, not .value
                     provider=reg.provider,
                     priority=reg.priority,
                     capabilities=reg.capabilities,
-                    priority_group=reg.priority_group,
-                    strategy=reg.strategy
+                    priority_group=getattr(reg, 'priority_group', None),
+                    strategy=getattr(reg, 'strategy', None)
                 )
                 instance.services_registered.append(f"global:{service_key}")
 

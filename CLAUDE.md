@@ -136,6 +136,25 @@ python test_api_v1_comprehensive.py
 # Default development credentials
 username = "admin"
 password = "ciris_admin_password"
+
+# Authentication flow for API v1:
+# 1. Login to get token
+response = requests.post(
+    "http://localhost:8080/v1/auth/login",
+    json={"username": "admin", "password": "ciris_admin_password"}
+)
+token = response.json()["access_token"]
+
+# 2. Use token in Authorization header
+headers = {"Authorization": f"Bearer {token}"}
+response = requests.post(
+    "http://localhost:8080/v1/agent/interact",
+    headers=headers,
+    json={"message": "Hello", "channel_id": "api_0.0.0.0_8080"}
+)
+
+# Note: Some endpoints accept Bearer admin:ciris_admin_password directly
+# Example: GET /v1/system/health -H "Authorization: Bearer admin:ciris_admin_password"
 ```
 
 ## Key Principles
@@ -153,3 +172,31 @@ password = "ciris_admin_password"
 - **Graph Memory**: Builds local knowledge base
 - **Mock LLM**: Critical for offline operation
 - **Resource Constraints**: Designed for 4GB RAM environments
+
+## Verified Development Truths
+
+### Mock LLM System
+- **Location**: External module in `ciris_modular_services/mock_llm/`
+- **Commands**: All mock LLM commands use `$` prefix (e.g., `$speak`, `$recall`, `$memorize`)
+- **API Interaction**: Use `/v1/agent/interact` endpoint with `{"message": "...", "channel_id": "..."}` format
+- **Response Format**: Mock responses should use `[MOCK LLM] ` prefix for clarity
+- **Testing**: Mock LLM provides deterministic responses for offline testing
+
+### Container Management
+- **Incidents Log**: ALWAYS check container incidents logs with `docker exec <container> tail /app/logs/incidents_latest.log`
+- **Multi-Container**: Use `docker-compose-multi-mock.yml` for 10-container parallel testing
+- **Ports**: Containers use ports 8080-8089 (container0 through container9)
+- **Health Check**: Wait for containers to be healthy before testing
+
+### API Structure
+- **Adapter Management**: Runtime adapter management endpoints are available at `/v1/system/adapters/*` (requires container rebuild after code changes)
+- **Service Registration**: AdapterServiceRegistration doesn't have priority_group or strategy attributes - use getattr() for optional attributes
+- **Auth Field**: API uses `"message"` field not `"content"` for interact endpoint
+- **Channel Format**: Channel IDs follow pattern `<adapter>_<identifier>` (e.g., `discord_1234567890`, `api_0.0.0.0_8080`)
+
+### Testing Best Practices
+- **Parallel Testing**: Use Claude Code Task tool to spawn concurrent sub-agents for parallel testing
+- **Container Logs**: Check logs INSIDE containers with `docker exec`, not local logs
+- **Rebuild Frequency**: ALWAYS rebuild containers after ANY code changes - endpoints won't appear without rebuild
+- **Container Age**: Check container uptime in health endpoint - if it shows hours when you just started, you forgot to rebuild
+- **Error Patterns**: ServiceCorrelation validation errors are non-critical (missing response_timestamp field)

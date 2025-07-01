@@ -197,11 +197,22 @@ async def get_history(
     # Use user-specific channel
     channel_id = f"api_{auth.user_id}"
     
+    # For admin users and above, also include the default API channel (home)
+    channels_to_query = [channel_id]
+    if auth.role in ['ADMIN', 'AUTHORITY', 'SYSTEM_ADMIN']:
+        # Get default API channel from config
+        api_host = getattr(request.app.state, 'api_host', '0.0.0.0')
+        api_port = getattr(request.app.state, 'api_port', '8080')
+        default_channel = f"api_{api_host}_{api_port}"
+        channels_to_query.append(default_channel)
+    
+    logger.info(f"History query for user {auth.user_id} with role {auth.role}, channels: {channels_to_query}")
+    
     # Check for mock message history first
     message_history = getattr(request.app.state, 'message_history', None)
     if message_history is not None:
-        # Filter messages for this user
-        user_messages = [m for m in message_history if m.get('channel_id') == channel_id]
+        # Filter messages for this user (including default channel for admins)
+        user_messages = [m for m in message_history if m.get('channel_id') in channels_to_query]
         
         # Convert to response format
         messages = []
@@ -287,21 +298,39 @@ async def get_history(
     try:
         # Fetch messages from communication service (fetch more to allow filtering)
         fetch_limit = limit * 2 if before else limit
-        messages = await comm_service.fetch_messages(channel_id, fetch_limit)
+        
+        # Fetch messages from all relevant channels
+        all_messages = []
+        for channel in channels_to_query:
+            try:
+                logger.info(f"Fetching messages from channel: {channel}")
+                channel_messages = await comm_service.fetch_messages(channel, limit=fetch_limit)
+                logger.info(f"Retrieved {len(channel_messages)} messages from {channel}")
+                all_messages.extend(channel_messages)
+            except Exception as e:
+                # If a channel doesn't exist or has no messages, continue
+                logger.warning(f"Failed to fetch from channel {channel}: {e}")
+                continue
+        
+        # Sort messages by timestamp (newest first)
+        messages = sorted(all_messages, 
+                         key=lambda m: m["timestamp"] if isinstance(m["timestamp"], datetime) else datetime.fromisoformat(m["timestamp"]), 
+                         reverse=True)
 
         # Filter by time if specified
         if before:
-            messages = [m for m in messages if datetime.fromisoformat(m.timestamp) < before]
+            messages = [m for m in messages if (m["timestamp"] if isinstance(m["timestamp"], datetime) else datetime.fromisoformat(m["timestamp"])) < before]
 
         # Convert to conversation messages
         conv_messages = []
         for msg in messages[:limit]:  # Apply limit after filtering
+            msg_timestamp = msg["timestamp"] if isinstance(msg["timestamp"], datetime) else datetime.fromisoformat(msg["timestamp"])
             conv_messages.append(ConversationMessage(
-                id=msg.id,
-                author=msg.author_name or msg.author_id,
-                content=msg.content,
-                timestamp=datetime.fromisoformat(msg.timestamp),
-                is_agent=(msg.author_id == "ciris_agent")
+                id=msg["message_id"],
+                author=msg["author_name"] or msg["author_id"],
+                content=msg["content"],
+                timestamp=msg_timestamp,
+                is_agent=msg.get("is_agent_message", False)
             ))
 
         # Build response

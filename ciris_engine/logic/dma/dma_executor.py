@@ -173,7 +173,7 @@ async def run_pdma(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "true",
-                    "result_summary": f"Ethical evaluation: approved={result.ethical_evaluation_passed if result else 'unknown'}",
+                    "result_summary": f"Ethical evaluation completed: decision={result.decision}",
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
                 },
                 status=ServiceCorrelationStatus.COMPLETED
