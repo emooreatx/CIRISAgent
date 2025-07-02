@@ -169,7 +169,8 @@ class TestThoughtDepthPropagation:
         assert third_follow_up.thought_depth == 3
 
     @patch('ciris_engine.logic.handlers.control.ponder_handler.persistence')
-    def test_ponder_handler_creates_correct_follow_up_count(self, mock_persistence, pondered_thought):
+    @patch('ciris_engine.logic.infrastructure.handlers.base_handler.persistence')
+    def test_ponder_handler_creates_correct_follow_up_count(self, mock_base_persistence, mock_persistence, pondered_thought):
         """Test that PonderHandler creates follow-ups with correct ponder count."""
         # Mock dependencies with bus_manager
         mock_dependencies = Mock(spec=ActionHandlerDependencies)
@@ -187,6 +188,13 @@ class TestThoughtDepthPropagation:
         mock_persistence.update_thought_status.return_value = True
         mock_persistence.get_task_by_id.return_value = Mock(description="Test task")
         mock_persistence.add_thought.return_value = None
+        mock_persistence.add_correlation.return_value = None
+        
+        # Configure base handler persistence the same way
+        mock_base_persistence.update_thought_status = mock_persistence.update_thought_status
+        mock_base_persistence.get_task_by_id = mock_persistence.get_task_by_id
+        mock_base_persistence.add_thought = mock_persistence.add_thought
+        mock_base_persistence.add_correlation = mock_persistence.add_correlation
 
         # Create PonderHandler
         ponder_handler = PonderHandler(mock_dependencies, max_rounds=5)
@@ -276,10 +284,18 @@ class TestThoughtDepthPropagation:
         )
 
         # Mock persistence functions
-        with patch('ciris_engine.logic.handlers.control.ponder_handler.persistence') as mock_persistence:
+        with patch('ciris_engine.logic.handlers.control.ponder_handler.persistence') as mock_persistence, \
+             patch('ciris_engine.logic.infrastructure.handlers.base_handler.persistence') as mock_base_persistence:
             mock_persistence.update_thought_status.return_value = True
             mock_persistence.get_task_by_id.return_value = Mock(description="Test task")
             mock_persistence.add_thought.return_value = None
+            mock_persistence.add_correlation.return_value = None
+            
+            # Configure base handler persistence the same way
+            mock_base_persistence.update_thought_status = mock_persistence.update_thought_status
+            mock_base_persistence.get_task_by_id = mock_persistence.get_task_by_id
+            mock_base_persistence.add_thought = mock_persistence.add_thought
+            mock_base_persistence.add_correlation = mock_persistence.add_correlation
 
             import asyncio
             dispatch_context = DispatchContext(

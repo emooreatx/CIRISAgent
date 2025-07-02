@@ -27,11 +27,17 @@ class TestThoughtProcessor:
     @pytest.fixture
     def mock_time_service(self):
         """Create mock time service."""
-        current_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        return Mock(
-            now=Mock(return_value=current_time),
-            now_iso=Mock(return_value=current_time.isoformat())
-        )
+        import itertools
+        counter = itertools.count()
+        def get_time():
+            # Return incrementing timestamps to avoid correlation ID conflicts
+            base_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+            return base_time.replace(microsecond=next(counter) * 1000)
+        
+        mock_service = Mock()
+        mock_service.now = Mock(side_effect=get_time)
+        mock_service.now_iso = Mock(side_effect=lambda: mock_service.now().isoformat())
+        return mock_service
 
     @pytest.fixture
     def mock_bus_manager(self):
@@ -66,7 +72,9 @@ class TestThoughtProcessor:
     @pytest.fixture
     def mock_persistence(self):
         """Create mock persistence functions."""
-        with patch('ciris_engine.logic.persistence') as mock_persist:
+        # Patch persistence in multiple places where it's imported
+        with patch('ciris_engine.logic.processors.core.thought_processor.persistence') as mock_persist, \
+             patch('ciris_engine.logic.persistence') as mock_persist_global:
             # Create a mock thought object
             mock_thought = Mock(
                 thought_id="test_thought",
@@ -86,6 +94,18 @@ class TestThoughtProcessor:
             mock_persist.add_thought = Mock()
             mock_persist.update_thought_status = Mock()
             mock_persist.update_task_status = Mock()
+            mock_persist.add_correlation = Mock()
+            mock_persist.update_correlation = Mock()
+            
+            # Configure the global mock the same way
+            mock_persist_global.async_get_thought_by_id = mock_persist.async_get_thought_by_id
+            mock_persist_global.get_task_by_id = mock_persist.get_task_by_id
+            mock_persist_global.add_thought = mock_persist.add_thought
+            mock_persist_global.update_thought_status = mock_persist.update_thought_status
+            mock_persist_global.update_task_status = mock_persist.update_task_status
+            mock_persist_global.add_correlation = mock_persist.add_correlation
+            mock_persist_global.update_correlation = mock_persist.update_correlation
+            
             yield mock_persist
 
     @pytest.fixture
@@ -142,7 +162,7 @@ class TestThoughtProcessor:
         return processor
 
     @pytest.mark.asyncio
-    async def test_process_thought(self, thought_processor):
+    async def test_process_thought(self, thought_processor, mock_persistence):
         """Test processing a thought."""
         # Create a queue item
         thought = Thought(
@@ -156,6 +176,9 @@ class TestThoughtProcessor:
         )
 
         item = ProcessingQueueItem.from_thought(thought)
+        
+        # Make sure the mock persistence returns this specific thought
+        mock_persistence.async_get_thought_by_id.return_value = thought
 
         # Process - the mocks are already set up in the fixture
         result = await thought_processor.process_thought(item)

@@ -42,6 +42,12 @@ class APIToolService(ToolService):
 
     async def execute_tool(self, tool_name: str, parameters: dict) -> ToolExecutionResult:
         """Execute a tool and return the result."""
+        logger.info(f"[API_TOOLS] execute_tool called with tool_name={tool_name}, parameters={parameters}")
+        
+        # Debug: print stack trace to see where this is called from
+        import traceback
+        logger.info(f"[API_TOOLS] Stack trace:\n{''.join(traceback.format_stack())}")
+        
         correlation_id = parameters.get("correlation_id", str(uuid.uuid4()))
 
         if tool_name not in self._tools:
@@ -86,6 +92,7 @@ class APIToolService(ToolService):
 
     async def _curl(self, params: dict) -> dict:
         """Execute a curl-like HTTP request."""
+        logger.info(f"[API_TOOLS] _curl called with params: {params}")
         url = params.get("url")
         method = params.get("method", "GET").upper()
         headers = params.get("headers", {})
@@ -93,6 +100,7 @@ class APIToolService(ToolService):
         timeout = params.get("timeout", 30)
 
         if not url:
+            logger.error(f"[API_TOOLS] URL parameter missing. Params keys: {list(params.keys())}")
             return {"error": "URL parameter is required"}
 
         try:

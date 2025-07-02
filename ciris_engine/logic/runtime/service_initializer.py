@@ -687,6 +687,10 @@ This directory contains critical cryptographic keys for the CIRIS system.
 
         # Keep reference to primary audit service for compatibility
         self.audit_service = self.audit_services[0]
+        
+        # Update BusManager with the initialized audit service
+        self.bus_manager.audit_service = self.audit_service
+        logger.info(f"Updated BusManager with audit_service: {self.audit_service}")
 
         # Audit sink manager removed - GraphAuditService handles its own lifecycle
         logger.info("GraphAuditService handles its own retention and cleanup")

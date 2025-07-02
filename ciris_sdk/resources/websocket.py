@@ -8,7 +8,7 @@ Enhanced WebSocket design with channel-specific filters, backpressure handling,
 and automatic reconnection support.
 """
 from typing import Optional, Dict, Any, List, Callable, AsyncIterator
-from datetime import datetime
+from datetime import datetime, timezone
 import asyncio
 import json
 import logging
@@ -324,7 +324,7 @@ class WebSocketResource:
         while self.state == WebSocketState.CONNECTED:
             try:
                 await asyncio.sleep(self.heartbeat_interval)
-                await self.send({"type": "ping", "timestamp": datetime.utcnow().isoformat()})
+                await self.send({"type": "ping", "timestamp": datetime.now(timezone.utc).isoformat()})
             except Exception as e:
                 logger.error(f"Heartbeat failed: {e}")
                 break

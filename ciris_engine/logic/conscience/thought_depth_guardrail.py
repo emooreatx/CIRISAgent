@@ -7,7 +7,7 @@ overrides the action to DEFER, ensuring proper escalation to humans.
 
 import logging
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.conscience.core import ConscienceCheckResult, ConscienceStatus, EpistemicData
@@ -43,7 +43,7 @@ class ThoughtDepthGuardrail(ConscienceInterface):
         context: dict,
     ) -> ConscienceCheckResult:
         """Check if thought depth exceeds maximum allowed."""
-        start_time = datetime.utcnow()
+        start_time = self._time_service.now()
         timestamp = self._time_service.now()
 
         # Get the thought from context
@@ -94,13 +94,14 @@ class ThoughtDepthGuardrail(ConscienceInterface):
         if not thought:
             logger.warning("No thought provided to ThoughtDepthconscience")
             # Update correlation with completion
-            end_time = datetime.utcnow()
+            end_time = self._time_service.now()
             update_req = CorrelationUpdateRequest(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "true",
                     "result_summary": "No thought provided to check",
-                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
                 },
                 status=ServiceCorrelationStatus.COMPLETED
             )
@@ -129,13 +130,14 @@ class ThoughtDepthGuardrail(ConscienceInterface):
 
         if action.selected_action in terminal_actions:
             # Update correlation with completion
-            end_time = datetime.utcnow()
+            end_time = self._time_service.now()
             update_req = CorrelationUpdateRequest(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "true",
                     "result_summary": f"Terminal action {action.selected_action} at depth {current_depth}",
-                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
                 },
                 status=ServiceCorrelationStatus.COMPLETED
             )
@@ -189,13 +191,14 @@ class ThoughtDepthGuardrail(ConscienceInterface):
             )
 
             # Update correlation with failure (depth exceeded)
-            end_time = datetime.utcnow()
+            end_time = self._time_service.now()
             update_req = CorrelationUpdateRequest(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "false",
                     "result_summary": f"Maximum thought depth ({self.max_depth}) reached - deferring to human",
-                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
                 },
                 status=ServiceCorrelationStatus.FAILED
             )
@@ -215,13 +218,14 @@ class ThoughtDepthGuardrail(ConscienceInterface):
 
         # Depth is within limits
         # Update correlation with success
-        end_time = datetime.utcnow()
+        end_time = self._time_service.now()
         update_req = CorrelationUpdateRequest(
             correlation_id=correlation.correlation_id,
             response_data={
                 "success": "true",
                 "result_summary": f"Thought depth {current_depth} within limit of {self.max_depth}",
-                "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                "response_timestamp": end_time.isoformat()
             },
             status=ServiceCorrelationStatus.COMPLETED
         )

@@ -167,6 +167,10 @@ def delete_tasks_by_ids(task_ids: List[str], db_path: Optional[str] = None) -> b
         logger.warning("No task IDs provided for deletion.")
         return False
 
+    logger.warning(f"DELETE_OPERATION: delete_tasks_by_ids called with {len(task_ids)} tasks: {task_ids}")
+    import traceback
+    logger.warning(f"DELETE_OPERATION: Called from: {''.join(traceback.format_stack()[-3:-1])}")
+
     placeholders = ','.join('?' for _ in task_ids)
 
     sql_get_thought_ids = f"SELECT thought_id FROM thoughts WHERE source_task_id IN ({placeholders})"
@@ -192,7 +196,9 @@ def delete_tasks_by_ids(task_ids: List[str], db_path: Optional[str] = None) -> b
                 logger.info(f"No associated feedback mappings found for task IDs: {task_ids}.")
 
             cursor.execute(sql_delete_thoughts, task_ids)
-            logger.info(f"Deleted {cursor.rowcount} associated thoughts for task IDs: {task_ids}.")
+            thoughts_deleted = cursor.rowcount
+            logger.warning(f"DELETE_OPERATION: Deleted {thoughts_deleted} thoughts for tasks: {task_ids}")
+            logger.info(f"Deleted {thoughts_deleted} associated thoughts for task IDs: {task_ids}.")
 
             cursor.execute(sql_delete_tasks, task_ids)
             deleted_count = cursor.rowcount

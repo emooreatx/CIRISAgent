@@ -372,7 +372,7 @@ class AgentProcessor:
 
     async def _process_single_thought(self, thought: Thought) -> bool:
         """Process a single thought and dispatch its action, with comprehensive error handling."""
-        start_time = datetime.utcnow()
+        start_time = self._time_service.now()
         trace_id = f"task_{thought.source_task_id or 'unknown'}_{thought.thought_id}"
         span_id = f"agent_processor_{thought.thought_id}"
         
@@ -426,7 +426,7 @@ class AgentProcessor:
                     final_action={"error": f"No processor for state {self.state_manager.get_state()}"}
                 )
                 # Update correlation with failure
-                end_time = datetime.utcnow()
+                end_time = self._time_service.now()
                 correlation.response_data = ServiceResponseData(
                     success=False,
                     error_message=f"No processor for state {self.state_manager.get_state()}",
@@ -448,7 +448,7 @@ class AgentProcessor:
                     final_action={"error": f"Processor error: {e}"}
                 )
                 # Update correlation with failure
-                end_time = datetime.utcnow()
+                end_time = self._time_service.now()
                 correlation.response_data = ServiceResponseData(
                     success=False,
                     error_message=f"Processor error: {e}",
@@ -493,7 +493,7 @@ class AgentProcessor:
                         final_action={"error": f"Dispatch error: {e}"}
                     )
                     # Update correlation with dispatch failure
-                    end_time = datetime.utcnow()
+                    end_time = self._time_service.now()
                     correlation.response_data = ServiceResponseData(
                         success=False,
                         error_message=f"Dispatch error: {e}",
@@ -510,7 +510,7 @@ class AgentProcessor:
                     if updated_thought and updated_thought.status in [ThoughtStatus.COMPLETED, ThoughtStatus.FAILED]:
                         logger.debug(f"Thought {thought.thought_id} was already handled with status {updated_thought.status.value}")
                         # Update correlation - thought was already handled
-                        end_time = datetime.utcnow()
+                        end_time = self._time_service.now()
                         correlation.response_data = ServiceResponseData(
                             success=True,
                             result_summary=f"Thought already handled with status {updated_thought.status.value}",
@@ -543,7 +543,7 @@ class AgentProcessor:
                 logger.error(f"Failed to update thought status after critical error: {update_error}", exc_info=True)
             
             # Update correlation with critical error
-            end_time = datetime.utcnow()
+            end_time = self._time_service.now()
             correlation.response_data = ServiceResponseData(
                 success=False,
                 error_message=f"Critical processing error: {e}",

@@ -11,6 +11,7 @@ from ciris_engine.schemas.processors.results import WakeupResult
 from ciris_engine.schemas.runtime.models import Task, Thought, ThoughtContext
 from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus, HandlerActionType, ThoughtType
 from ciris_engine.logic.utils.channel_utils import create_channel_context
+from ciris_engine.logic.utils.thought_utils import generate_thought_id
 from ciris_engine.logic import persistence
 from ciris_engine.logic.persistence.models import get_identity_for_context
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
@@ -413,7 +414,10 @@ class WakeupProcessor(BaseProcessor):
         )
 
         thought = Thought(
-            thought_id=str(uuid.uuid4()),
+            thought_id=generate_thought_id(
+                thought_type=ThoughtType.STANDARD,
+                task_id=step_task.task_id
+            ),
             source_task_id=step_task.task_id,
             content=step_task.description,
             round_number=round_number,

@@ -150,7 +150,7 @@ class CommunicationBus(BaseBus[CommunicationService]):
             return []
 
         try:
-            messages = await service.fetch_messages(channel_id, limit)
+            messages = await service.fetch_messages(channel_id, limit=limit)
             return list(messages) if messages else []
         except Exception as e:
             logger.error(f"Failed to fetch messages: {e}", exc_info=True)

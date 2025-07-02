@@ -56,10 +56,9 @@ class _BaseConscience(ConscienceInterface):
         self.config = config
         self.model_name = model_name
         self.sink = sink
+        if not time_service:
+            raise RuntimeError("TimeService is required for Conscience")
         self._time_service = time_service
-        # Try to get from registry only if not provided
-        if not self._time_service:
-            self._initialize_time_service()
     
     def _create_trace_correlation(
         self, 
@@ -126,13 +125,14 @@ class _BaseConscience(ConscienceInterface):
         if not self._time_service:
             return
             
-        end_time = datetime.utcnow()
+        end_time = self._time_service.now()
         update_req = CorrelationUpdateRequest(
             correlation_id=correlation.correlation_id,
             response_data={
                 "success": str(success).lower(),
                 "result_summary": result_summary,
-                "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                "response_timestamp": end_time.isoformat()
             },
             status=ServiceCorrelationStatus.COMPLETED if success else ServiceCorrelationStatus.FAILED
         )
@@ -159,7 +159,7 @@ class _BaseConscience(ConscienceInterface):
 
 class EntropyConscience(_BaseConscience):
     async def check(self, action: ActionSelectionDMAResult, context: dict) -> ConscienceCheckResult:
-        start_time = datetime.utcnow()
+        start_time = self._time_service.now()
         correlation = self._create_trace_correlation("entropy", context, start_time)
         
         ts = self._time_service.now().isoformat() if self._time_service else datetime.now(timezone.utc).isoformat()
@@ -251,7 +251,7 @@ class EntropyConscience(_BaseConscience):
 
 class CoherenceConscience(_BaseConscience):
     async def check(self, action: ActionSelectionDMAResult, context: dict) -> ConscienceCheckResult:
-        start_time = datetime.utcnow()
+        start_time = self._time_service.now()
         correlation = self._create_trace_correlation("coherence", context, start_time)
         
         ts = self._time_service.now().isoformat() if self._time_service else datetime.now(timezone.utc).isoformat()
@@ -353,7 +353,7 @@ class CoherenceConscience(_BaseConscience):
 
 class OptimizationVetoConscience(_BaseConscience):
     async def check(self, action: ActionSelectionDMAResult, context: dict) -> ConscienceCheckResult:
-        start_time = datetime.utcnow()
+        start_time = self._time_service.now()
         correlation = self._create_trace_correlation("optimization_veto", context, start_time)
         
         ts = self._time_service.now().isoformat() if self._time_service else datetime.now(timezone.utc).isoformat()
@@ -437,7 +437,7 @@ class OptimizationVetoConscience(_BaseConscience):
 
 class EpistemicHumilityConscience(_BaseConscience):
     async def check(self, action: ActionSelectionDMAResult, context: dict) -> ConscienceCheckResult:
-        start_time = datetime.utcnow()
+        start_time = self._time_service.now()
         correlation = self._create_trace_correlation("epistemic_humility", context, start_time)
         
         ts = self._time_service.now().isoformat() if self._time_service else datetime.now(timezone.utc).isoformat()

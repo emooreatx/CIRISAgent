@@ -1,7 +1,7 @@
 import logging
 import asyncio
 from typing import Any, Dict, Optional, Callable, Awaitable, TYPE_CHECKING
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ciris_engine.logic.processors.support.thought_escalation import escalate_dma_failure
 from ciris_engine.schemas.runtime.models import Thought
@@ -95,7 +95,9 @@ async def run_pdma(
     time_service: Optional["TimeServiceProtocol"] = None,
 ) -> EthicalDMAResult:
     """Run the Ethical PDMA for the given thought."""
-    start_time = datetime.utcnow()
+    if not time_service:
+        raise RuntimeError("TimeService is required for DMA execution")
+    start_time = time_service.now()
     
     # Create trace for PDMA execution
     trace_id = f"task_{thought.source_task_id or 'unknown'}_{thought.thought_id}"
@@ -168,13 +170,14 @@ async def run_pdma(
         
         # Update correlation with success
         if time_service:
-            end_time = datetime.utcnow()
+            end_time = time_service.now()
             update_req = CorrelationUpdateRequest(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "true",
                     "result_summary": f"Ethical evaluation completed: decision={result.decision}",
-                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
                 },
                 status=ServiceCorrelationStatus.COMPLETED
             )
@@ -185,13 +188,14 @@ async def run_pdma(
     except Exception as e:
         # Update correlation with failure
         if time_service:
-            end_time = datetime.utcnow()
+            end_time = time_service.now()
             update_req = CorrelationUpdateRequest(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "false",
                     "error_message": str(e),
-                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
                 },
                 status=ServiceCorrelationStatus.FAILED
             )
@@ -204,7 +208,9 @@ async def run_csdma(
     time_service: Optional["TimeServiceProtocol"] = None,
 ) -> CSDMAResult:
     """Run the CSDMA for the given thought."""
-    start_time = datetime.utcnow()
+    if not time_service:
+        raise RuntimeError("TimeService is required for DMA execution")
+    start_time = time_service.now()
     
     # Create trace for CSDMA execution
     trace_id = f"task_{thought.source_task_id or 'unknown'}_{thought.thought_id}"
@@ -252,13 +258,14 @@ async def run_csdma(
         
         # Update correlation with success
         if time_service:
-            end_time = datetime.utcnow()
+            end_time = time_service.now()
             update_req = CorrelationUpdateRequest(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "true",
                     "result_summary": f"CSDMA evaluation completed",
-                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
                 },
                 status=ServiceCorrelationStatus.COMPLETED
             )
@@ -269,13 +276,14 @@ async def run_csdma(
     except Exception as e:
         # Update correlation with failure
         if time_service:
-            end_time = datetime.utcnow()
+            end_time = time_service.now()
             update_req = CorrelationUpdateRequest(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "false",
                     "error_message": str(e),
-                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
                 },
                 status=ServiceCorrelationStatus.FAILED
             )
@@ -289,7 +297,9 @@ async def run_dsdma(
     time_service: Optional["TimeServiceProtocol"] = None,
 ) -> DSDMAResult:
     """Run the domain-specific DMA using profile-driven configuration."""
-    start_time = datetime.utcnow()
+    if not time_service:
+        raise RuntimeError("TimeService is required for DMA execution")
+    start_time = time_service.now()
     
     # Create trace for DSDMA execution
     trace_id = f"task_{thought.source_task_id or 'unknown'}_{thought.thought_id}"
@@ -338,13 +348,14 @@ async def run_dsdma(
         
         # Update correlation with success
         if time_service:
-            end_time = datetime.utcnow()
+            end_time = time_service.now()
             update_req = CorrelationUpdateRequest(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "true",
                     "result_summary": f"DSDMA evaluation completed",
-                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
                 },
                 status=ServiceCorrelationStatus.COMPLETED
             )
@@ -355,13 +366,14 @@ async def run_dsdma(
     except Exception as e:
         # Update correlation with failure
         if time_service:
-            end_time = datetime.utcnow()
+            end_time = time_service.now()
             update_req = CorrelationUpdateRequest(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "false",
                     "error_message": str(e),
-                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
                 },
                 status=ServiceCorrelationStatus.FAILED
             )
@@ -374,7 +386,9 @@ async def run_action_selection_pdma(
     time_service: Optional["TimeServiceProtocol"] = None,
 ) -> ActionSelectionDMAResult:
     """Select the next handler action using the triaged DMA results."""
-    start_time = datetime.utcnow()
+    if not time_service:
+        raise RuntimeError("TimeService is required for DMA execution")
+    start_time = time_service.now()
     
     # Extract thought info for tracing
     original_thought = triaged_inputs.get('original_thought', {})
@@ -437,13 +451,14 @@ async def run_action_selection_pdma(
         
         # Update correlation with success
         if time_service:
-            end_time = datetime.utcnow()
+            end_time = time_service.now()
             update_req = CorrelationUpdateRequest(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "true",
                     "result_summary": f"Action selected: {result.selected_action if result and hasattr(result, 'selected_action') else 'none'}",
-                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
                 },
                 status=ServiceCorrelationStatus.COMPLETED
             )
@@ -454,13 +469,14 @@ async def run_action_selection_pdma(
     except Exception as e:
         # Update correlation with failure
         if time_service:
-            end_time = datetime.utcnow()
+            end_time = time_service.now()
             update_req = CorrelationUpdateRequest(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "false",
                     "error_message": str(e),
-                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
                 },
                 status=ServiceCorrelationStatus.FAILED
             )

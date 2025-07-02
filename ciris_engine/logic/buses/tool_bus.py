@@ -44,6 +44,7 @@ class ToolBus(BaseBus[ToolService]):
         handler_name: str = "default"
     ) -> ToolExecutionResult:
         """Execute a tool and return the result"""
+        logger.info(f"[TOOL_BUS] execute_tool called with tool_name={tool_name}, parameters={parameters}")
         service = await self.get_service(
             handler_name=handler_name,
             required_capabilities=["execute_tool"]
@@ -61,6 +62,7 @@ class ToolBus(BaseBus[ToolService]):
             )
 
         try:
+            logger.info(f"[TOOL_BUS] Calling service.execute_tool with service={type(service).__name__}")
             result = await service.execute_tool(tool_name, parameters)
             # Protocol now returns ToolExecutionResult
             return result

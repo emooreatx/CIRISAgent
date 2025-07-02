@@ -678,7 +678,19 @@ class CIRISRuntime:
         from ciris_engine.logic.buses import BusManager
         if not self.service_registry:
             raise RuntimeError("Service registry not initialized")
-        bus_manager = BusManager(self.service_registry)
+        logger.info(f"[AUDIT DEBUG] self.service_initializer exists: {self.service_initializer is not None}")
+        if self.service_initializer:
+            logger.info(f"[AUDIT DEBUG] service_initializer.audit_service: {self.service_initializer.audit_service}")
+        logger.info(f"[AUDIT DEBUG] Creating BusManager with audit_service={self.audit_service}")
+        logger.info(f"[AUDIT DEBUG] self.audit_service type: {type(self.audit_service)}")
+        logger.info(f"[AUDIT DEBUG] self.audit_service is None: {self.audit_service is None}")
+        
+        bus_manager = BusManager(
+            self.service_registry,
+            time_service=self.time_service,
+            telemetry_service=self.telemetry_service,
+            audit_service=self.audit_service
+        )
 
         return build_action_dispatcher(
             bus_manager=bus_manager,

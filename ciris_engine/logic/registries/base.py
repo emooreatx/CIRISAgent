@@ -97,6 +97,23 @@ class ServiceRegistry:
             self._services[service_type] = []
 
         provider_name = f"{provider.__class__.__name__}_{id(provider)}"
+        
+        # CRITICAL SAFETY CHECK: Prevent mixing mock and real LLM services
+        if service_type == ServiceType.LLM:
+            existing_providers = self._services[service_type]
+            is_mock = "Mock" in provider.__class__.__name__ or (metadata and metadata.get("provider") == "mock")
+            
+            for existing in existing_providers:
+                existing_is_mock = "Mock" in existing.name or (existing.metadata and existing.metadata.get("provider") == "mock")
+                
+                if is_mock != existing_is_mock:
+                    error_msg = (
+                        f"SECURITY VIOLATION: Attempting to register {'mock' if is_mock else 'real'} "
+                        f"LLM service when {'mock' if existing_is_mock else 'real'} service already exists! "
+                        f"Existing: {existing.name}, New: {provider_name}"
+                    )
+                    logger.error(error_msg)
+                    raise RuntimeError(error_msg)
 
         cb_config = circuit_breaker_config or CircuitBreakerConfig()
         circuit_breaker = CircuitBreaker(f"{service_type}_{provider_name}", cb_config)

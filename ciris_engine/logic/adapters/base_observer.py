@@ -12,6 +12,7 @@ from ciris_engine.logic.buses import BusManager
 from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.logic import persistence
+from ciris_engine.logic.utils.thought_utils import generate_thought_id
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +137,12 @@ class BaseObserver(Generic[MessageT], ABC):
                     content = ""
                     if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
                         content = corr.request_data.parameters.get("content", "")
+                        
+                        # Strip out nested conversation history to prevent recursive history
+                        if "=== CONVERSATION HISTORY" in content:
+                            # Extract only the first line (the actual message)
+                            lines = content.split('\n')
+                            content = lines[0] if lines else content
                     
                     history.append({
                         "author": "CIRIS",
@@ -291,22 +298,26 @@ class BaseObserver(Generic[MessageT], ABC):
             await self._sign_and_add_task(task)
 
             # Build conversation context for thought
-            conversation_lines = ["=== CONVERSATION HISTORY (Last 10 messages) ==="]
+            thought_lines = [f"You observed @{msg.author_name} (ID: {msg.author_id}) in channel {msg.channel_id} say: {msg.content}"]  # type: ignore[attr-defined]
+            
+            thought_lines.append("\n=== CONVERSATION HISTORY (Last 10 messages) ===")
             for i, hist_msg in enumerate(history_context, 1):
                 author = hist_msg.get("author", "Unknown")
                 author_id = hist_msg.get("author_id", "unknown")
                 content = hist_msg.get("content", "")
                 _timestamp = hist_msg.get("timestamp", "")
-                conversation_lines.append(f"{i}. @{author} (ID: {author_id}): {content}")
+                thought_lines.append(f"{i}. @{author} (ID: {author_id}): {content}")
 
-            conversation_lines.append("\n=== CURRENT MESSAGE TO RESPOND TO ===")
-            conversation_lines.append(f"@{msg.author_name} (ID: {msg.author_id}): {msg.content}")  # type: ignore[attr-defined]
-            conversation_lines.append("=" * 40)
+            thought_lines.append("\n=== EVALUATE THIS MESSAGE AGAINST YOUR IDENTITY/JOB AND ETHICS AND DECIDE IF AND HOW TO ACT ON IT ===")
+            thought_lines.append(f"@{msg.author_name} (ID: {msg.author_id}): {msg.content}")  # type: ignore[attr-defined]
 
-            thought_content = "\n".join(conversation_lines)
+            thought_content = "\n".join(thought_lines)
 
             thought = Thought(
-                thought_id=str(uuid.uuid4()),
+                thought_id=generate_thought_id(
+                    thought_type=ThoughtType.OBSERVATION,
+                    task_id=task.task_id
+                ),
                 source_task_id=task.task_id,
                 thought_type=ThoughtType.OBSERVATION,
                 status=ThoughtStatus.PENDING,
@@ -358,7 +369,10 @@ class BaseObserver(Generic[MessageT], ABC):
             await self._sign_and_add_task(task)
 
             thought = Thought(
-                thought_id=str(uuid.uuid4()),
+                thought_id=generate_thought_id(
+                    thought_type=ThoughtType.OBSERVATION,
+                    task_id=task.task_id
+                ),
                 source_task_id=task.task_id,
                 thought_type=ThoughtType.OBSERVATION,
                 status=ThoughtStatus.PENDING,

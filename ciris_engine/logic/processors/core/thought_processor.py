@@ -9,7 +9,7 @@ from ciris_engine.logic.config import ConfigAccessor
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
 from ciris_engine.logic import persistence
 from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, TraceContext, ServiceRequestData, ServiceResponseData, ServiceCorrelationStatus
-from datetime import datetime
+from datetime import datetime, timezone
 from ciris_engine.logic.utils.channel_utils import create_channel_context
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.runtime.models import Thought, ThoughtStatus
@@ -53,7 +53,7 @@ class ThoughtProcessor:
         context: Optional[dict] = None
     ) -> Optional[ActionSelectionDMAResult]:
         """Main processing pipeline - coordinates the components."""
-        start_time = datetime.utcnow()
+        start_time = self._time_service.now()
         # Create trace for thought processing
         trace_id = f"task_{thought_item.source_task_id or 'unknown'}_{thought_item.thought_id}"
         span_id = f"thought_processor_{thought_item.thought_id}"
@@ -121,14 +121,15 @@ class ThoughtProcessor:
                     }
                 )
             # Update correlation with failure
-            end_time = datetime.utcnow()
+            end_time = self._time_service.now()
             from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
             update_req = CorrelationUpdateRequest(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "false",
                     "error_message": "Thought not found",
-                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
                 },
                 status=ServiceCorrelationStatus.FAILED
             )
@@ -151,14 +152,15 @@ class ThoughtProcessor:
                         }
                     )
                 # Update correlation with auth failure
-                end_time = datetime.utcnow()
+                end_time = self._time_service.now()
                 from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
                 update_req = CorrelationUpdateRequest(
                     correlation_id=correlation.correlation_id,
                     response_data={
                         "success": "false",
                         "error_message": "Thought parent task is not properly signed",
-                        "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                        "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                        "response_timestamp": end_time.isoformat()
                     },
                     status=ServiceCorrelationStatus.FAILED
                 )
@@ -206,14 +208,15 @@ class ThoughtProcessor:
                 defer_until=None
             )
             # Update correlation with DMA failure
-            end_time = datetime.utcnow()
+            end_time = self._time_service.now()
             from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
             update_req = CorrelationUpdateRequest(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "false",
                     "error_message": f"DMA failure: {str(dma_err)}",
-                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
                 },
                 status=ServiceCorrelationStatus.FAILED
             )
@@ -227,14 +230,15 @@ class ThoughtProcessor:
         # 4. Check for failures/escalations
         if self._has_critical_failure(dma_results):
             # Update correlation with critical failure
-            end_time = datetime.utcnow()
+            end_time = self._time_service.now()
             from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
             update_req = CorrelationUpdateRequest(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "false",
                     "error_message": "Critical DMA failure",
-                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
                 },
                 status=ServiceCorrelationStatus.FAILED
             )
@@ -262,14 +266,15 @@ class ThoughtProcessor:
                 defer_until=None
             )
             # Update correlation with DMA failure (action selection)
-            end_time = datetime.utcnow()
+            end_time = self._time_service.now()
             from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
             update_req = CorrelationUpdateRequest(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "false",
                     "error_message": f"DMA failure during action selection: {str(dma_err)}",
-                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
                 },
                 status=ServiceCorrelationStatus.FAILED
             )
@@ -294,14 +299,15 @@ class ThoughtProcessor:
             logger.error(f"ThoughtProcessor: No action result from DMA for {thought.thought_id}")
             logger.error("ThoughtProcessor: action_result is None! This is the critical issue.")
             # Update correlation with failure
-            end_time = datetime.utcnow()
+            end_time = self._time_service.now()
             from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
             update_req = CorrelationUpdateRequest(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "false",
                     "error_message": "No action result from DMA",
-                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
                 },
                 status=ServiceCorrelationStatus.FAILED
             )
@@ -451,14 +457,15 @@ class ThoughtProcessor:
                 )
 
         # Update correlation with success
-        end_time = datetime.utcnow()
+        end_time = self._time_service.now()
         from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
         update_req = CorrelationUpdateRequest(
             correlation_id=correlation.correlation_id,
             response_data={
                 "success": "true",
                 "result_summary": f"Successfully processed thought with action: {final_result.selected_action if final_result else 'none'}",
-                "execution_time_ms": str((end_time - start_time).total_seconds() * 1000)
+                "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                "response_timestamp": end_time.isoformat()
             },
             status=ServiceCorrelationStatus.COMPLETED
         )

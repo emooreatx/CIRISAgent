@@ -173,15 +173,18 @@ async def test_audit_service_get_audit_trail(audit_service, memory_bus):
 @pytest.mark.asyncio
 async def test_audit_service_query_audit_trail(audit_service, memory_bus):
     """Test querying audit trail with filters."""
-    # The actual query_audit_trail method takes individual parameters, not a query object
+    from ciris_engine.schemas.services.graph.audit import AuditQuery
+    
+    # Create an AuditQuery object
     start_time = datetime.now(timezone.utc)
-
-    # Query audit trail
-    results = await audit_service.query_audit_trail(
+    query = AuditQuery(
         start_time=start_time,
         action_types=["test_event"],
         limit=5
     )
+
+    # Query audit trail
+    results = await audit_service.query_audit_trail(query)
 
     # Should return list of audit entries
     assert isinstance(results, list)

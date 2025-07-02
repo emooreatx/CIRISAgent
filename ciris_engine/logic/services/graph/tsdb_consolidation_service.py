@@ -723,6 +723,8 @@ class TSDBConsolidationService(BaseGraphService):
         errors_by_component = defaultdict(int)
         task_processing_times = []
         total_errors = 0
+        guardrail_violations = defaultdict(int)
+        dma_decisions = defaultdict(int)
         
         # Build task summaries showing handler selections
         for corr in correlations:
@@ -778,6 +780,17 @@ class TSDBConsolidationService(BaseGraphService):
                 # Track thought type
                 if thought_id and corr.tags.get('thought_type'):
                     thoughts_by_type[corr.tags['thought_type']] += 1
+                
+                # Track guardrail violations
+                if component_type == 'guardrail':
+                    guardrail_type = corr.tags.get('guardrail_type', 'unknown')
+                    if corr.tags.get('violation') == 'true':
+                        guardrail_violations[guardrail_type] += 1
+                
+                # Track DMA decisions
+                if component_type == 'dma':
+                    dma_type = corr.tags.get('dma_type', 'unknown')
+                    dma_decisions[dma_type] += 1
         
         # Calculate latency percentiles
         component_latency_stats = {}
@@ -833,8 +846,8 @@ class TSDBConsolidationService(BaseGraphService):
             component_calls=dict(component_calls),
             component_failures=dict(component_failures),
             component_latency_ms=component_latency_stats,
-            dma_decisions=defaultdict(int),  # Simplified - focus on handler actions
-            guardrail_violations=defaultdict(int),  # Simplified
+            dma_decisions=dict(dma_decisions),
+            guardrail_violations=dict(guardrail_violations),
             handler_actions=dict(handler_actions),
             avg_task_processing_time_ms=avg_task_time,
             p95_task_processing_time_ms=p95_task_time,

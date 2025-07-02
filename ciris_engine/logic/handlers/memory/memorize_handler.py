@@ -42,17 +42,13 @@ class MemorizeHandler(BaseActionHandler):
             )
         except Exception as e:
             await self._handle_error(HandlerActionType.MEMORIZE, dispatch_context, thought_id, e)
-            persistence.update_thought_status(
-                thought_id=thought_id,
-                status=ThoughtStatus.FAILED,
-                final_action=result,
+            # Use centralized method to mark failed and create follow-up
+            return self.complete_thought_and_create_followup(
+                thought=thought,
+                follow_up_content=f"MEMORIZE action failed: {e}",
+                action_result=result,
+                status=ThoughtStatus.FAILED
             )
-
-            # Create failure follow-up
-            follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=f"MEMORIZE action failed: {e}"
-            )
-            persistence.add_thought(follow_up)
-            return follow_up.thought_id
 
         # Extract node from params - params is MemorizeParams
         assert isinstance(params, MemorizeParams)
@@ -72,23 +68,19 @@ class MemorizeHandler(BaseActionHandler):
                 f"Thought {thought_id} denied."
             )
 
-            persistence.update_thought_status(
-                thought_id=thought_id,
-                status=ThoughtStatus.FAILED,
-                final_action=result,
-            )
-
             await self._audit_log(
                 HandlerActionType.MEMORIZE,
                 dispatch_context,
                 outcome="failed_wa_required"
             )
 
-            # Create follow-up for WA requirement
-            follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content="MEMORIZE action failed: WA authorization required for identity changes"
+            # Use centralized method with FAILED status
+            return self.complete_thought_and_create_followup(
+                thought=thought,
+                follow_up_content="MEMORIZE action failed: WA authorization required for identity changes",
+                action_result=result,
+                status=ThoughtStatus.FAILED
             )
-            persistence.add_thought(follow_up)
-            return follow_up.thought_id
 
         # Perform the memory operation through the bus
         try:
@@ -99,13 +91,6 @@ class MemorizeHandler(BaseActionHandler):
 
             success = memory_result.status == MemoryOpStatus.SUCCESS
             final_status = ThoughtStatus.COMPLETED if success else ThoughtStatus.FAILED
-
-            # Update thought status
-            persistence.update_thought_status(
-                thought_id=thought_id,
-                status=final_status,
-                final_action=result,
-            )
 
             # Create appropriate follow-up
             if success:
@@ -130,13 +115,13 @@ class MemorizeHandler(BaseActionHandler):
                     f"{memory_result.reason or memory_result.error or 'Unknown error'}"
                 )
 
-            follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=follow_up_content
+            # Use centralized method to complete thought and create follow-up
+            follow_up_id = self.complete_thought_and_create_followup(
+                thought=thought,
+                follow_up_content=follow_up_content,
+                action_result=result,
+                status=ThoughtStatus.COMPLETED if success else ThoughtStatus.FAILED
             )
-
-            # The follow-up thought already has proper context from create_follow_up_thought
-            # No need to modify it
-
-            persistence.add_thought(follow_up)
 
             # Final audit log
             await self._audit_log(
@@ -145,7 +130,7 @@ class MemorizeHandler(BaseActionHandler):
                 outcome="success" if success else "failed"
             )
 
-            return follow_up.thought_id
+            return follow_up_id
 
         except Exception as e:
             await self._handle_error(HandlerActionType.MEMORIZE, dispatch_context, thought_id, e)

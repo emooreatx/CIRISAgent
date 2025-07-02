@@ -31,7 +31,13 @@ class ToolHandler(BaseActionHandler):
         new_follow_up = None
 
         try:
+            # Debug logging
+            self.logger.info(f"[TOOL_HANDLER] Raw result.action_parameters: {result.action_parameters}")
+            self.logger.info(f"[TOOL_HANDLER] Type: {type(result.action_parameters)}")
+            
             processed_result = await self._decapsulate_secrets_in_params(result, "tool", thought_id)
+            
+            self.logger.info(f"[TOOL_HANDLER] After decapsulation: {processed_result.action_parameters}")
 
             params: ToolParams = await self._validate_and_convert_params(processed_result.action_parameters, ToolParams)
         except Exception as e:
@@ -50,6 +56,10 @@ class ToolHandler(BaseActionHandler):
         else:
             _correlation_id = str(uuid.uuid4())
             try:
+                # Debug logging
+                self.logger.info(f"[TOOL_HANDLER] Executing tool: name={params.name}, parameters={params.parameters}")
+                self.logger.info(f"[TOOL_HANDLER] Parameters type: {type(params.parameters)}")
+                
                 # Use the tool bus to execute the tool
                 tool_result = await self.bus_manager.tool.execute_tool(
                     tool_name=params.name,
@@ -71,28 +81,35 @@ class ToolHandler(BaseActionHandler):
                 final_thought_status = ThoughtStatus.FAILED
                 follow_up_content_key_info = f"TOOL {params.name} execution failed: {str(e_tool)}"
 
-        persistence.update_thought_status(
-            thought_id=thought_id,
-            status=final_thought_status,
-            final_action=result,
-        )
-        self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} after TOOL attempt.")
-
         follow_up_text = ""
         if action_performed_successfully and isinstance(params, ToolParams):
             follow_up_text = f"CIRIS_FOLLOW_UP_THOUGHT: TOOL action {params.name} executed for thought {thought_id}. Info: {follow_up_content_key_info}. Awaiting tool results or next steps. If task complete, use TASK_COMPLETE."
         else:
             follow_up_text = f"CIRIS_FOLLOW_UP_THOUGHT: TOOL action failed for thought {thought_id}. Reason: {follow_up_content_key_info}. Review and determine next steps."
-        try:
-            new_follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=follow_up_text,
+        
+        # If tool failed, update thought status to FAILED before creating follow-up
+        if final_thought_status == ThoughtStatus.FAILED:
+            persistence.update_thought_status(thought.thought_id, ThoughtStatus.FAILED)
+            # Create follow-up manually since complete_thought_and_create_followup sets to COMPLETED
+            from ciris_engine.logic.infrastructure.handlers.helpers import create_follow_up_thought
+            from ciris_engine.schemas.runtime.enums import ThoughtType
+            follow_up = create_follow_up_thought(
+                parent=thought,
+                time_service=self.time_service,
+                content=follow_up_text,
+                thought_type=ThoughtType.FOLLOW_UP
             )
-            # Note: We don't modify the context here since ThoughtContext has extra="forbid"
-            # The action details are already captured in the follow_up_text content
-            persistence.add_thought(new_follow_up)
-            self.logger.info(
-                f"Created follow-up thought {new_follow_up.thought_id} for original thought {thought_id} after TOOL action."
+            persistence.add_thought(follow_up)
+            follow_up_id = follow_up.thought_id
+        else:
+            # Use centralized method for successful cases
+            follow_up_id = self.complete_thought_and_create_followup(
+                thought=thought,
+                follow_up_content=follow_up_text,
+                action_result=result
             )
-            await self._audit_log(HandlerActionType.TOOL, dispatch_context, outcome="success" if action_performed_successfully else "failed")
-        except Exception as e:
-            await self._handle_error(HandlerActionType.TOOL, dispatch_context, thought_id, e)
-            raise FollowUpCreationError from e
+        
+        await self._audit_log(HandlerActionType.TOOL, dispatch_context, outcome="success" if action_performed_successfully else "failed")
+        
+        if not follow_up_id:
+            raise FollowUpCreationError("Failed to create follow-up thought")

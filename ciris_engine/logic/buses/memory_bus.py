@@ -13,6 +13,7 @@ from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.services.graph_core import GraphNode
 from ciris_engine.schemas.services.operations import MemoryOpResult, MemoryOpStatus, MemoryQuery
 from ciris_engine.schemas.runtime.memory import MemorySearchResult, TimeSeriesDataPoint
+from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
 from ciris_engine.protocols.services import MemoryService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from .base_bus import BaseBus, BusMessage
@@ -172,6 +173,28 @@ class MemoryBus(BaseBus[MemoryService]):
             return await service.search_memories(query, scope, limit)
         except Exception as e:
             logger.error(f"Failed to search memories: {e}", exc_info=True)
+            return []
+    
+    async def search(
+        self,
+        query: str,
+        filters: Optional['MemorySearchFilter'] = None,
+        handler_name: str = "default"
+    ) -> List[GraphNode]:
+        """Search graph nodes with flexible filters."""
+        service = await self.get_service(
+            handler_name=handler_name,
+            required_capabilities=["search"]
+        )
+
+        if not service:
+            logger.error(f"No memory service with search capability available for {handler_name}")
+            return []
+
+        try:
+            return await service.search(query, filters)
+        except Exception as e:
+            logger.error(f"Failed to search graph nodes: {e}", exc_info=True)
             return []
 
     async def recall_timeseries(

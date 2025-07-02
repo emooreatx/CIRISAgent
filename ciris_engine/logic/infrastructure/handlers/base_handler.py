@@ -84,6 +84,61 @@ class BaseActionHandler(ABC):
         self._current_correlation: Optional[ServiceCorrelation] = None
         self._trace_start_time: Optional[datetime] = None
 
+    def complete_thought_and_create_followup(
+        self,
+        thought: Thought,
+        follow_up_content: str = "",
+        thought_type: Optional[Any] = None,
+        action_result: Optional[Any] = None,
+        status: Optional['ThoughtStatus'] = None
+    ) -> Optional[str]:
+        """
+        Centralized method to complete a thought and create a follow-up.
+        
+        Args:
+            thought: The thought to complete
+            follow_up_content: Content for the follow-up thought
+            thought_type: Type of follow-up thought (defaults to FOLLOW_UP)
+            action_result: The action result to store with the thought
+            status: The final status (defaults to COMPLETED, can be FAILED)
+            
+        Returns:
+            The follow-up thought ID if created, None otherwise
+        """
+        from ciris_engine.schemas.runtime.enums import ThoughtType, ThoughtStatus
+        from ciris_engine.logic.infrastructure.handlers.helpers import create_follow_up_thought
+        
+        # Mark the current thought with the specified status (default to COMPLETED)
+        final_status = status or ThoughtStatus.COMPLETED
+        success = persistence.update_thought_status(
+            thought_id=thought.thought_id,
+            status=final_status,
+            final_action=action_result
+        )
+        
+        if not success:
+            self.logger.error(f"Failed to mark thought {thought.thought_id} as COMPLETED")
+            # Still try to create follow-up
+            
+        # Create follow-up thought if content provided
+        if follow_up_content:
+            follow_up = create_follow_up_thought(
+                parent=thought,
+                time_service=self.time_service,
+                content=follow_up_content,
+                thought_type=thought_type or ThoughtType.FOLLOW_UP
+            )
+            
+            try:
+                persistence.add_thought(follow_up)
+                self.logger.info(f"Created follow-up thought {follow_up.thought_id} for completed thought {thought.thought_id}")
+                return follow_up.thought_id
+            except Exception as e:
+                self.logger.error(f"Failed to create follow-up thought: {e}")
+                return None
+        
+        return None
+
     @abstractmethod
     async def handle(
         self,
@@ -110,30 +165,37 @@ class BaseActionHandler(ABC):
         outcome: str = "success"
     ) -> None:
         """Log an audit event through the audit service."""
-        try:
-            # Check if audit service is available
-            if not hasattr(self.bus_manager, 'audit_service') or not self.bus_manager.audit_service:
-                self.logger.debug("Audit service not available, skipping audit log")
-                return
+        # Debug logging
+        self.logger.info(f"[AUDIT DEBUG] _audit_log called for {action_type.value} with outcome={outcome}")
+        self.logger.info(f"[AUDIT DEBUG] bus_manager has audit_service: {hasattr(self.bus_manager, 'audit_service')}")
+        if hasattr(self.bus_manager, 'audit_service'):
+            self.logger.info(f"[AUDIT DEBUG] audit_service is: {self.bus_manager.audit_service}")
+        
+        # FAIL FAST AND LOUD if audit service is missing
+        if not hasattr(self.bus_manager, 'audit_service'):
+            raise RuntimeError("CRITICAL: BusManager missing audit_service attribute!")
+        
+        if not self.bus_manager.audit_service:
+            raise RuntimeError("CRITICAL: BusManager.audit_service is None! Audit service must ALWAYS be available!")
 
-            # Convert to proper audit event type
-            audit_event_type = AuditEventType(f"handler_action_{action_type.value}")
+        # Convert to proper audit event type
+        audit_event_type = AuditEventType(f"handler_action_{action_type.value}")
+        self.logger.info(f"[AUDIT DEBUG] Creating audit event type: {audit_event_type}")
 
-            # Use the audit service directly (it's not a bussed service)
-            await self.bus_manager.audit_service.log_event(
-                event_type=str(audit_event_type),
-                event_data={
-                    "handler_name": self.__class__.__name__,
-                    "thought_id": dispatch_context.thought_id,
-                    "task_id": dispatch_context.task_id,
-                    "action": action_type.value,
-                    "outcome": outcome,
-                    "wa_authorized": dispatch_context.wa_authorized
-                }
-            )
-        except Exception as e:
-            self.logger.error(f"Failed to log audit event: {e}")
-            # Audit failures should not break handler execution
+        # Use the audit service directly (it's not a bussed service)
+        self.logger.info(f"[AUDIT DEBUG] Calling audit_service.log_event with handler={self.__class__.__name__}")
+        await self.bus_manager.audit_service.log_event(
+            event_type=str(audit_event_type),
+            event_data={
+                "handler_name": self.__class__.__name__,
+                "thought_id": dispatch_context.thought_id,
+                "task_id": dispatch_context.task_id,
+                "action": action_type.value,
+                "outcome": outcome,
+                "wa_authorized": dispatch_context.wa_authorized
+            }
+        )
+        self.logger.info(f"[AUDIT DEBUG] Successfully logged audit event")
 
     async def _handle_error(
         self,
@@ -207,10 +269,15 @@ class BaseActionHandler(ABC):
                         thought_id=thought_id
                     )
                 )
+                
+                # Recreate the proper parameter object from the decapsulated dict
+                param_class = type(result.action_parameters)
+                reconstructed_params = param_class(**decapsulated_params)
+                
                 # Create a new result with decapsulated parameters
                 return ActionSelectionDMAResult(
                     selected_action=result.selected_action,
-                    action_parameters=decapsulated_params,
+                    action_parameters=reconstructed_params,
                     rationale=result.rationale,
                     # Optional fields
                     raw_llm_response=result.raw_llm_response,
@@ -276,7 +343,7 @@ class BaseActionHandler(ABC):
         action_type: HandlerActionType
     ) -> None:
         """Create a trace correlation for handler execution."""
-        self._trace_start_time = datetime.utcnow()
+        self._trace_start_time = self.time_service.now()
         
         # Create trace for handler execution
         trace_id = f"task_{dispatch_context.task_id or 'unknown'}_{dispatch_context.thought_id or 'unknown'}"
@@ -298,7 +365,7 @@ class BaseActionHandler(ABC):
         )
         
         self._current_correlation = ServiceCorrelation(
-            correlation_id=f"trace_{span_id}_{datetime.utcnow().timestamp()}",
+            correlation_id=f"trace_{span_id}_{self.time_service.now().timestamp()}",
             correlation_type=CorrelationType.TRACE_SPAN,
             service_type="handler",
             handler_name=self.__class__.__name__,
@@ -328,13 +395,14 @@ class BaseActionHandler(ABC):
         if not self._current_correlation or not self._trace_start_time:
             return
             
-        end_time = datetime.utcnow()
+        end_time = self.time_service.now()
         update_req = CorrelationUpdateRequest(
             correlation_id=self._current_correlation.correlation_id,
             response_data={
                 "success": str(success).lower(),
                 "result_summary": result_summary,
-                "execution_time_ms": str((end_time - self._trace_start_time).total_seconds() * 1000)
+                "execution_time_ms": str((end_time - self._trace_start_time).total_seconds() * 1000),
+                "response_timestamp": end_time.isoformat()
             },
             status=ServiceCorrelationStatus.COMPLETED if success else ServiceCorrelationStatus.FAILED
         )

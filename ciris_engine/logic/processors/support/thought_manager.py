@@ -12,6 +12,7 @@ from ciris_engine.schemas.runtime.enums import ThoughtStatus, ThoughtType, TaskS
 from ciris_engine.logic import persistence
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.logic.utils.thought_utils import generate_thought_id
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,11 @@ class ThoughtManager:
             channel_id = task.channel_id
 
         thought = Thought(
-            thought_id=f"th_seed_{task.task_id}_{str(uuid.uuid4())[:4]}",
+            thought_id=generate_thought_id(
+                thought_type=ThoughtType.STANDARD,
+                task_id=task.task_id,
+                is_seed=True
+            ),
             source_task_id=task.task_id,
             channel_id=channel_id,  # Set channel_id on the thought
             thought_type=ThoughtType.STANDARD,
@@ -192,7 +197,11 @@ class ThoughtManager:
             correlation_id=str(uuid.uuid4())
         )
         thought = Thought(
-            thought_id=f"th_followup_{parent_thought.thought_id[:8]}_{str(uuid.uuid4())[:4]}",
+            thought_id=generate_thought_id(
+                thought_type=ThoughtType.FOLLOW_UP,
+                task_id=parent_thought.source_task_id,
+                parent_thought_id=parent_thought.thought_id
+            ),
             source_task_id=parent_thought.source_task_id,
             thought_type=thought_type,
             status=ThoughtStatus.PENDING,

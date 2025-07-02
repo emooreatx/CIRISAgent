@@ -41,6 +41,10 @@ class BusManager:
         self.time_service = time_service
         self.telemetry_service = telemetry_service
         self.audit_service = audit_service
+        
+        logger.info(f"[AUDIT DEBUG] BusManager.__init__ called with audit_service={audit_service}")
+        logger.info(f"[AUDIT DEBUG] audit_service type: {type(audit_service)}")
+        logger.info(f"[AUDIT DEBUG] audit_service is None: {audit_service is None}")
 
         # Initialize all buses with proper dependencies
         self.communication = CommunicationBus(service_registry, time_service)

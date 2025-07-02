@@ -30,6 +30,9 @@ async def test_full_startup_and_wakeup():
     """Test complete startup including wakeup sequence."""
     # Create a temporary directory for test data
     with tempfile.TemporaryDirectory() as temp_dir:
+        # Ensure directory is writable
+        os.chmod(temp_dir, 0o777)
+        
         # Set environment variables for test
         os.environ["CIRIS_DATA_DIR"] = temp_dir
         os.environ["OPENAI_API_KEY"] = "test-key"

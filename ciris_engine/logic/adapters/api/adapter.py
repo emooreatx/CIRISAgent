@@ -83,13 +83,13 @@ class ApiPlatform(Service):
         """Get services provided by this adapter."""
         registrations = []
         
-        # Register communication service
+        # Register communication service with all capabilities
         registrations.append(
             AdapterServiceRegistration(
                 service_type=ServiceType.COMMUNICATION,
                 provider=self.communication,
                 priority=Priority.NORMAL,
-                capabilities=['send_message']
+                capabilities=['send_message', 'fetch_messages']
             )
         )
         
@@ -174,58 +174,63 @@ class ApiPlatform(Service):
         # Set up message handler to use the message observer and create correlations
         async def handle_message_via_observer(msg):
             """Handle incoming messages by creating passive observations."""
-            if self.message_observer:
-                # Store the message ID to channel mapping
-                self.app.state.message_channel_map[msg.channel_id] = msg.message_id
-                # Create an "observe" correlation for this incoming message
-                from ciris_engine.logic import persistence
-                from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus
-                from ciris_engine.schemas.telemetry.core import ServiceRequestData, ServiceResponseData
-                import uuid
-                from datetime import datetime, timezone
-                
-                correlation_id = str(uuid.uuid4())
-                now = datetime.now(timezone.utc)
-                
-                # Create correlation for the incoming message
-                correlation = ServiceCorrelation(
-                    correlation_id=correlation_id,
-                    service_type="api",
-                    handler_name="APIAdapter",
-                    action_type="observe",
-                    request_data=ServiceRequestData(
+            try:
+                logger.info(f"handle_message_via_observer called for message {msg.message_id}")
+                if self.message_observer:
+                    # Store the message ID to channel mapping
+                    self.app.state.message_channel_map[msg.channel_id] = msg.message_id
+                    # Create an "observe" correlation for this incoming message
+                    from ciris_engine.logic import persistence
+                    from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus
+                    from ciris_engine.schemas.telemetry.core import ServiceRequestData, ServiceResponseData
+                    import uuid
+                    from datetime import datetime, timezone
+                    
+                    correlation_id = str(uuid.uuid4())
+                    now = datetime.now(timezone.utc)
+                    
+                    # Create correlation for the incoming message
+                    correlation = ServiceCorrelation(
+                        correlation_id=correlation_id,
                         service_type="api",
-                        method_name="observe",
-                        channel_id=msg.channel_id,
-                        parameters={
-                            "content": msg.content,
-                            "author_id": msg.author_id,
-                            "author_name": msg.author_name,
-                            "message_id": msg.message_id
-                        },
-                        request_timestamp=now
-                    ),
-                    response_data=ServiceResponseData(
-                        success=True,
-                        result_summary="Message observed",
-                        execution_time_ms=0,
-                        response_timestamp=now
-                    ),
-                    status=ServiceCorrelationStatus.COMPLETED,
-                    created_at=now,
-                    updated_at=now,
-                    timestamp=now
-                )
-                
-                # Get time service if available
-                time_service = getattr(runtime, 'time_service', None)
-                persistence.add_correlation(correlation, time_service)
-                logger.debug(f"Created observe correlation for message {msg.message_id}")
-                
-                # Pass to observer for task creation
-                await self.message_observer.handle_incoming_message(msg)
-            else:
-                logger.error("Message observer not available")
+                        handler_name="APIAdapter",
+                        action_type="observe",
+                        request_data=ServiceRequestData(
+                            service_type="api",
+                            method_name="observe",
+                            channel_id=msg.channel_id,
+                            parameters={
+                                "content": msg.content,
+                                "author_id": msg.author_id,
+                                "author_name": msg.author_name,
+                                "message_id": msg.message_id
+                            },
+                            request_timestamp=now
+                        ),
+                        response_data=ServiceResponseData(
+                            success=True,
+                            result_summary="Message observed",
+                            execution_time_ms=0,
+                            response_timestamp=now
+                        ),
+                        status=ServiceCorrelationStatus.COMPLETED,
+                        created_at=now,
+                        updated_at=now,
+                        timestamp=now
+                    )
+                    
+                    # Get time service if available
+                    time_service = getattr(self.runtime, 'time_service', None)
+                    persistence.add_correlation(correlation, time_service)
+                    logger.debug(f"Created observe correlation for message {msg.message_id}")
+                    
+                    # Pass to observer for task creation
+                    await self.message_observer.handle_incoming_message(msg)
+                    logger.info(f"Message {msg.message_id} passed to observer")
+                else:
+                    logger.error("Message observer not available")
+            except Exception as e:
+                logger.error(f"Error in handle_message_via_observer: {e}", exc_info=True)
         
         self.app.state.on_message = handle_message_via_observer
         logger.info("Set up message handler via observer pattern with correlation tracking")

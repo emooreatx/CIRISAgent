@@ -69,6 +69,16 @@ class ActionSelectionContextBuilder:
 
         # Build conscience feedback guidance if available
         _conscience_guidance = self._build_conscience_guidance(triaged_inputs.get("conscience_feedback"))
+        
+        # Get reject thought guidance
+        _reject_thought_guidance = self._get_reject_thought_guidance()
+        
+        # Extract all guidance sections for template formatting
+        _action_parameter_schemas = _guidance_sections.get('action_parameter_schemas', '')
+        _action_parameters_speak_csdma_guidance = _guidance_sections.get('action_parameters_speak_csdma_guidance', '')
+        _action_parameters_ponder_guidance = _guidance_sections.get('action_parameters_ponder_guidance', '')
+        _action_parameters_observe_guidance = _guidance_sections.get('action_parameters_observe_guidance', '')
+        _rationale_csdma_guidance = _guidance_sections.get('rationale_csdma_guidance', '')
 
         # Assemble final content
         main_user_content = """
@@ -78,24 +88,24 @@ All fields specified in the schema for your response are MANDATORY unless explic
 Permitted Handler Actions: {action_options_str}{available_tools_str}
 {startup_guidance}
 {conscience_guidance}
-{self._get_reject_thought_guidance()}
+{reject_thought_guidance}
 {final_ponder_advisory}
-{guidance_sections['action_parameter_schemas']}
+{action_parameter_schemas}
 Action Selection Instructions:
 Based on the DMA results and original thought, select the most appropriate handler action.
 
 Your response MUST be a JSON object with exactly these three keys:
 1. 'selected_action': Choose from {action_options_str}
 2. 'action_parameters': Parameters matching the schema for your selected_action
-    {guidance_sections['action_parameters_speak_csdma_guidance']}
-    {guidance_sections['action_parameters_ponder_guidance']}
-    {guidance_sections['action_parameters_observe_guidance']}
+    {action_parameters_speak_csdma_guidance}
+    {action_parameters_ponder_guidance}
+    {action_parameters_observe_guidance}
 3. 'rationale': Explain why this action is optimal given the DMA evaluations and CIRIS principles
-    {guidance_sections['rationale_csdma_guidance']}
+    {rationale_csdma_guidance}
 
 IMPORTANT: Return ONLY a JSON object with these exact keys: selected_action, action_parameters, rationale.
 
-Original Thought: "{original_thought.content}"
+Original Thought: "{original_thought_content}"
 {ponder_notes_str}
 {user_profile_context_str}
 {system_snapshot_context_str}
@@ -108,7 +118,32 @@ DSDMA: {dsdma_summary_str}
 Based on all the provided information and the PDMA framework for action selection, determine the appropriate handler action and structure your response as specified.
 Adhere strictly to the schema for your JSON output.
 """
-        return main_user_content.strip()
+        # Format the template with all the variables
+        formatted_content = main_user_content.format(
+            ENGINE_OVERVIEW_TEMPLATE="",  # This is typically empty
+            action_options_str=_action_options_str,
+            available_tools_str=_available_tools_str,
+            startup_guidance=_startup_guidance,
+            conscience_guidance=_conscience_guidance,
+            reject_thought_guidance=_reject_thought_guidance,
+            action_parameter_schemas=_action_parameter_schemas,
+            action_parameters_speak_csdma_guidance=_action_parameters_speak_csdma_guidance,
+            action_parameters_ponder_guidance=_action_parameters_ponder_guidance,
+            action_parameters_observe_guidance=_action_parameters_observe_guidance,
+            rationale_csdma_guidance=_rationale_csdma_guidance,
+            self=self,
+            final_ponder_advisory=_final_ponder_advisory,
+            guidance_sections=_guidance_sections,
+            original_thought=original_thought,
+            original_thought_content=original_thought.content,
+            ponder_notes_str=_ponder_notes_str,
+            user_profile_context_str=user_profile_context_str,
+            system_snapshot_context_str=system_snapshot_context_str,
+            ethical_summary=_ethical_summary,
+            csdma_summary=_csdma_summary,
+            dsdma_summary_str=_dsdma_summary_str
+        )
+        return formatted_content.strip()
 
     def _get_permitted_actions(self, triaged_inputs: Dict[str, Any]) -> List[HandlerActionType]:
         """Get permitted actions from triaged inputs."""

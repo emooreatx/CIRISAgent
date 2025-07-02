@@ -167,33 +167,45 @@ class SpeakHandler(BaseActionHandler):
         persistence.add_correlation(correlation, self.time_service)
 
         follow_up_text = (
-            """
-            NEXT ACTION IS TASK COMPLETE!
-            CIRIS_FOLLOW_UP_THOUGHT: YOU Spoke, as a result of your action: '{params.content}' in channel
-            {channel_id} as a response to task: {task_description}. The next
-            action is probably TASK COMPLETE to mark the original task as handled.
-            Do NOT speak again unless DRASTICALLY necessary.
-            NEXT ACTION IS TASK COMPLETE UNLESS YOU NEED TO MEMORIZE SOMETHING!
-            """
+            f"CIRIS_FOLLOW_UP_THOUGHT: Message sent successfully to channel {channel_id}."
             if success
             else f"CIRIS_FOLLOW_UP_THOUGHT: SPEAK action failed for thought {thought_id}."
         )
 
-        try:
-            new_follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=follow_up_text)
-            # Simple: ensure channel_id is in the thought context
-            if new_follow_up.context and not new_follow_up.context.channel_id:
-                new_follow_up.context.channel_id = channel_id
-            persistence.add_thought(new_follow_up)
-            await self._audit_log(
-                HandlerActionType.SPEAK,
-                dispatch_context.model_copy(update={"thought_id": thought_id, "event_summary": event_summary}),
-                outcome="success" if success else "failed",
+        # If message failed, update thought status to FAILED before creating follow-up
+        if final_thought_status == ThoughtStatus.FAILED:
+            persistence.update_thought_status(
+                thought_id=thought.thought_id,
+                status=ThoughtStatus.FAILED,
+                final_action=result
             )
-            follow_up_thought_id = new_follow_up.thought_id
-        except Exception as e:
-            await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, e)
-            raise FollowUpCreationError from e
+            # Create follow-up manually since complete_thought_and_create_followup sets to COMPLETED
+            from ciris_engine.schemas.runtime.enums import ThoughtType
+            follow_up = create_follow_up_thought(
+                parent=thought,
+                time_service=self.time_service,
+                content=follow_up_text,
+                thought_type=ThoughtType.FOLLOW_UP
+            )
+            persistence.add_thought(follow_up)
+            follow_up_thought_id = follow_up.thought_id
+        else:
+            # Use centralized method for successful cases
+            follow_up_thought_id = self.complete_thought_and_create_followup(
+                thought=thought,
+                follow_up_content=follow_up_text,
+                action_result=result
+            )
+        
+        if not follow_up_thought_id:
+            await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, Exception("Failed to create follow-up thought"))
+            raise FollowUpCreationError("Failed to create follow-up thought")
+            
+        await self._audit_log(
+            HandlerActionType.SPEAK,
+            dispatch_context.model_copy(update={"thought_id": thought_id, "event_summary": event_summary}),
+            outcome="success" if success else "failed",
+        )
 
         # Update trace correlation with success
         self._update_trace_correlation(

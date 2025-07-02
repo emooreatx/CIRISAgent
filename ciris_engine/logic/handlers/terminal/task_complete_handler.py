@@ -96,11 +96,18 @@ class TaskCompleteHandler(BaseActionHandler):
                     self.logger.info(f"Marked parent task {parent_task_id} as COMPLETED due to TASK_COMPLETE action on thought {thought_id}.")
                     print(f"[TASK_COMPLETE_HANDLER] ✓ Task {parent_task_id} marked as COMPLETED")
 
+                    # Check for pending/processing thoughts - this should never happen
                     pending = persistence.get_thoughts_by_task_id(parent_task_id)
-                    to_delete = [t.thought_id for t in pending if getattr(t, 'status', None) in {ThoughtStatus.PENDING, ThoughtStatus.PROCESSING}]
-                    if to_delete:
-                        persistence.delete_thoughts_by_ids(to_delete)
-                        self.logger.debug(f"Cleaned up {len(to_delete)} pending thoughts for task {parent_task_id}")
+                    pending_or_processing = [t.thought_id for t in pending if getattr(t, 'status', None) in {ThoughtStatus.PENDING, ThoughtStatus.PROCESSING}]
+                    if pending_or_processing:
+                        error_msg = (
+                            f"CRITICAL: Task {parent_task_id} cannot be marked complete - "
+                            f"has {len(pending_or_processing)} thoughts still pending/processing: {pending_or_processing}. "
+                            f"This indicates a handler failed to properly complete thought processing."
+                        )
+                        self.logger.error(error_msg)
+                        print(f"[TASK_COMPLETE_HANDLER] ✗ {error_msg}")
+                        raise RuntimeError(error_msg)
                 else:
                     self.logger.error(f"Failed to update status for parent task {parent_task_id} to COMPLETED.")
                     print(f"[TASK_COMPLETE_HANDLER] ✗ Failed to update task {parent_task_id} status")

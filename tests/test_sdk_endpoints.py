@@ -7,12 +7,30 @@ Tests all 35 endpoints through the SDK with proper authentication.
 import asyncio
 import pytest
 import json
+import socket
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
 
 from ciris_sdk import CIRISClient
 from ciris_sdk.exceptions import CIRISAuthenticationError, CIRISNotFoundError, CIRISValidationError, CIRISAPIError
 from ciris_sdk.models import GraphNode
+
+
+# Skip all tests in this module if API is not available
+def check_api_available():
+    """Check if API is accessible."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex(('localhost', 8080))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
+
+
+# Apply skip to entire module
+pytestmark = pytest.mark.skipif(not check_api_available(), reason="API not running on localhost:8080")
 
 
 class TestCIRISSDKEndpoints:
