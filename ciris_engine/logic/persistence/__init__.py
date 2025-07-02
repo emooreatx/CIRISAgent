@@ -45,6 +45,7 @@ from .models import (
     update_correlation,
     get_correlation,
     get_correlations_by_task_and_action,
+    get_correlations_by_channel,
 )
 from .analytics import (
     get_pending_thoughts_for_active_tasks,
@@ -96,6 +97,7 @@ __all__ = [
     "update_correlation",
     "get_correlation",
     "get_correlations_by_task_and_action",
+    "get_correlations_by_channel",
     "get_pending_thoughts_for_active_tasks",
     "count_pending_thoughts_for_active_tasks",
     "count_active_tasks",

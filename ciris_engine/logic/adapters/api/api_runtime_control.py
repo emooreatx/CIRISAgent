@@ -2,11 +2,13 @@
 Runtime control service for API adapter.
 """
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 from datetime import datetime, timezone
 
 from ciris_engine.logic.adapters.base import Service
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.logic.runtime.adapter_manager import RuntimeAdapterManager
+from ciris_engine.schemas.runtime.adapter_management import AdapterOperationResult, AdapterStatus as AdapterStatusSchema
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,9 @@ class APIRuntimeControlService(Service):
         self._paused = False
         self._pause_reason: Optional[str] = None
         self._pause_time: Optional[datetime] = None
+        
+        # Adapter manager will be initialized later when services are available
+        self.adapter_manager: Optional[RuntimeAdapterManager] = None
     
     async def pause_processing(self, reason: str) -> bool:
         """Pause agent processing."""
@@ -148,6 +153,13 @@ class APIRuntimeControlService(Service):
     
     async def start(self) -> None:
         """Start the runtime control service."""
+        # Initialize adapter manager now that services should be available
+        if self.runtime and hasattr(self.runtime, 'time_service') and self.runtime.time_service:
+            self.adapter_manager = RuntimeAdapterManager(self.runtime, self.runtime.time_service)
+            logger.info("Initialized RuntimeAdapterManager for API runtime control")
+        else:
+            logger.warning("Time service not available, adapter manager will not be initialized")
+        
         logger.info("API Runtime Control Service started")
     
     async def stop(self) -> None:
@@ -184,4 +196,112 @@ class APIRuntimeControlService(Service):
                 "pause_duration": float((datetime.now(timezone.utc) - self._pause_time).total_seconds() if self._pause_time and self._paused else 0)
             },
             last_health_check=datetime.now(timezone.utc)
+        )
+    
+    # Adapter Management Methods
+    
+    async def list_adapters(self) -> List[Any]:
+        """List all loaded adapters."""
+        if not self.adapter_manager:
+            logger.warning("Adapter manager not available")
+            return []
+        
+        return await self.adapter_manager.list_adapters()
+    
+    async def get_adapter_info(self, adapter_id: str) -> Optional[Any]:
+        """Get detailed information about a specific adapter."""
+        if not self.adapter_manager:
+            logger.warning("Adapter manager not available")
+            return None
+        
+        status = await self.adapter_manager.get_adapter_status(adapter_id)
+        if not status:
+            return None
+        
+        # Convert AdapterStatus to AdapterInfo format expected by runtime control
+        from ciris_engine.schemas.services.core.runtime import AdapterInfo, AdapterStatus
+        
+        # Map status
+        if status.is_running:
+            adapter_status = AdapterStatus.RUNNING
+        else:
+            adapter_status = AdapterStatus.STOPPED
+        
+        return AdapterInfo(
+            adapter_id=status.adapter_id,
+            adapter_type=status.adapter_type,
+            status=adapter_status,
+            started_at=status.loaded_at,
+            messages_processed=status.metrics.messages_processed if status.metrics else 0,
+            error_count=status.metrics.errors_count if status.metrics else 0,
+            last_error=status.metrics.last_error if status.metrics else None
+        )
+    
+    async def load_adapter(
+        self,
+        adapter_type: str,
+        adapter_id: Optional[str] = None,
+        config: Optional[Dict[str, object]] = None,
+        auto_start: bool = True
+    ) -> Any:
+        """Load a new adapter instance."""
+        if not self.adapter_manager:
+            from ciris_engine.schemas.services.core.runtime import AdapterOperationResponse, AdapterStatus
+            return AdapterOperationResponse(
+                success=False,
+                timestamp=datetime.now(timezone.utc),
+                adapter_id=adapter_id,
+                adapter_type=adapter_type,
+                status=AdapterStatus.ERROR,
+                error="Adapter manager not available"
+            )
+        
+        # Generate adapter ID if not provided
+        if not adapter_id:
+            import uuid
+            adapter_id = f"{adapter_type}_{uuid.uuid4().hex[:8]}"
+        
+        result = await self.adapter_manager.load_adapter(adapter_type, adapter_id, config)
+        
+        # Convert to runtime control response format
+        from ciris_engine.schemas.services.core.runtime import AdapterOperationResponse, AdapterStatus
+        return AdapterOperationResponse(
+            success=result.success,
+            adapter_id=result.adapter_id,
+            adapter_type=adapter_type,
+            timestamp=datetime.now(timezone.utc),
+            status=AdapterStatus.RUNNING if result.success else AdapterStatus.ERROR,
+            message=result.message,
+            error=result.error
+        )
+    
+    async def unload_adapter(
+        self,
+        adapter_id: str,
+        force: bool = False
+    ) -> Any:
+        """Unload an adapter instance."""
+        if not self.adapter_manager:
+            from ciris_engine.schemas.services.core.runtime import AdapterOperationResponse, AdapterStatus
+            return AdapterOperationResponse(
+                success=False,
+                timestamp=datetime.now(timezone.utc),
+                adapter_id=adapter_id,
+                adapter_type="unknown",
+                status=AdapterStatus.ERROR,
+                error="Adapter manager not available"
+            )
+        
+        result = await self.adapter_manager.unload_adapter(adapter_id)
+        
+        # Convert to runtime control response format
+        from ciris_engine.schemas.services.core.runtime import AdapterOperationResponse, AdapterStatus
+        return AdapterOperationResponse(
+            success=result.success,
+            adapter_id=result.adapter_id,
+            adapter_type=result.adapter_type or "unknown",
+            timestamp=datetime.now(timezone.utc),
+            status=AdapterStatus.STOPPED if result.success else AdapterStatus.ERROR,
+            message=result.message,
+            error=result.error
         )

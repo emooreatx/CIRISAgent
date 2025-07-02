@@ -1,0 +1,383 @@
+"""
+Test all 10 CIRIS handlers through the API using Mock LLM.
+
+This test suite verifies that each handler (MEMORIZE, SPEAK, OBSERVE, DEFER, 
+REJECT, TASK_COMPLETE, TOOL, RECALL, FORGET, PONDER) works correctly when 
+invoked through the API with appropriate mock LLM commands.
+"""
+
+import pytest
+import requests
+import time
+import json
+import socket
+from typing import Dict, Any, Optional, List
+from datetime import datetime
+
+
+# Skip all tests in this module if API is not available
+def check_api_available():
+    """Check if API is accessible."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex(('localhost', 8080))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
+
+
+# Apply skip to entire module
+pytestmark = pytest.mark.skipif(not check_api_available(), reason="API not running on localhost:8080")
+
+
+class CIRISAPIClient:
+    """Helper class for interacting with CIRIS API."""
+    
+    def __init__(self, base_url: str = "http://localhost:8080"):
+        self.base_url = base_url
+        self.token: Optional[str] = None
+        self.headers: Dict[str, str] = {}
+        
+    def login(self, username: str = "admin", password: str = "ciris_admin_password") -> bool:
+        """Login and store authentication token."""
+        resp = requests.post(
+            f"{self.base_url}/v1/auth/login",
+            json={"username": username, "password": password}
+        )
+        if resp.status_code == 200:
+            self.token = resp.json()["access_token"]
+            self.headers = {"Authorization": f"Bearer {self.token}"}
+            return True
+        return False
+        
+    def interact(self, message: str, channel_id: str = "api_test") -> Dict[str, Any]:
+        """Send a message to the agent."""
+        resp = requests.post(
+            f"{self.base_url}/v1/agent/interact",
+            json={"message": message, "channel_id": channel_id},
+            headers=self.headers
+        )
+        return resp.json() if resp.status_code == 200 else {"error": resp.text}
+        
+    def get_audit_entries(self, limit: int = 10, resource_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get audit entries, optionally filtered by resource."""
+        resp = requests.get(
+            f"{self.base_url}/v1/audit/entries?limit={limit}",
+            headers=self.headers
+        )
+        if resp.status_code == 200:
+            entries = resp.json().get("data", {}).get("entries", [])
+            if resource_filter:
+                entries = [e for e in entries if resource_filter in e.get("resource", "")]
+            return entries
+        return []
+        
+    def search_memory(self, query: str) -> List[Dict[str, Any]]:
+        """Search memory graph."""
+        resp = requests.post(
+            f"{self.base_url}/v1/memory/search",
+            json={"query": query},
+            headers=self.headers
+        )
+        if resp.status_code == 200:
+            return resp.json().get("data", {}).get("results", [])
+        return []
+        
+    def wait_for_processing(self, timeout: int = 2) -> None:
+        """Wait for agent to process the request."""
+        time.sleep(timeout)
+
+
+@pytest.fixture
+def api_client():
+    """Create and authenticate API client."""
+    client = CIRISAPIClient()
+    assert client.login(), "Failed to authenticate with API"
+    return client
+
+
+class TestMemorizeHandler:
+    """Test MEMORIZE handler functionality."""
+    
+    def test_memorize_simple_content(self, api_client):
+        """Test memorizing simple text content."""
+        # Send memorize command with correct format: $memorize <node_id> [type] [scope]
+        result = api_client.interact("$memorize sky_blue CONCEPT LOCAL")
+        assert "data" in result
+        assert result["data"]["message_id"] is not None
+        assert result["data"]["state"] == "WORK"
+        
+    def test_memorize_with_node_details(self, api_client):
+        """Test memorizing with specific node type and scope."""
+        result = api_client.interact("$memorize weather_fact CONCEPT LOCAL")
+        assert "data" in result
+        assert result["data"]["message_id"] is not None
+
+
+class TestSpeakHandler:
+    """Test SPEAK handler functionality."""
+    
+    def test_speak_simple_message(self, api_client):
+        """Test speaking a simple message."""
+        result = api_client.interact("$speak Hello, world!")
+        assert "data" in result
+        assert result["data"]["message_id"] is not None
+        assert result["data"]["state"] == "WORK"
+        
+    def test_speak_cross_channel(self, api_client):
+        """Test speaking to a different channel."""
+        result = api_client.interact("$speak @channel:api_other_channel Test cross-channel message")
+        assert "data" in result
+        assert result["data"]["message_id"] is not None
+
+
+class TestRecallHandler:
+    """Test RECALL handler functionality."""
+    
+    def test_recall_memories(self, api_client):
+        """Test recalling memories."""
+        # First memorize something with correct format
+        api_client.interact("$memorize france_capital CONCEPT LOCAL")
+        api_client.wait_for_processing()
+        
+        # Then recall it - with enhanced recall, partial match should work
+        result = api_client.interact("$recall france")
+        assert "data" in result
+        assert result["data"]["message_id"] is not None
+
+
+class TestPonderHandler:
+    """Test PONDER handler functionality."""
+    
+    def test_ponder_single_question(self, api_client):
+        """Test pondering a single question."""
+        result = api_client.interact("$ponder What is the meaning of life?")
+        assert "data" in result
+        assert result["data"]["message_id"] is not None
+        
+    def test_ponder_multiple_questions(self, api_client):
+        """Test pondering multiple questions."""
+        result = api_client.interact("$ponder What should I do next?; How can I be helpful?; Is this ethical?")
+        assert "data" in result
+        assert result["data"]["message_id"] is not None
+
+
+class TestObserveHandler:
+    """Test OBSERVE handler functionality."""
+    
+    def test_observe_channel(self, api_client):
+        """Test observing a channel."""
+        result = api_client.interact("$observe api_test")
+        assert "data" in result
+        
+        api_client.wait_for_processing(timeout=5)  # Increase timeout
+        
+        # Small additional wait to ensure audit entries are written
+        import time
+        time.sleep(2)
+        
+        # Check audit entries - increase limit to ensure we get all entries
+        all_entries = api_client.get_audit_entries(limit=200)
+        print(f"\nAll audit entries ({len(all_entries)}):")
+        for entry in all_entries[:10]:  # Print first 10
+            print(f"  - {entry.get('action', 'unknown')}: {entry.get('actor', 'unknown')}")
+        
+        # Filter for handler-related entries by looking at action or actor fields
+        handler_entries = [e for e in all_entries if "Handler" in e.get('actor', '') or "HANDLER" in e.get('action', '')]
+        
+        # Debug: print all handler entries
+        print(f"\nAll handler audit entries ({len(handler_entries)}):")
+        for entry in handler_entries[:5]:
+            print(f"  - {entry.get('action', '')}: {entry.get('actor', '')}")
+        
+        # Look for OBSERVE handler entries
+        observe_entries = [e for e in all_entries if "HANDLER_ACTION_OBSERVE" in str(e.get('action', '')) or "ObserveHandler" in str(e.get('actor', ''))]
+        assert len(observe_entries) > 0, f"No OBSERVE handler entries found. Handler entries: {len(handler_entries)}, Total entries: {len(all_entries)}"
+
+
+class TestToolHandler:
+    """Test TOOL handler functionality."""
+    
+    def test_tool_curl(self, api_client):
+        """Test using the curl tool."""
+        result = api_client.interact('$tool curl url=http://example.com')
+        assert "data" in result
+        
+        api_client.wait_for_processing(timeout=5)  # Increase timeout
+        
+        # Small wait to ensure audit entries are written
+        import time
+        time.sleep(2)
+        
+        # Check audit entries
+        entries = api_client.get_audit_entries(limit=200)
+        
+        # Debug: print all entries to see what's available
+        print(f"\nAll audit entries ({len(entries)}):")
+        for entry in entries[:10]:  # Print first 10
+            print(f"  - {entry.get('action', 'unknown')}: {entry.get('actor', 'unknown')}")
+        
+        tool_entries = [e for e in entries if "HANDLER_ACTION_TOOL" in str(e.get('action', '')) or "ToolHandler" in str(e.get('actor', ''))]
+        assert len(tool_entries) > 0, "No TOOL handler entries found"
+        
+    def test_tool_with_params(self, api_client):
+        """Test tool with key=value parameters."""
+        result = api_client.interact("$tool http_get url=http://example.com timeout=5")
+        assert "data" in result
+        
+        api_client.wait_for_processing()
+
+
+class TestDeferHandler:
+    """Test DEFER handler functionality."""
+    
+    def test_defer_with_reason(self, api_client):
+        """Test deferring with a reason."""
+        result = api_client.interact("$defer I need more information to answer this question")
+        assert "data" in result
+        
+        api_client.wait_for_processing(timeout=5)  # Increase timeout
+        
+        # Small wait to ensure audit entries are written
+        import time
+        time.sleep(2)
+        
+        # Check audit entries
+        entries = api_client.get_audit_entries(limit=200)
+        
+        # Debug: print all entries to see what's available
+        print(f"\nAll audit entries ({len(entries)}):")
+        for entry in entries[:10]:  # Print first 10
+            print(f"  - {entry.get('action', 'unknown')}: {entry.get('actor', 'unknown')}")
+        
+        # Filter for handler-related entries
+        handler_entries = [e for e in entries if "Handler" in e.get('actor', '') or "HANDLER" in e.get('action', '')]
+        
+        # Debug: print all handler entries
+        print(f"\nAll handler audit entries ({len(handler_entries)}):")
+        for entry in handler_entries[:5]:
+            print(f"  - {entry.get('action', '')}: {entry.get('actor', '')}")
+        
+        defer_entries = [e for e in entries if "HANDLER_ACTION_DEFER" in str(e.get('action', '')) or "DeferHandler" in str(e.get('actor', ''))]
+        assert len(defer_entries) > 0, "No DEFER handler entries found"
+
+
+class TestRejectHandler:
+    """Test REJECT handler functionality."""
+    
+    def test_reject_with_reason(self, api_client):
+        """Test rejecting with a reason."""
+        result = api_client.interact("$reject This request violates ethical guidelines")
+        assert "data" in result
+        
+        api_client.wait_for_processing()
+        
+        # Small wait to ensure audit entries are written
+        import time
+        time.sleep(1)
+        
+        # Check audit entries
+        entries = api_client.get_audit_entries(limit=100)
+        reject_entries = [e for e in entries if "HANDLER_ACTION_REJECT" in str(e.get('action', '')) or "RejectHandler" in str(e.get('actor', ''))]
+        assert len(reject_entries) > 0, "No REJECT handler entries found"
+
+
+class TestForgetHandler:
+    """Test FORGET handler functionality."""
+    
+    def test_forget_memory(self, api_client):
+        """Test forgetting a memory."""
+        # First memorize something
+        api_client.interact("$memorize Test memory to forget")
+        api_client.wait_for_processing()
+        
+        # Then forget it
+        result = api_client.interact("$forget test_memory_to User requested deletion")
+        assert "data" in result
+        
+        api_client.wait_for_processing()
+        
+        # Small wait to ensure audit entries are written
+        import time
+        time.sleep(1)
+        
+        # Check audit entries
+        entries = api_client.get_audit_entries(limit=100)
+        forget_entries = [e for e in entries if "HANDLER_ACTION_FORGET" in str(e.get('action', '')) or "ForgetHandler" in str(e.get('actor', ''))]
+        assert len(forget_entries) > 0, "No FORGET handler entries found"
+
+
+class TestTaskCompleteHandler:
+    """Test TASK_COMPLETE handler functionality."""
+    
+    def test_task_complete(self, api_client):
+        """Test completing a task."""
+        result = api_client.interact("$task_complete")
+        assert "data" in result
+        
+        api_client.wait_for_processing()
+        
+        # Small wait to ensure audit entries are written
+        import time
+        time.sleep(1)
+        
+        # Check audit entries
+        entries = api_client.get_audit_entries(limit=100)
+        complete_entries = [e for e in entries if "HANDLER_ACTION_TASK_COMPLETE" in str(e.get('action', '')) or "TaskCompleteHandler" in str(e.get('actor', ''))]
+        assert len(complete_entries) > 0, "No TASK_COMPLETE handler entries found"
+
+
+class TestHandlerIntegration:
+    """Test integration scenarios with multiple handlers."""
+    
+    def test_memorize_and_recall_flow(self, api_client):
+        """Test complete memorize and recall flow."""
+        # Memorize multiple facts
+        facts = [
+            "$memorize Python is a programming language",
+            "$memorize Docker is a containerization platform",
+            "$memorize CIRIS is a moral reasoning system"
+        ]
+        
+        for fact in facts:
+            api_client.interact(fact)
+            api_client.wait_for_processing(5)
+            
+        # Recall specific information
+        result = api_client.interact("$recall programming")
+        assert "data" in result
+        api_client.wait_for_processing()
+        
+        # Verify we got some handler activity
+        entries = api_client.get_audit_entries(limit=20)
+        handler_entries = [e for e in entries if "handler" in e.get("resource", "")]
+        assert len(handler_entries) >= 4, f"Expected at least 4 handler entries, got {len(handler_entries)}"
+        
+    def test_ponder_and_speak_flow(self, api_client):
+        """Test pondering followed by speaking."""
+        # Ponder questions
+        api_client.interact("$ponder What insights can I share?; How can I be helpful?")
+        api_client.wait_for_processing()
+        
+        # Speak response
+        api_client.interact("$speak Based on my pondering, I can help by providing information")
+        api_client.wait_for_processing()
+        
+        # Check both handlers were used
+        entries = api_client.get_audit_entries(limit=10)
+        handler_types = set()
+        for entry in entries:
+            if "handler" in entry.get("resource", ""):
+                details = entry.get("details", {})
+                if "handler_type" in details:
+                    handler_types.add(details["handler_type"])
+                    
+        assert "PONDER" in handler_types or "ponder" in str(entries).lower()
+        assert "SPEAK" in handler_types or "speak" in str(entries).lower()
+
+
+if __name__ == "__main__":
+    # Run tests with pytest
+    pytest.main([__file__, "-v", "-s"])

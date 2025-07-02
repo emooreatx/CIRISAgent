@@ -1082,6 +1082,67 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             return self._connection_manager.is_connected()
         except Exception:
             return False
+    
+    def get_channel_list(self) -> List[Dict[str, Any]]:
+        """
+        Get list of available Discord channels.
+        
+        Returns:
+            List of channel information dicts with:
+            - channel_id: str
+            - channel_name: Optional[str]
+            - channel_type: str (always "discord")
+            - is_active: bool
+            - last_activity: Optional[datetime]
+            - is_monitored: bool (if in monitored_channel_ids)
+            - is_home: bool (if is home_channel_id)
+            - is_deferral: bool (if is deferral_channel_id)
+        """
+        channels = []
+        
+        # Add configured channels from config
+        if self.discord_config:
+            # Add monitored channels
+            for channel_id in self.discord_config.monitored_channel_ids:
+                channel_info = {
+                    "channel_id": channel_id,
+                    "channel_name": None,  # Will be populated if bot is connected
+                    "channel_type": "discord",
+                    "is_active": True,
+                    "last_activity": None,
+                    "is_monitored": True,
+                    "is_home": channel_id == self.discord_config.home_channel_id,
+                    "is_deferral": channel_id == self.discord_config.deferral_channel_id
+                }
+                channels.append(channel_info)
+            
+            # Add deferral channel if not already in monitored
+            if (self.discord_config.deferral_channel_id and 
+                self.discord_config.deferral_channel_id not in self.discord_config.monitored_channel_ids):
+                channels.append({
+                    "channel_id": self.discord_config.deferral_channel_id,
+                    "channel_name": None,
+                    "channel_type": "discord",
+                    "is_active": True,
+                    "last_activity": None,
+                    "is_monitored": False,
+                    "is_home": False,
+                    "is_deferral": True
+                })
+        
+        # If bot is connected, enhance with actual channel names
+        if self._channel_manager and self._channel_manager.client and self._channel_manager.client.is_ready():
+            for channel_info in channels:
+                try:
+                    discord_channel = self._channel_manager.client.get_channel(int(channel_info["channel_id"]))
+                    if discord_channel:
+                        channel_info["channel_name"] = f"#{discord_channel.name}"
+                        channel_info["guild_id"] = str(discord_channel.guild.id) if hasattr(discord_channel, 'guild') else None
+                        channel_info["guild_name"] = discord_channel.guild.name if hasattr(discord_channel, 'guild') else None
+                except Exception as e:
+                    logger.debug(f"Could not get Discord channel info for {channel_info['channel_id']}: {e}")
+        
+        return channels
 
     def _setup_connection_callbacks(self) -> None:
         """Set up callbacks for connection events."""

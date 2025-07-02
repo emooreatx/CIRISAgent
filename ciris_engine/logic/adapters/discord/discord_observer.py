@@ -91,30 +91,21 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         """Stop the observer - no background tasks to clean up."""
         logger.info("DiscordObserver stopped")
 
-    async def handle_incoming_message(self, msg: DiscordMessage) -> None:
-        if not isinstance(msg, DiscordMessage):
-            logger.warning("DiscordObserver received non-DiscordMessage")
-            return
+    async def _should_process_message(self, msg: DiscordMessage) -> bool:
+        """Check if Discord observer should process this message."""
         # Check if message is from a monitored channel or deferral channel
         is_from_monitored = (self.monitored_channel_ids and msg.channel_id in self.monitored_channel_ids)
         is_from_deferral = (self.deferral_channel_id and msg.channel_id == self.deferral_channel_id)
-
+        
         logger.info(f"Message from {msg.author_name} (ID: {msg.author_id}) in channel {msg.channel_id}")
         logger.info(f"  - Is from monitored channel: {is_from_monitored}")
         logger.info(f"  - Is from deferral channel: {is_from_deferral}")
         logger.info(f"  - Deferral channel ID: {self.deferral_channel_id}")
-
-        if not (is_from_monitored or is_from_deferral):
-            logger.debug("Ignoring message from channel %s (not in monitored channels %s or deferral %s)",
-                        msg.channel_id, self.monitored_channel_ids, self.deferral_channel_id)
-            return
-
-        # Check if this is the agent's own message
-        is_agent_message = self.agent_id and msg.author_id == self.agent_id
-
-        # Process message for secrets detection and replacement (for all messages)
-        processed_msg = await self._process_message_secrets(msg)
-
+        
+        return is_from_monitored or is_from_deferral
+    
+    async def _enhance_message(self, msg: DiscordMessage) -> DiscordMessage:
+        """Enhance Discord messages with vision processing if available."""
         # Process any images in the message if vision is available
         if self._vision_helper.is_available() and hasattr(msg, 'raw_message') and msg.raw_message:
             try:
@@ -137,58 +128,27 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                         additional_content += embed_descriptions
 
                     # Create a new message with the augmented content
-                    processed_msg = DiscordMessage(
-                        message_id=processed_msg.message_id,
-                        content=processed_msg.content + additional_content,
-                        author_id=processed_msg.author_id,
-                        author_name=processed_msg.author_name,
-                        channel_id=processed_msg.channel_id,
-                        is_bot=processed_msg.is_bot,
-                        is_dm=processed_msg.is_dm,
-                        raw_message=processed_msg.raw_message
+                    return DiscordMessage(
+                        message_id=msg.message_id,
+                        content=msg.content + additional_content,
+                        author_id=msg.author_id,
+                        author_name=msg.author_name,
+                        channel_id=msg.channel_id,
+                        is_bot=msg.is_bot,
+                        is_dm=msg.is_dm,
+                        raw_message=msg.raw_message
                     )
 
                     logger.info(f"Processed images in message {msg.message_id} from {msg.author_name}")
 
             except Exception as e:
                 logger.error(f"Failed to process images in message {msg.message_id}: {e}")
-
-        # Add ALL messages to history (including agent's own)
-        self._history.append(processed_msg)
-
-        # If it's the agent's message, stop here (no task creation)
-        if is_agent_message:
-            logger.debug("Added agent's own message %s to history (no task created)", msg.message_id)
-            return
-
-        # Apply adaptive filtering to determine message priority and processing
-        filter_result = await self._apply_message_filtering(msg, "discord")
-        if not filter_result.should_process:
-            logger.debug(f"Message {msg.message_id} filtered out: {filter_result.reasoning}")
-            return
-
-        # Add filter context to message for downstream processing
-        # Store filter info in a way that doesn't modify the message object
-        setattr(processed_msg, '_filter_priority', filter_result.priority)
-        setattr(processed_msg, '_filter_context', filter_result.context_hints)
-        setattr(processed_msg, '_filter_reasoning', filter_result.reasoning)
-
-        # Process based on priority
-        if filter_result.priority.value in ['critical', 'high']:
-            # Immediate processing for high-priority messages
-            logger.info(f"Processing {filter_result.priority.value} priority message {msg.message_id}: {filter_result.reasoning}")
-            await self._handle_priority_observation(processed_msg, filter_result)
-        else:
-            # Normal processing for medium/low priority
-            await self._handle_passive_observation(processed_msg)
-
-        await self._recall_context(processed_msg)
+        
+        return msg
 
     async def _handle_priority_observation(self, msg: DiscordMessage, filter_result: Any) -> None:
         """Handle high-priority messages with immediate processing"""
-        from ciris_engine.logic.utils.constants import (
-            DEFAULT_WA,
-        )
+        from ciris_engine.logic.utils.constants import DEFAULT_WA
 
         monitored_channel_ids = self.monitored_channel_ids or []
         wa_discord_user = DEFAULT_WA
@@ -217,9 +177,8 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         )
 
     async def _handle_passive_observation(self, msg: DiscordMessage) -> None:
-        from ciris_engine.logic.utils.constants import (
-            DEFAULT_WA,
-        )
+        """Handle passive observation - routes to WA feedback queue if appropriate."""
+        from ciris_engine.logic.utils.constants import DEFAULT_WA
 
         monitored_channel_ids = self.monitored_channel_ids or []
         wa_discord_user = DEFAULT_WA

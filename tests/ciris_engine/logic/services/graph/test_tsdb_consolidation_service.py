@@ -9,16 +9,25 @@ from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatu
 from ciris_engine.schemas.services.nodes import TSDBSummary
 from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
 from ciris_engine.schemas.runtime.memory import TimeSeriesDataPoint
-from ciris_engine.schemas.services.operations import MemoryOpStatus
+from ciris_engine.schemas.services.operations import MemoryOpStatus, MemoryOpResult
 
 
 @pytest.fixture
 def mock_memory_bus():
     """Create a mock memory bus."""
     mock = Mock()
-    mock.memorize = AsyncMock(return_value=Mock(status=Mock(value="OK")))
+    # memorize should return a MemoryOpResult with status=OK
+    mock.memorize = AsyncMock(return_value=MemoryOpResult(status=MemoryOpStatus.OK))
     mock.recall = AsyncMock(return_value=[])
-    mock.recall_timeseries = AsyncMock(return_value=[])
+    # recall_timeseries needs to return different types based on correlation_types parameter
+    async def recall_timeseries_side_effect(*args, **kwargs):
+        correlation_types = kwargs.get('correlation_types', [])
+        if 'audit_event' in correlation_types:
+            # Return empty list for audit events in these tests
+            return []
+        # Default to empty list for other types
+        return []
+    mock.recall_timeseries = AsyncMock(side_effect=recall_timeseries_side_effect)
     mock.search = AsyncMock(return_value=[])
     mock.forget = AsyncMock(return_value=Mock(status="ok"))
     return mock
@@ -63,14 +72,13 @@ async def test_tsdb_service_consolidate_period(tsdb_service, mock_memory_bus):
 
     # Create mock datapoints that match what the implementation expects
     class MockDataPoint:
-        def __init__(self, timestamp, metric_name, value, correlation_type, tags, correlation_id):
+        def __init__(self, timestamp, metric_name, value, correlation_type, tags):
             # Keep timestamp as datetime object - the service expects datetime, not string
             self.timestamp = timestamp
             self.metric_name = metric_name
             self.value = value
             self.correlation_type = correlation_type
             self.tags = tags
-            # Remove correlation_id as TimeSeriesDataPoint doesn't have this field
 
     mock_datapoints = [
         MockDataPoint(
@@ -78,41 +86,53 @@ async def test_tsdb_service_consolidate_period(tsdb_service, mock_memory_bus):
             metric_name="api.requests",
             value=100,
             correlation_type="METRIC_DATAPOINT",
-            tags={},
-            correlation_id="corr1"
+            tags={}
         ),
         MockDataPoint(
             timestamp=start_time + timedelta(hours=2),
             metric_name="api.requests",
             value=150,
             correlation_type="METRIC_DATAPOINT",
-            tags={},
-            correlation_id="corr2"
+            tags={}
         ),
         MockDataPoint(
             timestamp=start_time + timedelta(hours=1),
             metric_name="memory.usage",
             value=512,
             correlation_type="METRIC_DATAPOINT",
-            tags={},
-            correlation_id="corr3"
+            tags={}
         )
     ]
 
-    mock_memory_bus.recall_timeseries.return_value = mock_datapoints
+    # Override the side_effect for this specific test
+    async def test_recall_timeseries(*args, **kwargs):
+        correlation_types = kwargs.get('correlation_types', [])
+        if 'audit_event' in correlation_types:
+            return []  # No audit events
+        return mock_datapoints  # Return metrics for METRIC_DATAPOINT
+    mock_memory_bus.recall_timeseries.side_effect = test_recall_timeseries
 
     # Consolidate the period using the private method (public interface is through the loop)
-    summary = await tsdb_service._consolidate_period(start_time, end_time)
+    summaries = await tsdb_service._consolidate_period(start_time, end_time)
 
-    assert summary is not None
-    assert isinstance(summary, TSDBSummary)
-    assert summary.period_start == start_time
-    assert summary.period_end == end_time
-    assert "api.requests" in summary.metrics
-    assert summary.metrics["api.requests"]["count"] == 2
-    assert summary.metrics["api.requests"]["sum"] == 250
-    assert summary.metrics["api.requests"]["avg"] == 125
-    assert summary.source_node_count == 3
+    assert summaries is not None
+    assert len(summaries) > 0  # Should have at least one summary
+    
+    # Find the TSDBSummary in the list
+    tsdb_summary = None
+    for summary in summaries:
+        if isinstance(summary, TSDBSummary):
+            tsdb_summary = summary
+            break
+    
+    assert tsdb_summary is not None
+    assert tsdb_summary.period_start == start_time
+    assert tsdb_summary.period_end == end_time
+    assert "api.requests" in tsdb_summary.metrics
+    assert tsdb_summary.metrics["api.requests"]["count"] == 2
+    assert tsdb_summary.metrics["api.requests"]["sum"] == 250
+    assert tsdb_summary.metrics["api.requests"]["avg"] == 125
+    assert tsdb_summary.source_node_count == 3
 
 
 @pytest.mark.asyncio
@@ -169,14 +189,13 @@ async def test_tsdb_service_resource_aggregation(tsdb_service, mock_memory_bus):
 
     # Mock timeseries data with resource metrics
     class MockDataPoint:
-        def __init__(self, timestamp, metric_name, value, correlation_type, tags, correlation_id):
+        def __init__(self, timestamp, metric_name, value, correlation_type, tags):
             # Keep timestamp as datetime object - the service expects datetime, not string
             self.timestamp = timestamp
             self.metric_name = metric_name
             self.value = value
             self.correlation_type = correlation_type
             self.tags = tags
-            # Remove correlation_id as TimeSeriesDataPoint doesn't have this field
 
     resource_datapoints = [
         MockDataPoint(
@@ -184,35 +203,49 @@ async def test_tsdb_service_resource_aggregation(tsdb_service, mock_memory_bus):
             metric_name="llm.tokens_used",
             value=1000,
             correlation_type="METRIC_DATAPOINT",
-            tags={},
-            correlation_id="res1"
+            tags={}
         ),
         MockDataPoint(
             timestamp=start_time + timedelta(hours=1),
             metric_name="llm.cost_cents",
             value=5.5,
             correlation_type="METRIC_DATAPOINT",
-            tags={},
-            correlation_id="res2"
+            tags={}
         ),
         MockDataPoint(
             timestamp=start_time + timedelta(hours=2),
             metric_name="carbon_grams",
             value=2.3,
             correlation_type="METRIC_DATAPOINT",
-            tags={},
-            correlation_id="res3"
+            tags={}
         )
     ]
 
-    mock_memory_bus.recall_timeseries.return_value = resource_datapoints
+    # Override the side_effect for this specific test
+    async def test_recall_timeseries(*args, **kwargs):
+        correlation_types = kwargs.get('correlation_types', [])
+        if 'audit_event' in correlation_types:
+            return []  # No audit events
+        return resource_datapoints  # Return resource metrics
+    mock_memory_bus.recall_timeseries.side_effect = test_recall_timeseries
 
     # Consolidate with resource aggregation
-    summary = await tsdb_service._consolidate_period(start_time, end_time)
+    summaries = await tsdb_service._consolidate_period(start_time, end_time)
 
-    assert summary.total_tokens == 1000
-    assert summary.total_cost_cents == 5.5
-    assert summary.total_carbon_grams == 2.3
+    assert summaries is not None
+    assert len(summaries) > 0
+    
+    # Find the TSDBSummary in the list
+    tsdb_summary = None
+    for summary in summaries:
+        if isinstance(summary, TSDBSummary):
+            tsdb_summary = summary
+            break
+    
+    assert tsdb_summary is not None
+    assert tsdb_summary.total_tokens == 1000
+    assert tsdb_summary.total_cost_cents == 5.5
+    assert tsdb_summary.total_carbon_grams == 2.3
 
 
 def test_tsdb_service_capabilities(tsdb_service):
@@ -282,14 +315,13 @@ async def test_tsdb_service_action_summary(tsdb_service, mock_memory_bus):
 
     # Mock timeseries data with action metrics
     class MockDataPoint:
-        def __init__(self, timestamp, metric_name, value, correlation_type, tags, correlation_id):
+        def __init__(self, timestamp, metric_name, value, correlation_type, tags):
             # Keep timestamp as datetime object - the service expects datetime, not string
             self.timestamp = timestamp
             self.metric_name = metric_name
             self.value = value
             self.correlation_type = correlation_type
             self.tags = tags
-            # Remove correlation_id as TimeSeriesDataPoint doesn't have this field
 
     action_datapoints = [
         MockDataPoint(
@@ -297,36 +329,50 @@ async def test_tsdb_service_action_summary(tsdb_service, mock_memory_bus):
             metric_name="action.speak.count",
             value=1,
             correlation_type="METRIC_DATAPOINT",
-            tags={"action_type": "SPEAK"},
-            correlation_id="act1"
+            tags={"action_type": "SPEAK"}
         ),
         MockDataPoint(
             timestamp=start_time + timedelta(hours=2),
             metric_name="action.tool.count",
             value=1,
             correlation_type="METRIC_DATAPOINT",
-            tags={"action_type": "TOOL"},
-            correlation_id="act2"
+            tags={"action_type": "TOOL"}
         ),
         MockDataPoint(
             timestamp=start_time + timedelta(hours=3),
             metric_name="action.speak.count",
             value=1,
             correlation_type="METRIC_DATAPOINT",
-            tags={"action_type": "SPEAK"},
-            correlation_id="act3"
+            tags={"action_type": "SPEAK"}
         )
     ]
 
-    mock_memory_bus.recall_timeseries.return_value = action_datapoints
+    # Override the side_effect for this specific test
+    async def test_recall_timeseries(*args, **kwargs):
+        correlation_types = kwargs.get('correlation_types', [])
+        if 'audit_event' in correlation_types:
+            return []  # No audit events
+        return action_datapoints  # Return action metrics
+    mock_memory_bus.recall_timeseries.side_effect = test_recall_timeseries
 
     # Consolidate with action aggregation
-    summary = await tsdb_service._consolidate_period(start_time, end_time)
+    summaries = await tsdb_service._consolidate_period(start_time, end_time)
 
-    assert "SPEAK" in summary.action_counts
-    assert summary.action_counts["SPEAK"] == 2
-    assert "TOOL" in summary.action_counts
-    assert summary.action_counts["TOOL"] == 1
+    assert summaries is not None
+    assert len(summaries) > 0
+    
+    # Find the TSDBSummary in the list
+    tsdb_summary = None
+    for summary in summaries:
+        if isinstance(summary, TSDBSummary):
+            tsdb_summary = summary
+            break
+    
+    assert tsdb_summary is not None
+    assert "SPEAK" in tsdb_summary.action_counts
+    assert tsdb_summary.action_counts["SPEAK"] == 2
+    assert "TOOL" in tsdb_summary.action_counts
+    assert tsdb_summary.action_counts["TOOL"] == 1
 
 
 @pytest.mark.asyncio

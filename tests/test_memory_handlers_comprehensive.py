@@ -138,21 +138,33 @@ def create_memory_op_result(
 
 def setup_handler_mocks(monkeypatch, memory_result=None):
     """Common setup for handler tests."""
-    # Mock persistence
+    # Mock persistence in both locations
     mock_persistence = Mock()
     mock_persistence.add_thought = Mock()
     mock_persistence.update_thought_status = Mock()
+    mock_persistence.add_correlation = Mock()
+    mock_persistence.get_task_by_id = Mock(return_value=Mock(
+        task_id="test_task",
+        description="Test task"
+    ))
+    
+    # Patch persistence in all handler modules AND base handler
     monkeypatch.setattr('ciris_engine.logic.handlers.memory.memorize_handler.persistence', mock_persistence)
     monkeypatch.setattr('ciris_engine.logic.handlers.memory.recall_handler.persistence', mock_persistence)
     monkeypatch.setattr('ciris_engine.logic.handlers.memory.forget_handler.persistence', mock_persistence)
+    monkeypatch.setattr('ciris_engine.logic.infrastructure.handlers.base_handler.persistence', mock_persistence)
 
     # Setup services
     mock_service_registry = AsyncMock()
     mock_time_service = Mock()
     mock_time_service.now = Mock(return_value=datetime.now(timezone.utc))
 
-    # Create bus manager
-    bus_manager = BusManager(mock_service_registry, time_service=mock_time_service)
+    # Create bus manager with audit service
+    bus_manager = BusManager(
+        mock_service_registry, 
+        time_service=mock_time_service,
+        audit_service=None  # Will be set later
+    )
 
     # Mock memory bus
     mock_memory_bus = AsyncMock()
@@ -604,6 +616,8 @@ class TestRecallHandler:
             monkeypatch
         )
         mock_memory_bus.recall = AsyncMock(return_value=test_nodes)
+        # When query is provided, RecallHandler uses search
+        mock_memory_bus.search = AsyncMock(return_value=test_nodes)
 
         handler = RecallHandler(deps)
 
@@ -631,13 +645,15 @@ class TestRecallHandler:
 
         # Verify
         assert follow_up_id is not None
-        assert mock_memory_bus.recall.called
+        # When query is provided, RecallHandler uses search instead of recall
+        assert mock_memory_bus.search.called
 
-        # Check memory query construction
-        call_args = mock_memory_bus.recall.call_args
-        memory_query = call_args.kwargs['recall_query']
-        assert memory_query.node_id == "test search query"  # Query used as node_id
-        assert memory_query.type == NodeType.CONCEPT
+        # Check search parameters
+        call_args = mock_memory_bus.search.call_args
+        assert call_args.kwargs['query'] == "test search query"
+        search_filter = call_args.kwargs['filters']
+        assert search_filter.node_type == NodeType.CONCEPT
+        assert search_filter.limit == 5
 
         # Verify follow-up contains all recalled nodes
         follow_up_thought = mock_persistence.add_thought.call_args[0][0]
@@ -652,6 +668,7 @@ class TestRecallHandler:
             monkeypatch
         )
         mock_memory_bus.recall = AsyncMock(return_value=[])  # No results
+        mock_memory_bus.search = AsyncMock(return_value=[])  # No results from search either
 
         handler = RecallHandler(deps)
 
@@ -677,7 +694,8 @@ class TestRecallHandler:
 
         # Verify
         assert follow_up_id is not None
-        assert mock_memory_bus.recall.called
+        # When query is provided, RecallHandler uses search instead of recall
+        assert mock_memory_bus.search.called
 
         # Verify follow-up mentions no results
         follow_up_thought = mock_persistence.add_thought.call_args[0][0]

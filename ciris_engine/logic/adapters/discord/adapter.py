@@ -34,9 +34,28 @@ class DiscordPlatform(Service):
                 self.config = DiscordAdapterConfig()
             logger.info(f"Discord adapter using provided config: channels={self.config.monitored_channel_ids}")
         else:
-            self.config = DiscordAdapterConfig()
-            if "discord_bot_token" in kwargs:
-                self.config.bot_token = kwargs["discord_bot_token"]
+            # Check if config values are passed directly as kwargs (from API load_adapter)
+            if "bot_token" in kwargs or "channel_id" in kwargs or "server_id" in kwargs:
+                # Create config from direct kwargs
+                config_dict = {}
+                if "bot_token" in kwargs:
+                    config_dict["bot_token"] = kwargs["bot_token"]
+                if "channel_id" in kwargs:
+                    config_dict["monitored_channel_ids"] = [kwargs["channel_id"]]
+                    config_dict["home_channel_id"] = kwargs["channel_id"]
+                if "server_id" in kwargs:
+                    config_dict["server_id"] = kwargs["server_id"]
+                # Add other config fields if present
+                for key in ["deferral_channel_id", "admin_user_ids", "snore_channel_id"]:
+                    if key in kwargs:
+                        config_dict[key] = kwargs[key]
+                
+                self.config = DiscordAdapterConfig(**config_dict)
+                logger.info(f"Discord adapter created config from direct kwargs: bot_token={'***' if self.config.bot_token else 'None'}, channels={self.config.monitored_channel_ids}")
+            else:
+                self.config = DiscordAdapterConfig()
+                if "discord_bot_token" in kwargs:
+                    self.config.bot_token = kwargs["discord_bot_token"]
 
             template = getattr(runtime, 'template', None)
             if template and hasattr(template, 'discord_config') and template.discord_config:

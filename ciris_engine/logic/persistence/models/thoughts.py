@@ -109,12 +109,19 @@ def delete_thoughts_by_ids(thought_ids: List[str], db_path: Optional[str] = None
     """Delete thoughts by a list of IDs. Returns the number deleted."""
     if not thought_ids:
         return 0
+    
+    logger.warning(f"DELETE_OPERATION: delete_thoughts_by_ids called with {len(thought_ids)} thoughts: {thought_ids}")
+    import traceback
+    logger.warning(f"DELETE_OPERATION: Called from: {''.join(traceback.format_stack()[-3:-1])}")
+    
     sql = f"DELETE FROM thoughts WHERE thought_id IN ({','.join(['?']*len(thought_ids))})"
     try:
         with get_db_connection(db_path=db_path) as conn:
             cursor = conn.execute(sql, thought_ids)
             conn.commit()
-            return cursor.rowcount
+            deleted_count = cursor.rowcount
+            logger.warning(f"DELETE_OPERATION: Successfully deleted {deleted_count} thoughts")
+            return deleted_count
     except Exception as e:
         logger.exception(f"Failed to delete thoughts by ids: {e}")
         return 0

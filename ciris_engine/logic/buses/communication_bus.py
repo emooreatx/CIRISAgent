@@ -83,14 +83,43 @@ class CommunicationBus(BaseBus[CommunicationService]):
         Send a message synchronously (wait for completion).
 
         This bypasses the queue for immediate operations.
+        Routes based on channel_id prefix for cross-adapter communication.
         """
-        service = await self.get_service(
-            handler_name=handler_name,
-            required_capabilities=["send_message"]
-        )
+        service = None
+        
+        # Get all available communication services for routing
+        all_services = self.service_registry.get_services_by_type(ServiceType.COMMUNICATION)
+        
+        if all_services and channel_id:
+            # Route based on channel prefix
+            if channel_id.startswith('discord_'):
+                for svc in all_services:
+                    if 'Discord' in type(svc).__name__:
+                        service = svc
+                        logger.debug(f"Sync routing to Discord adapter for channel {channel_id}")
+                        break
+            elif channel_id.startswith('api_') or channel_id.startswith('ws:'):
+                for svc in all_services:
+                    if 'API' in type(svc).__name__:
+                        service = svc
+                        logger.debug(f"Sync routing to API adapter for channel {channel_id}")
+                        break
+            elif channel_id.startswith('cli_'):
+                for svc in all_services:
+                    if 'CLI' in type(svc).__name__:
+                        service = svc
+                        logger.debug(f"Sync routing to CLI adapter for channel {channel_id}")
+                        break
+        
+        # Fallback to original logic
+        if not service:
+            service = await self.get_service(
+                handler_name=handler_name,
+                required_capabilities=["send_message"]
+            )
 
         if not service:
-            logger.error(f"No communication service available for {handler_name}")
+            logger.error(f"No communication service available for channel {channel_id}")
             return False
 
         try:
@@ -121,7 +150,7 @@ class CommunicationBus(BaseBus[CommunicationService]):
             return []
 
         try:
-            messages = await service.fetch_messages(channel_id, limit)
+            messages = await service.fetch_messages(channel_id, limit=limit)
             return list(messages) if messages else []
         except Exception as e:
             logger.error(f"Failed to fetch messages: {e}", exc_info=True)
@@ -138,15 +167,49 @@ class CommunicationBus(BaseBus[CommunicationService]):
             logger.error(f"Unknown message type: {type(message)}")
 
     async def _process_send_message(self, request: SendMessageRequest) -> None:
-        """Process a send message request"""
-        service = await self.get_service(
-            handler_name=request.handler_name,
-            required_capabilities=["send_message"]
-        )
+        """Process a send message request with channel-aware routing"""
+        
+        # First, try to find the right service based on channel_id prefix
+        service = None
+        channel_id = request.channel_id
+        
+        # Get all available communication services
+        all_services = self.service_registry.get_services_by_type(ServiceType.COMMUNICATION)
+        
+        if all_services and channel_id:
+            # Route based on channel prefix
+            if channel_id.startswith('discord_'):
+                # Find Discord communication service
+                for svc in all_services:
+                    if 'Discord' in type(svc).__name__:
+                        service = svc
+                        logger.debug(f"Routing to Discord adapter for channel {channel_id}")
+                        break
+            elif channel_id.startswith('api_') or channel_id.startswith('ws:'):
+                # Find API communication service
+                for svc in all_services:
+                    if 'API' in type(svc).__name__:
+                        service = svc
+                        logger.debug(f"Routing to API adapter for channel {channel_id}")
+                        break
+            elif channel_id.startswith('cli_'):
+                # Find CLI communication service
+                for svc in all_services:
+                    if 'CLI' in type(svc).__name__:
+                        service = svc
+                        logger.debug(f"Routing to CLI adapter for channel {channel_id}")
+                        break
+        
+        # Fallback to original logic if no specific routing found
+        if not service:
+            service = await self.get_service(
+                handler_name=request.handler_name,
+                required_capabilities=["send_message"]
+            )
 
         if not service:
             raise RuntimeError(
-                f"No communication service available for {request.handler_name}"
+                f"No communication service available for channel {channel_id}"
             )
 
         # Send the message

@@ -14,6 +14,8 @@ import pytest
 from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime, timezone
 import uuid
+import os
+import tempfile
 
 from ciris_engine.logic.handlers.external.tool_handler import ToolHandler
 from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies
@@ -141,7 +143,9 @@ def mock_dependencies(monkeypatch):
     mock_persistence = Mock()
     mock_persistence.add_thought = Mock()
     mock_persistence.update_thought_status = Mock()
+    mock_persistence.get_task_by_id = Mock(return_value=Mock())  # Return a mock task
     monkeypatch.setattr('ciris_engine.logic.handlers.external.tool_handler.persistence', mock_persistence)
+    monkeypatch.setattr('ciris_engine.logic.infrastructure.handlers.base_handler.persistence', mock_persistence)
 
     # Mock the models ThoughtContext to avoid validation issues
     mock_thought_context = Mock()
@@ -185,7 +189,7 @@ def mock_dependencies(monkeypatch):
 
 # Test cases
 @pytest.mark.asyncio
-async def test_tool_execution_success(mock_dependencies):
+async def test_tool_execution_success(mock_dependencies, monkeypatch):
     """Test successful tool execution with proper parameters."""
     deps = mock_dependencies['deps']
     tool_bus = mock_dependencies['tool_bus']
@@ -273,8 +277,9 @@ async def test_tool_execution_failure(mock_dependencies):
     await handler.handle(result, thought, dispatch_context)
 
     # Verify thought was marked as failed
+    assert persistence.update_thought_status.called
     update_call = persistence.update_thought_status.call_args
-    assert update_call.kwargs['status'] == ThoughtStatus.FAILED
+    assert update_call[0][1] == ThoughtStatus.FAILED  # Second positional argument is status
 
     # Verify error in follow-up thought
     follow_up = persistence.add_thought.call_args[0][0]
@@ -309,8 +314,9 @@ async def test_tool_parameter_validation_error(mock_dependencies):
         await handler.handle(result, thought, dispatch_context)
 
     # Verify thought was marked as failed
+    assert persistence.update_thought_status.called
     update_call = persistence.update_thought_status.call_args
-    assert update_call.kwargs['status'] == ThoughtStatus.FAILED
+    assert update_call[0][1] == ThoughtStatus.FAILED  # Second positional argument is status
 
     # Verify error handling
     follow_up = persistence.add_thought.call_args[0][0]
@@ -351,7 +357,7 @@ async def test_tool_execution_timeout(mock_dependencies):
 
     # Verify timeout was handled
     update_call = persistence.update_thought_status.call_args
-    assert update_call.kwargs['status'] == ThoughtStatus.FAILED
+    assert update_call[0][1] == ThoughtStatus.FAILED  # Second positional argument is status
 
     follow_up = persistence.add_thought.call_args[0][0]
     assert "timed out" in follow_up.content.lower()
@@ -434,7 +440,7 @@ async def test_tool_execution_exception(mock_dependencies):
 
     # Verify exception was handled gracefully
     update_call = persistence.update_thought_status.call_args
-    assert update_call.kwargs['status'] == ThoughtStatus.FAILED
+    assert update_call[0][1] == ThoughtStatus.FAILED  # Second positional argument is status
 
     follow_up = persistence.add_thought.call_args[0][0]
     assert "execution failed" in follow_up.content.lower()
@@ -545,7 +551,7 @@ async def test_tool_unauthorized_access(mock_dependencies):
 
     # Verify unauthorized was handled
     update_call = persistence.update_thought_status.call_args
-    assert update_call.kwargs['status'] == ThoughtStatus.FAILED
+    assert update_call[0][1] == ThoughtStatus.FAILED  # Second positional argument is status
 
     follow_up = persistence.add_thought.call_args[0][0]
     assert "Insufficient permissions" in follow_up.content

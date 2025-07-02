@@ -4,6 +4,7 @@ import logging
 from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.runtime.enums import ThoughtStatus, ThoughtType
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.logic.utils.thought_utils import generate_thought_id
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,11 @@ def create_follow_up_thought(
                       "Creating follow-up at same depth.")
 
     follow_up = Thought(
-        thought_id=str(uuid.uuid4()),
+        thought_id=generate_thought_id(
+            thought_type=thought_type,
+            task_id=parent.source_task_id,
+            parent_thought_id=parent.thought_id
+        ),
         source_task_id=parent.source_task_id,
         channel_id=channel_id,
         thought_type=thought_type,

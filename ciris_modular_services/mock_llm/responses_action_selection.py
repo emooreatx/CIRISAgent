@@ -1,4 +1,5 @@
 from typing import Optional, Any, List, Union
+import re
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.actions import (
     SpeakParams, MemorizeParams, RecallParams, PonderParams,
@@ -48,24 +49,105 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                 break
     
     # Extract channel from context - check multiple patterns
-    channel_id = "cli"  # Default to cli instead of test
+    channel_id = None
+    logger.info(f"[MOCK_LLM] Extracting channel from {len(context)} context items")
+    
+    # First, try to extract channel_id from the actual messages
+    # Look for patterns in the user message content which often contains the task context
+    if messages:
+        for msg in messages:
+            if isinstance(msg, dict) and msg.get('role') == 'user':
+                content = msg.get('content', '')
+                # Look for channel_id in task context pattern
+                import re
+                task_context_match = re.search(r"channel_id='([^']+)'", content)
+                if task_context_match:
+                    channel_id = task_context_match.group(1)
+                    logger.info(f"[MOCK_LLM] Found channel_id in user message task context: {channel_id}")
+                    break
+    
+    # If not found in messages, check context items
+    if not channel_id:
+        # Log first few context items for debugging
+        for i, item in enumerate(context[:10]):
+            logger.debug(f"[MOCK_LLM] Context[{i}] (type {type(item).__name__}): {str(item)[:300]}...")
+    
     for item in context:
         # Check for echo_channel pattern from responses.py
         if item.startswith("echo_channel:"):
             channel_id = item.split(":", 1)[1].strip()
+            logger.debug(f"[MOCK_LLM] Found echo_channel: {channel_id}")
             break
         # Check for channel_id pattern
         elif item.startswith("channel_id:"):
             channel_id = item.split(":", 1)[1].strip()
+            logger.debug(f"[MOCK_LLM] Found channel_id: {channel_id}")
             break
         # Check for channel context patterns
         elif "channel" in str(item).lower():
             # Try to extract channel ID from various formats
             import re
-            channel_match = re.search(r'channel[_\s]*(?:id)?[:\s]*[\'"]?([^\'",\s]+)[\'"]?', str(item), re.IGNORECASE)
+            # More careful regex to avoid capturing garbage
+            # Don't match on attributes list or method names
+            if 'attributes:' in str(item) or '__' in str(item):
+                continue  # Skip attribute listings
+                
+            # Look for channel_id in proper contexts (not in attribute listings)
+            # Match patterns like: channel_id='cli_33204_11ae7b5e' or channel_id: cli_33204_11ae7b5e
+            channel_match = re.search(r"channel_id[=:]\s*['\"]?([a-zA-Z0-9_\-@\.]+)['\"]?", str(item))
             if channel_match:
-                channel_id = channel_match.group(1)
+                extracted = channel_match.group(1)
+                # Validate the extracted channel ID - must be a reasonable format
+                # Skip short matches like 'so' which are likely false positives
+                if len(extracted) > 4 and ('_' in extracted or '@' in extracted):
+                    channel_id = extracted
+                    logger.debug(f"[MOCK_LLM] Extracted channel_id via regex: {channel_id}")
+                    break
+                else:
+                    logger.debug(f"[MOCK_LLM] Skipped invalid channel match: '{extracted}'")
+            
+            # Also try to match channel patterns in task context like "channel_id='cli_33204_11ae7b5e'"
+            context_match = re.search(r"TaskContext.*channel_id='([^']+)'", str(item))
+            if context_match:
+                channel_id = context_match.group(1)
+                logger.info(f"[MOCK_LLM] Found channel_id in TaskContext: {channel_id}")
                 break
+            
+            # Try to find channel_id in task context more broadly
+            task_match = re.search(r"task.*channel_id[=:]\s*['\"]?([a-zA-Z0-9_\-@\.]+)['\"]?", str(item), re.IGNORECASE)
+            if task_match:
+                extracted = task_match.group(1)
+                if len(extracted) > 4 and ('_' in extracted or '@' in extracted):
+                    channel_id = extracted
+                    logger.info(f"[MOCK_LLM] Found channel_id in task context: {channel_id}")
+                    break
+    
+    # If still no channel_id found, look for CLI/API patterns
+    if not channel_id:
+        # Try to determine from other context clues
+        for item in context:
+            if "cli_" in str(item):
+                import re
+                cli_match = re.search(r'(cli_\d+_[a-f0-9]+)', str(item))
+                if cli_match:
+                    channel_id = cli_match.group(1)
+                    logger.info(f"[MOCK_LLM] Found CLI channel pattern: {channel_id}")
+                    break
+            elif "api_" in str(item):
+                import re
+                # Match both old format (api_0.0.0.0_8080) and new format (api_SYSTEM_ADMIN)
+                api_match = re.search(r'(api_[\w\.\-]+)', str(item))
+                if api_match:
+                    channel_id = api_match.group(1)
+                    logger.info(f"[MOCK_LLM] Found API channel pattern: {channel_id}")
+                    break
+    
+    # Final fallback
+    if not channel_id:
+        channel_id = "cli"  # Default to cli
+        logger.warning(f"[MOCK_LLM] Using default channel_id: {channel_id}")
+    
+    logger.info(f"[MOCK_LLM] Final extracted channel_id: '{channel_id}'")
     
     # Extract user input 
     user_input = ""
@@ -78,6 +160,15 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
     user_speech = ""
     if user_input and not user_input.startswith("$"):
         user_speech = user_input
+    
+    # If user_input is a command, handle it directly
+    command_from_context = None
+    command_args_from_context = ""
+    if user_input and user_input.startswith("$"):
+        # Parse the command from user_input
+        parts = user_input.split(None, 1)
+        command_from_context = parts[0].lower()
+        command_args_from_context = parts[1] if len(parts) > 1 else ""
     
     # Check for forced actions (testing)
     forced_action = None
@@ -105,6 +196,9 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
     # Determine action based on context
     # Initialize params with proper type annotation for 100% schema compliance
     params: ActionParams
+    
+    # Debug logging
+    logger.info(f"[MOCK_LLM] Action selection - forced_action: {forced_action}, user_speech: {user_speech}, command_from_context: {command_from_context}")
     
     if forced_action:
         try:
@@ -180,23 +274,28 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                     
             elif action == HandlerActionType.RECALL:
                 if action_params:
-                    # Similar parsing as memorize
+                    # Parse recall parameters - can be a query string or node ID
                     parts = action_params.split()
-                    node_id = parts[0]
-                    node_type = parts[1] if len(parts) > 1 else "CONCEPT"
-                    scope = parts[2] if len(parts) > 2 else "LOCAL"
-                    params = RecallParams(
-                        node=GraphNode(
-                            id=node_id,
-                            type=getattr(NodeType, node_type.upper(), NodeType.CONCEPT),
-                            scope=getattr(GraphScope, scope.upper(), GraphScope.LOCAL),
-                            attributes=GraphNodeAttributes(
-                                created_by="mock_llm"
-                            )
+                    if len(parts) == 1:
+                        # Single parameter - treat as query
+                        params = RecallParams(
+                            query=action_params,
+                            limit=10
                         )
-                    )
+                    else:
+                        # Multiple parameters - parse as node_id, type, scope
+                        node_id = parts[0]
+                        node_type = parts[1] if len(parts) > 1 else None
+                        scope_str = parts[2] if len(parts) > 2 else None
+                        
+                        params = RecallParams(
+                            node_id=node_id,
+                            node_type=node_type,
+                            scope=getattr(GraphScope, scope_str.upper()) if scope_str else None,
+                            limit=10
+                        )
                 else:
-                    error_msg = "❌ $recall requires: <node_id> [type] [scope]\nExample: $recall user123 USER LOCAL"
+                    error_msg = "❌ $recall requires either a query or node_id\nExamples:\n$recall memories\n$recall user123 USER LOCAL"
                     params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
                     action = HandlerActionType.SPEAK
                     
@@ -219,22 +318,33 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                 
             elif action == HandlerActionType.TOOL:
                 if action_params:
+                    logger.info(f"[MOCK_LLM] TOOL handler - action_params: '{action_params}'")
                     parts = action_params.split(None, 1)
                     tool_name = parts[0]
                     tool_params = {}
                     
                     # Parse JSON-like parameters if provided
                     if len(parts) > 1:
+                        logger.info(f"[MOCK_LLM] TOOL handler - parsing params: '{parts[1]}'")
                         try:
                             import json
                             tool_params = json.loads(parts[1])
+                            logger.info(f"[MOCK_LLM] TOOL handler - parsed as JSON: {tool_params}")
                         except:
                             # Try simple key=value parsing
-                            for pair in parts[1].split():
+                            # First clean up the parameters string by removing escaped newlines
+                            params_str = parts[1].split('\\n')[0].strip()
+                            for pair in params_str.split():
                                 if '=' in pair:
                                     k, v = pair.split('=', 1)
+                                    # Clean up the value
+                                    v = v.strip().rstrip('\\')
                                     tool_params[k] = v
+                            logger.info(f"[MOCK_LLM] TOOL handler - parsed as key=value: {tool_params}")
+                    else:
+                        logger.info(f"[MOCK_LLM] TOOL handler - no parameters provided")
                     
+                    logger.info(f"[MOCK_LLM] TOOL handler - final params: name='{tool_name}', parameters={tool_params}")
                     params = ToolParams(name=tool_name, parameters=tool_params)
                 else:
                     error_msg = "❌ $tool requires: <tool_name> [parameters]\nExample: $tool discord_delete_message channel_id=123 message_id=456\nAvailable tools: discord_delete_message, discord_timeout_user, list_files, read_file, etc."
@@ -309,7 +419,8 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
         help_text = """📋 CIRIS Mock LLM Commands Help
 
 🎛️ **Action Commands:**
-• $speak <message>                - Send a message
+• $speak <message>                - Send a message to current channel
+• $speak @channel:<id> <message>  - Send message to specific channel
 • $recall <node_id> [type] [scope] - Recall from memory
 • $memorize <node_id> [type] [scope] - Store in memory
 • $tool <name> [params]           - Execute a tool
@@ -337,6 +448,7 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
 
 💡 **Examples:**
 • $speak Hello world!
+• $speak @channel:api_0.0.0.0_8080 Cross-adapter message!
 • $recall user123 USER LOCAL
 • $tool read_file path=/tmp/test.txt
 • $defer Need more information
@@ -351,9 +463,163 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
     elif user_speech:
         # Regular user input - always speak
         action = HandlerActionType.SPEAK
-        params = SpeakParams(content=f"Mock response to: {user_speech}", channel_context=create_channel_context(channel_id))
+        params = SpeakParams(content="[MOCKLLM DISCLAIMER] SPEAK IN RESPONSE TO TASK WITHOUT COMMAND", channel_context=create_channel_context(channel_id))
         rationale = f"Responding to user: {user_speech}"
         
+    elif command_from_context:
+        # Handle command extracted from context (e.g., from Original Thought)
+        command_found = False
+        
+        # Handle specific commands
+        if command_from_context == '$ponder':
+            questions = command_args_from_context.split(';') if command_args_from_context else ["What should I do?"]
+            params = PonderParams(questions=[q.strip() for q in questions if q.strip()])
+            action = HandlerActionType.PONDER
+            rationale = "[MOCK LLM] Pondering questions from context"
+            command_found = True
+        elif command_from_context == '$speak':
+            params = SpeakParams(
+                content=command_args_from_context if command_args_from_context else "[MOCK LLM] Hello!",
+                channel_context=create_channel_context(channel_id)
+            )
+            action = HandlerActionType.SPEAK
+            rationale = "[MOCK LLM] Speaking from context command"
+            command_found = True
+        elif command_from_context == '$recall':
+            query = command_args_from_context if command_args_from_context else "memories"
+            params = RecallParams(
+                query=query,
+                node_type=NodeType.CONCEPT,
+                scope=GraphScope.LOCAL,
+                limit=5
+            )
+            action = HandlerActionType.RECALL
+            rationale = f"[MOCK LLM] Recalling memories about: {query}"
+            command_found = True
+        elif command_from_context == '$memorize':
+            content = command_args_from_context if command_args_from_context else "Empty memory"
+            node_id = "_".join(content.split()[:3]).lower().replace(",", "").replace(".", "")
+            if not node_id:
+                node_id = "memory_node"
+            
+            params = MemorizeParams(
+                node=GraphNode(
+                    id=node_id,
+                    type=NodeType.CONCEPT,
+                    scope=GraphScope.LOCAL,
+                    attributes=GraphNodeAttributes(
+                        created_by="mock_llm",
+                        tags=[f"content:{content[:50]}", "source:mock_llm"]
+                    )
+                )
+            )
+            action = HandlerActionType.MEMORIZE
+            rationale = f"[MOCK LLM] Memorizing: {content[:50]}..."
+            command_found = True
+        elif command_from_context == '$task_complete':
+            params = TaskCompleteParams(completion_reason="[MOCK LLM] Task completed via context command")
+            action = HandlerActionType.TASK_COMPLETE
+            rationale = "[MOCK LLM] Completing task from context"
+            command_found = True
+        elif command_from_context == '$tool':
+            # Parse tool command
+            tool_name = "list_tools"  # default
+            tool_params = {}
+            if command_args_from_context:
+                parts = command_args_from_context.split(None, 1)
+                if parts:
+                    tool_name = parts[0]
+                    if len(parts) > 1:
+                        # Parse parameters the same way as forced action
+                        params_str = parts[1].split('\\n')[0].strip()
+                        try:
+                            import json
+                            tool_params = json.loads(params_str)
+                        except:
+                            # Try simple key=value parsing
+                            for pair in params_str.split():
+                                if '=' in pair:
+                                    k, v = pair.split('=', 1)
+                                    # Clean up the value
+                                    v = v.strip().rstrip('\\')
+                                    tool_params[k] = v
+            
+            params = ToolParams(
+                name=tool_name,
+                parameters=tool_params
+            )
+            action = HandlerActionType.TOOL
+            rationale = f"[MOCK LLM] Executing tool: {tool_name}"
+            command_found = True
+        elif command_from_context == '$observe':
+            # Parse observe command - expects a channel_id
+            obs_channel = command_args_from_context.strip() if command_args_from_context else channel_id
+            params = ObserveParams(
+                channel_context=create_channel_context(obs_channel),
+                active=True,
+                context={"observer_channel": channel_id, "target_channel": obs_channel}
+            )
+            action = HandlerActionType.OBSERVE
+            rationale = f"[MOCK LLM] Observing channel: {obs_channel}"
+            command_found = True
+        elif command_from_context == '$defer':
+            reason = command_args_from_context or "Need more information"
+            params = DeferParams(
+                reason=reason,
+                context={"channel": channel_id} if channel_id else None
+            )
+            action = HandlerActionType.DEFER
+            rationale = f"[MOCK LLM] Deferring: {reason}"
+            command_found = True
+        elif command_from_context == '$reject':
+            reason = command_args_from_context or "Cannot process request"
+            params = RejectParams(
+                reason=reason,
+                create_filter=False
+            )
+            action = HandlerActionType.REJECT
+            rationale = f"[MOCK LLM] Rejecting: {reason}"
+            command_found = True
+        elif command_from_context == '$forget':
+            # Parse forget command - expects: <node_id> <reason>
+            parts = command_args_from_context.split(None, 1) if command_args_from_context else []
+            if len(parts) >= 1:
+                node_id = parts[0]
+                reason = parts[1] if len(parts) >= 2 else "User requested deletion"
+                # Create a GraphNode for the forget action
+                params = ForgetParams(
+                    node=GraphNode(
+                        id=node_id,
+                        type=NodeType.CONCEPT,  # Default type for forget
+                        scope=GraphScope.LOCAL,
+                        attributes=GraphNodeAttributes(
+                            created_by="mock_llm"
+                        )
+                    ),
+                    reason=reason
+                )
+                action = HandlerActionType.FORGET
+                rationale = f"[MOCK LLM] Forgetting memory: {node_id}"
+                command_found = True
+            else:
+                # Error case - no parameters provided
+                action = HandlerActionType.SPEAK
+                params = SpeakParams(
+                    content="❌ $forget requires: <node_id> <reason>\nExample: $forget user123 User requested data deletion",
+                    channel_context=create_channel_context(channel_id)
+                )
+                rationale = "[MOCK LLM] Invalid forget command"
+                command_found = True
+        
+        if not command_found:
+            # Unknown command, default to speak
+            action = HandlerActionType.SPEAK
+            params = SpeakParams(
+                content=f"[MOCK LLM] Unknown command from context: {command_from_context}",
+                channel_context=create_channel_context(channel_id)
+            )
+            rationale = "[MOCK LLM] Unknown command from context"
+            
     else:
         # Step 1: Check if this is a follow-up thought by looking at the THOUGHT_TYPE in the system message
         is_followup = False
@@ -368,10 +634,49 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                     is_followup = True
         
         if is_followup:
-            # Follow-up thought → TASK_COMPLETE
-            action = HandlerActionType.TASK_COMPLETE
-            params = TaskCompleteParams(completion_reason="[MOCK LLM] Follow-up thought processing completed")
-            rationale = "[MOCK LLM] Completing follow-up thought"
+            # Check the content of the follow-up thought to determine if it's from a SPEAK handler
+            # Extract the thought content from the user message
+            thought_content = ""
+            for msg in messages:
+                if isinstance(msg, dict) and msg.get('role') == 'user':
+                    user_content = msg.get('content', '')
+                    # Look for "Original Thought:" pattern
+                    if "Original Thought:" in user_content:
+                        # Handle nested quotes by looking for the content between the first and last quotes
+                        # or use a more robust pattern that captures everything until the next field
+                        thought_match = re.search(r'Original Thought:\s*"(.*?)"(?:\n|$)', user_content, re.DOTALL)
+                        if thought_match:
+                            thought_content = thought_match.group(1)
+                            break
+            
+            # Check if this is a follow-up from SPEAK handler (usually contains specific patterns)
+            # Most follow-ups from other handlers contain operation results that should be spoken
+            is_speak_followup = any(pattern in thought_content.lower() for pattern in [
+                "message sent successfully",
+                "spoke in channel",
+                "message delivered",
+                "response sent"
+            ])
+            
+            if is_speak_followup:
+                # Follow-up from SPEAK handler → TASK_COMPLETE
+                action = HandlerActionType.TASK_COMPLETE
+                params = TaskCompleteParams(completion_reason="[MOCK LLM] SPEAK operation completed")
+                rationale = "[MOCK LLM] Completing SPEAK follow-up thought"
+            else:
+                # Follow-up from other handlers (RECALL, MEMORIZE, etc.) → SPEAK the result
+                action = HandlerActionType.SPEAK
+                # Extract the actual content to speak from the follow-up thought
+                if thought_content.startswith("CIRIS_FOLLOW_UP_THOUGHT:"):
+                    content_to_speak = thought_content.replace("CIRIS_FOLLOW_UP_THOUGHT:", "").strip()
+                else:
+                    content_to_speak = thought_content
+                
+                params = SpeakParams(
+                    content=f"[MOCK LLM] {content_to_speak}",
+                    channel_context=create_channel_context(channel_id)
+                )
+                rationale = "[MOCK LLM] Speaking operation result from follow-up thought"
         else:
             # Step 2: For initial thoughts, check USER message for commands
             command_found = False
@@ -381,14 +686,33 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                 if isinstance(msg, dict) and msg.get('role') == 'user':
                     user_content = msg.get('content', '')
                     
-                    # Extract the actual user input after "User @username said:" or similar patterns
+                    # Debug logging
+                    logger.info(f"[MOCK_LLM DEBUG] Processing user message: {user_content[:200]}...")
+                    
+                    # Try to extract the actual user input after various patterns:
+                    # - "User @username said:" or "@username said:"
+                    # - "@USERNAME (ID: USERNAME):" (API format)
+                    # - Direct content without prefix
                     import re
-                    user_match = re.search(r'(?:User|@\w+)\s+(?:said|says?):\s*(.+)', user_content, re.IGNORECASE | re.DOTALL)
-                    if user_match:
-                        actual_user_input = user_match.group(1).strip()
+                    
+                    # First try API format: @USERNAME (ID: USERNAME): content
+                    api_match = re.search(r'@\w+\s*\([^)]+\):\s*(.+)', user_content, re.IGNORECASE | re.DOTALL)
+                    if api_match:
+                        actual_user_input = api_match.group(1).strip()
+                        logger.info(f"[MOCK_LLM DEBUG] Extracted via API pattern: {actual_user_input[:100]}")
+                    else:
+                        # Then try "User said:" or "@username said:" format
+                        user_match = re.search(r'(?:User|@\w+)\s+(?:said|says?):\s*(.+)', user_content, re.IGNORECASE | re.DOTALL)
+                        if user_match:
+                            actual_user_input = user_match.group(1).strip()
+                            logger.info(f"[MOCK_LLM DEBUG] Extracted via User said pattern: {actual_user_input[:100]}")
+                        else:
+                            # If no pattern matches, use the content as-is
+                            actual_user_input = user_content.strip()
+                            logger.info(f"[MOCK_LLM DEBUG] Using content as-is: {actual_user_input[:100]}")
                         
-                        # Check if it starts with a command
-                        if actual_user_input.startswith('$'):
+                    # Check if it starts with a command
+                    if actual_user_input.startswith('$'):
                             # Parse the command
                             parts = actual_user_input.split(None, 1)
                             command = parts[0].lower()
@@ -397,53 +721,64 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                             # Handle specific commands
                             if command == '$speak':
                                 action = HandlerActionType.SPEAK
+                                
+                                # Check if channel is specified with @channel syntax
+                                speak_channel = channel_id  # Default to current channel
+                                speak_content = command_args if command_args else "[MOCK LLM] Hello!"
+                                
+                                # Parse for @channel:channel_id syntax
+                                if command_args and command_args.startswith('@channel:'):
+                                    parts = command_args.split(None, 1)
+                                    if parts:
+                                        channel_part = parts[0]
+                                        if ':' in channel_part:
+                                            speak_channel = channel_part.split(':', 1)[1]
+                                            # Get remaining content after channel specification
+                                            speak_content = parts[1] if len(parts) > 1 else "[MOCK LLM] Cross-channel message"
+                                
                                 params = SpeakParams(
-                                    content=command_args if command_args else "[MOCK LLM] Hello!",
-                                    channel_context=create_channel_context(channel_id)
+                                    content=speak_content,
+                                    channel_context=create_channel_context(speak_channel)
                                 )
-                                rationale = f"[MOCK LLM] Executing speak command"
+                                rationale = f"[MOCK LLM] Speaking to channel {speak_channel}"
                                 command_found = True
                                 break
                             elif command == '$recall':
-                                # Parse recall parameters
-                                recall_parts = command_args.split()
-                                node_id = recall_parts[0] if recall_parts else "test_node"
-                                node_type = recall_parts[1] if len(recall_parts) > 1 else "CONCEPT"
-                                scope = recall_parts[2] if len(recall_parts) > 2 else "LOCAL"
+                                # Use query-based recall with the search term
+                                query = command_args if command_args else "memories"
                                 
                                 params = RecallParams(
-                                    node=GraphNode(
-                                        id=node_id,
-                                        type=getattr(NodeType, node_type.upper(), NodeType.CONCEPT),
-                                        scope=getattr(GraphScope, scope.upper(), GraphScope.LOCAL),
-                                        attributes=GraphNodeAttributes(
-                                            created_by="mock_llm"
-                                        )
-                                    )
+                                    query=query,
+                                    node_type=NodeType.CONCEPT,
+                                    scope=GraphScope.LOCAL,
+                                    limit=5
                                 )
                                 action = HandlerActionType.RECALL
-                                rationale = f"[MOCK LLM] Recalling node {node_id}"
+                                rationale = f"[MOCK LLM] Recalling memories about: {query}"
                                 command_found = True
                                 break
                             elif command == '$memorize':
-                                # Parse memorize parameters
-                                mem_parts = command_args.split()
-                                node_id = mem_parts[0] if mem_parts else "test_node"
-                                node_type = mem_parts[1] if len(mem_parts) > 1 else "CONCEPT"
-                                scope = mem_parts[2] if len(mem_parts) > 2 else "LOCAL"
+                                # Treat the entire command_args as the content to memorize
+                                content = command_args if command_args else "Empty memory"
+                                # Create a node ID from the content (first few words)
+                                node_id = "_".join(content.split()[:3]).lower().replace(",", "").replace(".", "")
+                                if not node_id:
+                                    node_id = "memory_node"
                                 
                                 params = MemorizeParams(
                                     node=GraphNode(
                                         id=node_id,
-                                        type=getattr(NodeType, node_type.upper(), NodeType.CONCEPT),
-                                        scope=getattr(GraphScope, scope.upper(), GraphScope.LOCAL),
+                                        type=NodeType.CONCEPT,
+                                        scope=GraphScope.LOCAL,
                                         attributes=GraphNodeAttributes(
-                                            created_by="mock_llm"
+                                            created_by="mock_llm",
+                                            content=content,
+                                            description=f"Memory: {content}"
                                         )
                                     )
                                 )
                                 action = HandlerActionType.MEMORIZE
-                                rationale = f"[MOCK LLM] Memorizing node {node_id}"
+                                rationale = f"[MOCK LLM] Memorizing: {content[:50]}..."
                                 command_found = True
                                 break
                             elif command == '$ponder':
@@ -454,16 +789,16 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                                 command_found = True
                                 break
                             elif command == '$observe':
-                                obs_parts = command_args.split()
-                                obs_channel = obs_parts[0] if obs_parts else channel_id
-                                active = obs_parts[1].lower() == 'true' if len(obs_parts) > 1 else False
+                                # Parse observe command - expects a channel_id
+                                obs_channel = command_args.strip() if command_args else channel_id
                                 
                                 params = ObserveParams(
                                     channel_context=create_channel_context(obs_channel),
-                                    active=active
+                                    active=True,  # Active observation
+                                    context={"observer_channel": channel_id, "target_channel": obs_channel}
                                 )
                                 action = HandlerActionType.OBSERVE
-                                rationale = f"[MOCK LLM] Observing channel {obs_channel}"
+                                rationale = f"[MOCK LLM] Observing channel: {obs_channel}"
                                 command_found = True
                                 break
                             elif command == '$tool':
@@ -501,25 +836,33 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                                 command_found = True
                                 break
                             elif command == '$forget':
-                                forget_parts = command_args.split(None, 1)
-                                if len(forget_parts) >= 2:
-                                    node_id = forget_parts[0]
-                                    reason = forget_parts[1]
-                                    params = ForgetParams(
-                                        node=GraphNode(
-                                            id=node_id, 
-                                            type=NodeType.CONCEPT, 
-                                            scope=GraphScope.LOCAL,
-                                            attributes=GraphNodeAttributes(
-                                                created_by="mock_llm"
-                                            )
-                                        ),
-                                        reason=reason
-                                    )
-                                    action = HandlerActionType.FORGET
-                                    rationale = f"[MOCK LLM] Forgetting node {node_id}"
-                                    command_found = True
-                                    break
+                                # Parse forget - can be either node_id or search term
+                                if command_args:
+                                    # Try to match the node ID format we create in memorize
+                                    search_term = command_args.strip()
+                                    # Create the same node ID format as memorize
+                                    node_id = "_".join(search_term.split()[:3]).lower().replace(",", "").replace(".", "")
+                                    if not node_id:
+                                        node_id = search_term.split()[0] if search_term else "unknown"
+                                else:
+                                    node_id = "unknown_node"
+                                    search_term = "unknown"
+                                
+                                params = ForgetParams(
+                                    node=GraphNode(
+                                        id=node_id,
+                                        type=NodeType.CONCEPT,
+                                        scope=GraphScope.LOCAL,
+                                        attributes=GraphNodeAttributes(
+                                            created_by="mock_llm"
+                                        )
+                                    ),
+                                    reason=f"Forgetting memory about: {search_term}"
+                                )
+                                action = HandlerActionType.FORGET
+                                rationale = f"[MOCK LLM] Forgetting memory: {search_term[:50]}..."
+                                command_found = True
+                                break
                             elif command == '$task_complete':
                                 params = TaskCompleteParams(completion_reason="[MOCK LLM] Task completed via command")
                                 action = HandlerActionType.TASK_COMPLETE
@@ -535,10 +878,89 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                 # Return to the help handler below
                 pass
             elif not command_found:
-                # Default: new task → SPEAK
-                action = HandlerActionType.SPEAK
-                params = SpeakParams(content="[MOCK LLM] Hello! How can I help you?", channel_context=create_channel_context(channel_id))
-                rationale = "[MOCK LLM] Default speak action for new task"
+                # Step 3: Check conversation history in the user message for commands
+                # This handles cases where commands come through API in conversation history
+                for msg in messages:
+                    if isinstance(msg, dict) and msg.get('role') == 'user':
+                        user_content = msg.get('content', '')
+                        
+                        # Look for conversation history pattern
+                        if "=== CONVERSATION HISTORY" in user_content:
+                            # Extract lines that look like user messages
+                            lines = user_content.split('\n')
+                            # Collect all command lines with their line numbers
+                            command_lines = []
+                            for line in lines:
+                                # Match patterns like "3. @SYSTEM_ADMIN (ID: SYSTEM_ADMIN): $memorize test"
+                                import re
+                                history_match = re.search(r'^(\d+)\.\s*@[^:]+:\s*(\$\w+.*?)$', line.strip())
+                                if history_match:
+                                    line_num = int(history_match.group(1))
+                                    command_line = history_match.group(2).strip()
+                                    command_lines.append((line_num, command_line))
+                            
+                            # Use the most recent command (highest line number)
+                            if command_lines:
+                                command_lines.sort(key=lambda x: x[0], reverse=True)
+                                _, command_line = command_lines[0]
+                                
+                                if command_line.startswith('$'):
+                                    # Parse this command
+                                    parts = command_line.split(None, 1)
+                                    command = parts[0].lower()
+                                    command_args = parts[1] if len(parts) > 1 else ""
+                                    
+                                    # Process the command (similar to above)
+                                    if command == '$memorize':
+                                        content = command_args if command_args else "Empty memory"
+                                        node_id = "_".join(content.split()[:3]).lower().replace(",", "").replace(".", "")
+                                        if not node_id:
+                                            node_id = "memory_node"
+                                        
+                                        params = MemorizeParams(
+                                            node=GraphNode(
+                                                id=node_id,
+                                                type=NodeType.CONCEPT,
+                                                scope=GraphScope.LOCAL,
+                                                attributes=GraphNodeAttributes(
+                                                    created_by="mock_llm",
+                                                    content=content,
+                                                    description=f"Memory: {content}"
+                                                )
+                                            )
+                                        )
+                                        action = HandlerActionType.MEMORIZE
+                                        rationale = f"[MOCK LLM] Memorizing from conversation history: {content[:50]}..."
+                                        command_found = True
+                                    elif command == '$speak':
+                                        params = SpeakParams(
+                                            content=command_args if command_args else "[MOCK LLM] Hello!",
+                                            channel_context=create_channel_context(channel_id)
+                                        )
+                                        action = HandlerActionType.SPEAK
+                                        rationale = "[MOCK LLM] Speaking from conversation history"
+                                        command_found = True
+                                    elif command == '$recall':
+                                        query = command_args if command_args else "memories"
+                                        params = RecallParams(
+                                            query=query,
+                                            node_type=NodeType.CONCEPT,
+                                            scope=GraphScope.LOCAL,
+                                            limit=5
+                                        )
+                                        action = HandlerActionType.RECALL
+                                        rationale = f"[MOCK LLM] Recalling from conversation history: {query}"
+                                        command_found = True
+                                    # Add other handlers as needed...
+                            
+                            if command_found:
+                                break
+                
+                if not command_found:
+                    # Default: new task → SPEAK
+                    action = HandlerActionType.SPEAK
+                    params = SpeakParams(content="[MOCKLLM DISCLAIMER] SPEAK IN RESPONSE TO TASK WITHOUT COMMAND", channel_context=create_channel_context(channel_id))
+                    rationale = "[MOCK LLM] Default speak action for new task"
     
     # Use custom rationale if provided, otherwise use the generated rationale
     final_rationale = custom_rationale if custom_rationale else rationale

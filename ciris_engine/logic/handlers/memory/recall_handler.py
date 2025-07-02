@@ -22,17 +22,29 @@ class RecallHandler(BaseActionHandler):
             params: RecallParams = await self._validate_and_convert_params(raw_params, RecallParams)
         except Exception as e:
             await self._handle_error(HandlerActionType.RECALL, dispatch_context, thought_id, e)
-            follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=ThoughtStatus.PENDING
+            # Mark thought as failed and create error follow-up
+            persistence.update_thought_status(
+                thought_id=thought_id,
+                status=ThoughtStatus.FAILED
             )
-            persistence.add_thought(follow_up)
-            return None
+            error_content = f"RECALL action failed: {str(e)}"
+            follow_up_id = await self.complete_thought_and_create_followup(
+                thought=thought,
+                follow_up_content=error_content,
+                action_result=result
+            )
+            return follow_up_id
         # Memory operations will use the memory bus
         
         # Type assertion to help MyPy understand params is RecallParams
         assert isinstance(params, RecallParams)
 
-        # Create MemoryQuery from RecallParams
-        # If node_id is provided, use it directly
+        # Import MemorySearchFilter for search operations
+        from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
+        
+        nodes = []
+        
+        # If node_id is provided, try exact match first
         if params.node_id:
             memory_query = MemoryQuery(
                 node_id=params.node_id,
@@ -41,22 +53,29 @@ class RecallHandler(BaseActionHandler):
                 include_edges=False,
                 depth=1
             )
-        else:
-            # If no node_id, we need to handle query-based recall
-            # For now, we'll create a placeholder query
-            # The memory service should handle text-based queries
-            memory_query = MemoryQuery(
-                node_id=params.query or "query_recall",
-                scope=params.scope or GraphScope.LOCAL,
-                type=NodeType(params.node_type) if params.node_type else None,
-                include_edges=False,
-                depth=1
+            nodes = await self.bus_manager.memory.recall(
+                recall_query=memory_query,
+                handler_name=self.__class__.__name__
             )
-
-        nodes = await self.bus_manager.memory.recall(
-            recall_query=memory_query,
-            handler_name=self.__class__.__name__
-        )
+        
+        # If no results with exact match OR if using query, try search
+        if not nodes and (params.query or params.node_id):
+            # Use the search method for flexible matching
+            search_query = params.query or params.node_id or ""
+            
+            # Build search filter
+            search_filter = MemorySearchFilter(
+                node_type=params.node_type,
+                scope=(params.scope or GraphScope.LOCAL).value,
+                limit=params.limit
+            )
+            
+            # Perform search
+            nodes = await self.bus_manager.memory.search(
+                query=search_query,
+                filters=search_filter
+            )
+            # Trust the search results - don't filter them again
 
         success = bool(nodes)
 
@@ -73,7 +92,14 @@ class RecallHandler(BaseActionHandler):
             if params.node_type:
                 query_desc = f"{params.node_type} {query_desc}"
 
-            follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: Memory query '{query_desc}' returned: {data}"
+            # Convert data to string and check length
+            data_str = str(data)
+            if len(data_str) > 10000:
+                # Truncate to first 10k characters
+                truncated_data = data_str[:10000]
+                follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: Memory query '{query_desc}' returned over {len(data_str)} characters, first 10000 characters: {truncated_data}"
+            else:
+                follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: Memory query '{query_desc}' returned: {data}"
         else:
             # Build descriptive query string
             query_desc = params.node_id or params.query or "recall request"
@@ -82,14 +108,16 @@ class RecallHandler(BaseActionHandler):
             scope_str = (params.scope or GraphScope.LOCAL).value
 
             follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: No memories found for query '{query_desc}' in scope {scope_str}"
-        follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=follow_up_content,
+        # Use centralized method to complete thought and create follow-up
+        follow_up_id = await self.complete_thought_and_create_followup(
+            thought=thought,
+            follow_up_content=follow_up_content,
+            action_result=result
         )
-        # The follow-up thought already has proper context from create_follow_up_thought
-        # No need to modify it
-        persistence.add_thought(follow_up)
+        
         await self._audit_log(
             HandlerActionType.RECALL,
             dispatch_context,
             outcome="success" if success and data else "failed",
         )
-        return follow_up.thought_id
+        return follow_up_id

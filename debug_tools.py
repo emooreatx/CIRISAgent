@@ -9,6 +9,8 @@ Usage:
     python debug_tools.py thought <id>       # Show thought details
     python debug_tools.py channel <task_id>  # Trace channel context
     python debug_tools.py correlations       # Show recent service correlations
+    python debug_tools.py trace <trace_id>   # Show trace hierarchy
+    python debug_tools.py traces             # List recent trace IDs
     python debug_tools.py dead-letter        # Show dead letter queue
     python debug_tools.py api-messages       # Show API message queue
 """
@@ -23,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from ciris_engine.logic import persistence
 from ciris_engine.logic.persistence.db.core import get_db_connection
-from ciris_engine.schemas.foundational_schemas_v1 import TaskStatus, ThoughtStatus
+from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
 
 
 def list_tasks(status_filter=None):
@@ -123,38 +125,125 @@ def trace_channel_context(task_id):
         extract_channel(thought.context, "  ")
 
 
-def show_correlations(limit=20):
-    """Show recent service correlations."""
+def show_correlations(limit=20, trace_id=None):
+    """Show recent service correlations with trace hierarchy."""
     conn = get_db_connection()
-    cursor = conn.execute("""
-        SELECT correlation_id, service_type, handler_name, action_type, 
-               status, created_at, request_data
-        FROM service_correlations 
-        ORDER BY created_at DESC 
-        LIMIT ?
-    """, (limit,))
+    
+    if trace_id:
+        # Show trace hierarchy
+        cursor = conn.execute("""
+            SELECT correlation_id, service_type, handler_name, action_type, 
+                   status, created_at, request_data, response_data, 
+                   trace_id, span_id, parent_span_id, updated_at
+            FROM service_correlations 
+            WHERE trace_id = ?
+            ORDER BY created_at ASC
+        """, (trace_id,))
+    else:
+        # Show recent correlations
+        cursor = conn.execute("""
+            SELECT correlation_id, service_type, handler_name, action_type, 
+                   status, created_at, request_data, response_data,
+                   trace_id, span_id, parent_span_id, updated_at
+            FROM service_correlations 
+            ORDER BY created_at DESC 
+            LIMIT ?
+        """, (limit,))
     
     rows = cursor.fetchall()
     print(f"\n{'='*100}")
-    print(f"RECENT CORRELATIONS ({len(rows)} shown)")
+    print(f"{'TRACE HIERARCHY' if trace_id else 'RECENT CORRELATIONS'} ({len(rows)} shown)")
     print(f"{'='*100}")
     
+    # Build parent-child relationships if showing trace
+    traces = {}
     for row in rows:
-        corr_id, svc_type, handler, action, status, created, req_data = row
-        print(f"\n{created} - {handler} -> {action}")
-        print(f"  Correlation: {corr_id}")
-        print(f"  Status: {status}")
+        corr_id = row[0]
+        traces[corr_id] = {
+            'row': row,
+            'children': []
+        }
+    
+    # Link children to parents using span relationships
+    span_to_corr = {}
+    for corr_id, trace_info in traces.items():
+        span_id = trace_info['row'][9]  # span_id
+        if span_id:
+            span_to_corr[span_id] = corr_id
+    
+    for corr_id, trace_info in traces.items():
+        parent_span_id = trace_info['row'][10]  # parent_span_id
+        if parent_span_id and parent_span_id in span_to_corr:
+            parent_corr_id = span_to_corr[parent_span_id]
+            if parent_corr_id in traces:
+                traces[parent_corr_id]['children'].append(corr_id)
+    
+    # Display function with indentation
+    def display_correlation(row, indent=0):
+        corr_id, svc_type, handler, action, status, created, req_data, resp_data, trace_id, span_id, parent_span_id, updated = row
+        prefix = "  " * indent + ("└─ " if indent > 0 else "")
+        
+        # Calculate duration
+        duration = ""
+        if updated and created:
+            try:
+                start = datetime.fromisoformat(created.replace('Z', '+00:00'))
+                end = datetime.fromisoformat(updated.replace('Z', '+00:00'))
+                duration_ms = (end - start).total_seconds() * 1000
+                duration = f" [{duration_ms:.0f}ms]"
+            except:
+                pass
+        
+        print(f"\n{prefix}{created} - {handler} -> {action} ({status}){duration}")
+        print(f"{prefix}  Correlation: {corr_id}")
+        
+        # Show trace context
+        if trace_id:
+            print(f"{prefix}  Trace: {trace_id} / Span: {span_id}")
+            if parent_span_id:
+                print(f"{prefix}  Parent Span: {parent_span_id}")
+        
+        # Show request details
         if req_data:
             try:
                 data = json.loads(req_data)
-                if 'channel_id' in data:
-                    print(f"  Channel: {data['channel_id']}")
                 if 'thought_id' in data:
-                    print(f"  Thought: {data['thought_id']}")
+                    print(f"{prefix}  Thought: {data['thought_id']}")
                 if 'task_id' in data:
-                    print(f"  Task: {data['task_id']}")
+                    print(f"{prefix}  Task: {data['task_id']}")
+                if 'channel_id' in data:
+                    print(f"{prefix}  Channel: {data['channel_id']}")
+                if 'parameters' in data and data['parameters']:
+                    print(f"{prefix}  Params: {str(data['parameters'])[:80]}...")
             except:
                 pass
+        
+        # Show response summary
+        if resp_data:
+            try:
+                resp = json.loads(resp_data)
+                if not resp.get('success'):
+                    print(f"{prefix}  ERROR: {resp.get('error_message', 'Unknown error')}")
+                elif resp.get('result_summary'):
+                    print(f"{prefix}  Result: {resp['result_summary'][:80]}...")
+            except:
+                pass
+    
+    if trace_id:
+        # Display as hierarchy
+        root_traces = [t for cid, t in traces.items() if not t['row'][10]]  # No parent_span_id
+        for trace_info in root_traces:
+            display_correlation(trace_info['row'])
+            # Display children recursively
+            def show_children(parent_id, level=1):
+                for child_id in traces[parent_id]['children']:
+                    display_correlation(traces[child_id]['row'], level)
+                    show_children(child_id, level + 1)
+            show_children(trace_info['row'][0])
+    else:
+        # Display flat list
+        for row in rows:
+            display_correlation(row)
 
 
 def show_dead_letter():
@@ -198,6 +287,34 @@ def show_api_messages(channel_id=None):
         print(f"Error accessing API messages: {e}")
 
 
+def list_traces(limit=20):
+    """List recent unique trace IDs."""
+    conn = get_db_connection()
+    cursor = conn.execute("""
+        SELECT DISTINCT 
+            trace_id,
+            MIN(created_at) as first_seen,
+            MAX(created_at) as last_seen,
+            COUNT(*) as span_count
+        FROM service_correlations 
+        WHERE trace_id IS NOT NULL
+        GROUP BY trace_id
+        ORDER BY last_seen DESC
+        LIMIT ?
+    """, (limit,))
+    
+    rows = cursor.fetchall()
+    print(f"\n{'='*100}")
+    print(f"RECENT TRACES ({len(rows)} shown)")
+    print(f"{'='*100}")
+    print(f"{'Trace ID':<40} {'First Seen':<20} {'Last Seen':<20} {'Spans'}")
+    print(f"{'-'*100}")
+    
+    for trace_id, first, last, count in rows:
+        if trace_id:
+            print(f"{trace_id:<40} {first[:19]:<20} {last[:19]:<20} {count}")
+
+
 def main():
     """Main entry point."""
     if len(sys.argv) < 2:
@@ -239,6 +356,12 @@ def main():
     
     elif command == "correlations":
         show_correlations()
+    
+    elif command == "trace" and len(sys.argv) > 2:
+        show_correlations(trace_id=sys.argv[2])
+    
+    elif command == "traces":
+        list_traces()
     
     elif command == "dead-letter":
         show_dead_letter()

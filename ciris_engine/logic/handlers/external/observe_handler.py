@@ -94,10 +94,11 @@ class ObserveHandler(BaseActionHandler):
             assert isinstance(params, ObserveParams)  # Type assertion after validation
         except Exception as e:
             await self._handle_error(HandlerActionType.OBSERVE, dispatch_context, thought_id, e)
-            persistence.update_thought_status(
-                thought_id=thought_id,
-                status=ThoughtStatus.FAILED,
-                final_action=result,
+            # Mark thought as failed and create error follow-up
+            return await self.complete_thought_and_create_followup(
+                thought=thought,
+                follow_up_content=f"OBSERVE action failed: {e}",
+                action_result=result
             )
             follow_up_text = f"OBSERVE action failed for thought {thought_id}. Reason: {e}"
             try:
@@ -164,32 +165,24 @@ class ObserveHandler(BaseActionHandler):
             final_status = ThoughtStatus.FAILED
             follow_up_info = str(e)
 
-        persistence.update_thought_status(
-            thought_id=thought_id,
-            status=final_status,
-            final_action=result,
-        )
-
         follow_up_text = (
             f"CIRIS_FOLLOW_UP_THOUGHT: OBSERVE action completed. Info: {follow_up_info}"
             if action_performed
             else f"CIRIS_FOLLOW_UP_THOUGHT: OBSERVE action failed: {follow_up_info}"
         )
-        try:
-            logger.info(f"ObserveHandler: Creating follow-up thought for {thought_id}")
-            new_follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=follow_up_text)
-            # Note: We don't modify the context here since ThoughtContext has extra="forbid"
-            # The action details are already captured in the follow_up_text content
-            persistence.add_thought(new_follow_up)
-            logger.info(f"ObserveHandler: Follow-up thought created for {thought_id}")
-
-        except Exception as e:
-            logger.critical(
-                "Failed to create follow-up for %s: %s", thought_id, e, exc_info=e
-            )
+        
+        # Use centralized method to complete thought and create follow-up
+        follow_up_id = await self.complete_thought_and_create_followup(
+            thought=thought,
+            follow_up_content=follow_up_text,
+            action_result=result
+        )
+        
+        if not follow_up_id:
+            logger.critical(f"Failed to create follow-up for {thought_id}")
             await self._audit_log(
                 HandlerActionType.OBSERVE,
                 dispatch_context,
                 outcome="failed_followup",
             )
-            raise FollowUpCreationError from e
+            raise FollowUpCreationError("Failed to create follow-up thought")

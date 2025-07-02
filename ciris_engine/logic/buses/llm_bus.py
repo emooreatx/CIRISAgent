@@ -520,3 +520,17 @@ class LLMBus(BaseBus[LLMService]):
         base_stats["service_stats"] = self.get_service_stats()
         base_stats["distribution_strategy"] = self.distribution_strategy.value
         return base_stats
+
+    def clear_circuit_breakers(self) -> None:
+        """Clear all circuit breakers - useful for testing.
+        
+        WARNING: This should ONLY be used in test environments to ensure
+        clean state between test runs. Using this in production could
+        hide real service failures.
+        """
+        logger.warning("Clearing all LLM circuit breakers - this should only happen in tests!")
+        self._circuit_breakers.clear()
+        self.circuit_breakers.clear()
+        # Also clear service metrics to ensure clean state
+        self.service_metrics.clear()
+        self._latencies.clear()

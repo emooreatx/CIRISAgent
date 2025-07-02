@@ -32,8 +32,10 @@ class MockLLMConfig:
         self.context_patterns = {
             r'user.*?says?.*?"([^"]+)"': lambda m: f"echo_user_speech:{m.group(1)}",
             r'thought.*content.*"([^"]+)"': lambda m: f"echo_thought:{m.group(1)}",
-            r'channel.*?[\'"]([^\'"]+)[\'"]': lambda m: f"echo_channel:{m.group(1)}",
-            r'channel\s+([#@]?[\w-]+)': lambda m: f"echo_channel:{m.group(1)}",
+            # More specific channel patterns to avoid false matches
+            r'channel_id[=:]\s*[\'"]([a-zA-Z0-9_\-@\.]+)[\'"]': lambda m: f"echo_channel:{m.group(1)}",
+            r'channel_id[=:]\s*([a-zA-Z0-9_\-@\.]+)(?:\s|$)': lambda m: f"echo_channel:{m.group(1)}",
+            r'channel\s+([#@]?[a-zA-Z0-9_\-]+)(?:\s|$)': lambda m: f"echo_channel:{m.group(1)}" if len(m.group(1)) > 3 else None,
             r'(?:search.*memory|memory.*search).*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_memory_query:{m.group(1)}",
             r'domain.*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_domain:{m.group(1)}",
             # Catch-all for any content
@@ -69,8 +71,35 @@ def extract_context_from_messages(messages: List[dict]) -> List[str]:
     import json
     context_items.append(f"__messages__:{json.dumps(messages)}")
     
-    # Look for actual thought content in messages
-    actual_thought_content = ""
+    # Debug logging to see what messages we're getting
+    logger.info(f"[MOCK_LLM] Extracting context from {len(messages)} messages")
+    for i, msg in enumerate(messages):
+        content = msg.get('content', '') if isinstance(msg, dict) else str(msg)
+        logger.info(f"[MOCK_LLM] Message {i}: {content[:200]}...")
+    
+    # Look for passive observation pattern
+    actual_user_message = ""
+    # Save the full message content for debugging ASPDMA issues
+    for i, msg in enumerate(messages):
+        if isinstance(msg, dict) and msg.get('role') == 'user':
+            content = msg.get('content', '')
+            if "Your task is to determine the single most appropriate HANDLER ACTION" in content:
+                # Save to file for inspection with timestamp
+                import time
+                filename = f"/tmp/aspdma_user_message_{int(time.time())}.txt"
+                with open(filename, "w") as f:
+                    f.write(content)
+                logger.info(f"[MOCK_LLM] Saved ASPDMA user message to {filename}")
+                
+                # Also log if we find observation pattern
+                if "You observed @" in content:
+                    logger.info("[MOCK_LLM] Found 'You observed @' pattern in ASPDMA message")
+                    # Extract what comes after Original Thought:
+                    if "Original Thought:" in content:
+                        thought_match = re.search(r'Original Thought:\s*"([^"]+)"', content)
+                        if thought_match:
+                            logger.info(f"[MOCK_LLM] Original thought content: {thought_match.group(1)[:100]}...")
+    
     for msg in messages:
         content = ""
         if isinstance(msg, dict) and 'content' in msg:
@@ -78,14 +107,94 @@ def extract_context_from_messages(messages: List[dict]) -> List[str]:
         elif hasattr(msg, 'content'):
             content = msg.content
             
-        # Look for the actual thought content pattern
-        if "Original Thought:" in content:
+        # Check for passive observation pattern
+        if content.startswith("You observed @"):
+            logger.info(f"[MOCK_LLM] Processing observation message: {content[:100]}...")
+            # Find the " say: " delimiter
+            say_index = content.find(" say: ")
+            if say_index != -1:
+                # Extract everything after " say: " but only until the first newline
+                # This prevents capturing the conversation history
+                remaining_content = content[say_index + 6:]  # 6 is len(" say: ")
+                # Split on newline to get just the message, not the history
+                # Also handle case where there's a literal \n in the string
+                actual_user_message = remaining_content.split('\n')[0].split('\\n')[0].strip()
+                logger.info(f"[MOCK_LLM] Extracted user message: {actual_user_message}")
+                # Add this to context items so it gets processed properly
+                context_items.append(f"user_input:{actual_user_message}")
+                context_items.append(f"task:{actual_user_message}")
+                
+                # If the message is a command, also parse and add the forced action
+                if actual_user_message.startswith('$'):
+                    parts = actual_user_message.split(None, 1)
+                    action = parts[0][1:].lower()  # Remove $ and lowercase
+                    params = parts[1] if len(parts) > 1 else ""
+                    valid_actions = ['speak', 'recall', 'memorize', 'tool', 'observe', 'ponder', 
+                                   'defer', 'reject', 'forget', 'task_complete']
+                    if action in valid_actions:
+                        logger.info(f"[MOCK_LLM] Detected command: action={action}, params={params}")
+                        context_items.append(f"forced_action:{action}")
+                        if params:
+                            context_items.append(f"action_params:{params}")
+                    else:
+                        logger.warning(f"[MOCK_LLM] Unknown command: {action}")
+                else:
+                    logger.info(f"[MOCK_LLM] Not a command, regular message: {actual_user_message}")
+            else:
+                logger.warning(f"[MOCK_LLM] No ' say: ' delimiter found in observation")
+            break
+        
+        # Fallback: Look for the old "Original Thought:" pattern
+        elif "Original Thought:" in content:
+            logger.info(f"[MOCK_LLM] Found 'Original Thought:' in message")
             # Extract the thought after "Original Thought:" 
             thought_match = re.search(r'Original Thought:\s*"([^"]+)"', content)
             if thought_match:
+                logger.info(f"[MOCK_LLM] Extracted thought content: {thought_match.group(1)[:100]}...")
                 actual_thought_content = thought_match.group(1)
                 # Add this to context items so it gets processed properly
                 context_items.append(f"echo_thought:{actual_thought_content}")
+                
+                # Check if this thought contains the passive observation pattern
+                if actual_thought_content.startswith("You observed @"):
+                    # Extract the user message from the passive observation
+                    say_index = actual_thought_content.find(" say: ")
+                    if say_index != -1:
+                        # Extract only until the first newline to avoid conversation history
+                        remaining_content = actual_thought_content[say_index + 6:]  # 6 is len(" say: ")
+                        # Also handle case where there's a literal \n in the string
+                        actual_user_message = remaining_content.split('\n')[0].split('\\n')[0].strip()
+                        context_items.append(f"user_input:{actual_user_message}")
+                        context_items.append(f"task:{actual_user_message}")
+                        
+                        # If it's a command, parse it
+                        if actual_user_message.startswith('$'):
+                            parts = actual_user_message.split(None, 1)
+                            action = parts[0][1:].lower()  # Remove $ and lowercase
+                            params = parts[1] if len(parts) > 1 else ""
+                            valid_actions = ['speak', 'recall', 'memorize', 'tool', 'observe', 'ponder', 
+                                           'defer', 'reject', 'forget', 'task_complete', 'help']
+                            if action in valid_actions:
+                                context_items.append(f"forced_action:{action}")
+                                if params:
+                                    context_items.append(f"action_params:{params}")
+                                # Special handling for help command
+                                if action == 'help':
+                                    context_items.append("show_help_requested")
+                # Old format: If the thought is a command directly
+                elif actual_thought_content.startswith('$'):
+                    context_items.append(f"user_input:{actual_thought_content}")
+                    context_items.append(f"task:{actual_thought_content}")
+                    # Also parse and add the forced action for action_selection
+                    parts = actual_thought_content.split(None, 1)
+                    action = parts[0][1:].lower()  # Remove $ and lowercase
+                    params = parts[1] if len(parts) > 1 else ""
+                    valid_actions = ['speak', 'recall', 'memorize', 'tool', 'observe', 'ponder', 
+                                   'defer', 'reject', 'forget', 'task_complete']
+                    if action in valid_actions:
+                        context_items.append(f"forced_action:{action}")
+                        if params:
+                            context_items.append(f"action_params:{params}")
                 break
     
     # Combine all message content
@@ -96,12 +205,20 @@ def extract_context_from_messages(messages: List[dict]) -> List[str]:
         elif hasattr(msg, 'content'):
             full_content += f" {msg.content}"
     
+    # First, look for explicit channel_id patterns in task context
+    channel_match = re.search(r"channel_id='([^']+)'", full_content)
+    if channel_match:
+        context_items.append(f"echo_channel:{channel_match.group(1)}")
+        logger.debug(f"Found explicit channel_id in task context: {channel_match.group(1)}")
+    
     # Apply regex patterns
     for pattern, extractor in _mock_config.context_patterns.items():
         matches = re.finditer(pattern, full_content, re.IGNORECASE)
         for match in matches:
             try:
-                context_items.append(extractor(match))
+                result = extractor(match)
+                if result is not None:  # Skip None results from conditional extractors
+                    context_items.append(result)
             except Exception:
                 continue
     
@@ -151,9 +268,8 @@ def extract_context_from_messages(messages: List[dict]) -> List[str]:
         _mock_config.debug_consciences = True
         context_items.append("debug_consciences_enabled")
     
-    if "$help" in full_content:
-        _mock_config.show_help = True
-        context_items.append("show_help_requested")
+    # Help command is handled via the passive observation pattern
+    # No need to check full_content for $help anymore
     
     return context_items
 

@@ -130,6 +130,18 @@ class SystemSnapshot(BaseModel):
         None,
         description="Aggregated telemetry data for resource usage tracking"
     )
+    
+    # Adapter channels - for agent visibility into available communication channels
+    adapter_channels: Dict[str, List[Dict[str, Any]]] = Field(
+        default_factory=dict,
+        description="Available channels by adapter type (e.g., {'discord': [...], 'api': [...]})"
+    )
+    
+    # Available tools - for agent visibility into tools across all adapters
+    available_tools: Dict[str, List[Dict[str, Any]]] = Field(
+        default_factory=dict,
+        description="Available tools by adapter (e.g., {'cli': ['list_files', 'read_file'], 'api': ['curl', 'http_get']})"
+    )
 
     model_config = ConfigDict(extra = "forbid")  # Be strict about fields to catch misuse
 

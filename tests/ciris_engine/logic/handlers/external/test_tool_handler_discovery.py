@@ -208,6 +208,7 @@ def mock_dependencies_with_tools(monkeypatch):
     mock_persistence.add_thought = Mock()
     mock_persistence.update_thought_status = Mock()
     monkeypatch.setattr('ciris_engine.logic.handlers.external.tool_handler.persistence', mock_persistence)
+    monkeypatch.setattr('ciris_engine.logic.infrastructure.handlers.base_handler.persistence', mock_persistence)
 
     # Mock the models ThoughtContext to avoid validation issues
     mock_thought_context = Mock()
@@ -300,7 +301,7 @@ async def test_tool_parameter_validation_strict(mock_dependencies_with_tools):
 
     # Verify validation occurred
     update_call = persistence.update_thought_status.call_args
-    assert update_call.kwargs['status'] == ThoughtStatus.FAILED
+    assert update_call[0][1] == ThoughtStatus.FAILED  # Second positional argument is status
 
     follow_up = persistence.add_thought.call_args[0][0]
     assert "failed" in follow_up.content.lower()
@@ -676,7 +677,7 @@ async def test_tool_not_found_handling(mock_dependencies_with_tools):
 
     # Should fail gracefully
     update_call = persistence.update_thought_status.call_args
-    assert update_call.kwargs['status'] == ThoughtStatus.FAILED
+    assert update_call[0][1] == ThoughtStatus.FAILED  # Second positional argument is status
 
     follow_up = persistence.add_thought.call_args[0][0]
     assert "not found" in follow_up.content.lower()

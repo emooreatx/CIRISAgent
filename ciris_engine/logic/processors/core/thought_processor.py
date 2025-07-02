@@ -7,12 +7,16 @@ from typing import Dict, List, Optional, Any
 
 from ciris_engine.logic.config import ConfigAccessor
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
+from ciris_engine.logic import persistence
+from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, TraceContext, ServiceRequestData, ServiceResponseData, ServiceCorrelationStatus
+from datetime import datetime, timezone
 from ciris_engine.logic.utils.channel_utils import create_channel_context
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.runtime.models import Thought, ThoughtStatus
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.schemas.actions.parameters import PonderParams, DeferParams
 from ciris_engine.logic.dma.exceptions import DMAFailure
+from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
 from ciris_engine.logic.handlers.control.ponder_handler import PonderHandler
 from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.logic.registries.circuit_breaker import CircuitBreakerError
@@ -49,6 +53,47 @@ class ThoughtProcessor:
         context: Optional[dict] = None
     ) -> Optional[ActionSelectionDMAResult]:
         """Main processing pipeline - coordinates the components."""
+        start_time = self._time_service.now()
+        # Create trace for thought processing
+        trace_id = f"task_{thought_item.source_task_id or 'unknown'}_{thought_item.thought_id}"
+        span_id = f"thought_processor_{thought_item.thought_id}"
+        parent_span_id = f"agent_processor_{thought_item.thought_id}"
+        
+        trace_context = TraceContext(
+            trace_id=trace_id,
+            span_id=span_id,
+            parent_span_id=parent_span_id,
+            span_name="process_thought",
+            span_kind="internal",
+            baggage={
+                "thought_id": thought_item.thought_id,
+                "task_id": thought_item.source_task_id or "",
+                "thought_type": thought_item.thought_type
+            }
+        )
+        
+        correlation = ServiceCorrelation(
+            correlation_id=f"trace_{span_id}_{start_time.timestamp()}",
+            correlation_type=CorrelationType.TRACE_SPAN,
+            service_type="thought_processor",
+            handler_name="ThoughtProcessor",
+            action_type="process_thought",
+            created_at=start_time,
+            updated_at=start_time,
+            timestamp=start_time,
+            trace_context=trace_context,
+            tags={
+                "thought_id": thought_item.thought_id,
+                "task_id": thought_item.source_task_id or "",
+                "component_type": "thought_processor",
+                "trace_depth": "2",
+                "thought_type": thought_item.thought_type
+            }
+        )
+        
+        # Add correlation
+        persistence.add_correlation(correlation, self._time_service)
+        
         # Record thought processing start as HOT PATH
         if self.telemetry_service:
             await self.telemetry_service.record_metric(
@@ -75,6 +120,20 @@ class ThoughtProcessor:
                         "source_module": "thought_processor"
                     }
                 )
+            # Update correlation with failure
+            end_time = self._time_service.now()
+            from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
+            update_req = CorrelationUpdateRequest(
+                correlation_id=correlation.correlation_id,
+                response_data={
+                    "success": "false",
+                    "error_message": "Thought not found",
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
+                },
+                status=ServiceCorrelationStatus.FAILED
+            )
+            persistence.update_correlation(update_req, self._time_service)
             return None
 
         # 1.5 Verify the parent task is signed by at least an observer
@@ -92,6 +151,20 @@ class ThoughtProcessor:
                             "source_module": "thought_processor"
                         }
                     )
+                # Update correlation with auth failure
+                end_time = self._time_service.now()
+                from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
+                update_req = CorrelationUpdateRequest(
+                    correlation_id=correlation.correlation_id,
+                    response_data={
+                        "success": "false",
+                        "error_message": "Thought parent task is not properly signed",
+                        "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                        "response_timestamp": end_time.isoformat()
+                    },
+                    status=ServiceCorrelationStatus.FAILED
+                )
+                persistence.update_correlation(update_req, self._time_service)
                 return None
 
         # 2. Build context (always build proper ThoughtContext for DMA orchestrator)
@@ -134,6 +207,20 @@ class ThoughtProcessor:
                 context={"error": str(dma_err)},
                 defer_until=None
             )
+            # Update correlation with DMA failure
+            end_time = self._time_service.now()
+            from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
+            update_req = CorrelationUpdateRequest(
+                correlation_id=correlation.correlation_id,
+                response_data={
+                    "success": "false",
+                    "error_message": f"DMA failure: {str(dma_err)}",
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
+                },
+                status=ServiceCorrelationStatus.FAILED
+            )
+            persistence.update_correlation(update_req, self._time_service)
             return ActionSelectionDMAResult(
                 selected_action=HandlerActionType.DEFER,
                 action_parameters=defer_params.model_dump(),
@@ -142,6 +229,20 @@ class ThoughtProcessor:
 
         # 4. Check for failures/escalations
         if self._has_critical_failure(dma_results):
+            # Update correlation with critical failure
+            end_time = self._time_service.now()
+            from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
+            update_req = CorrelationUpdateRequest(
+                correlation_id=correlation.correlation_id,
+                response_data={
+                    "success": "false",
+                    "error_message": "Critical DMA failure",
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
+                },
+                status=ServiceCorrelationStatus.FAILED
+            )
+            persistence.update_correlation(update_req, self._time_service)
             return self._create_deferral_result(dma_results, thought)
 
         # 5. Run action selection
@@ -164,6 +265,20 @@ class ThoughtProcessor:
                 context={"error": str(dma_err)},
                 defer_until=None
             )
+            # Update correlation with DMA failure (action selection)
+            end_time = self._time_service.now()
+            from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
+            update_req = CorrelationUpdateRequest(
+                correlation_id=correlation.correlation_id,
+                response_data={
+                    "success": "false",
+                    "error_message": f"DMA failure during action selection: {str(dma_err)}",
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
+                },
+                status=ServiceCorrelationStatus.FAILED
+            )
+            persistence.update_correlation(update_req, self._time_service)
             return ActionSelectionDMAResult(
                 selected_action=HandlerActionType.DEFER,
                 action_parameters=defer_params.model_dump(),
@@ -183,6 +298,20 @@ class ThoughtProcessor:
         else:
             logger.error(f"ThoughtProcessor: No action result from DMA for {thought.thought_id}")
             logger.error("ThoughtProcessor: action_result is None! This is the critical issue.")
+            # Update correlation with failure
+            end_time = self._time_service.now()
+            from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
+            update_req = CorrelationUpdateRequest(
+                correlation_id=correlation.correlation_id,
+                response_data={
+                    "success": "false",
+                    "error_message": "No action result from DMA",
+                    "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                    "response_timestamp": end_time.isoformat()
+                },
+                status=ServiceCorrelationStatus.FAILED
+            )
+            persistence.update_correlation(update_req, self._time_service)
             # Return early with fallback result
             return self._create_deferral_result(dma_results, thought)
 
@@ -327,6 +456,21 @@ class ThoughtProcessor:
                     }
                 )
 
+        # Update correlation with success
+        end_time = self._time_service.now()
+        from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
+        update_req = CorrelationUpdateRequest(
+            correlation_id=correlation.correlation_id,
+            response_data={
+                "success": "true",
+                "result_summary": f"Successfully processed thought with action: {final_result.selected_action if final_result else 'none'}",
+                "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
+                "response_timestamp": end_time.isoformat()
+            },
+            status=ServiceCorrelationStatus.COMPLETED
+        )
+        persistence.update_correlation(update_req, self._time_service)
+        
         return final_result
 
     async def _apply_conscience_simple(

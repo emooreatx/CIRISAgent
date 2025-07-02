@@ -112,7 +112,7 @@ class AuditVerifier:
             cursor = conn.cursor()
 
             cursor.execute(
-                "SELECT * FROM audit_log_v2 WHERE entry_id = ?",
+                "SELECT * FROM audit_log WHERE entry_id = ?",
                 (entry_id,)
             )
 
@@ -221,7 +221,7 @@ class AuditVerifier:
 
             cursor.execute("""
                 SELECT entry_id, entry_hash, signature, signing_key_id
-                FROM audit_log_v2
+                FROM audit_log
                 ORDER BY sequence_number
             """)
 
@@ -268,7 +268,7 @@ class AuditVerifier:
 
             cursor.execute("""
                 SELECT entry_id, entry_hash, signature, signing_key_id
-                FROM audit_log_v2
+                FROM audit_log
                 WHERE sequence_number >= ? AND sequence_number <= ?
                 ORDER BY sequence_number
             """, (start_seq, end_seq))

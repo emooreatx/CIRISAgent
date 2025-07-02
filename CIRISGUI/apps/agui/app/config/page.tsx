@@ -1,485 +1,213 @@
-"use client";
+'use client';
 
-import React, { useState, useEffect } from "react";
-import { CIRISClient } from "../../lib/cirisClient";
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '../../lib/api-client';
+import { ProtectedRoute } from '../../components/ProtectedRoute';
+import toast from 'react-hot-toast';
 
-const client = new CIRISClient();
+export default function ConfigPage() {
+  const [editedConfig, setEditedConfig] = useState<any>(null);
+  const [showRaw, setShowRaw] = useState(false);
+  const queryClient = useQueryClient();
 
-export default function ConfigurationManagementPage() {
-  const [config, setConfig] = useState<any>(null);
-  const [envVars, setEnvVars] = useState<any>(null);
-  const [backups, setBackups] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  // Fetch configuration
+  const { data: config, isLoading } = useQuery({
+    queryKey: ['config'],
+    queryFn: () => apiClient.getConfig(),
+  });
 
-  // Configuration update state
-  const [configPath, setConfigPath] = useState('');
-  const [configValue, setConfigValue] = useState('');
-  const [configScope, setConfigScope] = useState('runtime');
-  const [configReason, setConfigReason] = useState('');
-  const [configResult, setConfigResult] = useState<any>(null);
+  // Update configuration mutation
+  const updateConfig = useMutation({
+    mutationFn: (updates: any) => apiClient.updateConfig(updates),
+    onSuccess: () => {
+      toast.success('Configuration updated successfully');
+      queryClient.invalidateQueries({ queryKey: ['config'] });
+      setEditedConfig(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.detail || 'Failed to update configuration');
+    },
+  });
 
-  // Configuration validation state
-  const [validateData, setValidateData] = useState('{}');
-  const [validatePath, setValidatePath] = useState('');
-  const [validationResult, setValidationResult] = useState<any>(null);
-
-  // Environment variable state
-  const [envVarName, setEnvVarName] = useState('');
-  const [envVarValue, setEnvVarValue] = useState('');
-  const [envVarPersist, setEnvVarPersist] = useState(false);
-  const [envResult, setEnvResult] = useState<any>(null);
-
-  // Backup state
-  const [backupName, setBackupName] = useState('');
-  const [backupIncludeSensitive, setBackupIncludeSensitive] = useState(false);
-  const [backupResult, setBackupResult] = useState<any>(null);
-
-  // Restore state
-  const [restoreBackupName, setRestoreBackupName] = useState('');
-  const [restoreProfiles, setRestoreProfiles] = useState(true);
-  const [restoreResult, setRestoreResult] = useState<any>(null);
-
-  const fetchData = async () => {
-    try {
-      const [configResp, envResp, backupsResp] = await Promise.all([
-        client.getRuntimeConfig().catch(e => ({ error: e.message })),
-        client.listEnvironmentVars(false).catch(e => ({ error: e.message })),
-        client.listConfigurationBackups().catch(e => [])
-      ]);
-
-      setConfig(configResp);
-      setEnvVars(envResp);
-      setBackups(backupsResp);
-    } catch (error) {
-      console.error('Failed to fetch configuration data:', error);
+  const handleFieldChange = (path: string[], value: any) => {
+    const newConfig = { ...(editedConfig || config) };
+    let current = newConfig;
+    
+    for (let i = 0; i < path.length - 1; i++) {
+      if (!current[path[i]]) current[path[i]] = {};
+      current = current[path[i]];
     }
+    
+    current[path[path.length - 1]] = value;
+    setEditedConfig(newConfig);
   };
 
-  useEffect(() => {
-    fetchData().finally(() => setLoading(false));
-  }, []);
-
-  const refresh = async () => {
-    setRefreshing(true);
-    await fetchData();
-    setRefreshing(false);
+  const handleSave = () => {
+    if (!editedConfig) return;
+    
+    // Calculate the diff between original and edited
+    const updates: any = {};
+    const findDifferences = (original: any, edited: any, path: string[] = []) => {
+      for (const key in edited) {
+        const currentPath = [...path, key];
+        if (typeof edited[key] === 'object' && edited[key] !== null && !Array.isArray(edited[key])) {
+          findDifferences(original[key] || {}, edited[key], currentPath);
+        } else if (original[key] !== edited[key]) {
+          let target = updates;
+          for (let i = 0; i < currentPath.length - 1; i++) {
+            if (!target[currentPath[i]]) target[currentPath[i]] = {};
+            target = target[currentPath[i]];
+          }
+          target[currentPath[currentPath.length - 1]] = edited[key];
+        }
+      }
+    };
+    
+    findDifferences(config, editedConfig);
+    updateConfig.mutate(updates);
   };
 
-  // Configuration update handlers
-  const handleUpdateConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      let value;
-      try {
-        value = JSON.parse(configValue);
-      } catch {
-        value = configValue; // Use as string if not valid JSON
+  const renderConfigSection = (data: any, path: string[] = [], depth: number = 0) => {
+    if (!data || typeof data !== 'object') return null;
+
+    return Object.entries(data).map(([key, value]) => {
+      const currentPath = [...path, key];
+      const fieldId = currentPath.join('.');
+
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        return (
+          <div key={fieldId} className={`${depth > 0 ? 'ml-4' : ''} mb-4`}>
+            <h4 className="text-sm font-medium text-gray-700 mb-2 capitalize">
+              {key.replace(/_/g, ' ')}
+            </h4>
+            <div className="border-l-2 border-gray-200 pl-4">
+              {renderConfigSection(value, currentPath, depth + 1)}
+            </div>
+          </div>
+        );
       }
 
-      const result = await client.updateRuntimeConfig(
-        configPath,
-        value,
-        configScope,
-        'strict',
-        configReason || undefined
+      const currentValue = editedConfig 
+        ? currentPath.reduce((acc, p) => acc?.[p], editedConfig)
+        : value;
+
+      return (
+        <div key={fieldId} className={`${depth > 0 ? 'ml-4' : ''} mb-3`}>
+          <label htmlFor={fieldId} className="block text-sm font-medium text-gray-700 mb-1">
+            {key.replace(/_/g, ' ').charAt(0).toUpperCase() + key.replace(/_/g, ' ').slice(1)}
+          </label>
+          {typeof value === 'boolean' ? (
+            <input
+              id={fieldId}
+              type="checkbox"
+              checked={currentValue}
+              onChange={(e) => handleFieldChange(currentPath, e.target.checked)}
+              className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+            />
+          ) : typeof value === 'number' ? (
+            <input
+              id={fieldId}
+              type="number"
+              value={currentValue}
+              onChange={(e) => handleFieldChange(currentPath, parseFloat(e.target.value) || 0)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            />
+          ) : Array.isArray(value) ? (
+            <textarea
+              id={fieldId}
+              value={currentValue?.join('\n') || ''}
+              onChange={(e) => handleFieldChange(currentPath, e.target.value.split('\n').filter(Boolean))}
+              rows={3}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              placeholder="One value per line"
+            />
+          ) : (
+            <input
+              id={fieldId}
+              type="text"
+              value={currentValue || ''}
+              onChange={(e) => handleFieldChange(currentPath, e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+            />
+          )}
+        </div>
       );
-      setConfigResult(result);
-      await refresh();
-    } catch (error) {
-      setConfigResult({ error: error.message });
-    }
+    });
   };
-
-  const handleValidateConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const data = JSON.parse(validateData);
-      const result = await client.validateConfig(data, validatePath || undefined);
-      setValidationResult(result);
-    } catch (error) {
-      setValidationResult({ error: error.message });
-    }
-  };
-
-  const handleReloadConfig = async () => {
-    try {
-      const result = await client.reloadConfig();
-      setConfigResult(result);
-      await refresh();
-    } catch (error) {
-      setConfigResult({ error: error.message });
-    }
-  };
-
-  // Environment variable handlers
-  const handleSetEnvVar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const result = await client.setEnvironmentVar(envVarName, envVarValue, envVarPersist);
-      setEnvResult(result);
-      await refresh();
-    } catch (error) {
-      setEnvResult({ error: error.message });
-    }
-  };
-
-  const handleDeleteEnvVar = async (varName: string) => {
-    try {
-      const result = await client.deleteEnvironmentVar(varName, false);
-      setEnvResult(result);
-      await refresh();
-    } catch (error) {
-      setEnvResult({ error: error.message });
-    }
-  };
-
-  // Backup/restore handlers
-  const handleCreateBackup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const result = await client.backupConfiguration(
-        backupName || undefined,
-        backupIncludeSensitive
-      );
-      setBackupResult(result);
-      await refresh();
-    } catch (error) {
-      setBackupResult({ error: error.message });
-    }
-  };
-
-  const handleRestoreBackup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const result = await client.restoreConfiguration(restoreBackupName, restoreProfiles);
-      setRestoreResult(result);
-      await refresh();
-    } catch (error) {
-      setRestoreResult({ error: error.message });
-    }
-  };
-
-  if (loading) {
-    return <div><h1>Configuration Management</h1><p>Loading...</p></div>;
-  }
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <h1>Configuration Management</h1>
-        <button onClick={refresh} disabled={refreshing}>
-          {refreshing ? 'Refreshing...' : 'Refresh'}
-        </button>
+    <ProtectedRoute requiredRole="ADMIN">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-4 py-5 sm:p-6">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-lg font-medium text-gray-900">
+                System Configuration
+              </h3>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => setShowRaw(!showRaw)}
+                  className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  {showRaw ? 'Show Form' : 'Show Raw'}
+                </button>
+                {editedConfig && (
+                  <>
+                    <button
+                      onClick={() => setEditedConfig(null)}
+                      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      disabled={updateConfig.isPending}
+                      className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
+                    >
+                      {updateConfig.isPending ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {isLoading ? (
+              <div className="text-center py-4">Loading configuration...</div>
+            ) : showRaw ? (
+              <div className="bg-gray-50 rounded-lg p-4">
+                <pre className="text-sm text-gray-800 whitespace-pre-wrap">
+                  {JSON.stringify(editedConfig || config, null, 2)}
+                </pre>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {renderConfigSection(editedConfig || config)}
+              </div>
+            )}
+
+            {editedConfig && (
+              <div className="mt-4 p-4 bg-yellow-50 rounded-md">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-yellow-800">
+                      Unsaved Changes
+                    </h3>
+                    <div className="mt-2 text-sm text-yellow-700">
+                      <p>You have unsaved configuration changes. Click "Save Changes" to apply them.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-
-      {/* Current Configuration */}
-      <section style={{ marginBottom: 30, padding: 15, border: '1px solid #ddd', borderRadius: 5 }}>
-        <h2>Current Configuration</h2>
-        {config && !config.error ? (
-          <pre style={{ background: '#f8f8f8', padding: 15, borderRadius: 4, fontSize: 12, maxHeight: 400, overflow: 'auto' }}>
-            {JSON.stringify(config, null, 2)}
-          </pre>
-        ) : (
-          <div style={{ padding: 10, background: '#fff3cd', borderRadius: 4 }}>
-            Configuration unavailable: {config?.error || 'Unknown error'}
-          </div>
-        )}
-      </section>
-
-      {/* Configuration Update */}
-      <section style={{ marginBottom: 30, padding: 15, border: '1px solid #ddd', borderRadius: 5 }}>
-        <h2>Update Configuration</h2>
-        <form onSubmit={handleUpdateConfig} style={{ marginBottom: 15 }}>
-          <div style={{ marginBottom: 10 }}>
-            <label style={{ display: 'inline-block', width: 120 }}>Path:</label>
-            <input
-              type="text"
-              value={configPath}
-              onChange={e => setConfigPath(e.target.value)}
-              placeholder="e.g., llm_services.openai.temperature"
-              required
-              style={{ width: 300 }}
-            />
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <label style={{ display: 'inline-block', width: 120 }}>Value:</label>
-            <input
-              type="text"
-              value={configValue}
-              onChange={e => setConfigValue(e.target.value)}
-              placeholder="Value (JSON or string)"
-              required
-              style={{ width: 300 }}
-            />
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <label style={{ display: 'inline-block', width: 120 }}>Scope:</label>
-            <select value={configScope} onChange={e => setConfigScope(e.target.value)}>
-              <option value="runtime">Runtime (temporary)</option>
-              <option value="session">Session (until restart)</option>
-              <option value="persistent">Persistent (saved to file)</option>
-            </select>
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <label style={{ display: 'inline-block', width: 120 }}>Reason:</label>
-            <input
-              type="text"
-              value={configReason}
-              onChange={e => setConfigReason(e.target.value)}
-              placeholder="Optional reason for change"
-              style={{ width: 300 }}
-            />
-          </div>
-          <button type="submit">Update Configuration</button>
-          <button type="button" onClick={handleReloadConfig} style={{ marginLeft: 10 }}>
-            Reload from Files
-          </button>
-        </form>
-
-        {configResult && (
-          <pre style={{ background: '#f0f0f0', padding: 10, borderRadius: 4, fontSize: 12 }}>
-            {JSON.stringify(configResult, null, 2)}
-          </pre>
-        )}
-      </section>
-
-      {/* Configuration Validation */}
-      <section style={{ marginBottom: 30, padding: 15, border: '1px solid #ddd', borderRadius: 5 }}>
-        <h2>Validate Configuration</h2>
-        <form onSubmit={handleValidateConfig} style={{ marginBottom: 15 }}>
-          <div style={{ marginBottom: 10 }}>
-            <label style={{ display: 'inline-block', width: 120 }}>Config Data:</label>
-            <textarea
-              rows={5}
-              value={validateData}
-              onChange={e => setValidateData(e.target.value)}
-              placeholder='{"key": "value"}'
-              style={{ width: 400 }}
-            />
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <label style={{ display: 'inline-block', width: 120 }}>Config Path:</label>
-            <input
-              type="text"
-              value={validatePath}
-              onChange={e => setValidatePath(e.target.value)}
-              placeholder="Optional path to validate"
-              style={{ width: 300 }}
-            />
-          </div>
-          <button type="submit">Validate</button>
-        </form>
-
-        {validationResult && (
-          <pre style={{ background: '#f0f0f0', padding: 10, borderRadius: 4, fontSize: 12 }}>
-            {JSON.stringify(validationResult, null, 2)}
-          </pre>
-        )}
-      </section>
-
-      {/* Environment Variables */}
-      <section style={{ marginBottom: 30, padding: 15, border: '1px solid #ddd', borderRadius: 5 }}>
-        <h2>Environment Variables</h2>
-        
-        {/* Set Environment Variable */}
-        <div style={{ marginBottom: 20 }}>
-          <h3>Set Environment Variable</h3>
-          <form onSubmit={handleSetEnvVar} style={{ marginBottom: 15 }}>
-            <div style={{ marginBottom: 10 }}>
-              <label style={{ display: 'inline-block', width: 120 }}>Name:</label>
-              <input
-                type="text"
-                value={envVarName}
-                onChange={e => setEnvVarName(e.target.value)}
-                required
-                style={{ width: 200 }}
-              />
-            </div>
-            <div style={{ marginBottom: 10 }}>
-              <label style={{ display: 'inline-block', width: 120 }}>Value:</label>
-              <input
-                type="text"
-                value={envVarValue}
-                onChange={e => setEnvVarValue(e.target.value)}
-                required
-                style={{ width: 300 }}
-              />
-            </div>
-            <div style={{ marginBottom: 10 }}>
-              <label style={{ display: 'inline-block', width: 120 }}>
-                <input
-                  type="checkbox"
-                  checked={envVarPersist}
-                  onChange={e => setEnvVarPersist(e.target.checked)}
-                />
-                Persist to .env file
-              </label>
-            </div>
-            <button type="submit">Set Variable</button>
-          </form>
-        </div>
-
-        {/* Current Environment Variables */}
-        <div>
-          <h3>Current Variables</h3>
-          {envVars && !envVars.error ? (
-            <div>
-              <div style={{ marginBottom: 10 }}>
-                <strong>Total Variables:</strong> {envVars.variables_count || 0} 
-                (Sensitive: {envVars.sensitive_count || 0})
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ background: '#f0f0f0' }}>
-                      <th style={{ border: '1px solid #ddd', padding: 8, textAlign: 'left' }}>Name</th>
-                      <th style={{ border: '1px solid #ddd', padding: 8, textAlign: 'left' }}>Value</th>
-                      <th style={{ border: '1px solid #ddd', padding: 8, textAlign: 'left' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(envVars).filter(([key]) => !['variables_count', 'sensitive_count'].includes(key)).map(([name, value]) => (
-                      <tr key={name}>
-                        <td style={{ border: '1px solid #ddd', padding: 8 }}>{name}</td>
-                        <td style={{ border: '1px solid #ddd', padding: 8, maxWidth: 300, wordBreak: 'break-all' }}>
-                          {String(value)}
-                        </td>
-                        <td style={{ border: '1px solid #ddd', padding: 8 }}>
-                          <button 
-                            onClick={() => handleDeleteEnvVar(name)}
-                            style={{ fontSize: 12, padding: '4px 8px' }}
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          ) : (
-            <div style={{ padding: 10, background: '#fff3cd', borderRadius: 4 }}>
-              Environment variables unavailable: {envVars?.error || 'Unknown error'}
-            </div>
-          )}
-        </div>
-
-        {envResult && (
-          <pre style={{ background: '#f0f0f0', padding: 10, borderRadius: 4, fontSize: 12, marginTop: 15 }}>
-            {JSON.stringify(envResult, null, 2)}
-          </pre>
-        )}
-      </section>
-
-      {/* Configuration Backup/Restore */}
-      <section style={{ marginBottom: 30, padding: 15, border: '1px solid #ddd', borderRadius: 5 }}>
-        <h2>Configuration Backup & Restore</h2>
-        
-        {/* Create Backup */}
-        <div style={{ marginBottom: 25 }}>
-          <h3>Create Backup</h3>
-          <form onSubmit={handleCreateBackup} style={{ marginBottom: 15 }}>
-            <div style={{ marginBottom: 10 }}>
-              <label style={{ display: 'inline-block', width: 150 }}>Backup Name:</label>
-              <input
-                type="text"
-                value={backupName}
-                onChange={e => setBackupName(e.target.value)}
-                placeholder="Optional backup name"
-                style={{ width: 300 }}
-              />
-            </div>
-            <div style={{ marginBottom: 10 }}>
-              <label style={{ display: 'inline-block', width: 150 }}>
-                <input
-                  type="checkbox"
-                  checked={backupIncludeSensitive}
-                  onChange={e => setBackupIncludeSensitive(e.target.checked)}
-                />
-                Include sensitive data
-              </label>
-            </div>
-            <button type="submit">Create Backup</button>
-          </form>
-        </div>
-
-        {/* Restore Backup */}
-        <div style={{ marginBottom: 25 }}>
-          <h3>Restore Backup</h3>
-          <form onSubmit={handleRestoreBackup} style={{ marginBottom: 15 }}>
-            <div style={{ marginBottom: 10 }}>
-              <label style={{ display: 'inline-block', width: 150 }}>Backup Name:</label>
-              <select 
-                value={restoreBackupName} 
-                onChange={e => setRestoreBackupName(e.target.value)}
-                required
-                style={{ width: 300 }}
-              >
-                <option value="">Select backup to restore</option>
-                {backups.map((backup, index) => (
-                  <option key={index} value={backup.backup_name}>
-                    {backup.backup_name} ({new Date(backup.created_time).toLocaleString()})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div style={{ marginBottom: 10 }}>
-              <label style={{ display: 'inline-block', width: 150 }}>
-                <input
-                  type="checkbox"
-                  checked={restoreProfiles}
-                  onChange={e => setRestoreProfiles(e.target.checked)}
-                />
-                Restore profiles
-              </label>
-            </div>
-            <button type="submit" disabled={!restoreBackupName}>Restore Backup</button>
-          </form>
-        </div>
-
-        {/* Available Backups */}
-        <div>
-          <h3>Available Backups ({backups.length})</h3>
-          {backups.length > 0 ? (
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#f0f0f0' }}>
-                    <th style={{ border: '1px solid #ddd', padding: 8, textAlign: 'left' }}>Name</th>
-                    <th style={{ border: '1px solid #ddd', padding: 8, textAlign: 'left' }}>Created</th>
-                    <th style={{ border: '1px solid #ddd', padding: 8, textAlign: 'left' }}>Files</th>
-                    <th style={{ border: '1px solid #ddd', padding: 8, textAlign: 'left' }}>Size</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {backups.map((backup, index) => (
-                    <tr key={index}>
-                      <td style={{ border: '1px solid #ddd', padding: 8 }}>{backup.backup_name}</td>
-                      <td style={{ border: '1px solid #ddd', padding: 8 }}>
-                        {new Date(backup.created_time).toLocaleString()}
-                      </td>
-                      <td style={{ border: '1px solid #ddd', padding: 8 }}>{backup.files_count}</td>
-                      <td style={{ border: '1px solid #ddd', padding: 8 }}>
-                        {Math.round(backup.size_bytes / 1024)} KB
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p>No backups available</p>
-          )}
-        </div>
-
-        {(backupResult || restoreResult) && (
-          <pre style={{ background: '#f0f0f0', padding: 10, borderRadius: 4, fontSize: 12, marginTop: 15 }}>
-            {JSON.stringify(backupResult || restoreResult, null, 2)}
-          </pre>
-        )}
-      </section>
-    </div>
+    </ProtectedRoute>
   );
 }

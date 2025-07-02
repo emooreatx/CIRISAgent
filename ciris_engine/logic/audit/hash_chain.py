@@ -9,6 +9,7 @@ import hashlib
 import json
 import sqlite3
 import logging
+import threading
 from typing import Optional, List
 from ciris_engine.schemas.audit.hash_chain import (
     HashChainVerificationResult, ChainSummary
@@ -25,6 +26,7 @@ class AuditHashChain:
         self._last_hash: Optional[str] = None
         self._sequence_number: int = 0
         self._initialized = False
+        self._lock = threading.Lock()
 
     def initialize(self, force: bool = False) -> None:
         """Initialize the hash chain by loading the last entry"""
@@ -66,13 +68,20 @@ class AuditHashChain:
         if not self._initialized:
             self.initialize()
 
-        self._sequence_number += 1
-        entry["sequence_number"] = self._sequence_number
-        entry["previous_hash"] = self._last_hash or "genesis"
+        with self._lock:
+            # Re-read the last entry inside the lock to ensure we have the latest
+            last_entry = self.get_last_entry()
+            if last_entry:
+                self._last_hash = last_entry["entry_hash"]
+                self._sequence_number = last_entry["sequence_number"]
+            
+            self._sequence_number += 1
+            entry["sequence_number"] = self._sequence_number
+            entry["previous_hash"] = self._last_hash or "genesis"
 
-        entry["entry_hash"] = self.compute_entry_hash(entry)
+            entry["entry_hash"] = self.compute_entry_hash(entry)
 
-        self._last_hash = entry["entry_hash"]
+            self._last_hash = entry["entry_hash"]
 
         return entry
 
@@ -84,7 +93,7 @@ class AuditHashChain:
             cursor = conn.cursor()
 
             cursor.execute("""
-                SELECT * FROM audit_log_v2
+                SELECT * FROM audit_log
                 ORDER BY sequence_number DESC
                 LIMIT 1
             """)
@@ -112,13 +121,13 @@ class AuditHashChain:
             # Build query
             if end_seq:
                 cursor.execute("""
-                    SELECT * FROM audit_log_v2
+                    SELECT * FROM audit_log
                     WHERE sequence_number >= ? AND sequence_number <= ?
                     ORDER BY sequence_number
                 """, (start_seq, end_seq))
             else:
                 cursor.execute("""
-                    SELECT * FROM audit_log_v2
+                    SELECT * FROM audit_log
                     WHERE sequence_number >= ?
                     ORDER BY sequence_number
                 """, (start_seq,))
@@ -139,7 +148,7 @@ class AuditHashChain:
                 # If not starting from sequence 1, get the previous entry's hash
                 if start_seq > 1:
                     cursor.execute("""
-                        SELECT entry_hash FROM audit_log_v2
+                        SELECT entry_hash FROM audit_log
                         WHERE sequence_number = ?
                     """, (start_seq - 1,))
                     prev_row = cursor.fetchone()
@@ -235,14 +244,14 @@ class AuditHashChain:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
-            cursor.execute("SELECT COUNT(*), MIN(sequence_number), MAX(sequence_number) FROM audit_log_v2")
+            cursor.execute("SELECT COUNT(*), MIN(sequence_number), MAX(sequence_number) FROM audit_log")
             count, min_seq, max_seq = cursor.fetchone()
 
-            cursor.execute("SELECT event_timestamp FROM audit_log_v2 ORDER BY sequence_number LIMIT 1")
+            cursor.execute("SELECT event_timestamp FROM audit_log ORDER BY sequence_number LIMIT 1")
             oldest_row = cursor.fetchone()
             oldest = oldest_row[0] if oldest_row else None
 
-            cursor.execute("SELECT event_timestamp FROM audit_log_v2 ORDER BY sequence_number DESC LIMIT 1")
+            cursor.execute("SELECT event_timestamp FROM audit_log ORDER BY sequence_number DESC LIMIT 1")
             newest_row = cursor.fetchone()
             newest = newest_row[0] if newest_row else None
 

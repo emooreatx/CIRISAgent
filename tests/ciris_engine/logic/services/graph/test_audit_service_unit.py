@@ -230,20 +230,25 @@ class TestGraphAuditService:
     @pytest.mark.asyncio
     async def test_query_audit_trail(self, audit_service, mock_memory_bus, mock_time_service):
         """Test querying audit trail."""
+        from ciris_engine.schemas.services.graph.audit import AuditQuery
+        
         await audit_service.start()
 
-        # Mock recall_timeseries to return empty list
-        mock_memory_bus.recall_timeseries = AsyncMock(return_value=[])
+        # Mock search to return empty list (since query_audit_trail now uses search)
+        mock_memory_bus.search = AsyncMock(return_value=[])
 
-        # Query audit trail
-        entries = await audit_service.query_audit_trail(
+        # Create query object
+        query = AuditQuery(
             start_time=mock_time_service.now() - timedelta(hours=1),
             end_time=mock_time_service.now(),
             limit=10
         )
+        
+        # Query audit trail
+        entries = await audit_service.query_audit_trail(query)
 
-        # Should call recall_timeseries
-        mock_memory_bus.recall_timeseries.assert_called_once()
+        # Should call search
+        mock_memory_bus.search.assert_called_once()
 
         # Should return list (empty in this case)
         assert isinstance(entries, list)
