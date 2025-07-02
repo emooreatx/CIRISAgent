@@ -107,8 +107,15 @@ class ThoughtProcessor:
                 }
             )
 
-        # 1. Fetch the full Thought object
-        thought = await self._fetch_thought(thought_item.thought_id)
+        # 1. Fetch the full Thought object (or use prefetched)
+        prefetched_thought = context.get("prefetched_thought") if context else None
+        if prefetched_thought and prefetched_thought.thought_id == thought_item.thought_id:
+            thought = prefetched_thought
+            logger.info(f"[DEBUG TIMING] Using prefetched thought {thought_item.thought_id}")
+        else:
+            logger.info(f"[DEBUG TIMING] About to fetch thought {thought_item.thought_id}")
+            thought = await self._fetch_thought(thought_item.thought_id)
+            logger.info(f"[DEBUG TIMING] Fetched thought {thought_item.thought_id}")
         if not thought:
             logger.error(f"Thought {thought_item.thought_id} not found.")
             if self.telemetry_service:

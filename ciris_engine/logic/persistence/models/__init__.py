@@ -16,6 +16,8 @@ from .thoughts import (
     add_thought,
     get_thought_by_id,
     async_get_thought_by_id,
+    get_thoughts_by_ids,
+    async_get_thoughts_by_ids,
     async_get_thought_status,
     update_thought_status,
     get_thoughts_by_status,

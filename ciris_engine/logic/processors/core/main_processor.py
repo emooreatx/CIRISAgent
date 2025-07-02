@@ -320,6 +320,12 @@ class AgentProcessor:
             for i in range(0, len(limited_thoughts), batch_size):
                 try:
                     batch = limited_thoughts[i:i + batch_size]
+                    
+                    # Pre-fetch all thoughts in the batch to avoid serialization
+                    thought_ids = [t.thought_id for t in batch]
+                    logger.info(f"[DEBUG TIMING] Pre-fetching {len(thought_ids)} thoughts in batch")
+                    prefetched_thoughts = await persistence.async_get_thoughts_by_ids(thought_ids)
+                    logger.info(f"[DEBUG TIMING] Pre-fetched {len(prefetched_thoughts)} thoughts")
 
                     tasks: List[Any] = []
                     for thought in batch:
@@ -328,8 +334,10 @@ class AgentProcessor:
                                 thought_id=thought.thought_id,
                                 status=ThoughtStatus.PROCESSING
                             )
-
-                            task = self._process_single_thought(thought)
+                            
+                            # Use prefetched thought if available
+                            full_thought = prefetched_thoughts.get(thought.thought_id, thought)
+                            task = self._process_single_thought(full_thought, prefetched=True)
                             tasks.append(task)
                         except Exception as e:
                             logger.error(f"Error preparing thought {thought.thought_id} for processing: {e}", exc_info=True)
@@ -370,9 +378,9 @@ class AgentProcessor:
             logger.error(f"CRITICAL: Error in _process_pending_thoughts_async: {e}", exc_info=True)
             return 0
 
-    async def _process_single_thought(self, thought: Thought) -> bool:
+    async def _process_single_thought(self, thought: Thought, prefetched: bool = False) -> bool:
         """Process a single thought and dispatch its action, with comprehensive error handling."""
-        logger.info(f"[DEBUG TIMING] _process_single_thought START for thought {thought.thought_id}")
+        logger.info(f"[DEBUG TIMING] _process_single_thought START for thought {thought.thought_id} (prefetched={prefetched})")
         start_time = self._time_service.now()
         trace_id = f"task_{thought.source_task_id or 'unknown'}_{thought.thought_id}"
         span_id = f"agent_processor_{thought.thought_id}"
@@ -441,7 +449,10 @@ class AgentProcessor:
             # Use fallback-aware process_thought_item
             try:
                 logger.info(f"[DEBUG TIMING] Calling processor.process_thought_item for thought {thought.thought_id}")
-                result = await processor.process_thought_item(item, context={"origin": "wakeup_async"})
+                context = {"origin": "wakeup_async"}
+                if prefetched:
+                    context["prefetched_thought"] = thought
+                result = await processor.process_thought_item(item, context=context)
             except Exception as e:
                 logger.error(f"Error in processor.process_thought_item for thought {thought.thought_id}: {e}", exc_info=True)
                 persistence.update_thought_status(
