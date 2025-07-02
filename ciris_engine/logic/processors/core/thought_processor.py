@@ -176,7 +176,23 @@ class ThoughtProcessor:
                 return None
 
         # 2. Build context (always build proper ThoughtContext for DMA orchestrator)
-        thought_context = await self.context_builder.build_thought_context(thought)
+        batch_context_data = context.get("batch_context") if context else None
+        if batch_context_data:
+            logger.info(f"[DEBUG TIMING] Using batch context for thought {thought_item.thought_id}")
+            # Use optimized batch context building
+            from ciris_engine.logic.context.batch_context import build_system_snapshot_with_batch
+            system_snapshot = await build_system_snapshot_with_batch(
+                task=None,  # Would need to get task if available
+                thought=thought,
+                batch_data=batch_context_data,
+                memory_service=self.context_builder.memory_service if self.context_builder else None,
+                graphql_provider=None
+            )
+            # Build full thought context with the optimized snapshot
+            thought_context = await self.context_builder.build_thought_context(thought, system_snapshot=system_snapshot)
+        else:
+            logger.info(f"[DEBUG TIMING] Building full context for thought {thought_item.thought_id} (no batch context)")
+            thought_context = await self.context_builder.build_thought_context(thought)
         # Store the fresh context on the queue item so DMA executor can use it
         if hasattr(thought_context, "model_dump"):
             thought_item.initial_context = thought_context.model_dump()

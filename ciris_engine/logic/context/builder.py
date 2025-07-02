@@ -37,10 +37,15 @@ class ContextBuilder:
     async def build_thought_context(
         self,
         thought: Thought,
-        task: Optional[Task] = None
+        task: Optional[Task] = None,
+        system_snapshot: Optional[SystemSnapshot] = None
     ) -> ProcessingThoughtContext:
         """Build complete context for thought processing."""
-        system_snapshot_data = await self.build_system_snapshot(task, thought)
+        # Use provided snapshot or build new one
+        if system_snapshot:
+            system_snapshot_data = system_snapshot
+        else:
+            system_snapshot_data = await self.build_system_snapshot(task, thought)
         # Convert list of UserProfile to dict keyed by user_id
         user_profiles_list = getattr(system_snapshot_data, 'user_profiles', []) or []
         user_profiles_data = {profile.user_id: profile for profile in user_profiles_list}

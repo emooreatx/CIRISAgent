@@ -13,7 +13,8 @@ from ciris_engine.schemas.processors.states import AgentState
 from ciris_engine.schemas.processors.state import StateTransitionRecord
 from ciris_engine.logic import persistence
 from ciris_engine.schemas.runtime.models import Thought, ThoughtStatus
-from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, TraceContext, ServiceRequestData, ServiceResponseData
+from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, TraceContext, ServiceRequestData, ServiceResponseData, ServiceCorrelationStatus
+from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
 from ciris_engine.logic.utils.context_utils import build_dispatch_context
 
@@ -228,6 +229,14 @@ class AgentProcessor:
 
             wakeup_result = await self.wakeup_processor.process(wakeup_round)
             wakeup_complete = wakeup_result.wakeup_complete
+            
+            # Check if wakeup failed (any task failed)
+            if hasattr(wakeup_result, 'errors') and wakeup_result.errors > 0:
+                logger.error(f"Wakeup failed with {wakeup_result.errors} errors - transitioning to SHUTDOWN")
+                if not self.state_manager.transition_to(AgentState.SHUTDOWN):
+                    logger.error("Failed to transition to SHUTDOWN state after wakeup failure")
+                await self.stop_processing()
+                return
 
             if not wakeup_complete:
                 _thoughts_processed = await self._process_pending_thoughts_async()
@@ -246,7 +255,10 @@ class AgentProcessor:
             self.current_round_number += 1
 
         if not wakeup_complete:
-            logger.error(f"Wakeup did not complete within {num_rounds or 'infinite'} rounds")
+            logger.error(f"Wakeup did not complete within {num_rounds or 'infinite'} rounds - transitioning to SHUTDOWN")
+            # Transition to SHUTDOWN state since wakeup failed
+            if not self.state_manager.transition_to(AgentState.SHUTDOWN):
+                logger.error("Failed to transition to SHUTDOWN state after wakeup failure")
             await self.stop_processing()
             return
 
@@ -326,6 +338,19 @@ class AgentProcessor:
                     logger.info(f"[DEBUG TIMING] Pre-fetching {len(thought_ids)} thoughts in batch")
                     prefetched_thoughts = await persistence.async_get_thoughts_by_ids(thought_ids)
                     logger.info(f"[DEBUG TIMING] Pre-fetched {len(prefetched_thoughts)} thoughts")
+                    
+                    # Pre-fetch batch context data (same for all thoughts)
+                    logger.info(f"[DEBUG TIMING] Pre-fetching batch context data")
+                    from ciris_engine.logic.context.batch_context import prefetch_batch_context
+                    batch_context_data = await prefetch_batch_context(
+                        memory_service=self.services.get('memory_service') if isinstance(self.services, dict) else getattr(self.services, 'memory_service', None),
+                        secrets_service=self.services.get('secrets_service') if isinstance(self.services, dict) else getattr(self.services, 'secrets_service', None),
+                        service_registry=self.services.get('service_registry') if isinstance(self.services, dict) else getattr(self.services, 'service_registry', None),
+                        resource_monitor=self.services.get('resource_monitor') if isinstance(self.services, dict) else getattr(self.services, 'resource_monitor', None),
+                        telemetry_service=self.services.get('telemetry_service') if isinstance(self.services, dict) else getattr(self.services, 'telemetry_service', None),
+                        runtime=self.runtime
+                    )
+                    logger.info(f"[DEBUG TIMING] Pre-fetched batch context data")
 
                     tasks: List[Any] = []
                     for thought in batch:
@@ -337,7 +362,7 @@ class AgentProcessor:
                             
                             # Use prefetched thought if available
                             full_thought = prefetched_thoughts.get(thought.thought_id, thought)
-                            task = self._process_single_thought(full_thought, prefetched=True)
+                            task = self._process_single_thought(full_thought, prefetched=True, batch_context=batch_context_data)
                             tasks.append(task)
                         except Exception as e:
                             logger.error(f"Error preparing thought {thought.thought_id} for processing: {e}", exc_info=True)
@@ -378,9 +403,9 @@ class AgentProcessor:
             logger.error(f"CRITICAL: Error in _process_pending_thoughts_async: {e}", exc_info=True)
             return 0
 
-    async def _process_single_thought(self, thought: Thought, prefetched: bool = False) -> bool:
+    async def _process_single_thought(self, thought: Thought, prefetched: bool = False, batch_context: Optional[Any] = None) -> bool:
         """Process a single thought and dispatch its action, with comprehensive error handling."""
-        logger.info(f"[DEBUG TIMING] _process_single_thought START for thought {thought.thought_id} (prefetched={prefetched})")
+        logger.info(f"[DEBUG TIMING] _process_single_thought START for thought {thought.thought_id} (prefetched={prefetched}, has_batch_context={batch_context is not None})")
         start_time = self._time_service.now()
         trace_id = f"task_{thought.source_task_id or 'unknown'}_{thought.thought_id}"
         span_id = f"agent_processor_{thought.thought_id}"
@@ -452,6 +477,8 @@ class AgentProcessor:
                 context = {"origin": "wakeup_async"}
                 if prefetched:
                     context["prefetched_thought"] = thought
+                if batch_context:
+                    context["batch_context"] = batch_context
                 result = await processor.process_thought_item(item, context=context)
             except Exception as e:
                 logger.error(f"Error in processor.process_thought_item for thought {thought.thought_id}: {e}", exc_info=True)
