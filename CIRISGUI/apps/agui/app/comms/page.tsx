@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../../lib/api-client';
+import { apiClient } from '../../lib/api-client-v1';
 import toast from 'react-hot-toast';
 
 export default function CommsPage() {
@@ -15,7 +15,7 @@ export default function CommsPage() {
   // Fetch conversation history
   const { data: history, isLoading } = useQuery({
     queryKey: ['conversation-history'],
-    queryFn: () => apiClient.getHistory(100),
+    queryFn: () => apiClient.getHistory('api_0.0.0.0_8080', 100),
   });
 
   // Fetch agent status
@@ -27,7 +27,7 @@ export default function CommsPage() {
 
   // Send message mutation
   const sendMessage = useMutation({
-    mutationFn: (msg: string) => apiClient.interact(msg),
+    mutationFn: (msg: string) => apiClient.interact(msg, 'api_0.0.0.0_8080'),
     onSuccess: () => {
       setMessage('');
       queryClient.invalidateQueries({ queryKey: ['conversation-history'] });
@@ -118,11 +118,11 @@ export default function CommsPage() {
           <div className="border rounded-lg bg-gray-50 h-96 overflow-y-auto p-4 mb-4">
             {isLoading ? (
               <div className="text-center text-gray-500">Loading conversation...</div>
-            ) : history?.messages.length === 0 ? (
+            ) : !history?.messages || history.messages.length === 0 ? (
               <div className="text-center text-gray-500">No messages yet. Start a conversation!</div>
             ) : (
               <div className="space-y-3">
-                {history?.messages.map((msg, idx) => (
+                {history.messages.map((msg, idx) => (
                   <div
                     key={idx}
                     className={`flex ${msg.is_agent ? 'justify-start' : 'justify-end'}`}

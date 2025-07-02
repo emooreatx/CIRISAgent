@@ -43,7 +43,7 @@ class MemorizeHandler(BaseActionHandler):
         except Exception as e:
             await self._handle_error(HandlerActionType.MEMORIZE, dispatch_context, thought_id, e)
             # Use centralized method to mark failed and create follow-up
-            return self.complete_thought_and_create_followup(
+            return await self.complete_thought_and_create_followup(
                 thought=thought,
                 follow_up_content=f"MEMORIZE action failed: {e}",
                 action_result=result,
@@ -75,7 +75,7 @@ class MemorizeHandler(BaseActionHandler):
             )
 
             # Use centralized method with FAILED status
-            return self.complete_thought_and_create_followup(
+            return await self.complete_thought_and_create_followup(
                 thought=thought,
                 follow_up_content="MEMORIZE action failed: WA authorization required for identity changes",
                 action_result=result,
@@ -116,7 +116,7 @@ class MemorizeHandler(BaseActionHandler):
                 )
 
             # Use centralized method to complete thought and create follow-up
-            follow_up_id = self.complete_thought_and_create_followup(
+            follow_up_id = await self.complete_thought_and_create_followup(
                 thought=thought,
                 follow_up_content=follow_up_content,
                 action_result=result,

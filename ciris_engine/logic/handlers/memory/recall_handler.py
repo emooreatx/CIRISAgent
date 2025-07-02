@@ -28,7 +28,7 @@ class RecallHandler(BaseActionHandler):
                 status=ThoughtStatus.FAILED
             )
             error_content = f"RECALL action failed: {str(e)}"
-            follow_up_id = self.complete_thought_and_create_followup(
+            follow_up_id = await self.complete_thought_and_create_followup(
                 thought=thought,
                 follow_up_content=error_content,
                 action_result=result
@@ -109,7 +109,7 @@ class RecallHandler(BaseActionHandler):
 
             follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: No memories found for query '{query_desc}' in scope {scope_str}"
         # Use centralized method to complete thought and create follow-up
-        follow_up_id = self.complete_thought_and_create_followup(
+        follow_up_id = await self.complete_thought_and_create_followup(
             thought=thought,
             follow_up_content=follow_up_content,
             action_result=result

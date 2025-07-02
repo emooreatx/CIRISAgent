@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { apiClient, User } from '../lib/api-client';
+import { apiClient, User } from '../lib/api-client-v1';
 
 interface AuthContextType {
   user: User | null;

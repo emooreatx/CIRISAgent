@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '../lib/api-client';
+import { apiClient } from '../lib/api-client-v1';
 import { useAuth } from '../contexts/AuthContext';
 import Link from 'next/link';
 
@@ -63,8 +63,8 @@ export default function Home() {
                 </dd>
               </div>
               <div>
-                <dt className="text-sm font-medium text-gray-500">Memory Usage</dt>
-                <dd className="mt-1 text-sm text-gray-900">{status.memory_usage_mb?.toFixed(1)} MB</dd>
+                <dt className="text-sm font-medium text-gray-500">Processor Status</dt>
+                <dd className="mt-1 text-sm text-gray-900">{status.processor_status?.state || 'Unknown'}</dd>
               </div>
             </dl>
           </div>
@@ -79,11 +79,11 @@ export default function Home() {
             <p className="text-sm text-gray-600 mb-4">{identity.purpose}</p>
             <div className="space-y-4">
               <div>
-                <h3 className="text-sm font-medium text-gray-700">Available Tools</h3>
+                <h3 className="text-sm font-medium text-gray-700">Capabilities</h3>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {identity.tools?.map((tool: string) => (
-                    <span key={tool} className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
-                      {tool}
+                  {identity.capabilities?.map((capability: string) => (
+                    <span key={capability} className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
+                      {capability}
                     </span>
                   ))}
                 </div>

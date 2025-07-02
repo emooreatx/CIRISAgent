@@ -84,7 +84,7 @@ class BaseActionHandler(ABC):
         self._current_correlation: Optional[ServiceCorrelation] = None
         self._trace_start_time: Optional[datetime] = None
 
-    def complete_thought_and_create_followup(
+    async def complete_thought_and_create_followup(
         self,
         thought: Thought,
         follow_up_content: str = "",
@@ -110,7 +110,7 @@ class BaseActionHandler(ABC):
         
         # Mark the current thought with the specified status (default to COMPLETED)
         final_status = status or ThoughtStatus.COMPLETED
-        success = persistence.update_thought_status(
+        success = await persistence.update_thought_status(
             thought_id=thought.thought_id,
             status=final_status,
             final_action=action_result
@@ -130,7 +130,7 @@ class BaseActionHandler(ABC):
             )
             
             try:
-                persistence.add_thought(follow_up)
+                await persistence.add_thought(follow_up)
                 self.logger.info(f"Created follow-up thought {follow_up.thought_id} for completed thought {thought.thought_id}")
                 return follow_up.thought_id
             except Exception as e:

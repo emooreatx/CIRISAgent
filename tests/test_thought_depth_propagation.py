@@ -175,6 +175,9 @@ class TestThoughtDepthPropagation:
         # Mock dependencies with bus_manager
         mock_dependencies = Mock(spec=ActionHandlerDependencies)
         mock_bus_manager = Mock()
+        mock_audit_service = Mock()
+        mock_audit_service.log_event = AsyncMock(return_value=None)
+        mock_bus_manager.audit_service = mock_audit_service
         mock_dependencies.bus_manager = mock_bus_manager
         mock_action_dispatcher = Mock()
         mock_action_dispatcher.get_handler.return_value = None
@@ -184,11 +187,13 @@ class TestThoughtDepthPropagation:
         mock_time_service.now.return_value = datetime.now(timezone.utc)
         mock_dependencies.time_service = mock_time_service
 
-        # Mock persistence calls
-        mock_persistence.update_thought_status.return_value = True
-        mock_persistence.get_task_by_id.return_value = Mock(description="Test task")
-        mock_persistence.add_thought.return_value = None
-        mock_persistence.add_correlation.return_value = None
+        # Mock persistence calls with AsyncMock
+        mock_task = Mock()
+        mock_task.description = "Test task"
+        mock_persistence.update_thought_status = AsyncMock(return_value=True)
+        mock_persistence.get_task_by_id = AsyncMock(return_value=mock_task)
+        mock_persistence.add_thought = AsyncMock(return_value=None)
+        mock_persistence.add_correlation = AsyncMock(return_value=None)
         
         # Configure base handler persistence the same way
         mock_base_persistence.update_thought_status = mock_persistence.update_thought_status
@@ -211,7 +216,7 @@ class TestThoughtDepthPropagation:
 
         # Mock the handle method to capture the follow-up thought
         captured_thoughts = []
-        def capture_add_thought(thought):
+        async def capture_add_thought(thought):
             captured_thoughts.append(thought)
         mock_persistence.add_thought.side_effect = capture_add_thought
 
@@ -267,6 +272,9 @@ class TestThoughtDepthPropagation:
         """Test that ponder handler processes normally, relying on guardrails for max depth enforcement."""
         mock_dependencies = Mock(spec=ActionHandlerDependencies)
         mock_bus_manager = Mock()
+        mock_audit_service = Mock()
+        mock_audit_service.log_event = AsyncMock(return_value=None)
+        mock_bus_manager.audit_service = mock_audit_service
         mock_time_service = Mock()
         mock_time_service.now.return_value = datetime.now(timezone.utc)
         mock_dependencies.time_service = mock_time_service
@@ -286,10 +294,12 @@ class TestThoughtDepthPropagation:
         # Mock persistence functions
         with patch('ciris_engine.logic.handlers.control.ponder_handler.persistence') as mock_persistence, \
              patch('ciris_engine.logic.infrastructure.handlers.base_handler.persistence') as mock_base_persistence:
-            mock_persistence.update_thought_status.return_value = True
-            mock_persistence.get_task_by_id.return_value = Mock(description="Test task")
-            mock_persistence.add_thought.return_value = None
-            mock_persistence.add_correlation.return_value = None
+            mock_task = Mock()
+            mock_task.description = "Test task"
+            mock_persistence.update_thought_status = AsyncMock(return_value=True)
+            mock_persistence.get_task_by_id = AsyncMock(return_value=mock_task)
+            mock_persistence.add_thought = AsyncMock(return_value=None)
+            mock_persistence.add_correlation = AsyncMock(return_value=None)
             
             # Configure base handler persistence the same way
             mock_base_persistence.update_thought_status = mock_persistence.update_thought_status

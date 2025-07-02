@@ -45,7 +45,7 @@ class PonderHandler(BaseActionHandler):
         next_status = ThoughtStatus.COMPLETED
 
         # Get task context for follow-up
-        original_task = persistence.get_task_by_id(thought.source_task_id)
+        original_task = await persistence.get_task_by_id(thought.source_task_id)
         task_context = f"Task ID: {thought.source_task_id}"
         if original_task:
             task_context = original_task.description
@@ -55,7 +55,7 @@ class PonderHandler(BaseActionHandler):
         )
         
         # Use centralized method to complete thought and create follow-up
-        follow_up_id = self.complete_thought_and_create_followup(
+        follow_up_id = await self.complete_thought_and_create_followup(
             thought=thought,
             follow_up_content=follow_up_content,
             action_result=result

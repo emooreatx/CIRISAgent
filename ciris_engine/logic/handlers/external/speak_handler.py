@@ -191,7 +191,7 @@ class SpeakHandler(BaseActionHandler):
             follow_up_thought_id = follow_up.thought_id
         else:
             # Use centralized method for successful cases
-            follow_up_thought_id = self.complete_thought_and_create_followup(
+            follow_up_thought_id = await self.complete_thought_and_create_followup(
                 thought=thought,
                 follow_up_content=follow_up_text,
                 action_result=result

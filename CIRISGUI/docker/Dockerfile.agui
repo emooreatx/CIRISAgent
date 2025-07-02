@@ -1,7 +1,8 @@
 FROM node:20-alpine
 WORKDIR /app
-COPY apps/agui/package.json apps/agui/tsconfig.json apps/agui/next.config.js ./
-RUN npm install
-COPY apps/agui ./app
+COPY CIRISGUI/apps/agui/package.json ./
+COPY CIRISGUI/apps/agui/package-lock.json ./
+RUN npm ci
+COPY CIRISGUI/apps/agui ./
 RUN npm run build
 CMD ["npm", "run", "start"]
