@@ -214,6 +214,12 @@ class APIClient {
     return data;
   }
 
+  // Tools endpoint
+  async getTools(): Promise<any[]> {
+    const { data } = await this.client.get('/api/tools');
+    return data.tools || [];
+  }
+
   // Emergency endpoint
   async emergencyShutdown(reason: string, signature: string): Promise<any> {
     const { data } = await this.client.post('/api/emergency/shutdown', {

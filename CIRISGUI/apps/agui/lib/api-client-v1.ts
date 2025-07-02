@@ -3,10 +3,12 @@ import Cookies from 'js-cookie';
 
 // Types matching v1 API schemas
 export interface User {
+  user_id: string;
   username: string;
   role: 'OBSERVER' | 'ADMIN' | 'AUTHORITY' | 'SYSTEM_ADMIN';
   permissions: string[];
   created_at: string;
+  last_login?: string;
 }
 
 export interface LoginResponse {
@@ -68,8 +70,13 @@ class APIClientV1 {
   private token: string | null = null;
 
   constructor() {
+    // Force localhost for browser access
+    const baseURL = typeof window !== 'undefined' 
+      ? 'http://localhost:8080'  // Browser always uses localhost
+      : (process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost:8080');
+      
     this.client = axios.create({
-      baseURL: process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost:8080',
+      baseURL,
       headers: {
         'Content-Type': 'application/json',
       },
@@ -103,23 +110,40 @@ class APIClientV1 {
 
   // Auth endpoints
   async login(username: string, password: string): Promise<User> {
-    const { data } = await this.client.post<LoginResponse>('/v1/auth/login', {
-      username,
-      password,
-    });
-    
-    // Store token
-    this.token = data.access_token;
-    Cookies.set('auth_token', data.access_token);
-    
-    // Get user info with the new token
-    const userResponse = await this.client.get<User>('/v1/auth/me', {
-      headers: {
-        Authorization: `Bearer ${data.access_token}`
+    try {
+      console.log('Login attempt with:', { username });
+      
+      const { data } = await this.client.post<LoginResponse>('/v1/auth/login', {
+        username,
+        password,
+      });
+      
+      console.log('Login response:', data);
+      
+      // Store token
+      this.token = data.access_token;
+      Cookies.set('auth_token', data.access_token);
+      
+      // Get user info - add explicit auth header to ensure it's sent
+      const userResponse = await this.client.get<User>('/v1/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${data.access_token}`
+        }
+      });
+      
+      console.log('User response:', userResponse.data);
+      
+      // Create user object with username fallback
+      const user = userResponse.data;
+      if (!user.username && user.user_id) {
+        user.username = user.user_id;
       }
-    });
-    
-    return userResponse.data;
+      
+      return user;
+    } catch (error: any) {
+      console.error('Login error:', error.response?.data || error.message);
+      throw error;
+    }
   }
 
   async logout(): Promise<void> {

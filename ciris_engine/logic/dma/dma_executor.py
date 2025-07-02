@@ -95,6 +95,7 @@ async def run_pdma(
     time_service: Optional["TimeServiceProtocol"] = None,
 ) -> EthicalDMAResult:
     """Run the Ethical PDMA for the given thought."""
+    logger.info(f"[DEBUG TIMING] run_pdma START for thought {thought.thought_id}")
     if not time_service:
         raise RuntimeError("TimeService is required for DMA execution")
     start_time = time_service.now()
@@ -166,6 +167,7 @@ async def run_pdma(
                     f"Unsupported context type {type(context_data)} for thought {thought.thought_id}"
                 )
 
+        logger.info(f"[DEBUG TIMING] About to call evaluator.evaluate for PDMA on thought {thought.thought_id}")
         result = await evaluator.evaluate(thought, context=ctx)
         
         # Update correlation with success

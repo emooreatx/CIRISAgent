@@ -78,6 +78,7 @@ class DMAOrchestrator:
         """
         Run EthicalPDMA, CSDMA, and DSDMA in parallel (async). Returns a dict with results or escalates on error.
         """
+        logger.info(f"[DEBUG TIMING] run_initial_dmas START for thought {thought_item.thought_id}")
         results = InitialDMAResults()
         errors = DMAErrors()
         tasks = {

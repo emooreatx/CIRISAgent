@@ -128,12 +128,15 @@ class CLIAdapter(CommunicationService, ToolService):
         """
         correlation_id = str(uuid.uuid4())
         try:
+            # Get current timestamp for output
+            timestamp = self._get_time_service().now().strftime("%H:%M:%S.%f")[:-3]
+            
             if channel_id == "system":
-                print(f"\n[SYSTEM] {content}")
+                print(f"\n[{timestamp}] [SYSTEM] {content}")
             elif channel_id == "error":
-                print(f"\n[ERROR] {content}", file=sys.stderr)
+                print(f"\n[{timestamp}] [ERROR] {content}", file=sys.stderr)
             else:
-                print(f"\n[CIRIS] {content}")
+                print(f"\n[{timestamp}] [CIRIS] {content}")
 
             from ciris_engine.schemas.telemetry.core import ServiceRequestData, ServiceResponseData
             now = self._get_time_service().now()

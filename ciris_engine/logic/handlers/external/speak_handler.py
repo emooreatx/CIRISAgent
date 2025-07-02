@@ -117,13 +117,6 @@ class SpeakHandler(BaseActionHandler):
         task = persistence.get_task_by_id(thought.source_task_id)
         _task_description = task.description if task else f"task {thought.source_task_id}"
 
-        # Pass ActionSelectionDMAResult directly to persistence - it handles serialization
-        persistence.update_thought_status(
-            thought_id=thought_id,
-            status=final_thought_status,
-            final_action=result,
-        )
-
         # Create correlation for tracking action completion
         from ciris_engine.schemas.telemetry.core import (
             ServiceCorrelation, ServiceCorrelationStatus,
@@ -172,30 +165,13 @@ class SpeakHandler(BaseActionHandler):
             else f"CIRIS_FOLLOW_UP_THOUGHT: SPEAK action failed for thought {thought_id}."
         )
 
-        # If message failed, update thought status to FAILED before creating follow-up
-        if final_thought_status == ThoughtStatus.FAILED:
-            persistence.update_thought_status(
-                thought_id=thought.thought_id,
-                status=ThoughtStatus.FAILED,
-                final_action=result
-            )
-            # Create follow-up manually since complete_thought_and_create_followup sets to COMPLETED
-            from ciris_engine.schemas.runtime.enums import ThoughtType
-            follow_up = create_follow_up_thought(
-                parent=thought,
-                time_service=self.time_service,
-                content=follow_up_text,
-                thought_type=ThoughtType.FOLLOW_UP
-            )
-            persistence.add_thought(follow_up)
-            follow_up_thought_id = follow_up.thought_id
-        else:
-            # Use centralized method for successful cases
-            follow_up_thought_id = await self.complete_thought_and_create_followup(
-                thought=thought,
-                follow_up_content=follow_up_text,
-                action_result=result
-            )
+        # Use centralized method for both success and failure cases
+        follow_up_thought_id = await self.complete_thought_and_create_followup(
+            thought=thought,
+            follow_up_content=follow_up_text,
+            action_result=result,
+            status=final_thought_status
+        )
         
         if not follow_up_thought_id:
             await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, Exception("Failed to create follow-up thought"))

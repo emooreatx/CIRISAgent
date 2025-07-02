@@ -383,23 +383,14 @@ class WakeupProcessor(BaseProcessor):
         return True
 
     async def _create_step_thought(self, step_task: Task, round_number: int) -> Tuple[Thought, Any]:
-        """Create a thought for a wakeup step, ensuring context is formatted with the standard formatter.
+        """Create a thought for a wakeup step with minimal context.
+        
+        Processing context will be built later during thought processing to enable
+        concurrent processing.
 
         Returns:
-            Tuple of (Thought, ProcessingThoughtContext) - the thought has simple context,
-            processing context is returned separately for use in processing pipeline.
+            Tuple of (Thought, None) - processing context is None in non-blocking mode
         """
-        # Use the new ContextBuilder to build the context for the thought
-        context_builder = ContextBuilder(
-            memory_service=getattr(self, 'memory_service', None),
-            graphql_provider=getattr(self, 'graphql_provider', None),
-            app_config=getattr(self, 'app_config', None),
-            resource_monitor=getattr(self, 'resource_monitor', None),
-            runtime=getattr(self, 'runtime', None),
-            service_registry=getattr(self, 'service_registry', None),
-            secrets_service=getattr(self, 'secrets_service', None),
-            telemetry_service=getattr(self, 'telemetry_service', None),
-        )
         # Create a new Thought object for this step
         now_iso = self.time_service.now().isoformat()
 
@@ -428,18 +419,9 @@ class WakeupProcessor(BaseProcessor):
             thought_type=ThoughtType.STANDARD
         )
 
-        # Build the processing context for this thought and step task
-        processing_context = await context_builder.build_thought_context(
-            thought=thought,
-            task=step_task
-        )
-
-        # Add channel_id to processing context if available
-        if self.startup_channel_id and processing_context and hasattr(processing_context, 'system_snapshot'):
-            processing_context.system_snapshot.channel_context = create_channel_context(self.startup_channel_id)
-            logger.debug(f"Added startup_channel_id '{self.startup_channel_id}' to thought {thought.thought_id}")
-        else:
-            logger.warning(f"Could not add channel context to thought {thought.thought_id}: startup_channel_id={self.startup_channel_id}, has_context={processing_context is not None}, has_snapshot={hasattr(processing_context, 'system_snapshot') if processing_context else False}")
+        # In non-blocking mode, we don't build the processing context
+        # It will be built later during thought processing
+        processing_context = None
 
         # Persist the new thought (with simple context)
         persistence.add_thought(thought)

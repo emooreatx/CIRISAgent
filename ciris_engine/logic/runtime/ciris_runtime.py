@@ -555,10 +555,6 @@ class CIRISRuntime:
         await asyncio.gather(*(adapter.start() for adapter in self.adapters))
         logger.info(f"All {len(self.adapters)} adapters started")
 
-        # Give adapters time to establish connections (especially Discord)
-        await asyncio.sleep(5.0)
-        logger.info("Adapter startup grace period complete")
-
     async def _final_verification(self) -> None:
         """Perform final system verification."""
         # Don't check initialization status here - we're still IN the initialization process
