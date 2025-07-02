@@ -372,6 +372,7 @@ class AgentProcessor:
 
     async def _process_single_thought(self, thought: Thought) -> bool:
         """Process a single thought and dispatch its action, with comprehensive error handling."""
+        logger.info(f"[DEBUG TIMING] _process_single_thought START for thought {thought.thought_id}")
         start_time = self._time_service.now()
         trace_id = f"task_{thought.source_task_id or 'unknown'}_{thought.thought_id}"
         span_id = f"agent_processor_{thought.thought_id}"
@@ -439,6 +440,7 @@ class AgentProcessor:
 
             # Use fallback-aware process_thought_item
             try:
+                logger.info(f"[DEBUG TIMING] Calling processor.process_thought_item for thought {thought.thought_id}")
                 result = await processor.process_thought_item(item, context={"origin": "wakeup_async"})
             except Exception as e:
                 logger.error(f"Error in processor.process_thought_item for thought {thought.thought_id}: {e}", exc_info=True)

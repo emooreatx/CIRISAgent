@@ -28,7 +28,7 @@ export default function Home() {
           </p>
           {user && (
             <p className="mt-4 text-sm text-gray-500">
-              Logged in as <span className="font-medium">{user.username}</span> ({user.role})
+              Logged in as <span className="font-medium">{user.username || user.user_id}</span> ({user.role})
             </p>
           )}
         </div>

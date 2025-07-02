@@ -51,7 +51,7 @@ export function Layout({ children }: LayoutProps) {
               {user && (
                 <div className="flex items-center space-x-4">
                   <span className="text-sm text-gray-700">
-                    {user.username} ({user.role})
+                    {user.username || user.user_id} ({user.role})
                   </span>
                   <button
                     onClick={() => logout()}

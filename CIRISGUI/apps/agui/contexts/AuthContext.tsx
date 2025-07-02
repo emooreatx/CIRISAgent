@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const user = await apiClient.login(username, password);
       setUser(user);
-      toast.success(`Welcome, ${user.username}!`);
+      toast.success(`Welcome, ${user.username || user.user_id}!`);
       router.push('/');
     } catch (error: any) {
       toast.error(error.response?.data?.detail || 'Login failed');

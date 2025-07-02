@@ -53,6 +53,7 @@ class ThoughtProcessor:
         context: Optional[dict] = None
     ) -> Optional[ActionSelectionDMAResult]:
         """Main processing pipeline - coordinates the components."""
+        logger.info(f"[DEBUG TIMING] process_thought START for thought {thought_item.thought_id}")
         start_time = self._time_service.now()
         # Create trace for thought processing
         trace_id = f"task_{thought_item.source_task_id or 'unknown'}_{thought_item.thought_id}"
@@ -182,6 +183,7 @@ class ThoughtProcessor:
         # For now, removing profile_name to fix TypeError.
         # The dsdma_context argument is optional and defaults to None if not provided.
         try:
+            logger.info(f"[DEBUG TIMING] About to call dma_orchestrator.run_initial_dmas for thought {thought_item.thought_id}")
             dma_results = await self.dma_orchestrator.run_initial_dmas(
                 thought_item=thought_item,
                 processing_context=thought_context,

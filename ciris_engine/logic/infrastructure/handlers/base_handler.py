@@ -110,7 +110,7 @@ class BaseActionHandler(ABC):
         
         # Mark the current thought with the specified status (default to COMPLETED)
         final_status = status or ThoughtStatus.COMPLETED
-        success = await persistence.update_thought_status(
+        success = persistence.update_thought_status(
             thought_id=thought.thought_id,
             status=final_status,
             final_action=action_result
@@ -130,7 +130,7 @@ class BaseActionHandler(ABC):
             )
             
             try:
-                await persistence.add_thought(follow_up)
+                persistence.add_thought(follow_up)
                 self.logger.info(f"Created follow-up thought {follow_up.thought_id} for completed thought {thought.thought_id}")
                 return follow_up.thought_id
             except Exception as e:
