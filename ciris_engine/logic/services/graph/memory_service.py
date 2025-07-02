@@ -64,6 +64,7 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
         try:
             # Get the primary node
             from ciris_engine.logic.persistence.models import graph as persistence
+            logger.info(f"[DEBUG DB TIMING] Memory recall: getting node {recall_query.node_id} scope {recall_query.scope}")
             stored = persistence.get_graph_node(recall_query.node_id, recall_query.scope, db_path=self.db_path)
             if not stored:
                 return []
@@ -486,6 +487,7 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
 
     async def search(self, query: str, filters: Optional[MemorySearchFilter] = None) -> List[GraphNode]:
         """Search memories in the graph."""
+        logger.info(f"[DEBUG DB TIMING] Memory search START: query='{query}', filters={filters}")
         try:
             # Parse query to extract node type and other filters
             query_parts = query.split()

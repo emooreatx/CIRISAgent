@@ -72,6 +72,36 @@ async def async_get_thought_by_id(thought_id: str, db_path: Optional[str] = None
     """Asynchronous wrapper for get_thought_by_id using asyncio.to_thread."""
     return await asyncio.to_thread(get_thought_by_id, thought_id, db_path)
 
+def get_thoughts_by_ids(thought_ids: List[str], db_path: Optional[str] = None) -> dict[str, Thought]:
+    """Fetch multiple thoughts by their IDs in a single query.
+    
+    Returns a dict mapping thought_id to Thought object.
+    More efficient than multiple individual queries.
+    """
+    if not thought_ids:
+        return {}
+    
+    placeholders = ','.join(['?'] * len(thought_ids))
+    sql = f"SELECT * FROM thoughts WHERE thought_id IN ({placeholders})"
+    
+    result = {}
+    try:
+        with get_db_connection(db_path=db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, thought_ids)
+            rows = cursor.fetchall()
+            for row in rows:
+                thought = map_row_to_thought(row)
+                result[thought.thought_id] = thought
+    except Exception as e:
+        logger.exception(f"Failed to batch fetch thoughts: {e}")
+    
+    return result
+
+async def async_get_thoughts_by_ids(thought_ids: List[str], db_path: Optional[str] = None) -> dict[str, Thought]:
+    """Asynchronous wrapper for get_thoughts_by_ids."""
+    return await asyncio.to_thread(get_thoughts_by_ids, thought_ids, db_path)
+
 async def async_get_thought_status(thought_id: str, db_path: Optional[str] = None) -> Optional[ThoughtStatus]:
     """Retrieve just the status of a thought asynchronously."""
 

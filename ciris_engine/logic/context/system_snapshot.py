@@ -103,7 +103,9 @@ async def build_system_snapshot(
                 include_edges=False,
                 depth=1
             )
+            logger.info(f"[DEBUG DB TIMING] About to query memory service for channel/{channel_id}")
             channel_nodes = await memory_service.recall(query)
+            logger.info(f"[DEBUG DB TIMING] Completed memory service query for channel/{channel_id}")
 
             # If not found, try search
             if not channel_nodes:
@@ -114,10 +116,12 @@ async def build_system_snapshot(
                     limit=10
                 )
                 # Search by channel ID in attributes
+                logger.info(f"[DEBUG DB TIMING] About to search memory service for channel {channel_id}")
                 search_results = await memory_service.search(
                     query=channel_id,
                     filters=search_filter
                 )
+                logger.info(f"[DEBUG DB TIMING] Completed memory service search for channel {channel_id}")
                 # Update channel_context if we found channel info
                 for node in search_results:
                     if node.attributes:
@@ -144,7 +148,9 @@ async def build_system_snapshot(
                 include_edges=False,
                 depth=1
             )
+            logger.info(f"[DEBUG DB TIMING] About to query memory service for agent/identity")
             identity_nodes = await memory_service.recall(identity_query)
+            logger.info(f"[DEBUG DB TIMING] Completed memory service query for agent/identity")
             identity_result = identity_nodes[0] if identity_nodes else None
 
             if identity_result and identity_result.attributes:
@@ -178,7 +184,9 @@ async def build_system_snapshot(
             logger.warning(f"Failed to retrieve agent identity from graph: {e}")
 
     recent_tasks_list: List[Any] = []
+    logger.info(f"[DEBUG DB TIMING] About to get recent completed tasks")
     db_recent_tasks = persistence.get_recent_completed_tasks(10)
+    logger.info(f"[DEBUG DB TIMING] Completed get recent completed tasks: {len(db_recent_tasks)} tasks")
     for t_obj in db_recent_tasks:
         # db_recent_tasks returns List[Task], convert to TaskSummary
         if isinstance(t_obj, BaseModel):
@@ -193,7 +201,9 @@ async def build_system_snapshot(
             ))
 
     top_tasks_list: List[Any] = []
+    logger.info(f"[DEBUG DB TIMING] About to get top tasks")
     db_top_tasks = persistence.get_top_tasks(10)
+    logger.info(f"[DEBUG DB TIMING] Completed get top tasks: {len(db_top_tasks)} tasks")
     for t_obj in db_top_tasks:
         # db_top_tasks returns List[Task], convert to TaskSummary
         if isinstance(t_obj, BaseModel):

@@ -90,10 +90,18 @@ class WakeupProcessor(BaseProcessor):
             duration = (self.time_service.now() - start_time).total_seconds()
 
             # Convert dict result to WakeupResult
+            # Count failed tasks as errors
+            errors = 0
+            if result.get("status") == "failed":
+                errors = 1  # At least one error if status is failed
+                if "steps_status" in result:
+                    # Count actual number of failed tasks
+                    errors = sum(1 for s in result["steps_status"] if s.get("status") == "failed")
+            
             return WakeupResult(
                 thoughts_processed=result.get("processed_thoughts", 0),
                 wakeup_complete=result.get("wakeup_complete", False),
-                errors=0,  # TODO: track errors properly
+                errors=errors,
                 duration_seconds=duration
             )
 
@@ -169,8 +177,26 @@ class WakeupProcessor(BaseProcessor):
                 all_complete = all(
                     s["status"] == "completed" for s in steps_status
                 )
+                
+                any_failed = any(
+                    s["status"] == "failed" for s in steps_status
+                )
 
-                if all_complete:
+                if any_failed:
+                    # If any task failed, mark wakeup as failed
+                    self.wakeup_complete = False
+                    self._mark_root_task_failed()
+                    logger.error("✗ Wakeup sequence failed - one or more tasks failed!")
+                    return {
+                        "status": "failed",
+                        "wakeup_complete": False,
+                        "steps_status": steps_status,
+                        "steps_completed": sum(1 for s in steps_status if s["status"] == "completed"),
+                        "total_steps": len(wakeup_sequence),
+                        "processed_thoughts": processed_any,
+                        "error": "One or more wakeup tasks failed"
+                    }
+                elif all_complete:
                     self.wakeup_complete = True
                     self._mark_root_task_complete()
                     logger.info("✓ Wakeup sequence completed successfully!")

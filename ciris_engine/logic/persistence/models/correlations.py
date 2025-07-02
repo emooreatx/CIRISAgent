@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, Union
 
 from ciris_engine.logic.persistence import get_db_connection
 from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, CorrelationType
@@ -58,7 +58,40 @@ def add_correlation(corr: ServiceCorrelation, time_service: TimeServiceProtocol,
         logger.exception("Failed to add correlation %s: %s", corr.correlation_id, e)
         raise
 
-def update_correlation(update_request: CorrelationUpdateRequest, time_service: TimeServiceProtocol, db_path: Optional[str] = None) -> bool:
+def update_correlation(update_request_or_id: Union[CorrelationUpdateRequest, str], correlation_or_time_service: Union[ServiceCorrelation, TimeServiceProtocol], time_service: Optional[TimeServiceProtocol] = None, db_path: Optional[str] = None) -> bool:
+    """Update correlation - handles both old and new signatures for compatibility."""
+    # Handle old signature: update_correlation(correlation_id, correlation, time_service)
+    if isinstance(update_request_or_id, str) and isinstance(correlation_or_time_service, ServiceCorrelation):
+        # Convert old signature to new
+        correlation = correlation_or_time_service
+        actual_time_service = time_service
+        if not actual_time_service:
+            raise ValueError("time_service required for old signature")
+        
+        # Build update request from correlation object
+        update_request = CorrelationUpdateRequest(
+            correlation_id=update_request_or_id,
+            response_data={
+                "success": str(getattr(correlation.response_data, 'success', False)).lower(),
+                "error_message": str(getattr(correlation.response_data, 'error_message', '')),
+                "execution_time_ms": str(getattr(correlation.response_data, 'execution_time_ms', 0))
+            } if correlation.response_data else None,
+            status=ServiceCorrelationStatus.COMPLETED if getattr(correlation.response_data, 'success', False) else ServiceCorrelationStatus.FAILED
+        )
+        db_path = db_path
+    # Handle new signature: update_correlation(update_request, time_service)
+    elif isinstance(update_request_or_id, CorrelationUpdateRequest):
+        update_request = update_request_or_id
+        actual_time_service = correlation_or_time_service
+        if not hasattr(actual_time_service, 'now'):
+            raise ValueError("time_service must have 'now' method for new signature")
+    else:
+        raise ValueError("Invalid arguments to update_correlation")
+    
+    # Call the implementation
+    return _update_correlation_impl(update_request, actual_time_service, db_path)
+
+def _update_correlation_impl(update_request: CorrelationUpdateRequest, time_service: TimeServiceProtocol, db_path: Optional[str] = None) -> bool:
     updates: List[Any] = []
     params: List[Any] = []
     if update_request.response_data is not None:
