@@ -61,7 +61,6 @@ class CIRISRuntime:
         # Initialize managers
         self.identity_manager: Optional[IdentityManager] = None
         self.service_initializer = ServiceInitializer(essential_config=essential_config)
-        self.service_initializer._modules_to_load = self.modules_to_load  # Pass modules to service initializer
         self.component_builder: Optional[ComponentBuilder] = None
         self.agent_processor: Optional['AgentProcessor'] = None
 

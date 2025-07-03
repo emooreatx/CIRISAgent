@@ -304,3 +304,56 @@ show_handler_metrics()                # Display handler execution counts and tim
    - **Stuck thoughts**: Look for PENDING/PROCESSING thoughts that aren't progressing
    - **Handler failures**: Use trace hierarchy to see which handler failed
    - **Performance issues**: Check handler metrics and trace timings
+
+## Critical Debugging Guidelines
+
+### Container Incidents Log
+**ALWAYS check incidents_latest.log FIRST** - This is your primary debugging tool:
+```bash
+docker exec <container> tail -n 100 /app/logs/incidents_latest.log
+```
+
+**NEVER restart the container until everything in incidents_latest.log has been understood and addressed** - These are opportunities to discover flaws in the software. Each error message is valuable debugging information.
+
+### Mock LLM Behavior
+The mock LLM may not always respond with a message - **this is by design**:
+- **DEFER**: Task is deferred, no message sent back
+- **REJECT**: Request is rejected, no message sent back  
+- **TASK_COMPLETE**: Task marked complete, no message sent back
+- **OBSERVE**: Observation registered, no immediate message
+
+This is normal behavior. You can use audit logs or debug tools to verify the action was performed correctly.
+
+### API Authentication with curl
+```bash
+# 1. Login to get token
+curl -X POST http://localhost:8080/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "ciris_admin_password"}'
+
+# 2. Use the token (Note: JSON requires proper escaping)
+curl -X POST http://localhost:8080/v1/agent/interact \
+  -H "Authorization: Bearer <your-token-here>" \
+  -H "Content-Type: application/json" \
+  -d "{\"message\": \"\$speak Hello!\", \"channel_id\": \"api_SYSTEM_ADMIN\"}"
+```
+
+### Mock LLM Command Extraction
+The mock LLM extracts commands from user context in this order:
+1. **Passive Observation**: Looks for `"You observed @<author> (ID: <id>) in channel <channel> say: <message>"`
+2. **ASPDMA Messages**: Extracts from `"Original Thought:"` field
+3. **Command Detection**: Checks if message starts with `$`
+4. **Context Storage**: Adds `forced_action:<action>` and `action_params:<params>` to context
+
+### Debugging Workflow
+1. **Check Health**: `curl http://localhost:8080/v1/system/health`
+2. **Check Incidents**: `docker exec <container> tail /app/logs/incidents_latest.log`
+3. **Use Debug Tools**: `docker exec <container> python debug_tools.py`
+4. **Verify Actions**: Check traces and correlations for handler execution
+5. **Never Assume**: Always verify mock LLM behavior matches expectations
+
+### Container Best Practices
+- **Always rebuild**: `docker-compose -f docker-compose-api-mock.yml build --no-cache`
+- **Check uptime**: If health shows hours when just started, rebuild needed
+- **Parallel testing**: Use multiple containers (ports 8080-8089)
+- **Incident logs are gold**: Every error reveals system behavior

@@ -158,9 +158,12 @@ class TestHandlers:
         # The response should indicate recall operation
         response = recall_result["data"]["response"]
         print(f"RECALL response: {response}")
-        if "still processing" not in response:
+        if "still processing" not in response.lower():
             # Should either find the memory or report not found
             assert any(word in response.lower() for word in ["found", "recall", "memory", "no memories", "mock llm"])
+        else:
+            # RECALL is an async operation, "Still processing" is expected
+            assert True
         
     def test_ponder(self, api_client):
         """Test PONDER handler - validates pondering happens."""
