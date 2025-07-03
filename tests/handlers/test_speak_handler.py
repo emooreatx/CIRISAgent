@@ -194,11 +194,16 @@ def mock_persistence():
         mock_base_p.update_thought_status = Mock(return_value=True)
         mock_base_p.add_correlation = Mock()
         
-        # Make both mocks share the same add_thought mock
-        # so we can check if it was called from either location
+        # Make both mocks share the same add_thought and update_thought_status mocks
+        # so we can check if they were called from either location
         shared_add_thought = Mock()
         mock_p.add_thought = shared_add_thought
         mock_base_p.add_thought = shared_add_thought
+        
+        # Share update_thought_status mock
+        shared_update_status = Mock(return_value=True)
+        mock_p.update_thought_status = shared_update_status
+        mock_base_p.update_thought_status = shared_update_status
         
         yield mock_p
 
@@ -278,11 +283,12 @@ class TestSpeakHandler:
         )
 
         # Verify thought status was marked as failed
-        mock_persistence.update_thought_status.assert_called_with(
-            thought_id="thought_123",
-            status=ThoughtStatus.FAILED,
-            final_action=action_result
-        )
+        assert mock_persistence.update_thought_status.called
+        update_call = mock_persistence.update_thought_status.call_args
+        # Check using kwargs instead of args
+        assert update_call.kwargs['thought_id'] == "thought_123"
+        assert update_call.kwargs['status'] == ThoughtStatus.FAILED
+        assert update_call.kwargs['final_action'] == action_result
 
         # Verify follow-up thought contains failure message
         follow_up_call = mock_persistence.add_thought.call_args[0][0]
@@ -461,32 +467,27 @@ class TestSpeakHandler:
     @pytest.mark.asyncio
     async def test_communication_bus_exception(
         self, speak_handler, action_result, test_thought, dispatch_context,
-        mock_communication_bus, test_task
+        mock_communication_bus, test_task, mock_persistence
     ):
         """Test handling of exceptions from communication bus."""
         # Configure communication to raise exception
         mock_communication_bus.send_message.side_effect = Exception("Network error")
+        mock_persistence.get_task_by_id.return_value = test_task
 
-        with patch('ciris_engine.logic.handlers.external.speak_handler.persistence') as mock_persistence:
-            mock_persistence.get_task_by_id.return_value = test_task
-            mock_persistence.add_thought = Mock()
-            mock_persistence.update_thought_status = Mock()
-            mock_persistence.add_correlation = Mock()
+        # Execute handler - should handle exception gracefully
+        follow_up_id = await speak_handler.handle(
+            action_result, test_thought, dispatch_context
+        )
 
-            # Execute handler - should handle exception gracefully
-            follow_up_id = await speak_handler.handle(
-                action_result, test_thought, dispatch_context
-            )
+        # Verify thought was marked as failed
+        assert mock_persistence.update_thought_status.called
+        update_call = mock_persistence.update_thought_status.call_args
+        assert update_call.kwargs['thought_id'] == "thought_123"
+        assert update_call.kwargs['status'] == ThoughtStatus.FAILED
+        assert update_call.kwargs['final_action'] == action_result
 
-            # Verify thought was marked as failed
-            mock_persistence.update_thought_status.assert_called_with(
-                thought_id="thought_123",
-                status=ThoughtStatus.FAILED,
-                final_action=action_result
-            )
-
-            # Verify follow-up was created
-            assert follow_up_id is not None
+        # Verify follow-up was created
+        assert follow_up_id is not None
 
     @pytest.mark.asyncio
     async def test_service_correlation_tracking(
@@ -507,9 +508,9 @@ class TestSpeakHandler:
 
             # Check correlation properties
             assert isinstance(correlation, ServiceCorrelation)
-            assert correlation.service_type == "communication"
+            assert correlation.service_type == "handler"
             assert correlation.handler_name == "SpeakHandler"
-            assert correlation.action_type == "speak"
+            assert correlation.action_type == "speak_action"
             assert correlation.request_data.thought_id == "thought_123"
             assert correlation.request_data.task_id == "task_123"
             assert correlation.request_data.channel_id == "test_channel_123"

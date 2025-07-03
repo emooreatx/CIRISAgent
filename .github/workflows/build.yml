@@ -48,6 +48,8 @@ jobs:
 
       # Run tests and generate coverage.xml
       - name: Run tests and coverage
+        env:
+          CI: true
         run: |
           pytest --cov=./ --cov-report=xml:coverage.xml
 

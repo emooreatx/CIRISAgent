@@ -520,141 +520,100 @@ This directory contains critical cryptographic keys for the CIRIS system.
         CRITICAL: Only mock OR real LLM services are active, never both.
         This prevents attack vectors where mock responses could be confused with real ones.
         """
-        # FIRST: Check if mock_llm is in modules_to_load - this takes precedence
-        if modules_to_load and 'mock_llm' in modules_to_load:
-            logger.info("🤖 Mock LLM in modules_to_load - skipping ALL real LLM service initialization")
-            self._skip_llm_init = True
-            return
-        
-        # Check if a MOCK LLM module will be loaded
+        # Skip if mock LLM module is being loaded
         if self._skip_llm_init:
-            logger.info("🤖 MOCK LLM module detected - skipping normal LLM service initialization")
-            logger.info("The MOCK module will provide LLM service when loaded")
+            logger.info("🤖 MOCK LLM module detected - skipping real LLM service initialization")
             return
 
-        # Check if mock LLM is enabled via config (legacy)
-        mock_llm_enabled = getattr(config, 'mock_llm', False)
+        # Validate config
+        if not hasattr(config, 'services'):
+            raise ValueError("Configuration missing LLM service settings")
 
-        # Also check if mock_llm is in the modules to be loaded
-        if hasattr(self, '_modules_to_load') and 'mock_llm' in self._modules_to_load:
-            mock_llm_enabled = True
-
-        # Also check if we have NO API key - this means mock LLM will be loaded as a module
+        # Get API key
         api_key = os.environ.get("OPENAI_API_KEY", "")
-        if not api_key and not mock_llm_enabled:
-            logger.info("No API key found and mock_llm not explicitly set - skipping LLM initialization")
-            logger.info("Mock LLM will be loaded as a module in the next phase")
+        if not api_key:
+            logger.warning("No OPENAI_API_KEY found - LLM service will not be initialized")
             return
 
-        if mock_llm_enabled:
-            # ONLY register mock LLM service
-            logger.info("🤖 Mock LLM mode enabled - registering ONLY mock LLM service")
+        # Initialize real LLM service
+        logger.info("Initializing real LLM service")
+        from ciris_engine.logic.services.runtime.llm_service import OpenAIConfig
+        
+        llm_config = OpenAIConfig(
+            base_url=config.services.llm_endpoint,
+            model_name=config.services.llm_model,
+            api_key=api_key,
+            timeout_seconds=config.services.llm_timeout,
+            max_retries=config.services.llm_max_retries
+        )
 
-            # Import here to avoid circular imports
-            from ciris_modular_services.mock_llm.service import MockLLMService
+        # Create and start service
+        openai_service = OpenAICompatibleClient(
+            llm_config,
+            telemetry_service=self.telemetry_service
+        )
+        await openai_service.start()
 
-            # Create and start mock service
-            mock_service = MockLLMService()
-            await mock_service.start()
-
-            # Register with CRITICAL priority as the ONLY LLM service
-            if self.service_registry:
-                # TEMPORARY: Hardcode lowercase to debug issue
-                cap_value = "call_llm_structured"  # LLMCapabilities.CALL_LLM_STRUCTURED.value
-                logger.debug(f"Registering MockLLMService with capability value: '{cap_value}' (type: {type(cap_value)})")
-                self.service_registry.register_service(
-                    service_type=ServiceType.LLM,
-                    provider=mock_service,
-                    priority=Priority.CRITICAL,
-                    capabilities=[cap_value],
-                    metadata={"provider": "mock", "warning": "MOCK LLM - NOT FOR PRODUCTION"}
-                )
-
-            # Store reference for compatibility
-            self.llm_service = mock_service
-            logger.warning("⚠️  MOCK LLM SERVICE ACTIVE - ALL RESPONSES ARE SIMULATED")
-
-        else:
-            # ONLY register real LLM service(s)
-            logger.info("Initializing real LLM service(s)")
-
-            # Check if this is EssentialConfig (bootstrap phase)
-            if hasattr(config, 'services'):
-                # Using EssentialConfig - create minimal LLM config
-                from ciris_engine.logic.services.runtime.llm_service import OpenAIConfig
-                llm_config = OpenAIConfig(
-                    base_url=config.services.llm_endpoint,
-                    model_name=config.services.llm_model,
-                    api_key=os.environ.get("OPENAI_API_KEY", ""),
-                    timeout_seconds=config.services.llm_timeout,
-                    max_retries=config.services.llm_max_retries
-                )
-            else:
-                # Legacy config format (should not happen)
-                raise ValueError("Configuration missing LLM service settings")
-
-            # Primary OpenAI service
-            openai_service = OpenAICompatibleClient(
-                llm_config,
-                telemetry_service=self.telemetry_service
+        # Register service
+        if self.service_registry:
+            self.service_registry.register_service(
+                service_type=ServiceType.LLM,
+                provider=openai_service,
+                priority=Priority.HIGH,
+                capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED.value],
+                metadata={"provider": "openai", "model": llm_config.model_name}
             )
-            await openai_service.start()
 
-            # Register OpenAI as primary
-            if self.service_registry:
-                self.service_registry.register_service(
-                    service_type=ServiceType.LLM,
-                    provider=openai_service,
-                    priority=Priority.HIGH,
-                    capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED.value],
-                    metadata={"provider": "openai", "model": llm_config.model_name}
-                )
+        # Store reference
+        self.llm_service = openai_service
+        logger.info(f"Primary LLM service initialized: {llm_config.model_name}")
 
-            # Store reference for compatibility
-            self.llm_service = openai_service
+        # Optional: Initialize secondary LLM service
+        second_api_key = os.environ.get("CIRIS_OPENAI_API_KEY_2", "")
+        if second_api_key:
+            await self._initialize_secondary_llm(config, second_api_key)
 
-            # Check for second LLM service configuration
-            second_api_key = os.environ.get("CIRIS_OPENAI_API_KEY_2", "")
-            if second_api_key:
-                logger.info("Found CIRIS_OPENAI_API_KEY_2, initializing secondary LLM service")
+    async def _initialize_secondary_llm(self, config: Any, api_key: str) -> None:
+        """Initialize optional secondary LLM service."""
+        logger.info("Initializing secondary LLM service")
+        
+        from ciris_engine.logic.services.runtime.llm_service import OpenAIConfig
+        
+        # Get configuration from environment
+        base_url = os.environ.get("CIRIS_OPENAI_API_BASE_2", config.services.llm_endpoint)
+        model_name = os.environ.get("CIRIS_OPENAI_MODEL_NAME_2", config.services.llm_model)
 
-                # Get configuration from environment variables with defaults
-                second_base_url = os.environ.get("CIRIS_OPENAI_API_BASE_2", config.services.llm_endpoint)
-                second_model_name = os.environ.get("CIRIS_OPENAI_MODEL_NAME_2", config.services.llm_model)
+        # Create config
+        llm_config = OpenAIConfig(
+            base_url=base_url,
+            model_name=model_name,
+            api_key=api_key,
+            timeout_seconds=config.services.llm_timeout,
+            max_retries=config.services.llm_max_retries
+        )
 
-                # Create config for second LLM service
-                second_llm_config = OpenAIConfig(
-                    base_url=second_base_url,
-                    model_name=second_model_name,
-                    api_key=second_api_key,
-                    timeout_seconds=config.services.llm_timeout,
-                    max_retries=config.services.llm_max_retries
-                )
+        # Create and start service
+        service = OpenAICompatibleClient(
+            llm_config,
+            telemetry_service=self.telemetry_service
+        )
+        await service.start()
 
-                # Create second OpenAI-compatible service
-                second_openai_service = OpenAICompatibleClient(
-                    second_llm_config,
-                    telemetry_service=self.telemetry_service
-                )
-                await second_openai_service.start()
+        # Register with lower priority
+        if self.service_registry:
+            self.service_registry.register_service(
+                service_type=ServiceType.LLM,
+                provider=service,
+                priority=Priority.NORMAL,
+                capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED.value],
+                metadata={
+                    "provider": "openai_secondary",
+                    "model": model_name,
+                    "base_url": base_url
+                }
+            )
 
-                # Register second service with NORMAL priority (lower than primary)
-                if self.service_registry:
-                    self.service_registry.register_service(
-                        service_type=ServiceType.LLM,
-                        provider=second_openai_service,
-                        priority=Priority.NORMAL,
-                        capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED.value],
-                        metadata={
-                            "provider": "openai_secondary",
-                            "model": second_llm_config.model_name,
-                            "base_url": second_base_url
-                        }
-                    )
-
-                logger.info(f"Secondary LLM service initialized: {second_llm_config.model_name} at {second_base_url}")
-
-            logger.info(f"Real LLM service(s) initialized: primary={llm_config.model_name}")
+        logger.info(f"Secondary LLM service initialized: {model_name}")
 
     async def _initialize_audit_services(self, config: Any, agent_id: str) -> None:
         """Initialize all three required audit services."""

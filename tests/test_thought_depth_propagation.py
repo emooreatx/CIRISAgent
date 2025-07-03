@@ -187,13 +187,13 @@ class TestThoughtDepthPropagation:
         mock_time_service.now.return_value = datetime.now(timezone.utc)
         mock_dependencies.time_service = mock_time_service
 
-        # Mock persistence calls with AsyncMock
+        # Mock persistence calls - note: add_thought is NOT async
         mock_task = Mock()
         mock_task.description = "Test task"
-        mock_persistence.update_thought_status = AsyncMock(return_value=True)
-        mock_persistence.get_task_by_id = AsyncMock(return_value=mock_task)
-        mock_persistence.add_thought = AsyncMock(return_value=None)
-        mock_persistence.add_correlation = AsyncMock(return_value=None)
+        mock_persistence.update_thought_status = Mock(return_value=True)
+        mock_persistence.get_task_by_id = Mock(return_value=mock_task)
+        mock_persistence.add_thought = Mock(return_value=None)
+        mock_persistence.add_correlation = Mock(return_value=None)
         
         # Configure base handler persistence the same way
         mock_base_persistence.update_thought_status = mock_persistence.update_thought_status
@@ -216,8 +216,9 @@ class TestThoughtDepthPropagation:
 
         # Mock the handle method to capture the follow-up thought
         captured_thoughts = []
-        async def capture_add_thought(thought):
+        def capture_add_thought(thought):
             captured_thoughts.append(thought)
+            return None  # Return value for AsyncMock
         mock_persistence.add_thought.side_effect = capture_add_thought
 
         # Handle the ponder action
@@ -296,10 +297,10 @@ class TestThoughtDepthPropagation:
              patch('ciris_engine.logic.infrastructure.handlers.base_handler.persistence') as mock_base_persistence:
             mock_task = Mock()
             mock_task.description = "Test task"
-            mock_persistence.update_thought_status = AsyncMock(return_value=True)
-            mock_persistence.get_task_by_id = AsyncMock(return_value=mock_task)
-            mock_persistence.add_thought = AsyncMock(return_value=None)
-            mock_persistence.add_correlation = AsyncMock(return_value=None)
+            mock_persistence.update_thought_status = Mock(return_value=True)
+            mock_persistence.get_task_by_id = Mock(return_value=mock_task)
+            mock_persistence.add_thought = Mock(return_value=None)
+            mock_persistence.add_correlation = Mock(return_value=None)
             
             # Configure base handler persistence the same way
             mock_base_persistence.update_thought_status = mock_persistence.update_thought_status

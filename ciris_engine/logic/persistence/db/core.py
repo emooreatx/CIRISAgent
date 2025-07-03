@@ -31,13 +31,24 @@ def convert_datetime(val):
     return datetime.fromisoformat(val.decode())
 
 
-# Register the adapter and converter
-sqlite3.register_adapter(datetime, adapt_datetime)
-sqlite3.register_converter("timestamp", convert_datetime)
+# Track if adapters have been registered
+_adapters_registered = False
+
+
+def _ensure_adapters_registered():
+    """Register SQLite adapters if not already done."""
+    global _adapters_registered
+    if not _adapters_registered:
+        sqlite3.register_adapter(datetime, adapt_datetime)
+        sqlite3.register_converter("timestamp", convert_datetime)
+        _adapters_registered = True
 
 
 def get_db_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     """Establishes a connection to the SQLite database with foreign key support."""
+    # Ensure adapters are registered before creating connection
+    _ensure_adapters_registered()
+    
     if db_path is None:
         db_path = get_sqlite_db_full_path()
     conn = sqlite3.connect(db_path, check_same_thread=False, detect_types=sqlite3.PARSE_DECLTYPES)

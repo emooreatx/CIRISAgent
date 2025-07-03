@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { cirisClient } from '../lib/ciris-sdk';
 import { useAuth } from '../contexts/AuthContext';
 import Link from 'next/link';
+import { CheckCircleIcon } from '../components/Icons';
 
 export default function Home() {
   const { user } = useAuth();
@@ -88,9 +89,7 @@ export default function Home() {
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                   {identity.permissions?.map((permission: string) => (
                     <div key={permission} className="flex items-center">
-                      <svg className="text-blue-500 mr-2" width="16" height="16" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
+                      <CheckCircleIcon className="text-blue-500 mr-2" size="sm" />
                       <span className="text-sm text-gray-700">{permission.replace(/_/g, ' ').toLowerCase()}</span>
                     </div>
                   ))}
