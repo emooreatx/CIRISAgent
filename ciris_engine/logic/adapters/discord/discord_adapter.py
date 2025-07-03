@@ -184,7 +184,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                     correlation_id=correlation_id,
                     service_type="discord",
                     handler_name="DiscordAdapter",
-                    action_type="send_message",
+                    action_type="speak",
                     request_data=ServiceRequestData(
                         service_type="discord",
                         method_name="send_message",
@@ -231,21 +231,72 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             return False
 
     async def fetch_messages(self, channel_id: str, limit: int = 100) -> List[FetchedMessage]:
-        """Implementation of CommunicationService.fetch_messages"""
-        # Early return if no client is available - no point in retrying
-        if not self._channel_manager.client:
-            logger.debug(f"Discord client not initialized, cannot fetch messages from channel {channel_id}")
-            return []
-
+        """Implementation of CommunicationService.fetch_messages - fetches from correlations"""
+        from ciris_engine.logic.persistence import get_correlations_by_channel
+        
         try:
-            return await self._retry_discord_operation(
-                self._message_handler.fetch_messages_from_channel,
-                channel_id, limit,
-                operation_name="fetch_messages",
-                config_key="discord_api"
+            # Get correlations for this channel
+            correlations = get_correlations_by_channel(
+                channel_id=channel_id,
+                limit=limit
             )
+            
+            messages = []
+            for corr in correlations:
+                # Extract message data from correlation
+                if corr.action_type == "speak" and corr.request_data:
+                    # This is an outgoing message from the agent
+                    content = ""
+                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
+                        content = corr.request_data.parameters.get("content", "")
+                    
+                    messages.append(FetchedMessage(
+                        message_id=corr.correlation_id,
+                        author_id="ciris",
+                        author_name="CIRIS",
+                        content=content,
+                        timestamp=corr.timestamp or corr.created_at,
+                        channel_id=channel_id
+                    ))
+                elif corr.action_type == "observe" and corr.request_data:
+                    # This is an incoming message from a user
+                    content = ""
+                    author_id = "unknown"
+                    author_name = "User"
+                    
+                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
+                        params = corr.request_data.parameters
+                        content = params.get("content", "")
+                        author_id = params.get("author_id", "unknown")
+                        author_name = params.get("author_name", "User")
+                    
+                    messages.append(FetchedMessage(
+                        message_id=corr.correlation_id,
+                        author_id=author_id,
+                        author_name=author_name,
+                        content=content,
+                        timestamp=corr.timestamp or corr.created_at,
+                        channel_id=channel_id
+                    ))
+            
+            # Sort by timestamp
+            messages.sort(key=lambda m: m.timestamp)
+            
+            return messages
+            
         except Exception as e:
-            logger.exception(f"Failed to fetch messages from Discord channel {channel_id}: {e}")
+            logger.error(f"Failed to fetch messages from correlations for Discord channel {channel_id}: {e}")
+            # Fall back to Discord API if correlation fetch fails
+            if self._channel_manager.client:
+                try:
+                    return await self._retry_discord_operation(
+                        self._message_handler.fetch_messages_from_channel,
+                        channel_id, limit,
+                        operation_name="fetch_messages",
+                        config_key="discord_api"
+                    )
+                except Exception as e2:
+                    logger.exception(f"Failed to fetch messages from Discord API: {e2}")
             return []
 
     # --- WiseAuthorityService ---

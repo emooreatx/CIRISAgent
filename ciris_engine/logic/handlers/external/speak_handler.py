@@ -147,9 +147,9 @@ class SpeakHandler(BaseActionHandler):
 
         correlation = ServiceCorrelation(
             correlation_id=str(uuid.uuid4()),
-            service_type="communication",
+            service_type="handler",
             handler_name="SpeakHandler",
-            action_type="speak",
+            action_type="speak_action",
             request_data=request_data,
             response_data=response_data,
             status=ServiceCorrelationStatus.COMPLETED if success else ServiceCorrelationStatus.FAILED,

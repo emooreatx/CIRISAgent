@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '../../lib/api-client';
+import { cirisClient } from '../../lib/ciris-sdk';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
@@ -53,7 +53,7 @@ export default function LogsPage() {
   // Fetch logs with polling
   const { data: logsData, refetch: refetchLogs } = useQuery({
     queryKey: ['logs', selectedLevel, selectedService, limit],
-    queryFn: () => apiClient.getLogs(
+    queryFn: () => cirisClient.telemetry.getLogs(
       selectedLevel === 'ALL' ? undefined : selectedLevel,
       selectedService === 'ALL' ? undefined : selectedService,
       limit
@@ -65,7 +65,7 @@ export default function LogsPage() {
   // Fetch incidents
   const { data: incidentsData, refetch: refetchIncidents } = useQuery({
     queryKey: ['incidents'],
-    queryFn: () => apiClient.getIncidents(50),
+    queryFn: () => cirisClient.telemetry.getIncidents({ limit: 50 }),
     refetchInterval: refreshInterval * 2, // Refresh less frequently
     enabled: showIncidents,
   });
@@ -338,11 +338,12 @@ export default function LogsPage() {
                       position: 'relative'
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', width: '100%' }}>
                       <span style={{ 
                         color: '#888',
                         fontSize: '11px',
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        flexShrink: 0
                       }}>
                         {format(new Date(log.timestamp), 'HH:mm:ss.SSS')}
                       </span>
@@ -351,7 +352,8 @@ export default function LogsPage() {
                         color: logConfig.color,
                         fontWeight: 'bold',
                         fontSize: '11px',
-                        minWidth: '50px'
+                        minWidth: '50px',
+                        flexShrink: 0
                       }}>
                         [{log.level}]
                       </span>
@@ -359,7 +361,8 @@ export default function LogsPage() {
                       <span style={{ 
                         color: '#66d9ef',
                         fontSize: '11px',
-                        minWidth: '100px'
+                        minWidth: '100px',
+                        flexShrink: 0
                       }}>
                         [{log.service}]
                       </span>
@@ -367,7 +370,9 @@ export default function LogsPage() {
                       <span style={{ 
                         flex: 1,
                         wordBreak: 'break-word',
-                        cursor: hasMetadata ? 'pointer' : 'default'
+                        cursor: hasMetadata ? 'pointer' : 'default',
+                        minWidth: 0,
+                        overflow: 'hidden'
                       }}
                       onClick={() => hasMetadata && toggleLogExpansion(log.id)}
                       >

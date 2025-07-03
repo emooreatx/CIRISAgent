@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import { apiClient, User } from '../lib/api-client-v1';
+import { cirisClient, User } from '../lib/ciris-sdk';
 
 interface AuthContextType {
   user: User | null;
@@ -28,8 +28,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      const currentUser = await apiClient.getCurrentUser();
-      setUser(currentUser);
+      if (cirisClient.isAuthenticated()) {
+        const currentUser = await cirisClient.auth.getMe();
+        setUser(currentUser);
+      }
     } catch (error) {
       console.error('Auth check failed:', error);
     } finally {
@@ -39,19 +41,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (username: string, password: string) => {
     try {
-      const user = await apiClient.login(username, password);
+      const user = await cirisClient.login(username, password);
       setUser(user);
       toast.success(`Welcome, ${user.username || user.user_id}!`);
       router.push('/');
     } catch (error: any) {
-      toast.error(error.response?.data?.detail || 'Login failed');
+      toast.error(error.message || 'Login failed');
       throw error;
     }
   }, [router]);
 
   const logout = useCallback(async () => {
     try {
-      await apiClient.logout();
+      await cirisClient.logout();
       setUser(null);
       toast.success('Logged out successfully');
       router.push('/login');

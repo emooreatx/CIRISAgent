@@ -1,0 +1,222 @@
+// CIRIS TypeScript SDK - Type Definitions
+// Mirrors the Python SDK models for consistency
+
+// Base Types
+export interface User {
+  user_id: string;
+  username: string;
+  role: 'OBSERVER' | 'ADMIN' | 'AUTHORITY' | 'SYSTEM_ADMIN';
+  permissions: string[];
+  created_at: string;
+  last_login?: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  user_id: string;
+  role: string;
+}
+
+// Agent Types
+export interface AgentStatus {
+  agent_id: string;
+  name: string;
+  cognitive_state: string;
+  uptime_seconds: number;
+  messages_processed: number;
+  last_activity: string;
+  current_task?: any;
+  services_active: number;
+  memory_usage_mb: number;
+}
+
+export interface AgentIdentity {
+  agent_id: string;
+  name: string;
+  purpose: string;
+  created_at: string;
+  lineage: {
+    model: string;
+    version: string;
+    parent_id?: string;
+    creation_context: string;
+    adaptations: string[];
+  };
+  variance_threshold: number;
+  tools: string[];
+  handlers: string[];
+  services: {
+    graph: number;
+    core: number;
+    infrastructure: number;
+    governance: number;
+    special: number;
+  };
+  permissions: string[];
+}
+
+export interface InteractResponse {
+  response: string;
+  processing_time_ms: number;
+  cognitive_state: string;
+  timestamp: string;
+}
+
+// Memory Types
+export interface GraphNode {
+  id: string;
+  type: string;
+  scope: string;
+  attributes: Record<string, any>;
+  version: number;
+  updated_by?: string;
+  updated_at?: string;
+}
+
+export interface MemoryOpResult {
+  success: boolean;
+  node_id?: string;
+  message?: string;
+  error?: string;
+}
+
+// System Types
+export interface HealthStatus {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  version: string;
+  uptime_seconds: number;
+  services: Record<string, ServiceHealth>;
+}
+
+export interface ServiceHealth {
+  name: string;
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  message?: string;
+  last_check: string;
+}
+
+export interface ServiceInfo {
+  name: string;
+  type: string;
+  status: 'running' | 'stopped' | 'error';
+  health: ServiceHealth;
+  created_at: string;
+  config?: Record<string, any>;
+}
+
+export interface ResourceUsage {
+  cpu_percent: number;
+  memory_mb: number;
+  memory_percent: number;
+  disk_usage_gb?: number;
+  active_thoughts: number;
+  active_handlers: number;
+  timestamp: string;
+}
+
+// Conversation Types
+export interface ConversationMessage {
+  id: string;
+  content: string;
+  author: string;
+  author_id: string;
+  channel_id: string;
+  timestamp: string;
+  is_agent: boolean;
+}
+
+export interface ConversationHistory {
+  messages: ConversationMessage[];
+  total_count: number;
+  has_more: boolean;
+}
+
+// Audit Types
+export interface AuditEntry {
+  id: string;
+  timestamp: string;
+  service: string;
+  action: string;
+  user_id?: string;
+  details: Record<string, any>;
+  success: boolean;
+  error?: string;
+}
+
+// Config Types
+export interface ConfigData {
+  [key: string]: any;
+}
+
+// WebSocket Types
+export interface WSMessage {
+  type: string;
+  channel?: string;
+  data?: any;
+}
+
+export interface WSEvent {
+  event: string;
+  channel: string;
+  data: any;
+  timestamp: string;
+}
+
+// Telemetry Types
+export interface TelemetryMetric {
+  name: string;
+  value: number;
+  unit: string;
+  timestamp: string;
+  labels?: Record<string, string>;
+  description?: string;
+}
+
+// API Response Types
+export interface SuccessResponse<T = any> {
+  data: T;
+  metadata: {
+    timestamp: string;
+    request_id?: string;
+    duration_ms?: number;
+  };
+}
+
+export interface ErrorResponse {
+  detail: string;
+  status?: number;
+  type?: string;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
+// Rate Limiting
+export interface RateLimitInfo {
+  limit: number;
+  remaining: number;
+  reset: number;
+  window: string;
+}
+
+// Emergency Types
+export interface EmergencyShutdownRequest {
+  reason: string;
+  signature: string;
+  initiator: string;
+}
+
+export interface EmergencyShutdownResponse {
+  status: string;
+  shutdown_id: string;
+  initiated_at: string;
+  services_stopped: number;
+}

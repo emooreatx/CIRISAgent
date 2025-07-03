@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../../lib/api-client-v1';
+import { cirisClient } from '../../lib/ciris-sdk';
 import { ProtectedRoute } from '../../components/ProtectedRoute';
 import toast from 'react-hot-toast';
 
@@ -28,7 +28,7 @@ export default function ConfigPage() {
   // Fetch configuration
   const { data: config, isLoading } = useQuery({
     queryKey: ['config'],
-    queryFn: () => apiClient.getConfig(),
+    queryFn: () => cirisClient.config.getConfig(),
   });
 
   // Update configuration mutation
@@ -36,7 +36,7 @@ export default function ConfigPage() {
     mutationFn: async (updates: any) => {
       // Create backup before updating
       await backupConfigMutation.mutateAsync();
-      return apiClient.updateConfig(updates);
+      return cirisClient.config.updateConfig(updates);
     },
     onSuccess: () => {
       toast.success('Configuration updated successfully');
@@ -51,7 +51,7 @@ export default function ConfigPage() {
 
   // Backup configuration mutation
   const backupConfigMutation = useMutation({
-    mutationFn: () => apiClient.backupConfig(),
+    mutationFn: () => cirisClient.config.backupConfig(),
     onSuccess: (data) => {
       const newBackup: ConfigBackup = {
         backup_id: data.backup_id,
@@ -69,7 +69,7 @@ export default function ConfigPage() {
 
   // Restore configuration mutation
   const restoreConfigMutation = useMutation({
-    mutationFn: (backup_id: string) => apiClient.restoreConfig(backup_id),
+    mutationFn: (backup_id: string) => cirisClient.config.restoreConfig(backup_id),
     onSuccess: () => {
       toast.success('Configuration restored successfully');
       queryClient.invalidateQueries({ queryKey: ['config'] });

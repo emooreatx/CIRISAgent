@@ -45,7 +45,7 @@ class CIRISClient:
         self,
         base_url: str = "http://localhost:8080",
         api_key: Optional[str] = None,
-        timeout: float = 30.0,
+        timeout: float = 10.0,  # Reduced to account for 5s API timeout
         max_retries: int = 3,
         use_auth_store: bool = True,
         rate_limit: bool = True,

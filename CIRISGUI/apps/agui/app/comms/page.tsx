@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../../lib/api-client-v1';
+import { cirisClient } from '../../lib/ciris-sdk';
 import toast from 'react-hot-toast';
 
 export default function CommsPage() {
@@ -12,74 +12,55 @@ export default function CommsPage() {
   const wsRef = useRef<WebSocket | null>(null);
   const queryClient = useQueryClient();
 
-  // Fetch conversation history
+  // Fetch conversation history - limit to 20 most recent
   const { data: history, isLoading } = useQuery({
     queryKey: ['conversation-history'],
-    queryFn: () => apiClient.getHistory('api_0.0.0.0_8080', 100),
+    queryFn: async () => {
+      const result = await cirisClient.agent.getHistory({
+        channel_id: 'api_0.0.0.0_8080',
+        limit: 20
+      });
+      return result;
+    },
+    refetchInterval: 2000, // Refresh every 2 seconds to catch responses
   });
 
   // Fetch agent status
   const { data: status } = useQuery({
     queryKey: ['agent-status'],
-    queryFn: () => apiClient.getStatus(),
+    queryFn: () => cirisClient.agent.getStatus(),
     refetchInterval: 5000, // Refresh every 5 seconds
   });
 
   // Send message mutation
   const sendMessage = useMutation({
-    mutationFn: (msg: string) => apiClient.interact(msg, 'api_0.0.0.0_8080'),
-    onSuccess: () => {
+    mutationFn: async (msg: string) => {
+      const response = await cirisClient.agent.interact(msg, {
+        channel_id: 'api_0.0.0.0_8080'
+      });
+      return response;
+    },
+    onSuccess: (response) => {
       setMessage('');
+      // Immediately refetch history to show the response
       queryClient.invalidateQueries({ queryKey: ['conversation-history'] });
+      
+      // Show the agent's response in a toast for visibility
+      if (response.response) {
+        toast.success(`Agent: ${response.response}`, { duration: 5000 });
+      }
     },
     onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Failed to send message');
+      console.error('Send message error:', error);
+      toast.error(error.message || 'Failed to send message');
     },
   });
 
-  // Setup WebSocket connection
+  // WebSocket connection (currently disabled as it's not working with the SDK yet)
   useEffect(() => {
-    const connectWebSocket = () => {
-      try {
-        const ws = apiClient.connectWebSocket();
-        wsRef.current = ws;
-
-        ws.onopen = () => {
-          setWsConnected(true);
-          // Subscribe to messages channel
-          ws.send(JSON.stringify({ type: 'subscribe', channel: 'messages' }));
-        };
-
-        ws.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          if (data.type === 'message') {
-            // Refresh conversation history when new message arrives
-            queryClient.invalidateQueries({ queryKey: ['conversation-history'] });
-          }
-        };
-
-        ws.onclose = () => {
-          setWsConnected(false);
-          // Reconnect after 3 seconds
-          setTimeout(connectWebSocket, 3000);
-        };
-
-        ws.onerror = (error) => {
-          console.error('WebSocket error:', error);
-        };
-      } catch (error) {
-        console.error('Failed to connect WebSocket:', error);
-      }
-    };
-
-    connectWebSocket();
-
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
-  }, [queryClient]);
+    // TODO: Implement WebSocket support in the SDK
+    setWsConnected(false);
+  }, []);
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -92,6 +73,16 @@ export default function CommsPage() {
       sendMessage.mutate(message.trim());
     }
   };
+
+  // Get messages and ensure proper order (oldest to newest)
+  const messages = useMemo(() => {
+    if (!history?.messages) return [];
+    
+    // Sort by timestamp (oldest first) and take last 20
+    return [...history.messages]
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      .slice(-20);
+  }, [history]);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -118,32 +109,41 @@ export default function CommsPage() {
           <div className="border rounded-lg bg-gray-50 h-96 overflow-y-auto p-4 mb-4">
             {isLoading ? (
               <div className="text-center text-gray-500">Loading conversation...</div>
-            ) : !history?.messages || history.messages.length === 0 ? (
+            ) : messages.length === 0 ? (
               <div className="text-center text-gray-500">No messages yet. Start a conversation!</div>
             ) : (
               <div className="space-y-3">
-                {history.messages.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex ${msg.is_agent ? 'justify-start' : 'justify-end'}`}
-                  >
+                {messages.map((msg, idx) => {
+                  // Debug log to see message structure
+                  if (idx === 0) console.log('Message structure:', msg);
+                  
+                  return (
                     <div
-                      className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                        msg.is_agent
-                          ? 'bg-white border border-gray-200'
-                          : 'bg-blue-600 text-white'
-                      }`}
+                      key={msg.id || idx}
+                      className={`flex ${msg.is_agent ? 'justify-start' : 'justify-end'}`}
                     >
-                      <div className={`text-xs mb-1 ${msg.is_agent ? 'text-gray-500' : 'text-blue-100'}`}>
-                        {msg.author} • {new Date(msg.timestamp).toLocaleTimeString()}
+                      <div
+                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
+                          msg.is_agent
+                            ? 'bg-white border border-gray-200'
+                            : 'bg-blue-600 text-white'
+                        }`}
+                      >
+                        <div className={`text-xs mb-1 ${msg.is_agent ? 'text-gray-500' : 'text-blue-100'}`}>
+                          {msg.author || msg.author_name || (msg.is_agent ? 'CIRIS' : 'You')} • {new Date(msg.timestamp).toLocaleTimeString()}
+                        </div>
+                        <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
                       </div>
-                      <div className="text-sm">{msg.content}</div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <div ref={messagesEndRef} />
               </div>
             )}
+          </div>
+
+          <div className="text-xs text-gray-500 mb-2">
+            Showing last 20 messages
           </div>
 
           {/* Input form */}
@@ -172,6 +172,15 @@ export default function CommsPage() {
           )}
         </div>
       </div>
+
+      {/* Debug info */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mt-4 p-4 bg-gray-100 rounded text-xs">
+          <p>Total messages in history: {history?.total_count || 0}</p>
+          <p>Showing: {messages.length} messages</p>
+          <p>Channel: api_0.0.0.0_8080</p>
+        </div>
+      )}
     </div>
   );
 }

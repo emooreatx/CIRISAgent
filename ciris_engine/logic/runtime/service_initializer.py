@@ -426,7 +426,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
         self.bus_manager.llm.telemetry_service = self.telemetry_service
 
         # Initialize LLM service(s) based on configuration
-        await self._initialize_llm_services(config)
+        await self._initialize_llm_services(config, modules_to_load)
 
         # Secrets service no longer needs LLM service reference
 
@@ -514,12 +514,18 @@ This directory contains critical cryptographic keys for the CIRIS system.
         await self.visibility_service.start()
         logger.info("Visibility service initialized - providing reasoning transparency")
 
-    async def _initialize_llm_services(self, config: Any) -> None:
+    async def _initialize_llm_services(self, config: Any, modules_to_load: Optional[List[str]] = None) -> None:
         """Initialize LLM service(s) based on configuration.
 
         CRITICAL: Only mock OR real LLM services are active, never both.
         This prevents attack vectors where mock responses could be confused with real ones.
         """
+        # FIRST: Check if mock_llm is in modules_to_load - this takes precedence
+        if modules_to_load and 'mock_llm' in modules_to_load:
+            logger.info("🤖 Mock LLM in modules_to_load - skipping ALL real LLM service initialization")
+            self._skip_llm_init = True
+            return
+        
         # Check if a MOCK LLM module will be loaded
         if self._skip_llm_init:
             logger.info("🤖 MOCK LLM module detected - skipping normal LLM service initialization")

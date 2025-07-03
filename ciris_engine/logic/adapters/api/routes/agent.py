@@ -137,9 +137,14 @@ async def interact(
     else:
         raise HTTPException(status_code=503, detail="Message handler not configured")
 
-    # Wait for response with timeout (30 seconds default)
+    # Get timeout from config or use default
+    timeout = 5.0  # default reduced from 30s
+    if hasattr(request.app.state, 'api_config'):
+        timeout = request.app.state.api_config.interaction_timeout
+    
+    # Wait for response with timeout
     try:
-        await asyncio.wait_for(event.wait(), timeout=30.0)
+        await asyncio.wait_for(event.wait(), timeout=timeout)
 
         # Get response
         response_content = _message_responses.get(message_id, "I'm processing your request. Please check back shortly.")
@@ -175,9 +180,9 @@ async def interact(
         # Return a timeout response rather than error
         response = InteractResponse(
             message_id=message_id,
-            response="I'm still processing your request. Please check the conversation history in a moment.",
+            response="Still processing. Check back later. Agent response is not guaranteed.",
             state="WORK",
-            processing_time_ms=30000
+            processing_time_ms=int(timeout * 1000)  # Use actual timeout value
         )
 
         return SuccessResponse(data=response)

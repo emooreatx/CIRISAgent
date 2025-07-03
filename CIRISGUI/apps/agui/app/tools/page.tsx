@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '../../lib/api-client';
+import { cirisClient } from '../../lib/ciris-sdk';
 
 // Tool categories with descriptions and examples
 const toolCategories = [
@@ -89,20 +89,16 @@ export default function ToolsPage() {
   const { data: availableTools, isLoading } = useQuery({
     queryKey: ['tools'],
     queryFn: async () => {
-      try {
-        const response = await apiClient.getTools();
-        return response || [];
-      } catch (error) {
-        console.error('Failed to fetch tools:', error);
-        return [];
-      }
+      // TODO: Add tools endpoint to SDK when available
+      // For now, return empty array
+      return [];
     },
   });
 
   // Fetch adapter information
   const { data: adapters } = useQuery({
     queryKey: ['adapters'],
-    queryFn: () => apiClient.getAdapters(),
+    queryFn: () => cirisClient.system.getAdapters(),
     enabled: hasRole('OBSERVER'),
   });
 

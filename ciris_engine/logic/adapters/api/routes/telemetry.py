@@ -672,10 +672,22 @@ async def get_system_logs(
         except Exception:
             pass
 
-    # Add some system logs if available
+    # Add actual system logs from log files
     if len(logs) < limit:
-        # Could query actual log files or logging service here
-        pass
+        try:
+            from .telemetry_logs_reader import log_reader
+            file_logs = log_reader.read_logs(
+                level=level,
+                service=service,
+                limit=limit - len(logs),
+                start_time=start_time,
+                end_time=end_time,
+                include_incidents=True
+            )
+            logs.extend(file_logs)
+        except Exception as e:
+            # Log reading failed, but don't fail the endpoint
+            print(f"Failed to read log files: {e}")
 
     response = LogsResponse(
         logs=logs[:limit],

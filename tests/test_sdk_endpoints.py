@@ -30,7 +30,10 @@ def check_api_available():
 
 
 # Apply skip to entire module
-pytestmark = pytest.mark.skipif(not check_api_available(), reason="API not running on localhost:8080")
+pytestmark = [
+    pytest.mark.skipif(not check_api_available(), reason="API not running on localhost:8080"),
+    pytest.mark.integration  # Mark as integration test
+]
 
 
 class TestCIRISSDKEndpoints:
@@ -41,7 +44,7 @@ class TestCIRISSDKEndpoints:
         """Create authenticated CIRIS client."""
         async with CIRISClient(
             base_url="http://localhost:8080",
-            timeout=30.0
+            timeout=10.0  # Reduced timeout for tests
         ) as client:
             # Authenticate with default credentials
             response = await client.auth.login("admin", "ciris_admin_password")
@@ -54,7 +57,7 @@ class TestCIRISSDKEndpoints:
         """Create unauthenticated CIRIS client."""
         async with CIRISClient(
             base_url="http://localhost:8080",
-            timeout=30.0
+            timeout=10.0  # Reduced timeout for tests
         ) as client:
             yield client
 

@@ -16,6 +16,20 @@ try:
     env_file = project_root / ".env"
     if env_file.exists():
         load_dotenv(env_file)
+    
+    # Also load test-specific config if available
+    test_env_file = Path(__file__).parent / "test_config.env"
+    if test_env_file.exists():
+        load_dotenv(test_env_file, override=True)
+        # Also set as environment variables for non-dotenv aware code
+        import subprocess
+        result = subprocess.run(['bash', '-c', f'source {test_env_file} && env'], 
+                              capture_output=True, text=True)
+        if result.returncode == 0:
+            for line in result.stdout.splitlines():
+                if '=' in line and line.startswith('CIRIS_'):
+                    key, value = line.split('=', 1)
+                    os.environ[key] = value
 except ImportError:
     # If python-dotenv is not installed, silently continue
     pass

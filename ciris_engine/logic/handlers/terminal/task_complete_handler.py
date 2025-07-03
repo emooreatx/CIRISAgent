@@ -155,7 +155,7 @@ class TaskCompleteHandler(BaseActionHandler):
 
         correlations = persistence.get_correlations_by_task_and_action(
             task_id=task_id,
-            action_type="speak",
+            action_type="speak_action",
             status=ServiceCorrelationStatus.COMPLETED
         )
 

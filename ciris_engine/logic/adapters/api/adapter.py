@@ -124,6 +124,10 @@ class ApiPlatform(Service):
         runtime = self.runtime
         logger.info("Injecting services into FastAPI app state...")
         
+        # Store adapter config for routes to access
+        self.app.state.api_config = self.config
+        logger.info(f"Injected API config with interaction_timeout={self.config.interaction_timeout}s")
+        
         # Store commonly accessed services
         if hasattr(runtime, 'memory_service') and runtime.memory_service is not None:
             self.app.state.memory_service = runtime.memory_service
