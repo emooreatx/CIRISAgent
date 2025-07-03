@@ -3,7 +3,7 @@ Schemas for runtime adapter management.
 
 These replace all Dict[str, Any] usage in adapter_manager.py.
 """
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from pydantic import BaseModel, Field
 
@@ -39,6 +39,7 @@ class AdapterStatus(BaseModel):
     config_params: AdapterConfig = Field(..., description="Adapter configuration")
     metrics: Optional[dict] = Field(None, description="Adapter metrics")
     last_activity: Optional[datetime] = Field(None, description="Last activity timestamp")
+    tools: Optional[List[Dict[str, Any]]] = Field(None, description="Tools provided by adapter")
 
 class AdapterListResponse(BaseModel):
     """Response containing list of adapters."""

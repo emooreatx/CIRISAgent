@@ -33,8 +33,20 @@ export default function SystemPage() {
     refetchInterval: 5000,
   });
 
-  // Fetch processors - disabled as endpoint doesn't exist
-  const processors = null;
+  // Fetch processors
+  const { data: processors } = useQuery({
+    queryKey: ['system-processors'],
+    queryFn: () => cirisClient.system.getProcessors(),
+    refetchInterval: 5000,
+    enabled: hasRole('ADMIN'),
+  });
+
+  // Fetch runtime status
+  const { data: runtimeStatus } = useQuery({
+    queryKey: ['system-runtime-status'],
+    queryFn: () => cirisClient.system.getRuntimeStatus(),
+    refetchInterval: 5000,
+  });
 
   // Fetch adapters
   const { data: adapters } = useQuery({
@@ -242,14 +254,14 @@ export default function SystemPage() {
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
                 <dt className="text-sm font-medium text-gray-500">Memory Usage</dt>
                 <dd className="mt-2 text-2xl font-semibold text-gray-900">
-                  {resources?.current_usage?.memory_mb ? `${resources.current_usage.memory_mb} MB` : 'N/A'}
+                  {resources?.memory_mb ? `${resources.memory_mb} MB` : 'N/A'}
                 </dd>
               </div>
               
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
                 <dt className="text-sm font-medium text-gray-500">CPU Usage</dt>
                 <dd className="mt-2 text-2xl font-semibold text-gray-900">
-                  {resources?.current_usage?.cpu_percent ? `${resources.current_usage.cpu_percent}%` : 'N/A'}
+                  {resources?.cpu_percent ? `${resources.cpu_percent}%` : 'N/A'}
                 </dd>
               </div>
             </div>
@@ -265,7 +277,7 @@ export default function SystemPage() {
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => setConfirmDialog({ type: 'pauseRuntime' })}
-                disabled={pauseMutation.isPending || health?.is_paused}
+                disabled={pauseMutation.isPending || runtimeStatus?.is_paused}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg className="mr-2 -ml-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -276,7 +288,7 @@ export default function SystemPage() {
               
               <button
                 onClick={() => setConfirmDialog({ type: 'resumeRuntime' })}
-                disabled={resumeMutation.isPending || !health?.is_paused}
+                disabled={resumeMutation.isPending || !runtimeStatus?.is_paused}
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg className="mr-2 -ml-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -286,7 +298,7 @@ export default function SystemPage() {
                 {resumeMutation.isPending ? 'Resuming...' : 'Resume Runtime'}
               </button>
               
-              {health?.is_paused && (
+              {runtimeStatus?.is_paused && (
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
                   <InfoIcon className="mr-1.5" size="sm" />
                   Runtime Paused
@@ -307,16 +319,16 @@ export default function SystemPage() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">CPU Usage</span>
-                  <span className={`text-lg font-bold ${resources.current_usage?.cpu_percent > 80 ? 'text-red-600' : resources.current_usage?.cpu_percent > 60 ? 'text-yellow-600' : 'text-green-600'}`}>
-                    {resources.current_usage?.cpu_percent?.toFixed(1) || 0}%
+                  <span className={`text-lg font-bold ${resources?.cpu_percent > 80 ? 'text-red-600' : resources?.cpu_percent > 60 ? 'text-yellow-600' : 'text-green-600'}`}>
+                    {resources?.cpu_percent?.toFixed(1) || 0}%
                   </span>
                 </div>
                 <div className="relative">
                   <div className="overflow-hidden h-4 text-xs flex rounded-full bg-gray-200">
                     <div
-                      style={{ width: `${resources.current_usage?.cpu_percent || 0}%` }}
+                      style={{ width: `${resources?.cpu_percent || 0}%` }}
                       className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-300 ${
-                        resources.current_usage?.cpu_percent > 80 ? 'bg-red-500' : resources.current_usage?.cpu_percent > 60 ? 'bg-yellow-500' : 'bg-blue-500'
+                        resources?.cpu_percent > 80 ? 'bg-red-500' : resources?.cpu_percent > 60 ? 'bg-yellow-500' : 'bg-blue-500'
                       }`}
                     />
                   </div>
@@ -326,45 +338,32 @@ export default function SystemPage() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">Memory Usage</span>
-                  <span className={`text-lg font-bold ${resources.current_usage?.memory_percent > 80 ? 'text-red-600' : resources.current_usage?.memory_percent > 60 ? 'text-yellow-600' : 'text-green-600'}`}>
-                    {resources.current_usage?.memory_mb || 0} MB / {resources.limits?.memory_mb?.limit || 0} MB
+                  <span className={`text-lg font-bold ${resources?.memory_percent > 80 ? 'text-red-600' : resources?.memory_percent > 60 ? 'text-yellow-600' : 'text-green-600'}`}>
+                    {resources?.memory_mb || 0} MB
                   </span>
                 </div>
                 <div className="relative">
                   <div className="overflow-hidden h-4 text-xs flex rounded-full bg-gray-200">
                     <div
-                      style={{ width: `${resources.current_usage?.memory_percent || 0}%` }}
+                      style={{ width: `${resources?.memory_percent || 0}%` }}
                       className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-300 ${
-                        resources.current_usage?.memory_percent > 80 ? 'bg-red-500' : resources.current_usage?.memory_percent > 60 ? 'bg-yellow-500' : 'bg-green-500'
+                        resources?.memory_percent > 80 ? 'bg-red-500' : resources?.memory_percent > 60 ? 'bg-yellow-500' : 'bg-green-500'
                       }`}
                     />
                   </div>
                 </div>
                 <p className="text-xs text-gray-500">
-                  {resources.current_usage?.memory_percent?.toFixed(1) || 0}% utilized
+                  {resources?.memory_percent?.toFixed(1) || 0}% utilized
                 </p>
               </div>
               
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">Disk Usage</span>
-                  <span className={`text-lg font-bold ${((resources.current_usage?.disk_used_mb || 0) / (resources.current_usage?.disk_used_mb + resources.current_usage?.disk_free_mb || 1)) * 100 > 80 ? 'text-red-600' : 'text-green-600'}`}>
-                    {resources.current_usage?.disk_used_mb || 0} MB / {(resources.current_usage?.disk_used_mb || 0) + (resources.current_usage?.disk_free_mb || 0)} MB
+                  <span className="text-lg font-bold text-green-600">
+                    {resources?.disk_usage_gb ? `${resources.disk_usage_gb} GB` : 'N/A'}
                   </span>
                 </div>
-                <div className="relative">
-                  <div className="overflow-hidden h-4 text-xs flex rounded-full bg-gray-200">
-                    <div
-                      style={{ width: `${((resources.current_usage?.disk_used_mb || 0) / ((resources.current_usage?.disk_used_mb || 0) + (resources.current_usage?.disk_free_mb || 1))) * 100}%` }}
-                      className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-300 ${
-                        ((resources.current_usage?.disk_used_mb || 0) / ((resources.current_usage?.disk_used_mb || 0) + (resources.current_usage?.disk_free_mb || 1))) * 100 > 80 ? 'bg-red-500' : 'bg-purple-500'
-                      }`}
-                    />
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500">
-                  {(((resources.current_usage?.disk_used_mb || 0) / ((resources.current_usage?.disk_used_mb || 0) + (resources.current_usage?.disk_free_mb || 1))) * 100).toFixed(1)}% utilized
-                </p>
               </div>
             </div>
           ) : (

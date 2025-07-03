@@ -3,18 +3,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cirisClient } from '../../lib/ciris-sdk';
+import { GraphNode } from '../../lib/ciris-sdk/types';
 import toast from 'react-hot-toast';
 import { debounce } from 'lodash';
 import { SpinnerIcon } from '../../components/Icons';
-
-interface MemoryNode {
-  id: string;
-  node_type: string;
-  properties: Record<string, any>;
-  created_at: string;
-  updated_at: string;
-  metadata?: Record<string, any>;
-}
 
 interface MemoryStats {
   total_nodes: number;
@@ -27,16 +19,16 @@ interface MemoryStats {
 
 export default function MemoryPage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedNode, setSelectedNode] = useState<MemoryNode | null>(null);
+  const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const queryClient = useQueryClient();
 
   // Fetch memory statistics (disabled for now as endpoint doesn't exist)
-  const stats = null;
+  const stats: MemoryStats | null = null;
   const statsLoading = false;
 
   // Search memory nodes
-  const { data: searchResults, isLoading: searchLoading } = useQuery<MemoryNode[]>({
+  const { data: searchResults, isLoading: searchLoading } = useQuery<GraphNode[]>({
     queryKey: ['memory-search', searchQuery],
     queryFn: async () => {
       const result = await cirisClient.memory.query(searchQuery, { limit: 20 });
@@ -106,8 +98,9 @@ export default function MemoryPage() {
         </div>
       </div>
 
-      {/* Memory Statistics */}
-      {stats && (
+      {/* Memory Statistics - Disabled for now as stats endpoint doesn't exist */}
+      {/* 
+      {false && (
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h2 className="text-lg font-medium text-gray-900 mb-4">Memory Statistics</h2>
@@ -115,28 +108,28 @@ export default function MemoryPage() {
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg">
                 <dt className="text-sm font-medium text-gray-500">Total Nodes</dt>
                 <dd className="mt-1 text-3xl font-semibold text-gray-900">
-                  {stats.total_nodes.toLocaleString()}
+                  {stats?.total_nodes?.toLocaleString() || '0'}
                 </dd>
               </div>
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg">
                 <dt className="text-sm font-medium text-gray-500">Total Relationships</dt>
                 <dd className="mt-1 text-3xl font-semibold text-gray-900">
-                  {stats.total_relationships.toLocaleString()}
+                  {stats?.total_relationships?.toLocaleString() || '0'}
                 </dd>
               </div>
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg">
                 <dt className="text-sm font-medium text-gray-500">Memory Size</dt>
                 <dd className="mt-1 text-3xl font-semibold text-gray-900">
-                  {formatBytes(stats.memory_size_bytes)}
+                  {stats?.memory_size_bytes !== undefined ? formatBytes(stats!.memory_size_bytes) : '0 Bytes'}
                 </dd>
               </div>
             </div>
             
-            {/* Node Type Breakdown */}
+            {/* Node Type Breakdown * /}
             <div className="mt-6">
               <h3 className="text-sm font-medium text-gray-700 mb-2">Nodes by Type</h3>
               <div className="flex flex-wrap gap-2">
-                {Object.entries(stats.nodes_by_type).map(([type, count]) => (
+                {stats?.nodes_by_type && Object.entries(stats.nodes_by_type).map(([type, count]) => (
                   <span
                     key={type}
                     className={`inline-flex items-center rounded-md px-3 py-1 text-sm font-medium ${getNodeTypeColor(type)}`}
@@ -149,6 +142,7 @@ export default function MemoryPage() {
           </div>
         </div>
       )}
+      */}
 
       {/* Search Section */}
       <div className="bg-white shadow rounded-lg">
@@ -186,14 +180,14 @@ export default function MemoryPage() {
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
-                      <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${getNodeTypeColor(node.node_type)}`}>
-                        {node.node_type}
+                      <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${getNodeTypeColor(node.type)}`}>
+                        {node.type}
                       </span>
                       <p className="mt-2 text-sm text-gray-900 line-clamp-3">
-                        {node.properties.content || node.properties.description || node.properties.name || 'No content'}
+                        {node.attributes.content || node.attributes.description || node.attributes.name || 'No content'}
                       </p>
                       <p className="mt-1 text-xs text-gray-500">
-                        {formatDate(node.created_at)}
+                        {formatDate(node.attributes.created_at || node.updated_at || '')}
                       </p>
                     </div>
                   </div>
@@ -232,18 +226,18 @@ export default function MemoryPage() {
                   <div className="py-3 flex justify-between text-sm">
                     <dt className="text-gray-500">Type</dt>
                     <dd className="text-gray-900">
-                      <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${getNodeTypeColor(selectedNode.node_type)}`}>
-                        {selectedNode.node_type}
+                      <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ${getNodeTypeColor(selectedNode.type)}`}>
+                        {selectedNode.type}
                       </span>
                     </dd>
                   </div>
                   <div className="py-3 flex justify-between text-sm">
                     <dt className="text-gray-500">Created</dt>
-                    <dd className="text-gray-900">{formatDate(selectedNode.created_at)}</dd>
+                    <dd className="text-gray-900">{formatDate(selectedNode.attributes.created_at || '')}</dd>
                   </div>
                   <div className="py-3 flex justify-between text-sm">
                     <dt className="text-gray-500">Updated</dt>
-                    <dd className="text-gray-900">{formatDate(selectedNode.updated_at)}</dd>
+                    <dd className="text-gray-900">{formatDate(selectedNode.updated_at || '')}</dd>
                   </div>
                 </dl>
               </div>
@@ -253,18 +247,18 @@ export default function MemoryPage() {
                 <h4 className="text-sm font-medium text-gray-700">Properties</h4>
                 <div className="mt-2 bg-gray-50 rounded-lg p-4">
                   <pre className="text-xs text-gray-900 whitespace-pre-wrap">
-                    {JSON.stringify(selectedNode.properties, null, 2)}
+                    {JSON.stringify(selectedNode.attributes, null, 2)}
                   </pre>
                 </div>
               </div>
 
               {/* Node Metadata */}
-              {selectedNode.metadata && Object.keys(selectedNode.metadata).length > 0 && (
+              {selectedNode.attributes.metadata && Object.keys(selectedNode.attributes.metadata).length > 0 && (
                 <div>
                   <h4 className="text-sm font-medium text-gray-700">Metadata</h4>
                   <div className="mt-2 bg-gray-50 rounded-lg p-4">
                     <pre className="text-xs text-gray-900 whitespace-pre-wrap">
-                      {JSON.stringify(selectedNode.metadata, null, 2)}
+                      {JSON.stringify(selectedNode.attributes.metadata, null, 2)}
                     </pre>
                   </div>
                 </div>

@@ -9,7 +9,6 @@ from typing import Optional, List
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, Field
 from enum import Enum
-import base64
 import json
 import uuid
 
@@ -167,30 +166,30 @@ class EmergencyResource:
             private_key: Ed25519 private key
             
         Returns:
-            Base64-encoded signature
+            Hex-encoded signature
         """
         # Build the message that will be signed (must match server verification)
-        message_data = {
-            "command_id": command.command_id,
-            "command_type": command.command_type,
-            "wa_id": command.wa_id,
-            "issued_at": command.issued_at.isoformat(),
-            "reason": command.reason,
-            "target_agent_id": command.target_agent_id,
-        }
-        if command.expires_at:
-            message_data["expires_at"] = command.expires_at.isoformat()
-        if command.target_tree_path:
-            message_data["target_tree_path"] = command.target_tree_path
+        # Use pipe-delimited format matching server's _verify_wa_signature method
+        parts = [
+            f"command_id:{command.command_id}",
+            f"command_type:{command.command_type}",
+            f"wa_id:{command.wa_id}",
+            f"issued_at:{command.issued_at.isoformat()}",
+            f"reason:{command.reason}"
+        ]
         
-        # Create canonical JSON (sorted keys, compact)
-        message = json.dumps(message_data, sort_keys=True).encode()
+        # Only add target_agent_id if it exists (matching server logic)
+        if command.target_agent_id:
+            parts.append(f"target_agent_id:{command.target_agent_id}")
+        
+        # Create pipe-delimited message
+        message = "|".join(parts).encode('utf-8')
         
         # Sign with Ed25519
         signature_bytes = private_key.sign(message)
         
-        # Return base64-encoded signature
-        return base64.b64encode(signature_bytes).decode('ascii')
+        # Return hex-encoded signature to match server expectation
+        return signature_bytes.hex()
     
     def verify_signature(
         self, 
@@ -217,23 +216,22 @@ class EmergencyResource:
             public_key = Ed25519PublicKey.from_public_bytes(public_key_bytes)
             
             # Build message (same as _sign_command)
-            message_data = {
-                "command_id": command.command_id,
-                "command_type": command.command_type,
-                "wa_id": command.wa_id,
-                "issued_at": command.issued_at.isoformat(),
-                "reason": command.reason,
-                "target_agent_id": command.target_agent_id,
-            }
-            if command.expires_at:
-                message_data["expires_at"] = command.expires_at.isoformat()
-            if command.target_tree_path:
-                message_data["target_tree_path"] = command.target_tree_path
+            parts = [
+                f"command_id:{command.command_id}",
+                f"command_type:{command.command_type}",
+                f"wa_id:{command.wa_id}",
+                f"issued_at:{command.issued_at.isoformat()}",
+                f"reason:{command.reason}"
+            ]
             
-            message = json.dumps(message_data, sort_keys=True).encode()
+            # Only add target_agent_id if it exists
+            if command.target_agent_id:
+                parts.append(f"target_agent_id:{command.target_agent_id}")
             
-            # Verify signature
-            signature_bytes = base64.b64decode(command.signature)
+            message = "|".join(parts).encode('utf-8')
+            
+            # Verify signature (now hex-encoded)
+            signature_bytes = bytes.fromhex(command.signature)
             public_key.verify(signature_bytes, message)
             return True
             

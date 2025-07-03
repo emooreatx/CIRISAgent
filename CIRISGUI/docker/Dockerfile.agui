@@ -3,6 +3,7 @@ WORKDIR /app
 COPY CIRISGUI/apps/agui/package.json ./
 COPY CIRISGUI/apps/agui/package-lock.json ./
 RUN npm ci
+RUN npm install --save-dev @types/js-cookie
 COPY CIRISGUI/apps/agui ./
 RUN npm run build
 CMD ["npm", "run", "start"]

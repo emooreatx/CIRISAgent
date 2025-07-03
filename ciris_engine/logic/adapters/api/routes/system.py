@@ -638,14 +638,31 @@ async def list_adapters(
         # Convert to response format
         adapter_statuses = []
         for adapter in adapters:
+            # Convert AdapterInfo to AdapterStatusSchema
+            config = AdapterConfig(
+                adapter_type=adapter.adapter_type,
+                enabled=adapter.status == "RUNNING",
+                settings={}
+            )
+            
+            metrics = None
+            if adapter.messages_processed > 0 or adapter.error_count > 0:
+                metrics = AdapterMetrics(
+                    messages_processed=adapter.messages_processed,
+                    errors_count=adapter.error_count,
+                    uptime_seconds=(datetime.now(timezone.utc) - adapter.started_at).total_seconds() if adapter.started_at else 0,
+                    last_error=adapter.last_error
+                )
+            
             adapter_statuses.append(AdapterStatusSchema(
                 adapter_id=adapter.adapter_id,
                 adapter_type=adapter.adapter_type,
-                is_running=adapter.is_running,
-                loaded_at=adapter.loaded_at,
-                services_registered=adapter.services_registered,
-                config_params=adapter.config_params,
-                metrics=adapter.metrics
+                is_running=adapter.status == "RUNNING",
+                loaded_at=adapter.started_at or datetime.now(timezone.utc),
+                services_registered=[],  # Not available from AdapterInfo
+                config_params=config,
+                metrics=metrics,
+                tools=adapter.tools  # Include tools information
             ))
         
         running_count = sum(1 for a in adapter_statuses if a.is_running)
@@ -703,7 +720,8 @@ async def get_adapter_status(
                 errors_count=adapter_info.error_count,
                 uptime_seconds=(datetime.now(timezone.utc) - adapter_info.started_at).total_seconds() if adapter_info.started_at else 0,
                 last_error=adapter_info.last_error
-            ) if adapter_info.messages_processed > 0 or adapter_info.error_count > 0 else None
+            ) if adapter_info.messages_processed > 0 or adapter_info.error_count > 0 else None,
+            tools=adapter_info.tools  # Include tools information
         )
         
         return SuccessResponse(data=status)

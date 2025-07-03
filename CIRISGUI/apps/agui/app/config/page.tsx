@@ -104,7 +104,7 @@ export default function ConfigPage() {
       setEditedConfig(parsed);
       setJsonError(null);
     } catch (error) {
-      setJsonError(`Invalid JSON: ${error.message}`);
+      setJsonError(`Invalid JSON: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 

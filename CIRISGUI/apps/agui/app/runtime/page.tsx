@@ -1,14 +1,11 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { CIRISClient } from "../../lib/cirisClient";
-
-const client = new CIRISClient();
+import { cirisClient } from "../../lib/ciris-sdk";
 
 export default function RuntimeControlPage() {
   const [runtimeStatus, setRuntimeStatus] = useState<any>(null);
   const [adapters, setAdapters] = useState<any[]>([]);
-  const [profiles, setProfiles] = useState<any[]>([]);
   const [queueStatus, setQueueStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -22,27 +19,19 @@ export default function RuntimeControlPage() {
   // Processor control state
   const [processorResult, setProcessorResult] = useState<any>(null);
 
-  // Profile loading state
-  const [selectedProfile, setSelectedProfile] = useState('');
-  const [profileResult, setProfileResult] = useState<any>(null);
 
   const fetchData = async () => {
     try {
-      const [statusResp, adaptersResp, profilesResp, queueResp] = await Promise.all([
-        client.getRuntimeStatus(),
-        client.listAdapters(),
-        client.listProfiles(),
-        client.getProcessingQueue()
+      const [statusResp, adaptersResp] = await Promise.all([
+        cirisClient.system.getRuntimeStatus(),
+        cirisClient.system.getAdapters()
       ]);
+      // TODO: Processing queue endpoint doesn't exist in SDK yet
+      const queueResp = { queue_size: 0, processing: false };
       
       setRuntimeStatus(statusResp);
-      setAdapters(adaptersResp);
-      setProfiles(profilesResp);
+      setAdapters(adaptersResp.adapters || []);
       setQueueStatus(queueResp);
-      
-      if (profilesResp.length > 0 && !selectedProfile) {
-        setSelectedProfile(profilesResp[0].name);
-      }
     } catch (error) {
       console.error('Failed to fetch runtime data:', error);
     }
@@ -61,31 +50,32 @@ export default function RuntimeControlPage() {
   // Processor Control Actions
   const handleSingleStep = async () => {
     try {
-      const result = await client.singleStep();
+      // TODO: singleStep endpoint not in SDK yet
+      const result = { status: 'error', message: 'singleStep not implemented in SDK' };
       setProcessorResult(result);
       await refresh();
     } catch (error) {
-      setProcessorResult({ error: error.message });
+      setProcessorResult({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   };
 
   const handlePause = async () => {
     try {
-      const result = await client.pauseProcessing();
+      const result = await cirisClient.system.pauseRuntime();
       setProcessorResult(result);
       await refresh();
     } catch (error) {
-      setProcessorResult({ error: error.message });
+      setProcessorResult({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   };
 
   const handleResume = async () => {
     try {
-      const result = await client.resumeProcessing();
+      const result = await cirisClient.system.resumeRuntime();
       setProcessorResult(result);
       await refresh();
     } catch (error) {
-      setProcessorResult({ error: error.message });
+      setProcessorResult({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   };
 
@@ -98,40 +88,28 @@ export default function RuntimeControlPage() {
         config = JSON.parse(newAdapterConfig);
       }
       
-      const result = await client.loadAdapter(
+      // TODO: loadAdapter endpoint not in SDK yet
+      const result = await cirisClient.system.registerAdapter(
         newAdapterType,
-        newAdapterId || undefined,
-        config,
-        true
+        config
       );
       setLoadResult(result);
       await refresh();
     } catch (error) {
-      setLoadResult({ error: error.message });
+      setLoadResult({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   };
 
   const handleUnloadAdapter = async (adapterId: string) => {
     try {
-      const result = await client.unloadAdapter(adapterId, false);
+      const result = await cirisClient.system.unregisterAdapter(adapterId);
       setLoadResult(result);
       await refresh();
     } catch (error) {
-      setLoadResult({ error: error.message });
+      setLoadResult({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   };
 
-  // Profile Management Actions
-  const handleLoadProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const result = await client.loadProfile(selectedProfile);
-      setProfileResult(result);
-      await refresh();
-    } catch (error) {
-      setProfileResult({ error: error.message });
-    }
-  };
 
   if (loading) {
     return <div><h1>Runtime Control</h1><p>Loading...</p></div>;
@@ -153,7 +131,6 @@ export default function RuntimeControlPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
             <div><strong>Processor:</strong> {runtimeStatus.processor_status}</div>
             <div><strong>Health:</strong> {runtimeStatus.health_status}</div>
-            <div><strong>Profile:</strong> {runtimeStatus.current_profile}</div>
             <div><strong>Uptime:</strong> {Math.round(runtimeStatus.uptime_seconds)}s</div>
             <div><strong>Active Adapters:</strong> {runtimeStatus.active_adapters?.length || 0}</div>
             <div><strong>Loaded Adapters:</strong> {runtimeStatus.loaded_adapters?.length || 0}</div>
@@ -280,55 +257,6 @@ export default function RuntimeControlPage() {
         )}
       </section>
 
-      {/* Profile Management */}
-      <section style={{ marginBottom: 30, padding: 15, border: '1px solid #ddd', borderRadius: 5 }}>
-        <h2>Profile Management</h2>
-        
-        <div style={{ marginBottom: 15 }}>
-          <h3>Available Profiles ({profiles.length})</h3>
-          {profiles.length === 0 ? (
-            <p>No profiles available</p>
-          ) : (
-            <div>
-              {profiles.map((profile) => (
-                <div key={profile.name} style={{ 
-                  padding: 10, 
-                  marginBottom: 10, 
-                  border: '1px solid #eee',
-                  borderRadius: 4,
-                  background: profile.is_active ? '#e8f5e8' : '#f8f8f8'
-                }}>
-                  <div style={{ fontWeight: 'bold' }}>
-                    {profile.name} {profile.is_active && <span style={{ color: 'green' }}>(Active)</span>}
-                  </div>
-                  {profile.description && <div style={{ fontSize: 14, color: '#666' }}>{profile.description}</div>}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <h3>Load Profile</h3>
-          <form onSubmit={handleLoadProfile} style={{ marginBottom: 15 }}>
-            <div style={{ marginBottom: 10 }}>
-              <label style={{ display: 'inline-block', width: 100 }}>Profile:</label>
-              <select value={selectedProfile} onChange={e => setSelectedProfile(e.target.value)}>
-                {profiles.map(profile => (
-                  <option key={profile.name} value={profile.name}>{profile.name}</option>
-                ))}
-              </select>
-            </div>
-            <button type="submit" disabled={!selectedProfile}>Load Profile</button>
-          </form>
-        </div>
-
-        {profileResult && (
-          <pre style={{ background: '#f0f0f0', padding: 10, borderRadius: 4, fontSize: 12 }}>
-            {JSON.stringify(profileResult, null, 2)}
-          </pre>
-        )}
-      </section>
     </div>
   );
 }

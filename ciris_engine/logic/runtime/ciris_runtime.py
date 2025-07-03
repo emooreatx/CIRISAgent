@@ -181,6 +181,11 @@ class CIRISRuntime:
         return self.service_initializer.incident_management_service if self.service_initializer else None
 
     @property
+    def runtime_control_service(self) -> Optional[Any]:
+        """Access to runtime control service."""
+        return self.service_initializer.runtime_control_service if self.service_initializer else None
+
+    @property
     def profile(self) -> Optional[Any]:
         """Convert agent identity to profile format for compatibility."""
         if not self.agent_identity:
@@ -534,6 +539,11 @@ class CIRISRuntime:
         if self.modules_to_load:
             logger.info(f"Loading {len(self.modules_to_load)} external modules: {self.modules_to_load}")
             await self.service_initializer.load_modules(self.modules_to_load)
+        
+        # Update runtime control service with runtime reference
+        if self.runtime_control_service:
+            self.runtime_control_service.runtime = self
+            logger.info("Updated runtime control service with runtime reference")
 
     async def _verify_core_services(self) -> bool:
         """Verify all core services are operational."""

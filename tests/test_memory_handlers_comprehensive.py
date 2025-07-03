@@ -971,7 +971,6 @@ class TestForgetHandler:
         audit_calls = mock_audit_service.log_event.call_args_list
         # Should have fewer audit calls than normal
 
-    @pytest.mark.skip(reason="Cannot test invalid dict params with typed Union - schema validation happens at DMA result creation")
     @pytest.mark.asyncio
     async def test_forget_invalid_params_dict(self, monkeypatch):
         """Test forget with invalid parameter dictionary."""
@@ -981,20 +980,26 @@ class TestForgetHandler:
 
         handler = ForgetHandler(deps)
 
-        # Invalid params as dict
-        invalid_params = {
-            "node_id": "test",  # Wrong field name
-            "reason": "test"
-        }
+        # Create a valid ForgetParams first to pass ActionSelectionDMAResult validation
+        node = create_graph_node()
+        params = ForgetParams(
+            node=node,
+            reason="Test deletion"
+        )
 
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.FORGET,
-            action_parameters=invalid_params,
+            action_parameters=params,
             rationale="Testing invalid dict params",
-
             reasoning="Should fail validation",
             evaluation_time_ms=100
         )
+
+        # Now override with invalid data to simulate validation failure in handler
+        result.action_parameters = {
+            "node_id": "test",  # Wrong field name - should be 'node'
+            "reason": "test"
+        }
 
         thought = create_test_thought()
         dispatch_context = create_dispatch_context()
@@ -1003,11 +1008,13 @@ class TestForgetHandler:
         await handler.handle(result, thought, dispatch_context)
 
         # Verify
-        assert not mock_memory_bus.forget.called
+        assert not mock_memory_bus.forget.called  # Should not reach memory service
 
         # Verify error follow-up
         follow_up_thought = mock_persistence.add_thought.call_args[0][0]
         assert "FORGET action failed: Invalid parameters" in follow_up_thought.content
+        # The error message should mention the missing 'node' field
+        assert "node" in follow_up_thought.content.lower()
 
     @pytest.mark.asyncio
     async def test_forget_invalid_params_type(self, monkeypatch):

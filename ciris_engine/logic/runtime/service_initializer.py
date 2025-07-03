@@ -72,6 +72,7 @@ class ServiceInitializer:
         self.config_service: Optional[Any] = None  # Will be GraphConfigService
         self.self_observation_service: Optional[Any] = None  # Will be SelfObservationService
         self.visibility_service: Optional[Any] = None  # Will be VisibilityService
+        self.runtime_control_service: Optional[Any] = None  # Will be RuntimeControlService
 
         # Module management
         self.module_loader: Optional[Any] = None  # Will be ModuleLoader
@@ -513,6 +514,17 @@ This directory contains critical cryptographic keys for the CIRIS system.
         )
         await self.visibility_service.start()
         logger.info("Visibility service initialized - providing reasoning transparency")
+        
+        # Initialize runtime control service
+        from ciris_engine.logic.services.runtime.control_service import RuntimeControlService
+        self.runtime_control_service = RuntimeControlService(
+            runtime=None,  # Will be set by runtime after initialization
+            adapter_manager=None,  # Will be created on demand
+            config_manager=self.config_service,
+            time_service=self.time_service
+        )
+        await self.runtime_control_service.start()
+        logger.info("Runtime control service initialized - managing processor and adapters")
 
     async def _initialize_llm_services(self, config: Any, modules_to_load: Optional[List[str]] = None) -> None:
         """Initialize LLM service(s) based on configuration.

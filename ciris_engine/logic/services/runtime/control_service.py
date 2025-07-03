@@ -75,7 +75,7 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
     async def _initialize(self) -> None:
         """Initialize the runtime control service."""
         try:
-            await self._get_config_manager().initialize()
+            # Config manager is already initialized by service initializer
             logger.info("Runtime control service initialized")
         except Exception as e:
             logger.error(f"Failed to initialize runtime control service: {e}")
@@ -487,30 +487,65 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
         )
 
     async def list_adapters(self) -> List[AdapterInfo]:
-        """List all loaded adapters."""
-        if not self.adapter_manager:
-            return []
-
-        adapters_raw = await self.adapter_manager.list_adapters()
+        """List all loaded adapters including bootstrap adapters."""
         adapters_list = []
+        
+        # First, add bootstrap adapters from runtime
+        if self.runtime and hasattr(self.runtime, 'adapters'):
+            for adapter in self.runtime.adapters:
+                # Get adapter type from class name
+                adapter_type = adapter.__class__.__name__.lower().replace('platform', '').replace('adapter', '')
+                adapter_id = f"{adapter_type}_bootstrap"
+                
+                # Check if adapter has tools
+                tools = []
+                if hasattr(adapter, 'tool_service') and adapter.tool_service:
+                    try:
+                        if hasattr(adapter.tool_service, 'list_tools'):
+                            tool_names = await adapter.tool_service.list_tools()
+                            for tool_name in tool_names:
+                                tool_info = {"name": tool_name, "description": f"{tool_name} tool"}
+                                if hasattr(adapter.tool_service, 'get_tool_schema'):
+                                    schema = await adapter.tool_service.get_tool_schema(tool_name)
+                                    if schema:
+                                        tool_info["schema"] = schema.dict() if hasattr(schema, 'dict') else schema
+                                tools.append(tool_info)
+                    except Exception as e:
+                        logger.debug(f"Could not get tools from {adapter_type}: {e}")
+                
+                # Create adapter info
+                adapters_list.append(AdapterInfo(
+                    adapter_id=adapter_id,
+                    adapter_type=adapter_type,
+                    status=AdapterStatus.RUNNING,  # Bootstrap adapters are always running
+                    started_at=self._start_time,  # Use service start time
+                    messages_processed=0,  # TODO: Get actual metrics
+                    error_count=0,
+                    last_error=None,
+                    tools=tools  # Include tools information
+                ))
+        
+        # Then add adapters from adapter_manager
+        if self.adapter_manager:
+            adapters_raw = await self.adapter_manager.list_adapters()
+            for adapter_status in adapters_raw:
+                # AdapterStatus from adapter_manager already has the right fields
+                # Convert is_running to status enum
+                if adapter_status.is_running:
+                    status = AdapterStatus.RUNNING
+                else:
+                    status = AdapterStatus.STOPPED
 
-        for adapter_status in adapters_raw:
-            # AdapterStatus from adapter_manager already has the right fields
-            # Convert is_running to status enum
-            if adapter_status.is_running:
-                status = AdapterStatus.RUNNING
-            else:
-                status = AdapterStatus.STOPPED
-
-            adapters_list.append(AdapterInfo(
-                adapter_id=adapter_status.adapter_id,
-                adapter_type=adapter_status.adapter_type,
-                status=status,
-                started_at=adapter_status.loaded_at,
-                messages_processed=adapter_status.metrics.messages_processed if adapter_status.metrics else 0,
-                error_count=adapter_status.metrics.errors_count if adapter_status.metrics else 0,
-                last_error=adapter_status.metrics.last_error if adapter_status.metrics else None
-            ))
+                adapters_list.append(AdapterInfo(
+                    adapter_id=adapter_status.adapter_id,
+                    adapter_type=adapter_status.adapter_type,
+                    status=status,
+                    started_at=adapter_status.loaded_at,
+                    messages_processed=adapter_status.metrics.messages_processed if adapter_status.metrics else 0,
+                    error_count=adapter_status.metrics.errors_count if adapter_status.metrics else 0,
+                    last_error=adapter_status.metrics.last_error if adapter_status.metrics else None,
+                    tools=adapter_status.tools if hasattr(adapter_status, 'tools') else None
+                ))
 
         return adapters_list
 

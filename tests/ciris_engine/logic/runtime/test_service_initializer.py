@@ -186,6 +186,12 @@ class TestServiceInitializer:
         service_initializer.service_registry = Mock()
         service_initializer._skip_llm_init = False
         mock_essential_config.mock_llm = True
+        
+        # Add required services attribute
+        mock_essential_config.services = Mock()
+        mock_essential_config.services.llm_endpoint = "https://api.openai.com/v1"
+        mock_essential_config.services.llm_model = "gpt-4"
+        mock_essential_config.services.llm_timeout = 30
 
         # Initialize LLM (should use mock)
         with patch('ciris_modular_services.mock_llm.service.MockLLMService') as mock_llm_class:

@@ -232,31 +232,49 @@ class TestCIRISRuntime:
         assert ciris_runtime._timeout == 30
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Test may hang due to async timing issues")
     async def test_run_with_error(self, ciris_runtime):
-        """Test run with error during start."""
+        """Test run with error during start - handles errors gracefully."""
+        from ciris_engine.schemas.runtime.enums import ServiceType
+        
         ciris_runtime._initialized = True
 
         # Mock required components
         ciris_runtime.agent_processor = Mock()
         ciris_runtime.agent_processor.start_processing = AsyncMock(side_effect=Exception("Test error"))
         ciris_runtime.service_initializer.bus_manager = None
+        
+        # Mock service registry to return communication service immediately
+        # This avoids the 30-second wait loop that causes hanging
+        mock_comm_service = Mock()
         ciris_runtime.service_initializer.service_registry = Mock()
-        ciris_runtime.service_initializer.service_registry.get_service = AsyncMock(return_value=Mock())
+        ciris_runtime.service_initializer.service_registry.get_service = AsyncMock(return_value=mock_comm_service)
+        
         ciris_runtime.adapters = []
         ciris_runtime._shutdown_event = asyncio.Event()
         ciris_runtime.shutdown = AsyncMock()
 
-        # Mock the global shutdown to prevent system effects
+        # Mock the global shutdown to complete immediately instead of hanging
         with patch('ciris_engine.logic.runtime.ciris_runtime.wait_for_global_shutdown_async') as mock_wait:
-            mock_wait.return_value = asyncio.Future()
+            # Return a completed future instead of one that never completes
+            completed_future = asyncio.Future()
+            completed_future.set_result(None)
+            mock_wait.return_value = completed_future
 
-            # Should handle error and shutdown
-            with pytest.raises(Exception) as exc_info:
+            with patch('ciris_engine.logic.runtime.ciris_runtime.is_global_shutdown_requested', return_value=False):
+                # run() handles errors internally and doesn't re-raise them
+                # So we should NOT expect it to raise an exception
                 await ciris_runtime.run()
 
-            assert "Test error" in str(exc_info.value)
-            ciris_runtime.shutdown.assert_called_once()
+                # Verify error was handled properly
+                ciris_runtime.agent_processor.start_processing.assert_called_once()
+                ciris_runtime.shutdown.assert_called_once()
+                
+                # Verify service lookup was attempted
+                ciris_runtime.service_initializer.service_registry.get_service.assert_called_with(
+                    handler="SpeakHandler",
+                    service_type=ServiceType.COMMUNICATION,
+                    required_capabilities=["send_message"]
+                )
 
     def test_get_status(self, ciris_runtime):
         """Test getting runtime status."""

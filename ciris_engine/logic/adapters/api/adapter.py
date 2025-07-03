@@ -164,9 +164,9 @@ class ApiPlatform(Service):
             self.app.state.service_registry = runtime.service_registry
             logger.info("Injected service_registry")
         
-        # Inject runtime control service created by adapter
-        self.app.state.runtime_control_service = self.runtime_control
-        logger.info("Injected runtime_control_service")
+        # Inject the main runtime control service from service initializer
+        self.app.state.runtime_control_service = runtime.runtime_control_service
+        logger.info("Injected runtime_control_service from runtime")
         
         # Inject communication service created by adapter
         self.app.state.communication_service = self.communication

@@ -1,9 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { CIRISClient } from "../../lib/cirisClient";
-
-const client = new CIRISClient();
+import { cirisClient } from "../../lib/ciris-sdk";
 
 export default function ServicesManagementPage() {
   const [services, setServices] = useState<any>(null);
@@ -35,16 +33,17 @@ export default function ServicesManagementPage() {
     try {
       setError(null);
       const [servicesResp, healthResp, explanationResp] = await Promise.all([
-        client.listServices(filterHandler || undefined, filterServiceType || undefined).catch(e => ({ error: e.message })),
-        client.getServiceHealth().catch(e => ({ error: e.message })),
-        client.getServiceSelectionExplanation().catch(e => ({ error: e.message }))
+        cirisClient.system.getServices().catch(e => ({ error: e.message })),
+        // TODO: These endpoints don't exist in SDK yet
+        Promise.resolve({ overall_health: 'unknown', total_services: 0, healthy_services: 0, unhealthy_services: 0 }),
+        Promise.resolve({ service_selection_logic: null })
       ]);
 
       setServices(servicesResp);
       setServiceHealth(healthResp);
       setSelectionExplanation(explanationResp);
     } catch (err) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Unknown error');
     }
   };
 
@@ -63,36 +62,34 @@ export default function ServicesManagementPage() {
     if (!selectedProvider) return;
 
     try {
-      const result = await client.updateServicePriority(
-        selectedProvider,
-        newPriority,
-        newPriorityGroup,
-        newStrategy
-      );
+      // TODO: updateServicePriority endpoint not in SDK yet
+      const result = { status: 'error', message: 'updateServicePriority not implemented in SDK' };
       setPriorityUpdateResult(result);
       await refresh();
     } catch (error) {
-      setPriorityUpdateResult({ error: error.message });
+      setPriorityUpdateResult({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   };
 
   const handleResetCircuitBreakers = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const result = await client.resetCircuitBreakers(resetServiceType || undefined);
+      // TODO: resetCircuitBreakers endpoint not in SDK yet
+      const result = { status: 'error', message: 'resetCircuitBreakers not implemented in SDK' };
       setResetResult(result);
       await refresh();
     } catch (error) {
-      setResetResult({ error: error.message });
+      setResetResult({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   };
 
   const handleDiagnoseIssues = async () => {
     try {
-      const result = await client.diagnoseServiceIssues();
+      // TODO: diagnoseServiceIssues endpoint not in SDK yet
+      const result = { error: 'diagnoseServiceIssues not implemented in SDK' };
       setDiagnostics(result);
     } catch (error) {
-      setDiagnostics({ error: error.message });
+      setDiagnostics({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   };
 

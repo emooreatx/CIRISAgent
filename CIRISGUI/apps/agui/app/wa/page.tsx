@@ -3,29 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cirisClient } from '../../lib/ciris-sdk';
+import { Deferral } from '../../lib/ciris-sdk/resources/wise-authority';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-
-interface Deferral {
-  id: string;
-  thought_id: string;
-  reason: string;
-  context: any;
-  risk_assessment?: {
-    level: 'low' | 'medium' | 'high' | 'critical';
-    factors: string[];
-  };
-  ethical_considerations?: string[];
-  timestamp: string;
-  status: 'pending' | 'approved' | 'denied' | 'expired';
-  resolution?: {
-    decision: 'approve' | 'deny';
-    reasoning: string;
-    resolved_at: string;
-    resolved_by: string;
-  };
-}
 
 export default function WAPage() {
   const { user, hasRole } = useAuth();
@@ -56,8 +37,8 @@ export default function WAPage() {
 
   // Resolve deferral mutation
   const resolveMutation = useMutation({
-    mutationFn: ({ id, decision, reasoning }: { id: string; decision: string; reasoning: string }) =>
-      cirisClient.wiseAuthority.resolveDeferral(id, decision, reasoning),
+    mutationFn: ({ deferral_id, decision, reasoning }: { deferral_id: string; decision: string; reasoning: string }) =>
+      cirisClient.wiseAuthority.resolveDeferral(deferral_id, decision, reasoning),
     onSuccess: () => {
       toast.success('Deferral resolved successfully');
       queryClient.invalidateQueries({ queryKey: ['deferrals'] });
@@ -71,35 +52,30 @@ export default function WAPage() {
   });
 
   // Filter deferrals
-  const filteredDeferrals = deferrals.filter((d: Deferral) => {
+  const filteredDeferrals = deferrals.filter((d) => {
     if (filter === 'all') return true;
     if (filter === 'pending') return d.status === 'pending';
-    if (filter === 'resolved') return d.status === 'approved' || d.status === 'denied';
+    if (filter === 'resolved') return d.status === 'approved' || d.status === 'rejected';
     return true;
   });
 
   // Sort deferrals
-  const sortedDeferrals = [...filteredDeferrals].sort((a: Deferral, b: Deferral) => {
+  const sortedDeferrals = [...filteredDeferrals].sort((a, b) => {
     if (sortBy === 'timestamp') {
-      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     }
-    if (sortBy === 'urgency') {
-      const urgencyOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-      const aUrgency = a.risk_assessment?.level || 'low';
-      const bUrgency = b.risk_assessment?.level || 'low';
-      return urgencyOrder[aUrgency] - urgencyOrder[bUrgency];
-    }
+    // Urgency sorting not supported by SDK Deferral type
     return 0;
   });
 
   // Stats calculation
   const stats = {
     total: deferrals.length,
-    pending: deferrals.filter((d: Deferral) => d.status === 'pending').length,
-    approved: deferrals.filter((d: Deferral) => d.status === 'approved').length,
-    denied: deferrals.filter((d: Deferral) => d.status === 'denied').length,
+    pending: deferrals.filter((d) => d.status === 'pending').length,
+    approved: deferrals.filter((d) => d.status === 'approved').length,
+    denied: deferrals.filter((d) => d.status === 'rejected').length,
     resolutionRate: deferrals.length > 0
-      ? ((deferrals.filter((d: Deferral) => d.status === 'approved' || d.status === 'denied').length / deferrals.length) * 100).toFixed(1)
+      ? ((deferrals.filter((d) => d.status === 'approved' || d.status === 'rejected').length / deferrals.length) * 100).toFixed(1)
       : 0,
   };
 
@@ -139,7 +115,7 @@ export default function WAPage() {
       return;
     }
     resolveMutation.mutate({
-      id: selectedDeferral.id,
+      deferral_id: selectedDeferral.deferral_id,
       decision,
       reasoning,
     });
@@ -242,11 +218,11 @@ export default function WAPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {sortedDeferrals.map((deferral: Deferral) => (
+              {sortedDeferrals.map((deferral) => (
                 <div
-                  key={deferral.id}
+                  key={deferral.deferral_id}
                   className={`border rounded-lg p-4 hover:shadow-lg transition-shadow cursor-pointer ${
-                    selectedDeferral?.id === deferral.id ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'
+                    selectedDeferral?.deferral_id === deferral.deferral_id ? 'border-indigo-500 bg-indigo-50' : 'border-gray-200'
                   }`}
                   onClick={() => setSelectedDeferral(deferral)}
                 >
@@ -259,20 +235,12 @@ export default function WAPage() {
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadgeClasses(deferral.status)}`}>
                           {deferral.status.toUpperCase()}
                         </span>
-                        {deferral.risk_assessment && (
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${getRiskBadgeClasses(deferral.risk_assessment.level)}`}>
-                            {deferral.risk_assessment.level.toUpperCase()} RISK
-                          </span>
-                        )}
                       </div>
                       
-                      <p className="text-sm text-gray-600 mb-2">{deferral.reason}</p>
+                      <p className="text-sm text-gray-600 mb-2">{deferral.question}</p>
                       
                       <div className="flex items-center text-xs text-gray-500 space-x-4">
-                        <span>{new Date(deferral.timestamp).toLocaleString()}</span>
-                        {deferral.ethical_considerations && deferral.ethical_considerations.length > 0 && (
-                          <span>{deferral.ethical_considerations.length} ethical considerations</span>
-                        )}
+                        <span>{new Date(deferral.created_at).toLocaleString()}</span>
                       </div>
                       
                       {deferral.resolution && (
@@ -284,7 +252,7 @@ export default function WAPage() {
                           </p>
                           <p className="text-xs text-gray-600 mt-1">{deferral.resolution.reasoning}</p>
                           <p className="text-xs text-gray-500 mt-1">
-                            by {deferral.resolution.resolved_by} at {new Date(deferral.resolution.resolved_at).toLocaleString()}
+                            by {deferral.resolution.resolved_by} {deferral.resolved_at && `at ${new Date(deferral.resolved_at).toLocaleString()}`}
                           </p>
                         </div>
                       )}
@@ -324,32 +292,6 @@ export default function WAPage() {
                 </pre>
               </div>
               
-              {selectedDeferral.risk_assessment && (
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700">Risk Assessment</h4>
-                  <div className="mt-1">
-                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium border-2 ${getRiskBadgeClasses(selectedDeferral.risk_assessment.level)}`}>
-                      {selectedDeferral.risk_assessment.level.toUpperCase()} RISK
-                    </span>
-                    <ul className="mt-2 list-disc list-inside text-sm text-gray-600">
-                      {selectedDeferral.risk_assessment.factors.map((factor, idx) => (
-                        <li key={idx}>{factor}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              )}
-              
-              {selectedDeferral.ethical_considerations && selectedDeferral.ethical_considerations.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700">Ethical Considerations</h4>
-                  <ul className="mt-1 list-disc list-inside text-sm text-gray-600">
-                    {selectedDeferral.ethical_considerations.map((consideration, idx) => (
-                      <li key={idx}>{consideration}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </div>
           </div>
         </div>
