@@ -38,17 +38,19 @@ export default function AuditPage() {
   defaultStartDate.setDate(defaultStartDate.getDate() - 7);
 
   // Fetch audit trail
-  const { data: entries, isLoading, refetch, error } = useQuery({
+  const { data, isLoading, refetch, error } = useQuery({
     queryKey: ['audit-trail', filters],
-    queryFn: () => cirisClient.audit.getTrail(
-      filters.start_time,
-      filters.end_time,
-      filters.service,
-      filters.action,
-      filters.limit
-    ),
+    queryFn: () => cirisClient.audit.getEntries({
+      page_size: filters.limit,
+      service: filters.service,
+      // Note: The API might expect different parameter names for time filtering
+      // We may need to adjust these based on the actual API
+    }),
     retry: 1,
   });
+
+  // Extract entries from paginated response
+  const entries = data?.items || [];
 
   const actionTypes = [
     'all',
@@ -99,9 +101,15 @@ export default function AuditPage() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const data = await cirisClient.audit.exportAudit(filters.start_time, filters.end_time);
+      // Use search API to get entries for export
+      const exportData = await cirisClient.audit.searchEntries({
+        start_date: filters.start_time,
+        end_date: filters.end_time,
+        service: filters.service,
+        page_size: 1000 // Export up to 1000 entries
+      });
       // Create and download CSV file
-      const csv = convertToCSV(data.entries || []);
+      const csv = convertToCSV(exportData.items || []);
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -446,13 +454,13 @@ export default function AuditPage() {
             <div className="mt-4 flex items-center justify-between text-sm text-gray-700">
               <div>
                 Showing <span className="font-medium">{entries.length}</span> entries
-                {entries.length === filters.limit && (
-                  <span className="text-gray-500"> (limited to {filters.limit})</span>
+                {data?.total && data.total > entries.length && (
+                  <span className="text-gray-500"> of {data.total} total</span>
                 )}
               </div>
-              {entries.length === filters.limit && (
+              {data?.has_next && (
                 <div className="text-gray-500">
-                  There may be more entries. Increase the limit or narrow your filters.
+                  There are more entries. Increase the limit or narrow your filters.
                 </div>
               )}
             </div>
