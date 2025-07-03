@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../../lib/api-client-v1';
+import { cirisClient } from '../../lib/ciris-sdk';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
@@ -49,7 +49,7 @@ export default function WAPage() {
   // Fetch deferrals
   const { data: deferrals = [], isLoading } = useQuery({
     queryKey: ['deferrals'],
-    queryFn: () => apiClient.getDeferrals(),
+    queryFn: () => cirisClient.wiseAuthority.getDeferrals(),
     refetchInterval: 5000, // Refresh every 5 seconds
     enabled: hasRole('AUTHORITY'),
   });
@@ -57,7 +57,7 @@ export default function WAPage() {
   // Resolve deferral mutation
   const resolveMutation = useMutation({
     mutationFn: ({ id, decision, reasoning }: { id: string; decision: string; reasoning: string }) =>
-      apiClient.resolveDeferral(id, decision, reasoning),
+      cirisClient.wiseAuthority.resolveDeferral(id, decision, reasoning),
     onSuccess: () => {
       toast.success('Deferral resolved successfully');
       queryClient.invalidateQueries({ queryKey: ['deferrals'] });

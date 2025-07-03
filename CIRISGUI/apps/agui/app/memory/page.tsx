@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../../lib/api-client-v1';
+import { cirisClient } from '../../lib/ciris-sdk';
 import toast from 'react-hot-toast';
 import { debounce } from 'lodash';
 
@@ -30,17 +30,17 @@ export default function MemoryPage() {
   const [isSearching, setIsSearching] = useState(false);
   const queryClient = useQueryClient();
 
-  // Fetch memory statistics
-  const { data: stats, isLoading: statsLoading } = useQuery<MemoryStats>({
-    queryKey: ['memory-stats'],
-    queryFn: () => apiClient.getMemoryStats(),
-    refetchInterval: 30000, // Refresh every 30 seconds
-  });
+  // Fetch memory statistics (disabled for now as endpoint doesn't exist)
+  const stats = null;
+  const statsLoading = false;
 
   // Search memory nodes
   const { data: searchResults, isLoading: searchLoading } = useQuery<MemoryNode[]>({
     queryKey: ['memory-search', searchQuery],
-    queryFn: () => apiClient.queryMemory(searchQuery, 20),
+    queryFn: async () => {
+      const result = await cirisClient.memory.query(searchQuery, { limit: 20 });
+      return result;
+    },
     enabled: searchQuery.length > 0,
   });
 
@@ -62,7 +62,7 @@ export default function MemoryPage() {
   // Load selected node details
   const loadNodeDetails = async (nodeId: string) => {
     try {
-      const node = await apiClient.getMemoryNode(nodeId);
+      const node = await cirisClient.memory.getNode(nodeId);
       setSelectedNode(node);
     } catch (error) {
       toast.error('Failed to load node details');

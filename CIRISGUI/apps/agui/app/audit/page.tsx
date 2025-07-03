@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { apiClient } from '../../lib/api-client-v1';
+import { cirisClient } from '../../lib/ciris-sdk';
 import { format } from 'date-fns';
 import { ArrowDownTrayIcon, FunnelIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 
@@ -40,7 +40,7 @@ export default function AuditPage() {
   // Fetch audit trail
   const { data: entries, isLoading, refetch, error } = useQuery({
     queryKey: ['audit-trail', filters],
-    queryFn: () => apiClient.getAuditTrail(
+    queryFn: () => cirisClient.audit.getTrail(
       filters.start_time,
       filters.end_time,
       filters.service,
@@ -99,7 +99,7 @@ export default function AuditPage() {
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const data = await apiClient.exportAudit(filters.start_time, filters.end_time);
+      const data = await cirisClient.audit.exportAudit(filters.start_time, filters.end_time);
       // Create and download CSV file
       const csv = convertToCSV(data.entries || []);
       const blob = new Blob([csv], { type: 'text/csv' });

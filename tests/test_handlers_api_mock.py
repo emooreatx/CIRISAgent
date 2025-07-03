@@ -29,7 +29,10 @@ def check_api_available():
 
 
 # Apply skip to entire module
-pytestmark = pytest.mark.skipif(not check_api_available(), reason="API not running on localhost:8080")
+pytestmark = [
+    pytest.mark.skipif(not check_api_available(), reason="API not running on localhost:8080"),
+    pytest.mark.integration  # Mark as integration test
+]
 
 
 class CIRISAPIClient:
@@ -85,9 +88,11 @@ class CIRISAPIClient:
             return resp.json().get("data", {}).get("results", [])
         return []
         
-    def wait_for_processing(self, timeout: int = 2) -> None:
-        """Wait for agent to process the request."""
-        time.sleep(timeout)
+    def wait_for_processing(self, timeout: int = 2, poll_interval: float = 0.1) -> None:
+        """Wait for agent to process the request with polling."""
+        # For now, still use sleep but with shorter default
+        # In future, could implement polling for completion status
+        time.sleep(min(timeout, 1.0))  # Cap at 1 second for tests
 
 
 @pytest.fixture
@@ -172,11 +177,7 @@ class TestObserveHandler:
         result = api_client.interact("$observe api_test")
         assert "data" in result
         
-        api_client.wait_for_processing(timeout=5)  # Increase timeout
-        
-        # Small additional wait to ensure audit entries are written
-        import time
-        time.sleep(2)
+        api_client.wait_for_processing(timeout=2)
         
         # Check audit entries - increase limit to ensure we get all entries
         all_entries = api_client.get_audit_entries(limit=200)
@@ -205,11 +206,7 @@ class TestToolHandler:
         result = api_client.interact('$tool curl url=http://example.com')
         assert "data" in result
         
-        api_client.wait_for_processing(timeout=5)  # Increase timeout
-        
-        # Small wait to ensure audit entries are written
-        import time
-        time.sleep(2)
+        api_client.wait_for_processing(timeout=2)
         
         # Check audit entries
         entries = api_client.get_audit_entries(limit=200)
@@ -238,11 +235,7 @@ class TestDeferHandler:
         result = api_client.interact("$defer I need more information to answer this question")
         assert "data" in result
         
-        api_client.wait_for_processing(timeout=5)  # Increase timeout
-        
-        # Small wait to ensure audit entries are written
-        import time
-        time.sleep(2)
+        api_client.wait_for_processing(timeout=2)
         
         # Check audit entries
         entries = api_client.get_audit_entries(limit=200)
@@ -274,10 +267,6 @@ class TestRejectHandler:
         
         api_client.wait_for_processing()
         
-        # Small wait to ensure audit entries are written
-        import time
-        time.sleep(1)
-        
         # Check audit entries
         entries = api_client.get_audit_entries(limit=100)
         reject_entries = [e for e in entries if "HANDLER_ACTION_REJECT" in str(e.get('action', '')) or "RejectHandler" in str(e.get('actor', ''))]
@@ -299,10 +288,6 @@ class TestForgetHandler:
         
         api_client.wait_for_processing()
         
-        # Small wait to ensure audit entries are written
-        import time
-        time.sleep(1)
-        
         # Check audit entries
         entries = api_client.get_audit_entries(limit=100)
         forget_entries = [e for e in entries if "HANDLER_ACTION_FORGET" in str(e.get('action', '')) or "ForgetHandler" in str(e.get('actor', ''))]
@@ -318,10 +303,6 @@ class TestTaskCompleteHandler:
         assert "data" in result
         
         api_client.wait_for_processing()
-        
-        # Small wait to ensure audit entries are written
-        import time
-        time.sleep(1)
         
         # Check audit entries
         entries = api_client.get_audit_entries(limit=100)
@@ -343,7 +324,7 @@ class TestHandlerIntegration:
         
         for fact in facts:
             api_client.interact(fact)
-            api_client.wait_for_processing(5)
+            api_client.wait_for_processing(1)  # Reduced from 5s
             
         # Recall specific information
         result = api_client.interact("$recall programming")

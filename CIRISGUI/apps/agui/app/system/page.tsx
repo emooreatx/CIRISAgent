@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiClient } from '../../lib/api-client';
+import { cirisClient } from '../../lib/ciris-sdk';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -14,43 +14,38 @@ export default function SystemPage() {
   // Fetch system health
   const { data: health } = useQuery({
     queryKey: ['system-health'],
-    queryFn: () => apiClient.getHealth(),
+    queryFn: () => cirisClient.system.getHealth(),
     refetchInterval: 5000, // Refresh every 5 seconds
   });
 
   // Fetch services
   const { data: services } = useQuery({
     queryKey: ['system-services'],
-    queryFn: () => apiClient.getServices(),
+    queryFn: () => cirisClient.system.getServices(),
     refetchInterval: 5000,
   });
 
   // Fetch resources
   const { data: resources } = useQuery({
     queryKey: ['system-resources'],
-    queryFn: () => apiClient.getResources(),
+    queryFn: () => cirisClient.system.getResources(),
     refetchInterval: 5000,
   });
 
-  // Fetch processors
-  const { data: processors } = useQuery({
-    queryKey: ['system-processors'],
-    queryFn: () => apiClient.getProcessors(),
-    refetchInterval: 5000,
-    enabled: hasRole('ADMIN'),
-  });
+  // Fetch processors - disabled as endpoint doesn't exist
+  const processors = null;
 
   // Fetch adapters
   const { data: adapters } = useQuery({
     queryKey: ['system-adapters'],
-    queryFn: () => apiClient.getAdapters(),
+    queryFn: () => cirisClient.system.getAdapters(),
     refetchInterval: 5000,
     enabled: hasRole('ADMIN'),
   });
 
   // Runtime control mutations
   const pauseMutation = useMutation({
-    mutationFn: () => apiClient.pauseRuntime(),
+    mutationFn: () => cirisClient.system.pauseRuntime(),
     onSuccess: () => {
       toast.success('Runtime paused');
       queryClient.invalidateQueries({ queryKey: ['system-health'] });
@@ -61,7 +56,7 @@ export default function SystemPage() {
   });
 
   const resumeMutation = useMutation({
-    mutationFn: () => apiClient.resumeRuntime(),
+    mutationFn: () => cirisClient.system.resumeRuntime(),
     onSuccess: () => {
       toast.success('Runtime resumed');
       queryClient.invalidateQueries({ queryKey: ['system-health'] });
@@ -74,7 +69,7 @@ export default function SystemPage() {
   // Processor control mutations
   const pauseProcessorMutation = useMutation({
     mutationFn: ({ name, duration }: { name: string; duration?: number }) =>
-      apiClient.pauseProcessor(name, duration),
+      cirisClient.system.pauseProcessor(name, duration),
     onSuccess: (_, { name }) => {
       toast.success(`Processor ${name} paused`);
       queryClient.invalidateQueries({ queryKey: ['system-processors'] });
@@ -85,7 +80,7 @@ export default function SystemPage() {
   });
 
   const resumeProcessorMutation = useMutation({
-    mutationFn: (name: string) => apiClient.resumeProcessor(name),
+    mutationFn: (name: string) => cirisClient.system.resumeProcessor(name),
     onSuccess: (_, name) => {
       toast.success(`Processor ${name} resumed`);
       queryClient.invalidateQueries({ queryKey: ['system-processors'] });
@@ -96,26 +91,37 @@ export default function SystemPage() {
   });
 
   // Adapter control mutations
-  const pauseAdapterMutation = useMutation({
-    mutationFn: ({ name, duration }: { name: string; duration?: number }) =>
-      apiClient.pauseAdapter(name, duration),
-    onSuccess: (_, { name }) => {
-      toast.success(`Adapter ${name} paused`);
+
+  const reloadAdapterMutation = useMutation({
+    mutationFn: (adapterId: string) => cirisClient.system.reloadAdapter(adapterId),
+    onSuccess: (_, adapterId) => {
+      toast.success(`Adapter ${adapterId} reloaded`);
       queryClient.invalidateQueries({ queryKey: ['system-adapters'] });
     },
-    onError: (_, { name }) => {
-      toast.error(`Failed to pause adapter ${name}`);
+    onError: (_, adapterId) => {
+      toast.error(`Failed to reload adapter ${adapterId}`);
     },
   });
 
-  const resumeAdapterMutation = useMutation({
-    mutationFn: (name: string) => apiClient.resumeAdapter(name),
-    onSuccess: (_, name) => {
-      toast.success(`Adapter ${name} resumed`);
+  const unregisterAdapterMutation = useMutation({
+    mutationFn: (adapterId: string) => cirisClient.system.unregisterAdapter(adapterId),
+    onSuccess: (_, adapterId) => {
+      toast.success(`Adapter ${adapterId} removed`);
       queryClient.invalidateQueries({ queryKey: ['system-adapters'] });
     },
-    onError: (_, name) => {
-      toast.error(`Failed to resume adapter ${name}`);
+    onError: (_, adapterId) => {
+      toast.error(`Failed to remove adapter ${adapterId}`);
+    },
+  });
+
+  const registerAdapterMutation = useMutation({
+    mutationFn: (adapterType: string) => cirisClient.system.registerAdapter(adapterType),
+    onSuccess: (_, adapterType) => {
+      toast.success(`${adapterType} adapter registered`);
+      queryClient.invalidateQueries({ queryKey: ['system-adapters'] });
+    },
+    onError: (_, adapterType) => {
+      toast.error(`Failed to register ${adapterType} adapter`);
     },
   });
 
@@ -177,14 +183,19 @@ export default function SystemPage() {
           resumeProcessorMutation.mutate(confirmDialog.name);
         }
         break;
-      case 'pauseAdapter':
+      case 'reloadAdapter':
         if (confirmDialog.name) {
-          pauseAdapterMutation.mutate({ name: confirmDialog.name });
+          reloadAdapterMutation.mutate(confirmDialog.name);
         }
         break;
-      case 'resumeAdapter':
+      case 'unregisterAdapter':
         if (confirmDialog.name) {
-          resumeAdapterMutation.mutate(confirmDialog.name);
+          unregisterAdapterMutation.mutate(confirmDialog.name);
+        }
+        break;
+      case 'registerAdapter':
+        if (confirmDialog.name) {
+          registerAdapterMutation.mutate(confirmDialog.name);
         }
         break;
     }
@@ -230,14 +241,14 @@ export default function SystemPage() {
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
                 <dt className="text-sm font-medium text-gray-500">Memory Usage</dt>
                 <dd className="mt-2 text-2xl font-semibold text-gray-900">
-                  {health.memory_usage_mb ? `${health.memory_usage_mb.toFixed(0)} MB` : 'N/A'}
+                  {resources?.current_usage?.memory_mb ? `${resources.current_usage.memory_mb} MB` : 'N/A'}
                 </dd>
               </div>
               
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
-                <dt className="text-sm font-medium text-gray-500">Container Age</dt>
+                <dt className="text-sm font-medium text-gray-500">CPU Usage</dt>
                 <dd className="mt-2 text-2xl font-semibold text-gray-900">
-                  {health.container_age_seconds ? formatUptime(health.container_age_seconds) : 'N/A'}
+                  {resources?.current_usage?.cpu_percent ? `${resources.current_usage.cpu_percent}%` : 'N/A'}
                 </dd>
               </div>
             </div>
@@ -297,16 +308,16 @@ export default function SystemPage() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">CPU Usage</span>
-                  <span className={`text-lg font-bold ${resources.cpu_percent > 80 ? 'text-red-600' : resources.cpu_percent > 60 ? 'text-yellow-600' : 'text-green-600'}`}>
-                    {resources.cpu_percent?.toFixed(1)}%
+                  <span className={`text-lg font-bold ${resources.current_usage?.cpu_percent > 80 ? 'text-red-600' : resources.current_usage?.cpu_percent > 60 ? 'text-yellow-600' : 'text-green-600'}`}>
+                    {resources.current_usage?.cpu_percent?.toFixed(1) || 0}%
                   </span>
                 </div>
                 <div className="relative">
                   <div className="overflow-hidden h-4 text-xs flex rounded-full bg-gray-200">
                     <div
-                      style={{ width: `${resources.cpu_percent || 0}%` }}
+                      style={{ width: `${resources.current_usage?.cpu_percent || 0}%` }}
                       className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-300 ${
-                        resources.cpu_percent > 80 ? 'bg-red-500' : resources.cpu_percent > 60 ? 'bg-yellow-500' : 'bg-blue-500'
+                        resources.current_usage?.cpu_percent > 80 ? 'bg-red-500' : resources.current_usage?.cpu_percent > 60 ? 'bg-yellow-500' : 'bg-blue-500'
                       }`}
                     />
                   </div>
@@ -316,44 +327,44 @@ export default function SystemPage() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">Memory Usage</span>
-                  <span className={`text-lg font-bold ${(resources.memory_used / resources.memory_total) * 100 > 80 ? 'text-red-600' : (resources.memory_used / resources.memory_total) * 100 > 60 ? 'text-yellow-600' : 'text-green-600'}`}>
-                    {formatBytes(resources.memory_used)} / {formatBytes(resources.memory_total)}
+                  <span className={`text-lg font-bold ${resources.current_usage?.memory_percent > 80 ? 'text-red-600' : resources.current_usage?.memory_percent > 60 ? 'text-yellow-600' : 'text-green-600'}`}>
+                    {resources.current_usage?.memory_mb || 0} MB / {resources.limits?.memory_mb?.limit || 0} MB
                   </span>
                 </div>
                 <div className="relative">
                   <div className="overflow-hidden h-4 text-xs flex rounded-full bg-gray-200">
                     <div
-                      style={{ width: `${(resources.memory_used / resources.memory_total) * 100}%` }}
+                      style={{ width: `${resources.current_usage?.memory_percent || 0}%` }}
                       className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-300 ${
-                        (resources.memory_used / resources.memory_total) * 100 > 80 ? 'bg-red-500' : (resources.memory_used / resources.memory_total) * 100 > 60 ? 'bg-yellow-500' : 'bg-green-500'
+                        resources.current_usage?.memory_percent > 80 ? 'bg-red-500' : resources.current_usage?.memory_percent > 60 ? 'bg-yellow-500' : 'bg-green-500'
                       }`}
                     />
                   </div>
                 </div>
                 <p className="text-xs text-gray-500">
-                  {((resources.memory_used / resources.memory_total) * 100).toFixed(1)}% utilized
+                  {resources.current_usage?.memory_percent?.toFixed(1) || 0}% utilized
                 </p>
               </div>
               
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">Disk Usage</span>
-                  <span className={`text-lg font-bold ${(resources.disk_used / resources.disk_total) * 100 > 80 ? 'text-red-600' : (resources.disk_used / resources.disk_total) * 100 > 60 ? 'text-yellow-600' : 'text-green-600'}`}>
-                    {formatBytes(resources.disk_used)} / {formatBytes(resources.disk_total)}
+                  <span className={`text-lg font-bold ${((resources.current_usage?.disk_used_mb || 0) / (resources.current_usage?.disk_used_mb + resources.current_usage?.disk_free_mb || 1)) * 100 > 80 ? 'text-red-600' : 'text-green-600'}`}>
+                    {resources.current_usage?.disk_used_mb || 0} MB / {(resources.current_usage?.disk_used_mb || 0) + (resources.current_usage?.disk_free_mb || 0)} MB
                   </span>
                 </div>
                 <div className="relative">
                   <div className="overflow-hidden h-4 text-xs flex rounded-full bg-gray-200">
                     <div
-                      style={{ width: `${(resources.disk_used / resources.disk_total) * 100}%` }}
+                      style={{ width: `${((resources.current_usage?.disk_used_mb || 0) / ((resources.current_usage?.disk_used_mb || 0) + (resources.current_usage?.disk_free_mb || 1))) * 100}%` }}
                       className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-300 ${
-                        (resources.disk_used / resources.disk_total) * 100 > 80 ? 'bg-red-500' : (resources.disk_used / resources.disk_total) * 100 > 60 ? 'bg-yellow-500' : 'bg-purple-500'
+                        ((resources.current_usage?.disk_used_mb || 0) / ((resources.current_usage?.disk_used_mb || 0) + (resources.current_usage?.disk_free_mb || 1))) * 100 > 80 ? 'bg-red-500' : 'bg-purple-500'
                       }`}
                     />
                   </div>
                 </div>
                 <p className="text-xs text-gray-500">
-                  {((resources.disk_used / resources.disk_total) * 100).toFixed(1)}% utilized
+                  {(((resources.current_usage?.disk_used_mb || 0) / ((resources.current_usage?.disk_used_mb || 0) + (resources.current_usage?.disk_free_mb || 1))) * 100).toFixed(1)}% utilized
                 </p>
               </div>
             </div>
@@ -386,9 +397,9 @@ export default function SystemPage() {
             </div>
           </div>
           
-          {services ? (
+          {services?.services ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {services.map((service: any) => (
+              {services.services.map((service: any) => (
                 <div
                   key={service.name}
                   className={`relative p-4 rounded-lg border-2 transition-all duration-200 hover:shadow-md ${
@@ -511,8 +522,38 @@ export default function SystemPage() {
         </div>
       )}
 
+      {/* Adapter Registration */}
+      {hasRole('ADMIN') && (
+        <div className="bg-white shadow rounded-lg">
+          <div className="px-4 py-5 sm:p-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Register New Adapter</h3>
+            <div className="flex items-center space-x-4">
+              <select
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setConfirmDialog({ type: 'registerAdapter', name: e.target.value });
+                    e.target.value = '';
+                  }
+                }}
+                className="block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+              >
+                <option value="">Select adapter type...</option>
+                <option value="discord">Discord</option>
+                <option value="slack">Slack</option>
+                <option value="api">API</option>
+                <option value="cli">CLI</option>
+                <option value="webhook">Webhook</option>
+              </select>
+              <p className="text-sm text-gray-500">
+                Select an adapter type to register a new instance
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Adapter Management */}
-      {hasRole('ADMIN') && adapters && adapters.length > 0 && (
+      {hasRole('ADMIN') && adapters?.adapters && adapters.adapters.length > 0 && (
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Adapter Management</h3>
@@ -539,42 +580,41 @@ export default function SystemPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
-                  {adapters.map((adapter: any) => (
-                    <tr key={adapter.name}>
+                  {adapters.adapters.map((adapter: any) => (
+                    <tr key={adapter.adapter_id}>
                       <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-gray-900">
-                        {adapter.name}
+                        {adapter.adapter_id}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                         {adapter.adapter_type}
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm">
                         <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                          adapter.is_paused
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-green-100 text-green-800'
+                          adapter.is_running
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-red-100 text-red-800'
                         }`}>
-                          {adapter.is_paused ? 'Paused' : 'Running'}
+                          {adapter.is_running ? 'Running' : 'Stopped'}
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {adapter.active_channels || 0}
+                        {adapter.channels?.length || 0}
                       </td>
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                        {adapter.is_paused ? (
+                        <div className="flex items-center justify-end space-x-3">
                           <button
-                            onClick={() => setConfirmDialog({ type: 'resumeAdapter', name: adapter.name })}
-                            className="text-green-600 hover:text-green-900"
+                            onClick={() => setConfirmDialog({ type: 'reloadAdapter', name: adapter.adapter_id })}
+                            className="text-blue-600 hover:text-blue-900"
                           >
-                            Resume
+                            Reload
                           </button>
-                        ) : (
                           <button
-                            onClick={() => setConfirmDialog({ type: 'pauseAdapter', name: adapter.name })}
-                            className="text-yellow-600 hover:text-yellow-900"
+                            onClick={() => setConfirmDialog({ type: 'unregisterAdapter', name: adapter.adapter_id })}
+                            className="text-red-600 hover:text-red-900"
                           >
-                            Pause
+                            Remove
                           </button>
-                        )}
+                        </div>
                       </td>
                     </tr>
                   ))}

@@ -23,6 +23,9 @@ class APIAdapterConfig(BaseModel):
     
     auth_enabled: bool = Field(default=True, description="Enable authentication")
     
+    # Timeout configuration
+    interaction_timeout: float = Field(default=5.0, description="Timeout for agent interactions in seconds")
+    
     def get_home_channel_id(self, host: str, port: int) -> str:
         """Get the home channel ID for this API adapter instance."""
         return f"api_{host}_{port}"
@@ -49,6 +52,13 @@ class APIAdapterConfig(BaseModel):
         env_auth = get_env_var("CIRIS_API_AUTH_ENABLED")
         if env_auth is not None:
             self.auth_enabled = env_auth.lower() in ("true", "1", "yes", "on")
+            
+        env_timeout = get_env_var("CIRIS_API_INTERACTION_TIMEOUT")
+        if env_timeout:
+            try:
+                self.interaction_timeout = float(env_timeout)
+            except ValueError:
+                pass
             
     def load_env_vars_with_instance(self, instance_id: str) -> None:
         """Load configuration from environment variables with instance-specific prefix."""
@@ -82,3 +92,11 @@ class APIAdapterConfig(BaseModel):
         env_auth = get_env_var(f"CIRIS_API_{instance_upper}_AUTH_ENABLED") or get_env_var(f"CIRIS_API_AUTH_ENABLED_{instance_upper}")
         if env_auth is not None:
             self.auth_enabled = env_auth.lower() in ("true", "1", "yes", "on")
+            
+        # Timeout
+        env_timeout = get_env_var(f"CIRIS_API_{instance_upper}_INTERACTION_TIMEOUT") or get_env_var(f"CIRIS_API_INTERACTION_TIMEOUT_{instance_upper}")
+        if env_timeout:
+            try:
+                self.interaction_timeout = float(env_timeout)
+            except ValueError:
+                pass

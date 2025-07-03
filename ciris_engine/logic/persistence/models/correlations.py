@@ -10,6 +10,18 @@ from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
 
+def _parse_response_data(response_data_json: Optional[Dict[str, Any]], timestamp: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
+    """Parse response data JSON with backward compatibility for missing fields."""
+    if not response_data_json:
+        return None
+    
+    # Ensure response_timestamp exists for backward compatibility
+    if isinstance(response_data_json, dict) and "response_timestamp" not in response_data_json:
+        # Use the correlation timestamp or current time as fallback
+        response_data_json["response_timestamp"] = (timestamp or datetime.now(timezone.utc)).isoformat()
+    
+    return response_data_json
+
 def add_correlation(corr: ServiceCorrelation, time_service: TimeServiceProtocol, db_path: Optional[str] = None) -> str:
     sql = """
         INSERT INTO service_correlations (
@@ -74,7 +86,8 @@ def update_correlation(update_request_or_id: Union[CorrelationUpdateRequest, str
             response_data={
                 "success": str(getattr(correlation.response_data, 'success', False)).lower(),
                 "error_message": str(getattr(correlation.response_data, 'error_message', '')),
-                "execution_time_ms": str(getattr(correlation.response_data, 'execution_time_ms', 0))
+                "execution_time_ms": str(getattr(correlation.response_data, 'execution_time_ms', 0)),
+                "response_timestamp": str(getattr(correlation.response_data, 'response_timestamp', actual_time_service.now()).isoformat())
             } if correlation.response_data else None,
             status=ServiceCorrelationStatus.COMPLETED if getattr(correlation.response_data, 'success', False) else ServiceCorrelationStatus.FAILED
         )
@@ -147,7 +160,7 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
                     "handler_name": row["handler_name"],
                     "action_type": row["action_type"],
                     "request_data": json.loads(row["request_data"]) if row["request_data"] else None,
-                    "response_data": json.loads(row["response_data"]) if row["response_data"] else None,
+                    "response_data": _parse_response_data(json.loads(row["response_data"]) if row["response_data"] else None, timestamp),
                     "status": ServiceCorrelationStatus(row["status"]),
                     "created_at": row["created_at"],
                     "updated_at": row["updated_at"],
@@ -238,7 +251,7 @@ def get_correlations_by_task_and_action(task_id: str, action_type: str, status: 
                     "handler_name": row["handler_name"],
                     "action_type": row["action_type"],
                     "request_data": json.loads(row["request_data"]) if row["request_data"] else None,
-                    "response_data": json.loads(row["response_data"]) if row["response_data"] else None,
+                    "response_data": _parse_response_data(json.loads(row["response_data"]) if row["response_data"] else None, timestamp),
                     "status": ServiceCorrelationStatus(row["status"]),
                     "created_at": row["created_at"],
                     "updated_at": row["updated_at"],
@@ -386,7 +399,7 @@ def get_correlations_by_type_and_time(
                     handler_name=row["handler_name"],
                     action_type=row["action_type"],
                     request_data=json.loads(row["request_data"]) if row["request_data"] else None,
-                    response_data=json.loads(row["response_data"]) if row["response_data"] else None,
+                    response_data=_parse_response_data(json.loads(row["response_data"]) if row["response_data"] else None, timestamp),
                     status=ServiceCorrelationStatus(row["status"]),
                     created_at=row["created_at"],
                     updated_at=row["updated_at"],
@@ -454,7 +467,7 @@ def get_correlations_by_channel(
                     "handler_name": row["handler_name"],
                     "action_type": row["action_type"],
                     "request_data": json.loads(row["request_data"]) if row["request_data"] else None,
-                    "response_data": json.loads(row["response_data"]) if row["response_data"] else None,
+                    "response_data": _parse_response_data(json.loads(row["response_data"]) if row["response_data"] else None, timestamp),
                     "status": ServiceCorrelationStatus(row["status"]),
                     "created_at": row["created_at"],
                     "updated_at": row["updated_at"],
@@ -565,7 +578,7 @@ def get_metrics_timeseries(
                     handler_name=row["handler_name"],
                     action_type=row["action_type"],
                     request_data=json.loads(row["request_data"]) if row["request_data"] else None,
-                    response_data=json.loads(row["response_data"]) if row["response_data"] else None,
+                    response_data=_parse_response_data(json.loads(row["response_data"]) if row["response_data"] else None, timestamp),
                     status=ServiceCorrelationStatus(row["status"]),
                     created_at=row["created_at"],
                     updated_at=row["updated_at"],

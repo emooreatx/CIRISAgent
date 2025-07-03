@@ -161,7 +161,7 @@ class CLIAdapter(CommunicationService, ToolService):
                     correlation_id=correlation_id,
                     service_type="cli",
                     handler_name="CLIAdapter",
-                    action_type="send_message",
+                    action_type="speak",
                     request_data=request_data,
                     response_data=response_data,
                     status=ServiceCorrelationStatus.COMPLETED,
@@ -178,16 +178,70 @@ class CLIAdapter(CommunicationService, ToolService):
 
     async def fetch_messages(self, channel_id: str, limit: int = 100) -> List[FetchedMessage]:
         """
-        CLI doesn't store messages, so this returns empty list.
+        Fetch messages from correlations for CLI channel.
 
         Args:
             channel_id: The channel identifier
             limit: Maximum number of messages to fetch
 
         Returns:
-            Empty list (CLI doesn't persist messages)
+            List of fetched messages from correlations
         """
-        return []
+        from ciris_engine.logic.persistence import get_correlations_by_channel
+        
+        try:
+            # Get correlations for this channel
+            correlations = get_correlations_by_channel(
+                channel_id=channel_id,
+                limit=limit
+            )
+            
+            messages = []
+            for corr in correlations:
+                # Extract message data from correlation
+                if corr.action_type == "speak" and corr.request_data:
+                    # This is an outgoing message from the agent
+                    content = ""
+                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
+                        content = corr.request_data.parameters.get("content", "")
+                    
+                    messages.append(FetchedMessage(
+                        message_id=corr.correlation_id,
+                        author_id="ciris",
+                        author_name="CIRIS",
+                        content=content,
+                        timestamp=corr.timestamp or corr.created_at,
+                        channel_id=channel_id
+                    ))
+                elif corr.action_type == "observe" and corr.request_data:
+                    # This is an incoming message from a user
+                    content = ""
+                    author_id = "cli_user"
+                    author_name = "User"
+                    
+                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
+                        params = corr.request_data.parameters
+                        content = params.get("content", "")
+                        author_id = params.get("author_id", "cli_user")
+                        author_name = params.get("author_name", "User")
+                    
+                    messages.append(FetchedMessage(
+                        message_id=corr.correlation_id,
+                        author_id=author_id,
+                        author_name=author_name,
+                        content=content,
+                        timestamp=corr.timestamp or corr.created_at,
+                        channel_id=channel_id
+                    ))
+            
+            # Sort by timestamp
+            messages.sort(key=lambda m: m.timestamp)
+            
+            return messages
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch messages from correlations for CLI channel {channel_id}: {e}")
+            return []
 
     async def execute_tool(self, tool_name: str, parameters: dict) -> ToolExecutionResult:
         """
@@ -337,6 +391,45 @@ class CLIAdapter(CommunicationService, ToolService):
                     channel_id=self.get_home_channel_id(),
                     timestamp=self._get_time_service().now_iso()
                 )
+
+                # Create an "observe" correlation for this incoming message
+                from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus
+                from ciris_engine.schemas.telemetry.core import ServiceRequestData, ServiceResponseData
+                
+                now = self._get_time_service().now()
+                correlation_id = str(uuid.uuid4())
+                
+                correlation = ServiceCorrelation(
+                    correlation_id=correlation_id,
+                    service_type="cli",
+                    handler_name="CLIAdapter",
+                    action_type="observe",
+                    request_data=ServiceRequestData(
+                        service_type="cli",
+                        method_name="observe",
+                        channel_id=msg.channel_id,
+                        parameters={
+                            "content": msg.content,
+                            "author_id": msg.author_id,
+                            "author_name": msg.author_name,
+                            "message_id": msg.message_id
+                        },
+                        request_timestamp=now
+                    ),
+                    response_data=ServiceResponseData(
+                        success=True,
+                        result_summary="Message observed",
+                        execution_time_ms=0,
+                        response_timestamp=now
+                    ),
+                    status=ServiceCorrelationStatus.COMPLETED,
+                    created_at=now,
+                    updated_at=now,
+                    timestamp=now
+                )
+                
+                persistence.add_correlation(correlation, self._get_time_service())
+                logger.debug(f"Created observe correlation for CLI message {msg.message_id}")
 
                 if self.on_message:
                     await self.on_message(msg)

@@ -152,6 +152,51 @@ class DiscordChannelManager:
             raw_message=message
         )
 
+        # Create an "observe" correlation for this incoming message
+        try:
+            from ciris_engine.logic import persistence
+            from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus
+            from ciris_engine.schemas.telemetry.core import ServiceRequestData, ServiceResponseData
+            from datetime import datetime, timezone
+            import uuid
+            
+            now = datetime.now(timezone.utc)
+            correlation_id = str(uuid.uuid4())
+            
+            correlation = ServiceCorrelation(
+                correlation_id=correlation_id,
+                service_type="discord",
+                handler_name="DiscordAdapter",
+                action_type="observe",
+                request_data=ServiceRequestData(
+                    service_type="discord",
+                    method_name="observe",
+                    channel_id=str(message.channel.id),
+                    parameters={
+                        "content": message.content,
+                        "author_id": str(message.author.id),
+                        "author_name": message.author.display_name,
+                        "message_id": str(message.id)
+                    },
+                    request_timestamp=now
+                ),
+                response_data=ServiceResponseData(
+                    success=True,
+                    result_summary="Message observed",
+                    execution_time_ms=0,
+                    response_timestamp=now
+                ),
+                status=ServiceCorrelationStatus.COMPLETED,
+                created_at=now,
+                updated_at=now,
+                timestamp=now
+            )
+            
+            persistence.add_correlation(correlation, None)  # Discord doesn't have time_service
+            logger.debug(f"Created observe correlation for Discord message {message.id}")
+        except Exception as e:
+            logger.warning(f"Failed to create observe correlation: {e}")
+
         if self.on_message_callback:
             try:
                 await self.on_message_callback(incoming)
