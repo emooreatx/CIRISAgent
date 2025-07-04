@@ -43,7 +43,17 @@ export class AuditResource extends BaseResource {
     service?: string;
     user_id?: string;
   }): Promise<PaginatedResponse<AuditEntry>> {
-    return this.transport.get<PaginatedResponse<AuditEntry>>('/v1/audit/entries', params);
+    const response = await this.transport.get<{ entries: AuditEntry[] }>('/v1/audit/entries', params);
+    
+    // Transform the response to match PaginatedResponse interface
+    return {
+      items: response.entries || [],
+      total: response.entries?.length || 0,
+      page: params?.page || 1,
+      page_size: params?.page_size || 100,
+      has_next: false,
+      has_prev: false
+    };
   }
 
   /**
@@ -57,7 +67,8 @@ export class AuditResource extends BaseResource {
    * Export audit entries
    */
   async exportEntries(params?: AuditExportParams): Promise<Blob> {
-    const response = await this.transport.get('/v1/audit/export', params, {
+    const response = await this.transport.get('/v1/audit/export', {
+      ...params,
       responseType: 'blob'
     });
     return response as Blob;

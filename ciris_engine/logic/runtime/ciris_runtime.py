@@ -181,6 +181,11 @@ class CIRISRuntime:
         return self.service_initializer.incident_management_service if self.service_initializer else None
 
     @property
+    def runtime_control_service(self) -> Optional[Any]:
+        """Access to runtime control service."""
+        return self.service_initializer.runtime_control_service if self.service_initializer else None
+
+    @property
     def profile(self) -> Optional[Any]:
         """Convert agent identity to profile format for compatibility."""
         if not self.agent_identity:
@@ -294,8 +299,13 @@ class CIRISRuntime:
         logger.info("Initializing CIRIS Runtime...")
 
         try:
-            # Set up initialization manager
-            init_manager = get_initialization_manager()
+            # First initialize infrastructure services to get the InitializationService instance
+            await self.service_initializer.initialize_infrastructure_services()
+            
+            # Get the initialization service from service_initializer
+            init_manager = self.service_initializer.initialization_service
+            if not init_manager:
+                raise RuntimeError("InitializationService not available from ServiceInitializer")
 
             # Register all initialization steps with proper phases
             await self._register_initialization_steps(init_manager)
@@ -427,7 +437,9 @@ class CIRISRuntime:
 
     async def _initialize_infrastructure(self) -> None:
         """Initialize infrastructure services that all other services depend on."""
-        await self.service_initializer.initialize_infrastructure_services()
+        # Infrastructure services already initialized in initialize() method
+        # This is now just a no-op placeholder for the initialization step
+        pass
 
         # Now setup proper file logging with TimeService
         from ciris_engine.logic.utils.logging_config import setup_basic_logging
@@ -534,6 +546,11 @@ class CIRISRuntime:
         if self.modules_to_load:
             logger.info(f"Loading {len(self.modules_to_load)} external modules: {self.modules_to_load}")
             await self.service_initializer.load_modules(self.modules_to_load)
+        
+        # Update runtime control service with runtime reference
+        if self.runtime_control_service:
+            self.runtime_control_service.runtime = self
+            logger.info("Updated runtime control service with runtime reference")
 
     async def _verify_core_services(self) -> bool:
         """Verify all core services are operational."""

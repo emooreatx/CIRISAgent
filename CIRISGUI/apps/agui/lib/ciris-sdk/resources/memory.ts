@@ -44,6 +44,13 @@ export class MemoryResource extends BaseResource {
   }
 
   /**
+   * Recall specific memory by ID (alternative to getNode)
+   */
+  async recall(nodeId: string): Promise<GraphNode> {
+    return this.transport.get<GraphNode>(`/v1/memory/recall/${nodeId}`);
+  }
+
+  /**
    * Create a new memory node
    */
   async createNode(node: Omit<GraphNode, 'id' | 'version' | 'updated_at'>): Promise<MemoryOpResult> {

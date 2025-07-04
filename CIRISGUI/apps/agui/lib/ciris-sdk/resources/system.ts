@@ -4,7 +4,14 @@ import { BaseResource } from './base';
 import {
   HealthStatus,
   ServiceInfo,
-  ResourceUsage
+  ResourceUsage,
+  ProcessorQueueStatus,
+  RuntimeControlExtendedResponse,
+  ServiceHealthStatus,
+  ServicePriorityUpdateRequest,
+  CircuitBreakerResetRequest,
+  ServiceSelectionExplanation,
+  ProcessorStateInfo
 } from '../types';
 
 export interface RuntimeControlResponse {
@@ -13,12 +20,6 @@ export interface RuntimeControlResponse {
   timestamp: string;
 }
 
-export interface ProcessorInfo {
-  name: string;
-  state: string;
-  is_paused: boolean;
-  last_activity?: string;
-}
 
 export interface AdapterInfo {
   adapter_id: string;
@@ -98,8 +99,22 @@ export class SystemResource extends BaseResource {
     pause_reason?: string;
     paused_at?: string;
     paused_by?: string;
+    processor_status?: string;
+    health_status?: string;
+    uptime_seconds?: number;
+    active_adapters?: any[];
+    loaded_adapters?: any[];
   }> {
-    return this.transport.get('/v1/system/runtime/status');
+    // Use the runtime state endpoint to get status
+    const response = await this.transport.post('/v1/system/runtime/state', {});
+    return {
+      is_paused: response.processor_state === 'paused',
+      processor_status: response.processor_state,
+      health_status: 'healthy', // Not available in state endpoint
+      uptime_seconds: 0, // Not available in state endpoint
+      active_adapters: [],
+      loaded_adapters: []
+    };
   }
 
   /**
@@ -115,12 +130,6 @@ export class SystemResource extends BaseResource {
     return this.transport.post('/v1/system/runtime/state', {});
   }
 
-  /**
-   * Get all processors
-   */
-  async getProcessors(): Promise<ProcessorInfo[]> {
-    return this.transport.get<ProcessorInfo[]>('/v1/system/processors');
-  }
 
   /**
    * Pause a specific processor
@@ -212,5 +221,86 @@ export class SystemResource extends BaseResource {
     return this.transport.post<RuntimeControlResponse>(
       `/v1/system/adapters/${adapterName}/resume`
     );
+  }
+
+  // Extended System Management Methods
+
+  /**
+   * Get processing queue status
+   */
+  async getProcessingQueueStatus(): Promise<ProcessorQueueStatus> {
+    return this.transport.get<ProcessorQueueStatus>('/v1/system/runtime/queue');
+  }
+
+  /**
+   * Execute a single processing step
+   */
+  async singleStepProcessor(): Promise<RuntimeControlExtendedResponse> {
+    return this.transport.post<RuntimeControlExtendedResponse>('/v1/system/runtime/step');
+  }
+
+  /**
+   * Get detailed service health status
+   */
+  async getServiceHealthDetails(): Promise<ServiceHealthStatus> {
+    return this.transport.get<ServiceHealthStatus>('/v1/system/services/health');
+  }
+
+  /**
+   * Update service provider priority
+   */
+  async updateServicePriority(
+    providerName: string,
+    update: ServicePriorityUpdateRequest
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    return this.transport.put(
+      `/v1/system/services/${providerName}/priority`,
+      update
+    );
+  }
+
+  /**
+   * Reset circuit breakers
+   */
+  async resetCircuitBreakers(
+    request: CircuitBreakerResetRequest = {}
+  ): Promise<{ success: boolean; message?: string; reset_count?: number }> {
+    return this.transport.post('/v1/system/services/circuit-breakers/reset', request);
+  }
+
+  /**
+   * Get service selection logic explanation
+   */
+  async getServiceSelectionExplanation(): Promise<ServiceSelectionExplanation> {
+    return this.transport.get<ServiceSelectionExplanation>('/v1/system/services/selection-logic');
+  }
+
+  /**
+   * Get information about all processor states
+   */
+  async getProcessorStates(): Promise<ProcessorStateInfo[]> {
+    return this.transport.get<ProcessorStateInfo[]>('/v1/system/processors');
+  }
+
+  /**
+   * Get current system time
+   */
+  async getTime(): Promise<{
+    current_time: string;
+    timezone: string;
+    timestamp: number;
+  }> {
+    return this.transport.get('/v1/system/time');
+  }
+
+  /**
+   * Initiate system shutdown
+   */
+  async shutdown(reason?: string): Promise<{
+    status: string;
+    message: string;
+    shutdown_initiated: boolean;
+  }> {
+    return this.transport.post('/v1/system/shutdown', { reason });
   }
 }

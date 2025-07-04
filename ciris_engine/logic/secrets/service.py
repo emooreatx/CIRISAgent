@@ -58,6 +58,7 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
         self.filter = filter_obj or SecretsFilter(detection_config)
         self._auto_forget_enabled = True
         self._current_task_secrets: Dict[str, str] = {}  # UUID -> original_value
+        self._start_time: Optional[object] = None  # Will be a datetime when started
 
     async def process_incoming_text(
         self,
@@ -509,6 +510,7 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
 
     async def start(self) -> None:
         """Start the secrets service."""  # pragma: no cover - trivial
+        self._start_time = self._time_service.now()
         logger.info("SecretsService started")
 
     async def stop(self) -> None:
@@ -580,11 +582,16 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
     def get_status(self) -> ServiceStatus:
         """Get service status."""
         from ciris_engine.schemas.services.core import ServiceStatus
+        
+        uptime_seconds = 0.0
+        if self._start_time:
+            uptime_seconds = (self._time_service.now() - self._start_time).total_seconds()
+        
         return ServiceStatus(
             service_name="SecretsService",
             service_type="core_service",
             is_healthy=True,  # We'll use sync check here
-            uptime_seconds=0.0,  # TODO: Track uptime
+            uptime_seconds=uptime_seconds,
             metrics={
                 "secrets_stored": float(len(self._current_task_secrets)),
                 "filter_enabled": 1.0 if self.filter else 0.0,

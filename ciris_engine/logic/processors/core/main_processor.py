@@ -1099,3 +1099,13 @@ class AgentProcessor:
         all_transitions = self.state_manager.get_state_history()
         # Return the most recent transitions up to the limit
         return all_transitions[-limit:] if len(all_transitions) > limit else all_transitions
+    
+    def get_queue_status(self):
+        """
+        Get current queue status with pending tasks and thoughts.
+        
+        Returns an object with pending_tasks and pending_thoughts attributes
+        for use by the runtime control service.
+        """
+        # Use the centralized persistence function
+        return persistence.get_queue_status()

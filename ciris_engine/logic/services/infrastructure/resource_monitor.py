@@ -58,9 +58,11 @@ class ResourceMonitorService(ResourceMonitorServiceProtocol, ServiceProtocol):
         self._last_action_time: Dict[str, datetime] = {}
         self._monitoring = False
         self._process = psutil.Process()
+        self._start_time: Optional[datetime] = None
 
     async def start(self) -> None:
         self._monitoring = True
+        self._start_time = self.time_service.now()
         asyncio.create_task(self._monitor_loop())
         logger.info("Resource monitor started")
 
@@ -176,11 +178,15 @@ class ResourceMonitorService(ResourceMonitorServiceProtocol, ServiceProtocol):
 
     def get_status(self) -> ServiceStatus:
         """Get service status as required by ServiceProtocol."""
+        uptime = 0.0
+        if self._start_time:
+            uptime = (self.time_service.now() - self._start_time).total_seconds()
+            
         return ServiceStatus(
             service_name="ResourceMonitorService",
             service_type="infrastructure_service",
             is_healthy=self.snapshot.healthy,
-            uptime_seconds=0.0,  # TODO: Track uptime
+            uptime_seconds=uptime,
             metrics={
                 "memory_mb": float(self.snapshot.memory_mb),
                 "cpu_percent": float(self.snapshot.cpu_percent),

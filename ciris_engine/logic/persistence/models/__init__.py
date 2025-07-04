@@ -49,6 +49,10 @@ from .identity import (
     store_creation_ceremony,
     get_identity_for_context,
 )
+from .queue_status import (
+    get_queue_status,
+    QueueStatus,
+)
 
 __all__ = [
     "update_task_status",
@@ -91,4 +95,6 @@ __all__ = [
     "update_agent_identity",
     "store_creation_ceremony",
     "get_identity_for_context",
+    "get_queue_status",
+    "QueueStatus",
 ]

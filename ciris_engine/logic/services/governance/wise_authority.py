@@ -60,6 +60,7 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
         # Service state
         self._initialized = False
         self._started = False
+        self._start_time: Optional[datetime] = None
 
         logger.info(f"Consolidated WA Service initialized with DB: {self.db_path}")
 
@@ -75,6 +76,7 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
         # TODO: Implement deferral persistence
 
         self._started = True
+        self._start_time = self.time_service.now()
         logger.info("Consolidated WA Service started")
 
     async def stop(self) -> None:
@@ -404,11 +406,15 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
         pending_count = len([d for d in self.deferrals.values()
                            if not (d.metadata and d.metadata.get("resolved"))])
 
+        uptime_seconds = 0.0
+        if self._start_time:
+            uptime_seconds = (self.time_service.now() - self._start_time).total_seconds()
+
         return ServiceStatus(
             service_name="WiseAuthorityService",
             service_type="governance_service",
             is_healthy=self._started,
-            uptime_seconds=0.0,  # Would need to track start time
+            uptime_seconds=uptime_seconds,
             last_error=None,
             metrics={
                 "pending_deferrals": float(pending_count),

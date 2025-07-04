@@ -38,10 +38,12 @@ class AdaptiveFilterService(Service, AdaptiveFilterServiceProtocol):
         self._message_buffer: Dict[str, List[Tuple[datetime, object]]] = {}
         self._stats = FilterStats()
         self._init_task: Optional[asyncio.Task[None]] = None
+        self._start_time: Optional[datetime] = None
 
     async def start(self) -> None:
         """Start the service and load configuration"""
         await super().start()
+        self._start_time = self.time_service.now()
         self._init_task = asyncio.create_task(self._initialize())
         logger.info("Adaptive Filter Service starting...")
 
@@ -561,11 +563,16 @@ class AdaptiveFilterService(Service, AdaptiveFilterServiceProtocol):
     def get_status(self) -> 'ServiceStatus':
         """Get current service status."""
         from ciris_engine.schemas.services.core import ServiceStatus
+        
+        uptime_seconds = 0.0
+        if self._start_time:
+            uptime_seconds = (self.time_service.now() - self._start_time).total_seconds()
+        
         return ServiceStatus(
             service_name="AdaptiveFilterService",
             service_type="INFRASTRUCTURE",
             is_healthy=self._config is not None,
-            uptime_seconds=0.0,  # Would need to track start time
+            uptime_seconds=uptime_seconds,
             last_error=None,
             metrics={
                 "total_filtered": float(self._stats.total_filtered),

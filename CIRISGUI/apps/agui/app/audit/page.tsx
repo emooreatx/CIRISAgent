@@ -5,11 +5,12 @@ import { useQuery } from '@tanstack/react-query';
 import { cirisClient } from '../../lib/ciris-sdk';
 import { format } from 'date-fns';
 import { ArrowDownTrayIcon, FunnelIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { SpinnerIcon, ClipboardIcon } from '../../components/Icons';
 
 interface AuditEntry {
   id?: string;
   timestamp: string;
-  service: string;
+  service?: string;
   action: string;
   user_id?: string;
   actor?: string;
@@ -17,6 +18,13 @@ interface AuditEntry {
   result?: string;
   status?: string;
   severity?: 'info' | 'warning' | 'error' | 'critical';
+  context?: {
+    metadata?: {
+      outcome?: string;
+      severity?: string;
+    };
+    [key: string]: any;
+  };
 }
 
 interface AuditFilter {
@@ -146,42 +154,46 @@ export default function AuditPage() {
   
   const getSeverityColor = (entry: AuditEntry) => {
     // Determine severity based on action and result
-    if (entry.result === 'error' || entry.status === 'error') {
+    const outcome = entry.context?.metadata?.outcome || entry.result || entry.status;
+    if (outcome === 'error' || outcome === 'failure') {
       return 'bg-red-50 text-red-700 ring-red-600/20';
     }
-    if (entry.action?.includes('emergency') || entry.action?.includes('shutdown')) {
+    if (entry.action?.includes('EMERGENCY') || entry.action?.includes('SHUTDOWN')) {
       return 'bg-red-50 text-red-700 ring-red-600/20';
     }
-    if (entry.action?.includes('config') || entry.action?.includes('restore')) {
+    if (entry.action?.includes('CONFIG') || entry.action?.includes('RESTORE')) {
       return 'bg-amber-50 text-amber-700 ring-amber-600/20';
     }
-    if (entry.action?.includes('auth') && entry.result === 'failure') {
+    if (entry.action?.includes('AUTH') && outcome === 'failure') {
       return 'bg-orange-50 text-orange-700 ring-orange-600/20';
     }
-    if (entry.action?.includes('pause') || entry.action?.includes('resume')) {
+    if (entry.action?.includes('PAUSE') || entry.action?.includes('RESUME')) {
       return 'bg-blue-50 text-blue-700 ring-blue-600/20';
     }
     return 'bg-gray-50 text-gray-700 ring-gray-600/20';
   };
   
   const getActionBadgeColor = (action: string) => {
-    if (action?.includes('login') || action?.includes('logout')) {
+    if (action?.includes('LOGIN') || action?.includes('LOGOUT')) {
       return 'bg-indigo-50 text-indigo-700 ring-indigo-700/10';
     }
-    if (action?.includes('config')) {
+    if (action?.includes('CONFIG')) {
       return 'bg-amber-50 text-amber-700 ring-amber-700/10';
     }
-    if (action?.includes('emergency') || action?.includes('shutdown')) {
+    if (action?.includes('EMERGENCY') || action?.includes('SHUTDOWN')) {
       return 'bg-red-50 text-red-700 ring-red-700/10';
     }
-    if (action?.includes('pause') || action?.includes('resume')) {
+    if (action?.includes('PAUSE') || action?.includes('RESUME')) {
       return 'bg-blue-50 text-blue-700 ring-blue-700/10';
     }
-    if (action?.includes('memory')) {
+    if (action?.includes('MEMORIZE') || action?.includes('RECALL')) {
       return 'bg-purple-50 text-purple-700 ring-purple-700/10';
     }
-    if (action?.includes('deferral')) {
+    if (action?.includes('SPEAK')) {
       return 'bg-green-50 text-green-700 ring-green-700/10';
+    }
+    if (action?.includes('FORGET')) {
+      return 'bg-orange-50 text-orange-700 ring-orange-700/10';
     }
     return 'bg-gray-50 text-gray-700 ring-gray-700/10';
   };
@@ -368,10 +380,7 @@ export default function AuditPage() {
                   <tr>
                     <td colSpan={6} className="text-center py-8 text-gray-500">
                       <div className="inline-flex items-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
+                        <SpinnerIcon className="-ml-1 mr-3 text-gray-500" size="md" />
                         Loading audit entries...
                       </div>
                     </td>
@@ -380,9 +389,7 @@ export default function AuditPage() {
                   <tr>
                     <td colSpan={6} className="text-center py-8 text-gray-500">
                       <div>
-                        <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                        </svg>
+                        <ClipboardIcon className="mx-auto text-gray-400" size="lg" />
                         <p className="mt-2 text-sm">No audit entries found</p>
                         <p className="mt-1 text-xs text-gray-400">Try adjusting your filters</p>
                       </div>
@@ -403,12 +410,12 @@ export default function AuditPage() {
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-900">
                         <span className="font-medium">
-                          {entry.service || 'unknown'}
+                          {entry.actor || entry.service || 'unknown'}
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-900">
                         <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${getActionBadgeColor(entry.action)}`}>
-                          {entry.action || entry.action || 'unknown'}
+                          {entry.action?.replace('AuditEventType.HANDLER_ACTION_', '').replace('AuditEventType.', '') || 'unknown'}
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-900">
@@ -424,7 +431,16 @@ export default function AuditPage() {
                         </div>
                       </td>
                       <td className="px-3 py-4 text-sm text-gray-500">
-                        {entry.details ? (
+                        {entry.context ? (
+                          <details className="cursor-pointer">
+                            <summary className="text-xs">
+                              <span className="hover:text-gray-700">View details</span>
+                            </summary>
+                            <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-x-auto max-w-md">
+                              {JSON.stringify(entry.context, null, 2)}
+                            </pre>
+                          </details>
+                        ) : entry.details ? (
                           <details className="cursor-pointer">
                             <summary className="text-xs">
                               <span className="hover:text-gray-700">View details</span>
@@ -439,7 +455,7 @@ export default function AuditPage() {
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm">
                         <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${getSeverityColor(entry)}`}>
-                          {entry.result || entry.status || 'success'}
+                          {entry.context?.metadata?.outcome || entry.result || entry.status || 'success'}
                         </span>
                       </td>
                     </tr>

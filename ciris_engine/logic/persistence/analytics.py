@@ -1,7 +1,7 @@
 from ciris_engine.logic.persistence.models import tasks as task_ops
 from ciris_engine.logic.persistence.models import thoughts as thought_ops
-from ciris_engine.logic.persistence import count_tasks
-from ciris_engine.logic.persistence import count_thoughts
+from ciris_engine.logic.persistence.models.tasks import count_tasks
+from ciris_engine.logic.persistence.models.thoughts import count_thoughts
 from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
 from ciris_engine.schemas.runtime.models import Task, Thought
 from typing import List, Optional

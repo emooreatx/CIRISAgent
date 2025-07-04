@@ -45,6 +45,7 @@ class IncidentManagementService(BaseGraphService):
         super().__init__(memory_bus=memory_bus, time_service=time_service)
         self.service_name = "IncidentManagementService"
         self._started = False
+        self._start_time = None
 
     async def _get_time_service(self) -> Any:
         """Get time service for consistent timestamps."""
@@ -477,6 +478,7 @@ class IncidentManagementService(BaseGraphService):
     async def start(self) -> None:
         """Start the service."""
         await super().start()
+        self._start_time = self._time_service.now() if self._time_service else datetime.now()
         logger.info("IncidentManagementService started")
 
     async def stop(self) -> None:
@@ -504,16 +506,21 @@ class IncidentManagementService(BaseGraphService):
 
     def get_status(self) -> ServiceStatus:
         """Get service status."""
+        current_time = self._time_service.now() if self._time_service else datetime.now()
+        uptime_seconds = 0.0
+        if self._start_time:
+            uptime_seconds = (current_time - self._start_time).total_seconds()
+        
         return ServiceStatus(
             service_name="IncidentManagementService",
             service_type="graph_service",
             is_healthy=self._started and self._memory_bus is not None,
-            uptime_seconds=0.0,  # TODO: Track uptime
+            uptime_seconds=uptime_seconds,
             metrics={
                 "service_available": bool(self._memory_bus)
             },
             last_error=None,
-            last_health_check=self._time_service.now() if self._time_service else None
+            last_health_check=current_time
         )
 
     async def is_healthy(self) -> bool:

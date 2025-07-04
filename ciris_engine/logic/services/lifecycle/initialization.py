@@ -82,10 +82,12 @@ class InitializationService(InitializationServiceProtocol, ServiceProtocol):
             is_healthy=self._running and (self._initialization_complete or self._error is None),
             uptime_seconds=duration or 0.0,
             metrics={
-                "initialization_complete": self._initialization_complete,
-                "completed_steps": len(self._completed_steps),
-                "total_steps": len(self._steps),
-                "has_error": self._error is not None
+                "initialization_complete": float(self._initialization_complete),
+                "has_error": float(self._error is not None)
+            },
+            custom_metrics={
+                "completed_steps": float(len(self._completed_steps)),
+                "total_steps": float(len(self._steps))
             },
             last_error=str(self._error) if self._error else None,
             last_health_check=self.time_service.now()

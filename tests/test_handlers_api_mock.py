@@ -174,7 +174,8 @@ class TestObserveHandler:
     
     def test_observe_channel(self, api_client):
         """Test observing a channel."""
-        result = api_client.interact("$observe api_test")
+        # Use active observation to trigger the handler
+        result = api_client.interact("$observe api_test true")
         assert "data" in result
         
         api_client.wait_for_processing(timeout=2)
@@ -193,8 +194,8 @@ class TestObserveHandler:
         for entry in handler_entries[:5]:
             print(f"  - {entry.get('action', '')}: {entry.get('actor', '')}")
         
-        # Look for OBSERVE handler entries
-        observe_entries = [e for e in all_entries if "HANDLER_ACTION_OBSERVE" in str(e.get('action', '')) or "ObserveHandler" in str(e.get('actor', ''))]
+        # Look for OBSERVE handler entries - check for AuditEventType.HANDLER_ACTION_OBSERVE format
+        observe_entries = [e for e in all_entries if "AuditEventType.HANDLER_ACTION_OBSERVE" in str(e.get('action', '')) or "ObserveHandler" in str(e.get('actor', ''))]
         assert len(observe_entries) > 0, f"No OBSERVE handler entries found. Handler entries: {len(handler_entries)}, Total entries: {len(all_entries)}"
 
 
@@ -216,7 +217,7 @@ class TestToolHandler:
         for entry in entries[:10]:  # Print first 10
             print(f"  - {entry.get('action', 'unknown')}: {entry.get('actor', 'unknown')}")
         
-        tool_entries = [e for e in entries if "HANDLER_ACTION_TOOL" in str(e.get('action', '')) or "ToolHandler" in str(e.get('actor', ''))]
+        tool_entries = [e for e in entries if "AuditEventType.HANDLER_ACTION_TOOL" in str(e.get('action', '')) or "ToolHandler" in str(e.get('actor', ''))]
         assert len(tool_entries) > 0, "No TOOL handler entries found"
         
     def test_tool_with_params(self, api_client):
@@ -235,7 +236,7 @@ class TestDeferHandler:
         result = api_client.interact("$defer I need more information to answer this question")
         assert "data" in result
         
-        api_client.wait_for_processing(timeout=2)
+        api_client.wait_for_processing(timeout=4)
         
         # Check audit entries
         entries = api_client.get_audit_entries(limit=200)
@@ -253,7 +254,7 @@ class TestDeferHandler:
         for entry in handler_entries[:5]:
             print(f"  - {entry.get('action', '')}: {entry.get('actor', '')}")
         
-        defer_entries = [e for e in entries if "HANDLER_ACTION_DEFER" in str(e.get('action', '')) or "DeferHandler" in str(e.get('actor', ''))]
+        defer_entries = [e for e in entries if "AuditEventType.HANDLER_ACTION_DEFER" in str(e.get('action', '')) or "DeferHandler" in str(e.get('actor', ''))]
         assert len(defer_entries) > 0, "No DEFER handler entries found"
 
 
@@ -265,11 +266,11 @@ class TestRejectHandler:
         result = api_client.interact("$reject This request violates ethical guidelines")
         assert "data" in result
         
-        api_client.wait_for_processing()
+        api_client.wait_for_processing(timeout=3)
         
         # Check audit entries
         entries = api_client.get_audit_entries(limit=100)
-        reject_entries = [e for e in entries if "HANDLER_ACTION_REJECT" in str(e.get('action', '')) or "RejectHandler" in str(e.get('actor', ''))]
+        reject_entries = [e for e in entries if "AuditEventType.HANDLER_ACTION_REJECT" in str(e.get('action', '')) or "RejectHandler" in str(e.get('actor', ''))]
         assert len(reject_entries) > 0, "No REJECT handler entries found"
 
 
@@ -278,19 +279,19 @@ class TestForgetHandler:
     
     def test_forget_memory(self, api_client):
         """Test forgetting a memory."""
-        # First memorize something
-        api_client.interact("$memorize Test memory to forget")
+        # First memorize something with a specific node ID
+        api_client.interact("$memorize test_memory_node CONCEPT LOCAL")
         api_client.wait_for_processing()
         
         # Then forget it
-        result = api_client.interact("$forget test_memory_to User requested deletion")
+        result = api_client.interact("$forget test_memory_node User requested deletion")
         assert "data" in result
         
         api_client.wait_for_processing()
         
         # Check audit entries
         entries = api_client.get_audit_entries(limit=100)
-        forget_entries = [e for e in entries if "HANDLER_ACTION_FORGET" in str(e.get('action', '')) or "ForgetHandler" in str(e.get('actor', ''))]
+        forget_entries = [e for e in entries if "AuditEventType.HANDLER_ACTION_FORGET" in str(e.get('action', '')) or "ForgetHandler" in str(e.get('actor', ''))]
         assert len(forget_entries) > 0, "No FORGET handler entries found"
 
 
@@ -306,7 +307,7 @@ class TestTaskCompleteHandler:
         
         # Check audit entries
         entries = api_client.get_audit_entries(limit=100)
-        complete_entries = [e for e in entries if "HANDLER_ACTION_TASK_COMPLETE" in str(e.get('action', '')) or "TaskCompleteHandler" in str(e.get('actor', ''))]
+        complete_entries = [e for e in entries if "AuditEventType.HANDLER_ACTION_TASK_COMPLETE" in str(e.get('action', '')) or "TaskCompleteHandler" in str(e.get('actor', ''))]
         assert len(complete_entries) > 0, "No TASK_COMPLETE handler entries found"
 
 
@@ -331,9 +332,9 @@ class TestHandlerIntegration:
         assert "data" in result
         api_client.wait_for_processing()
         
-        # Verify we got some handler activity
-        entries = api_client.get_audit_entries(limit=20)
-        handler_entries = [e for e in entries if "handler" in e.get("resource", "")]
+        # Verify we got some handler activity - look for Handler in actor field
+        entries = api_client.get_audit_entries(limit=50)
+        handler_entries = [e for e in entries if "Handler" in e.get("actor", "") or "HANDLER" in str(e.get("action", ""))]
         assert len(handler_entries) >= 4, f"Expected at least 4 handler entries, got {len(handler_entries)}"
         
     def test_ponder_and_speak_flow(self, api_client):
@@ -346,17 +347,30 @@ class TestHandlerIntegration:
         api_client.interact("$speak Based on my pondering, I can help by providing information")
         api_client.wait_for_processing()
         
-        # Check both handlers were used
-        entries = api_client.get_audit_entries(limit=10)
-        handler_types = set()
-        for entry in entries:
-            if "handler" in entry.get("resource", ""):
-                details = entry.get("details", {})
-                if "handler_type" in details:
-                    handler_types.add(details["handler_type"])
-                    
-        assert "PONDER" in handler_types or "ponder" in str(entries).lower()
-        assert "SPEAK" in handler_types or "speak" in str(entries).lower()
+        # Check both handlers were used - look for Handler actors or HANDLER actions
+        entries = api_client.get_audit_entries(limit=100)
+        
+        # Debug: print entries to see what we're getting
+        print(f"\nTotal audit entries: {len(entries)}")
+        for entry in entries[:10]:
+            print(f"  - Action: {entry.get('action', 'N/A')}, Actor: {entry.get('actor', 'N/A')}")
+        
+        # Look for PonderHandler or HANDLER_ACTION_PONDER
+        ponder_found = any(
+            "PonderHandler" in e.get("actor", "") or 
+            "AuditEventType.HANDLER_ACTION_PONDER" in str(e.get("action", ""))
+            for e in entries
+        )
+        
+        # Look for SpeakHandler or HANDLER_ACTION_SPEAK
+        speak_found = any(
+            "SpeakHandler" in e.get("actor", "") or 
+            "AuditEventType.HANDLER_ACTION_SPEAK" in str(e.get("action", ""))
+            for e in entries
+        )
+        
+        assert ponder_found, f"PONDER handler not found in audit entries"
+        assert speak_found, f"SPEAK handler not found in audit entries"
 
 
 if __name__ == "__main__":

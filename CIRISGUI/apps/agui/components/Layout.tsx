@@ -13,6 +13,8 @@ export function Layout({ children }: LayoutProps) {
   const router = useRouter();
 
   const navigation = [
+    { name: 'Dashboard', href: '/dashboard', minRole: 'OBSERVER' },
+    { name: 'API Explorer', href: '/api-demo', minRole: 'OBSERVER' },
     { name: 'Home', href: '/', minRole: 'OBSERVER' },
     { name: 'Communications', href: '/comms', minRole: 'OBSERVER' },
     { name: 'Memory', href: '/memory', minRole: 'OBSERVER' },

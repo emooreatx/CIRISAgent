@@ -56,6 +56,7 @@ class AdapterInfo(BaseModel):
     messages_processed: int = Field(0, description="Total messages processed")
     error_count: int = Field(0, description="Total errors")
     last_error: Optional[str] = Field(None, description="Last error message")
+    tools: Optional[List[Dict[str, Any]]] = Field(None, description="Tools provided by adapter")
 
 class AdapterOperationResult(BaseModel):
     """Result of an adapter operation."""

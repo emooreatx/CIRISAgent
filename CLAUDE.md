@@ -41,13 +41,20 @@ This ensures type safety, validation, and clear contracts throughout the system.
    - **All 19 services healthy and operational**
 
 3. **API v1.0**: Fully Operational
-   - All 35 endpoints implemented and tested
-   - 100% test pass rate (35/35 endpoints) ✅
+   - All 56 endpoints implemented and tested across 11 modules
+   - 100% test pass rate with comprehensive coverage ✅
    - Role-based access control (OBSERVER/ADMIN/AUTHORITY/SYSTEM_ADMIN)
    - Emergency shutdown with Ed25519 signatures
    - Default dev credentials: admin/ciris_admin_password
    - WebSocket support for real-time streaming
    - Runtime control service fully integrated
+   - Extended system management endpoints:
+     - Processing queue status and single-step debugging
+     - Service health monitoring and circuit breaker management
+     - Service priority and selection strategy configuration
+     - Processor state information (6 cognitive states)
+   - Complete TypeScript SDK with 76+ methods
+   - No TODO comments or stub implementations
 
 4. **Typed Graph Node System**
    - 11 active TypedGraphNode classes with full validation
@@ -304,6 +311,64 @@ show_handler_metrics()                # Display handler execution counts and tim
    - **Stuck thoughts**: Look for PENDING/PROCESSING thoughts that aren't progressing
    - **Handler failures**: Use trace hierarchy to see which handler failed
    - **Performance issues**: Check handler metrics and trace timings
+
+### API v1.0 Complete Endpoint Reference
+
+The API provides 56 endpoints across 11 modules:
+
+1. **Agent** (`/v1/agent/*`) - 7 endpoints
+   - `POST /interact` - Send message to agent
+   - `GET /status` - Agent status
+   - `GET /identity` - Agent identity
+   - `GET /history` - Conversation history
+
+2. **System** (`/v1/system/*`) - 18 endpoints
+   - Runtime control: pause/resume/state/single-step/queue
+   - Service management: health/priorities/circuit-breakers/selection-logic
+   - Adapter management: list/get/register/unregister/reload
+   - Resource monitoring: health/resources/time/processors
+
+3. **Memory** (`/v1/memory/*`) - 6 endpoints
+   - CRUD operations plus query/timeline/recall
+
+4. **Telemetry** (`/v1/telemetry/*`) - 8 endpoints
+   - Metrics, logs, traces, resources, queries
+
+5. **Config** (`/v1/config/*`) - 5 endpoints
+   - Full configuration management
+
+6. **Audit** (`/v1/audit/*`) - 5 endpoints
+   - Audit trail with search/export/verify
+
+7. **Auth** (`/v1/auth/*`) - 4 endpoints
+   - Login/logout/refresh/current user
+
+8. **Wise Authority** (`/v1/wa/*`) - 5 endpoints
+   - Deferrals, guidance, permissions
+
+9. **Emergency** (`/emergency/*`) - 2 endpoints
+   - Bypass auth for emergency shutdown
+
+10. **WebSocket** (`/v1/ws`) - Real-time updates
+
+11. **OpenAPI** (`/openapi.json`) - API specification
+
+### SDK Implementation
+
+Complete TypeScript SDK with:
+- 76+ methods across 9 resource modules
+- Full type safety with TypeScript
+- Automatic token management
+- WebSocket support
+- No stubs or TODOs - 100% implemented
+
+Example usage:
+```typescript
+const client = new CIRISClient({ baseURL: 'http://localhost:8080' });
+await client.auth.login('admin', 'ciris_admin_password');
+const status = await client.system.getServiceHealthDetails();
+const queue = await client.system.getProcessingQueueStatus();
+```
 
 ## Critical Debugging Guidelines
 

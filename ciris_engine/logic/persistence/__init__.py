@@ -48,6 +48,8 @@ from .models import (
     get_correlation,
     get_correlations_by_task_and_action,
     get_correlations_by_channel,
+    get_queue_status,
+    QueueStatus,
 )
 from .analytics import (
     get_pending_thoughts_for_active_tasks,
@@ -112,4 +114,6 @@ __all__ = [
     "get_graph_nodes_table_schema_sql",
     "get_graph_edges_table_schema_sql",
     "get_service_correlations_table_schema_sql",
+    "get_queue_status",
+    "QueueStatus",
 ]

@@ -3,7 +3,8 @@
 import json
 import re
 import logging
-from typing import List, Optional, Tuple, Type, cast
+import psutil
+from typing import List, Optional, Tuple, Type, cast, Dict, Any
 
 from pydantic import BaseModel, Field
 from openai import AsyncOpenAI, APIConnectionError, RateLimitError, APIStatusError, InternalServerError
@@ -91,6 +92,11 @@ class OpenAICompatibleClient(LLMServiceProtocol):
 
         # Track start time for uptime calculation
         self._start_time: Optional[float] = None
+        
+        # Memory tracking
+        self._process = psutil.Process()
+        self._response_cache: Dict[str, Any] = {}  # Simple response cache
+        self._max_cache_size = 100  # Maximum cache entries
 
     async def _start(self) -> None:
         """Start the LLM service (private method)."""
@@ -131,10 +137,53 @@ class OpenAICompatibleClient(LLMServiceProtocol):
     def get_status(self) -> ServiceStatus:
         """Get current service status."""
         import time
+        import sys
         cb_stats = self.circuit_breaker.get_stats()
         uptime = 0.0
         if self._start_time is not None:
             uptime = time.time() - self._start_time
+        
+        # Calculate memory usage
+        memory_mb = 0.0
+        try:
+            memory_info = self._process.memory_info()
+            memory_mb = memory_info.rss / 1024 / 1024  # Convert bytes to MB
+        except Exception as e:
+            logger.debug(f"Could not get memory info: {e}")
+        
+        # Calculate cache size
+        cache_size_mb = 0.0
+        try:
+            cache_size = sys.getsizeof(self._response_cache)
+            cache_size_mb = cache_size / 1024 / 1024
+        except Exception:
+            pass
+        
+        # Extract model pricing info
+        model_info = {
+            "model": self.model_name,
+            "instructor_mode": getattr(self.openai_config, 'instructor_mode', 'JSON'),
+            "timeout_seconds": float(getattr(self.openai_config, 'timeout_seconds', 30)),
+            "max_retries": float(self.max_retries)
+        }
+        
+        # Build custom metrics
+        custom_metrics = {
+            "circuit_breaker_state": 1.0 if cb_stats.get("state") == "open" else (0.5 if cb_stats.get("state") == "half_open" else 0.0),
+            "consecutive_failures": float(cb_stats.get("consecutive_failures", 0)),
+            "recovery_attempts": float(cb_stats.get("recovery_attempts", 0)),
+            "last_failure_age_seconds": float(cb_stats.get("last_failure_age", 0)),
+            "response_cache_hit_rate": 0.0,  # TODO: Track cache hits
+            "avg_response_time_ms": 0.0,  # TODO: Track response times
+            "model_cost_per_1k_tokens": 0.15 if "gpt-4o-mini" in self.model_name else 2.5,  # Cents
+            "retry_delay_base": self.base_delay,
+            "retry_delay_max": self.max_delay
+        }
+        
+        # Add model-specific info
+        for key, value in model_info.items():
+            if isinstance(value, (int, float)):
+                custom_metrics[f"model_{key}"] = float(value)
 
         return ServiceStatus(
             service_name="llm_service",
@@ -146,8 +195,12 @@ class OpenAICompatibleClient(LLMServiceProtocol):
                 "success_rate": cb_stats.get("success_rate", 1.0),
                 "call_count": float(cb_stats.get("call_count", 0)),
                 "failure_count": float(cb_stats.get("failure_count", 0)),
-                "circuit_breaker_open": 1.0 if cb_stats.get("state") == "open" else 0.0
-            }
+                "circuit_breaker_open": 1.0 if cb_stats.get("state") == "open" else 0.0,
+                "memory_mb": memory_mb,
+                "cache_size_mb": cache_size_mb,
+                "cache_entries": float(len(self._response_cache))
+            },
+            custom_metrics=custom_metrics
         )
 
     def _extract_json_from_response(self, raw: str) -> JSONExtractionResult:

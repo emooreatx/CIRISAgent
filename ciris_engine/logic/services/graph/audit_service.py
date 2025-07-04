@@ -17,10 +17,19 @@ import asyncio
 import json
 import logging
 import sqlite3
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, TYPE_CHECKING, Union, Dict, Any
 from uuid import uuid4
+
+# Optional import for psutil
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    psutil = None
+    PSUTIL_AVAILABLE = False
 
 if TYPE_CHECKING:
     from ciris_engine.logic.registries.base import ServiceRegistry
@@ -125,6 +134,12 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         # Export buffer
         self._export_buffer: List[AuditRequest] = []
         self._export_task: Optional[asyncio.Task] = None
+        
+        # Memory tracking
+        self._process = psutil.Process() if PSUTIL_AVAILABLE else None
+        
+        # Track uptime
+        self._start_time: Optional[datetime] = None
 
     def set_service_registry(self, registry: object) -> None:
         """Set the service registry for accessing memory bus."""
@@ -141,6 +156,9 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
     async def start(self) -> None:
         """Start the audit service."""
         logger.info("Starting consolidated GraphAuditService")
+        
+        # Set start time
+        self._start_time = self._time_service.now()
 
         # Initialize hash chain if enabled
         if self.enable_hash_chain:
@@ -757,15 +775,38 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
 
     def get_status(self) -> ServiceStatus:
         """Get service status."""
+        uptime = 0.0
+        if self._start_time:
+            uptime = (self._time_service.now() - self._start_time).total_seconds()
+        
+        # Calculate memory usage
+        memory_mb = 0.0
+        try:
+            if self._process:
+                memory_info = self._process.memory_info()
+                memory_mb = memory_info.rss / 1024 / 1024  # Convert bytes to MB
+        except Exception as e:
+            logger.debug(f"Could not get memory info: {e}")
+        
+        # Calculate cache size
+        cache_size_mb = 0.0
+        try:
+            cache_size = sys.getsizeof(self._recent_entries) + sys.getsizeof(self._export_buffer)
+            cache_size_mb = cache_size / 1024 / 1024
+        except Exception:
+            pass
+            
         return ServiceStatus(
             service_name="GraphAuditService",
             service_type="audit",
             is_healthy=self._memory_bus is not None,
-            uptime_seconds=0.0,  # TODO: Track uptime
+            uptime_seconds=uptime,
             metrics={
                 "cached_entries": float(len(self._recent_entries)),
                 "pending_exports": float(len(self._export_buffer)),
-                "hash_chain_enabled": float(self.enable_hash_chain)
+                "hash_chain_enabled": float(self.enable_hash_chain),
+                "memory_mb": memory_mb,
+                "cache_size_mb": cache_size_mb
             }
         )
 

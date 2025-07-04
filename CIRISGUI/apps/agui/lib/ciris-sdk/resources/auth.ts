@@ -79,4 +79,28 @@ export class AuthResource extends BaseResource {
   getAccessToken(): string | null {
     return AuthStore.getAccessToken();
   }
+
+  /**
+   * Refresh authentication token
+   */
+  async refresh(): Promise<LoginResponse> {
+    try {
+      const response = await this.transport.post<LoginResponse>('/v1/auth/refresh');
+      
+      // Update stored token
+      const token: AuthToken = {
+        access_token: response.access_token,
+        token_type: response.token_type,
+        expires_in: response.expires_in,
+        user_id: response.user_id,
+        role: response.role,
+        created_at: Date.now()
+      };
+      AuthStore.saveToken(token);
+      
+      return response;
+    } catch (error) {
+      throw new CIRISAuthError(this.buildErrorMessage('refresh', (error as Error).message));
+    }
+  }
 }

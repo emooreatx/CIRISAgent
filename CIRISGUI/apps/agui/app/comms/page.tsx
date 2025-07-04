@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cirisClient } from '../../lib/ciris-sdk';
 import toast from 'react-hot-toast';
+import { StatusDot } from '../../components/Icons';
 
 export default function CommsPage() {
   const [message, setMessage] = useState('');
@@ -94,7 +95,7 @@ export default function CommsPage() {
             </h3>
             <div className="flex items-center space-x-4 text-sm">
               <span className={`flex items-center ${wsConnected ? 'text-green-600' : 'text-red-600'}`}>
-                <div className={`w-2 h-2 rounded-full mr-2 ${wsConnected ? 'bg-green-600' : 'bg-red-600'}`} />
+                <StatusDot status={wsConnected ? 'green' : 'red'} className="mr-2" />
                 {wsConnected ? 'Connected' : 'Disconnected'}
               </span>
               {status && (
@@ -130,7 +131,7 @@ export default function CommsPage() {
                         }`}
                       >
                         <div className={`text-xs mb-1 ${msg.is_agent ? 'text-gray-500' : 'text-blue-100'}`}>
-                          {msg.author || msg.author_name || (msg.is_agent ? 'CIRIS' : 'You')} • {new Date(msg.timestamp).toLocaleTimeString()}
+                          {msg.author || (msg.is_agent ? 'CIRIS' : 'You')} • {new Date(msg.timestamp).toLocaleTimeString()}
                         </div>
                         <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
                       </div>
@@ -153,19 +154,19 @@ export default function CommsPage() {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Type your message..."
-              disabled={sendMessage.isPending || status?.is_paused}
+              disabled={sendMessage.isPending}
               className="flex-1 min-w-0 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm disabled:opacity-50"
             />
             <button
               type="submit"
-              disabled={sendMessage.isPending || !message.trim() || status?.is_paused}
+              disabled={sendMessage.isPending || !message.trim()}
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {sendMessage.isPending ? 'Sending...' : 'Send'}
             </button>
           </form>
           
-          {status?.is_paused && (
+          {false && (
             <div className="mt-2 text-sm text-orange-600">
               Agent is paused. Messages cannot be sent.
             </div>

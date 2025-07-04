@@ -69,6 +69,7 @@ class TSDBConsolidationService(BaseGraphService):
 
         # Track last successful consolidation
         self._last_consolidation: Optional[datetime] = None
+        self._start_time: Optional[datetime] = None
 
     def _set_service_registry(self, registry: "ServiceRegistry") -> None:
         """Set the service registry for accessing memory bus and time service (internal method)."""
@@ -101,6 +102,7 @@ class TSDBConsolidationService(BaseGraphService):
         # Call parent start method
         await super().start()
         self._running = True
+        self._start_time = self._now()
 
         # Start the consolidation loop
         self._consolidation_task = asyncio.create_task(self._consolidation_loop())
@@ -475,17 +477,22 @@ class TSDBConsolidationService(BaseGraphService):
 
     def get_status(self) -> ServiceStatus:
         """Get service status."""
+        current_time = self._now()
+        uptime_seconds = 0.0
+        if self._start_time:
+            uptime_seconds = (current_time - self._start_time).total_seconds()
+            
         return ServiceStatus(
             service_name="TSDBConsolidationService",
             service_type="graph_service",
             is_healthy=self._running and self._memory_bus is not None,
-            uptime_seconds=0.0,  # TODO: Track uptime
+            uptime_seconds=uptime_seconds,
             metrics={
                 "last_consolidation_timestamp": self._last_consolidation.timestamp() if self._last_consolidation else 0.0,
                 "task_running": 1.0 if (self._consolidation_task and not self._consolidation_task.done()) else 0.0
             },
             last_error=None,
-            last_health_check=self._time_service.now() if self._time_service else None
+            last_health_check=current_time
         )
 
     async def _force_consolidation(self, period_start: datetime) -> Optional[TSDBSummary]:

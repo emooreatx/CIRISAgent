@@ -75,7 +75,7 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
     async def _initialize(self) -> None:
         """Initialize the runtime control service."""
         try:
-            await self._get_config_manager().initialize()
+            # Config manager is already initialized by service initializer
             logger.info("Runtime control service initialized")
         except Exception as e:
             logger.error(f"Failed to initialize runtime control service: {e}")
@@ -487,30 +487,65 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
         )
 
     async def list_adapters(self) -> List[AdapterInfo]:
-        """List all loaded adapters."""
-        if not self.adapter_manager:
-            return []
-
-        adapters_raw = await self.adapter_manager.list_adapters()
+        """List all loaded adapters including bootstrap adapters."""
         adapters_list = []
+        
+        # First, add bootstrap adapters from runtime
+        if self.runtime and hasattr(self.runtime, 'adapters'):
+            for adapter in self.runtime.adapters:
+                # Get adapter type from class name
+                adapter_type = adapter.__class__.__name__.lower().replace('platform', '').replace('adapter', '')
+                adapter_id = f"{adapter_type}_bootstrap"
+                
+                # Check if adapter has tools
+                tools = []
+                if hasattr(adapter, 'tool_service') and adapter.tool_service:
+                    try:
+                        if hasattr(adapter.tool_service, 'list_tools'):
+                            tool_names = await adapter.tool_service.list_tools()
+                            for tool_name in tool_names:
+                                tool_info = {"name": tool_name, "description": f"{tool_name} tool"}
+                                if hasattr(adapter.tool_service, 'get_tool_schema'):
+                                    schema = await adapter.tool_service.get_tool_schema(tool_name)
+                                    if schema:
+                                        tool_info["schema"] = schema.dict() if hasattr(schema, 'dict') else schema
+                                tools.append(tool_info)
+                    except Exception as e:
+                        logger.debug(f"Could not get tools from {adapter_type}: {e}")
+                
+                # Create adapter info
+                adapters_list.append(AdapterInfo(
+                    adapter_id=adapter_id,
+                    adapter_type=adapter_type,
+                    status=AdapterStatus.RUNNING,  # Bootstrap adapters are always running
+                    started_at=self._start_time,  # Use service start time
+                    messages_processed=0,  # TODO: Get actual metrics
+                    error_count=0,
+                    last_error=None,
+                    tools=tools  # Include tools information
+                ))
+        
+        # Then add adapters from adapter_manager
+        if self.adapter_manager:
+            adapters_raw = await self.adapter_manager.list_adapters()
+            for adapter_status in adapters_raw:
+                # AdapterStatus from adapter_manager already has the right fields
+                # Convert is_running to status enum
+                if adapter_status.is_running:
+                    status = AdapterStatus.RUNNING
+                else:
+                    status = AdapterStatus.STOPPED
 
-        for adapter_status in adapters_raw:
-            # AdapterStatus from adapter_manager already has the right fields
-            # Convert is_running to status enum
-            if adapter_status.is_running:
-                status = AdapterStatus.RUNNING
-            else:
-                status = AdapterStatus.STOPPED
-
-            adapters_list.append(AdapterInfo(
-                adapter_id=adapter_status.adapter_id,
-                adapter_type=adapter_status.adapter_type,
-                status=status,
-                started_at=adapter_status.loaded_at,
-                messages_processed=adapter_status.metrics.messages_processed if adapter_status.metrics else 0,
-                error_count=adapter_status.metrics.errors_count if adapter_status.metrics else 0,
-                last_error=adapter_status.metrics.last_error if adapter_status.metrics else None
-            ))
+                adapters_list.append(AdapterInfo(
+                    adapter_id=adapter_status.adapter_id,
+                    adapter_type=adapter_status.adapter_type,
+                    status=status,
+                    started_at=adapter_status.loaded_at,
+                    messages_processed=adapter_status.metrics.messages_processed if adapter_status.metrics else 0,
+                    error_count=adapter_status.metrics.errors_count if adapter_status.metrics else 0,
+                    last_error=adapter_status.metrics.last_error if adapter_status.metrics else None,
+                    tools=adapter_status.tools if hasattr(adapter_status, 'tools') else None
+                ))
 
         return adapters_list
 
@@ -767,7 +802,7 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
             logger.error(f"Failed to get service registry info: {e}")
             return {"error": str(e)}
 
-    async def _update_service_priority(
+    async def update_service_priority(
         self,
         provider_name: str,
         new_priority: str,
@@ -810,75 +845,38 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
             provider_found = False
             updated_info = {}
 
-            # Check handler-specific services
-            for handler, services in registry._providers.items():
-                for service_type, providers in services.items():
-                    for provider in providers:
-                        if provider.name == provider_name:
-                            provider_found = True
-                            old_priority = provider.priority.name
-                            old_priority_group = provider.priority_group
-                            old_strategy = provider.strategy.name
+            # Check in the main services registry
+            for service_type, providers in registry._services.items():
+                for provider in providers:
+                    if provider.name == provider_name:
+                        provider_found = True
+                        old_priority = provider.priority.name
+                        old_priority_group = provider.priority_group
+                        old_strategy = provider.strategy.name
 
-                            # Update provider attributes
-                            provider.priority = new_priority_enum
-                            if new_priority_group is not None:
-                                provider.priority_group = new_priority_group
-                            if new_strategy_enum is not None:
-                                provider.strategy = new_strategy_enum
+                        # Update provider attributes
+                        provider.priority = new_priority_enum
+                        if new_priority_group is not None:
+                            provider.priority_group = new_priority_group
+                        if new_strategy_enum is not None:
+                            provider.strategy = new_strategy_enum
 
-                            # Re-sort providers by priority
-                            providers.sort(key=lambda x: (x.priority_group, x.priority.value))
+                        # Re-sort providers by priority
+                        providers.sort(key=lambda x: (x.priority_group, x.priority.value))
 
-                            updated_info = {
-                                "handler": handler,
-                                "service_type": service_type,
-                                "old_priority": old_priority,
-                                "new_priority": provider.priority.name,
-                                "old_priority_group": old_priority_group,
-                                "new_priority_group": provider.priority_group,
-                                "old_strategy": old_strategy,
-                                "new_strategy": provider.strategy.name
-                            }
-                            break
-                    if provider_found:
+                        updated_info = {
+                            "service_type": str(service_type),
+                            "old_priority": old_priority,
+                            "new_priority": provider.priority.name,
+                            "old_priority_group": old_priority_group,
+                            "new_priority_group": provider.priority_group,
+                            "old_strategy": old_strategy,
+                            "new_strategy": provider.strategy.name
+                        }
                         break
                 if provider_found:
                     break
 
-            # If not found in handler-specific, check global services
-            if not provider_found:
-                for service_type, providers in registry._global_services.items():
-                    for provider in providers:
-                        if provider.name == provider_name:
-                            provider_found = True
-                            old_priority = provider.priority.name
-                            old_priority_group = provider.priority_group
-                            old_strategy = provider.strategy.name
-
-                            # Update provider attributes
-                            provider.priority = new_priority_enum
-                            if new_priority_group is not None:
-                                provider.priority_group = new_priority_group
-                            if new_strategy_enum is not None:
-                                provider.strategy = new_strategy_enum
-
-                            # Re-sort providers by priority
-                            providers.sort(key=lambda x: (x.priority_group, x.priority.value))
-
-                            updated_info = {
-                                "handler": "global",
-                                "service_type": service_type,
-                                "old_priority": old_priority,
-                                "new_priority": provider.priority.name,
-                                "old_priority_group": old_priority_group,
-                                "new_priority_group": provider.priority_group,
-                                "old_strategy": old_strategy,
-                                "new_strategy": provider.strategy.name
-                            }
-                            break
-                    if provider_found:
-                        break
 
             if not provider_found:
                 return {
@@ -917,7 +915,7 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
             )
             return {"success": False, "error": str(e)}
 
-    async def _reset_circuit_breakers(self, service_type: Optional[str] = None) -> CircuitBreakerResetResult:
+    async def reset_circuit_breakers(self, service_type: Optional[str] = None) -> CircuitBreakerResetResult:
         """Reset circuit breakers for services."""
         try:
             if not self.runtime or not hasattr(self.runtime, 'service_registry') or self.runtime.service_registry is None:
@@ -938,27 +936,107 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
             await self._record_event("service_management", "reset_circuit_breakers", False, error=str(e))
             return {"success": False, "error": str(e)}
 
+    async def get_service_selection_explanation(self) -> ServiceSelectionExplanation:
+        """Get explanation of service selection logic."""
+        try:
+            from ciris_engine.logic.registries.base import Priority, SelectionStrategy
+            
+            explanation = ServiceSelectionExplanation(
+                overview="CIRIS uses a sophisticated multi-level service selection system with priority groups, priorities, and selection strategies.",
+                priority_groups={
+                    0: "Primary services - tried first",
+                    1: "Secondary/backup services - used when primary unavailable", 
+                    2: "Tertiary/fallback services - last resort (e.g., mock providers)"
+                },
+                priorities={
+                    "CRITICAL": {"value": 0, "description": "Highest priority - always tried first within a group"},
+                    "HIGH": {"value": 1, "description": "High priority services"},
+                    "NORMAL": {"value": 2, "description": "Standard priority (default)"},
+                    "LOW": {"value": 3, "description": "Low priority services"},
+                    "FALLBACK": {"value": 9, "description": "Last resort services within a group"}
+                },
+                selection_strategies={
+                    "FALLBACK": "First available strategy - try services in priority order until one succeeds",
+                    "ROUND_ROBIN": "Load balancing - rotate through services to distribute load"
+                },
+                selection_flow=[
+                    "1. Group services by priority_group (0, 1, 2...)",
+                    "2. Within each group, sort by Priority (CRITICAL, HIGH, NORMAL, LOW, FALLBACK)",
+                    "3. Apply the group's selection strategy (FALLBACK or ROUND_ROBIN)",
+                    "4. Check if service is healthy (if health check available)",
+                    "5. Check if circuit breaker is closed (not tripped)",
+                    "6. Verify service has required capabilities",
+                    "7. If all checks pass, use the service",
+                    "8. If service fails, try next according to strategy",
+                    "9. If all services in group fail, try next group"
+                ],
+                circuit_breaker_info={
+                    "purpose": "Prevents repeated calls to failing services",
+                    "states": {
+                        "CLOSED": "Normal operation - service is available",
+                        "OPEN": "Service is unavailable - too many recent failures",
+                        "HALF_OPEN": "Testing if service has recovered"
+                    },
+                    "configuration": "Configurable failure threshold, timeout, and half-open test interval"
+                },
+                examples=[
+                    {
+                        "scenario": "LLM Service Selection",
+                        "setup": "3 LLM providers: OpenAI (group 0, HIGH), Anthropic (group 0, NORMAL), MockLLM (group 1, NORMAL)",
+                        "result": "System tries OpenAI first, then Anthropic, then MockLLM only if both group 0 providers fail"
+                    },
+                    {
+                        "scenario": "Round Robin Load Balancing",
+                        "setup": "2 Memory providers in group 0 with ROUND_ROBIN strategy",
+                        "result": "Requests alternate between the two providers to distribute load"
+                    }
+                ],
+                configuration_tips=[
+                    "Use priority groups to separate production services (group 0) from fallback services (group 1+)",
+                    "Set CRITICAL priority for essential services that should always be tried first",
+                    "Use ROUND_ROBIN strategy for stateless services to distribute load",
+                    "Configure circuit breakers with appropriate thresholds based on service reliability",
+                    "Place mock/test services in higher priority groups (2+) to ensure they're only used as last resort"
+                ]
+            )
+            
+            await self._record_event("service_query", "get_selection_explanation", success=True)
+            return explanation
+            
+        except Exception as e:
+            logger.error(f"Failed to get service selection explanation: {e}")
+            await self._record_event("service_query", "get_selection_explanation", success=False, error=str(e))
+            # Return a minimal explanation on error
+            return ServiceSelectionExplanation(
+                overview="Error retrieving service selection explanation",
+                priority_groups={},
+                priorities={},
+                selection_strategies={},
+                selection_flow=[],
+                circuit_breaker_info={},
+                examples=[],
+                configuration_tips=[]
+            )
+
     async def get_service_health_status(self) -> ServiceHealthStatus:
         """Get health status of all registered services."""
         try:
             if not self.runtime or not hasattr(self.runtime, 'service_registry') or self.runtime.service_registry is None:
                 return ServiceHealthStatus(
                     overall_health="critical",
-                    healthy_services=[],
-                    unhealthy_services=["error: Service registry not available"],
+                    healthy_services=0,
+                    unhealthy_services=0,
                     service_details={},
-                    recommendations=["Check runtime initialization"]
+                    recommendations=["Service registry not available - check runtime initialization"]
                 )
 
             registry_info = self.runtime.service_registry.get_provider_info()
-            health_status = ServiceHealthReport(
-                overall_health="healthy",
-                healthy_services=0,
-                unhealthy_services=0,
-                services={},
-                system_load=0.0,
-                memory_percent=0.0
-            )
+            
+            healthy_count = 0
+            unhealthy_count = 0
+            service_details = {}
+            unhealthy_services_list = []
+            healthy_services_list = []
 
             for handler, services in registry_info.get("handlers", {}).items():
                 for service_type, providers in services.items():
@@ -967,18 +1045,20 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
                         cb_state = provider.get('circuit_breaker_state', 'closed')
                         is_healthy = cb_state == 'closed'
 
-                        health_status["services"][service_key] = {
+                        service_details[service_key] = {
                             "healthy": is_healthy,
                             "circuit_breaker_state": cb_state,
                             "priority": provider['priority'],
                             "priority_group": provider['priority_group'],
                             "strategy": provider['strategy']
                         }
-                        health_status["total_services"] += 1
+                        
                         if is_healthy:
-                            health_status["healthy_services"] += 1
+                            healthy_count += 1
+                            healthy_services_list.append(service_key)
                         else:
-                            health_status["unhealthy_services"] += 1
+                            unhealthy_count += 1
+                            unhealthy_services_list.append(service_key)
 
             for service_type, providers in registry_info.get("global_services", {}).items():
                 for provider in providers:
@@ -986,30 +1066,53 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
                     cb_state = provider.get('circuit_breaker_state', 'closed')
                     is_healthy = cb_state == 'closed'
 
-                    health_status["services"][service_key] = {
+                    service_details[service_key] = {
                         "healthy": is_healthy,
                         "circuit_breaker_state": cb_state,
                         "priority": provider['priority'],
                         "priority_group": provider['priority_group'],
                         "strategy": provider['strategy']
                     }
-                    health_status["total_services"] += 1
+                    
                     if is_healthy:
-                        health_status["healthy_services"] += 1
+                        healthy_count += 1
+                        healthy_services_list.append(service_key)
                     else:
-                        health_status["unhealthy_services"] += 1
+                        unhealthy_count += 1
+                        unhealthy_services_list.append(service_key)
 
-            if health_status["unhealthy_services"] > 0:
-                if health_status["unhealthy_services"] > health_status["healthy_services"]:
-                    health_status["overall_health"] = "unhealthy"
+            # Determine overall health
+            overall_health = "healthy"
+            recommendations = []
+            
+            if unhealthy_count > 0:
+                if unhealthy_count > healthy_count:
+                    overall_health = "unhealthy"
+                    recommendations.append("Critical: More unhealthy services than healthy ones")
                 else:
-                    health_status["overall_health"] = "degraded"
-
-            return health_status
+                    overall_health = "degraded"
+                    recommendations.append(f"Warning: {unhealthy_count} services are unhealthy")
+                    
+                recommendations.append("Consider resetting circuit breakers for failed services")
+                recommendations.append("Check service logs for error details")
+            
+            return ServiceHealthStatus(
+                overall_health=overall_health,
+                healthy_services=healthy_count,
+                unhealthy_services=unhealthy_count,
+                service_details=service_details,
+                recommendations=recommendations
+            )
 
         except Exception as e:
             logger.error(f"Failed to get service health status: {e}")
-            return {"error": str(e)}
+            return ServiceHealthStatus(
+                overall_health="critical",
+                healthy_services=0,
+                unhealthy_services=0,
+                service_details={},
+                recommendations=[f"Critical error while checking service health: {str(e)}"]
+            )
 
     async def _get_service_selection_explanation(self) -> ServiceSelectionExplanation:
         """Get explanation of how service selection works with priorities and strategies."""

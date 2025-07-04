@@ -52,6 +52,9 @@ class TelemetryServiceStatus(BaseModel):
     metric_types: List[str] = Field(default_factory=list, description="Types of metrics being tracked")
     memory_bus_available: bool = Field(False, description="Whether memory bus is available")
     last_consolidation: Optional[datetime] = Field(None, description="Last consolidation time")
+    memory_mb: float = Field(0.0, description="Memory usage in MB")
+    cache_size_mb: float = Field(0.0, description="Size of cached data in MB")
+    custom_metrics: Optional[Dict[str, float]] = Field(None, description="Additional custom metrics")
 
 class GraphQuery(BaseModel):
     """Query parameters for graph operations."""

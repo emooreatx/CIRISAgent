@@ -457,7 +457,11 @@ async def get_services_status(
                             metrics.error_count = m.get('error_count')
                             metrics.avg_response_time_ms = m.get('avg_response_time_ms')
                             metrics.memory_mb = m.get('memory_mb')
-                            metrics.custom_metrics = m
+                            # Use status.custom_metrics if available, otherwise use metrics dict
+                            if hasattr(status, 'custom_metrics') and status.custom_metrics:
+                                metrics.custom_metrics = status.custom_metrics
+                            else:
+                                metrics.custom_metrics = m
                         else:
                             metrics = m
 
@@ -627,7 +631,7 @@ async def list_adapters(
     Returns information about all currently loaded adapter instances
     including their type, status, and basic metrics.
     """
-    runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
     
@@ -638,14 +642,31 @@ async def list_adapters(
         # Convert to response format
         adapter_statuses = []
         for adapter in adapters:
+            # Convert AdapterInfo to AdapterStatusSchema
+            config = AdapterConfig(
+                adapter_type=adapter.adapter_type,
+                enabled=adapter.status == "RUNNING",
+                settings={}
+            )
+            
+            metrics = None
+            if adapter.messages_processed > 0 or adapter.error_count > 0:
+                metrics = AdapterMetrics(
+                    messages_processed=adapter.messages_processed,
+                    errors_count=adapter.error_count,
+                    uptime_seconds=(datetime.now(timezone.utc) - adapter.started_at).total_seconds() if adapter.started_at else 0,
+                    last_error=adapter.last_error
+                )
+            
             adapter_statuses.append(AdapterStatusSchema(
                 adapter_id=adapter.adapter_id,
                 adapter_type=adapter.adapter_type,
-                is_running=adapter.is_running,
-                loaded_at=adapter.loaded_at,
-                services_registered=adapter.services_registered,
-                config_params=adapter.config_params,
-                metrics=adapter.metrics
+                is_running=adapter.status == "RUNNING",
+                loaded_at=adapter.started_at or datetime.now(timezone.utc),
+                services_registered=[],  # Not available from AdapterInfo
+                config_params=config,
+                metrics=metrics,
+                tools=adapter.tools  # Include tools information
             ))
         
         running_count = sum(1 for a in adapter_statuses if a.is_running)
@@ -675,7 +696,7 @@ async def get_adapter_status(
     Returns comprehensive information about an adapter instance
     including configuration, metrics, and service registrations.
     """
-    runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
     
@@ -703,7 +724,8 @@ async def get_adapter_status(
                 errors_count=adapter_info.error_count,
                 uptime_seconds=(datetime.now(timezone.utc) - adapter_info.started_at).total_seconds() if adapter_info.started_at else 0,
                 last_error=adapter_info.last_error
-            ) if adapter_info.messages_processed > 0 or adapter_info.error_count > 0 else None
+            ) if adapter_info.messages_processed > 0 or adapter_info.error_count > 0 else None,
+            tools=adapter_info.tools  # Include tools information
         )
         
         return SuccessResponse(data=status)
@@ -730,7 +752,7 @@ async def load_adapter(
     
     Adapter types: cli, api, discord
     """
-    runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
     
@@ -777,7 +799,7 @@ async def unload_adapter(
     Will fail if it's the last communication-capable adapter.
     Requires ADMIN role.
     """
-    runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
     
@@ -819,7 +841,7 @@ async def reload_adapter(
     Useful for applying configuration changes without full restart.
     Requires ADMIN role.
     """
-    runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
     

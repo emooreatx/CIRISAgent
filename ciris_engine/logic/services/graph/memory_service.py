@@ -5,6 +5,14 @@ import json
 from datetime import datetime, timedelta
 from uuid import uuid4
 
+# Optional import for psutil
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    psutil = None
+    PSUTIL_AVAILABLE = False
+
 from ciris_engine.logic.config import get_sqlite_db_full_path
 from ciris_engine.logic.persistence import initialize_database, get_db_connection
 
@@ -45,6 +53,13 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
         self._time_service = time_service
         self.secrets_service = secrets_service  # Must be provided, not created here
         self._start_time: Optional[datetime] = None
+        if PSUTIL_AVAILABLE:
+            try:
+                self._process = psutil.Process()  # For memory tracking
+            except Exception:
+                self._process = None  # Failed to create process object
+        else:
+            self._process = None  # psutil not available
 
     async def memorize(self, node: GraphNode) -> MemoryOpResult:
         """Store a node with automatic secrets detection and processing."""
@@ -589,6 +604,26 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
         if self._time_service and self._start_time:
             uptime_seconds = (self._time_service.now() - self._start_time).total_seconds()
 
+        # Calculate memory usage
+        memory_mb = 0.0
+        try:
+            if self._process:
+                memory_info = self._process.memory_info()
+                memory_mb = memory_info.rss / 1024 / 1024  # Convert bytes to MB
+        except Exception as e:
+            logger.debug(f"Could not get memory info: {e}")
+        
+        # Count graph nodes for metrics
+        node_count = 0
+        try:
+            with get_db_connection(db_path=self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM graph_nodes")
+                result = cursor.fetchone()
+                node_count = result[0] if result else 0
+        except Exception:
+            pass
+        
         return ServiceStatus(
             service_name="MemoryService",
             service_type="graph_service",
@@ -596,7 +631,8 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
             uptime_seconds=uptime_seconds,
             metrics={
                 "secrets_enabled": 1.0 if self.secrets_service else 0.0,
-                "db_path_length": float(len(str(self.db_path)))
+                "memory_mb": memory_mb,
+                "graph_node_count": float(node_count)
             },
             last_error=None,
             last_health_check=self._time_service.now() if self._time_service else None

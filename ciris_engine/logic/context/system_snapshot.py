@@ -365,14 +365,17 @@ async def build_system_snapshot(
         except Exception as e:
             logger.warning(f"Failed to get available tools: {e}")
 
+    # Get queue status using centralized function
+    queue_status = persistence.get_queue_status()
+    
     context_data = {
         "current_task_details": current_task_summary,
         "current_thought_summary": thought_summary,
         "system_counts": {
-            "total_tasks": persistence.count_tasks(),
-            "total_thoughts": persistence.count_thoughts(),
-            "pending_tasks": persistence.count_tasks(TaskStatus.PENDING),
-            "pending_thoughts": persistence.count_thoughts(),
+            "total_tasks": queue_status.total_tasks,
+            "total_thoughts": queue_status.total_thoughts,
+            "pending_tasks": queue_status.pending_tasks,
+            "pending_thoughts": queue_status.pending_thoughts + queue_status.processing_thoughts,
         },
         "top_pending_tasks_summary": top_tasks_list,
         "recently_completed_tasks_summary": recent_tasks_list,

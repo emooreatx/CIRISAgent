@@ -220,3 +220,55 @@ export interface EmergencyShutdownResponse {
   initiated_at: string;
   services_stopped: number;
 }
+
+// Extended System Types
+export interface ProcessorQueueStatus {
+  processor_name: string;
+  queue_size: number;
+  max_size: number;
+  processing_rate?: number;
+  average_latency_ms?: number;
+  oldest_message_age_seconds?: number;
+}
+
+export interface RuntimeControlExtendedResponse {
+  success: boolean;
+  message: string;
+  processor_state: string;
+  cognitive_state?: string;
+  queue_depth: number;
+}
+
+export interface ServiceHealthStatus {
+  overall_health: string;
+  healthy_services: string[];
+  unhealthy_services: string[];
+  service_details: Record<string, any>;
+  recommendations: string[];
+}
+
+export interface ServicePriorityUpdateRequest {
+  priority: string;
+  priority_group?: number;
+  strategy?: string;
+}
+
+export interface CircuitBreakerResetRequest {
+  service_type?: string;
+}
+
+export interface ServiceSelectionExplanation {
+  overview: string;
+  priority_groups: Record<string, string>;
+  priorities: Record<string, any>;
+  selection_strategies: Record<string, any>;
+  selection_flow: string[];
+  circuit_breaker_info: Record<string, any>;
+}
+
+export interface ProcessorStateInfo {
+  name: string;
+  is_active: boolean;
+  description: string;
+  capabilities: string[];
+}
