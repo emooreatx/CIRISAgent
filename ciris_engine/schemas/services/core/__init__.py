@@ -26,6 +26,7 @@ class ServiceStatus(BaseModel):
     uptime_seconds: float = Field(..., description="Service uptime in seconds")
     last_error: Optional[str] = Field(None, description="Last error if any")
     metrics: Dict[str, float] = Field(default_factory=dict, description="Service-specific metrics")
+    custom_metrics: Optional[Dict[str, float]] = Field(None, description="Additional custom metrics")
     last_health_check: Optional[datetime] = Field(None, description="Last health check time")
 
 class ServiceContainer(BaseModel):

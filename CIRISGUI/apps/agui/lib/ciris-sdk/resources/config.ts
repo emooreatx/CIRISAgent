@@ -89,33 +89,4 @@ export class ConfigResource extends BaseResource {
     return this.updateAll(config);
   }
 
-  /**
-   * Backup current configuration
-   */
-  async backupConfig(): Promise<{
-    success: boolean;
-    backup_id: string;
-    message: string;
-  }> {
-    // This would need a real endpoint
-    return Promise.resolve({
-      success: true,
-      backup_id: `backup_${Date.now()}`,
-      message: 'Configuration backed up'
-    });
-  }
-
-  /**
-   * Restore configuration from backup
-   */
-  async restoreConfig(backupId: string): Promise<{
-    success: boolean;
-    message: string;
-  }> {
-    // This would need a real endpoint
-    return Promise.resolve({
-      success: true,
-      message: `Configuration restored from ${backupId}`
-    });
-  }
 }

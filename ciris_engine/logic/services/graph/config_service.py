@@ -5,7 +5,16 @@ All configuration is stored as memories in the graph, with full history tracking
 This replaces the old config_manager_service and agent_config_service.
 """
 import logging
+from datetime import datetime
 from typing import Dict, List, Optional, Union
+
+# Optional import for psutil
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    psutil = None
+    PSUTIL_AVAILABLE = False
 
 from ciris_engine.protocols.services.graph.config import GraphConfigServiceProtocol
 from ciris_engine.protocols.runtime.base import ServiceProtocol
@@ -24,10 +33,14 @@ class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
         self.graph = graph_memory_service
         self._running = False
         self._time_service = time_service
+        self._start_time: Optional[datetime] = None
+        self._process = psutil.Process() if PSUTIL_AVAILABLE else None  # For memory tracking
+        self._config_cache: Dict[str, ConfigNode] = {}  # Cache for config nodes
 
     async def start(self) -> None:
         """Start the service."""
         self._running = True
+        self._start_time = self._time_service.now()
 
     async def stop(self) -> None:
         """Stop the service."""
@@ -49,13 +62,27 @@ class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
 
     def get_status(self) -> ServiceStatus:
         """Get service status."""
+        uptime = 0.0
+        if self._start_time:
+            uptime = (self._time_service.now() - self._start_time).total_seconds()
+        
+        # Calculate memory usage
+        memory_mb = 0.0
+        try:
+            if self._process:
+                memory_info = self._process.memory_info()
+                memory_mb = memory_info.rss / 1024 / 1024  # Convert bytes to MB
+        except Exception as e:
+            logger.debug(f"Could not get memory info: {e}")
+            
         return ServiceStatus(
             service_name="GraphConfigService",
             service_type="graph_service",
             is_healthy=self._running,
-            uptime_seconds=0.0,  # TODO: Track uptime
+            uptime_seconds=uptime,
             metrics={
-                "total_configs": 0  # TODO: Track configs
+                "total_configs": float(len(self._config_cache)),
+                "memory_mb": memory_mb
             }
         )
 

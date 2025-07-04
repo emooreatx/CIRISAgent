@@ -16,6 +16,7 @@ from ciris_engine.schemas.services.core.runtime import (
     RuntimeStateSnapshot,
     ConfigSnapshot,
     ServiceHealthStatus,
+    ServiceSelectionExplanation,
     RuntimeEvent
 )
 from ciris_engine.schemas.services.shutdown import (
@@ -164,6 +165,32 @@ class RuntimeControlServiceProtocol(ServiceProtocol, Protocol):
     @abstractmethod
     def get_events_history(self, limit: int = 100) -> List[RuntimeEvent]:
         """Get recent runtime events for audit/debugging."""
+        ...
+
+    # ========== Service Management ==========
+
+    @abstractmethod
+    async def update_service_priority(
+        self,
+        provider_name: str,
+        new_priority: str,
+        new_priority_group: Optional[int] = None,
+        new_strategy: Optional[str] = None
+    ) -> Dict:
+        """Update service provider priority and selection strategy."""
+        ...
+
+    @abstractmethod
+    async def reset_circuit_breakers(
+        self,
+        service_type: Optional[str] = None
+    ) -> Dict:
+        """Reset circuit breakers for services."""
+        ...
+
+    @abstractmethod
+    async def get_service_selection_explanation(self) -> ServiceSelectionExplanation:
+        """Get explanation of service selection logic."""
         ...
 
     # ========== Emergency Operations ==========

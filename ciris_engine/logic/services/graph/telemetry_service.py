@@ -14,6 +14,15 @@ from typing import Dict, List, Optional, Tuple, Union, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from enum import Enum
+import sys
+
+# Optional import for psutil
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    psutil = None
+    PSUTIL_AVAILABLE = False
 
 from ciris_engine.protocols.services import GraphServiceProtocol as TelemetryServiceProtocol
 from ciris_engine.protocols.runtime.base import ServiceProtocol
@@ -94,6 +103,9 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         # Cache for telemetry summaries to avoid slamming persistence
         self._summary_cache: Dict[str, Tuple[datetime, TelemetrySummary]] = {}
         self._summary_cache_ttl_seconds = 60  # Cache for 1 minute
+        
+        # Memory tracking
+        self._process = psutil.Process() if PSUTIL_AVAILABLE else None
 
         # Consolidation settings
 
@@ -638,12 +650,59 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
 
     def get_status(self) -> TelemetryServiceStatus:
         """Get service status."""
+        # Calculate memory usage
+        memory_mb = 0.0
+        try:
+            if self._process:
+                memory_info = self._process.memory_info()
+                memory_mb = memory_info.rss / 1024 / 1024  # Convert bytes to MB
+        except Exception as e:
+            logger.debug(f"Could not get memory info: {e}")
+        
+        # Calculate cache size
+        cache_size_mb = 0.0
+        try:
+            # Estimate size of cached metrics
+            cache_size = sys.getsizeof(self._recent_metrics) + sys.getsizeof(self._summary_cache)
+            cache_size_mb = cache_size / 1024 / 1024
+        except Exception:
+            pass
+        
+        # Calculate metrics statistics
+        total_metrics_stored = sum(len(metrics) for metrics in self._recent_metrics.values())
+        unique_metric_types = len(self._recent_metrics.keys())
+        
+        # Get recent metric activity
+        recent_metrics_per_minute = 0.0
+        if self._recent_metrics:
+            # Count metrics from last minute
+            now = self._now()
+            one_minute_ago = now - timedelta(minutes=1)
+            for metric_list in self._recent_metrics.values():
+                for metric in metric_list:
+                    if metric.timestamp >= one_minute_ago:
+                        recent_metrics_per_minute += 1.0
+        
+        # Build custom metrics
+        custom_metrics = {
+            "total_metrics_cached": float(total_metrics_stored),
+            "unique_metric_types": float(unique_metric_types),
+            "summary_cache_entries": float(len(self._summary_cache)),
+            "metrics_per_minute": recent_metrics_per_minute,
+            "memory_mb": memory_mb,
+            "cache_size_mb": cache_size_mb,
+            "max_cached_metrics_per_type": float(self._max_cached_metrics)
+        }
+        
         return TelemetryServiceStatus(
             healthy=self._memory_bus is not None,
-            cached_metrics=sum(len(metrics) for metrics in self._recent_metrics.values()),
+            cached_metrics=total_metrics_stored,
             metric_types=list(self._recent_metrics.keys()),
             memory_bus_available=self._memory_bus is not None,
-            last_consolidation=None  # Consolidation handled by TSDBConsolidationService
+            last_consolidation=None,  # Consolidation handled by TSDBConsolidationService
+            memory_mb=memory_mb,
+            cache_size_mb=cache_size_mb,
+            custom_metrics=custom_metrics
         )
 
     async def store_in_graph(self, node: GraphNode) -> str:

@@ -29,9 +29,11 @@ class SecretsToolService(ToolService):
         self.secrets_service = secrets_service
         self.time_service = time_service
         self.adapter_name = "secrets"
+        self._start_time: Optional[datetime] = None
 
     async def start(self) -> None:
         """Start the service."""
+        self._start_time = self.time_service.now()
         logger.info("SecretsToolService started")
 
     async def stop(self) -> None:
@@ -294,13 +296,18 @@ class SecretsToolService(ToolService):
 
     def get_status(self) -> ServiceStatus:
         """Get current service status."""
+        uptime_seconds = 0.0
+        if self._start_time:
+            uptime_seconds = (self.time_service.now() - self._start_time).total_seconds()
+        
         return ServiceStatus(
             service_name="SecretsToolService",
             service_type="tool_service",
             is_healthy=True,
-            uptime_seconds=0.0,  # We don't track uptime for this service
+            uptime_seconds=uptime_seconds,
             last_error=None,
             metrics={
                 "available_tools": 3
-            }
+            },
+            last_health_check=self.time_service.now()
         )

@@ -164,9 +164,15 @@ class ApiPlatform(Service):
             self.app.state.service_registry = runtime.service_registry
             logger.info("Injected service_registry")
         
-        # Inject the main runtime control service from service initializer
-        self.app.state.runtime_control_service = runtime.runtime_control_service
-        logger.info("Injected runtime_control_service from runtime")
+        # Inject both runtime control services
+        # Main runtime control service for adapter/tool management
+        if hasattr(runtime, 'runtime_control_service') and runtime.runtime_control_service is not None:
+            self.app.state.main_runtime_control_service = runtime.runtime_control_service
+            logger.info("Injected main runtime_control_service from runtime")
+        
+        # API's runtime control service (which accepts reason parameter for pause/resume)
+        self.app.state.runtime_control_service = self.runtime_control
+        logger.info("Injected API runtime_control_service")
         
         # Inject communication service created by adapter
         self.app.state.communication_service = self.communication

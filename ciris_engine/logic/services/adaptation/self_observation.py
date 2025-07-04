@@ -114,6 +114,8 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
         self._emergency_stop = False
         self._consecutive_failures = 0
         self._max_failures = 3
+        self._start_time = None
+        self._pattern_history = []  # Add missing attribute for tracking pattern history
 
     def _set_service_registry(self, registry: "ServiceRegistry") -> None:
         """Set the service registry and initialize component services."""
@@ -415,7 +417,8 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
             await self._pattern_loop.start()
         if self._telemetry_service:
             await self._telemetry_service.start()
-
+        
+        self._start_time = self._time_service.now()
         logger.info("SelfObservationService started - enabling autonomous observation and learning")
 
     async def stop(self) -> None:
@@ -469,11 +472,16 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
 
     def get_status(self) -> ServiceStatus:
         """Get current service status."""
+        current_time = self._time_service.now()
+        uptime_seconds = 0.0
+        if self._start_time:
+            uptime_seconds = (current_time - self._start_time).total_seconds()
+            
         return ServiceStatus(
             service_name="SelfObservationService",
             service_type="SPECIAL",
             is_healthy=not self._emergency_stop and self._consecutive_failures < self._max_failures,
-            uptime_seconds=0.0,  # Would need to track start time
+            uptime_seconds=uptime_seconds,
             last_error=None,
             metrics={
                 "adaptation_count": float(len(self._adaptation_history)),
@@ -481,7 +489,7 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
                 "emergency_stop": float(self._emergency_stop),
                 "changes_since_last_adaptation": float(sum(c.changes_applied for c in self._adaptation_history[-1:]) if self._adaptation_history else 0)
             },
-            last_health_check=self._time_service.now()
+            last_health_check=current_time
         )
 
     # ========== New Protocol Methods for 1000-Year Operation ==========

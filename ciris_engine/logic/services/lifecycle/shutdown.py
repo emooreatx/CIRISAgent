@@ -6,6 +6,7 @@ This replaces the shutdown_manager.py utility with a proper service.
 """
 import asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Awaitable, Callable, List, Optional
 from threading import Lock
 
@@ -27,10 +28,12 @@ class ShutdownService(ShutdownServiceProtocol, ServiceProtocol):
         self._lock = Lock()
         self._shutdown_event: Optional[asyncio.Event] = None
         self._running = False
+        self._start_time: Optional[datetime] = None
 
     async def start(self) -> None:
         """Start the service."""
         self._running = True
+        self._start_time = datetime.now(timezone.utc)
         try:
             # Create shutdown event if in async context
             self._shutdown_event = asyncio.Event()
@@ -64,11 +67,15 @@ class ShutdownService(ShutdownServiceProtocol, ServiceProtocol):
         with self._lock:
             handler_count = len(self._shutdown_handlers) + len(self._async_shutdown_handlers)
 
+        uptime = 0.0
+        if self._start_time:
+            uptime = (datetime.now(timezone.utc) - self._start_time).total_seconds()
+
         return ServiceStatus(
             service_name="ShutdownService",
             service_type="core_service",
             is_healthy=self._running,
-            uptime_seconds=0.0,  # Not tracked for this service
+            uptime_seconds=uptime,
             metrics={
                 "shutdown_requested": float(self._shutdown_requested),
                 "registered_handlers": float(handler_count)

@@ -19,9 +19,18 @@ class APICommunicationService(CommunicationServiceProtocol):
         self._response_queue: asyncio.Queue = asyncio.Queue()
         self._websocket_clients: Dict[str, Any] = {}
         self._is_started = False
+        
+        # Metrics tracking
+        self._requests_handled = 0
+        self._error_count = 0
+        self._response_times: List[float] = []  # Track last N response times
+        self._max_response_times = 100  # Keep last 100 response times
+        self._start_time: Optional[datetime] = None
+        self._time_service: Optional[Any] = None  # Will be injected from adapter
     
     async def send_message(self, channel_id: str, content: str) -> bool:
         """Send message through API response or WebSocket."""
+        start_time = datetime.now(timezone.utc)
         try:
             # Create a "speak" correlation for this outgoing message
             from ciris_engine.logic import persistence
@@ -101,10 +110,18 @@ class APICommunicationService(CommunicationServiceProtocol):
                 except Exception as e:
                     logger.debug(f"Could not notify interact response: {e}")
             
+            # Track successful request
+            self._requests_handled += 1
+            elapsed_ms = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+            self._response_times.append(elapsed_ms)
+            if len(self._response_times) > self._max_response_times:
+                self._response_times = self._response_times[-self._max_response_times:]
+            
             return True
             
         except Exception as e:
             logger.error(f"Failed to send message: {e}")
+            self._error_count += 1
             return False
     
     async def get_response(self, timeout: float = 30.0) -> Optional[Any]:
@@ -264,6 +281,7 @@ class APICommunicationService(CommunicationServiceProtocol):
     async def start(self) -> None:
         """Start the communication service."""
         self._is_started = True
+        self._start_time = datetime.now(timezone.utc) if not self._time_service else self._time_service.now()
         logger.info("API communication service started")
     
     async def stop(self) -> None:
@@ -281,23 +299,55 @@ class APICommunicationService(CommunicationServiceProtocol):
         """Check if the service is healthy."""
         return self._is_started
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> "ServiceStatus":
         """Get the service status."""
-        return {
-            "service": "APICommunicationService",
-            "started": self._is_started,
-            "queued_responses": self._response_queue.qsize(),
-            "websocket_clients": len(self._websocket_clients)
-        }
+        from ciris_engine.schemas.services.core import ServiceStatus
+        
+        # Calculate uptime
+        uptime_seconds = 0.0
+        if self._start_time:
+            current_time = datetime.now(timezone.utc) if not self._time_service else self._time_service.now()
+            uptime_seconds = (current_time - self._start_time).total_seconds()
+        
+        # Calculate average response time
+        avg_response_time = 0.0
+        if self._response_times:
+            avg_response_time = sum(self._response_times) / len(self._response_times)
+        
+        return ServiceStatus(
+            service_name="APICommunicationService",
+            service_type="communication",
+            is_healthy=self._is_started,
+            uptime_seconds=uptime_seconds,
+            last_error=None,  # Could track last error message
+            metrics={
+                "requests_handled": float(self._requests_handled),
+                "error_count": float(self._error_count),
+                "avg_response_time_ms": avg_response_time,
+                "queued_responses": float(self._response_queue.qsize()),
+                "websocket_clients": float(len(self._websocket_clients))
+            }
+        )
     
-    def get_capabilities(self) -> Dict[str, Any]:
+    def get_capabilities(self) -> "ServiceCapabilities":
         """Get the service capabilities."""
-        return {
-            "service": "APICommunicationService",
-            "capabilities": {
+        from ciris_engine.schemas.services.core import ServiceCapabilities
+        
+        return ServiceCapabilities(
+            service_name="APICommunicationService",
+            actions=[
+                "send_message",
+                "fetch_messages",
+                "broadcast",
+                "get_response",
+                "register_websocket",
+                "unregister_websocket"
+            ],
+            version="1.0.0",
+            metadata={
                 "http_responses": True,
                 "websocket_broadcast": True,
                 "message_queueing": True,
                 "channel_based_routing": True
             }
-        }
+        )

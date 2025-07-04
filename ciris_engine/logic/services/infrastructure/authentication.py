@@ -72,6 +72,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
 
         # Track service state
         self._started = False
+        self._start_time = None
 
     @staticmethod
     def _encode_public_key(pubkey_bytes: bytes) -> str:
@@ -1210,35 +1211,73 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
         """Get current service status."""
         from ciris_engine.schemas.services.core import ServiceStatus
 
-        # Count certificates
+        # Count certificates by type
         cert_count = 0
+        role_counts = {"OBSERVER": 0, "USER": 0, "ADMIN": 0, "AUTHORITY": 0, "ROOT": 0}
+        revoked_count = 0
+        
         try:
             with sqlite3.connect(self.db_path) as conn:
+                # Active certificates
                 cursor = conn.execute("SELECT COUNT(*) FROM wa_cert WHERE active = 1")
                 cert_count = cursor.fetchone()[0]
+                
+                # Count by role
+                cursor = conn.execute("SELECT role, COUNT(*) FROM wa_cert WHERE active = 1 GROUP BY role")
+                for role, count in cursor.fetchall():
+                    if role in role_counts:
+                        role_counts[role] = count
+                
+                # Revoked certificates
+                cursor = conn.execute("SELECT COUNT(*) FROM wa_cert WHERE active = 0")
+                revoked_count = cursor.fetchone()[0]
+                
         except Exception as e:
             logger.warning(f"Authentication service health check failed: {type(e).__name__}: {str(e)} - Unable to access auth database")
-            # Return appropriate fallback
-            cert_count = 0
 
+        current_time = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
+        uptime_seconds = 0.0
+        if self._start_time:
+            uptime_seconds = (current_time - self._start_time).total_seconds()
+        
+        # Calculate token cache stats
+        auth_context_cached = len(self._token_cache)
+        channel_tokens_cached = len(self._channel_token_cache)
+        
+        # Build custom metrics
+        custom_metrics = {
+            "active_certificates": float(cert_count),
+            "revoked_certificates": float(revoked_count),
+            "observer_certificates": float(role_counts["OBSERVER"]),
+            "user_certificates": float(role_counts["USER"]),
+            "admin_certificates": float(role_counts["ADMIN"]),
+            "authority_certificates": float(role_counts["AUTHORITY"]),
+            "root_certificates": float(role_counts["ROOT"]),
+            "auth_contexts_cached": float(auth_context_cached),
+            "channel_tokens_cached": float(channel_tokens_cached),
+            "total_tokens_cached": float(auth_context_cached + channel_tokens_cached)
+        }
+            
         return ServiceStatus(
             service_name="AuthenticationService",
             service_type="infrastructure_service",
             is_healthy=True,  # Simple health check
-            uptime_seconds=0.0,  # Would need to track start time
+            uptime_seconds=uptime_seconds,
             last_error=None,
             metrics={
                 "certificate_count": float(cert_count),
                 "cached_tokens": float(len(self._channel_token_cache)),
                 "active_sessions": 0.0
             },
-            last_health_check=self._time_service.now()
+            custom_metrics=custom_metrics,
+            last_health_check=current_time
         )
 
     async def start(self) -> None:
         """Start the service."""
         await super().start()
         self._started = True
+        self._start_time = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
         logger.info("AuthenticationService started")
 
     async def stop(self) -> None:

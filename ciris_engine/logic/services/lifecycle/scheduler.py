@@ -58,10 +58,12 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
         self._scheduler_task: Optional[asyncio.Task] = None
         self._active_tasks: Dict[str, ScheduledTask] = {}
         self._shutdown_event = asyncio.Event()
+        self._start_time: Optional[datetime] = None
 
     async def start(self) -> None:
         """Start the scheduler service."""
         await super().start()
+        self._start_time = self.time_service.now()
 
         # Load active tasks from database
         await self._load_active_tasks()
@@ -472,11 +474,15 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
         """Get current service status."""
         from ciris_engine.schemas.services.core import ServiceStatus
 
+        uptime_seconds = 0.0
+        if self._start_time:
+            uptime_seconds = (self.time_service.now() - self._start_time).total_seconds()
+
         return ServiceStatus(
             service_name="TaskSchedulerService",
             service_type="SPECIAL",
             is_healthy=bool(self._scheduler_task and not self._shutdown_event.is_set()),
-            uptime_seconds=0.0,  # Would need to track start time for real uptime
+            uptime_seconds=uptime_seconds,
             last_error=None,
             metrics={
                 "active_tasks": float(len(self._active_tasks)),

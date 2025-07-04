@@ -36,7 +36,7 @@ export default function SystemPage() {
   // Fetch processors
   const { data: processors } = useQuery({
     queryKey: ['system-processors'],
-    queryFn: () => cirisClient.system.getProcessors(),
+    queryFn: () => cirisClient.system.getProcessorStates(),
     refetchInterval: 5000,
     enabled: hasRole('ADMIN'),
   });

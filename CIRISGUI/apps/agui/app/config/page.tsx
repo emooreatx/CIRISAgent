@@ -7,12 +7,6 @@ import { ProtectedRoute } from '../../components/ProtectedRoute';
 import toast from 'react-hot-toast';
 import { SpinnerIcon, ExclamationTriangleIcon } from '../../components/Icons';
 
-interface ConfigBackup {
-  backup_id: string;
-  timestamp: string;
-  config: any;
-  created_by?: string;
-}
 
 export default function ConfigPage() {
   const [editedConfig, setEditedConfig] = useState<any>(null);
@@ -20,9 +14,6 @@ export default function ConfigPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(['root']));
   const [showDiff, setShowDiff] = useState(false);
-  const [selectedBackup, setSelectedBackup] = useState<string | null>(null);
-  const [backups, setBackups] = useState<ConfigBackup[]>([]);
-  const [showBackupModal, setShowBackupModal] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
@@ -35,8 +26,6 @@ export default function ConfigPage() {
   // Update configuration mutation
   const updateConfigMutation = useMutation({
     mutationFn: async (updates: any) => {
-      // Create backup before updating
-      await backupConfigMutation.mutateAsync();
       return cirisClient.config.updateConfig(updates);
     },
     onSuccess: () => {
@@ -50,38 +39,6 @@ export default function ConfigPage() {
     },
   });
 
-  // Backup configuration mutation
-  const backupConfigMutation = useMutation({
-    mutationFn: () => cirisClient.config.backupConfig(),
-    onSuccess: (data) => {
-      const newBackup: ConfigBackup = {
-        backup_id: data.backup_id,
-        timestamp: new Date().toISOString(),
-        config: config,
-        created_by: 'admin'
-      };
-      setBackups(prev => [newBackup, ...prev]);
-      toast.success('Configuration backed up successfully');
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Failed to backup configuration');
-    },
-  });
-
-  // Restore configuration mutation
-  const restoreConfigMutation = useMutation({
-    mutationFn: (backup_id: string) => cirisClient.config.restoreConfig(backup_id),
-    onSuccess: () => {
-      toast.success('Configuration restored successfully');
-      queryClient.invalidateQueries({ queryKey: ['config'] });
-      setEditedConfig(null);
-      setSelectedBackup(null);
-      setShowBackupModal(false);
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.detail || 'Failed to restore configuration');
-    },
-  });
 
   // Handle field changes in form mode
   const handleFieldChange = (path: string[], value: any) => {
@@ -373,13 +330,6 @@ export default function ConfigPage() {
                     >
                       {showRaw ? 'Form Editor' : 'JSON Editor'}
                     </button>
-                    <button
-                      onClick={() => backupConfigMutation.mutate()}
-                      disabled={backupConfigMutation.isPending}
-                      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                    >
-                      {backupConfigMutation.isPending ? 'Backing up...' : 'Backup'}
-                    </button>
                     {editedConfig && (
                       <>
                         <button
@@ -502,57 +452,12 @@ export default function ConfigPage() {
             </div>
           </div>
 
-          {/* Backup Management Panel */}
+          {/* Tips Panel */}
           <div className="lg:col-span-1">
-            <div className="bg-white shadow rounded-lg">
-              <div className="px-4 py-5 sm:p-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Backup History</h3>
-                {backups.length === 0 ? (
-                  <p className="text-sm text-gray-500">No backups available yet.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {backups.map((backup) => (
-                      <div
-                        key={backup.backup_id}
-                        className="p-3 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex-1">
-                            <p className="text-sm font-medium text-gray-900">
-                              {new Date(backup.timestamp).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              ID: {backup.backup_id}
-                            </p>
-                            {backup.created_by && (
-                              <p className="text-xs text-gray-500">
-                                By: {backup.created_by}
-                              </p>
-                            )}
-                          </div>
-                          <button
-                            onClick={() => {
-                              setSelectedBackup(backup.backup_id);
-                              setShowBackupModal(true);
-                            }}
-                            className="ml-2 text-sm text-indigo-600 hover:text-indigo-500"
-                          >
-                            Restore
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Tips Panel */}
-            <div className="mt-6 bg-blue-50 rounded-lg p-4">
+            <div className="bg-blue-50 rounded-lg p-4">
               <h4 className="text-sm font-medium text-blue-900 mb-2">Configuration Tips</h4>
               <ul className="text-sm text-blue-700 space-y-1">
                 <li>• Sensitive fields are highlighted in orange</li>
-                <li>• Backups are created automatically before updates</li>
                 <li>• Use JSON editor for complex changes</li>
                 <li>• Search works on both keys and values</li>
                 <li>• Click section headers to expand/collapse</li>
@@ -561,61 +466,6 @@ export default function ConfigPage() {
           </div>
         </div>
 
-        {/* Restore Confirmation Modal */}
-        {showBackupModal && selectedBackup && (
-          <div className="fixed z-10 inset-0 overflow-y-auto">
-            <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-              <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-                <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-              </div>
-              <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-              <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                  <div className="sm:flex sm:items-start">
-                    <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 sm:mx-0 sm:h-10 sm:w-10">
-                      <ExclamationTriangleIcon className="text-yellow-600" size="lg" />
-                    </div>
-                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                      <h3 className="text-lg leading-6 font-medium text-gray-900">
-                        Restore Configuration
-                      </h3>
-                      <div className="mt-2">
-                        <p className="text-sm text-gray-500">
-                          Are you sure you want to restore this backup? This will replace the current configuration.
-                        </p>
-                        <p className="text-sm text-gray-500 mt-2">
-                          Backup ID: {selectedBackup}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      restoreConfigMutation.mutate(selectedBackup);
-                    }}
-                    disabled={restoreConfigMutation.isPending}
-                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50"
-                  >
-                    {restoreConfigMutation.isPending ? 'Restoring...' : 'Restore'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowBackupModal(false);
-                      setSelectedBackup(null);
-                    }}
-                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </ProtectedRoute>
   );

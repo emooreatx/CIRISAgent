@@ -457,7 +457,11 @@ async def get_services_status(
                             metrics.error_count = m.get('error_count')
                             metrics.avg_response_time_ms = m.get('avg_response_time_ms')
                             metrics.memory_mb = m.get('memory_mb')
-                            metrics.custom_metrics = m
+                            # Use status.custom_metrics if available, otherwise use metrics dict
+                            if hasattr(status, 'custom_metrics') and status.custom_metrics:
+                                metrics.custom_metrics = status.custom_metrics
+                            else:
+                                metrics.custom_metrics = m
                         else:
                             metrics = m
 
@@ -627,7 +631,7 @@ async def list_adapters(
     Returns information about all currently loaded adapter instances
     including their type, status, and basic metrics.
     """
-    runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
     
@@ -692,7 +696,7 @@ async def get_adapter_status(
     Returns comprehensive information about an adapter instance
     including configuration, metrics, and service registrations.
     """
-    runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
     
@@ -748,7 +752,7 @@ async def load_adapter(
     
     Adapter types: cli, api, discord
     """
-    runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
     
@@ -795,7 +799,7 @@ async def unload_adapter(
     Will fail if it's the last communication-capable adapter.
     Requires ADMIN role.
     """
-    runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
     
@@ -837,7 +841,7 @@ async def reload_adapter(
     Useful for applying configuration changes without full restart.
     Requires ADMIN role.
     """
-    runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
     if not runtime_control:
         raise HTTPException(status_code=503, detail="Runtime control service not available")
     

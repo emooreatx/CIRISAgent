@@ -11,7 +11,7 @@ from typing import Any
 # Import all route modules from adapter
 from .routes import (
     agent, audit, auth, config, emergency,
-    memory, system, telemetry, wa
+    memory, system, telemetry, wa, system_extensions
 )
 
 # Import auth service
@@ -81,6 +81,7 @@ def create_app(runtime: Any = None) -> FastAPI:
         agent.router,      # Agent interaction
         memory.router,     # Memory operations  
         system.router,     # System operations (includes health, time, resources, runtime)
+        system_extensions.router,  # Extended system operations (queue, services, processors)
         config.router,     # Configuration management
         telemetry.router,  # Telemetry & observability
         audit.router,      # Audit trail

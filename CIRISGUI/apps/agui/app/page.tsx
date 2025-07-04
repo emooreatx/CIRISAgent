@@ -140,6 +140,22 @@ export default function Home() {
         <div className="px-4 py-5 sm:p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">Quick Access</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Link href="/dashboard" className="relative rounded-lg border border-blue-300 bg-blue-50 px-6 py-5 shadow-sm flex items-center space-x-3 hover:border-blue-400 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500">
+              <div className="flex-1 min-w-0">
+                <span className="absolute inset-0" aria-hidden="true" />
+                <p className="text-sm font-medium text-blue-900">System Dashboard</p>
+                <p className="text-sm text-blue-700 truncate">Real-time system monitoring</p>
+              </div>
+            </Link>
+
+            <Link href="/api-demo" className="relative rounded-lg border border-indigo-300 bg-indigo-50 px-6 py-5 shadow-sm flex items-center space-x-3 hover:border-indigo-400 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+              <div className="flex-1 min-w-0">
+                <span className="absolute inset-0" aria-hidden="true" />
+                <p className="text-sm font-medium text-indigo-900">API Explorer</p>
+                <p className="text-sm text-indigo-700 truncate">Interactive API demonstration</p>
+              </div>
+            </Link>
+
             <Link href="/comms" className="relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm flex items-center space-x-3 hover:border-gray-400 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
               <div className="flex-1 min-w-0">
                 <span className="absolute inset-0" aria-hidden="true" />
@@ -153,6 +169,14 @@ export default function Home() {
                 <span className="absolute inset-0" aria-hidden="true" />
                 <p className="text-sm font-medium text-gray-900">System Status</p>
                 <p className="text-sm text-gray-500 truncate">Monitor health & resources</p>
+              </div>
+            </Link>
+
+            <Link href="/memory" className="relative rounded-lg border border-gray-300 bg-white px-6 py-5 shadow-sm flex items-center space-x-3 hover:border-gray-400 focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+              <div className="flex-1 min-w-0">
+                <span className="absolute inset-0" aria-hidden="true" />
+                <p className="text-sm font-medium text-gray-900">Memory Graph</p>
+                <p className="text-sm text-gray-500 truncate">Explore agent memories</p>
               </div>
             </Link>
 

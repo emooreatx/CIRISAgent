@@ -431,7 +431,8 @@ class TestCIRISSDKEndpoints:
         if entries.entries:
             entry_id = entries.entries[0].id
             report = await client.audit.verify(entry_id)
-            assert hasattr(report, 'verified')
+            assert 'verified' in report
+            assert isinstance(report['verified'], bool)
 
     # ========== Wise Authority Tests (2 endpoints) ==========
     
