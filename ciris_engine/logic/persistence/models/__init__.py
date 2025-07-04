@@ -34,6 +34,8 @@ from .graph import (
     add_graph_edge,
     delete_graph_edge,
     get_edges_for_node,
+    get_all_graph_nodes,
+    get_nodes_by_type,
 )
 from .correlations import (
     add_correlation,

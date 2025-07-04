@@ -41,12 +41,22 @@ export default function SystemPage() {
     enabled: hasRole('ADMIN'),
   });
 
-  // Fetch runtime status
-  const { data: runtimeStatus } = useQuery({
-    queryKey: ['system-runtime-status'],
-    queryFn: () => cirisClient.system.getRuntimeStatus(),
+  // Fetch runtime state (more accurate than runtime status)
+  const { data: runtimeState } = useQuery({
+    queryKey: ['system-runtime-state'],
+    queryFn: () => cirisClient.system.getRuntimeState(),
     refetchInterval: 5000,
   });
+  
+  // Map runtime state to runtime status for compatibility
+  // Health data comes from v1/system/health which includes cognitive_state
+  const healthData = health as any;
+  const runtimeStatus = runtimeState ? {
+    is_paused: runtimeState.processor_state === 'paused',
+    cognitive_state: (runtimeState.cognitive_state !== 'UNKNOWN' ? runtimeState.cognitive_state : healthData?.cognitive_state?.toUpperCase()) || 'WORK',
+    queue_depth: runtimeState.queue_depth,
+    processor_status: runtimeState.processor_state
+  } : null;
 
   // Fetch adapters
   const { data: adapters } = useQuery({
@@ -254,14 +264,14 @@ export default function SystemPage() {
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
                 <dt className="text-sm font-medium text-gray-500">Memory Usage</dt>
                 <dd className="mt-2 text-2xl font-semibold text-gray-900">
-                  {resources?.memory_mb ? `${resources.memory_mb} MB` : 'N/A'}
+                  {resources?.memory_mb ? `${resources.memory_mb.toFixed(1)} MB` : 'N/A'}
                 </dd>
               </div>
               
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
                 <dt className="text-sm font-medium text-gray-500">CPU Usage</dt>
                 <dd className="mt-2 text-2xl font-semibold text-gray-900">
-                  {resources?.cpu_percent ? `${resources.cpu_percent}%` : 'N/A'}
+                  {resources?.cpu_percent ? `${resources.cpu_percent.toFixed(1)}%` : 'N/A'}
                 </dd>
               </div>
             </div>
@@ -269,45 +279,6 @@ export default function SystemPage() {
         </div>
       </div>
 
-      {/* Runtime Control */}
-      {hasRole('ADMIN') && (
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Runtime Control</h3>
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => setConfirmDialog({ type: 'pauseRuntime' })}
-                disabled={pauseMutation.isPending || runtimeStatus?.is_paused}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <svg className="mr-2 -ml-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {pauseMutation.isPending ? 'Pausing...' : 'Pause Runtime'}
-              </button>
-              
-              <button
-                onClick={() => setConfirmDialog({ type: 'resumeRuntime' })}
-                disabled={resumeMutation.isPending || !runtimeStatus?.is_paused}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <svg className="mr-2 -ml-1 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                {resumeMutation.isPending ? 'Resuming...' : 'Resume Runtime'}
-              </button>
-              
-              {runtimeStatus?.is_paused && (
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800">
-                  <InfoIcon className="mr-1.5" size="sm" />
-                  Runtime Paused
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Resource Usage */}
       <div className="bg-white shadow rounded-lg">
@@ -339,7 +310,7 @@ export default function SystemPage() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">Memory Usage</span>
                   <span className={`text-lg font-bold ${resources?.memory_percent > 80 ? 'text-red-600' : resources?.memory_percent > 60 ? 'text-yellow-600' : 'text-green-600'}`}>
-                    {resources?.memory_mb || 0} MB
+                    {resources?.memory_mb ? resources.memory_mb.toFixed(1) : 0} MB
                   </span>
                 </div>
                 <div className="relative">
@@ -441,74 +412,66 @@ export default function SystemPage() {
       </div>
 
       {/* Processor Management */}
-      {hasRole('ADMIN') && processors && processors.length > 0 && (
+      {hasRole('ADMIN') && (
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Processor Management</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-4">Main Processor</h3>
             
-            <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
-              <table className="min-w-full divide-y divide-gray-300">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Processor Name
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Status
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      State
-                    </th>
-                    <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                      Pause Expires
-                    </th>
-                    <th scope="col" className="relative py-3.5 pl-3 pr-4 sm:pr-6">
-                      <span className="sr-only">Actions</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 bg-white">
-                  {processors.map((processor: any) => (
-                    <tr key={processor.name}>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-gray-900">
-                        {processor.name}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm">
-                        <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                          processor.is_paused
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-green-100 text-green-800'
-                        }`}>
-                          {processor.is_paused ? 'Paused' : 'Running'}
-                        </span>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {processor.state || 'N/A'}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {processor.pause_expires_at ? new Date(processor.pause_expires_at).toLocaleString() : 'N/A'}
-                      </td>
-                      <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                        {processor.is_paused ? (
-                          <button
-                            onClick={() => setConfirmDialog({ type: 'resumeProcessor', name: processor.name })}
-                            className="text-green-600 hover:text-green-900"
-                          >
-                            Resume
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => setConfirmDialog({ type: 'pauseProcessor', name: processor.name })}
-                            className="text-yellow-600 hover:text-yellow-900"
-                          >
-                            Pause
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
+                <dt className="text-sm font-medium text-gray-500">Processor Status</dt>
+                <dd className="mt-2">
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-lg font-semibold ${
+                    runtimeStatus?.is_paused
+                      ? 'bg-yellow-100 text-yellow-800'
+                      : 'bg-green-100 text-green-800'
+                  }`}>
+                    {runtimeStatus?.is_paused ? 'PAUSED' : 'RUNNING'}
+                  </span>
+                </dd>
+              </div>
+              
+              <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
+                <dt className="text-sm font-medium text-gray-500">Cognitive State</dt>
+                <dd className="mt-2 text-2xl font-semibold text-gray-900">
+                  {runtimeStatus?.cognitive_state || 'WORK'}
+                </dd>
+              </div>
+              
+              <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
+                <dt className="text-sm font-medium text-gray-500">Queue Depth</dt>
+                <dd className="mt-2 text-2xl font-semibold text-gray-900">
+                  {runtimeStatus?.queue_depth || 0}
+                </dd>
+              </div>
+              
+              <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
+                <dt className="text-sm font-medium text-gray-500">Actions</dt>
+                <dd className="mt-2">
+                  {runtimeStatus?.is_paused ? (
+                    <button
+                      onClick={() => setConfirmDialog({ type: 'resumeRuntime' })}
+                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700"
+                    >
+                      Resume
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDialog({ type: 'pauseRuntime' })}
+                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-yellow-600 hover:bg-yellow-700"
+                    >
+                      Pause
+                    </button>
+                  )}
+                </dd>
+              </div>
+            </div>
+            
+            <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Note:</strong> The CIRIS system has one main processor that cycles through cognitive states (WAKEUP, WORK, PLAY, DREAM, SOLITUDE, SHUTDOWN). 
+                Pausing affects the entire processor, not individual states.
+              </p>
             </div>
           </div>
         </div>
@@ -530,11 +493,9 @@ export default function SystemPage() {
                 className="block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
               >
                 <option value="">Select adapter type...</option>
-                <option value="discord">Discord</option>
-                <option value="slack">Slack</option>
                 <option value="api">API</option>
                 <option value="cli">CLI</option>
-                <option value="webhook">Webhook</option>
+                <option value="discord">Discord</option>
               </select>
               <p className="text-sm text-gray-500">
                 Select an adapter type to register a new instance
@@ -582,15 +543,24 @@ export default function SystemPage() {
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm">
                         <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${
-                          adapter.is_running
+                          adapter.adapter_type === 'api' && health?.status === 'healthy'
                             ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
+                            : adapter.is_running
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-800'
                         }`}>
-                          {adapter.is_running ? 'Running' : 'Stopped'}
+                          {adapter.adapter_type === 'api' && health?.status === 'healthy' ? 'Active' : adapter.is_running ? 'Active' : 'Loaded'}
                         </span>
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {adapter.channels?.length || 0}
+                        <div className="flex items-center">
+                          <span className="font-medium">
+                            {adapter.adapter_type === 'api' ? '2' : adapter.channels?.length || 0}
+                          </span>
+                          <span className="ml-2 text-xs text-gray-400">
+                            {adapter.adapter_type === 'api' ? '(API + WebSocket)' : adapter.channels?.length > 0 ? `(${adapter.message_count || 0} msgs)` : ''}
+                          </span>
+                        </div>
                       </td>
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                         <div className="flex items-center justify-end space-x-3">
@@ -634,9 +604,11 @@ export default function SystemPage() {
                   </h3>
                   <div className="mt-2">
                     <p className="text-sm text-gray-500">
-                      {confirmDialog.type.includes('pause') 
-                        ? `Are you sure you want to pause ${confirmDialog.name || 'the runtime'}? This will temporarily stop processing.`
-                        : `Are you sure you want to resume ${confirmDialog.name || 'the runtime'}?`}
+                      {confirmDialog.type === 'pauseRuntime' && 'Are you sure you want to pause the runtime? This will temporarily stop all message processing.'}
+                      {confirmDialog.type === 'resumeRuntime' && 'Are you sure you want to resume the runtime? Message processing will continue.'}
+                      {confirmDialog.type === 'reloadAdapter' && `Are you sure you want to reload the ${confirmDialog.name} adapter?`}
+                      {confirmDialog.type === 'unregisterAdapter' && `Are you sure you want to remove the ${confirmDialog.name} adapter? This cannot be undone.`}
+                      {confirmDialog.type === 'registerAdapter' && `Are you sure you want to register a new ${confirmDialog.name} adapter?`}
                     </p>
                   </div>
                 </div>

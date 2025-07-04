@@ -5,9 +5,10 @@ The memory service implements the three universal verbs: MEMORIZE, RECALL, FORGE
 All operations work through the graph memory system.
 """
 import logging
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Literal, TYPE_CHECKING
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Query, Path
+from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_serializer, model_validator
 
 from ciris_engine.schemas.api.responses import SuccessResponse
@@ -15,6 +16,9 @@ from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphS
 from ciris_engine.schemas.services.operations import MemoryQuery, MemoryOpResult
 from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
 from ..dependencies.auth import require_observer, require_admin, AuthContext
+
+if TYPE_CHECKING:
+    import networkx as nx
 
 logger = logging.getLogger(__name__)
 
@@ -404,3 +408,310 @@ async def get_memory(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/visualize/graph")
+async def visualize_memory_graph(
+    request: Request,
+    node_type: Optional[NodeType] = Query(None, description="Filter by node type"),
+    scope: Optional[GraphScope] = Query(GraphScope.LOCAL, description="Memory scope"),
+    hours: Optional[int] = Query(None, ge=1, le=168, description="Hours to look back for timeline view"),
+    layout: Literal["force", "timeline", "hierarchical"] = Query("force", description="Graph layout algorithm"),
+    width: int = Query(1200, ge=400, le=4000, description="SVG width in pixels"),
+    height: int = Query(800, ge=300, le=3000, description="SVG height in pixels"),
+    limit: int = Query(50, ge=1, le=200, description="Maximum nodes to visualize"),
+    auth: AuthContext = Depends(require_observer)
+):
+    """
+    Generate an SVG visualization of the memory graph.
+    
+    Layout options:
+    - force: Force-directed layout for general graph visualization
+    - timeline: Arrange nodes chronologically along x-axis
+    - hierarchical: Tree-like layout based on relationships
+    
+    Returns SVG image that can be embedded or downloaded.
+    """
+    memory_service = getattr(request.app.state, 'memory_service', None)
+    if not memory_service:
+        raise HTTPException(status_code=503, detail="Memory service not available")
+    
+    try:
+        # Import visualization dependencies
+        import networkx as nx
+        from datetime import datetime
+        import math
+        
+        # Query nodes based on filters
+        nodes = []
+        
+        if hours:
+            # Timeline view - get nodes from the specified time range
+            now = datetime.now(timezone.utc)
+            since = now - timedelta(hours=hours)
+            
+            # Use wildcard query with type filter
+            query = MemoryQuery(
+                node_id="*",
+                scope=scope,
+                type=node_type,
+                include_edges=False,
+                depth=1
+            )
+            all_nodes = await memory_service.recall(query)
+            
+            # Filter by time
+            for node in all_nodes:
+                node_time = node.attributes.get('created_at') or node.attributes.get('timestamp')
+                if node_time:
+                    if isinstance(node_time, str):
+                        node_time = datetime.fromisoformat(node_time.replace('Z', '+00:00'))
+                    if since <= node_time <= now:
+                        nodes.append(node)
+            
+            # Sort by time for timeline layout
+            nodes.sort(key=lambda n: n.attributes.get('created_at') or n.attributes.get('timestamp', ''))
+        else:
+            # Regular query - get nodes with optional type filter
+            query = MemoryQuery(
+                node_id="*",
+                scope=scope,
+                type=node_type,
+                include_edges=False,
+                depth=1
+            )
+            nodes = await memory_service.recall(query)
+        
+        # Limit nodes for visualization
+        nodes = nodes[:limit]
+        
+        if not nodes:
+            # Return empty SVG if no nodes
+            svg = f'''<svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">
+                <rect width="{width}" height="{height}" fill="#f8f9fa"/>
+                <text x="{width//2}" y="{height//2}" text-anchor="middle" font-family="Arial" font-size="16" fill="#6c757d">
+                    No memories found
+                </text>
+            </svg>'''
+            return Response(content=svg, media_type="image/svg+xml")
+        
+        # Create graph
+        G = nx.DiGraph()
+        
+        # Add nodes with their attributes
+        for node in nodes:
+            # Prepare node attributes for visualization
+            node_attrs = {
+                'label': node.id[:30] + '...' if len(node.id) > 30 else node.id,
+                'type': node.type.value,
+                'scope': node.scope.value,
+                'title': node.attributes.get('title', ''),
+                'created_at': node.attributes.get('created_at') or node.attributes.get('timestamp', ''),
+                'color': _get_node_color(node.type),
+                'size': _get_node_size(node)
+            }
+            G.add_node(node.id, **node_attrs)
+        
+        # TODO: Add edges if we implement relationship queries
+        
+        # Calculate layout based on selected algorithm
+        if layout == "timeline" and hours:
+            pos = _calculate_timeline_layout(G, nodes, width, height)
+        elif layout == "hierarchical":
+            pos = nx.spring_layout(G, k=2, iterations=50)
+            # Scale to fit canvas
+            pos = {node: (x * (width - 100) + 50, y * (height - 100) + 50) for node, (x, y) in pos.items()}
+        else:  # force layout
+            pos = nx.spring_layout(G, k=1.5, iterations=30)
+            # Scale to fit canvas
+            pos = {node: (x * (width - 100) + 50, y * (height - 100) + 50) for node, (x, y) in pos.items()}
+        
+        # Generate SVG
+        svg = _generate_svg(G, pos, width, height, layout, hours)
+        
+        return Response(content=svg, media_type="image/svg+xml")
+        
+    except ImportError:
+        raise HTTPException(
+            status_code=503, 
+            detail="Graph visualization requires networkx. Please install: pip install networkx"
+        )
+    except Exception as e:
+        logger.exception(f"Error generating graph visualization: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _get_node_color(node_type: NodeType) -> str:
+    """Get color for node based on type."""
+    color_map = {
+        NodeType.AGENT: "#4CAF50",      # Green
+        NodeType.USER: "#2196F3",       # Blue
+        NodeType.CHANNEL: "#9C27B0",    # Purple
+        NodeType.CONCEPT: "#FF9800",    # Orange
+        NodeType.CONFIG: "#795548",     # Brown
+        NodeType.TSDB_DATA: "#00BCD4",  # Cyan
+        NodeType.OBSERVATION: "#E91E63", # Pink
+        NodeType.IDENTITY: "#3F51B5",   # Indigo
+        NodeType.AUDIT_ENTRY: "#607D8B", # Blue Grey
+    }
+    return color_map.get(node_type, "#9E9E9E")  # Default grey
+
+
+def _get_node_size(node: GraphNode) -> int:
+    """Calculate node size based on importance/attributes."""
+    base_size = 30
+    
+    # Increase size for nodes with more attributes
+    if node.attributes:
+        attr_count = len([k for k, v in node.attributes.items() if v is not None])
+        base_size += min(attr_count * 2, 20)
+    
+    # Increase size for identity-related nodes
+    if node.scope == GraphScope.IDENTITY:
+        base_size += 10
+    
+    return base_size
+
+
+def _calculate_timeline_layout(G: "nx.DiGraph", nodes: List[GraphNode], width: int, height: int) -> Dict[str, tuple]:
+    """Calculate timeline layout with nodes arranged chronologically."""
+    pos = {}
+    
+    # Group nodes by time buckets (hourly)
+    time_buckets = {}
+    for node in nodes:
+        node_time = node.attributes.get('created_at') or node.attributes.get('timestamp', '')
+        if node_time:
+            if isinstance(node_time, str):
+                node_time = datetime.fromisoformat(node_time.replace('Z', '+00:00'))
+            
+            # Round to hour
+            bucket = node_time.replace(minute=0, second=0, microsecond=0)
+            if bucket not in time_buckets:
+                time_buckets[bucket] = []
+            time_buckets[bucket].append(node.id)
+    
+    # Sort buckets by time
+    sorted_buckets = sorted(time_buckets.items())
+    
+    if not sorted_buckets:
+        # Fallback to force layout if no timestamps
+        return nx.spring_layout(G)
+    
+    # Calculate x positions for each time bucket
+    x_spacing = (width - 100) / max(len(sorted_buckets) - 1, 1)
+    
+    for i, (bucket_time, node_ids) in enumerate(sorted_buckets):
+        x = 50 + i * x_spacing
+        
+        # Distribute nodes vertically within each time bucket
+        y_spacing = (height - 100) / max(len(node_ids), 1)
+        for j, node_id in enumerate(node_ids):
+            y = 50 + j * y_spacing + (y_spacing / 2)
+            pos[node_id] = (x, y)
+    
+    return pos
+
+
+def _generate_svg(G: "nx.DiGraph", pos: Dict[str, tuple], width: int, height: int, 
+                  layout: str, hours: Optional[int]) -> str:
+    """Generate SVG visualization of the graph."""
+    svg_parts = [
+        f'<svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">',
+        f'<rect width="{width}" height="{height}" fill="#f8f9fa"/>',
+        '<defs>',
+        '<marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">',
+        '<polygon points="0 0, 10 3.5, 0 7" fill="#999" />',
+        '</marker>',
+        '</defs>'
+    ]
+    
+    # Add title
+    title = f"Memory Graph Visualization"
+    if layout == "timeline" and hours:
+        title = f"Memory Timeline - Last {hours} hours"
+    svg_parts.append(
+        f'<text x="{width//2}" y="30" text-anchor="middle" font-family="Arial" '
+        f'font-size="20" font-weight="bold" fill="#333">{title}</text>'
+    )
+    
+    # Draw edges (if any)
+    for edge in G.edges():
+        x1, y1 = pos[edge[0]]
+        x2, y2 = pos[edge[1]]
+        svg_parts.append(
+            f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
+            f'stroke="#999" stroke-width="2" marker-end="url(#arrowhead)" opacity="0.6"/>'
+        )
+    
+    # Draw nodes
+    for node_id, attrs in G.nodes(data=True):
+        x, y = pos[node_id]
+        color = attrs.get('color', '#9E9E9E')
+        size = attrs.get('size', 30)
+        label = attrs.get('label', node_id)
+        node_type = attrs.get('type', 'unknown')
+        
+        # Node circle with data-node-id attribute for click handling
+        svg_parts.append(
+            f'<circle cx="{x}" cy="{y}" r="{size}" fill="{color}" '
+            f'stroke="#333" stroke-width="2" opacity="0.8" '
+            f'data-node-id="{node_id}"/>'
+        )
+        
+        # Node label
+        svg_parts.append(
+            f'<text x="{x}" y="{y + size + 15}" text-anchor="middle" '
+            f'font-family="Arial" font-size="12" fill="#333">{label}</text>'
+        )
+        
+        # Node type label
+        svg_parts.append(
+            f'<text x="{x}" y="{y + 5}" text-anchor="middle" '
+            f'font-family="Arial" font-size="10" fill="white" font-weight="bold">{node_type}</text>'
+        )
+    
+    # Add timeline axis if in timeline mode
+    if layout == "timeline" and hours:
+        # Draw time axis
+        svg_parts.append(
+            f'<line x1="50" y1="{height - 40}" x2="{width - 50}" y2="{height - 40}" '
+            f'stroke="#666" stroke-width="2"/>'
+        )
+        
+        # Add time labels
+        now = datetime.now(timezone.utc)
+        for i in range(0, hours + 1, max(hours // 6, 1)):
+            x = 50 + (i / hours) * (width - 100)
+            time_label = (now - timedelta(hours=hours-i)).strftime("%m/%d %H:%M")
+            svg_parts.append(
+                f'<text x="{x}" y="{height - 20}" text-anchor="middle" '
+                f'font-family="Arial" font-size="10" fill="#666">{time_label}</text>'
+            )
+    
+    # Add legend
+    legend_y = height - 150
+    svg_parts.append(
+        f'<text x="20" y="{legend_y}" font-family="Arial" font-size="14" '
+        f'font-weight="bold" fill="#333">Node Types:</text>'
+    )
+    
+    type_colors = [
+        (NodeType.CONCEPT, "Concept"),
+        (NodeType.OBSERVATION, "Observation"),
+        (NodeType.IDENTITY, "Identity"),
+        (NodeType.CONFIG, "Config"),
+    ]
+    
+    for i, (node_type, label) in enumerate(type_colors):
+        y_offset = legend_y + 20 + i * 20
+        color = _get_node_color(node_type)
+        svg_parts.append(
+            f'<circle cx="30" cy="{y_offset}" r="8" fill="{color}" stroke="#333" stroke-width="1"/>'
+        )
+        svg_parts.append(
+            f'<text x="45" y="{y_offset + 5}" font-family="Arial" font-size="12" fill="#333">{label}</text>'
+        )
+    
+    svg_parts.append('</svg>')
+    
+    return '\n'.join(svg_parts)
