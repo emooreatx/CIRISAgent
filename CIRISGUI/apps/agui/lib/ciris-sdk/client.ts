@@ -10,6 +10,7 @@ import { ConfigResource } from './resources/config';
 import { TelemetryResource } from './resources/telemetry';
 import { WiseAuthorityResource } from './resources/wise-authority';
 import { EmergencyResource } from './resources/emergency';
+import { UsersResource } from './resources/users';
 import { User } from './types';
 
 export interface CIRISClientOptions {
@@ -33,6 +34,7 @@ export class CIRISClient {
   public readonly telemetry: TelemetryResource;
   public readonly wiseAuthority: WiseAuthorityResource;
   public readonly emergency: EmergencyResource;
+  public readonly users: UsersResource;
 
   constructor(options: CIRISClientOptions = {}) {
     const transportOptions: TransportOptions = {
@@ -60,6 +62,7 @@ export class CIRISClient {
     this.telemetry = new TelemetryResource(this.transport);
     this.wiseAuthority = new WiseAuthorityResource(this.transport);
     this.emergency = new EmergencyResource(this.transport);
+    this.users = new UsersResource(this.transport);
   }
 
   /**

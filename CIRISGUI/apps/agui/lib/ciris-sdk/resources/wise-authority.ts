@@ -95,16 +95,19 @@ export class WiseAuthorityResource extends BaseResource {
   async resolveDeferral(
     deferralId: string,
     decision: string,
-    reasoning: string
+    reasoning: string,
+    signature?: string
   ): Promise<{
     success: boolean;
     deferral_id: string;
     message: string;
     resolved_at: string;
   }> {
+    // Map SDK fields to API fields
+    const resolution = decision === 'deny' ? 'reject' : decision;
     return this.transport.post(
       `/v1/wa/deferrals/${deferralId}/resolve`,
-      { decision, reasoning }
+      { resolution, guidance: reasoning }
     );
   }
 

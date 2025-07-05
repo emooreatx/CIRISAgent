@@ -1,0 +1,77 @@
+# Run all 4 CIRIS agents simultaneously on different ports
+services:
+  sage:
+    container_name: sage
+    env_file:
+      - ${CIRIS_ENV_FILE_SAGE:-../ciris_sage.env}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8001:8001"
+    volumes:
+      - ../data/sage:/app/data
+      - ../logs/sage:/app/logs
+    command: ["python", "main.py", "--adapter", "api", "--template", "sage", "--host", "0.0.0.0", "--port", "8001"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  scout:
+    container_name: scout
+    env_file:
+      - ${CIRIS_ENV_FILE_SCOUT:-../ciris_scout.env}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8002:8002"
+    volumes:
+      - ../data/scout:/app/data
+      - ../logs/scout:/app/logs
+    command: ["python", "main.py", "--adapter", "api", "--template", "scout", "--host", "0.0.0.0", "--port", "8002"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  echo-core:
+    container_name: echo-core
+    env_file:
+      - ${CIRIS_ENV_FILE_ECHO_CORE:-../ciris_echo-core.env}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8003:8003"
+    volumes:
+      - ../data/echo-core:/app/data
+      - ../logs/echo-core:/app/logs
+    command: ["python", "main.py", "--adapter", "api", "--template", "echo-core", "--host", "0.0.0.0", "--port", "8003"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  echo-speculative:
+    container_name: echo-speculative
+    env_file:
+      - ${CIRIS_ENV_FILE_ECHO_SPEC:-../ciris_echo-speculative.env}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8004:8004"
+    volumes:
+      - ../data/echo-speculative:/app/data
+      - ../logs/echo-speculative:/app/logs
+    command: ["python", "main.py", "--adapter", "api", "--template", "echo-speculative", "--host", "0.0.0.0", "--port", "8004"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

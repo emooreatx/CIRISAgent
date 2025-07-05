@@ -4,13 +4,12 @@ Wise Authority Service endpoints for CIRIS API v3 (Simplified).
 Manages human-in-the-loop deferrals and permissions.
 """
 from typing import Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 import logging
 
 from ciris_engine.schemas.api.responses import SuccessResponse, ErrorResponse, ErrorCode, ErrorDetail
 from ciris_engine.schemas.api.wa import (
-    DeferralListResponse,
     ResolveDeferralRequest,
     ResolveDeferralResponse,
     PermissionsListResponse,
@@ -27,7 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/wa", tags=["wise_authority"])
 
 
-@router.get("/deferrals", response_model=SuccessResponse[DeferralListResponse])
+@router.get("/deferrals")
 async def get_deferrals(
     request: Request,
     wa_id: Optional[str] = Query(None, description="Filter by WA ID"),
@@ -58,11 +57,22 @@ async def get_deferrals(
     try:
         # Get pending deferrals
         deferrals = await wa_service.get_pending_deferrals(wa_id=wa_id)
+        
+        # Transform PendingDeferral to include question from reason for UI compatibility
+        # The TypeScript SDK expects a 'question' field
+        transformed_deferrals = []
+        for d in deferrals:
+            # Create a dict representation and add the question field
+            deferral_dict = d.model_dump()
+            deferral_dict['question'] = d.reason  # Use reason as the question
+            deferral_dict['context'] = {}  # Add empty context for compatibility
+            deferral_dict['timeout_at'] = (d.created_at + timedelta(days=7)).isoformat()  # Default 7 day timeout
+            transformed_deferrals.append(deferral_dict)
 
-        response = DeferralListResponse(
-            deferrals=deferrals,
-            total=len(deferrals)
-        )
+        response = {
+            "deferrals": transformed_deferrals,
+            "total": len(transformed_deferrals)
+        }
 
         return SuccessResponse(data=response)
 

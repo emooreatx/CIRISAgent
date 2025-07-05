@@ -160,6 +160,10 @@ class DiscordMessageHandler:
 
         Args:
             channel_id: The Discord channel ID
+                Supported formats:
+                - discord_channelid (e.g., discord_1382010877171073108)
+                - discord_guildid_channelid (e.g., discord_1364300186003968060_1382010877171073108)
+                - channelid (e.g., 1382010877171073108)
 
         Returns:
             Discord channel object or None if not found
@@ -167,12 +171,30 @@ class DiscordMessageHandler:
         if not self.client:
             return None
 
+        # Parse the channel ID from various formats
+        parsed_channel_id = channel_id
+        
+        # Handle discord_guildid_channelid format
+        if channel_id.startswith('discord_') and channel_id.count('_') == 2:
+            # Format: discord_guildid_channelid
+            parts = channel_id.split('_')
+            parsed_channel_id = parts[2]  # Get the channel ID part
+            logger.debug(f"Parsed channel ID from discord_guild_channel format: {parsed_channel_id}")
+        
+        # Handle discord_channelid format
+        elif channel_id.startswith('discord_'):
+            # Format: discord_channelid
+            parsed_channel_id = channel_id.replace('discord_', '')
+            logger.debug(f"Parsed channel ID from discord_channel format: {parsed_channel_id}")
+        
+        # Otherwise assume it's already a plain channel ID
+
         try:
-            channel_id_int = int(channel_id)
+            channel_id_int = int(parsed_channel_id)
             channel = self.client.get_channel(channel_id_int)
             if channel is None:
                 channel = await self.client.fetch_channel(channel_id_int)
             return channel
         except (ValueError, discord.NotFound, discord.Forbidden):
-            logger.error(f"Could not resolve Discord channel {channel_id}")
+            logger.error(f"Could not resolve Discord channel {channel_id} (parsed as {parsed_channel_id})")
             return None

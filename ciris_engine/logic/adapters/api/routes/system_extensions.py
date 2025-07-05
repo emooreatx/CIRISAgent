@@ -81,7 +81,7 @@ async def single_step_processor(
         # Convert to our response format
         response = RuntimeControlResponse(
             success=result.success,
-            message=f"Single step {'completed' if result.success else 'failed'}: {result.message or 'No additional info'}",
+            message=f"Single step {'completed' if result.success else 'failed'}: {result.error or 'No additional info'}",
             processor_state=result.new_status.value if hasattr(result.new_status, 'value') else str(result.new_status),
             cognitive_state=None,  # Would need to get from agent processor
             queue_depth=0  # Would need to get from queue status
@@ -248,7 +248,7 @@ async def get_processor_states(
     try:
         # Get current state from agent processor
         current_state = None
-        if hasattr(runtime.agent_processor, 'state_manager'):
+        if hasattr(runtime.agent_processor, 'state_manager') and runtime.agent_processor.state_manager:
             current_state = runtime.agent_processor.state_manager.get_state()
         
         # Define all processor states with descriptions

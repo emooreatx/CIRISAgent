@@ -85,3 +85,12 @@ class TimeService(TimeServiceProtocol, ServiceProtocol):
             float: Seconds since Unix epoch
         """
         return self.now().timestamp()
+
+    async def get_uptime(self) -> float:
+        """
+        Get service uptime in seconds.
+
+        Returns:
+            float: Uptime in seconds since service start
+        """
+        return (self.now() - self._start_time).total_seconds()

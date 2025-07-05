@@ -172,7 +172,7 @@ async def _get_system_overview(request: Request) -> SystemOverview:
     if time_service:
         try:
             uptime = await time_service.get_uptime()
-            overview.uptime_seconds = uptime.total_seconds()
+            overview.uptime_seconds = uptime
         except Exception as e:
             logger.warning(f"Telemetry metric retrieval failed for uptime: {type(e).__name__}: {str(e)} - Returning default/empty value")
 
@@ -191,25 +191,29 @@ async def _get_system_overview(request: Request) -> SystemOverview:
         except Exception as e:
             logger.warning(f"Telemetry metric retrieval failed for telemetry summary: {type(e).__name__}: {str(e)} - Returning default/empty value")
 
-    # Get cognitive state from visibility
+    # Get cognitive state from runtime
+    runtime = getattr(request.app.state, 'runtime', None)
+    if runtime and hasattr(runtime, 'state_manager'):
+        overview.cognitive_state = runtime.state_manager.current_state
+    
+    # Get reasoning depth and current task from visibility
     if visibility_service:
         try:
-            snapshot = await visibility_service.get_snapshot()
+            snapshot = await visibility_service.get_current_state()
             if snapshot:
-                overview.cognitive_state = snapshot.cognitive_state
                 overview.reasoning_depth = snapshot.reasoning_depth
                 if snapshot.current_task:
                     overview.current_task = snapshot.current_task.description
         except Exception as e:
-            logger.warning(f"Telemetry metric retrieval failed for cognitive state visibility: {type(e).__name__}: {str(e)} - Returning default/empty value")
+            logger.warning(f"Telemetry metric retrieval failed for visibility state: {type(e).__name__}: {str(e)} - Returning default/empty value")
 
     # Get resource usage
     if resource_monitor:
         try:
-            usage = await resource_monitor.get_current_usage()
-            if usage:
-                overview.memory_mb = usage.get('memory_mb', 0.0)
-                overview.cpu_percent = usage.get('cpu_percent', 0.0)
+            # Access the snapshot directly
+            if hasattr(resource_monitor, 'snapshot'):
+                overview.memory_mb = float(resource_monitor.snapshot.memory_mb)
+                overview.cpu_percent = float(resource_monitor.snapshot.cpu_percent)
         except Exception as e:
             logger.warning(f"Telemetry metric retrieval failed for resource usage: {type(e).__name__}: {str(e)} - Returning default/empty value")
 

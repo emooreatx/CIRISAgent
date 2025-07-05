@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { cirisClient } from '../../lib/ciris-sdk';
 import { format } from 'date-fns';
-import { ArrowDownTrayIcon, FunnelIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
+import { ArrowDownTrayIcon, FunnelIcon, ArrowPathIcon, PlayIcon, CheckCircleIcon, XCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
 import { SpinnerIcon, ClipboardIcon } from '../../components/Icons';
 
 interface AuditEntry {
@@ -27,6 +27,22 @@ interface AuditEntry {
   };
 }
 
+function StatusIcon({ outcome }: { outcome: string }) {
+  const iconClass = "h-4 w-4 mr-1";
+  switch (outcome) {
+    case 'start':
+      return <PlayIcon className={iconClass} />;
+    case 'success':
+      return <CheckCircleIcon className={iconClass} />;
+    case 'failed':
+    case 'failure':
+    case 'error':
+      return <XCircleIcon className={iconClass} />;
+    default:
+      return <ClockIcon className={iconClass} />;
+  }
+}
+
 interface AuditFilter {
   start_time?: string;
   end_time?: string;
@@ -39,6 +55,7 @@ export default function AuditPage() {
   const [filters, setFilters] = useState<AuditFilter>({ limit: 100 });
   const [isExporting, setIsExporting] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
+  const [hideStartEvents, setHideStartEvents] = useState(false);
   
   // Set default date range to last 7 days
   const defaultEndDate = new Date();
@@ -58,7 +75,15 @@ export default function AuditPage() {
   });
 
   // Extract entries from paginated response
-  const entries = data?.items || [];
+  let entries = data?.items || [];
+  
+  // Filter out start events if requested
+  if (hideStartEvents) {
+    entries = entries.filter((entry: AuditEntry) => {
+      const outcome = entry.context?.metadata?.outcome || entry.result || entry.status;
+      return outcome !== 'start';
+    });
+  }
 
   const actionTypes = [
     'all',
@@ -155,7 +180,7 @@ export default function AuditPage() {
   const getSeverityColor = (entry: AuditEntry) => {
     // Determine severity based on action and result
     const outcome = entry.context?.metadata?.outcome || entry.result || entry.status;
-    if (outcome === 'error' || outcome === 'failure') {
+    if (outcome === 'error' || outcome === 'failure' || outcome === 'failed') {
       return 'bg-red-50 text-red-700 ring-red-600/20';
     }
     if (entry.action?.includes('EMERGENCY') || entry.action?.includes('SHUTDOWN')) {
@@ -168,6 +193,10 @@ export default function AuditPage() {
       return 'bg-orange-50 text-orange-700 ring-orange-600/20';
     }
     if (entry.action?.includes('PAUSE') || entry.action?.includes('RESUME')) {
+      return 'bg-blue-50 text-blue-700 ring-blue-600/20';
+    }
+    // Special color for 'start' events
+    if (outcome === 'start') {
       return 'bg-blue-50 text-blue-700 ring-blue-600/20';
     }
     return 'bg-gray-50 text-gray-700 ring-gray-600/20';
@@ -205,6 +234,9 @@ export default function AuditPage() {
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-lg font-medium text-gray-900">
               System Audit Trail
+              <span className="ml-2 text-sm font-normal text-gray-500">
+                (Actions show start → outcome lifecycle)
+              </span>
             </h3>
             <div className="flex items-center space-x-3">
               <button
@@ -322,13 +354,26 @@ export default function AuditPage() {
                 </div>
               </div>
               
-              <div className="mt-4 flex justify-end">
+              <div className="mt-4 flex justify-between items-center">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="hideStartEvents"
+                    checked={hideStartEvents}
+                    onChange={(e) => setHideStartEvents(e.target.checked)}
+                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="hideStartEvents" className="ml-2 text-sm text-gray-700">
+                    Hide start events (show only outcomes)
+                  </label>
+                </div>
                 <button
                   onClick={() => {
                     setFilters({ limit: 100 });
+                    setHideStartEvents(false);
                     refetch();
                   }}
-                  className="mr-3 inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 >
                   Clear Filters
                 </button>
@@ -371,7 +416,7 @@ export default function AuditPage() {
                     Details
                   </th>
                   <th scope="col" className="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">
-                    Status
+                    Outcome
                   </th>
                 </tr>
               </thead>
@@ -455,6 +500,7 @@ export default function AuditPage() {
                       </td>
                       <td className="whitespace-nowrap px-3 py-4 text-sm">
                         <span className={`inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset ${getSeverityColor(entry)}`}>
+                          <StatusIcon outcome={entry.context?.metadata?.outcome || entry.result || entry.status || 'success'} />
                           {entry.context?.metadata?.outcome || entry.result || entry.status || 'success'}
                         </span>
                       </td>

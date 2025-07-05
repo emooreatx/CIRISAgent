@@ -143,3 +143,101 @@ def get_edges_for_node(node_id: str, scope: GraphScope, db_path: Optional[str] =
     except Exception as e:
         logger.exception("Failed to fetch edges for node %s: %s", node_id, e)
     return edges
+
+
+def get_all_graph_nodes(
+    scope: Optional[GraphScope] = None,
+    node_type: Optional[str] = None,
+    limit: Optional[int] = None,
+    offset: Optional[int] = None,
+    db_path: Optional[str] = None
+) -> List[GraphNode]:
+    """
+    Get all graph nodes with optional filters.
+    
+    Args:
+        scope: Filter by scope (optional)
+        node_type: Filter by node type (optional)
+        limit: Maximum number of nodes to return
+        offset: Number of nodes to skip (for pagination)
+        db_path: Optional database path
+        
+    Returns:
+        List of GraphNode objects
+    """
+    sql = "SELECT * FROM graph_nodes WHERE 1=1"
+    params = []
+    
+    if scope is not None:
+        sql += " AND scope = ?"
+        params.append(scope.value if hasattr(scope, 'value') else scope)
+    
+    if node_type is not None:
+        sql += " AND node_type = ?"
+        params.append(node_type)
+    
+    sql += " ORDER BY updated_at DESC"
+    
+    if limit is not None:
+        sql += " LIMIT ?"
+        params.append(limit)
+        
+    if offset is not None:
+        sql += " OFFSET ?"
+        params.append(offset)
+    
+    nodes = []
+    try:
+        with get_db_connection(db_path=db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            rows = cursor.fetchall()
+            
+            for row in rows:
+                attrs = json.loads(row["attributes_json"]) if row["attributes_json"] else {}
+                nodes.append(GraphNode(
+                    id=row["node_id"],
+                    type=row["node_type"],
+                    scope=row["scope"],
+                    attributes=attrs,
+                    version=row["version"],
+                    updated_by=row["updated_by"],
+                    updated_at=row["updated_at"],
+                ))
+                
+        logger.debug("Retrieved %d graph nodes with filters scope=%s, type=%s", 
+                    len(nodes), scope, node_type)
+        return nodes
+        
+    except Exception as e:
+        logger.exception("Failed to fetch all graph nodes: %s", e)
+        return []
+
+
+def get_nodes_by_type(
+    node_type: str,
+    scope: Optional[GraphScope] = None,
+    limit: Optional[int] = None,
+    offset: Optional[int] = None,
+    db_path: Optional[str] = None
+) -> List[GraphNode]:
+    """
+    Get all nodes of a specific type.
+    
+    Args:
+        node_type: The type of nodes to retrieve
+        scope: Filter by scope (optional)
+        limit: Maximum number of nodes to return
+        offset: Number of nodes to skip (for pagination)
+        db_path: Optional database path
+        
+    Returns:
+        List of GraphNode objects of the specified type
+    """
+    return get_all_graph_nodes(
+        scope=scope,
+        node_type=node_type,
+        limit=limit,
+        offset=offset,
+        db_path=db_path
+    )

@@ -395,7 +395,8 @@ class MemoryResource:
         hours: int = 24,
         bucket_size: str = "hour",
         scope: Optional[str] = None,
-        type: Optional[str] = None
+        type: Optional[str] = None,
+        limit: Optional[int] = None
     ) -> TimelineResponse:
         """
         Temporal view of memories.
@@ -408,6 +409,7 @@ class MemoryResource:
             bucket_size: Time bucket size ("hour" or "day")
             scope: Memory scope filter
             type: Node type filter
+            limit: Maximum number of memories to return
 
         Returns:
             TimelineResponse with memories and time buckets
@@ -430,6 +432,8 @@ class MemoryResource:
             params["scope"] = scope
         if type:
             params["type"] = type
+        if limit:
+            params["limit"] = str(limit)
 
         result = await self._transport.request("GET", "/v1/memory/timeline", params=params)
         return TimelineResponse(**result)
@@ -445,7 +449,7 @@ class MemoryResource:
         Returns:
             TimelineResponse
         """
-        return await self.get_timeline(hours=hours)
+        return await self.get_timeline(hours=hours, limit=limit)
 
     # Convenience methods for common queries
     

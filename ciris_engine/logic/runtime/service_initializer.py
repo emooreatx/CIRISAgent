@@ -350,6 +350,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
 
         # Pre-load module loader to check for MOCK modules BEFORE initializing services
         if modules_to_load:
+            logger.info(f"Checking modules to load: {modules_to_load}")
             from ciris_engine.logic.runtime.module_loader import ModuleLoader
             self.module_loader = ModuleLoader()
 
@@ -357,6 +358,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
             for module_name in modules_to_load:
                 module_path = self.module_loader.modules_dir / module_name
                 manifest_path = module_path / "manifest.json"
+                logger.info(f"Checking for manifest at: {manifest_path}")
 
                 if manifest_path.exists():
                     try:

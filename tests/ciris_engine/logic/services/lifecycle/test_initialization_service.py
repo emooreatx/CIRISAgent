@@ -212,7 +212,7 @@ async def test_initialization_service_status(init_service):
     await init_service.initialize()
 
     status = init_service.get_status()
-    assert status.metrics["completed_steps"] == 1.0
+    assert status.custom_metrics["completed_steps"] == 1.0
 
 
 @pytest.mark.asyncio

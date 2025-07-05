@@ -1,0 +1,38 @@
+services:
+  # CIRIS API with mock LLM for development
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: ciris-api-dev
+    env_file:
+      - ${CIRIS_ENV_FILE:-../.env}
+    environment:
+      - CIRIS_MOCK_LLM=true
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+    command: ["python", "main.py", "--adapter", "api", "--mock-llm", "--host", "0.0.0.0", "--port", "8080"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # CIRIS GUI in development mode with hot reload
+  gui:
+    image: node:20-alpine
+    container_name: ciris-gui-dev
+    working_dir: /app
+    volumes:
+      - ../CIRISGUI/apps/agui:/app
+    environment:
+      - NEXT_PUBLIC_CIRIS_API_URL=http://localhost:8080
+    ports:
+      - "3000:3000"
+    command: sh -c "npm install && npm run dev"
+    depends_on:
+      - api

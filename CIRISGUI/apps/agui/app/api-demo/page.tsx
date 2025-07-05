@@ -115,6 +115,18 @@ export default function ApiDemoPage() {
           endpoint: 'GET /v1/memory/timeline',
           method: 'GET' as const,
           execute: () => cirisClient.memory.getTimeline()
+        },
+        {
+          title: 'Visualize Memory Graph',
+          description: 'Generate interactive graph visualization of memories',
+          endpoint: 'GET /v1/memory/visualize/graph',
+          method: 'GET' as const,
+          execute: () => cirisClient.memory.getVisualization({ 
+            layout: 'timeline', 
+            hours: 24, 
+            limit: 30 
+          }),
+          params: { layout: 'timeline', hours: 24, limit: 30 }
         }
       ]
     },
@@ -381,7 +393,7 @@ export default function ApiDemoPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">CIRIS API Explorer</h1>
           <p className="mt-2 text-lg text-gray-600">
-            Interactive demonstration of all 56 API endpoints across 11 modules
+            Interactive demonstration of all 57 API endpoints across 11 modules
           </p>
         </div>
 
@@ -514,11 +526,18 @@ export default function ApiDemoPage() {
                       </span>
                     </div>
                   </div>
-                  <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
-                    <pre className="text-sm text-gray-100 font-mono">
-                      {JSON.stringify(result.success ? result.data : result, null, 2)}
-                    </pre>
-                  </div>
+                  {/* Check if the result is SVG */}
+                  {result.success && typeof result.data === 'string' && result.data.includes('<svg') ? (
+                    <div className="bg-gray-50 rounded-lg p-4 overflow-x-auto">
+                      <div dangerouslySetInnerHTML={{ __html: result.data }} />
+                    </div>
+                  ) : (
+                    <div className="bg-gray-900 rounded-lg p-4 overflow-x-auto">
+                      <pre className="text-sm text-gray-100 font-mono">
+                        {JSON.stringify(result.success ? result.data : result, null, 2)}
+                      </pre>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

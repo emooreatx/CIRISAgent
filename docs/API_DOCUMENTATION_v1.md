@@ -2,7 +2,7 @@
 
 ## Overview
 
-The CIRIS API provides comprehensive access to an autonomous AI agent system with advanced runtime control, service management, and observability features. This documentation covers all 56 endpoints across 11 route modules.
+The CIRIS API provides comprehensive access to an autonomous AI agent system with advanced runtime control, service management, and observability features. This documentation covers all 57 endpoints across 11 route modules.
 
 ## Base URL
 
@@ -139,6 +139,21 @@ DELETE /v1/memory/{node_id}
 #### Get Memory Timeline
 ```
 GET /v1/memory/timeline?since=2025-01-01&until=2025-01-31
+```
+
+#### Visualize Memory Graph
+```
+GET /v1/memory/visualize/graph
+Query Parameters:
+  - node_type: Filter by node type (e.g., "concept", "observation")
+  - scope: Memory scope (LOCAL, IDENTITY, SYSTEM)
+  - hours: Hours to look back for timeline view (1-168)
+  - layout: Graph layout algorithm ("force", "timeline", "hierarchical")
+  - width: SVG width in pixels (400-4000, default: 1200)
+  - height: SVG height in pixels (300-3000, default: 800)
+  - limit: Maximum nodes to visualize (1-200, default: 50)
+
+Returns: SVG image as text/svg+xml
 ```
 
 ### 4. System Management (`/v1/system/*`)
