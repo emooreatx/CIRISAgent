@@ -135,7 +135,7 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                         speak_content = action_params
                         speak_channel = default_channel
                         
-                        import re
+                        # re already imported at top of file
                         channel_match = re.search(r'@channel:(\S+)', action_params)
                         if channel_match:
                             speak_channel = channel_match.group(1)
@@ -410,7 +410,6 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
             command_found = True
         elif command_from_context == '$speak':
             # Parse for @channel:default_channel syntax anywhere in the message
-            import re
             channel_match = re.search(r'@channel:(\S+)', command_args_from_context)
             if channel_match:
                 speak_channel = channel_match.group(1)
@@ -644,7 +643,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                     # - "User @username said:" or "@username said:"
                     # - "@USERNAME (ID: USERNAME):" (API format)
                     # - Direct content without prefix
-                    import re
+                    # re already imported at top of file
                     
                     # First try API format: @USERNAME (ID: USERNAME): content
                     api_match = re.search(r'@\w+\s*\([^)]+\):\s*(.+)', user_content, re.IGNORECASE | re.DOTALL)
@@ -679,7 +678,6 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                                 speak_content = command_args if command_args else "[MOCK LLM] Hello!"
                                 
                                 # Parse for @channel:default_channel syntax anywhere in the message
-                                import re
                                 channel_match = re.search(r'@channel:(\S+)', command_args)
                                 if channel_match:
                                     speak_channel = channel_match.group(1)
@@ -853,7 +851,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                             command_lines = []
                             for line in lines:
                                 # Match patterns like "3. @SYSTEM_ADMIN (ID: SYSTEM_ADMIN): $memorize test"
-                                import re
+                                # re already imported at top of file
                                 history_match = re.search(r'^(\d+)\.\s*@[^:]+:\s*(\$\w+.*?)$', line.strip())
                                 if history_match:
                                     line_num = int(history_match.group(1))

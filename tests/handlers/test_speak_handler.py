@@ -81,6 +81,7 @@ def mock_communication_bus():
     """Mock communication bus."""
     bus = AsyncMock()
     bus.send_message = AsyncMock(return_value=True)
+    bus.send_message_sync = AsyncMock(return_value=True)
     return bus
 
 
@@ -246,8 +247,8 @@ class TestSpeakHandler:
             action_result, test_thought, dispatch_context
         )
 
-        # Verify communication bus was called
-        mock_communication_bus.send_message.assert_called_once_with(
+        # Verify communication bus was called with sync method
+        mock_communication_bus.send_message_sync.assert_called_once_with(
             channel_id="test_channel_123",
             content="Hello, this is a test message!",
             handler_name="SpeakHandler"
@@ -274,7 +275,7 @@ class TestSpeakHandler:
     ):
         """Test handling of communication bus failures."""
         # Configure communication to fail
-        mock_communication_bus.send_message.return_value = False
+        mock_communication_bus.send_message_sync.return_value = False
         mock_persistence.get_task_by_id.return_value = test_task
 
         # Execute handler
@@ -330,7 +331,7 @@ class TestSpeakHandler:
         with patch_persistence_properly(test_task) as mock_persistence:
             for content in content_types:
                 # Reset mocks
-                mock_communication_bus.send_message.reset_mock()
+                mock_communication_bus.send_message_sync.reset_mock()
                 mock_persistence.add_thought.reset_mock()
 
                 # Create params with different content
@@ -346,7 +347,7 @@ class TestSpeakHandler:
 
                 # Verify content was sent correctly
                 if content:  # Skip empty content check
-                    mock_communication_bus.send_message.assert_called_with(
+                    mock_communication_bus.send_message_sync.assert_called_with(
                         channel_id="test_channel_123",
                         content=content,
                         handler_name="SpeakHandler"
@@ -437,7 +438,7 @@ class TestSpeakHandler:
 
             for channel_id, channel_name in channels:
                 # Reset mocks
-                mock_communication_bus.send_message.reset_mock()
+                mock_communication_bus.send_message_sync.reset_mock()
 
                 # Update channel context
                 dispatch_context.channel_context = ChannelContext(
@@ -458,7 +459,7 @@ class TestSpeakHandler:
                 await speak_handler.handle(result, test_thought, dispatch_context)
 
                 # Verify correct channel was used
-                mock_communication_bus.send_message.assert_called_with(
+                mock_communication_bus.send_message_sync.assert_called_with(
                     channel_id=channel_id,
                     content="Hello, this is a test message!",
                     handler_name="SpeakHandler"
@@ -471,7 +472,7 @@ class TestSpeakHandler:
     ):
         """Test handling of exceptions from communication bus."""
         # Configure communication to raise exception
-        mock_communication_bus.send_message.side_effect = Exception("Network error")
+        mock_communication_bus.send_message_sync.side_effect = Exception("Network error")
         mock_persistence.get_task_by_id.return_value = test_task
 
         # Execute handler - should handle exception gracefully
@@ -639,7 +640,7 @@ class TestEdgeCases:
 
             # Should still complete successfully
             assert follow_up_id is not None
-            mock_communication_bus.send_message.assert_called_once()
+            mock_communication_bus.send_message_sync.assert_called_once()
 
     async def test_concurrent_message_sends(
         self, speak_handler, action_result, test_thought, dispatch_context,
@@ -655,7 +656,7 @@ class TestEdgeCases:
                 await asyncio.sleep(0.1)
                 return True
 
-            mock_communication_bus.send_message = slow_send
+            mock_communication_bus.send_message_sync = slow_send
 
             # Execute multiple handlers concurrently
             tasks = []
@@ -669,3 +670,47 @@ class TestEdgeCases:
             # All should complete successfully
             results = await asyncio.gather(*tasks)
             assert all(r is not None for r in results)
+
+    async def test_send_to_nonexistent_discord_channel(
+        self, speak_handler, test_thought, dispatch_context,
+        mock_communication_bus, test_task
+    ):
+        """Test sending to a Discord channel when no Discord adapter exists."""
+        # Configure communication bus to raise RuntimeError (no adapter found)
+        mock_communication_bus.send_message_sync.side_effect = RuntimeError(
+            "No adapter found for channel prefix: discord_"
+        )
+        
+        # Create params with Discord channel
+        params = SpeakParams(
+            content="Hello Discord!",
+            channel_context=ChannelContext(
+                channel_id="discord_1364300186003968060_1382010877171073108",
+                channel_name="Discord Channel",
+                channel_type="text",
+                created_at=datetime.now(timezone.utc)
+            )
+        )
+        
+        result = ActionSelectionDMAResult(
+            selected_action=HandlerActionType.SPEAK,
+            action_parameters=params,
+            rationale="Test Discord channel"
+        )
+        
+        with patch_persistence_properly(test_task) as mock_persistence:
+            # Execute handler
+            follow_up_id = await speak_handler.handle(
+                result, test_thought, dispatch_context
+            )
+            
+            # Verify thought was marked as failed
+            assert mock_persistence.update_thought_status.called
+            update_call = mock_persistence.update_thought_status.call_args
+            assert update_call.kwargs['thought_id'] == "thought_123"
+            assert update_call.kwargs['status'] == ThoughtStatus.FAILED
+            
+            # Verify follow-up thought was created with failure message
+            assert follow_up_id is not None
+            follow_up_call = mock_persistence.add_thought.call_args[0][0]
+            assert "SPEAK action failed" in follow_up_call.content

@@ -1,14 +1,19 @@
 FROM python:3.12-slim
 
-# Install curl for health checks
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+# Install dependencies including build tools for psutil
+RUN apt-get update && apt-get install -y \
+    curl \
+    gcc \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory in the container
 WORKDIR /app
 
 # Copy the requirements file and install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Try to use pre-compiled wheels first, fall back to building from source
+RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 
 # Copy the rest of the application code
 COPY . .
