@@ -1,13 +1,51 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { cirisClient } from '../../lib/ciris-sdk';
+import type { OAuthProvider } from '../../lib/ciris-sdk';
 
 export default function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [oauthProviders, setOAuthProviders] = useState<OAuthProvider[]>([]);
   const { login } = useAuth();
+
+  useEffect(() => {
+    loadOAuthProviders();
+  }, []);
+
+  const loadOAuthProviders = async () => {
+    try {
+      const response = await cirisClient.auth.listOAuthProviders();
+      setOAuthProviders(response.providers);
+    } catch (error) {
+      // OAuth providers not configured is ok
+    }
+  };
+
+  const handleOAuthLogin = async (provider: string) => {
+    try {
+      const response = await cirisClient.auth.initiateOAuthLogin(provider, window.location.origin + '/oauth/callback');
+      window.location.href = response.auth_url;
+    } catch (error) {
+      console.error('OAuth login error:', error);
+    }
+  };
+
+  const getProviderIcon = (provider: string) => {
+    switch (provider.toLowerCase()) {
+      case 'google':
+        return '🔵';
+      case 'github':
+        return '🐙';
+      case 'discord':
+        return '💬';
+      default:
+        return '🔑';
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,6 +123,35 @@ export default function LoginPage() {
             <p>Default credentials:</p>
             <p className="font-mono">admin / ciris_admin_password</p>
           </div>
+
+          {/* OAuth Login Options */}
+          {oauthProviders.length > 0 && (
+            <>
+              <div className="mt-6">
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300" />
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-gray-50 text-gray-500">Or continue with</span>
+                  </div>
+                </div>
+
+                <div className="mt-6 grid grid-cols-1 gap-3">
+                  {oauthProviders.map((provider) => (
+                    <button
+                      key={provider.provider}
+                      onClick={() => handleOAuthLogin(provider.provider)}
+                      className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                    >
+                      <span className="mr-2 text-lg">{getProviderIcon(provider.provider)}</span>
+                      Sign in with {provider.provider.charAt(0).toUpperCase() + provider.provider.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </form>
       </div>
     </div>

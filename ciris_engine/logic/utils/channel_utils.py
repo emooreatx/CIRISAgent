@@ -29,10 +29,12 @@ def create_channel_context(
 
     # Infer channel type from ID patterns if not provided
     if channel_type is None:
-        if channel_id_str.startswith("cli-"):
+        if channel_id_str.startswith("cli_") or channel_id_str.startswith("cli-"):
             channel_type = "cli"
-        elif channel_id_str.startswith("api-"):
+        elif channel_id_str.startswith("api_") or channel_id_str.startswith("api-"):
             channel_type = "api"
+        elif channel_id_str.startswith("discord_"):
+            channel_type = "discord"
         elif channel_id_str.isdigit() and len(channel_id_str) >= 17:  # Discord IDs are 17-19 digits
             channel_type = "discord"
         else:

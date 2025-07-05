@@ -13,7 +13,9 @@ from . import (
     emergency,
     memory,
     system,
+    system_extensions,
     telemetry,
+    users,
     wa
 )
 
@@ -25,6 +27,8 @@ __all__ = [
     "emergency",
     "memory",
     "system",
+    "system_extensions",
     "telemetry",
+    "users",
     "wa"
 ]

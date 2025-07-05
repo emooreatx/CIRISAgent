@@ -61,8 +61,9 @@ export class AgentResource extends BaseResource {
   /**
    * Get available channels
    */
-  async getChannels(): Promise<string[]> {
-    return this.transport.get<string[]>('/v1/agent/channels');
+  async getChannels(): Promise<any[]> {
+    const response = await this.transport.get<{ channels: any[]; total_count: number }>('/v1/agent/channels');
+    return response.channels || [];
   }
 
   /**

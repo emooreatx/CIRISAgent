@@ -264,6 +264,7 @@ async def get_timeline(
     bucket_size: str = Query("hour", description="Time bucket size: hour, day"),
     scope: Optional[GraphScope] = Query(None, description="Memory scope filter"),
     type: Optional[NodeType] = Query(None, description="Node type filter"),
+    limit: Optional[int] = Query(100, ge=1, le=1000, description="Maximum number of memories to return"),
     auth: AuthContext = Depends(require_observer)
 ):
     """
@@ -286,7 +287,7 @@ async def get_timeline(
             until=now,
             scope=scope,
             type=type,
-            limit=100  # Maximum allowed by QueryRequest
+            limit=limit  # Use the provided limit parameter
         )
 
         # Reuse the query logic
@@ -346,7 +347,7 @@ async def get_timeline(
                     buckets[bucket_key] += 1
 
         response = TimelineResponse(
-            memories=nodes[:100],  # Limit actual nodes returned
+            memories=nodes[:limit],  # Limit actual nodes returned
             buckets=buckets,
             start_time=start_time,
             end_time=now,
@@ -439,7 +440,6 @@ async def visualize_memory_graph(
         # Import visualization dependencies
         import networkx as nx
         from datetime import datetime
-        import math
         
         # Query nodes based on filters
         nodes = []

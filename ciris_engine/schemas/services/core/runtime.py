@@ -103,7 +103,10 @@ class ServiceSelectionExplanation(BaseModel):
     """Explanation of service selection logic."""
     overview: str = Field(..., description="Overview of selection logic")
     priority_groups: Dict[int, str] = Field(..., description="Priority group explanations")
+    priorities: Optional[Dict[str, dict]] = Field(default_factory=dict, description="Priority level details")
     selection_strategies: Dict[str, str] = Field(..., description="Strategy explanations")
+    selection_flow: Optional[List[str]] = Field(default_factory=list, description="Selection flow steps")
+    circuit_breaker_info: Optional[dict] = Field(default_factory=dict, description="Circuit breaker information")
     examples: List[dict] = Field(..., description="Example scenarios")
     configuration_tips: List[str] = Field(..., description="Configuration recommendations")
 

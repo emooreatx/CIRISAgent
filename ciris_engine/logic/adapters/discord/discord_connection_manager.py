@@ -223,11 +223,20 @@ class DiscordConnectionManager:
                 loop = asyncio.get_running_loop()
                 self.client = discord.Client(intents=intents, loop=loop)
                 self._setup_event_handlers()
-
-            # Start the client
-            self.connection_task = asyncio.create_task(
-                self.client.start(self.token, reconnect=True)
-            )
+                
+                # Start the client only if we created it
+                self.connection_task = asyncio.create_task(
+                    self.client.start(self.token, reconnect=True)
+                )
+                logger.info("Discord client connection initiated (created new client)")
+            else:
+                # Client was provided externally, just set up event handlers
+                self._setup_event_handlers()
+                logger.info("Discord connection manager configured with existing client")
+                # Don't start the client here - let the platform handle it
+            
+            self.state = ConnectionState.CONNECTING
+            logger.info("Discord connection manager ready")
 
         except Exception as e:
             logger.error(f"Failed to connect to Discord: {e}")
@@ -252,10 +261,10 @@ class DiscordConnectionManager:
         Returns:
             True if connected
         """
-        return (self.state == ConnectionState.CONNECTED and
-                self.client is not None and
-                not self.client.is_closed() and
-                self.client.is_ready())
+        # If we have a client, check its actual state
+        if self.client is not None:
+            return not self.client.is_closed() and self.client.is_ready()
+        return False
 
     def get_connection_info(self) -> dict:
         """Get current connection information.

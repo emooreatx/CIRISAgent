@@ -12,7 +12,7 @@ Note: OAuth endpoints are in api_auth_v2.py
 import hashlib
 import secrets
 import logging
-from typing import Optional
+from typing import Optional, Dict
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException, status, Request, Depends
@@ -26,10 +26,12 @@ from ciris_engine.schemas.api.auth import (
     UserRole,
     ROLE_PERMISSIONS,
 )
+from ciris_engine.schemas.runtime.api import APIRole
 from ..dependencies.auth import (
     get_auth_context,
     get_auth_service,
     optional_auth,
+    check_permissions,
 )
 from ciris_engine.schemas.api.auth import AuthContext
 from ..services.auth_service import APIAuthService
@@ -53,62 +55,57 @@ async def login(
     """
     config_service = getattr(req.app.state, 'config_service', None)
 
-    # Default credentials for testing/development
-    admin_username = "admin"
-    admin_password_hash = hashlib.sha256("ciris_admin_password".encode()).hexdigest()
+    # Try to find user by username in auth service
+    users = await auth_service.list_users(search=request.username)
+    user = None
+    for u in users:
+        if u.name == request.username and u.auth_type == "password":
+            user = u
+            break
     
-    if config_service:
-        # Try to get admin credentials from config
-        try:
-            configured_username = await config_service.get_config("admin_username")
-            configured_password_hash = await config_service.get_config("admin_password_hash")
-            
-            if configured_username:
-                admin_username = configured_username
-            if configured_password_hash:
-                admin_password_hash = configured_password_hash
-                
-        except Exception as e:
-            logger.warning(f"Using default credentials, config not available: {e}")
-    else:
-        logger.warning("Config service not available, using default credentials")
-
-    # Verify credentials
-    if request.username != admin_username:
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"
         )
-
-    # Hash the provided password
+    
+    # Verify password
     password_hash = hashlib.sha256(request.password.encode()).hexdigest()
-    if password_hash != admin_password_hash:
+    if user.password_hash != password_hash:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"
         )
 
-    # Generate API key for SYSTEM_ADMIN
-    api_key = f"ciris_admin_{secrets.token_urlsafe(32)}"
+    # Generate API key based on user's role
+    api_key = f"ciris_{user.api_role.value.lower()}_{secrets.token_urlsafe(32)}"
     expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
 
+    # Map APIRole to UserRole for API key storage
+    user_role_map = {
+        APIRole.OBSERVER: UserRole.OBSERVER,
+        APIRole.ADMIN: UserRole.ADMIN,
+        APIRole.AUTHORITY: UserRole.AUTHORITY,
+        APIRole.SYSTEM_ADMIN: UserRole.SYSTEM_ADMIN
+    }
+    
     # Store API key
     await auth_service.store_api_key(
         key=api_key,
-        user_id="SYSTEM_ADMIN",
-        role=UserRole.SYSTEM_ADMIN,
+        user_id=user.wa_id,
+        role=user_role_map[user.api_role],
         expires_at=expires_at,
-        description="System admin login session"
+        description="Login session"
     )
 
-    logger.info("System admin user logged in successfully")
+    logger.info(f"User {user.name} logged in successfully")
 
     return LoginResponse(
         access_token=api_key,
         token_type="Bearer",
         expires_in=86400,  # 24 hours
-        role=UserRole.SYSTEM_ADMIN,
-        user_id="SYSTEM_ADMIN"
+        role=user_role_map[user.api_role],
+        user_id=user.wa_id
     )
 
 
@@ -217,3 +214,408 @@ async def refresh_token(
         role=auth.role,
         user_id=auth.user_id
     )
+
+
+# ========== OAuth Management Endpoints ==========
+
+@router.get("/auth/oauth/providers")
+async def list_oauth_providers(
+    auth: AuthContext = Depends(get_auth_context),
+    _: None = Depends(check_permissions(["users.write"]))  # SYSTEM_ADMIN only
+):
+    """
+    List configured OAuth providers.
+    
+    Requires: users.write permission (SYSTEM_ADMIN only)
+    """
+    import json
+    from pathlib import Path
+    
+    oauth_config_file = Path.home() / ".ciris" / "oauth.json"
+    
+    if not oauth_config_file.exists():
+        return {"providers": []}
+    
+    try:
+        config = json.loads(oauth_config_file.read_text())
+        providers = []
+        
+        for provider, settings in config.items():
+            providers.append({
+                "provider": provider,
+                "client_id": settings.get("client_id"),
+                "created": settings.get("created"),
+                "callback_url": f"http://localhost:3000/auth/oauth/{provider}/callback",
+                "metadata": settings.get("metadata", {})
+            })
+        
+        return {"providers": providers}
+    except Exception as e:
+        logger.error(f"Failed to read OAuth config: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to read OAuth configuration"
+        )
+
+
+@router.post("/auth/oauth/providers")
+async def configure_oauth_provider(
+    provider: str,
+    client_id: str,
+    client_secret: str,
+    metadata: Optional[Dict[str, str]] = None,
+    auth: AuthContext = Depends(get_auth_context),
+    _: None = Depends(check_permissions(["users.write"]))  # SYSTEM_ADMIN only
+):
+    """
+    Configure an OAuth provider.
+    
+    Requires: users.write permission (SYSTEM_ADMIN only)
+    """
+    import json
+    from pathlib import Path
+    
+    oauth_config_file = Path.home() / ".ciris" / "oauth.json"
+    oauth_config_file.parent.mkdir(exist_ok=True, mode=0o700)
+    
+    # Load existing config
+    config = {}
+    if oauth_config_file.exists():
+        try:
+            config = json.loads(oauth_config_file.read_text())
+        except:
+            pass
+    
+    # Add/update provider
+    config[provider] = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "created": datetime.now(timezone.utc).isoformat(),
+        "metadata": metadata or {}
+    }
+    
+    # Save config
+    try:
+        oauth_config_file.write_text(json.dumps(config, indent=2))
+        oauth_config_file.chmod(0o600)
+        
+        logger.info(f"OAuth provider '{provider}' configured by {auth.user_id}")
+        
+        return {
+            "provider": provider,
+            "callback_url": f"http://localhost:3000/auth/oauth/{provider}/callback",
+            "message": "OAuth provider configured successfully"
+        }
+    except Exception as e:
+        logger.error(f"Failed to save OAuth config: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save OAuth configuration"
+        )
+
+
+@router.get("/auth/oauth/{provider}/login")
+async def oauth_login(
+    provider: str,
+    redirect_uri: Optional[str] = None
+):
+    """
+    Initiate OAuth login flow.
+    
+    Redirects to the OAuth provider's authorization URL.
+    """
+    import json
+    from pathlib import Path
+    import urllib.parse
+    
+    oauth_config_file = Path.home() / ".ciris" / "oauth.json"
+    
+    if not oauth_config_file.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"OAuth provider '{provider}' not configured"
+        )
+    
+    try:
+        config = json.loads(oauth_config_file.read_text())
+        if provider not in config:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"OAuth provider '{provider}' not configured"
+            )
+        
+        provider_config = config[provider]
+        client_id = provider_config["client_id"]
+        
+        # Generate state for CSRF protection
+        state = secrets.token_urlsafe(32)
+        
+        # Store state in a temporary location (in production, use Redis or similar)
+        # For now, we'll include it in the redirect_uri
+        
+        callback_url = redirect_uri or f"http://localhost:3000/auth/oauth/{provider}/callback"
+        
+        # Build authorization URL based on provider
+        if provider == "google":
+            auth_url = "https://accounts.google.com/o/oauth2/v2/auth"
+            params = {
+                "client_id": client_id,
+                "redirect_uri": callback_url,
+                "response_type": "code",
+                "scope": "openid email profile",
+                "state": state,
+                "access_type": "offline",
+                "prompt": "consent"
+            }
+        elif provider == "github":
+            auth_url = "https://github.com/login/oauth/authorize"
+            params = {
+                "client_id": client_id,
+                "redirect_uri": callback_url,
+                "scope": "read:user user:email",
+                "state": state
+            }
+        elif provider == "discord":
+            auth_url = "https://discord.com/api/oauth2/authorize"
+            params = {
+                "client_id": client_id,
+                "redirect_uri": callback_url,
+                "response_type": "code",
+                "scope": "identify email",
+                "state": state
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported OAuth provider: {provider}"
+            )
+        
+        # Build full URL
+        full_url = f"{auth_url}?{urllib.parse.urlencode(params)}"
+        
+        return {
+            "authorization_url": full_url,
+            "state": state
+        }
+        
+    except Exception as e:
+        logger.error(f"OAuth login initiation failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to initiate OAuth login"
+        )
+
+
+@router.post("/auth/oauth/{provider}/callback")
+async def oauth_callback(
+    provider: str,
+    code: str,
+    state: str,
+    auth_service: APIAuthService = Depends(get_auth_service)
+):
+    """
+    Handle OAuth callback.
+    
+    Exchanges authorization code for tokens and creates/updates user.
+    """
+    import json
+    import httpx
+    from pathlib import Path
+    
+    # Load OAuth configuration
+    oauth_config_file = Path.home() / ".ciris" / "oauth.json"
+    
+    if not oauth_config_file.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"OAuth provider '{provider}' not configured"
+        )
+    
+    try:
+        config = json.loads(oauth_config_file.read_text())
+        if provider not in config:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"OAuth provider '{provider}' not configured"
+            )
+        
+        provider_config = config[provider]
+        client_id = provider_config["client_id"]
+        client_secret = provider_config["client_secret"]
+        
+        # Exchange authorization code for access token
+        async with httpx.AsyncClient() as client:
+            if provider == "google":
+                # Exchange code for token
+                token_response = await client.post(
+                    "https://oauth2.googleapis.com/token",
+                    data={
+                        "code": code,
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                        "redirect_uri": f"http://localhost:3000/auth/oauth/{provider}/callback",
+                        "grant_type": "authorization_code"
+                    }
+                )
+                
+                if token_response.status_code != 200:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Failed to exchange code for token: {token_response.text}"
+                    )
+                
+                token_data = token_response.json()
+                access_token = token_data["access_token"]
+                
+                # Get user info
+                user_response = await client.get(
+                    "https://www.googleapis.com/oauth2/v2/userinfo",
+                    headers={"Authorization": f"Bearer {access_token}"}
+                )
+                
+                if user_response.status_code != 200:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Failed to fetch user info"
+                    )
+                
+                user_info = user_response.json()
+                external_id = user_info["id"]
+                email = user_info.get("email")
+                name = user_info.get("name", email)
+                
+            elif provider == "github":
+                # Exchange code for token
+                token_response = await client.post(
+                    "https://github.com/login/oauth/access_token",
+                    headers={"Accept": "application/json"},
+                    data={
+                        "code": code,
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                        "redirect_uri": f"http://localhost:3000/auth/oauth/{provider}/callback"
+                    }
+                )
+                
+                if token_response.status_code != 200:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Failed to exchange code for token: {token_response.text}"
+                    )
+                
+                token_data = token_response.json()
+                access_token = token_data["access_token"]
+                
+                # Get user info
+                user_response = await client.get(
+                    "https://api.github.com/user",
+                    headers={"Authorization": f"token {access_token}"}
+                )
+                
+                if user_response.status_code != 200:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Failed to fetch user info"
+                    )
+                
+                user_info = user_response.json()
+                external_id = str(user_info["id"])
+                email = user_info.get("email")
+                name = user_info.get("name", user_info.get("login"))
+                
+                # If email is private, fetch from emails endpoint
+                if not email:
+                    emails_response = await client.get(
+                        "https://api.github.com/user/emails",
+                        headers={"Authorization": f"token {access_token}"}
+                    )
+                    if emails_response.status_code == 200:
+                        emails = emails_response.json()
+                        for e in emails:
+                            if e.get("primary"):
+                                email = e["email"]
+                                break
+                
+            elif provider == "discord":
+                # Exchange code for token
+                token_response = await client.post(
+                    "https://discord.com/api/oauth2/token",
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                    data={
+                        "code": code,
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                        "redirect_uri": f"http://localhost:3000/auth/oauth/{provider}/callback",
+                        "grant_type": "authorization_code"
+                    }
+                )
+                
+                if token_response.status_code != 200:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Failed to exchange code for token: {token_response.text}"
+                    )
+                
+                token_data = token_response.json()
+                access_token = token_data["access_token"]
+                
+                # Get user info
+                user_response = await client.get(
+                    "https://discord.com/api/users/@me",
+                    headers={"Authorization": f"Bearer {access_token}"}
+                )
+                
+                if user_response.status_code != 200:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Failed to fetch user info"
+                    )
+                
+                user_info = user_response.json()
+                external_id = user_info["id"]
+                email = user_info.get("email")
+                name = user_info.get("username", email)
+                
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Unsupported OAuth provider: {provider}"
+                )
+        
+        # Create or update OAuth user
+        oauth_user = await auth_service.create_oauth_user(
+            provider=provider,
+            external_id=external_id,
+            email=email,
+            name=name,
+            role=UserRole.OBSERVER  # Default role for new OAuth users
+        )
+        
+        # Generate API key for the user
+        api_key = f"ciris_observer_{secrets.token_urlsafe(32)}"
+        expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+        
+        await auth_service.store_api_key(
+            key=api_key,
+            user_id=oauth_user.user_id,
+            role=oauth_user.role,
+            expires_at=expires_at,
+            description=f"OAuth login via {provider}"
+        )
+        
+        logger.info(f"OAuth user {oauth_user.user_id} logged in successfully via {provider}")
+        
+        return LoginResponse(
+            access_token=api_key,
+            token_type="Bearer",
+            expires_in=2592000,  # 30 days
+            role=oauth_user.role,
+            user_id=oauth_user.user_id
+        )
+        
+    except Exception as e:
+        logger.error(f"OAuth callback error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"OAuth callback failed: {str(e)}"
+        )

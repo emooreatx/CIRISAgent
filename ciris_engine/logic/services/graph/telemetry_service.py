@@ -782,6 +782,8 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         cost_1h_cents = 0.0
         carbon_24h_grams = 0.0
         carbon_1h_grams = 0.0
+        energy_24h_kwh = 0.0
+        energy_1h_kwh = 0.0
 
         messages_24h = 0
         messages_1h = 0
@@ -801,6 +803,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 ("llm.tokens.total", "tokens"),
                 ("llm.cost.cents", "cost"),
                 ("llm.environmental.carbon_grams", "carbon"),
+                ("llm.environmental.energy_kwh", "energy"),
                 ("llm.latency.ms", "latency"),
                 ("message.processed", "messages"),
                 ("thought.processed", "thoughts"),
@@ -838,6 +841,10 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                         carbon_24h_grams += float(value)
                         if timestamp >= window_start_1h:
                             carbon_1h_grams += float(value)
+                    elif metric_type == "energy":
+                        energy_24h_kwh += float(value)
+                        if timestamp >= window_start_1h:
+                            energy_1h_kwh += float(value)
                     elif metric_type == "messages":
                         messages_24h += int(value)
                         if timestamp >= window_start_1h:
@@ -866,8 +873,8 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                         service = tags["service"]
                         service_calls[service] = service_calls.get(service, 0) + 1
 
-            # Calculate rates
-            tokens_per_hour = tokens_1h  # Already for 1 hour
+            # Show actual values for the last hour (not extrapolated rates)
+            tokens_per_hour = tokens_1h
             cost_per_hour_cents = cost_1h_cents
             carbon_per_hour_grams = carbon_1h_grams
 

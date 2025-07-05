@@ -195,7 +195,7 @@ class ServiceRegistry:
         for p in providers:
             grouped.setdefault(p.priority_group, []).append(p)
 
-        for group in sorted(grouped.keys()):
+        for group in sorted(grouped.keys(), key=lambda x: (x is None, x)):
             group_providers = sorted(grouped[group], key=lambda x: x.priority.value)
             if not group_providers:
                 continue

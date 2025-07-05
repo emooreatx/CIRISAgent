@@ -432,6 +432,14 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
         """Load a new adapter instance."""
         # AdapterStatus is already imported at module level
 
+        # Lazy initialization of adapter_manager if needed
+        if not self.adapter_manager and self.runtime:
+            if self._time_service is None:
+                from ciris_engine.logic.services.lifecycle.time import TimeService
+                self._time_service = TimeService()
+            self.adapter_manager = RuntimeAdapterManager(self.runtime, self._time_service)
+            logger.info("Lazy-initialized adapter_manager in load_adapter")
+
         if not self.adapter_manager:
             return AdapterOperationResponse(
                 success=False,
@@ -462,6 +470,14 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
         """Unload an adapter instance."""
         # AdapterStatus is already imported at module level
 
+        # Lazy initialization of adapter_manager if needed
+        if not self.adapter_manager and self.runtime:
+            if self._time_service is None:
+                from ciris_engine.logic.services.lifecycle.time import TimeService
+                self._time_service = TimeService()
+            self.adapter_manager = RuntimeAdapterManager(self.runtime, self._time_service)
+            logger.info("Lazy-initialized adapter_manager in unload_adapter")
+
         if not self.adapter_manager:
             return AdapterOperationResponse(
                 success=False,
@@ -488,6 +504,14 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
 
     async def list_adapters(self) -> List[AdapterInfo]:
         """List all loaded adapters including bootstrap adapters."""
+        # Lazy initialization of adapter_manager if needed
+        if not self.adapter_manager and self.runtime:
+            if self._time_service is None:
+                from ciris_engine.logic.services.lifecycle.time import TimeService
+                self._time_service = TimeService()
+            self.adapter_manager = RuntimeAdapterManager(self.runtime, self._time_service)
+            logger.info("Lazy-initialized adapter_manager in list_adapters")
+        
         adapters_list = []
         
         # First, add bootstrap adapters from runtime
@@ -551,6 +575,14 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
 
     async def get_adapter_info(self, adapter_id: str) -> Optional[AdapterInfo]:
         """Get detailed information about a specific adapter."""
+        # Lazy initialization of adapter_manager if needed
+        if not self.adapter_manager and self.runtime:
+            if self._time_service is None:
+                from ciris_engine.logic.services.lifecycle.time import TimeService
+                self._time_service = TimeService()
+            self.adapter_manager = RuntimeAdapterManager(self.runtime, self._time_service)
+            logger.info("Lazy-initialized adapter_manager in get_adapter_info")
+        
         if not self.adapter_manager:
             return None
 

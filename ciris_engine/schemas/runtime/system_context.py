@@ -297,9 +297,9 @@ class TelemetrySummary(BaseModel):
     service_latency_ms: Dict[str, float] = Field(default_factory=dict, description="Avg latency per service")
 
     # Resource consumption rates
-    tokens_per_hour: float = Field(0.0, description="Average tokens per hour")
-    cost_per_hour_cents: float = Field(0.0, description="Average cost per hour in cents")
-    carbon_per_hour_grams: float = Field(0.0, description="Average carbon per hour in grams")
+    tokens_per_hour: float = Field(0.0, description="Total tokens used in the last hour")
+    cost_per_hour_cents: float = Field(0.0, description="Total cost in the last hour (cents)")
+    carbon_per_hour_grams: float = Field(0.0, description="Total carbon emissions in the last hour (grams)")
 
     # Health indicators
     error_rate_percent: float = Field(0.0, description="Error rate as percentage")

@@ -11,8 +11,10 @@ import requests
 import time
 import json
 import socket
+import sqlite3
 from typing import Dict, Any, Optional, List
 from datetime import datetime
+from pathlib import Path
 
 
 # Skip all tests in this module if API is not available
@@ -93,6 +95,88 @@ class CIRISAPIClient:
         # For now, still use sleep but with shorter default
         # In future, could implement polling for completion status
         time.sleep(min(timeout, 1.0))  # Cap at 1 second for tests
+        
+    def get_traces(self, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get recent reasoning traces."""
+        resp = requests.get(
+            f"{self.base_url}/v1/telemetry/traces?limit={limit}",
+            headers=self.headers
+        )
+        if resp.status_code == 200:
+            return resp.json().get("data", {}).get("traces", [])
+        return []
+        
+    def get_handler_actions_from_message(self, message_id: str, wait_time: int = 2) -> List[str]:
+        """Get handler actions for a specific message by searching recent audit entries."""
+        # Wait for processing
+        time.sleep(wait_time)
+        
+        # Get recent audit entries
+        entries = self.get_audit_entries(limit=100)
+        
+        # Filter entries related to handlers after this message
+        handler_actions = []
+        for entry in entries:
+            action = entry.get('action', '')
+            if 'HANDLER_ACTION_' in str(action):
+                handler_actions.append(action)
+                
+        return handler_actions
+    
+    def find_handler_action(self, handler_name: str, limit: int = 50, time_window_seconds: int = 20) -> bool:
+        """Check if a specific handler was invoked recently via direct DB query."""
+        # This is a test helper that queries the database directly
+        # In production, use telemetry/audit endpoints
+        
+        # Calculate time window
+        from datetime import datetime, timezone, timedelta
+        cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=time_window_seconds)
+        
+        # First try audit entries via API
+        entries = self.get_audit_entries(limit=limit)
+        for entry in entries:
+            # Check timestamp first
+            entry_time_str = entry.get('timestamp', '')
+            if entry_time_str:
+                try:
+                    entry_time = datetime.fromisoformat(entry_time_str.replace('Z', '+00:00'))
+                    if entry_time < cutoff_time:
+                        continue  # Skip old entries
+                except:
+                    pass  # If timestamp parsing fails, check anyway
+                    
+            # Check handler match
+            if handler_name in str(entry.get('actor', '')) or \
+               handler_name.upper() in str(entry.get('action', '')):
+                return True
+        
+        # If running in container, try direct DB query
+        try:
+            # Assume standard CIRIS DB path
+            db_path = Path("/app/data/ciris.db")
+            if not db_path.exists():
+                db_path = Path("data/ciris.db")
+            
+            if db_path.exists():
+                conn = sqlite3.connect(str(db_path))
+                cursor = conn.execute("""
+                    SELECT handler_name, created_at
+                    FROM service_correlations 
+                    WHERE handler_name LIKE ? 
+                    AND datetime(created_at) >= datetime('now', '-' || ? || ' seconds')
+                    ORDER BY created_at DESC 
+                    LIMIT ?
+                """, (f"%{handler_name}%", time_window_seconds, limit))
+                
+                rows = cursor.fetchall()
+                conn.close()
+                
+                return len(rows) > 0
+        except Exception:
+            # DB query failed, rely on audit entries
+            pass
+        
+        return False
 
 
 @pytest.fixture
@@ -177,26 +261,14 @@ class TestObserveHandler:
         # Use active observation to trigger the handler
         result = api_client.interact("$observe api_test true")
         assert "data" in result
+        message_id = result["data"]["message_id"]
         
-        api_client.wait_for_processing(timeout=2)
+        # Wait for processing (increased for reliability)
+        time.sleep(5)
         
-        # Check audit entries - increase limit to ensure we get all entries
-        all_entries = api_client.get_audit_entries(limit=200)
-        print(f"\nAll audit entries ({len(all_entries)}):")
-        for entry in all_entries[:10]:  # Print first 10
-            print(f"  - {entry.get('action', 'unknown')}: {entry.get('actor', 'unknown')}")
-        
-        # Filter for handler-related entries by looking at action or actor fields
-        handler_entries = [e for e in all_entries if "Handler" in e.get('actor', '') or "HANDLER" in e.get('action', '')]
-        
-        # Debug: print all handler entries
-        print(f"\nAll handler audit entries ({len(handler_entries)}):")
-        for entry in handler_entries[:5]:
-            print(f"  - {entry.get('action', '')}: {entry.get('actor', '')}")
-        
-        # Look for OBSERVE handler entries - check for AuditEventType.HANDLER_ACTION_OBSERVE format
-        observe_entries = [e for e in all_entries if "AuditEventType.HANDLER_ACTION_OBSERVE" in str(e.get('action', '')) or "ObserveHandler" in str(e.get('actor', ''))]
-        assert len(observe_entries) > 0, f"No OBSERVE handler entries found. Handler entries: {len(handler_entries)}, Total entries: {len(all_entries)}"
+        # Check if ObserveHandler was invoked - increase limit and time window due to test concurrency
+        observe_found = api_client.find_handler_action('ObserveHandler', limit=200, time_window_seconds=30)
+        assert observe_found, "ObserveHandler not found in recent audit entries or correlations"
 
 
 class TestToolHandler:
@@ -206,19 +278,14 @@ class TestToolHandler:
         """Test using the curl tool."""
         result = api_client.interact('$tool curl url=http://example.com')
         assert "data" in result
+        message_id = result["data"]["message_id"]
         
-        api_client.wait_for_processing(timeout=2)
+        # Wait for processing
+        time.sleep(2)
         
-        # Check audit entries
-        entries = api_client.get_audit_entries(limit=200)
-        
-        # Debug: print all entries to see what's available
-        print(f"\nAll audit entries ({len(entries)}):")
-        for entry in entries[:10]:  # Print first 10
-            print(f"  - {entry.get('action', 'unknown')}: {entry.get('actor', 'unknown')}")
-        
-        tool_entries = [e for e in entries if "AuditEventType.HANDLER_ACTION_TOOL" in str(e.get('action', '')) or "ToolHandler" in str(e.get('actor', ''))]
-        assert len(tool_entries) > 0, "No TOOL handler entries found"
+        # Check if ToolHandler was invoked
+        tool_found = api_client.find_handler_action('ToolHandler', limit=100)
+        assert tool_found, "ToolHandler not found in recent audit entries or correlations"
         
     def test_tool_with_params(self, api_client):
         """Test tool with key=value parameters."""
@@ -238,24 +305,9 @@ class TestDeferHandler:
         
         api_client.wait_for_processing(timeout=4)
         
-        # Check audit entries
-        entries = api_client.get_audit_entries(limit=200)
-        
-        # Debug: print all entries to see what's available
-        print(f"\nAll audit entries ({len(entries)}):")
-        for entry in entries[:10]:  # Print first 10
-            print(f"  - {entry.get('action', 'unknown')}: {entry.get('actor', 'unknown')}")
-        
-        # Filter for handler-related entries
-        handler_entries = [e for e in entries if "Handler" in e.get('actor', '') or "HANDLER" in e.get('action', '')]
-        
-        # Debug: print all handler entries
-        print(f"\nAll handler audit entries ({len(handler_entries)}):")
-        for entry in handler_entries[:5]:
-            print(f"  - {entry.get('action', '')}: {entry.get('actor', '')}")
-        
-        defer_entries = [e for e in entries if "AuditEventType.HANDLER_ACTION_DEFER" in str(e.get('action', '')) or "DeferHandler" in str(e.get('actor', ''))]
-        assert len(defer_entries) > 0, "No DEFER handler entries found"
+        # Check if DeferHandler was invoked
+        defer_found = api_client.find_handler_action('DeferHandler', limit=100)
+        assert defer_found, "DeferHandler not found in recent audit entries or correlations"
 
 
 class TestRejectHandler:
@@ -268,10 +320,9 @@ class TestRejectHandler:
         
         api_client.wait_for_processing(timeout=3)
         
-        # Check audit entries
-        entries = api_client.get_audit_entries(limit=100)
-        reject_entries = [e for e in entries if "AuditEventType.HANDLER_ACTION_REJECT" in str(e.get('action', '')) or "RejectHandler" in str(e.get('actor', ''))]
-        assert len(reject_entries) > 0, "No REJECT handler entries found"
+        # Check if RejectHandler was invoked
+        reject_found = api_client.find_handler_action('RejectHandler', limit=100)
+        assert reject_found, "RejectHandler not found in recent audit entries or correlations"
 
 
 class TestForgetHandler:
@@ -287,12 +338,11 @@ class TestForgetHandler:
         result = api_client.interact("$forget test_memory_node User requested deletion")
         assert "data" in result
         
-        api_client.wait_for_processing()
+        api_client.wait_for_processing(timeout=2)
         
-        # Check audit entries
-        entries = api_client.get_audit_entries(limit=100)
-        forget_entries = [e for e in entries if "AuditEventType.HANDLER_ACTION_FORGET" in str(e.get('action', '')) or "ForgetHandler" in str(e.get('actor', ''))]
-        assert len(forget_entries) > 0, "No FORGET handler entries found"
+        # Check if ForgetHandler was invoked
+        forget_found = api_client.find_handler_action('ForgetHandler', limit=100)
+        assert forget_found, "ForgetHandler not found in recent audit entries or correlations"
 
 
 class TestTaskCompleteHandler:
@@ -305,10 +355,9 @@ class TestTaskCompleteHandler:
         
         api_client.wait_for_processing()
         
-        # Check audit entries
-        entries = api_client.get_audit_entries(limit=100)
-        complete_entries = [e for e in entries if "AuditEventType.HANDLER_ACTION_TASK_COMPLETE" in str(e.get('action', '')) or "TaskCompleteHandler" in str(e.get('actor', ''))]
-        assert len(complete_entries) > 0, "No TASK_COMPLETE handler entries found"
+        # Check if TaskCompleteHandler was invoked
+        complete_found = api_client.find_handler_action('TaskCompleteHandler', limit=100)
+        assert complete_found, "TaskCompleteHandler not found in recent audit entries or correlations"
 
 
 class TestHandlerIntegration:

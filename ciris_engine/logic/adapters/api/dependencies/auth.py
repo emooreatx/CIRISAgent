@@ -109,3 +109,40 @@ require_observer = require_role(UserRole.OBSERVER)
 require_admin = require_role(UserRole.ADMIN)
 require_authority = require_role(UserRole.AUTHORITY)
 require_system_admin = require_role(UserRole.SYSTEM_ADMIN)
+
+def check_permissions(permissions: list[str]):
+    """
+    Factory for permission-based access control dependencies.
+    
+    Args:
+        permissions: List of required permissions
+    
+    Returns:
+        Dependency function that validates permissions
+    """
+    
+    async def check(
+        auth: AuthContext = Depends(get_auth_context),
+        auth_service: APIAuthService = Depends(get_auth_service)
+    ) -> None:
+        """Validate user has required permissions."""
+        # Get the user from auth service to get their API role
+        user = await auth_service.get_user(auth.user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User not found"
+            )
+        
+        # Get permissions for user's API role
+        user_permissions = set(auth_service.get_permissions_for_role(user.api_role))
+        
+        # Check if user has all required permissions
+        missing = set(permissions) - user_permissions
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Missing required permissions: {', '.join(missing)}"
+            )
+    
+    return check

@@ -164,7 +164,7 @@ async def test_memory_service_search(memory_service):
     # Search by type
     from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
     filter = MemorySearchFilter(
-        node_types=[NodeType.CONCEPT],
+        node_type=NodeType.CONCEPT,
         scope=GraphScope.LOCAL
     )
     results = await memory_service.search("", filters=filter)
@@ -172,7 +172,7 @@ async def test_memory_service_search(memory_service):
 
     # Search with limit - NOTE: The current implementation doesn't respect the limit filter
     filter_with_limit = MemorySearchFilter(
-        node_types=[NodeType.CONCEPT],
+        node_type=NodeType.CONCEPT,
         scope=GraphScope.LOCAL,
         limit=3
     )

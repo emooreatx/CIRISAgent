@@ -48,106 +48,12 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                     pass
                 break
     
-    # Extract channel from context - check multiple patterns
-    channel_id = None
-    logger.info(f"[MOCK_LLM] Extracting channel from {len(context)} context items")
+    # The mock LLM no longer extracts or sets channel for SPEAK actions
+    # It will only use channel_context when explicitly told via @channel: syntax
+    logger.info(f"[MOCK_LLM] Not extracting channel from context - will use task context unless @channel: is specified")
     
-    # First, try to extract channel_id from the actual messages
-    # Look for patterns in the user message content which often contains the task context
-    if messages:
-        for msg in messages:
-            if isinstance(msg, dict) and msg.get('role') == 'user':
-                content = msg.get('content', '')
-                # Look for channel_id in task context pattern
-                import re
-                task_context_match = re.search(r"channel_id='([^']+)'", content)
-                if task_context_match:
-                    channel_id = task_context_match.group(1)
-                    logger.info(f"[MOCK_LLM] Found channel_id in user message task context: {channel_id}")
-                    break
-    
-    # If not found in messages, check context items
-    if not channel_id:
-        # Log first few context items for debugging
-        for i, item in enumerate(context[:10]):
-            logger.debug(f"[MOCK_LLM] Context[{i}] (type {type(item).__name__}): {str(item)[:300]}...")
-    
-    for item in context:
-        # Check for echo_channel pattern from responses.py
-        if item.startswith("echo_channel:"):
-            channel_id = item.split(":", 1)[1].strip()
-            logger.debug(f"[MOCK_LLM] Found echo_channel: {channel_id}")
-            break
-        # Check for channel_id pattern
-        elif item.startswith("channel_id:"):
-            channel_id = item.split(":", 1)[1].strip()
-            logger.debug(f"[MOCK_LLM] Found channel_id: {channel_id}")
-            break
-        # Check for channel context patterns
-        elif "channel" in str(item).lower():
-            # Try to extract channel ID from various formats
-            import re
-            # More careful regex to avoid capturing garbage
-            # Don't match on attributes list or method names
-            if 'attributes:' in str(item) or '__' in str(item):
-                continue  # Skip attribute listings
-                
-            # Look for channel_id in proper contexts (not in attribute listings)
-            # Match patterns like: channel_id='cli_33204_11ae7b5e' or channel_id: cli_33204_11ae7b5e
-            channel_match = re.search(r"channel_id[=:]\s*['\"]?([a-zA-Z0-9_\-@\.]+)['\"]?", str(item))
-            if channel_match:
-                extracted = channel_match.group(1)
-                # Validate the extracted channel ID - must be a reasonable format
-                # Skip short matches like 'so' which are likely false positives
-                if len(extracted) > 4 and ('_' in extracted or '@' in extracted):
-                    channel_id = extracted
-                    logger.debug(f"[MOCK_LLM] Extracted channel_id via regex: {channel_id}")
-                    break
-                else:
-                    logger.debug(f"[MOCK_LLM] Skipped invalid channel match: '{extracted}'")
-            
-            # Also try to match channel patterns in task context like "channel_id='cli_33204_11ae7b5e'"
-            context_match = re.search(r"TaskContext.*channel_id='([^']+)'", str(item))
-            if context_match:
-                channel_id = context_match.group(1)
-                logger.info(f"[MOCK_LLM] Found channel_id in TaskContext: {channel_id}")
-                break
-            
-            # Try to find channel_id in task context more broadly
-            task_match = re.search(r"task.*channel_id[=:]\s*['\"]?([a-zA-Z0-9_\-@\.]+)['\"]?", str(item), re.IGNORECASE)
-            if task_match:
-                extracted = task_match.group(1)
-                if len(extracted) > 4 and ('_' in extracted or '@' in extracted):
-                    channel_id = extracted
-                    logger.info(f"[MOCK_LLM] Found channel_id in task context: {channel_id}")
-                    break
-    
-    # If still no channel_id found, look for CLI/API patterns
-    if not channel_id:
-        # Try to determine from other context clues
-        for item in context:
-            if "cli_" in str(item):
-                import re
-                cli_match = re.search(r'(cli_\d+_[a-f0-9]+)', str(item))
-                if cli_match:
-                    channel_id = cli_match.group(1)
-                    logger.info(f"[MOCK_LLM] Found CLI channel pattern: {channel_id}")
-                    break
-            elif "api_" in str(item):
-                import re
-                # Match both old format (api_0.0.0.0_8080) and new format (api_SYSTEM_ADMIN)
-                api_match = re.search(r'(api_[\w\.\-]+)', str(item))
-                if api_match:
-                    channel_id = api_match.group(1)
-                    logger.info(f"[MOCK_LLM] Found API channel pattern: {channel_id}")
-                    break
-    
-    # Final fallback
-    if not channel_id:
-        channel_id = "cli"  # Default to cli
-        logger.warning(f"[MOCK_LLM] Using default channel_id: {channel_id}")
-    
-    logger.info(f"[MOCK_LLM] Final extracted channel_id: '{channel_id}'")
+    # Default channel for non-SPEAK actions that need a channel
+    default_channel = "cli"
     
     # Extract user input 
     user_input = ""
@@ -223,13 +129,33 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                             content = msg.get('content', '')
                             context_display += f"\n[{i}] {role}:\n{content}\n"
                         
-                        params = SpeakParams(content=context_display, channel_context=create_channel_context(channel_id))
+                        params = SpeakParams(content=context_display)
                     else:
-                        params = SpeakParams(content=action_params, channel_context=create_channel_context(channel_id))
+                        # Check for @channel: syntax in forced action params
+                        speak_content = action_params
+                        speak_channel = default_channel
+                        
+                        import re
+                        channel_match = re.search(r'@channel:(\S+)', action_params)
+                        if channel_match:
+                            speak_channel = channel_match.group(1)
+                            # Remove the @channel: part from the content
+                            speak_content = action_params.replace(channel_match.group(0), '').strip()
+                            if not speak_content:
+                                speak_content = "[MOCK LLM] Cross-channel message"
+                            logger.info(f"[MOCK_LLM] Parsed channel from @channel: syntax in forced action - channel: {speak_channel}, content: {speak_content[:50]}")
+                        
+                        # Only set channel_context if @channel: was explicitly used
+                        if channel_match:
+                            params = SpeakParams(content=speak_content, channel_context=create_channel_context(speak_channel))
+                            logger.info(f"[MOCK_LLM] Created SpeakParams with channel_context for channel: {speak_channel}")
+                        else:
+                            params = SpeakParams(content=speak_content)
+                            logger.info(f"[MOCK_LLM] Created SpeakParams without channel_context - will use task context")
                 else:
                     # Provide helpful error with valid format
                     error_msg = "❌ $speak requires content. Format: $speak <message>\nExample: $speak Hello world!\nSpecial: $speak $context (displays full context)"
-                    params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
+                    params = SpeakParams(content=error_msg)
                     
             elif action == HandlerActionType.MEMORIZE:
                 if action_params:
@@ -246,11 +172,11 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                         
                         if node_type.upper() not in valid_types:
                             error_msg = f"❌ Invalid node type '{node_type}'. Valid types: {', '.join(valid_types)}"
-                            params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
+                            params = SpeakParams(content=error_msg)
                             action = HandlerActionType.SPEAK
                         elif scope.upper() not in valid_scopes:
                             error_msg = f"❌ Invalid scope '{scope}'. Valid scopes: {', '.join(valid_scopes)}"
-                            params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
+                            params = SpeakParams(content=error_msg)
                             action = HandlerActionType.SPEAK
                         else:
                             params = MemorizeParams(
@@ -265,11 +191,11 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                             )
                     else:
                         error_msg = "❌ $memorize requires: <node_id> [type] [scope]\nExample: $memorize user123 USER LOCAL\nTypes: AGENT, USER, CHANNEL, CONCEPT, CONFIG\nScopes: LOCAL, IDENTITY, ENVIRONMENT, COMMUNITY, NETWORK"
-                        params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
+                        params = SpeakParams(content=error_msg)
                         action = HandlerActionType.SPEAK
                 else:
                     error_msg = "❌ $memorize requires: <node_id> [type] [scope]\nExample: $memorize concept/weather CONCEPT LOCAL"
-                    params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
+                    params = SpeakParams(content=error_msg)
                     action = HandlerActionType.SPEAK
                     
             elif action == HandlerActionType.RECALL:
@@ -296,7 +222,7 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                         )
                 else:
                     error_msg = "❌ $recall requires either a query or node_id\nExamples:\n$recall memories\n$recall user123 USER LOCAL"
-                    params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
+                    params = SpeakParams(content=error_msg)
                     action = HandlerActionType.SPEAK
                     
             elif action == HandlerActionType.PONDER:
@@ -306,14 +232,14 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                     params = PonderParams(questions=questions)
                 else:
                     error_msg = "❌ $ponder requires questions. Format: $ponder <question1>; <question2>\nExample: $ponder What should I do next?; How can I help?"
-                    params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
+                    params = SpeakParams(content=error_msg)
                     action = HandlerActionType.SPEAK
                     
             elif action == HandlerActionType.OBSERVE:
                 parts = action_params.split() if action_params else []
-                channel_id = parts[0] if len(parts) > 0 else ""
+                observe_channel = parts[0] if len(parts) > 0 else ""
                 active = parts[1].lower() == "true" if len(parts) > 1 else False
-                channel_context = create_channel_context(channel_id) if channel_id else None
+                channel_context = create_channel_context(observe_channel) if observe_channel else None
                 params = ObserveParams(channel_context=channel_context, active=active)
                 
             elif action == HandlerActionType.TOOL:
@@ -331,16 +257,21 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                             tool_params = json.loads(parts[1])
                             logger.info(f"[MOCK_LLM] TOOL handler - parsed as JSON: {tool_params}")
                         except:
-                            # Try simple key=value parsing
-                            # First clean up the parameters string by removing escaped newlines
-                            params_str = parts[1].split('\\n')[0].strip()
-                            for pair in params_str.split():
-                                if '=' in pair:
-                                    k, v = pair.split('=', 1)
-                                    # Clean up the value
-                                    v = v.strip().rstrip('\\')
-                                    tool_params[k] = v
-                            logger.info(f"[MOCK_LLM] TOOL handler - parsed as key=value: {tool_params}")
+                            # Special handling for curl tool - expects 'url' parameter
+                            if tool_name == "curl":
+                                tool_params = {"url": parts[1].strip()}
+                                logger.info(f"[MOCK_LLM] TOOL handler - curl with URL: {tool_params}")
+                            else:
+                                # Try simple key=value parsing
+                                # First clean up the parameters string by removing escaped newlines
+                                params_str = parts[1].split('\\n')[0].strip()
+                                for pair in params_str.split():
+                                    if '=' in pair:
+                                        k, v = pair.split('=', 1)
+                                        # Clean up the value
+                                        v = v.strip().rstrip('\\')
+                                        tool_params[k] = v
+                                logger.info(f"[MOCK_LLM] TOOL handler - parsed as key=value: {tool_params}")
                     else:
                         logger.info(f"[MOCK_LLM] TOOL handler - no parameters provided")
                     
@@ -348,7 +279,7 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                     params = ToolParams(name=tool_name, parameters=tool_params)
                 else:
                     error_msg = "❌ $tool requires: <tool_name> [parameters]\nExample: $tool discord_delete_message channel_id=123 message_id=456\nAvailable tools: discord_delete_message, discord_timeout_user, list_files, read_file, etc."
-                    params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
+                    params = SpeakParams(content=error_msg)
                     action = HandlerActionType.SPEAK
                     
             elif action == HandlerActionType.REJECT:
@@ -356,7 +287,7 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                     params = RejectParams(reason=action_params)
                 else:
                     error_msg = "❌ $reject requires a reason. Format: $reject <reason>\nExample: $reject This request violates ethical guidelines"
-                    params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
+                    params = SpeakParams(content=error_msg)
                     action = HandlerActionType.SPEAK
                     
             elif action == HandlerActionType.DEFER:
@@ -364,7 +295,7 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                     params = DeferParams(reason=action_params, defer_until=None)
                 else:
                     error_msg = "❌ $defer requires a reason. Format: $defer <reason>\nExample: $defer I need more context to answer properly"
-                    params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
+                    params = SpeakParams(content=error_msg)
                     action = HandlerActionType.SPEAK
                     
             elif action == HandlerActionType.FORGET:
@@ -386,11 +317,11 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                         )
                     else:
                         error_msg = "❌ $forget requires: <node_id> <reason>\nExample: $forget user123 User requested data deletion"
-                        params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
+                        params = SpeakParams(content=error_msg)
                         action = HandlerActionType.SPEAK
                 else:
                     error_msg = "❌ $forget requires: <node_id> <reason>"
-                    params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
+                    params = SpeakParams(content=error_msg)
                     action = HandlerActionType.SPEAK
                     
             elif action == HandlerActionType.TASK_COMPLETE:
@@ -399,7 +330,7 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                 
             else:
                 # Unknown action
-                params = SpeakParams(content=f"Unknown action: {forced_action}", channel_context=create_channel_context(channel_id))
+                params = SpeakParams(content=f"Unknown action: {forced_action}")
                 
         except AttributeError:
             # Invalid action type
@@ -407,7 +338,7 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                            'defer', 'reject', 'forget', 'task_complete']
             error_msg = f"❌ Invalid action '{forced_action}'. Valid actions: {', '.join(valid_actions)}"
             action = HandlerActionType.SPEAK
-            params = SpeakParams(content=error_msg, channel_context=create_channel_context(channel_id))
+            params = SpeakParams(content=error_msg)
             
         # Include context pattern in rationale
         context_patterns = [item for item in context if item.startswith("forced_action:")]
@@ -455,7 +386,7 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
 • $ponder What should I do?; Is this ethical?
 
 The mock LLM provides deterministic responses for testing CIRIS functionality offline."""
-        params = SpeakParams(content=help_text, channel_context=create_channel_context(channel_id))
+        params = SpeakParams(content=help_text)
         rationale = "[MOCK LLM] Providing Mock LLM help documentation"
         
     # Removed the weird ? recall command - only $recall is supported
@@ -463,7 +394,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
     elif user_speech:
         # Regular user input - always speak
         action = HandlerActionType.SPEAK
-        params = SpeakParams(content="[MOCKLLM DISCLAIMER] SPEAK IN RESPONSE TO TASK WITHOUT COMMAND", channel_context=create_channel_context(channel_id))
+        params = SpeakParams(content="[MOCKLLM DISCLAIMER] SPEAK IN RESPONSE TO TASK WITHOUT COMMAND")
         rationale = f"Responding to user: {user_speech}"
         
     elif command_from_context:
@@ -478,10 +409,29 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
             rationale = "[MOCK LLM] Pondering questions from context"
             command_found = True
         elif command_from_context == '$speak':
-            params = SpeakParams(
-                content=command_args_from_context if command_args_from_context else "[MOCK LLM] Hello!",
-                channel_context=create_channel_context(channel_id)
-            )
+            # Parse for @channel:default_channel syntax anywhere in the message
+            import re
+            channel_match = re.search(r'@channel:(\S+)', command_args_from_context)
+            if channel_match:
+                speak_channel = channel_match.group(1)
+                # Channel override removed - mock LLM doesn't set channels
+                # Remove the @channel: part from the content
+                speak_content = command_args_from_context.replace(channel_match.group(0), '').strip()
+                if not speak_content:
+                    speak_content = "[MOCK LLM] Cross-channel message"
+                logger.info(f"[MOCK_LLM] Parsed channel from @channel: syntax - channel: {speak_channel}, content: {speak_content[:50]}")
+            else:
+                speak_content = command_args_from_context if command_args_from_context else "[MOCK LLM] Hello!"
+                speak_channel = default_channel
+            
+            # Only set channel_context if @channel: was explicitly used
+            if channel_match:
+                params = SpeakParams(
+                    content=speak_content,
+                    channel_context=create_channel_context(speak_channel)
+                )
+            else:
+                params = SpeakParams(content=speak_content)
             action = HandlerActionType.SPEAK
             rationale = "[MOCK LLM] Speaking from context command"
             command_found = True
@@ -552,12 +502,15 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
             rationale = f"[MOCK LLM] Executing tool: {tool_name}"
             command_found = True
         elif command_from_context == '$observe':
-            # Parse observe command - expects a channel_id
-            obs_channel = command_args_from_context.strip() if command_args_from_context else channel_id
+            # Parse observe command - expects a default_channel and optional active flag
+            args = command_args_from_context.strip().split() if command_args_from_context else []
+            obs_channel = args[0] if args else default_channel
+            # Check if 'true' is passed as second argument for active observation
+            active = len(args) > 1 and args[1].lower() == 'true'
             params = ObserveParams(
                 channel_context=create_channel_context(obs_channel),
-                active=True,
-                context={"observer_channel": channel_id, "target_channel": obs_channel}
+                active=active,
+                context={"observer_channel": default_channel, "target_channel": obs_channel}
             )
             action = HandlerActionType.OBSERVE
             rationale = f"[MOCK LLM] Observing channel: {obs_channel}"
@@ -566,7 +519,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
             reason = command_args_from_context or "Need more information"
             params = DeferParams(
                 reason=reason,
-                context={"channel": channel_id} if channel_id else None
+                context={"channel": default_channel} if default_channel else None
             )
             action = HandlerActionType.DEFER
             rationale = f"[MOCK LLM] Deferring: {reason}"
@@ -605,8 +558,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                 # Error case - no parameters provided
                 action = HandlerActionType.SPEAK
                 params = SpeakParams(
-                    content="❌ $forget requires: <node_id> <reason>\nExample: $forget user123 User requested data deletion",
-                    channel_context=create_channel_context(channel_id)
+                    content="❌ $forget requires: <node_id> <reason>\nExample: $forget user123 User requested data deletion"
                 )
                 rationale = "[MOCK LLM] Invalid forget command"
                 command_found = True
@@ -615,8 +567,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
             # Unknown command, default to speak
             action = HandlerActionType.SPEAK
             params = SpeakParams(
-                content=f"[MOCK LLM] Unknown command from context: {command_from_context}",
-                channel_context=create_channel_context(channel_id)
+                content=f"[MOCK LLM] Unknown command from context: {command_from_context}"
             )
             rationale = "[MOCK LLM] Unknown command from context"
             
@@ -651,8 +602,9 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
             
             # Check if this is a follow-up from SPEAK handler (usually contains specific patterns)
             # Most follow-ups from other handlers contain operation results that should be spoken
-            is_speak_followup = any(pattern in thought_content.lower() for pattern in [
-                "message sent successfully",
+            is_speak_followup = any(pattern in thought_content for pattern in [
+                "Message sent successfully",
+                "CIRIS_FOLLOW_UP_THOUGHT: Message sent successfully",
                 "spoke in channel",
                 "message delivered",
                 "response sent"
@@ -673,8 +625,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                     content_to_speak = thought_content
                 
                 params = SpeakParams(
-                    content=f"[MOCK LLM] {content_to_speak}",
-                    channel_context=create_channel_context(channel_id)
+                    content=f"[MOCK LLM] {content_to_speak}"
                 )
                 rationale = "[MOCK LLM] Speaking operation result from follow-up thought"
         else:
@@ -721,25 +672,32 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                             # Handle specific commands
                             if command == '$speak':
                                 action = HandlerActionType.SPEAK
+                                logger.info(f"[MOCK_LLM] Processing $speak command with args: {command_args}")
                                 
                                 # Check if channel is specified with @channel syntax
-                                speak_channel = channel_id  # Default to current channel
+                                speak_channel = default_channel  # Default to current channel
                                 speak_content = command_args if command_args else "[MOCK LLM] Hello!"
                                 
-                                # Parse for @channel:channel_id syntax
-                                if command_args and command_args.startswith('@channel:'):
-                                    parts = command_args.split(None, 1)
-                                    if parts:
-                                        channel_part = parts[0]
-                                        if ':' in channel_part:
-                                            speak_channel = channel_part.split(':', 1)[1]
-                                            # Get remaining content after channel specification
-                                            speak_content = parts[1] if len(parts) > 1 else "[MOCK LLM] Cross-channel message"
+                                # Parse for @channel:default_channel syntax anywhere in the message
+                                import re
+                                channel_match = re.search(r'@channel:(\S+)', command_args)
+                                if channel_match:
+                                    speak_channel = channel_match.group(1)
+                                    # Channel override removed - mock LLM doesn't set channels
+                                    # Remove the @channel: part from the content
+                                    speak_content = command_args.replace(channel_match.group(0), '').strip()
+                                    if not speak_content:
+                                        speak_content = "[MOCK LLM] Cross-channel message"
+                                    logger.info(f"[MOCK_LLM] Parsed channel from @channel: syntax - channel: {speak_channel}, content: {speak_content[:50]}")
                                 
-                                params = SpeakParams(
-                                    content=speak_content,
-                                    channel_context=create_channel_context(speak_channel)
-                                )
+                                # Only set channel_context if @channel: was explicitly used
+                                if channel_match:
+                                    params = SpeakParams(
+                                        content=speak_content,
+                                        channel_context=create_channel_context(speak_channel)
+                                    )
+                                else:
+                                    params = SpeakParams(content=speak_content)
                                 rationale = f"[MOCK LLM] Speaking to channel {speak_channel}"
                                 command_found = True
                                 break
@@ -789,13 +747,16 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                                 command_found = True
                                 break
                             elif command == '$observe':
-                                # Parse observe command - expects a channel_id
-                                obs_channel = command_args.strip() if command_args else channel_id
+                                # Parse observe command - expects a default_channel and optional active flag
+                                args = command_args.strip().split() if command_args else []
+                                obs_channel = args[0] if args else default_channel
+                                # Check if 'true' is passed as second argument for active observation
+                                active = len(args) > 1 and args[1].lower() == 'true'
                                 
                                 params = ObserveParams(
                                     channel_context=create_channel_context(obs_channel),
-                                    active=True,  # Active observation
-                                    context={"observer_channel": channel_id, "target_channel": obs_channel}
+                                    active=active,
+                                    context={"observer_channel": default_channel, "target_channel": obs_channel}
                                 )
                                 action = HandlerActionType.OBSERVE
                                 rationale = f"[MOCK LLM] Observing channel: {obs_channel}"
@@ -934,8 +895,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                                         command_found = True
                                     elif command == '$speak':
                                         params = SpeakParams(
-                                            content=command_args if command_args else "[MOCK LLM] Hello!",
-                                            channel_context=create_channel_context(channel_id)
+                                            content=command_args if command_args else "[MOCK LLM] Hello!"
                                         )
                                         action = HandlerActionType.SPEAK
                                         rationale = "[MOCK LLM] Speaking from conversation history"
@@ -959,7 +919,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                 if not command_found:
                     # Default: new task → SPEAK
                     action = HandlerActionType.SPEAK
-                    params = SpeakParams(content="[MOCKLLM DISCLAIMER] SPEAK IN RESPONSE TO TASK WITHOUT COMMAND", channel_context=create_channel_context(channel_id))
+                    params = SpeakParams(content="[MOCKLLM DISCLAIMER] SPEAK IN RESPONSE TO TASK WITHOUT COMMAND")
                     rationale = "[MOCK LLM] Default speak action for new task"
     
     # Use custom rationale if provided, otherwise use the generated rationale
