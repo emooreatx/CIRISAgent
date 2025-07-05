@@ -141,12 +141,16 @@ class DiscordChannelManager:
         if message.author.bot:
             return
 
+        # Format channel_id as discord_guildid_channelid for proper routing
+        guild_id = str(message.guild.id) if hasattr(message, 'guild') and message.guild else "dm"
+        channel_id = f"discord_{guild_id}_{message.channel.id}"
+        
         incoming = DiscordMessage(
             message_id=str(message.id),
             content=message.content,
             author_id=str(message.author.id),
             author_name=message.author.display_name,
-            channel_id=str(message.channel.id),
+            channel_id=channel_id,
             is_bot=message.author.bot,
             is_dm=getattr(getattr(message.channel, '__class__', None), '__name__', '') == 'DMChannel',
             raw_message=message

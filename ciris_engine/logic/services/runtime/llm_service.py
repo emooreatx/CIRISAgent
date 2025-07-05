@@ -38,6 +38,15 @@ class OpenAICompatibleClient(LLMServiceProtocol):
     """Client for interacting with OpenAI-compatible APIs with circuit breaker protection."""
 
     def __init__(self, config: Optional[OpenAIConfig] = None, telemetry_service: Optional[TelemetryServiceProtocol] = None) -> None:
+        # CRITICAL: Check if we're in mock LLM mode
+        import os
+        if os.environ.get('MOCK_LLM') or '--mock-llm' in ' '.join(os.sys.argv):
+            raise RuntimeError(
+                "CRITICAL BUG: OpenAICompatibleClient is being initialized while mock LLM is enabled!\n"
+                "This should never happen - the mock LLM module should prevent this initialization.\n"
+                "Stack trace will show where this is being called from."
+            )
+        
         if config is None:
             # Use default config - should be injected
             self.openai_config = OpenAIConfig()

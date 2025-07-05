@@ -21,3 +21,25 @@ export { AuthResource } from './resources/auth';
 export { AgentResource } from './resources/agent';
 export { SystemResource } from './resources/system';
 export { MemoryResource } from './resources/memory';
+export { ConfigResource, unwrapConfigValue, wrapConfigValue } from './resources/config';
+export { UsersResource } from './resources/users';
+
+// Export OAuth types
+export type {
+  OAuthProvider,
+  OAuthProviderList,
+  OAuthProviderConfig,
+  OAuthLoginResponse
+} from './resources/auth';
+
+// Export user management types
+export type {
+  UserSummary,
+  UserDetail,
+  UserListParams,
+  PaginatedUsers,
+  UpdateUserRequest,
+  ChangePasswordRequest,
+  MintWARequest,
+  UserAPIKey
+} from './resources/users';

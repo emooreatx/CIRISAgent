@@ -100,22 +100,6 @@ class ObserveHandler(BaseActionHandler):
                 follow_up_content=f"OBSERVE action failed: {e}",
                 action_result=result
             )
-            follow_up_text = f"OBSERVE action failed for thought {thought_id}. Reason: {e}"
-            try:
-                fu = create_follow_up_thought(parent=thought, time_service=self.time_service, content=follow_up_text)
-                context_data = fu.context.model_dump() if fu.context else {}
-                context_data.update({
-                    "action_performed": HandlerActionType.OBSERVE.value,
-                    "error_details": str(e),
-                    "action_params": result.action_parameters,
-                })
-                from ciris_engine.schemas.runtime.system_context import ThoughtState
-                fu.context = ThoughtState.model_validate(context_data)
-                persistence.add_thought(fu)
-            except Exception as fe:
-                await self._handle_error(HandlerActionType.OBSERVE, dispatch_context, thought_id, fe)
-                raise FollowUpCreationError from fe
-            return
 
         if not params.active:
             logger.debug(f"Passive observation for thought {thought_id} - no action needed")

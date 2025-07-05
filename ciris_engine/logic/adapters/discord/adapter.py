@@ -228,6 +228,9 @@ class DiscordPlatform(Service):
             self._discord_client_task = asyncio.create_task(self.client.start(self.token), name="DiscordClientTask")
             logger.info("DiscordPlatform: Discord client start initiated.")
 
+            # Give the client a moment to initialize before waiting
+            await asyncio.sleep(1.0)
+            
             # Wait for Discord client to be ready with timeout
             logger.info("DiscordPlatform: Waiting for Discord client to be ready...")
             ready = await self.discord_adapter.wait_until_ready(timeout=30.0)
@@ -344,6 +347,12 @@ class DiscordPlatform(Service):
                             # Close the client if it's still open
                             if self.client and not self.client.is_closed():
                                 await self.client.close()
+                            
+                            # Clear all event handlers from the old client to prevent conflicts
+                            if self.client:
+                                self.client.clear()
+                                # Give the client time to fully close
+                                await asyncio.sleep(1.0)
 
                             # Always recreate the client for safety when reconnecting
                             # This ensures we have a fresh session and connection state
@@ -354,8 +363,11 @@ class DiscordPlatform(Service):
 
                             # Reattach the adapter to the new client
                             if hasattr(self.discord_adapter, 'attach_to_client'):
+                                # Update the adapter's on_message callback to ensure it routes to observer
+                                self.discord_adapter._channel_manager.set_message_callback(self._handle_discord_message_event)
                                 self.discord_adapter.attach_to_client(self.client)
                                 self.discord_adapter.bot = self.client
+                                logger.info("Discord adapter re-attached to new client with observer callback")
 
                             # Wait with exponential backoff before reconnecting
                             wait_time = min(5.0 * (2 ** (self._reconnect_attempts - 1)), 60.0)  # Max 60 seconds

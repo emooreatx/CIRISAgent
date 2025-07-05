@@ -93,12 +93,23 @@ def extract_context_from_messages(messages: List[dict]) -> List[str]:
                         logger.info(f"[MOCK_LLM] Extracted thought content: {actual_thought_content[:100]}...")
                         
                         # Check if this is a passive observation
-                        if actual_thought_content.startswith("You observed @"):
+                        # Support both old format "You observed @" and new format "PRIORITY (high): User @"
+                        is_observation = (actual_thought_content.startswith("You observed @") or 
+                                        "User @" in actual_thought_content and " said: " in actual_thought_content)
+                        
+                        if is_observation:
                             # Extract the user message from the passive observation
+                            # Try " said: " first (new format), then " say: " (old format)
+                            said_index = actual_thought_content.find(" said: ")
                             say_index = actual_thought_content.find(" say: ")
-                            if say_index != -1:
-                                remaining_content = actual_thought_content[say_index + 6:]
-                                actual_user_message = remaining_content.split('\n')[0].split('\\n')[0].strip()
+                            
+                            delimiter_index = said_index if said_index != -1 else say_index
+                            delimiter_len = 7 if said_index != -1 else 6  # len(" said: ") vs len(" say: ")
+                            
+                            if delimiter_index != -1:
+                                remaining_content = actual_thought_content[delimiter_index + delimiter_len:]
+                                # Extract message, stopping at | or newline
+                                actual_user_message = remaining_content.split('|')[0].split('\n')[0].split('\\n')[0].strip()
                                 logger.info(f"[MOCK_LLM] Extracted user message from thought: {actual_user_message}")
                                 context_items.append(f"user_input:{actual_user_message}")
                                 context_items.append(f"task:{actual_user_message}")

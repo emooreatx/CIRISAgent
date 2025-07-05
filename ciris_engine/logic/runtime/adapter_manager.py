@@ -5,6 +5,7 @@ Provides dynamic adapter loading/unloading capabilities during runtime,
 extending the existing processor control capabilities with adapter lifecycle management.
 """
 
+import asyncio
 import logging
 from typing import Dict, List, Optional, TYPE_CHECKING
 
@@ -110,6 +111,24 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             )
 
             await adapter.start()
+            
+            # For Discord adapters, we need to run the lifecycle to establish connection
+            if adapter_type == "discord" and hasattr(adapter, 'run_lifecycle'):
+                logger.info(f"Starting lifecycle for Discord adapter {adapter_id}")
+                # Create a task that the Discord adapter will wait on
+                # This mimics the behavior when running from main.py
+                agent_task = asyncio.create_task(asyncio.Event().wait())
+                instance.lifecycle_task = agent_task
+                
+                # Store the lifecycle runner task
+                instance.lifecycle_runner = asyncio.create_task(
+                    adapter.run_lifecycle(agent_task),
+                    name=f"discord_lifecycle_{adapter_id}"
+                )
+                
+                # Don't wait here - let it run in the background
+                logger.info(f"Discord adapter {adapter_id} lifecycle started in background")
+            
             instance.is_running = True
 
             await self._register_adapter_services(instance)
@@ -170,6 +189,23 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                     )
 
             logger.info(f"Unloading adapter {adapter_id}")
+
+            # Cancel lifecycle tasks for Discord adapters
+            if hasattr(instance, 'lifecycle_runner') and instance.lifecycle_runner:
+                logger.debug(f"Cancelling lifecycle runner for {adapter_id}")
+                instance.lifecycle_runner.cancel()
+                try:
+                    await instance.lifecycle_runner
+                except asyncio.CancelledError:
+                    pass
+            
+            if hasattr(instance, 'lifecycle_task') and instance.lifecycle_task:
+                logger.debug(f"Cancelling lifecycle task for {adapter_id}")
+                instance.lifecycle_task.cancel()
+                try:
+                    await instance.lifecycle_task
+                except asyncio.CancelledError:
+                    pass
 
             if instance.is_running:
                 await instance.adapter.stop()

@@ -103,4 +103,112 @@ export class AuthResource extends BaseResource {
       throw new CIRISAuthError(this.buildErrorMessage('refresh', (error as Error).message));
     }
   }
+
+  // OAuth Provider Management
+
+  /**
+   * List configured OAuth providers
+   * Requires: users.write permission (SYSTEM_ADMIN only)
+   */
+  async listOAuthProviders(): Promise<OAuthProviderList> {
+    return this.transport.get<OAuthProviderList>('/v1/auth/oauth/providers');
+  }
+
+  /**
+   * Configure an OAuth provider
+   * Requires: users.write permission (SYSTEM_ADMIN only)
+   */
+  async configureOAuthProvider(
+    provider: string,
+    clientId: string,
+    clientSecret: string,
+    metadata?: Record<string, string>
+  ): Promise<OAuthProviderConfig> {
+    const params = new URLSearchParams({
+      provider,
+      client_id: clientId,
+      client_secret: clientSecret
+    });
+    
+    if (metadata) {
+      params.append('metadata', JSON.stringify(metadata));
+    }
+
+    return this.transport.post<OAuthProviderConfig>(
+      `/v1/auth/oauth/providers?${params.toString()}`
+    );
+  }
+
+  /**
+   * Initiate OAuth login flow
+   * Returns the authorization URL to redirect the user to
+   */
+  async initiateOAuthLogin(provider: string, redirectUri?: string): Promise<OAuthLoginResponse> {
+    const params = redirectUri ? { redirect_uri: redirectUri } : undefined;
+    return this.transport.get<OAuthLoginResponse>(
+      `/v1/auth/oauth/${provider}/login`,
+      { params, skipAuth: true }
+    );
+  }
+
+  /**
+   * Handle OAuth callback
+   * Exchanges authorization code for API token
+   */
+  async handleOAuthCallback(
+    provider: string,
+    code: string,
+    state: string
+  ): Promise<User> {
+    try {
+      const response = await this.transport.post<LoginResponse>(
+        `/v1/auth/oauth/${provider}/callback`,
+        { code, state },
+        { skipAuth: true }
+      );
+
+      // Save token
+      const token: AuthToken = {
+        access_token: response.access_token,
+        token_type: response.token_type,
+        expires_in: response.expires_in,
+        user_id: response.user_id,
+        role: response.role,
+        created_at: Date.now()
+      };
+      AuthStore.saveToken(token);
+
+      // Get user info
+      const user = await this.getMe();
+      AuthStore.saveUser(user);
+
+      return user;
+    } catch (error) {
+      throw new CIRISAuthError(this.buildErrorMessage('OAuth callback', (error as Error).message));
+    }
+  }
+}
+
+// OAuth types
+export interface OAuthProvider {
+  provider: string;
+  client_id: string;
+  created: string;
+  callback_url: string;
+  metadata: Record<string, string>;
+}
+
+export interface OAuthProviderList {
+  providers: OAuthProvider[];
+}
+
+export interface OAuthProviderConfig {
+  provider: string;
+  callback_url: string;
+  message: string;
+}
+
+export interface OAuthLoginResponse {
+  authorization_url: string;
+  state: string;
 }

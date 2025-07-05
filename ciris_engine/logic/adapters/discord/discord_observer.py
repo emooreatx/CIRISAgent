@@ -91,15 +91,37 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         """Stop the observer - no background tasks to clean up."""
         logger.info("DiscordObserver stopped")
 
+    def _extract_channel_id(self, full_channel_id: str) -> str:
+        """Extract the raw channel ID from discord_guildid_channelid format."""
+        if full_channel_id.startswith('discord_') and full_channel_id.count('_') == 2:
+            # Format: discord_guildid_channelid
+            parts = full_channel_id.split('_')
+            return parts[2]  # Return just the channel ID part
+        return full_channel_id  # Return as-is if not in expected format
+    
     async def _should_process_message(self, msg: DiscordMessage) -> bool:
         """Check if Discord observer should process this message."""
+        # Extract the raw channel ID from the formatted channel_id
+        raw_channel_id = self._extract_channel_id(msg.channel_id)
+        
         # Check if message is from a monitored channel or deferral channel
-        is_from_monitored = (self.monitored_channel_ids and msg.channel_id in self.monitored_channel_ids)
-        is_from_deferral = (self.deferral_channel_id and msg.channel_id == self.deferral_channel_id)
+        is_from_monitored = False
+        if self.monitored_channel_ids:
+            # Check both raw channel ID and full formatted ID
+            is_from_monitored = (raw_channel_id in self.monitored_channel_ids or 
+                                msg.channel_id in self.monitored_channel_ids)
+        
+        is_from_deferral = False
+        if self.deferral_channel_id:
+            # Check both raw channel ID and full formatted ID
+            is_from_deferral = (raw_channel_id == self.deferral_channel_id or 
+                               msg.channel_id == self.deferral_channel_id)
         
         logger.info(f"Message from {msg.author_name} (ID: {msg.author_id}) in channel {msg.channel_id}")
+        logger.info(f"  - Raw channel ID: {raw_channel_id}")
         logger.info(f"  - Is from monitored channel: {is_from_monitored}")
         logger.info(f"  - Is from deferral channel: {is_from_deferral}")
+        logger.info(f"  - Monitored channels: {self.monitored_channel_ids}")
         logger.info(f"  - Deferral channel ID: {self.deferral_channel_id}")
         
         return is_from_monitored or is_from_deferral
@@ -153,9 +175,11 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         monitored_channel_ids = self.monitored_channel_ids or []
         wa_discord_user = DEFAULT_WA
 
-        if msg.channel_id in monitored_channel_ids:
+        raw_channel_id = self._extract_channel_id(msg.channel_id)
+        
+        if raw_channel_id in monitored_channel_ids or msg.channel_id in monitored_channel_ids:
             await self._create_priority_observation_result(msg, filter_result)
-        elif msg.channel_id == self.deferral_channel_id and (msg.author_id in self.wa_user_ids or msg.author_name == wa_discord_user):
+        elif (raw_channel_id == self.deferral_channel_id or msg.channel_id == self.deferral_channel_id) and (msg.author_id in self.wa_user_ids or msg.author_name == wa_discord_user):
             logger.info(f"[PRIORITY] Routing message to WA feedback queue - author {msg.author_name} is WA")
             await self._add_to_feedback_queue(msg)
         else:
@@ -165,10 +189,8 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
             logger.info(f"  - Author name matches DEFAULT_WA '{wa_discord_user}': {msg.author_name == wa_discord_user}")
             logger.debug("Ignoring priority message from channel %s, author %s (ID: %s)", msg.channel_id, msg.author_name, msg.author_id)
 
-    def _create_task_context_with_extras(self, msg: DiscordMessage, extras: dict) -> TaskContext:
-        """Create a TaskContext with extra fields."""
-        # TaskContext only has these fields, extras are ignored
-        # This is fine since extras were meant for ThoughtContext
+    def _create_task_context_with_extras(self, msg: DiscordMessage) -> TaskContext:
+        """Create a TaskContext from a Discord message."""
         return TaskContext(
             channel_id=msg.channel_id,
             user_id=msg.author_id,
@@ -183,9 +205,11 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         monitored_channel_ids = self.monitored_channel_ids or []
         wa_discord_user = DEFAULT_WA
 
-        if msg.channel_id in monitored_channel_ids:
+        raw_channel_id = self._extract_channel_id(msg.channel_id)
+        
+        if raw_channel_id in monitored_channel_ids or msg.channel_id in monitored_channel_ids:
             await self._create_passive_observation_result(msg)
-        elif msg.channel_id == self.deferral_channel_id and (msg.author_id in self.wa_user_ids or msg.author_name == wa_discord_user):
+        elif (raw_channel_id == self.deferral_channel_id or msg.channel_id == self.deferral_channel_id) and (msg.author_id in self.wa_user_ids or msg.author_name == wa_discord_user):
             logger.info(f"Routing message to WA feedback queue - author {msg.author_name} is WA")
             await self._add_to_feedback_queue(msg)
         else:
@@ -354,15 +378,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                 priority=8,  # High priority for guidance
                 created_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
                 updated_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
-                context=self._create_task_context_with_extras(
-                    msg,
-                    {
-                        "message_id": msg.message_id,
-                        "observation_type": "unsolicited_guidance",
-                        "is_guidance": True,
-                        "guidance_content": msg.content
-                    }
-                )
+                context=self._create_task_context_with_extras(msg)
             )
             persistence.add_task(task)
             logger.info(f"Created unsolicited guidance task {task.task_id} - seed thought will be generated automatically")

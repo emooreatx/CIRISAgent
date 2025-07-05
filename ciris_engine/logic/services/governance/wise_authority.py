@@ -275,7 +275,96 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
             raise
 
     async def get_pending_deferrals(self, wa_id: Optional[str] = None) -> List[PendingDeferral]:
-        """Get pending deferrals."""
+        """Get pending deferrals from the thoughts table."""
+        import sqlite3
+        import json
+        
+        result = []
+        
+        try:
+            # Query deferred thoughts from database
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Get all deferred thoughts with their associated data
+            cursor.execute("""
+                SELECT 
+                    thought_id,
+                    source_task_id,
+                    created_at,
+                    context_json,
+                    final_action_json,
+                    channel_id,
+                    content
+                FROM thoughts 
+                WHERE status = 'deferred'
+                ORDER BY created_at DESC
+            """)
+            
+            rows = cursor.fetchall()
+            
+            for row in rows:
+                thought_id, task_id, created_at, context_json, final_action_json, channel_id, content = row
+                
+                # Parse context and final_action
+                context = {}
+                if context_json:
+                    try:
+                        context = json.loads(context_json)
+                    except:
+                        pass
+                
+                final_action = {}
+                if final_action_json:
+                    try:
+                        final_action = json.loads(final_action_json)
+                    except:
+                        pass
+                
+                # Extract defer reason from final_action
+                reason = "Deferred for review"
+                if final_action and 'action_parameters' in final_action:
+                    params = final_action['action_parameters']
+                    if isinstance(params, dict) and 'reason' in params:
+                        reason = params['reason']
+                
+                # If we don't have a good reason, use the thought content
+                if reason == "Deferred for review" and content:
+                    reason = content[:200]  # Limit to 200 chars
+                
+                # Create PendingDeferral
+                deferral = PendingDeferral(
+                    deferral_id=f"defer_{thought_id}",
+                    created_at=datetime.fromisoformat(created_at.replace(' ', 'T')) if created_at else self.time_service.now(),
+                    deferred_by="ciris_agent",
+                    task_id=task_id,
+                    thought_id=thought_id,
+                    reason=reason,
+                    channel_id=channel_id or (context.get("channel_id") if context else None),
+                    user_id=context.get("user_id") if context else None,
+                    priority="normal",  # Default priority
+                    assigned_wa_id=None,  # Not assigned in current implementation
+                    requires_role=None,   # Not specified in current implementation
+                    status="pending"
+                )
+                
+                # Filter by WA if specified (though not implemented in current system)
+                if wa_id and deferral.assigned_wa_id != wa_id:
+                    continue
+                
+                result.append(deferral)
+            
+            conn.close()
+            
+        except Exception as e:
+            logger.error(f"Failed to get pending deferrals from database: {e}")
+            # Fall back to memory deferrals if any
+            return await self._get_memory_deferrals(wa_id)
+        
+        return result
+    
+    async def _get_memory_deferrals(self, wa_id: Optional[str] = None) -> List[PendingDeferral]:
+        """Get pending deferrals from memory (fallback)."""
         result = []
         for def_id, context in self.deferrals.items():
             if context.metadata and context.metadata.get("resolved"):

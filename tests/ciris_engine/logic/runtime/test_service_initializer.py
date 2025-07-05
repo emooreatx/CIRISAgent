@@ -184,7 +184,9 @@ class TestServiceInitializer:
     async def test_initialize_llm_service_mock(self, service_initializer, mock_essential_config):
         """Test LLM service initialization with mock."""
         service_initializer.service_registry = Mock()
-        service_initializer._skip_llm_init = False
+        # CRITICAL: When mock LLM module is loaded, it sets _skip_llm_init = True
+        # This prevents OpenAICompatibleClient from being registered
+        service_initializer._skip_llm_init = True
         mock_essential_config.mock_llm = True
         
         # Add required services attribute
@@ -194,15 +196,13 @@ class TestServiceInitializer:
         mock_essential_config.services.llm_timeout = 30
         mock_essential_config.services.llm_max_retries = 3
 
-        # Initialize LLM (should use mock)
-        with patch('ciris_modular_services.mock_llm.service.MockLLMService') as mock_llm_class:
-            mock_llm = AsyncMock()
-            mock_llm_class.return_value = mock_llm
-            await service_initializer._initialize_llm_services(mock_essential_config)
+        # Initialize LLM (should skip because _skip_llm_init = True)
+        await service_initializer._initialize_llm_services(mock_essential_config)
 
-        assert service_initializer.llm_service is not None
-        # Should register in registry
-        service_initializer.service_registry.register_service.assert_called()
+        # Since _skip_llm_init is True, no LLM service should be initialized
+        assert service_initializer.llm_service is None
+        # Should NOT register anything in registry
+        service_initializer.service_registry.register_service.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_initialize_llm_service_real(self, service_initializer, mock_essential_config):

@@ -1,0 +1,22 @@
+services:
+  ciris-mock:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: ciris-mock
+    env_file:
+      - ${CIRIS_ENV_FILE:-../.env}
+    environment:
+      - CIRIS_MOCK_LLM=true
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../data:/app/data
+      - ../logs:/app/logs
+    command: ["python", "main.py", "--adapter", "api", "--mock-llm", "--host", "0.0.0.0", "--port", "8080"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

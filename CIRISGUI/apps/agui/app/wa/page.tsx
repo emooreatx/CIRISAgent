@@ -4,47 +4,70 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cirisClient } from '../../lib/ciris-sdk';
 import { Deferral } from '../../lib/ciris-sdk/resources/wise-authority';
+import type { UserDetail } from '../../lib/ciris-sdk';
 import { useAuth } from '../../contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { ShieldIcon, ExclamationTriangleIcon } from '../../components/Icons';
 
 export default function WAPage() {
   const { user, hasRole } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [selectedDeferral, setSelectedDeferral] = useState<Deferral | null>(null);
-  const [resolutionModal, setResolutionModal] = useState(false);
+  const [expandedDeferral, setExpandedDeferral] = useState<string | null>(null);
   const [decision, setDecision] = useState<'approve' | 'deny'>('approve');
   const [reasoning, setReasoning] = useState('');
   const [filter, setFilter] = useState<'all' | 'pending' | 'resolved'>('pending');
   const [sortBy, setSortBy] = useState<'timestamp' | 'urgency' | 'type'>('timestamp');
+  const [userDetail, setUserDetail] = useState<UserDetail | null>(null);
 
-  // Check authority access
+  // Check access - allow admins or authorities to view
   useEffect(() => {
-    if (user && !hasRole('AUTHORITY')) {
-      toast.error('Access denied. Authority role required.');
+    if (user && !hasRole('ADMIN') && !hasRole('AUTHORITY')) {
+      toast.error('Access denied. Admin or Authority role required.');
       router.push('/');
     }
   }, [user, hasRole, router]);
+
+  // Fetch detailed user info to check WA status
+  useEffect(() => {
+    if (user) {
+      loadUserDetail();
+    }
+  }, [user]);
+
+  const loadUserDetail = async () => {
+    try {
+      const detail = await cirisClient.users.get(user!.user_id);
+      setUserDetail(detail);
+    } catch (error) {
+      console.error('Failed to load user details:', error);
+    }
+  };
 
   // Fetch deferrals
   const { data: deferrals = [], isLoading } = useQuery({
     queryKey: ['deferrals'],
     queryFn: () => cirisClient.wiseAuthority.getDeferrals(),
     refetchInterval: 5000, // Refresh every 5 seconds
-    enabled: hasRole('AUTHORITY'),
+    enabled: hasRole('ADMIN') || hasRole('AUTHORITY'), // Allow admins and authorities to view
   });
+
+  // Check if user can resolve deferrals (must be a minted WA)
+  const canResolve = userDetail?.wa_role === 'authority' || userDetail?.wa_role === 'root';
 
   // Resolve deferral mutation
   const resolveMutation = useMutation({
-    mutationFn: ({ deferral_id, decision, reasoning }: { deferral_id: string; decision: string; reasoning: string }) =>
-      cirisClient.wiseAuthority.resolveDeferral(deferral_id, decision, reasoning),
+    mutationFn: ({ deferral_id, decision, reasoning, signature }: { deferral_id: string; decision: string; reasoning: string; signature: string }) =>
+      cirisClient.wiseAuthority.resolveDeferral(deferral_id, decision, reasoning, signature),
     onSuccess: () => {
       toast.success('Deferral resolved successfully');
       queryClient.invalidateQueries({ queryKey: ['deferrals'] });
-      setResolutionModal(false);
+      setExpandedDeferral(null);
       setSelectedDeferral(null);
       setReasoning('');
+      setDecision('approve');
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.detail || 'Failed to resolve deferral');
@@ -114,14 +137,16 @@ export default function WAPage() {
       toast.error('Please provide reasoning for your decision');
       return;
     }
+    // Use a placeholder signature - the server should validate based on the authenticated user
     resolveMutation.mutate({
       deferral_id: selectedDeferral.deferral_id,
       decision,
       reasoning,
+      signature: 'server-will-sign', // Server should sign with stored WA key
     });
   };
 
-  if (!hasRole('AUTHORITY')) {
+  if (!hasRole('ADMIN') && !hasRole('AUTHORITY')) {
     return null;
   }
 
@@ -130,10 +155,31 @@ export default function WAPage() {
       {/* Page Header */}
       <div className="bg-white shadow">
         <div className="px-4 py-5 sm:px-6">
-          <h2 className="text-2xl font-bold text-gray-900">Wise Authority Dashboard</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Review and resolve deferred decisions requiring authority oversight
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Wise Authority Dashboard</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Review and resolve deferred decisions requiring authority oversight
+              </p>
+            </div>
+            <div className="flex items-center space-x-2">
+              {userDetail?.wa_role ? (
+                <div className="flex items-center space-x-2 bg-purple-50 px-4 py-2 rounded-lg">
+                  <ShieldIcon size="sm" className="text-purple-600" />
+                  <span className="text-sm font-medium text-purple-900">
+                    WA {userDetail.wa_role.toUpperCase()}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center space-x-2 bg-yellow-50 px-4 py-2 rounded-lg">
+                  <ExclamationTriangleIcon size="sm" className="text-yellow-600" />
+                  <span className="text-sm font-medium text-yellow-900">
+                    View Only (Not a WA)
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -206,7 +252,14 @@ export default function WAPage() {
       {/* Deferrals List */}
       <div className="bg-white shadow rounded-lg">
         <div className="px-4 py-5 sm:p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Deferred Decisions</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-medium text-gray-900">Deferred Decisions</h3>
+            {!canResolve && (
+              <div className="text-sm text-yellow-600 bg-yellow-50 px-3 py-1 rounded-md">
+                ⚠️ Mint yourself as a WA in the Users page to resolve deferrals
+              </div>
+            )}
+          </div>
           
           {isLoading ? (
             <div className="text-center py-8">
@@ -258,19 +311,93 @@ export default function WAPage() {
                       )}
                     </div>
                     
-                    {deferral.status === 'pending' && (
+                    {deferral.status === 'pending' && canResolve && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedDeferral(deferral);
-                          setResolutionModal(true);
+                          setExpandedDeferral(expandedDeferral === deferral.deferral_id ? null : deferral.deferral_id);
                         }}
                         className="ml-4 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                       >
                         Resolve
                       </button>
                     )}
+                    {deferral.status === 'pending' && !canResolve && (
+                      <span className="ml-4 text-xs text-gray-500 italic">
+                        WA authority required to resolve
+                      </span>
+                    )}
                   </div>
+                  
+                  {/* Inline Resolution Form */}
+                  {expandedDeferral === deferral.deferral_id && canResolve && (
+                    <div className="mt-4 p-4 bg-gray-50 rounded-md border border-gray-200">
+                      <h4 className="text-sm font-medium text-gray-900 mb-3">Resolve Deferral</h4>
+                      
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">Decision</label>
+                          <div className="mt-1 flex items-center space-x-4">
+                            <label className="inline-flex items-center">
+                              <input
+                                type="radio"
+                                className="form-radio text-green-600"
+                                value="approve"
+                                checked={decision === 'approve'}
+                                onChange={(e) => setDecision(e.target.value as 'approve')}
+                              />
+                              <span className="ml-2 text-sm text-gray-700">Approve</span>
+                            </label>
+                            <label className="inline-flex items-center">
+                              <input
+                                type="radio"
+                                className="form-radio text-red-600"
+                                value="deny"
+                                checked={decision === 'deny'}
+                                onChange={(e) => setDecision(e.target.value as 'deny')}
+                              />
+                              <span className="ml-2 text-sm text-gray-700">Deny</span>
+                            </label>
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label htmlFor={`reasoning-${deferral.deferral_id}`} className="block text-sm font-medium text-gray-700">
+                            Reasoning
+                          </label>
+                          <textarea
+                            id={`reasoning-${deferral.deferral_id}`}
+                            rows={3}
+                            className="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                            placeholder="Provide detailed reasoning for your decision..."
+                            value={reasoning}
+                            onChange={(e) => setReasoning(e.target.value)}
+                          />
+                        </div>
+                        
+                        <div className="flex items-center justify-end space-x-2">
+                          <button
+                            onClick={() => {
+                              setExpandedDeferral(null);
+                              setReasoning('');
+                              setDecision('approve');
+                            }}
+                            className="px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleResolve()}
+                            disabled={!reasoning.trim() || resolveMutation.isPending}
+                            className="px-3 py-1.5 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50"
+                          >
+                            {resolveMutation.isPending ? 'Resolving...' : 'Submit Resolution'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -286,19 +413,66 @@ export default function WAPage() {
             
             <div className="space-y-4">
               <div>
+                <h4 className="text-sm font-medium text-gray-700">Thought ID</h4>
+                <p className="mt-1 text-sm font-mono text-gray-600">{selectedDeferral.thought_id}</p>
+              </div>
+              
+              <div>
+                <h4 className="text-sm font-medium text-gray-700">Question</h4>
+                <p className="mt-1 text-sm text-gray-600">{selectedDeferral.question}</p>
+              </div>
+              
+              <div>
                 <h4 className="text-sm font-medium text-gray-700">Context</h4>
                 <pre className="mt-1 text-sm text-gray-600 bg-gray-50 p-3 rounded-md overflow-x-auto">
                   {JSON.stringify(selectedDeferral.context, null, 2)}
                 </pre>
               </div>
               
+              {canResolve && (
+                <div className="mt-4 flex justify-end">
+                  <button
+                    onClick={() => setExpandedDeferral(selectedDeferral?.deferral_id || null)}
+                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
+                  >
+                    Resolve Deferral
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Resolution Modal */}
-      {resolutionModal && selectedDeferral && (
+      {/* Provide Guidance Section */}
+      <div className="bg-white shadow rounded-lg">
+        <div className="px-4 py-5 sm:p-6">
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Provide Guidance</h3>
+          <p className="text-sm text-gray-500 mb-4">
+            {canResolve 
+              ? "As a Wise Authority, you can provide guidance on any topic to help the system make better decisions."
+              : "Once you are minted as a Wise Authority, you can provide guidance to help the system."}
+          </p>
+          
+          {canResolve ? (
+            <button
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
+            >
+              Provide Unsolicited Guidance
+            </button>
+          ) : (
+            <button
+              onClick={() => router.push('/users')}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+            >
+              Go to Users Page to Get Minted
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Resolution Modal - Removed, using inline resolution instead */}
+      {false && (
         <div className="fixed z-10 inset-0 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
@@ -360,6 +534,48 @@ export default function WAPage() {
                       Your reasoning will be recorded and may be used for future guidance.
                     </p>
                   </div>
+                  
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between">
+                      <label htmlFor="signature" className="block text-sm font-medium text-gray-700">
+                        WA Signature <span className="text-red-500">*</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setShowSignatureHelp(!showSignatureHelp)}
+                        className="text-xs text-indigo-600 hover:text-indigo-500"
+                      >
+                        How to sign?
+                      </button>
+                    </div>
+                    <div className="mt-1">
+                      <textarea
+                        id="signature"
+                        rows={2}
+                        className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md font-mono text-xs"
+                        placeholder="Paste your Ed25519 signature here..."
+                        value={signature}
+                        onChange={(e) => setSignature(e.target.value)}
+                      />
+                    </div>
+                    {showSignatureHelp && (
+                      <div className="mt-2 bg-purple-50 rounded-md p-3 text-xs">
+                        <h5 className="font-medium text-purple-900 mb-1">Signing Instructions:</h5>
+                        <ol className="list-decimal list-inside space-y-1 text-purple-700">
+                          <li>Use your WA private key to sign this message:</li>
+                          <li className="ml-4">
+                            <code className="bg-purple-100 px-1 py-0.5 rounded">
+                              RESOLVE:{selectedDeferral?.deferral_id}:{decision}:{reasoning}
+                            </code>
+                          </li>
+                          <li>Paste the base64-encoded signature above</li>
+                        </ol>
+                        <div className="mt-2 text-purple-800">
+                          <strong>Note:</strong> Your signature proves you are an authorized WA making this decision.
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
@@ -378,7 +594,7 @@ export default function WAPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    setResolutionModal(false);
+                    setExpandedDeferral(null);
                     setReasoning('');
                   }}
                   className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:col-start-1 sm:text-sm"

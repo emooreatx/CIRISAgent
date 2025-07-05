@@ -32,29 +32,40 @@ from ciris_engine.logic.adapters.api.dependencies.auth import AuthContext, UserR
 def mock_request():
     """Create a mock request with app state."""
     request = MagicMock()
-    request.app.state = MagicMock()
+    # Create a mock state that returns None for undefined attributes
+    state = MagicMock()
+    state.configure_mock(**{
+        'main_runtime_control_service': None,
+        'runtime_control_service': None,
+        'service_registry': None
+    })
+    request.app.state = state
     return request
 
 
 @pytest.fixture
 def mock_auth_context():
     """Create a mock auth context."""
+    from ciris_engine.schemas.api.auth import ROLE_PERMISSIONS
     return AuthContext(
         user_id="test_user",
-        username="test",
-        roles=[UserRole.OBSERVER],
-        api_key_id="test_key"
+        role=UserRole.OBSERVER,
+        permissions=ROLE_PERMISSIONS.get(UserRole.OBSERVER, set()),
+        api_key_id="test_key",
+        authenticated_at=datetime.now(timezone.utc)
     )
 
 
 @pytest.fixture
 def mock_admin_auth_context():
     """Create a mock admin auth context."""
+    from ciris_engine.schemas.api.auth import ROLE_PERMISSIONS
     return AuthContext(
         user_id="admin_user",
-        username="admin",
-        roles=[UserRole.ADMIN],
-        api_key_id="admin_key"
+        role=UserRole.ADMIN,
+        permissions=ROLE_PERMISSIONS.get(UserRole.ADMIN, set()),
+        api_key_id="admin_key",
+        authenticated_at=datetime.now(timezone.utc)
     )
 
 
@@ -87,7 +98,7 @@ class TestProcessingQueueEndpoint:
             oldest_message_age_seconds=30.0
         )
         mock_runtime_control.get_processor_queue_status.return_value = expected_status
-        mock_request.app.state.runtime_control_service = mock_runtime_control
+        mock_request.app.state.main_runtime_control_service = mock_runtime_control
         
         # Execute
         result = await get_processing_queue_status(mock_request, mock_auth_context)
@@ -113,7 +124,7 @@ class TestProcessingQueueEndpoint:
         """Test handling of service errors."""
         # Setup
         mock_runtime_control.get_processor_queue_status.side_effect = Exception("Service error")
-        mock_request.app.state.runtime_control_service = mock_runtime_control
+        mock_request.app.state.main_runtime_control_service = mock_runtime_control
         
         # Execute & Verify
         with pytest.raises(Exception) as exc_info:
@@ -136,7 +147,7 @@ class TestSingleStepEndpoint:
             message="Processed 1 thought"
         )
         mock_runtime_control.single_step.return_value = control_response
-        mock_request.app.state.runtime_control_service = mock_runtime_control
+        mock_request.app.state.main_runtime_control_service = mock_runtime_control
         
         # Execute
         result = await single_step_processor(mock_request, mock_admin_auth_context)
@@ -145,7 +156,7 @@ class TestSingleStepEndpoint:
         assert isinstance(result, SuccessResponse)
         assert result.data.success is True
         assert "completed" in result.data.message
-        assert result.data.processor_state == "RUNNING"
+        assert result.data.processor_state == "running"
         mock_runtime_control.single_step.assert_called_once()
     
     @pytest.mark.asyncio
@@ -160,7 +171,7 @@ class TestSingleStepEndpoint:
             error="No thoughts to process"
         )
         mock_runtime_control.single_step.return_value = control_response
-        mock_request.app.state.runtime_control_service = mock_runtime_control
+        mock_request.app.state.main_runtime_control_service = mock_runtime_control
         
         # Execute
         result = await single_step_processor(mock_request, mock_admin_auth_context)
@@ -180,8 +191,8 @@ class TestServiceHealthEndpoint:
         # Setup
         health_status = ServiceHealthStatus(
             overall_health="healthy",
-            healthy_services=["llm", "memory"],
-            unhealthy_services=[],
+            healthy_services=2,
+            unhealthy_services=0,
             service_details={
                 "llm": {"status": "healthy", "circuit_breaker": "closed"},
                 "memory": {"status": "healthy", "circuit_breaker": "closed"}
@@ -189,7 +200,7 @@ class TestServiceHealthEndpoint:
             recommendations=[]
         )
         mock_runtime_control.get_service_health_status.return_value = health_status
-        mock_request.app.state.runtime_control_service = mock_runtime_control
+        mock_request.app.state.main_runtime_control_service = mock_runtime_control
         
         # Execute
         result = await get_service_health_details(mock_request, mock_auth_context)
@@ -197,7 +208,7 @@ class TestServiceHealthEndpoint:
         # Verify
         assert isinstance(result, SuccessResponse)
         assert result.data.overall_health == "healthy"
-        assert len(result.data.healthy_services) == 2
+        assert result.data.healthy_services == 2
         mock_runtime_control.get_service_health_status.assert_called_once()
 
 
@@ -214,7 +225,7 @@ class TestServicePriorityEndpoint:
             strategy="ROUND_ROBIN"
         )
         mock_runtime_control.update_service_priority.return_value = {"success": True}
-        mock_request.app.state.runtime_control_service = mock_runtime_control
+        mock_request.app.state.main_runtime_control_service = mock_runtime_control
         
         # Execute
         result = await update_service_priority(
@@ -246,7 +257,7 @@ class TestServicePriorityEndpoint:
             "success": False,
             "error": "Invalid priority 'INVALID'"
         }
-        mock_request.app.state.runtime_control_service = mock_runtime_control
+        mock_request.app.state.main_runtime_control_service = mock_runtime_control
         
         # Execute
         result = await update_service_priority(
@@ -274,7 +285,7 @@ class TestCircuitBreakerEndpoint:
             "success": True,
             "reset_count": 5
         }
-        mock_request.app.state.runtime_control_service = mock_runtime_control
+        mock_request.app.state.main_runtime_control_service = mock_runtime_control
         
         # Execute
         result = await reset_service_circuit_breakers(
@@ -298,7 +309,7 @@ class TestCircuitBreakerEndpoint:
             "success": True,
             "reset_count": 2
         }
-        mock_request.app.state.runtime_control_service = mock_runtime_control
+        mock_request.app.state.main_runtime_control_service = mock_runtime_control
         
         # Execute
         result = await reset_service_circuit_breakers(
@@ -322,14 +333,13 @@ class TestServiceSelectionExplanationEndpoint:
         # Setup
         explanation = ServiceSelectionExplanation(
             overview="Service selection system",
-            priority_groups={"0": "Primary", "1": "Backup"},
-            priorities={"CRITICAL": {"value": 0, "description": "Highest"}},
-            selection_strategies={"FALLBACK": {"description": "First available"}},
-            selection_flow=["Step 1", "Step 2"],
-            circuit_breaker_info={"purpose": "Prevent cascading failures"}
+            priority_groups={0: "Primary", 1: "Backup"},
+            selection_strategies={"FALLBACK": "First available"},
+            examples=[{"scenario": "Example 1", "description": "Test example"}],
+            configuration_tips=["Tip 1", "Tip 2"]
         )
         mock_runtime_control.get_service_selection_explanation.return_value = explanation
-        mock_request.app.state.runtime_control_service = mock_runtime_control
+        mock_request.app.state.main_runtime_control_service = mock_runtime_control
         
         # Execute
         result = await get_service_selection_explanation(mock_request, mock_auth_context)
@@ -337,7 +347,7 @@ class TestServiceSelectionExplanationEndpoint:
         # Verify
         assert isinstance(result, SuccessResponse)
         assert result.data.overview == "Service selection system"
-        assert "CRITICAL" in result.data.priorities
+        assert 0 in result.data.priority_groups  # Check priority group 0 exists
         mock_runtime_control.get_service_selection_explanation.assert_called_once()
 
 

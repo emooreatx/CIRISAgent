@@ -18,6 +18,9 @@ export default function DashboardPage() {
     queryFn: () => cirisClient.system.getResources(),
     refetchInterval: 5000,
   });
+  
+  // Cast resources to the actual API response structure
+  const resourceData = resources as any;
 
   const { data: services } = useQuery({
     queryKey: ['dashboard-services'],
@@ -78,10 +81,12 @@ export default function DashboardPage() {
     }
   };
 
+  // The SDK already unwraps the data, so services IS the data object
   const serviceStats = {
-    healthy: services?.services?.filter((s: any) => s.status === 'healthy').length || 0,
-    degraded: services?.services?.filter((s: any) => s.status === 'degraded').length || 0,
-    unhealthy: services?.services?.filter((s: any) => s.status === 'unhealthy').length || 0,
+    healthy: services?.services?.filter((s: any) => s.healthy === true).length || 0,
+    degraded: services?.services?.filter((s: any) => s.healthy === false && s.available === true).length || 0,
+    unhealthy: services?.services?.filter((s: any) => s.available === false).length || 0,
+    total: services?.total_services || 0,
   };
 
   return (
@@ -204,19 +209,19 @@ export default function DashboardPage() {
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-sm font-medium text-gray-700">CPU Usage</span>
                     <span className={`text-sm font-bold ${
-                      (resources?.cpu_percent || 0) > 80 ? 'text-red-600' : 
-                      (resources?.cpu_percent || 0) > 60 ? 'text-yellow-600' : 'text-green-600'
+                      (resourceData?.current_usage?.cpu_percent || 0) > 80 ? 'text-red-600' : 
+                      (resourceData?.current_usage?.cpu_percent || 0) > 60 ? 'text-yellow-600' : 'text-green-600'
                     }`}>
-                      {resources?.cpu_percent?.toFixed(1) || 0}%
+                      {resourceData?.current_usage?.cpu_percent?.toFixed(1) || 0}%
                     </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
                       className={`h-2 rounded-full transition-all duration-300 ${
-                        (resources?.cpu_percent || 0) > 80 ? 'bg-red-500' : 
-                        (resources?.cpu_percent || 0) > 60 ? 'bg-yellow-500' : 'bg-green-500'
+                        (resourceData?.current_usage?.cpu_percent || 0) > 80 ? 'bg-red-500' : 
+                        (resourceData?.current_usage?.cpu_percent || 0) > 60 ? 'bg-yellow-500' : 'bg-green-500'
                       }`}
-                      style={{ width: `${resources?.cpu_percent || 0}%` }}
+                      style={{ width: `${resourceData?.current_usage?.cpu_percent || 0}%` }}
                     />
                   </div>
                 </div>
@@ -226,19 +231,19 @@ export default function DashboardPage() {
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-sm font-medium text-gray-700">Memory Usage</span>
                     <span className={`text-sm font-bold ${
-                      (resources?.memory_percent || 0) > 80 ? 'text-red-600' : 
-                      (resources?.memory_percent || 0) > 60 ? 'text-yellow-600' : 'text-green-600'
+                      (resourceData?.current_usage?.memory_percent || 0) > 80 ? 'text-red-600' : 
+                      (resourceData?.current_usage?.memory_percent || 0) > 60 ? 'text-yellow-600' : 'text-green-600'
                     }`}>
-                      {resources?.memory_mb || 0} MB ({resources?.memory_percent?.toFixed(1) || 0}%)
+                      {resourceData?.current_usage?.memory_mb || 0} MB ({resourceData?.current_usage?.memory_percent?.toFixed(1) || 0}%)
                     </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
                       className={`h-2 rounded-full transition-all duration-300 ${
-                        (resources?.memory_percent || 0) > 80 ? 'bg-red-500' : 
-                        (resources?.memory_percent || 0) > 60 ? 'bg-yellow-500' : 'bg-green-500'
+                        (resourceData?.current_usage?.memory_percent || 0) > 80 ? 'bg-red-500' : 
+                        (resourceData?.current_usage?.memory_percent || 0) > 60 ? 'bg-yellow-500' : 'bg-green-500'
                       }`}
-                      style={{ width: `${resources?.memory_percent || 0}%` }}
+                      style={{ width: `${resourceData?.current_usage?.memory_percent || 0}%` }}
                     />
                   </div>
                 </div>
@@ -247,8 +252,45 @@ export default function DashboardPage() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">Disk Usage</span>
                   <span className="text-sm font-bold text-gray-900">
-                    {resources?.disk_usage_gb ? `${resources.disk_usage_gb} GB` : 'N/A'}
+                    {resourceData?.current_usage?.disk_used_mb ? `${(resourceData.current_usage.disk_used_mb / 1024).toFixed(1)} GB` : 'N/A'}
                   </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Environmental Impact */}
+          <div className="bg-white shadow rounded-lg">
+            <div className="px-4 py-5 sm:p-6">
+              <h3 className="text-lg font-medium text-gray-900 mb-4">Environmental Impact</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-700">
+                    {telemetryOverview?.carbon_per_hour_grams ? (telemetryOverview.carbon_per_hour_grams * 24 / 1000).toFixed(3) : '0.000'}
+                  </div>
+                  <div className="text-xs text-gray-600 mt-1">kg CO₂ (24h)</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-700">
+                    {telemetryOverview?.tokens_per_hour ? telemetryOverview.tokens_per_hour.toLocaleString() : '0'}
+                  </div>
+                  <div className="text-xs text-gray-600 mt-1">Tokens/hour</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-700">
+                    ${telemetryOverview?.cost_per_hour_cents ? (telemetryOverview.cost_per_hour_cents * 24 / 100).toFixed(2) : '0.00'}
+                  </div>
+                  <div className="text-xs text-gray-600 mt-1">Cost (24h)</div>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-gray-600">Hourly Rate:</span>
+                  <span className="ml-2 font-medium">${telemetryOverview?.cost_per_hour_cents ? (telemetryOverview.cost_per_hour_cents / 100).toFixed(4) : '0.00'}/hr</span>
+                </div>
+                <div>
+                  <span className="text-gray-600">Carbon Rate:</span>
+                  <span className="ml-2 font-medium">{telemetryOverview?.carbon_per_hour_grams?.toFixed(1) || '0.0'}g/hr</span>
                 </div>
               </div>
             </div>
@@ -285,7 +327,7 @@ export default function DashboardPage() {
                 <div className="pt-2 mt-2 border-t border-gray-200">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-gray-700">Total Services</span>
-                    <span className="text-lg font-semibold text-gray-900">{services?.services?.length || 0}</span>
+                    <span className="text-lg font-semibold text-gray-900">{serviceStats.total}</span>
                   </div>
                 </div>
               </div>

@@ -3,16 +3,22 @@
 Manages API keys, OAuth users, and authentication state.
 """
 import hashlib
-from typing import Optional, List, Dict
-from datetime import datetime, timezone
+import secrets
+import base64
+from typing import Optional, List, Dict, Any
+from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass
 
 from ciris_engine.schemas.api.auth import UserRole, APIKeyInfo
+from ciris_engine.schemas.services.authority_core import WARole
+from ciris_engine.schemas.runtime.api import APIRole
 
 @dataclass
 class StoredAPIKey:
     """Internal representation of an API key."""
+    key_id: str  # Unique ID for the key
     key_hash: str
+    key_value: str  # Masked version for display
     user_id: str
     role: UserRole
     expires_at: Optional[datetime]
@@ -34,6 +40,24 @@ class OAuthUser:
     created_at: datetime
     last_login: datetime
 
+@dataclass
+class User:
+    """Unified user representation combining auth methods and WA status."""
+    wa_id: str  # Primary ID (from WA cert)
+    name: str
+    auth_type: str  # "password", "oauth", "api_key"
+    api_role: APIRole
+    wa_role: Optional[WARole] = None
+    oauth_provider: Optional[str] = None
+    oauth_email: Optional[str] = None
+    oauth_external_id: Optional[str] = None
+    created_at: datetime = None
+    last_login: Optional[datetime] = None
+    is_active: bool = True
+    wa_parent_id: Optional[str] = None
+    wa_auto_minted: bool = False
+    password_hash: Optional[str] = None
+
 class APIAuthService:
     """Simple in-memory authentication service."""
 
@@ -41,6 +65,21 @@ class APIAuthService:
         # In production, these would be backed by a database
         self._api_keys: Dict[str, StoredAPIKey] = {}
         self._oauth_users: Dict[str, OAuthUser] = {}
+        self._users: Dict[str, User] = {}
+        
+        # Initialize with system admin user
+        now = datetime.now(timezone.utc)
+        admin_user = User(
+            wa_id="wa-system-admin",
+            name="admin",
+            auth_type="password",
+            api_role=APIRole.SYSTEM_ADMIN,
+            wa_role=None,  # System admin is not a WA by default
+            created_at=now,
+            is_active=True,
+            password_hash=self._hash_password("ciris_admin_password")
+        )
+        self._users[admin_user.wa_id] = admin_user
 
     def _hash_key(self, api_key: str) -> str:
         """Hash an API key for storage."""
@@ -63,8 +102,11 @@ class APIAuthService:
     ) -> None:
         """Store a new API key."""
         key_hash = self._hash_key(key)
+        key_id = self._get_key_id(key)
         stored_key = StoredAPIKey(
+            key_id=key_id,
             key_hash=key_hash,
+            key_value=key[:12] + "..." + key[-4:],  # Masked version
             user_id=user_id,
             role=role,
             expires_at=expires_at,
@@ -90,6 +132,21 @@ class APIAuthService:
 
         # Update last used
         stored_key.last_used = datetime.now(timezone.utc)
+        
+        # Ensure system admin user exists in _users
+        if stored_key.user_id == "wa-system-admin" and stored_key.user_id not in self._users:
+            # Re-create the system admin user
+            admin_user = User(
+                wa_id="wa-system-admin",
+                name="admin",
+                auth_type="password",
+                api_role=APIRole.SYSTEM_ADMIN,
+                wa_role=None,
+                created_at=datetime.now(timezone.utc),
+                is_active=True,
+                password_hash=self._hash_password("ciris_admin_password")
+            )
+            self._users[admin_user.wa_id] = admin_user
 
         return stored_key
 
@@ -178,3 +235,399 @@ class APIAuthService:
         """Get user by OAuth provider and external ID."""
         user_id = f"{provider}:{external_id}"
         return self._oauth_users.get(user_id)
+    
+    # ========== User Management Methods ==========
+    
+    def _hash_password(self, password: str) -> str:
+        """Hash a password for storage."""
+        # In production, use bcrypt or argon2
+        return hashlib.sha256(password.encode()).hexdigest()
+    
+    async def get_user_by_username(self, username: str) -> Optional[User]:
+        """Get a user by username."""
+        for user in self._users.values():
+            if user.name == username:
+                return user
+        return None
+    
+    async def create_user(
+        self, 
+        username: str, 
+        password: str, 
+        api_role: APIRole = APIRole.OBSERVER
+    ) -> Optional[User]:
+        """Create a new user account."""
+        # Check if username already exists
+        existing = await self.get_user_by_username(username)
+        if existing:
+            return None
+        
+        # Generate user ID
+        user_id = f"wa-user-{secrets.token_hex(8)}"
+        
+        # Create user
+        now = datetime.now(timezone.utc)
+        user = User(
+            wa_id=user_id,
+            name=username,
+            auth_type="password",
+            api_role=api_role,
+            created_at=now,
+            is_active=True,
+            password_hash=self._hash_password(password)
+        )
+        
+        # Store user
+        self._users[user_id] = user
+        
+        return user
+    
+    async def list_users(
+        self,
+        search: Optional[str] = None,
+        auth_type: Optional[str] = None,
+        api_role: Optional[APIRole] = None,
+        wa_role: Optional[WARole] = None,
+        is_active: Optional[bool] = None
+    ) -> List[User]:
+        """List all users with optional filtering."""
+        users = []
+        
+        # Add all stored users
+        for user in self._users.values():
+            # Apply filters
+            if search and search.lower() not in user.name.lower():
+                continue
+            if auth_type and user.auth_type != auth_type:
+                continue
+            if api_role and user.api_role != api_role:
+                continue
+            if wa_role and user.wa_role != wa_role:
+                continue
+            if is_active is not None and user.is_active != is_active:
+                continue
+            
+            users.append(user)
+        
+        # Add OAuth users not in _users
+        for oauth_user in self._oauth_users.values():
+            # Check if already in users
+            if any(u.oauth_external_id == oauth_user.external_id for u in users):
+                continue
+            
+            # Convert OAuth user to User
+            user = User(
+                wa_id=oauth_user.user_id,
+                name=oauth_user.name or oauth_user.email or oauth_user.user_id,
+                auth_type="oauth",
+                api_role=self._user_role_to_api_role(oauth_user.role),
+                oauth_provider=oauth_user.provider,
+                oauth_email=oauth_user.email,
+                oauth_external_id=oauth_user.external_id,
+                created_at=oauth_user.created_at,
+                last_login=oauth_user.last_login,
+                is_active=True
+            )
+            
+            # Apply filters
+            if search and search.lower() not in user.name.lower():
+                continue
+            if auth_type and user.auth_type != auth_type:
+                continue
+            if api_role and user.api_role != api_role:
+                continue
+            if wa_role is not None:
+                continue  # OAuth users without WA role
+            if is_active is not None and user.is_active != is_active:
+                continue
+            
+            users.append(user)
+        
+        return sorted(users, key=lambda u: u.created_at, reverse=True)
+    
+    def _user_role_to_api_role(self, role: UserRole) -> APIRole:
+        """Convert UserRole to APIRole."""
+        mapping = {
+            UserRole.OBSERVER: APIRole.OBSERVER,
+            UserRole.ADMIN: APIRole.ADMIN,
+            UserRole.SYSTEM_ADMIN: APIRole.SYSTEM_ADMIN
+        }
+        return mapping.get(role, APIRole.OBSERVER)
+    
+    async def get_user(self, user_id: str) -> Optional[User]:
+        """Get a specific user by ID."""
+        # Check stored users first
+        if user_id in self._users:
+            return self._users[user_id]
+        
+        # Check OAuth users
+        if user_id in self._oauth_users:
+            oauth_user = self._oauth_users[user_id]
+            return User(
+                wa_id=oauth_user.user_id,
+                name=oauth_user.name or oauth_user.email or oauth_user.user_id,
+                auth_type="oauth",
+                api_role=self._user_role_to_api_role(oauth_user.role),
+                oauth_provider=oauth_user.provider,
+                oauth_email=oauth_user.email,
+                oauth_external_id=oauth_user.external_id,
+                created_at=oauth_user.created_at,
+                last_login=oauth_user.last_login,
+                is_active=True
+            )
+        
+        return None
+    
+    async def update_user(
+        self,
+        user_id: str,
+        api_role: Optional[APIRole] = None,
+        is_active: Optional[bool] = None
+    ) -> Optional[User]:
+        """Update user information."""
+        user = await self.get_user(user_id)
+        if not user:
+            return None
+        
+        # Update fields
+        if api_role is not None:
+            user.api_role = api_role
+        if is_active is not None:
+            user.is_active = is_active
+        
+        # Store updated user
+        self._users[user_id] = user
+        
+        # Also update OAuth user if applicable
+        if user_id in self._oauth_users:
+            oauth_user = self._oauth_users[user_id]
+            if api_role is not None:
+                # Convert APIRole back to UserRole
+                role_mapping = {
+                    APIRole.OBSERVER: UserRole.OBSERVER,
+                    APIRole.ADMIN: UserRole.ADMIN,
+                    APIRole.AUTHORITY: UserRole.ADMIN,  # No direct mapping
+                    APIRole.SYSTEM_ADMIN: UserRole.SYSTEM_ADMIN
+                }
+                oauth_user.role = role_mapping.get(api_role, UserRole.OBSERVER)
+        
+        return user
+    
+    async def change_password(
+        self,
+        user_id: str,
+        new_password: str,
+        current_password: Optional[str] = None,
+        skip_current_check: bool = False
+    ) -> bool:
+        """Change user password."""
+        user = await self.get_user(user_id)
+        if not user or user.auth_type != "password":
+            return False
+        
+        # Verify current password unless skip_current_check is True
+        if not skip_current_check and current_password:
+            current_hash = self._hash_password(current_password)
+            if user.password_hash != current_hash:
+                return False
+        
+        # Update password
+        user.password_hash = self._hash_password(new_password)
+        self._users[user_id] = user
+        
+        return True
+    
+    async def deactivate_user(self, user_id: str) -> bool:
+        """Deactivate a user account."""
+        user = await self.get_user(user_id)
+        if not user:
+            return False
+        
+        user.is_active = False
+        self._users[user_id] = user
+        
+        # Also deactivate OAuth user if applicable
+        if user_id in self._oauth_users:
+            # Can't really deactivate OAuth users in this simple implementation
+            pass
+        
+        return True
+    
+    def get_permissions_for_role(self, role: APIRole) -> List[str]:
+        """Get permissions for a given API role."""
+        # Define role permissions
+        permissions = {
+            APIRole.OBSERVER: [
+                "system.read",
+                "memory.read",
+                "telemetry.read",
+                "config.read",
+                "audit.read"
+            ],
+            APIRole.ADMIN: [
+                "system.read",
+                "system.write",
+                "memory.read",
+                "memory.write",
+                "telemetry.read",
+                "config.read",
+                "config.write",
+                "audit.read",
+                "audit.write",
+                "users.read"
+            ],
+            APIRole.AUTHORITY: [
+                "system.read",
+                "system.write",
+                "memory.read",
+                "memory.write",
+                "telemetry.read",
+                "config.read",
+                "config.write",
+                "audit.read",
+                "audit.write",
+                "users.read",
+                "wa.read",
+                "wa.write"
+            ],
+            APIRole.SYSTEM_ADMIN: [
+                "system.read",
+                "system.write",
+                "memory.read",
+                "memory.write",
+                "telemetry.read",
+                "config.read",
+                "config.write",
+                "audit.read",
+                "audit.write",
+                "users.read",
+                "users.write",
+                "users.delete",
+                "wa.read",
+                "wa.write",
+                "wa.mint",
+                "emergency.shutdown"
+            ]
+        }
+        
+        return permissions.get(role, [])
+    
+    async def list_user_api_keys(self, user_id: str) -> List[StoredAPIKey]:
+        """List all API keys for a specific user."""
+        keys = []
+        for stored_key in self._api_keys.values():
+            if stored_key.user_id == user_id:
+                keys.append(stored_key)
+        return sorted(keys, key=lambda k: k.created_at, reverse=True)
+    
+    async def verify_root_signature(
+        self,
+        user_id: str,
+        wa_role: WARole,
+        signature: str
+    ) -> bool:
+        """Verify a ROOT signature for WA minting.
+        
+        The signature should be over the message:
+        "MINT_WA:{user_id}:{wa_role}:{timestamp}"
+        
+        Where timestamp is in ISO format.
+        """
+        import json
+        from pathlib import Path
+        from cryptography.hazmat.primitives.asymmetric import ed25519
+        from cryptography.hazmat.backends import default_backend
+        
+        try:
+            # Load ROOT public key from seed/
+            root_pub_path = Path(__file__).parent.parent.parent.parent.parent.parent / "seed" / "root_pub.json"
+            with open(root_pub_path, 'r') as f:
+                root_data = json.load(f)
+            
+            # Get the public key (base64url encoded)
+            pubkey_b64 = root_data['pubkey']
+            
+            # Decode from base64url to bytes
+            # Add padding if needed
+            pubkey_b64_padded = pubkey_b64 + '=' * (4 - len(pubkey_b64) % 4)
+            pubkey_bytes = base64.urlsafe_b64decode(pubkey_b64_padded)
+            
+            # Create Ed25519 public key object
+            public_key = ed25519.Ed25519PublicKey.from_public_bytes(pubkey_bytes)
+            
+            # The signature should include a timestamp
+            # For verification, we'll accept signatures from the last hour
+            now = datetime.now(timezone.utc)
+            
+            # Try multiple timestamp formats within the last hour
+            for minutes_ago in range(0, 60, 1):  # Check last 60 minutes
+                timestamp = (now - timedelta(minutes=minutes_ago)).isoformat()
+                message = f"MINT_WA:{user_id}:{wa_role.value}:{timestamp}"
+                
+                try:
+                    # Decode signature from base64url
+                    sig_padded = signature + '=' * (4 - len(signature) % 4)
+                    sig_bytes = base64.urlsafe_b64decode(sig_padded)
+                    
+                    # Verify signature
+                    public_key.verify(sig_bytes, message.encode())
+                    
+                    # If we get here, signature is valid
+                    return True
+                except Exception:
+                    # Try next timestamp
+                    continue
+            
+            # Also try without timestamp for backwards compatibility
+            message_no_ts = f"MINT_WA:{user_id}:{wa_role.value}"
+            
+            # Try standard base64 first (what our signing script produces)
+            try:
+                sig_bytes = base64.b64decode(signature)
+                public_key.verify(sig_bytes, message_no_ts.encode())
+                return True
+            except Exception:
+                pass
+            
+            # Try urlsafe base64
+            try:
+                sig_padded = signature + '=' * (4 - len(signature) % 4)
+                sig_bytes = base64.urlsafe_b64decode(sig_padded)
+                public_key.verify(sig_bytes, message_no_ts.encode())
+                return True
+            except Exception:
+                pass
+            
+            return False
+            
+        except Exception as e:
+            # Log error but don't expose internal details
+            print(f"Signature verification error: {e}")
+            return False
+    
+    async def mint_wise_authority(
+        self,
+        user_id: str,
+        wa_role: WARole,
+        minted_by: str
+    ) -> Optional[User]:
+        """Mint a user as a Wise Authority."""
+        user = await self.get_user(user_id)
+        if not user:
+            return None
+        
+        # Update WA role
+        user.wa_role = wa_role
+        user.wa_parent_id = minted_by
+        user.wa_auto_minted = False
+        
+        # If user doesn't have sufficient API role, upgrade it
+        if wa_role == WARole.AUTHORITY and user.api_role.value < APIRole.AUTHORITY.value:
+            user.api_role = APIRole.AUTHORITY
+        elif wa_role == WARole.OBSERVER and user.api_role.value < APIRole.OBSERVER.value:
+            user.api_role = APIRole.OBSERVER
+        
+        # Store updated user
+        self._users[user_id] = user
+        
+        return user

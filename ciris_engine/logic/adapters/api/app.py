@@ -11,7 +11,7 @@ from typing import Any
 # Import all route modules from adapter
 from .routes import (
     agent, audit, auth, config, emergency,
-    memory, system, telemetry, wa, system_extensions
+    memory, system, telemetry, wa, system_extensions, users
 )
 
 # Import auth service
@@ -87,6 +87,7 @@ def create_app(runtime: Any = None) -> FastAPI:
         audit.router,      # Audit trail
         wa.router,         # Wise Authority
         auth.router,       # Authentication
+        users.router,      # User management
     ]
 
     # Include all v1 routes with /v1 prefix

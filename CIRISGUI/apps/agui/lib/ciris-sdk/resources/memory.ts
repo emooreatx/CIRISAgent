@@ -28,12 +28,21 @@ export class MemoryResource extends BaseResource {
     query: string,
     options: MemoryQueryOptions = {}
   ): Promise<GraphNode[]> {
-    return this.transport.get<GraphNode[]>('/v1/memory/query', {
-      params: {
-        query,
-        ...options
-      }
-    });
+    // If query looks like a node ID, search by ID
+    const isNodeId = query && (
+      query.startsWith('metric_') || 
+      query.startsWith('audit_') || 
+      query.startsWith('log_') ||
+      query.startsWith('dream_schedule_') ||
+      query.includes('_') && /\d{10}/.test(query)
+    );
+    
+    const body: any = {
+      ...(isNodeId ? { node_id: query } : { query }),
+      ...options
+    };
+    
+    return this.transport.post<GraphNode[]>('/v1/memory/query', body);
   }
 
   /**
@@ -145,5 +154,25 @@ export class MemoryResource extends BaseResource {
     return this.transport.get<GraphNode[]>(`/v1/memory/${nodeId}/related`, {
       params: options
     });
+  }
+
+  /**
+   * Get memory graph visualization as SVG
+   */
+  async getVisualization(options: {
+    node_type?: string;
+    scope?: 'local' | 'identity' | 'environment' | 'community';
+    hours?: number;
+    layout?: 'force' | 'timeline' | 'hierarchical';
+    width?: number;
+    height?: number;
+    limit?: number;
+  } = {}): Promise<string> {
+    // This returns SVG as text
+    const response = await this.transport.get('/v1/memory/visualize/graph', {
+      params: options,
+      responseType: 'text'
+    });
+    return response as unknown as string;
   }
 }

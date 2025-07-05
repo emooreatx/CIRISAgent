@@ -11,7 +11,7 @@ Usage:
     python debug_tools.py correlations       # Show recent service correlations
     python debug_tools.py trace <trace_id>   # Show trace hierarchy
     python debug_tools.py traces             # List recent trace IDs
-    python debug_tools.py dead-letter        # Show dead letter queue
+    python debug_tools.py incidents          # Show recent incidents
     python debug_tools.py api-messages       # Show API message queue
 """
 
@@ -21,7 +21,7 @@ from datetime import datetime
 from pathlib import Path
 
 # Add the project root to path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from ciris_engine.logic import persistence
 from ciris_engine.logic.persistence.db.core import get_db_connection
@@ -246,18 +246,18 @@ def show_correlations(limit=20, trace_id=None):
             display_correlation(row)
 
 
-def show_dead_letter():
-    """Show recent dead letter queue entries."""
-    dead_letter_path = Path("logs/dead_letter_latest.log")
-    if not dead_letter_path.exists():
-        print("Dead letter log not found")
+def show_incidents():
+    """Show recent incidents."""
+    incidents_path = Path("logs/incidents_latest.log")
+    if not incidents_path.exists():
+        print("Incidents log not found")
         return
     
     print(f"\n{'='*100}")
-    print(f"DEAD LETTER QUEUE (last 50 lines)")
+    print(f"RECENT INCIDENTS (last 50 lines)")
     print(f"{'='*100}")
     
-    with open(dead_letter_path) as f:
+    with open(incidents_path) as f:
         lines = f.readlines()
         for line in lines[-50:]:
             print(line.rstrip())
@@ -315,6 +315,80 @@ def list_traces(limit=20):
             print(f"{trace_id:<40} {first[:19]:<20} {last[:19]:<20} {count}")
 
 
+def show_thoughts(status='PENDING'):
+    """Show thoughts by status."""
+    conn = get_db_connection()
+    cursor = conn.execute("""
+        SELECT thought_id, source_task_id, thought_type, status, 
+               thought_depth, created_at, content
+        FROM thoughts 
+        WHERE status = ?
+        ORDER BY created_at DESC 
+        LIMIT 20
+    """, (status,))
+    
+    rows = cursor.fetchall()
+    print(f"\n{'='*100}")
+    print(f"{status} THOUGHTS ({len(rows)} shown)")
+    print(f"{'='*100}")
+    
+    for thought_id, task_id, thought_type, status, depth, created, content in rows:
+        print(f"\n{created} - {thought_type} (depth {depth})")
+        print(f"  Thought: {thought_id}")
+        print(f"  Task: {task_id}")
+        print(f"  Content: {content[:100]}...")
+
+
+def show_tasks(limit=10):
+    """Show recent tasks with thought counts."""
+    conn = get_db_connection()
+    cursor = conn.execute("""
+        SELECT t.task_id, t.description, t.status, t.priority, t.created_at,
+               COUNT(th.thought_id) as thought_count
+        FROM tasks t
+        LEFT JOIN thoughts th ON t.task_id = th.source_task_id
+        GROUP BY t.task_id
+        ORDER BY t.created_at DESC
+        LIMIT ?
+    """, (limit,))
+    
+    rows = cursor.fetchall()
+    print(f"\n{'='*100}")
+    print(f"RECENT TASKS ({len(rows)} shown)")
+    print(f"{'='*100}")
+    
+    for task_id, desc, status, priority, created, thought_count in rows:
+        print(f"\n{created} - {status} (priority {priority})")
+        print(f"  Task: {task_id}")
+        print(f"  Description: {desc[:80]}...")
+        print(f"  Thoughts: {thought_count}")
+
+
+def show_handler_metrics():
+    """Show handler execution metrics."""
+    conn = get_db_connection()
+    cursor = conn.execute("""
+        SELECT handler_name, action_type, status,
+               COUNT(*) as exec_count,
+               AVG(JULIANDAY(updated_at) - JULIANDAY(created_at)) * 86400000 as avg_ms
+        FROM service_correlations
+        WHERE handler_name IS NOT NULL
+        GROUP BY handler_name, action_type, status
+        ORDER BY exec_count DESC
+    """)
+    
+    rows = cursor.fetchall()
+    print(f"\n{'='*100}")
+    print(f"HANDLER METRICS")
+    print(f"{'='*100}")
+    print(f"{'Handler':<30} {'Action':<20} {'Status':<15} {'Count':<10} {'Avg MS'}")
+    print(f"{'-'*100}")
+    
+    for handler, action, status, count, avg_ms in rows:
+        avg_str = f"{avg_ms:.1f}" if avg_ms else "N/A"
+        print(f"{handler:<30} {action:<20} {status:<15} {count:<10} {avg_str}")
+
+
 def main():
     """Main entry point."""
     if len(sys.argv) < 2:
@@ -363,8 +437,8 @@ def main():
     elif command == "traces":
         list_traces()
     
-    elif command == "dead-letter":
-        show_dead_letter()
+    elif command == "incidents":
+        show_incidents()
     
     elif command == "api-messages":
         channel = sys.argv[2] if len(sys.argv) > 2 else None
@@ -372,6 +446,17 @@ def main():
     
     else:
         print(__doc__)
+
+
+# Add these functions that were referenced in the debug script but not included
+from ciris_engine.logic.persistence.db.core import get_db_connection
+
+# Make functions available when imported
+__all__ = [
+    'list_tasks', 'show_task_details', 'trace_channel_context',
+    'show_correlations', 'show_incidents', 'show_api_messages',
+    'list_traces', 'show_thoughts', 'show_tasks', 'show_handler_metrics'
+]
 
 
 if __name__ == "__main__":

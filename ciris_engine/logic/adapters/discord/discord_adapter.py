@@ -1072,16 +1072,11 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                 "has_client": client is not None
             })
 
-            # Start connection manager if we have a client
+            # Note: Don't connect here - the platform will handle the connection in run_lifecycle
             if client:
-                await self._connection_manager.connect()
-                # Wait for Discord client to be ready (only Discord needs this)
-                logger.info("Waiting for Discord client to be ready...")
-                ready = await self.wait_until_ready(timeout=30.0)
-                if ready:
-                    logger.info("Discord client is ready")
-                else:
-                    logger.warning("Discord client did not become ready within timeout")
+                logger.info("Discord adapter will wait for platform to establish connection")
+            else:
+                logger.warning("No Discord client attached - connection will be established later")
 
         except Exception as e:
             logger.exception(f"Failed to start Discord adapter: {e}")
