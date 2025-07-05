@@ -2,6 +2,26 @@
 
 This directory contains Docker configurations for running CIRIS in various modes.
 
+## Mac Users - Important Notes
+
+If you're on macOS (especially Apple Silicon/M1/M2), you may encounter build issues with `psutil` requiring `gcc`. We've included build tools in the Dockerfile to address this:
+
+### Quick Fix for Mac Users:
+```bash
+# Use the provided build script which handles platform detection
+cd docker
+./build.sh
+
+# Or build manually with platform flag for Apple Silicon
+docker build --platform linux/amd64 -f docker/Dockerfile -t ciris:latest ..
+```
+
+### If you still have issues:
+1. Update Docker Desktop to the latest version
+2. Enable "Use Rosetta for x86/amd64 emulation" in Docker Desktop settings
+3. Allocate at least 4GB RAM to Docker Desktop
+4. Try the optimized multi-stage build: `docker build -f docker/Dockerfile.optimized -t ciris:optimized ..`
+
 ## Available Configurations
 
 - `docker-compose.yml` - Default API server

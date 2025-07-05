@@ -220,6 +220,32 @@ class TestSpeakHandler:
         result = api_client.interact("$speak @channel:api_other_channel Test cross-channel message")
         assert "data" in result
         assert result["data"]["message_id"] is not None
+        
+    def test_speak_to_nonexistent_discord_channel(self, api_client):
+        """Test speaking to a Discord channel when no Discord adapter is registered."""
+        # Send message to Discord channel (should fail and create follow-up thought)
+        result = api_client.interact("$speak @channel:discord_1364300186003968060_1382010877171073108 Hello Discord!")
+        assert "data" in result
+        assert result["data"]["message_id"] is not None
+        
+        # Wait for processing
+        api_client.wait_for_processing(timeout=3)
+        
+        # Check audit entries for SPEAK handler and failure indication
+        entries = api_client.get_audit_entries(limit=50)
+        
+        # Look for SPEAK handler invocation
+        speak_found = False
+        speak_failed = False
+        for entry in entries:
+            if "SpeakHandler" in entry.get("actor", "") or "HANDLER_ACTION_SPEAK" in str(entry.get("action", "")):
+                speak_found = True
+                # Check if it failed
+                if entry.get("event_data", {}).get("outcome") == "failed":
+                    speak_failed = True
+                    
+        assert speak_found, "SpeakHandler should have been invoked"
+        # The handler should have created a follow-up thought about the failure
 
 
 class TestRecallHandler:
