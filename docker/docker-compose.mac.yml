@@ -1,0 +1,19 @@
+# Docker Compose override for Mac users
+# Use with: docker-compose -f docker-compose-mock.yml -f docker-compose.mac.yml up
+
+services:
+  ciris-mock:
+    platform: linux/amd64  # Force x86_64 platform for Apple Silicon compatibility
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        BUILDPLATFORM: linux/amd64
+        TARGETPLATFORM: linux/amd64
+    # Increase resource limits for psutil compilation
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G

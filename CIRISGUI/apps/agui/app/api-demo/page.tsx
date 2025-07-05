@@ -22,7 +22,7 @@ export default function ApiDemoPage() {
   const [loading, setLoading] = useState(false);
   const [activeCategory, setActiveCategory] = useState<keyof typeof demoCategories>('agent');
 
-  const demoCategories = {
+  const demoCategories: Record<string, { title: string; demos: DemoSection[] }> = {
     agent: {
       title: 'Agent Interaction',
       demos: [
@@ -195,6 +195,57 @@ export default function ApiDemoPage() {
           endpoint: 'GET /v1/system/adapters',
           method: 'GET' as const,
           execute: () => cirisClient.system.getAdapters()
+        },
+        {
+          title: 'Register Adapter',
+          description: 'Register a new adapter (e.g., Discord, CLI)',
+          endpoint: 'POST /v1/system/adapters/{type}',
+          method: 'POST' as const,
+          execute: () => cirisClient.system.registerAdapter('cli', { 
+            enabled: true,
+            priority: 2
+          }),
+          params: { adapter_type: 'cli', config: { enabled: true, priority: 2 } }
+        },
+        {
+          title: 'Unregister Adapter',
+          description: 'Unregister an adapter',
+          endpoint: 'DELETE /v1/system/adapters/{id}',
+          method: 'DELETE' as const,
+          execute: () => cirisClient.system.unregisterAdapter('cli_adapter'),
+          params: { adapter_id: 'cli_adapter' }
+        },
+        {
+          title: 'Service Priorities',
+          description: 'Update service provider priorities',
+          endpoint: 'PUT /v1/system/services/{provider}/priority',
+          method: 'PUT' as const,
+          execute: () => cirisClient.system.updateServicePriority('memory_provider', {
+            priority: 1,
+            priority_group: 0
+          }),
+          params: { provider: 'memory_provider', priority: 1, priority_group: 0 }
+        },
+        {
+          title: 'Circuit Breakers',
+          description: 'Reset circuit breakers for services',
+          endpoint: 'POST /v1/system/services/circuit-breakers/reset',
+          method: 'POST' as const,
+          execute: () => cirisClient.system.resetCircuitBreakers()
+        },
+        {
+          title: 'Selection Logic',
+          description: 'Explain service selection logic',
+          endpoint: 'GET /v1/system/services/selection-logic',
+          method: 'GET' as const,
+          execute: () => cirisClient.system.getServiceSelectionExplanation()
+        },
+        {
+          title: 'Single Step Debug',
+          description: 'Execute single processing step for debugging',
+          endpoint: 'POST /v1/system/runtime/single-step',
+          method: 'POST' as const,
+          execute: () => cirisClient.system.singleStepProcessor()
         }
       ]
     },
@@ -351,6 +402,151 @@ export default function ApiDemoPage() {
           execute: () => cirisClient.auth.refresh()
         }
       ]
+    },
+    users: {
+      title: 'User Management',
+      demos: [
+        {
+          title: 'List Users',
+          description: 'List all users with filtering',
+          endpoint: 'GET /v1/users',
+          method: 'GET' as const,
+          execute: () => cirisClient.users.list({ page_size: 10 }),
+          params: { page_size: 10 }
+        },
+        {
+          title: 'Get User Details',
+          description: 'Get detailed info about a user',
+          endpoint: 'GET /v1/users/{userId}',
+          method: 'GET' as const,
+          execute: () => cirisClient.users.get('admin'),
+          params: { userId: 'admin' }
+        },
+        {
+          title: 'Create User',
+          description: 'Create a new user account',
+          endpoint: 'POST /v1/users',
+          method: 'POST' as const,
+          execute: () => cirisClient.users.create({
+            username: 'demo_user',
+            password: 'demo_password123',
+            api_role: 'OBSERVER'
+          }),
+          params: {
+            username: 'demo_user',
+            password: 'demo_password123',
+            api_role: 'OBSERVER'
+          }
+        },
+        {
+          title: 'Update User',
+          description: 'Update user role or status',
+          endpoint: 'PUT /v1/users/{userId}',
+          method: 'PUT' as const,
+          execute: () => cirisClient.users.update('demo_user', {
+            api_role: 'ADMIN',
+            is_active: true
+          }),
+          params: {
+            userId: 'demo_user',
+            api_role: 'ADMIN',
+            is_active: true
+          }
+        },
+        {
+          title: 'Change Password',
+          description: 'Change user password',
+          endpoint: 'PUT /v1/users/{userId}/password',
+          method: 'PUT' as const,
+          execute: () => cirisClient.users.changePassword('admin', {
+            current_password: 'current_password',
+            new_password: 'new_password123'
+          }),
+          params: {
+            userId: 'admin',
+            current_password: 'current_password',
+            new_password: 'new_password123'
+          }
+        },
+        {
+          title: 'List API Keys',
+          description: 'List API keys for a user',
+          endpoint: 'GET /v1/users/{userId}/api-keys',
+          method: 'GET' as const,
+          execute: () => cirisClient.users.listAPIKeys('admin'),
+          params: { userId: 'admin' }
+        },
+        {
+          title: 'Mint Wise Authority',
+          description: 'Mint user as Wise Authority (requires ROOT)',
+          endpoint: 'POST /v1/users/{userId}/mint-wa',
+          method: 'POST' as const,
+          execute: () => cirisClient.users.mintWiseAuthority('demo_user', {
+            wa_role: 'ORACLE',
+            signature: 'ed25519_signature_here'
+          }),
+          params: {
+            userId: 'demo_user',
+            wa_role: 'ORACLE',
+            signature: 'ed25519_signature_here'
+          }
+        }
+      ]
+    },
+    advanced: {
+      title: 'Advanced Operations',
+      demos: [
+        {
+          title: 'Emergency Shutdown',
+          description: 'Initiate emergency shutdown with Ed25519 signature',
+          endpoint: 'POST /emergency/shutdown',
+          method: 'POST' as const,
+          execute: () => fetch('/emergency/shutdown', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              reason: 'Emergency shutdown test',
+              signature: 'ed25519_emergency_signature',
+              public_key: 'ed25519_public_key'
+            })
+          }).then(r => r.json()),
+          params: {
+            reason: 'Emergency shutdown test',
+            signature: 'ed25519_emergency_signature',
+            public_key: 'ed25519_public_key'
+          }
+        },
+        {
+          title: 'Emergency Health Check',
+          description: 'Check system health without authentication',
+          endpoint: 'GET /emergency/health',
+          method: 'GET' as const,
+          execute: () => fetch('/emergency/health').then(r => r.json())
+        },
+        {
+          title: 'WebSocket Connection',
+          description: 'Real-time bidirectional communication',
+          endpoint: 'WS /v1/ws',
+          method: 'GET' as const,
+          execute: () => Promise.resolve({
+            message: 'WebSocket connections must be established using a WebSocket client',
+            example: 'new WebSocket("ws://localhost:8080/v1/ws")',
+            features: [
+              'Real-time agent messages',
+              'System events',
+              'Telemetry updates',
+              'Interactive chat'
+            ]
+          })
+        },
+        {
+          title: 'OpenAPI Specification',
+          description: 'Complete API documentation in OpenAPI format',
+          endpoint: 'GET /openapi.json',
+          method: 'GET' as const,
+          execute: () => fetch('/openapi.json').then(r => r.json())
+        }
+      ]
     }
   };
 
@@ -393,7 +589,7 @@ export default function ApiDemoPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">CIRIS API Explorer</h1>
           <p className="mt-2 text-lg text-gray-600">
-            Interactive demonstration of all 57 API endpoints across 11 modules
+            Interactive demonstration of all 76+ API endpoints across 12 modules
           </p>
         </div>
 

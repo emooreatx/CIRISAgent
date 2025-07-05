@@ -423,8 +423,8 @@ class BaseActionHandler(ABC):
             return False
 
         try:
-            # Use the communication bus
-            return await self.bus_manager.communication.send_message(
+            # Use synchronous send to get immediate feedback on failures
+            return await self.bus_manager.communication.send_message_sync(
                 channel_id=channel_id,
                 content=content,
                 handler_name=self.__class__.__name__
