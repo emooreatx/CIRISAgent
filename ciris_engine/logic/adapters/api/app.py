@@ -17,6 +17,9 @@ from .routes import (
 # Import auth service
 from .services.auth_service import APIAuthService
 
+# Import rate limiting middleware
+from .middleware.rate_limiter import RateLimitMiddleware
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle."""
@@ -26,12 +29,13 @@ async def lifespan(app: FastAPI):
     # Shutdown
     print("Shutting down CIRIS API...")
 
-def create_app(runtime: Any = None) -> FastAPI:
+def create_app(runtime: Any = None, config: Any = None) -> FastAPI:
     """
     Create and configure the FastAPI application.
 
     Args:
         runtime: Optional runtime instance for service access
+        config: Optional APIAdapterConfig instance
 
     Returns:
         Configured FastAPI application
@@ -51,6 +55,12 @@ def create_app(runtime: Any = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    
+    # Add rate limiting middleware if enabled in config
+    if config and getattr(config, 'rate_limit_enabled', False):
+        rate_limit = getattr(config, 'rate_limit_per_minute', 60)
+        app.add_middleware(RateLimitMiddleware, requests_per_minute=rate_limit)
+        print(f"Rate limiting enabled: {rate_limit} requests per minute")
 
     # Store runtime in app state for access in routes
     if runtime:

@@ -678,11 +678,26 @@ def _generate_svg(G: "nx.DiGraph", pos: Dict[str, tuple], width: int, height: in
             f'stroke="#666" stroke-width="2"/>'
         )
         
-        # Add time labels
+        # Add time labels with fixed intervals
         now = datetime.now(timezone.utc)
-        for i in range(0, hours + 1, max(hours // 6, 1)):
-            x = 50 + (i / hours) * (width - 100)
-            time_label = (now - timedelta(hours=hours-i)).strftime("%m/%d %H:%M")
+        # Use predefined safe intervals based on hours range
+        if hours <= 6:
+            intervals = [0, 1, 2, 3, 4, 5, hours][:hours+1]
+        elif hours <= 24:
+            intervals = [0, 4, 8, 12, 16, 20, hours]
+        elif hours <= 48:
+            intervals = [0, 8, 16, 24, 32, 40, hours]
+        elif hours <= 96:
+            intervals = [0, 16, 32, 48, 64, 80, hours]
+        else:  # hours <= 168
+            intervals = [0, 24, 48, 72, 96, 120, 144, hours]
+        
+        # Filter out any duplicates and sort
+        intervals = sorted(set(i for i in intervals if i <= hours))
+        
+        for hour in intervals:
+            x = 50 + (hour / hours) * (width - 100)
+            time_label = (now - timedelta(hours=hours-hour)).strftime("%m/%d %H:%M")
             svg_parts.append(
                 f'<text x="{x}" y="{height - 20}" text-anchor="middle" '
                 f'font-family="Arial" font-size="10" fill="#666">{time_label}</text>'

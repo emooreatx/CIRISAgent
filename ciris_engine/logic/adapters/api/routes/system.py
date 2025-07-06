@@ -596,8 +596,12 @@ async def shutdown_system(
         if body.force:
             reason += " [FORCED]"
 
-        # Log shutdown request
-        logger.warning(f"SHUTDOWN requested: {reason}")
+        # Sanitize reason for logging to prevent log injection
+        # Replace newlines and control characters with spaces
+        safe_reason = ''.join(c if c.isprintable() and c not in '\n\r\t' else ' ' for c in reason)
+        
+        # Log shutdown request with sanitized reason
+        logger.warning(f"SHUTDOWN requested: {safe_reason}")
 
         # Execute shutdown
         await shutdown_service.request_shutdown(reason)
