@@ -1,6 +1,7 @@
 """Unit tests for Config Service."""
 
 import pytest
+import pytest_asyncio
 import tempfile
 import os
 from datetime import datetime, timezone
@@ -30,7 +31,7 @@ def temp_db():
     os.unlink(db_path)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def memory_service(temp_db, time_service):
     """Create a memory service for testing."""
     # Initialize the database
@@ -65,7 +66,7 @@ async def memory_service(temp_db, time_service):
     return service
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def config_service(memory_service, time_service):
     """Create a config service for testing."""
     service = GraphConfigService(graph_memory_service=memory_service, time_service=time_service)

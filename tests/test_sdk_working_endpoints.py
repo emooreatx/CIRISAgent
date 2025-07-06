@@ -7,6 +7,7 @@ As more endpoints are fixed, tests can be moved from test_sdk_endpoints.py to he
 """
 import asyncio
 import pytest
+import pytest_asyncio
 import socket
 from datetime import datetime, timezone
 
@@ -34,7 +35,7 @@ pytestmark = pytest.mark.skipif(not check_api_available(), reason="API not runni
 class TestWorkingSDKEndpoints:
     """Tests for SDK endpoints that currently work."""
     
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def client(self):
         """Create authenticated CIRIS client."""
         async with CIRISClient(base_url="http://localhost:8080", timeout=30.0) as client:
@@ -43,7 +44,7 @@ class TestWorkingSDKEndpoints:
             client._transport.set_api_key(response.access_token)
             yield client
     
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def unauthenticated_client(self):
         """Create unauthenticated CIRIS client."""
         async with CIRISClient(base_url="http://localhost:8080", timeout=30.0) as client:

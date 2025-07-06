@@ -6,6 +6,7 @@ Tests all 35 endpoints through the SDK with proper authentication.
 """
 import asyncio
 import pytest
+import pytest_asyncio
 import json
 import socket
 from datetime import datetime, timezone, timedelta
@@ -39,7 +40,7 @@ pytestmark = [
 class TestCIRISSDKEndpoints:
     """Test suite for all CIRIS API endpoints through the SDK."""
     
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def client(self):
         """Create authenticated CIRIS client."""
         async with CIRISClient(
@@ -52,7 +53,7 @@ class TestCIRISSDKEndpoints:
             client._transport.set_api_key(response.access_token)
             yield client
     
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def unauthenticated_client(self):
         """Create unauthenticated CIRIS client."""
         async with CIRISClient(

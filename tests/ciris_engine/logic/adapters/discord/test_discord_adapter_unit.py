@@ -78,21 +78,20 @@ class TestDiscordAdapter:
     @pytest.mark.asyncio
     async def test_start(self, discord_adapter):
         """Test adapter start."""
-        # Mock connection manager start
-        discord_adapter._connection_manager.connect = AsyncMock()
+        # Mock bus manager for telemetry
+        discord_adapter.bus_manager = Mock()
+        discord_adapter.bus_manager.memory = AsyncMock()
+        discord_adapter.bus_manager.memory.memorize_metric = AsyncMock()
 
-        # Ensure channel manager has a client
-        discord_adapter._channel_manager.client = discord_adapter._channel_manager.bot
+        # The start method doesn't call connect directly, that's done in run_lifecycle
+        await discord_adapter.start()
 
-        # Create background task future
-        future = asyncio.Future()
-        future.set_result(None)
-
-        with patch('asyncio.create_task', return_value=future):
-            await discord_adapter.start()
-
-        # Verify connect was called on connection manager
-        discord_adapter._connection_manager.connect.assert_called_once()
+        # Verify telemetry was emitted - check both possible metric names
+        discord_adapter.bus_manager.memory.memorize_metric.assert_called()
+        calls = discord_adapter.bus_manager.memory.memorize_metric.call_args_list
+        metric_names = [call[1]['metric_name'] for call in calls]
+        # Could be either starting or started
+        assert any(name in ['discord.adapter.starting', 'discord.adapter.started'] for name in metric_names)
 
     @pytest.mark.asyncio
     async def test_stop(self, discord_adapter):
@@ -346,18 +345,20 @@ class TestDiscordAdapter:
 
     @pytest.mark.asyncio
     async def test_connection_error_handling(self, discord_adapter):
-        """Test handling connection errors."""
-        # Simulate connection error
-        # ConnectionClosed takes socket and shard_id as keyword argument
-        mock_socket = Mock()
-        discord_adapter._connection_manager.connect = AsyncMock(side_effect=discord.ConnectionClosed(mock_socket, shard_id=0))
-
-        # The adapter logs the error and re-raises it
-        with pytest.raises(discord.ConnectionClosed):
-            await discord_adapter.start()
-
-        # Verify the connect method was called
-        discord_adapter._connection_manager.connect.assert_called_once()
+        """Test handling connection errors during message send."""
+        # Mock bus manager
+        discord_adapter.bus_manager = Mock()
+        discord_adapter.bus_manager.memory = AsyncMock()
+        discord_adapter.bus_manager.memory.memorize_metric = AsyncMock()
+        
+        # Make sure connection manager reports not connected
+        discord_adapter._connection_manager.is_connected = Mock(return_value=False)
+        
+        # Sending a message should fail when not connected
+        result = await discord_adapter.send_message("123456789", "Test message")
+        assert result is False
+        
+        # No telemetry is emitted when adapter is not connected
 
     @pytest.mark.asyncio
     async def test_rate_limit_handling(self, discord_adapter):

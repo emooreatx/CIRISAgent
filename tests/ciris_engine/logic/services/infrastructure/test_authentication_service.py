@@ -1,6 +1,7 @@
 """Unit tests for WA Authentication Service."""
 
 import pytest
+import pytest_asyncio
 import tempfile
 import os
 from datetime import datetime, timezone, timedelta
@@ -32,7 +33,7 @@ def temp_db():
     os.unlink(db_path)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def auth_service(temp_db, time_service):
     """Create a WA authentication service for testing."""
     service = AuthenticationService(

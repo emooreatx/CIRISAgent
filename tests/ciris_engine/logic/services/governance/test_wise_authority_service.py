@@ -1,6 +1,7 @@
 """Unit tests for Wise Authority Service."""
 
 import pytest
+import pytest_asyncio
 from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock, AsyncMock
 import tempfile
@@ -34,7 +35,7 @@ def temp_db():
     os.unlink(db_path)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def auth_service(temp_db, time_service):
     """Create an authentication service for testing."""
     service = AuthenticationService(
@@ -57,7 +58,7 @@ async def auth_service(temp_db, time_service):
     await service.stop()
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def wise_authority_service(auth_service, time_service, temp_db):
     """Create a wise authority service for testing."""
     service = WiseAuthorityService(

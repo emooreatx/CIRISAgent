@@ -1,6 +1,7 @@
 """Unit tests for GraphAuditService."""
 
 import pytest
+import pytest_asyncio
 import tempfile
 import os
 from datetime import datetime, timezone
@@ -56,7 +57,7 @@ def memory_bus():
     return bus
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def audit_service(memory_bus, temp_db, time_service):
     """Create an audit service for testing."""
     service = GraphAuditService(
