@@ -63,10 +63,11 @@ class LogFileReader:
             if incidents_log.exists():
                 logs.extend(self._parse_log_file(incidents_log, level, service, limit - len(logs), start_time, end_time))
         
-        # Sort by timestamp descending
-        logs.sort(key=lambda x: x.timestamp, reverse=True)
+        # Sort by timestamp ascending (oldest first, newest last)
+        logs.sort(key=lambda x: x.timestamp, reverse=False)
         
-        return logs[:limit]
+        # Return the most recent logs (last N entries)
+        return logs[-limit:] if len(logs) > limit else logs
     
     def _parse_log_file(
         self,
@@ -83,9 +84,12 @@ class LogFileReader:
         try:
             # Read file from end (most recent logs)
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                # Read last N lines for efficiency
-                lines = self._tail(f, limit * 10)  # Read more lines to account for filtering
+                # Read more lines than needed to account for filtering
+                # but cap it to avoid reading huge files
+                read_lines = min(limit * 20, 10000)
+                lines = self._tail(f, read_lines)
                 
+                # Process lines in order (they're already in chronological order from tail)
                 for line in lines:
                     entry = self._parse_log_line(line)
                     if entry:
@@ -100,9 +104,6 @@ class LogFileReader:
                             continue
                             
                         logs.append(entry)
-                        
-                        if len(logs) >= limit:
-                            break
                             
         except Exception as e:
             # Log parsing error, but don't fail the endpoint
@@ -116,32 +117,37 @@ class LogFileReader:
         file_obj.seek(0, 2)  # Go to end of file
         file_size = file_obj.tell()
         
+        if file_size == 0:
+            return []
+        
         # Read chunk size (adjust based on expected line length)
         chunk_size = min(file_size, 8192)
         lines = []
+        position = file_size
         
-        while len(lines) < num_lines and file_obj.tell() > 0:
-            # Move back by chunk_size
-            new_pos = max(0, file_obj.tell() - chunk_size)
-            file_obj.seek(new_pos)
+        while len(lines) < num_lines + 1 and position > 0:
+            # Calculate how much to read
+            read_size = min(chunk_size, position)
+            position -= read_size
             
-            # Read chunk
-            chunk = file_obj.read(chunk_size)
+            # Seek to position and read
+            file_obj.seek(position)
+            chunk = file_obj.read(read_size)
             
             # Split into lines
             chunk_lines = chunk.split('\n')
             
-            # Handle partial line at start
-            if new_pos > 0:
-                chunk_lines = chunk_lines[1:]
-                
-            lines = chunk_lines + lines
-            
-            # Move to start of chunk for next iteration
-            file_obj.seek(new_pos)
-            
-        # Return last N lines
-        return lines[-num_lines:] if len(lines) > num_lines else lines
+            # Combine with existing lines
+            if lines:
+                # Last line from previous chunk might be incomplete
+                chunk_lines[-1] += lines[0]
+                lines = chunk_lines + lines[1:]
+            else:
+                lines = chunk_lines
+        
+        # Remove empty lines and return last N non-empty lines
+        lines = [line for line in lines if line.strip()]
+        return lines[-num_lines:]
     
     def _parse_log_line(self, line: str) -> Optional[LogEntry]:
         """Parse a single log line into a LogEntry."""

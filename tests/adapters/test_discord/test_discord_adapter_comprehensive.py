@@ -1,6 +1,8 @@
 """Comprehensive unit tests for Discord adapter."""
 import pytest
 import asyncio
+import tempfile
+import os
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timezone, timedelta
 import discord
@@ -17,6 +19,7 @@ from ciris_engine.logic.adapters.discord.discord_reaction_handler import Approva
 from ciris_engine.schemas.adapters.tools import (
     ToolExecutionResult, ToolExecutionStatus, ToolResult
 )
+from ciris_engine.logic.persistence import initialize_database
 
 
 @pytest.fixture
@@ -77,6 +80,41 @@ def discord_adapter(mock_time_service, mock_bus_manager, mock_discord_client, di
 
 class TestDiscordAdapterCore:
     """Test core Discord adapter functionality."""
+
+    @pytest.fixture(autouse=True)
+    def setup_test_db(self):
+        """Set up a temporary test database for each test."""
+        # Create a temporary database file
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
+            db_path = tmp_file.name
+        
+        # Initialize the database with all required tables
+        initialize_database(db_path)
+        
+        # Patch get_db_connection to use our test database
+        with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn:
+            import sqlite3
+            # Return a context manager that yields a connection
+            from contextlib import contextmanager
+            
+            @contextmanager
+            def get_test_connection(db_path_arg=None):
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                try:
+                    yield conn
+                finally:
+                    conn.close()
+            
+            mock_get_conn.side_effect = get_test_connection
+            
+            yield db_path
+        
+        # Clean up
+        try:
+            os.unlink(db_path)
+        except:
+            pass
 
     @pytest.mark.asyncio
     async def test_adapter_initialization(self, discord_adapter):
@@ -426,6 +464,41 @@ class TestDiscordErrorHandling:
 
 class TestDiscordAuditLogging:
     """Test audit logging functionality."""
+
+    @pytest.fixture(autouse=True)
+    def setup_test_db(self):
+        """Set up a temporary test database for each test."""
+        # Create a temporary database file
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
+            db_path = tmp_file.name
+        
+        # Initialize the database with all required tables
+        initialize_database(db_path)
+        
+        # Patch get_db_connection to use our test database
+        with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn:
+            import sqlite3
+            # Return a context manager that yields a connection
+            from contextlib import contextmanager
+            
+            @contextmanager
+            def get_test_connection(db_path_arg=None):
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                try:
+                    yield conn
+                finally:
+                    conn.close()
+            
+            mock_get_conn.side_effect = get_test_connection
+            
+            yield db_path
+        
+        # Clean up
+        try:
+            os.unlink(db_path)
+        except:
+            pass
 
     @pytest.mark.asyncio
     async def test_audit_log_message_operations(self, discord_adapter):
