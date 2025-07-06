@@ -5,6 +5,7 @@ fails to convert from GraphNode due to missing 'key' field.
 """
 
 import pytest
+import pytest_asyncio
 import tempfile
 import os
 import sqlite3
@@ -36,7 +37,7 @@ def temp_db():
     os.unlink(db_path)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def memory_service_factory(temp_db, time_service):
     """Factory to create memory services with same database."""
     created_services = []

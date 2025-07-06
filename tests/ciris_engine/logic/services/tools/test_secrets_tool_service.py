@@ -1,6 +1,7 @@
 """Tests for SecretsToolService."""
 
 import pytest
+import pytest_asyncio
 from unittest.mock import Mock, AsyncMock, patch, mock_open
 from pathlib import Path
 
@@ -32,7 +33,7 @@ class TestSecretsToolService:
         mock.now.return_value = datetime(2024, 1, 1, 12, 0, 0)
         return mock
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def tool_service(self, mock_secrets_service, mock_time_service):
         """Create the tool service."""
         service = SecretsToolService(

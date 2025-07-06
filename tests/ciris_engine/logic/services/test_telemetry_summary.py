@@ -1,6 +1,7 @@
 """Tests for telemetry summary functionality."""
 
 import pytest
+import pytest_asyncio
 from datetime import datetime, timedelta
 from unittest.mock import Mock, AsyncMock, patch
 from typing import List, Dict, Any
@@ -26,7 +27,7 @@ class TestTelemetrySummary:
         """Create a mock memory bus."""
         return Mock(spec=MemoryBus)
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def telemetry_service(self, mock_memory_bus, mock_time_service):
         """Create telemetry service with mocks."""
         service = GraphTelemetryService(

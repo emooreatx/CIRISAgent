@@ -4,6 +4,7 @@ Integration tests for system management API endpoint extensions.
 These tests verify the endpoints work correctly with real runtime components.
 """
 import pytest
+import pytest_asyncio
 import asyncio
 from datetime import datetime
 from fastapi.testclient import TestClient
@@ -18,7 +19,7 @@ from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.logic.registries.base import Priority, SelectionStrategy
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def test_runtime():
     """Create a test runtime with mock services."""
     # Create proper EssentialConfig with nested configs

@@ -1,6 +1,7 @@
 """Unit tests for LocalGraphMemoryService."""
 
 import pytest
+import pytest_asyncio
 import tempfile
 import os
 from unittest.mock import MagicMock, AsyncMock
@@ -45,7 +46,7 @@ def temp_db():
     os.unlink(db_path)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def memory_service(temp_db, secrets_service, time_service):
     """Create a memory service for testing."""
     service = LocalGraphMemoryService(

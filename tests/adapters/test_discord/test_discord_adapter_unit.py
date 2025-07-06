@@ -3,6 +3,7 @@ Unit tests for Discord adapter implementation.
 Tests the adapter without requiring actual Discord connection.
 """
 import pytest
+import pytest_asyncio
 import asyncio
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timezone
@@ -45,7 +46,7 @@ class TestDiscordAdapter:
         bus_manager.memory.memorize_metric = AsyncMock()
         return bus_manager
 
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def adapter(self, mock_bot, time_service, mock_bus_manager):
         """Create Discord adapter instance."""
         adapter = DiscordAdapter(
