@@ -521,18 +521,38 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             if not wa:
                 return None
 
-            # Determine verification key based on token type
-            payload = jwt.decode(token, options={"verify_signature": False})
-            sub_type = payload.get('sub_type')
-
-            if sub_type in [JWTSubType.ANON.value, JWTSubType.OAUTH.value, JWTSubType.USER.value]:
-                # Gateway-signed tokens
+            # Try to verify with different keys/algorithms based on the issuer (kid)
+            decoded = None
+            
+            # First try gateway-signed tokens (most common)
+            try:
                 decoded = jwt.decode(token, self.gateway_secret, algorithms=['HS256'])
-            elif sub_type == JWTSubType.AUTHORITY.value:
-                # WA-signed tokens - need to load public key
-                public_key_bytes = self._decode_public_key(wa.pubkey)
-                public_key = ed25519.Ed25519PublicKey.from_public_bytes(public_key_bytes)
-                decoded = jwt.decode(token, public_key, algorithms=['EdDSA'])
+            except jwt.InvalidTokenError:
+                pass
+            
+            # If gateway verification failed, try WA-signed tokens
+            if not decoded:
+                try:
+                    public_key_bytes = self._decode_public_key(wa.pubkey)
+                    public_key = ed25519.Ed25519PublicKey.from_public_bytes(public_key_bytes)
+                    decoded = jwt.decode(token, public_key, algorithms=['EdDSA'])
+                except jwt.InvalidTokenError:
+                    pass
+            
+            # If no verification succeeded, token is invalid
+            if not decoded:
+                return None
+            
+            # Validate sub_type after verification
+            sub_type = decoded.get('sub_type')
+            if sub_type == JWTSubType.AUTHORITY.value:
+                # Authority tokens must be EdDSA signed
+                if header.get('alg') != 'EdDSA':
+                    return None
+            elif sub_type in [JWTSubType.ANON.value, JWTSubType.OAUTH.value, JWTSubType.USER.value]:
+                # Gateway tokens must be HS256 signed
+                if header.get('alg') != 'HS256':
+                    return None
             else:
                 return None
 
@@ -686,7 +706,8 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
 
         # Map TokenType enum to our token creation methods
         if token_type == TokenType.CHANNEL:
-            return self.create_channel_token(wa)
+            # CHANNEL tokens require a channel_id, use create_channel_token directly
+            raise ValueError("CHANNEL tokens require channel_id - use create_channel_token directly")
         elif token_type == TokenType.STANDARD:
             return self.create_gateway_token(wa, expires_hours=ttl // 3600)
         else:
@@ -1150,7 +1171,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
         )
 
         # Generate token - for observers, channel_id is not used
-        token = self.create_channel_token(observer.wa_id, adapter_id, ttl=0)  # ttl=0 means no expiry
+        token = await self.create_channel_token(observer.wa_id, adapter_id, ttl=0)  # ttl=0 means no expiry
 
         # Cache the token
         self._channel_token_cache[adapter_id] = token
@@ -1167,19 +1188,24 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             if not kid:
                 return None
 
-            # For sync verification, we can't do async DB lookups
-            # So we verify the signature directly
-            payload = jwt.decode(token, options={"verify_signature": False})
-            sub_type = payload.get('sub_type')
-
-            if sub_type in [JWTSubType.ANON.value, JWTSubType.OAUTH.value, JWTSubType.USER.value]:
-                # Gateway-signed tokens
+            # For sync verification, we can only verify gateway-signed tokens
+            # since authority tokens require async DB lookups for public keys
+            
+            # Try gateway-signed token verification
+            try:
                 decoded = jwt.decode(token, self.gateway_secret, algorithms=['HS256'])
-                return decoded
-            else:
-                # Authority tokens would need the public key, which requires DB access
-                # For now, return None for authority tokens in sync mode
-                return None
+                # Validate that this is indeed a gateway-signed token
+                sub_type = decoded.get('sub_type')
+                if sub_type in [JWTSubType.ANON.value, JWTSubType.OAUTH.value, JWTSubType.USER.value]:
+                    # Also verify the algorithm matches
+                    if header.get('alg') == 'HS256':
+                        return decoded
+            except jwt.InvalidTokenError:
+                pass
+            
+            # Authority tokens require async DB access for public key retrieval
+            # So we cannot verify them in sync mode
+            return None
 
         except jwt.InvalidTokenError:
             return None

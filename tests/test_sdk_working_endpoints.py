@@ -61,7 +61,7 @@ class TestWorkingSDKEndpoints:
         unauthenticated_client._transport.set_api_key(response.access_token)
         # Check transport has the token
         assert unauthenticated_client._transport.api_key is not None
-        assert unauthenticated_client._transport.api_key.startswith("ciris_admin_")
+        assert unauthenticated_client._transport.api_key.startswith("ciris_system_admin_")
         
         # Test failed login - SDK raises generic CIRISAPIError for 401
         from ciris_sdk.exceptions import CIRISAPIError
@@ -82,8 +82,8 @@ class TestWorkingSDKEndpoints:
     async def test_auth_me(self, client):
         """Test GET /v1/auth/me."""
         user_info = await client.auth.get_current_user()
-        assert user_info.user_id == "SYSTEM_ADMIN"
-        assert user_info.username == "SYSTEM_ADMIN"
+        assert user_info.user_id == "wa-system-admin"
+        assert user_info.username == "wa-system-admin"
         assert user_info.role == "SYSTEM_ADMIN"
         assert len(user_info.permissions) > 0
         # Check some expected permissions
@@ -106,7 +106,7 @@ class TestWorkingSDKEndpoints:
         
         # Verify new token works
         user_info = await client.auth.get_current_user()
-        assert user_info.user_id == "SYSTEM_ADMIN"
+        assert user_info.user_id == "wa-system-admin"
 
     # ========== System Tests (1 endpoint) ==========
     
