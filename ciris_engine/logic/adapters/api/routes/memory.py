@@ -513,12 +513,24 @@ async def visualize_memory_graph(
                         nodes.append(node)
             
             # Sort by time for timeline layout
-            def get_node_sort_time(n: GraphNode) -> str:
-                if isinstance(n.attributes, dict):
-                    time_val = n.attributes.get('created_at') or n.attributes.get('timestamp', '')
-                else:
-                    time_val = n.attributes.created_at or ''
-                return str(time_val) if time_val else ''
+            def get_node_sort_time(n: GraphNode) -> datetime:
+                """Get datetime for sorting, with fallback to epoch."""
+                epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+                try:
+                    if isinstance(n.attributes, dict):
+                        time_val = n.attributes.get('created_at') or n.attributes.get('timestamp')
+                    else:
+                        time_val = n.attributes.created_at
+                    
+                    if time_val:
+                        if isinstance(time_val, str):
+                            return datetime.fromisoformat(time_val.replace('Z', '+00:00'))
+                        elif isinstance(time_val, datetime):
+                            return time_val
+                except Exception as e:
+                    logger.warning(f"Failed to parse time for node {n.id}: {e}")
+                
+                return epoch
             nodes.sort(key=get_node_sort_time)
         else:
             # Regular query - get nodes with optional type filter
@@ -633,22 +645,40 @@ def _calculate_timeline_layout(G: "nx.DiGraph", nodes: List[GraphNode], width: i
     # Group nodes by time buckets (hourly)
     time_buckets: Dict[datetime, List[str]] = {}
     for node in nodes:
-        if isinstance(node.attributes, dict):
-            node_time = node.attributes.get('created_at') or node.attributes.get('timestamp', '')
-        else:
-            node_time = node.attributes.created_at
-        if node_time:
-            if isinstance(node_time, str):
-                node_time = datetime.fromisoformat(node_time.replace('Z', '+00:00'))
+        node_time = None
+        try:
+            if isinstance(node.attributes, dict):
+                node_time = node.attributes.get('created_at') or node.attributes.get('timestamp')
+            else:
+                node_time = node.attributes.created_at
             
-            # Round to hour
-            bucket = node_time.replace(minute=0, second=0, microsecond=0) if isinstance(node_time, datetime) else node_time
-            if bucket not in time_buckets:
-                time_buckets[bucket] = []
-            time_buckets[bucket].append(node.id)
+            if node_time:
+                # Convert string to datetime if needed
+                if isinstance(node_time, str):
+                    # Handle ISO format with Z suffix
+                    node_time = datetime.fromisoformat(node_time.replace('Z', '+00:00'))
+                
+                # Ensure we have a datetime object before rounding
+                if isinstance(node_time, datetime):
+                    # Round to hour
+                    bucket = node_time.replace(minute=0, second=0, microsecond=0)
+                    if bucket not in time_buckets:
+                        time_buckets[bucket] = []
+                    time_buckets[bucket].append(node.id)
+                else:
+                    logger.warning(f"Node {node.id} has non-datetime timestamp after parsing: {node_time}")
+        except Exception as e:
+            logger.warning(f"Failed to parse timestamp for node {node.id}: {e}")
     
     # Sort buckets by time
     sorted_buckets = sorted(time_buckets.items())
+    
+    # Debug logging for timeline bucketing
+    if sorted_buckets:
+        logger.info(f"Timeline layout: {len(sorted_buckets)} time buckets found")
+        logger.info(f"First bucket: {sorted_buckets[0][0].isoformat()} with {len(sorted_buckets[0][1])} nodes")
+        logger.info(f"Last bucket: {sorted_buckets[-1][0].isoformat()} with {len(sorted_buckets[-1][1])} nodes")
+        logger.info(f"Total nodes in timeline: {sum(len(nodes) for _, nodes in sorted_buckets)}")
     
     if not sorted_buckets:
         # Fallback to force layout if no timestamps
