@@ -5,7 +5,7 @@ The memory service implements the three universal verbs: MEMORIZE, RECALL, FORGE
 All operations work through the graph memory system.
 """
 import logging
-from typing import List, Optional, Dict, Literal, TYPE_CHECKING
+from typing import List, Optional, Dict, Literal, TYPE_CHECKING, Any, Tuple
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Query, Path
 from fastapi.responses import Response
@@ -18,7 +18,7 @@ from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
 from ..dependencies.auth import require_observer, require_admin, AuthContext
 
 if TYPE_CHECKING:
-    import networkx as nx
+    import networkx as nx  # type: ignore[import-untyped]
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ class QueryRequest(BaseModel):
     depth: int = Field(1, ge=1, le=3, description="Graph traversal depth for relationships")
 
     @model_validator(mode='after')
-    def validate_query_params(self):
+    def validate_query_params(self) -> 'QueryRequest':
         """Ensure at least one query parameter is provided."""
         if not any([
             self.node_id,
@@ -88,7 +88,7 @@ class TimelineResponse(BaseModel):
     total: int = Field(..., description="Total memories in range")
 
     @field_serializer('start_time', 'end_time')
-    def serialize_times(self, dt: datetime, _info):
+    def serialize_times(self, dt: datetime, _info: Any) -> Optional[str]:
         return dt.isoformat() if dt else None
 
 # Simplified Endpoints
@@ -98,7 +98,7 @@ async def store_memory(
     request: Request,
     body: StoreRequest,
     auth: AuthContext = Depends(require_admin)
-):
+) -> SuccessResponse[MemoryOpResult]:
     """
     Store typed nodes in memory (MEMORIZE).
 
@@ -120,7 +120,7 @@ async def query_memory(
     request: Request,
     body: QueryRequest,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[List[GraphNode]]:
     """
     Flexible query interface for memory (RECALL).
 
@@ -146,6 +146,7 @@ async def query_memory(
             query = MemoryQuery(
                 node_id=body.node_id,
                 scope=body.scope or GraphScope.LOCAL,
+                type=body.type,
                 include_edges=body.include_edges,
                 depth=body.depth
             )
@@ -155,7 +156,14 @@ async def query_memory(
         elif body.query:
             filters = MemorySearchFilter(
                 scope=body.scope.value if body.scope else None,
-                node_type=body.type.value if body.type else None
+                node_type=body.type.value if body.type else None,
+                created_after=body.since,
+                created_before=body.until,
+                created_by=None,
+                has_attributes=None,
+                attribute_values=None,
+                limit=body.limit,
+                offset=body.offset
             )
             # Note: tags filtering would need to be handled differently
             # as MemorySearchFilter doesn't have a tags field
@@ -167,6 +175,7 @@ async def query_memory(
             query = MemoryQuery(
                 node_id=body.related_to,
                 scope=body.scope or GraphScope.LOCAL,
+                type=body.type,
                 include_edges=True,
                 depth=body.depth or 2
             )
@@ -192,7 +201,10 @@ async def query_memory(
         if body.since or body.until:
             filtered_nodes = []
             for node in nodes:
-                node_time = node.attributes.get('created_at') or node.attributes.get('timestamp')
+                if isinstance(node.attributes, dict):
+                    node_time = node.attributes.get('created_at') or node.attributes.get('timestamp')
+                else:
+                    node_time = node.attributes.created_at
                 if node_time:
                     if isinstance(node_time, str):
                         node_time = datetime.fromisoformat(node_time.replace('Z', '+00:00'))
@@ -222,7 +234,7 @@ async def forget_memory(
     request: Request,
     node_id: str = Path(..., description="ID of node to forget"),
     auth: AuthContext = Depends(require_admin)
-):
+) -> SuccessResponse[MemoryOpResult]:
     """
     Remove specific memories (FORGET).
 
@@ -237,6 +249,7 @@ async def forget_memory(
         query = MemoryQuery(
             node_id=node_id,
             scope=GraphScope.LOCAL,
+            type=None,
             include_edges=False,
             depth=1
         )
@@ -266,7 +279,7 @@ async def get_timeline(
     type: Optional[NodeType] = Query(None, description="Node type filter"),
     limit: Optional[int] = Query(100, ge=1, le=1000, description="Maximum number of memories to return"),
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[TimelineResponse]:
     """
     Temporal view of memories.
 
@@ -282,12 +295,20 @@ async def get_timeline(
         start_time = now - timedelta(hours=hours)
 
         # Query memories in time range
+        # Note: This is just for validation/documentation purposes, not actually used
         _query_body = QueryRequest(
+            node_id=None,
+            query=None,
+            related_to=None,
             since=start_time,
             until=now,
             scope=scope,
             type=type,
-            limit=limit  # Use the provided limit parameter
+            tags=None,
+            limit=limit or 100,  # Use the provided limit parameter with default
+            offset=0,
+            include_edges=False,
+            depth=1
         )
 
         # Reuse the query logic
@@ -305,16 +326,26 @@ async def get_timeline(
         try:
             all_nodes = await memory_service.recall(all_query)
         except Exception as e:
-            logger.warning(f"Wildcard recall failed for query '{all_query}': {type(e).__name__}: {str(e)} - Falling back to search method")
+            logger.warning(f"Wildcard recall failed for query '{all_query}': {e.__class__.__name__}: {str(e)} - Falling back to search method")
             # Continue with fallback
             all_nodes = await memory_service.search("", filters=MemorySearchFilter(
-                scope=scope,
-                node_type=type
+                scope=scope.value if scope else None,
+                node_type=type.value if type else None,
+                created_after=None,
+                created_before=None,
+                created_by=None,
+                has_attributes=None,
+                attribute_values=None,
+                limit=None,
+                offset=None
             ))
 
         # Filter by time
         for node in all_nodes:
-            node_time = node.attributes.get('created_at') or node.attributes.get('timestamp')
+            if isinstance(node.attributes, dict):
+                node_time = node.attributes.get('created_at') or node.attributes.get('timestamp')
+            else:
+                node_time = node.attributes.created_at
             if node_time:
                 if isinstance(node_time, str):
                     node_time = datetime.fromisoformat(node_time.replace('Z', '+00:00'))
@@ -323,7 +354,13 @@ async def get_timeline(
                     nodes.append(node)
 
         # Sort by time
-        nodes.sort(key=lambda n: n.attributes.get('created_at') or n.attributes.get('timestamp', ''), reverse=True)
+        def get_node_time(n: GraphNode) -> str:
+            if isinstance(n.attributes, dict):
+                time_val = n.attributes.get('created_at') or n.attributes.get('timestamp', '')
+            else:
+                time_val = n.attributes.created_at or ''
+            return str(time_val) if time_val else ''
+        nodes.sort(key=get_node_time, reverse=True)
 
         # Create time buckets
         buckets = {}
@@ -337,7 +374,10 @@ async def get_timeline(
 
         # Count nodes in buckets
         for node in nodes:
-            node_time = node.attributes.get('created_at') or node.attributes.get('timestamp')
+            if isinstance(node.attributes, dict):
+                node_time = node.attributes.get('created_at') or node.attributes.get('timestamp')
+            else:
+                node_time = node.attributes.created_at
             if node_time:
                 if isinstance(node_time, str):
                     node_time = datetime.fromisoformat(node_time.replace('Z', '+00:00'))
@@ -364,7 +404,7 @@ async def recall_memory(
     request: Request,
     node_id: str = Path(..., description="Node ID to recall"),
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[GraphNode]:
     """
     Recall specific memory by ID.
 
@@ -377,7 +417,7 @@ async def get_memory(
     request: Request,
     node_id: str = Path(..., description="Node ID to retrieve"),
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[GraphNode]:
     """
     Get specific node by ID.
 
@@ -391,6 +431,7 @@ async def get_memory(
         query = MemoryQuery(
             node_id=node_id,
             scope=GraphScope.LOCAL,
+            type=None,
             include_edges=False,
             depth=1
         )
@@ -421,7 +462,7 @@ async def visualize_memory_graph(
     height: int = Query(800, ge=300, le=3000, description="SVG height in pixels"),
     limit: int = Query(50, ge=1, le=200, description="Maximum nodes to visualize"),
     auth: AuthContext = Depends(require_observer)
-):
+) -> Response:
     """
     Generate an SVG visualization of the memory graph.
     
@@ -452,7 +493,7 @@ async def visualize_memory_graph(
             # Use wildcard query with type filter
             query = MemoryQuery(
                 node_id="*",
-                scope=scope,
+                scope=scope or GraphScope.LOCAL,
                 type=node_type,
                 include_edges=False,
                 depth=1
@@ -461,7 +502,10 @@ async def visualize_memory_graph(
             
             # Filter by time
             for node in all_nodes:
-                node_time = node.attributes.get('created_at') or node.attributes.get('timestamp')
+                if isinstance(node.attributes, dict):
+                    node_time = node.attributes.get('created_at') or node.attributes.get('timestamp')
+                else:
+                    node_time = node.attributes.created_at
                 if node_time:
                     if isinstance(node_time, str):
                         node_time = datetime.fromisoformat(node_time.replace('Z', '+00:00'))
@@ -469,12 +513,18 @@ async def visualize_memory_graph(
                         nodes.append(node)
             
             # Sort by time for timeline layout
-            nodes.sort(key=lambda n: n.attributes.get('created_at') or n.attributes.get('timestamp', ''))
+            def get_node_sort_time(n: GraphNode) -> str:
+                if isinstance(n.attributes, dict):
+                    time_val = n.attributes.get('created_at') or n.attributes.get('timestamp', '')
+                else:
+                    time_val = n.attributes.created_at or ''
+                return str(time_val) if time_val else ''
+            nodes.sort(key=get_node_sort_time)
         else:
             # Regular query - get nodes with optional type filter
             query = MemoryQuery(
                 node_id="*",
-                scope=scope,
+                scope=scope or GraphScope.LOCAL,
                 type=node_type,
                 include_edges=False,
                 depth=1
@@ -504,8 +554,8 @@ async def visualize_memory_graph(
                 'label': node.id[:30] + '...' if len(node.id) > 30 else node.id,
                 'type': node.type.value,
                 'scope': node.scope.value,
-                'title': node.attributes.get('title', ''),
-                'created_at': node.attributes.get('created_at') or node.attributes.get('timestamp', ''),
+                'title': node.attributes.get('title', '') if isinstance(node.attributes, dict) else '',
+                'created_at': (node.attributes.get('created_at') or node.attributes.get('timestamp', '')) if isinstance(node.attributes, dict) else str(node.attributes.created_at),
                 'color': _get_node_color(node.type),
                 'size': _get_node_size(node)
             }
@@ -562,7 +612,11 @@ def _get_node_size(node: GraphNode) -> int:
     
     # Increase size for nodes with more attributes
     if node.attributes:
-        attr_count = len([k for k, v in node.attributes.items() if v is not None])
+        if isinstance(node.attributes, dict):
+            attr_count = len([k for k, v in node.attributes.items() if v is not None])
+        else:
+            # Count non-None fields in GraphNodeAttributes
+            attr_count = len([f for f in node.attributes.model_fields if getattr(node.attributes, f, None) is not None])
         base_size += min(attr_count * 2, 20)
     
     # Increase size for identity-related nodes
@@ -572,20 +626,23 @@ def _get_node_size(node: GraphNode) -> int:
     return base_size
 
 
-def _calculate_timeline_layout(G: "nx.DiGraph", nodes: List[GraphNode], width: int, height: int) -> Dict[str, tuple]:
+def _calculate_timeline_layout(G: "nx.DiGraph", nodes: List[GraphNode], width: int, height: int) -> Dict[str, Tuple[float, float]]:
     """Calculate timeline layout with nodes arranged chronologically."""
     pos = {}
     
     # Group nodes by time buckets (hourly)
-    time_buckets = {}
+    time_buckets: Dict[datetime, List[str]] = {}
     for node in nodes:
-        node_time = node.attributes.get('created_at') or node.attributes.get('timestamp', '')
+        if isinstance(node.attributes, dict):
+            node_time = node.attributes.get('created_at') or node.attributes.get('timestamp', '')
+        else:
+            node_time = node.attributes.created_at
         if node_time:
             if isinstance(node_time, str):
                 node_time = datetime.fromisoformat(node_time.replace('Z', '+00:00'))
             
             # Round to hour
-            bucket = node_time.replace(minute=0, second=0, microsecond=0)
+            bucket = node_time.replace(minute=0, second=0, microsecond=0) if isinstance(node_time, datetime) else node_time
             if bucket not in time_buckets:
                 time_buckets[bucket] = []
             time_buckets[bucket].append(node.id)
@@ -595,7 +652,9 @@ def _calculate_timeline_layout(G: "nx.DiGraph", nodes: List[GraphNode], width: i
     
     if not sorted_buckets:
         # Fallback to force layout if no timestamps
-        return nx.spring_layout(G)
+        layout_result = nx.spring_layout(G)
+        # Convert to proper type
+        return {node: (float(x), float(y)) for node, (x, y) in layout_result.items()}
     
     # Calculate x positions for each time bucket
     x_spacing = (width - 100) / max(len(sorted_buckets) - 1, 1)

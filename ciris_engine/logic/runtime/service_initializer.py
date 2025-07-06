@@ -445,21 +445,11 @@ This directory contains critical cryptographic keys for the CIRIS system.
         )
         await self.adaptive_filter_service.start()
 
-        # TODO: Agent configuration service needs to be implemented
-        # self.agent_config_service = AgentConfigService(
-        #     memory_service=self.memory_service,
-        #     wa_service=self.wa_auth_system.get_auth_service() if self.wa_auth_system else None,
-        #     filter_service=self.adaptive_filter_service
-        # )
-        # await self.agent_config_service.start()
+        # GraphConfigService (initialized earlier) handles all configuration including agent config
+        # No separate agent configuration service needed - see GraphConfigService documentation
 
-        # TODO: Transaction orchestrator needs to be implemented
-        # self.transaction_orchestrator = MultiServiceTransactionOrchestrator(
-        #     service_registry=self.service_registry,
-        #     _action_sink=self.bus_manager,
-        #     app_config=app_config
-        # )
-        # await self.transaction_orchestrator.start()
+        # Transaction orchestrator not needed - bus-based architecture handles
+        # coordination without requiring distributed transactions
 
         # CoreToolService removed - tools are adapter-only per user request
         # SELF_HELP moved to memory service
@@ -803,7 +793,8 @@ This directory contains critical cryptographic keys for the CIRIS system.
                 priority=Priority.CRITICAL,
                 capabilities=[
                     "authenticate", "verify_token", "provision_certificate",
-                    "handle_deferral", "provide_guidance", "oauth_flow"
+                    "handle_deferral", "provide_guidance", "oauth_flow",
+                    "send_deferral", "get_pending_deferrals", "resolve_deferral"
                 ],
                 metadata={"service_name": "WiseAuthorityService"}
             )

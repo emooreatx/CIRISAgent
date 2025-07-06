@@ -114,8 +114,9 @@ async def test_channel_token_creation(auth_service):
     assert len(token) > 0
 
     # Verify token
-    context = await auth_service._verify_jwt_and_get_context(token)
-    assert context is not None
+    result = await auth_service._verify_jwt_and_get_context(token)
+    assert result is not None
+    context, expiration = result
     assert context.wa_id == observer.wa_id
     assert context.role == WARole.OBSERVER
 
@@ -144,10 +145,13 @@ async def test_gateway_token_creation(auth_service):
     assert token is not None
 
     # Verify token
-    context = await auth_service._verify_jwt_and_get_context(token)
-    assert context is not None
+    result = await auth_service._verify_jwt_and_get_context(token)
+    assert result is not None
+    context, expiration = result
     assert context.wa_id == wa.wa_id
     assert context.sub_type == JWTSubType.USER or context.sub_type == JWTSubType.OAUTH
+    # Verify expiration is extracted
+    assert expiration is not None
 
 
 @pytest.mark.asyncio
@@ -335,3 +339,62 @@ async def test_list_all_was(auth_service):
     # List all
     all_was = await auth_service._list_all_was(active_only=False)
     assert len(all_was) == 3
+
+
+@pytest.mark.asyncio
+async def test_jwt_expiration_extraction(auth_service):
+    """Test that JWT expiration is correctly extracted from tokens."""
+    # Create a test WA
+    private_key, public_key = auth_service.generate_keypair()
+    
+    wa = WACertificate(
+        wa_id="wa-2025-06-24-EXPTST",
+        name="Expiration Test WA",
+        role=WARole.AUTHORITY,
+        pubkey=auth_service._encode_public_key(public_key),
+        jwt_kid="exp-test-kid",
+        scopes_json='["read", "write"]',
+        created_at=datetime.now(timezone.utc)
+    )
+    
+    await auth_service._store_wa_certificate(wa)
+    
+    # Create token with specific expiration
+    token = auth_service.create_gateway_token(wa, expires_hours=2)
+    
+    # Decode to get expected expiration
+    import jwt
+    decoded = jwt.decode(token, options={"verify_signature": False})
+    expected_exp = datetime.fromtimestamp(decoded['exp'], tz=timezone.utc)
+    
+    # Verify token and check expiration
+    verification = await auth_service.verify_token(token)
+    
+    assert verification is not None
+    assert verification.valid is True
+    assert verification.wa_id == wa.wa_id
+    assert verification.expires_at == expected_exp
+    
+    # Test token without expiration (long-lived observer token)
+    observer = WACertificate(
+        wa_id="wa-2025-06-24-OBSEX1",
+        name="Observer No Exp",
+        role=WARole.OBSERVER,
+        pubkey=auth_service._encode_public_key(public_key),
+        jwt_kid="obs-exp-kid",
+        scopes_json='["observe"]',
+        created_at=datetime.now(timezone.utc),
+        adapter_id="test_adapter"
+    )
+    
+    await auth_service._store_wa_certificate(observer)
+    
+    # Create channel token with no expiration (ttl=0)
+    channel_token = await auth_service.create_channel_token(observer.wa_id, "test_channel", ttl=0)
+    
+    # Verify it handles missing expiration gracefully
+    channel_verification = await auth_service.verify_token(channel_token)
+    assert channel_verification is not None
+    assert channel_verification.valid is True
+    # When no expiration in token, should use current time as fallback
+    assert channel_verification.expires_at is not None

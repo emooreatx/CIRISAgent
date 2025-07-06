@@ -39,12 +39,15 @@ class TestGraphAuditService:
     @pytest.fixture
     def audit_service(self, mock_time_service, mock_memory_bus):
         """Create GraphAuditService instance."""
-        service = GraphAuditService(
-            memory_bus=mock_memory_bus,
-            time_service=mock_time_service,
-            retention_days=30
-        )
-        return service
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = GraphAuditService(
+                memory_bus=mock_memory_bus,
+                time_service=mock_time_service,
+                retention_days=30,
+                db_path=f"{temp_dir}/test_audit.db"  # Use temporary database
+            )
+            yield service
 
     @pytest.mark.asyncio
     async def test_start_stop(self, audit_service):
@@ -264,7 +267,7 @@ class TestGraphAuditService:
         # Get audit trail for specific entity
         entries = await audit_service.get_audit_trail(
             entity_id="entity123",
-            limit=50
+            hours=24
         )
 
         # Should call recall_timeseries
@@ -282,15 +285,16 @@ class TestGraphAuditService:
         """Test audit integrity verification."""
         await audit_service.start()
 
-        # Since hash chain is disabled in test fixture, should return basic report
+        # Hash chain is enabled by default, so with no entries it should verify successfully
         report = await audit_service.verify_audit_integrity()
 
         assert isinstance(report, VerificationReport)
-        assert report.verified is False  # Hash chain disabled or error occurred
+        assert report.verified is True  # Empty chain verifies successfully
         assert report.total_entries == 0
-        assert len(report.errors) > 0
-        # The error message might vary - just ensure there's an error
-        assert isinstance(report.errors[0], str)
+        assert report.valid_entries == 0
+        assert report.invalid_entries == 0
+        assert report.chain_intact is True
+        assert len(report.errors) == 0
 
     @pytest.mark.asyncio
     async def test_export_audit_data(self, audit_service, mock_memory_bus):

@@ -14,6 +14,7 @@ services:
       - ../data:/app/data
       - ../logs:/app/logs
     command: ["python", "main.py", "--adapter", "api", "--mock-llm", "--host", "0.0.0.0", "--port", "8080"]
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
       interval: 30s

@@ -186,9 +186,10 @@ class TestAgentProcessor:
         result = await main_processor.process(1)
 
         assert result is not None
-        # Result should be one of the processor result types
-        assert hasattr(result, 'errors')
-        assert hasattr(result, 'duration_seconds')
+        # Result should be a dict with processor result fields
+        assert isinstance(result, dict)
+        assert 'errors' in result
+        assert 'duration_seconds' in result
 
     @pytest.mark.asyncio
     async def test_state_transition(self, main_processor, mock_processors):

@@ -3,7 +3,7 @@ ThoughtProcessor: Core logic for processing a single thought in the CIRISAgent p
 Coordinates DMA orchestration, context building, consciences, and pondering.
 """
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 
 from ciris_engine.logic.config import ConfigAccessor
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
@@ -83,6 +83,14 @@ class ThoughtProcessor:
             updated_at=start_time,
             timestamp=start_time,
             trace_context=trace_context,
+            status=ServiceCorrelationStatus.PENDING,
+            request_data=None,
+            response_data=None,
+            metric_data=None,
+            log_data=None,
+            retention_policy="raw",
+            ttl_seconds=None,
+            parent_correlation_id=None,
             tags={
                 "thought_id": thought_item.thought_id,
                 "task_id": thought_item.source_task_id or "",
@@ -139,7 +147,9 @@ class ThoughtProcessor:
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
                     "response_timestamp": end_time.isoformat()
                 },
-                status=ServiceCorrelationStatus.FAILED
+                status=ServiceCorrelationStatus.FAILED,
+                metric_value=None,
+                tags=None
             )
             persistence.update_correlation(update_req, self._time_service)
             return None
@@ -170,7 +180,9 @@ class ThoughtProcessor:
                         "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
                         "response_timestamp": end_time.isoformat()
                     },
-                    status=ServiceCorrelationStatus.FAILED
+                    status=ServiceCorrelationStatus.FAILED,
+                    metric_value=None,
+                    tags=None
                 )
                 persistence.update_correlation(update_req, self._time_service)
                 return None
@@ -243,13 +255,19 @@ class ThoughtProcessor:
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
                     "response_timestamp": end_time.isoformat()
                 },
-                status=ServiceCorrelationStatus.FAILED
+                status=ServiceCorrelationStatus.FAILED,
+                metric_value=None,
+                tags=None
             )
             persistence.update_correlation(update_req, self._time_service)
             return ActionSelectionDMAResult(
                 selected_action=HandlerActionType.DEFER,
-                action_parameters=defer_params.model_dump(),
+                action_parameters=defer_params,
                 rationale="DMA timeout",
+                raw_llm_response=None,
+                reasoning=None,
+                evaluation_time_ms=None,
+                resource_usage=None
             )
 
         # 4. Check for failures/escalations
@@ -265,7 +283,9 @@ class ThoughtProcessor:
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
                     "response_timestamp": end_time.isoformat()
                 },
-                status=ServiceCorrelationStatus.FAILED
+                status=ServiceCorrelationStatus.FAILED,
+                metric_value=None,
+                tags=None
             )
             persistence.update_correlation(update_req, self._time_service)
             return self._create_deferral_result(dma_results, thought)
@@ -301,13 +321,19 @@ class ThoughtProcessor:
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
                     "response_timestamp": end_time.isoformat()
                 },
-                status=ServiceCorrelationStatus.FAILED
+                status=ServiceCorrelationStatus.FAILED,
+                metric_value=None,
+                tags=None
             )
             persistence.update_correlation(update_req, self._time_service)
             return ActionSelectionDMAResult(
                 selected_action=HandlerActionType.DEFER,
-                action_parameters=defer_params.model_dump(),
+                action_parameters=defer_params,
                 rationale="DMA timeout",
+                raw_llm_response=None,
+                reasoning=None,
+                evaluation_time_ms=None,
+                resource_usage=None
             )
 
         # CRITICAL DEBUG: Check action_result details immediately
@@ -334,7 +360,9 @@ class ThoughtProcessor:
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
                     "response_timestamp": end_time.isoformat()
                 },
-                status=ServiceCorrelationStatus.FAILED
+                status=ServiceCorrelationStatus.FAILED,
+                metric_value=None,
+                tags=None
             )
             persistence.update_correlation(update_req, self._time_service)
             # Return early with fallback result
@@ -447,8 +475,12 @@ class ThoughtProcessor:
                 ponder_params = PonderParams(questions=["No conscience result"])
                 final_result = ActionSelectionDMAResult(
                     selected_action=HandlerActionType.PONDER,
-                    action_parameters=ponder_params.model_dump(),
+                    action_parameters=ponder_params,
                     rationale="No conscience result",
+                    raw_llm_response=None,
+                    reasoning=None,
+                    evaluation_time_ms=None,
+                    resource_usage=None
                 )
 
         # Store conscience result on the action result for later access
@@ -492,7 +524,9 @@ class ThoughtProcessor:
                 "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
                 "response_timestamp": end_time.isoformat()
             },
-            status=ServiceCorrelationStatus.COMPLETED
+            status=ServiceCorrelationStatus.COMPLETED,
+            metric_value=None,
+            tags=None
         )
         persistence.update_correlation(update_req, self._time_service)
         
@@ -511,13 +545,13 @@ class ThoughtProcessor:
 
         # Check if this is a conscience retry
         is_conscience_retry = (
-            processing_context and
+            processing_context is not None and
             hasattr(processing_context, 'is_conscience_retry') and
             processing_context.is_conscience_retry
         )
 
         # If this is a conscience retry, unset the flag to prevent loops
-        if is_conscience_retry:
+        if is_conscience_retry and processing_context is not None:
             processing_context.is_conscience_retry = False
 
         # Exempt actions that shouldn't be overridden
@@ -532,6 +566,7 @@ class ThoughtProcessor:
                 original_action=action_result,
                 final_action=action_result,
                 overridden=False,
+                override_reason=None
             )
 
         context = {"thought": thought, "dma_results": dma_results_dict}
@@ -591,7 +626,11 @@ class ThoughtProcessor:
                     final_action = ActionSelectionDMAResult(
                         selected_action=HandlerActionType.PONDER,
                         action_parameters=ponder_params,
-                        rationale=f"Overridden by {entry.name}: Need to reconsider {attempted_action_desc}"
+                        rationale=f"Overridden by {entry.name}: Need to reconsider {attempted_action_desc}",
+                        raw_llm_response=None,
+                        reasoning=None,
+                        evaluation_time_ms=None,
+                        resource_usage=None
                     )
                 break
 
@@ -608,8 +647,12 @@ class ThoughtProcessor:
                 logger.info("ThoughtProcessor: Conscience retry without override - forcing PONDER")
                 final_action = ActionSelectionDMAResult(
                     selected_action=HandlerActionType.PONDER,
-                    action_parameters={},
-                    rationale="Forced PONDER after conscience retry to prevent loops"
+                    action_parameters=PonderParams(questions=["Forced PONDER after conscience retry"]),
+                    rationale="Forced PONDER after conscience retry to prevent loops",
+                    raw_llm_response=None,
+                    reasoning=None,
+                    evaluation_time_ms=None,
+                    resource_usage=None
                 )
                 overridden = True
                 override_reason = "Conscience retry - forcing PONDER to prevent loops"
@@ -640,7 +683,7 @@ class ThoughtProcessor:
         from ciris_engine.logic import persistence
 
         # Get the parent task
-        task = await persistence.async_get_task_by_id(thought.source_task_id)
+        task = persistence.get_task_by_id(thought.source_task_id)
         if not task:
             logger.error(f"Parent task {thought.source_task_id} not found for thought {thought.thought_id}")
             return False
@@ -696,8 +739,10 @@ class ThoughtProcessor:
     def _get_profile_name(self, thought: Thought) -> str:
         """Extract profile name from thought context or use default."""
         profile_name = None
-        if hasattr(thought, 'context') and isinstance(thought.context, dict):
-            profile_name = thought.context.get('agent_profile_name')
+        if hasattr(thought, 'context'):
+            context = thought.context
+            if isinstance(context, dict):
+                profile_name = context.get('agent_profile_name')
         if not profile_name and hasattr(self.app_config, 'agent_profiles'):
             for name, profile in self.app_config.agent_profiles.items():
                 if name != "default" and profile:
@@ -716,20 +761,26 @@ class ThoughtProcessor:
     def _has_critical_failure(self, dma_results: Any) -> bool:
         return getattr(dma_results, 'critical_failure', False)
 
-    def _create_deferral_result(self, dma_results: dict, thought: Thought) -> ActionSelectionDMAResult:
+    def _create_deferral_result(self, dma_results: Any, thought: Thought) -> ActionSelectionDMAResult:
         from ciris_engine.logic.utils.constants import DEFAULT_WA
 
         defer_reason = "Critical DMA failure or conscience override."
+        # Convert dma_results to string representation for context
+        dma_results_str = str(dma_results) if not isinstance(dma_results, str) else dma_results
         defer_params = DeferParams(
             reason=defer_reason,
-            context={"original_thought_id": thought.thought_id, "dma_results_summary": dma_results, "target_wa_ual": DEFAULT_WA},
+            context={"original_thought_id": thought.thought_id, "dma_results_summary": dma_results_str, "target_wa_ual": str(DEFAULT_WA) if DEFAULT_WA else ""},
             defer_until=None
         )
 
         return ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
-            action_parameters=defer_params.model_dump(),
-            rationale=defer_reason
+            action_parameters=defer_params,
+            rationale=defer_reason,
+            raw_llm_response=None,
+            reasoning=None,
+            evaluation_time_ms=None,
+            resource_usage=None
         )
 
     async def _handle_special_cases(self, result: Any, thought: Thought, context: Any) -> Optional[ActionSelectionDMAResult]:
@@ -746,8 +797,12 @@ class ThoughtProcessor:
             ponder_params = PonderParams(questions=["conscience result missing"])
             return ActionSelectionDMAResult(
                 selected_action=HandlerActionType.PONDER,
-                action_parameters=ponder_params.model_dump(),
+                action_parameters=ponder_params,
                 rationale="conscience result missing",
+                raw_llm_response=None,
+                reasoning=None,
+                evaluation_time_ms=None,
+                resource_usage=None
             )
 
         if hasattr(result, 'selected_action'):
@@ -773,8 +828,12 @@ class ThoughtProcessor:
                 selected_action = HandlerActionType.PONDER
                 final_result = ActionSelectionDMAResult(
                     selected_action=selected_action,
-                    action_parameters=ponder_params.model_dump(),
+                    action_parameters=ponder_params,
                     rationale="conscience result empty",
+                    raw_llm_response=None,
+                    reasoning=None,
+                    evaluation_time_ms=None,
+                    resource_usage=None
                 )
         else:
             logger.warning(
@@ -842,14 +901,13 @@ class ThoughtProcessor:
 
     async def _handle_action_selection(
         self, thought: Thought, action_selection: ActionSelectionDMAResult, context: dict
-    ) -> Any:
+    ) -> Optional[ActionSelectionDMAResult]:
         """Handles the selected action by dispatching to the appropriate handler."""
         if action_selection.selected_action == HandlerActionType.PONDER:
             ponder_questions: List[Any] = []
             if action_selection.action_parameters:
-                if isinstance(action_selection.action_parameters, dict) and 'questions' in action_selection.action_parameters:
-                    ponder_questions = action_selection.action_parameters['questions']
-                elif hasattr(action_selection.action_parameters, 'questions'):
+                # Handle PonderParams type  
+                if hasattr(action_selection.action_parameters, 'questions'):
                     ponder_questions = action_selection.action_parameters.questions
 
             if not ponder_questions:
@@ -861,14 +919,18 @@ class ThoughtProcessor:
 
             ponder_params = PonderParams(questions=ponder_questions)
 
-            max_rounds = getattr(self.settings, 'max_rounds', 5)
+            max_rounds = 5  # Default max rounds for ponder handler
             ponder_handler = PonderHandler(dependencies=self.dependencies, max_rounds=max_rounds)
 
             # Create ActionSelectionDMAResult for ponder handler
             ponder_result = ActionSelectionDMAResult(
                 selected_action=HandlerActionType.PONDER,
-                action_parameters=ponder_params.model_dump(),
-                rationale="Processing PONDER action from action selection"
+                action_parameters=ponder_params,
+                rationale="Processing PONDER action from action selection",
+                raw_llm_response=None,
+                reasoning=None,
+                evaluation_time_ms=None,
+                resource_usage=None
             )
 
             # Create proper DispatchContext
@@ -905,9 +967,12 @@ class ThoughtProcessor:
                 # Additional context
                 wa_id=None,
                 wa_authorized=False,
+                wa_context=None,
+                conscience_failure_context=None,
+                epistemic_data=None,
                 correlation_id=str(uuid.uuid4()),
-                round_number=thought.round_number,
-                conscience_result=None
+                span_id=None,
+                trace_id=None
             )
 
             await ponder_handler.handle(
@@ -941,3 +1006,5 @@ class ThoughtProcessor:
                             pass
                 logger.info(f"[OBSERVE] CLI observation attached for thought {thought.thought_id}")
                 return obs_result
+        
+        return None

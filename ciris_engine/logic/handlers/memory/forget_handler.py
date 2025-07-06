@@ -4,9 +4,8 @@ from ciris_engine.schemas.actions import ForgetParams
 from ciris_engine.schemas.services.graph_core import GraphScope
 from ciris_engine.logic.services.memory_service import MemoryOpStatus
 from ciris_engine.logic.infrastructure.handlers.base_handler import BaseActionHandler
-from ciris_engine.logic.infrastructure.handlers.helpers import create_follow_up_thought
 from typing import Any, Optional
-from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
 from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.logic import persistence
 import logging
@@ -25,79 +24,71 @@ class ForgetHandler(BaseActionHandler):
                 params = ForgetParams(**params) if isinstance(params, dict) else params
             except ValidationError as e:
                 logger.error(f"ForgetHandler: Invalid params dict: {e}")
-                follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters. {e}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+                follow_up_content = f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters. {e}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+                
+                # Use the proper method to complete thought and create follow-up
+                follow_up_id = await self.complete_thought_and_create_followup(
+                    thought=thought,
+                    follow_up_content=follow_up_content,
+                    action_result=result,
+                    status=ThoughtStatus.FAILED
                 )
-                context_data = follow_up.context.model_dump() if follow_up.context else {}
-                context_data.update({
-                    "action_performed": HandlerActionType.FORGET.name,
-                    "parent_task_id": thought.source_task_id,
-                    "is_follow_up": True,
-                    "error": str(e)
-                })
-                # Note: We don't modify the context here since ThoughtContext has extra="forbid"
-                # The error details are already captured in the follow_up content
-                persistence.add_thought(follow_up)
+                
                 await self._audit_log(HandlerActionType.FORGET, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="failed")
-                return
+                return follow_up_id
         if not isinstance(params, ForgetParams):
             logger.error(f"ForgetHandler: Invalid params type: {type(raw_params)}")
-            follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters type: {type(raw_params)}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+            follow_up_content = f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters type: {type(raw_params)}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+            
+            # Use the proper method to complete thought and create follow-up
+            follow_up_id = await self.complete_thought_and_create_followup(
+                thought=thought,
+                follow_up_content=follow_up_content,
+                action_result=result,
+                status=ThoughtStatus.FAILED
             )
-            context_data = follow_up.context.model_dump() if follow_up.context else {}
-            context_data.update({
-                "action_performed": HandlerActionType.FORGET.name,
-                "parent_task_id": thought.source_task_id,
-                "is_follow_up": True,
-                "error": f"Invalid params type: {type(raw_params)}"
-            })
-            # Note: We don't modify the context here since ThoughtContext has extra="forbid"
-            # The error details are already captured in the follow_up content
-            persistence.add_thought(follow_up)
+            
             await self._audit_log(HandlerActionType.FORGET, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="failed")
-            return
+            return follow_up_id
         if not self._can_forget(params, dispatch_context):
             logger.info("ForgetHandler: Permission denied or WA required for forget operation. Creating deferral.")
-            follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action was not permitted. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+            follow_up_content = f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action was not permitted. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
+            
+            # Use the proper method to complete thought and create follow-up
+            follow_up_id = await self.complete_thought_and_create_followup(
+                thought=thought,
+                follow_up_content=follow_up_content,
+                action_result=result,
+                status=ThoughtStatus.FAILED
             )
-            context_data = follow_up.context.model_dump() if follow_up.context else {}
-            context_data.update({
-                "action_performed": HandlerActionType.FORGET.name,
-                "parent_task_id": thought.source_task_id,
-                "is_follow_up": True,
-                "error": "Permission denied or WA required"
-            })
-            # Note: We don't modify the context here since ThoughtContext has extra="forbid"
-            # The error details are already captured in the follow_up content
-            persistence.add_thought(follow_up)
+            
             await self._audit_log(
                 HandlerActionType.FORGET,
                 dispatch_context.model_copy(update={"thought_id": thought_id}),
                 outcome="wa_denied"
             )
-            return
+            return follow_up_id
         # Memory operations will use the memory bus
 
         node = params.node
         scope = node.scope
         if scope in (GraphScope.IDENTITY, GraphScope.ENVIRONMENT) and not getattr(dispatch_context, 'wa_authorized', False):
-            follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content="FORGET action denied: WA authorization required"
+            follow_up_content = "FORGET action denied: WA authorization required"
+            
+            # Use the proper method to complete thought and create follow-up
+            follow_up_id = await self.complete_thought_and_create_followup(
+                thought=thought,
+                follow_up_content=follow_up_content,
+                action_result=result,
+                status=ThoughtStatus.FAILED
             )
-            context_data = follow_up.context.model_dump() if follow_up.context else {}
-            context_data.update({
-                "action_performed": HandlerActionType.FORGET.name,
-                "parent_task_id": thought.source_task_id,
-                "is_follow_up": True,
-                "error": "wa_denied",
-            })
-            # Note: We don't modify the context here since ThoughtContext has extra="forbid"
-            # The error details are already captured in the follow_up content
-            persistence.add_thought(follow_up)
+            
             await self._audit_log(
                 HandlerActionType.FORGET,
                 dispatch_context,
                 outcome="wa_denied",
             )
-            return
+            return follow_up_id
 
         forget_result = await self.bus_manager.memory.forget(
             node=node,
@@ -114,15 +105,22 @@ class ForgetHandler(BaseActionHandler):
             follow_up_content = (
                 f"CIRIS_FOLLOW_UP_THOUGHT: This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. Failed to forget key '{node.id}' in scope {node.scope.value}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             )
-        follow_up = create_follow_up_thought(parent=thought, time_service=self.time_service, content=follow_up_content)
-        # Note: We don't modify the context here since ThoughtContext has extra="forbid"
-        # The action details are already captured in the follow_up_text content
-        persistence.add_thought(follow_up)
+        
+        # Use the proper method to complete thought and create follow-up
+        follow_up_id = await self.complete_thought_and_create_followup(
+            thought=thought,
+            follow_up_content=follow_up_content,
+            action_result=result,
+            status=ThoughtStatus.COMPLETED if success else ThoughtStatus.FAILED
+        )
+        
         await self._audit_log(
             HandlerActionType.FORGET,
             dispatch_context.model_copy(update={"thought_id": thought_id}),
             outcome="success" if success else "failed",
         )
+        
+        return follow_up_id
 
     def _can_forget(self, params: ForgetParams, dispatch_context: DispatchContext) -> bool:
         if hasattr(params, 'node') and hasattr(params.node, 'scope'):

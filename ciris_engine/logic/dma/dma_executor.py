@@ -1,6 +1,6 @@
 import logging
 import asyncio
-from typing import Any, Dict, Optional, Callable, Awaitable, TYPE_CHECKING
+from typing import Any, Dict, Optional, Callable, Awaitable, TYPE_CHECKING, Union
 from datetime import datetime, timezone
 
 from ciris_engine.logic.processors.support.thought_escalation import escalate_dma_failure
@@ -9,7 +9,7 @@ from ciris_engine.logic.processors.support.processing_queue import ProcessingQue
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.schemas.runtime.system_context import ThoughtState
 from ciris_engine.logic import persistence
-from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, TraceContext, ServiceRequestData, ServiceResponseData, ServiceCorrelationStatus
+from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, TraceContext, ServiceRequestData, ServiceResponseData, ServiceCorrelationStatus, MetricData, LogData
 from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
 
 from .pdma import EthicalPDMAEvaluator
@@ -134,7 +134,15 @@ async def run_pdma(
             "component_type": "dma",
             "dma_type": "ethical_pdma",
             "trace_depth": "3"
-        }
+        },
+        request_data=None,
+        response_data=None,
+        status=ServiceCorrelationStatus.PENDING,
+        metric_data=None,
+        log_data=None,
+        retention_policy="raw",
+        ttl_seconds=None,
+        parent_correlation_id=None
     )
     
     # Add correlation
@@ -181,7 +189,9 @@ async def run_pdma(
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
                     "response_timestamp": end_time.isoformat()
                 },
-                status=ServiceCorrelationStatus.COMPLETED
+                status=ServiceCorrelationStatus.COMPLETED,
+                metric_value=None,
+                tags=None
             )
             persistence.update_correlation(update_req, time_service)
         
@@ -199,7 +209,9 @@ async def run_pdma(
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
                     "response_timestamp": end_time.isoformat()
                 },
-                status=ServiceCorrelationStatus.FAILED
+                status=ServiceCorrelationStatus.FAILED,
+                metric_value=None,
+                tags=None
             )
             persistence.update_correlation(update_req, time_service)
         raise
@@ -248,7 +260,15 @@ async def run_csdma(
             "component_type": "dma",
             "dma_type": "csdma",
             "trace_depth": "3"
-        }
+        },
+        request_data=None,
+        response_data=None,
+        status=ServiceCorrelationStatus.PENDING,
+        metric_data=None,
+        log_data=None,
+        retention_policy="raw",
+        ttl_seconds=None,
+        parent_correlation_id=None
     )
     
     # Add correlation
@@ -269,7 +289,9 @@ async def run_csdma(
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
                     "response_timestamp": end_time.isoformat()
                 },
-                status=ServiceCorrelationStatus.COMPLETED
+                status=ServiceCorrelationStatus.COMPLETED,
+                metric_value=None,
+                tags=None
             )
             persistence.update_correlation(update_req, time_service)
         
@@ -287,7 +309,9 @@ async def run_csdma(
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
                     "response_timestamp": end_time.isoformat()
                 },
-                status=ServiceCorrelationStatus.FAILED
+                status=ServiceCorrelationStatus.FAILED,
+                metric_value=None,
+                tags=None
             )
             persistence.update_correlation(update_req, time_service)
         raise
@@ -337,7 +361,15 @@ async def run_dsdma(
             "component_type": "dma",
             "dma_type": "dsdma",
             "trace_depth": "3"
-        }
+        },
+        request_data=None,
+        response_data=None,
+        status=ServiceCorrelationStatus.PENDING,
+        metric_data=None,
+        log_data=None,
+        retention_policy="raw",
+        ttl_seconds=None,
+        parent_correlation_id=None
     )
     
     # Add correlation
@@ -359,7 +391,9 @@ async def run_dsdma(
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
                     "response_timestamp": end_time.isoformat()
                 },
-                status=ServiceCorrelationStatus.COMPLETED
+                status=ServiceCorrelationStatus.COMPLETED,
+                metric_value=None,
+                tags=None
             )
             persistence.update_correlation(update_req, time_service)
         
@@ -377,7 +411,9 @@ async def run_dsdma(
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
                     "response_timestamp": end_time.isoformat()
                 },
-                status=ServiceCorrelationStatus.FAILED
+                status=ServiceCorrelationStatus.FAILED,
+                metric_value=None,
+                tags=None
             )
             persistence.update_correlation(update_req, time_service)
         raise
@@ -433,7 +469,15 @@ async def run_action_selection_pdma(
             "component_type": "dma",
             "dma_type": "action_selection_pdma",
             "trace_depth": "3"
-        }
+        },
+        request_data=None,
+        response_data=None,
+        status=ServiceCorrelationStatus.PENDING,
+        metric_data=None,
+        log_data=None,
+        retention_policy="raw",
+        ttl_seconds=None,
+        parent_correlation_id=None
     )
     
     # Add correlation
@@ -444,9 +488,7 @@ async def run_action_selection_pdma(
         result = await evaluator.evaluate(input_data=triaged_inputs)
 
         logger.debug(f"run_action_selection_pdma: Evaluation completed. Result type: {type(result)}, Result: {result}")
-        if result is None:
-            logger.error("run_action_selection_pdma: evaluator.evaluate() returned None!")
-        elif hasattr(result, 'selected_action'):
+        if hasattr(result, 'selected_action'):
             logger.debug(f"run_action_selection_pdma: Selected action: {result.selected_action}")
             if result.selected_action == HandlerActionType.OBSERVE:
                 logger.warning("OBSERVE ACTION DEBUG: run_action_selection_pdma returning OBSERVE action successfully")
@@ -462,7 +504,9 @@ async def run_action_selection_pdma(
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
                     "response_timestamp": end_time.isoformat()
                 },
-                status=ServiceCorrelationStatus.COMPLETED
+                status=ServiceCorrelationStatus.COMPLETED,
+                metric_value=None,
+                tags=None
             )
             persistence.update_correlation(update_req, time_service)
 
@@ -480,7 +524,9 @@ async def run_action_selection_pdma(
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
                     "response_timestamp": end_time.isoformat()
                 },
-                status=ServiceCorrelationStatus.FAILED
+                status=ServiceCorrelationStatus.FAILED,
+                metric_value=None,
+                tags=None
             )
             persistence.update_correlation(update_req, time_service)
         raise

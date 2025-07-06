@@ -3,7 +3,16 @@ Global test configuration for pytest.
 
 This file is automatically loaded by pytest and contains setup that applies to all tests.
 """
+# CRITICAL: Set import protection BEFORE any other imports
 import os
+os.environ['CIRIS_IMPORT_MODE'] = 'true'
+os.environ['CIRIS_MOCK_LLM'] = 'true'
+
+# CRITICAL: Override log directory for tests to prevent container interference
+# Tests should NEVER write to the main logs directory that containers use
+os.environ['CIRIS_LOG_DIR'] = 'test_logs'
+os.environ['CIRIS_DATA_DIR'] = 'test_data'
+
 import pytest
 import asyncio
 from pathlib import Path
@@ -39,6 +48,20 @@ from .fixtures_api import randomize_api_port, api_port
 
 import gc
 import time
+
+@pytest.fixture(scope="session", autouse=True)
+def manage_import_protection():
+    """Manage import protection for the entire test session."""
+    # Import protection is already set at module level
+    # But we ensure it stays set during test collection
+    os.environ['CIRIS_IMPORT_MODE'] = 'true'
+    os.environ['CIRIS_MOCK_LLM'] = 'true'
+    
+    yield
+    
+    # After all tests are done, we can clear the protection
+    # (though it doesn't really matter since process is ending)
+    os.environ.pop('CIRIS_IMPORT_MODE', None)
 
 @pytest.fixture(autouse=True, scope="function")
 def cleanup_after_test():

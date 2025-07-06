@@ -5,7 +5,7 @@ import httpx
 
 from ciris_engine.logic.adapters.base import Service
 from ciris_engine.schemas.audit.core import AuditLogEntry  # Use schema version
-# TODO: Refactor to use dependency injection instead of get_config
+# Configuration loaded via environment variables - no get_config dependency
 from ciris_engine.schemas.config.essential import CIRISNodeConfig
 from ciris_engine.schemas.runtime.enums import HandlerActionType, ServiceType
 from ciris_engine.schemas.runtime.audit import AuditActionContext

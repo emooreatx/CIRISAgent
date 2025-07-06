@@ -19,9 +19,9 @@ def generate_thought_id(
     debugging easier and prevents ID collisions.
     
     Format:
-    - STANDARD (seed): th_seed_{task_id[:8]}_{uuid[:4]}
+    - STANDARD (seed): th_seed_{task_id[:8]}_{uuid[:12]}
     - STANDARD (regular): th_std_{uuid}
-    - FOLLOW_UP: th_followup_{parent_id[:8]}_{uuid[:4]}
+    - FOLLOW_UP: th_followup_{parent_id[:8]}_{uuid[:12]}
     - PONDER: th_ponder_{uuid}
     - DEFERRED: th_defer_{uuid}
     - OBSERVATION: th_obs_{uuid}
@@ -32,9 +32,11 @@ def generate_thought_id(
     
     # Special handling for seed thoughts (which are STANDARD type but initial thoughts)
     if is_seed and task_id:
-        return f"th_seed_{task_id[:8]}_{unique_part[:4]}"
+        # Use 12 characters from UUID to avoid collisions (16^12 = ~281 trillion possibilities)
+        return f"th_seed_{task_id[:8]}_{unique_part[:12]}"
     elif thought_type == ThoughtType.FOLLOW_UP and parent_thought_id:
-        return f"th_followup_{parent_thought_id[:8]}_{unique_part[:4]}"
+        # Use 12 characters from UUID to avoid collisions
+        return f"th_followup_{parent_thought_id[:8]}_{unique_part[:12]}"
     elif thought_type == ThoughtType.PONDER:
         return f"th_ponder_{unique_part}"
     elif thought_type == ThoughtType.DEFERRED:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Optional, Dict, List, Union
+from typing import Optional, Dict, List, Union, Any, TYPE_CHECKING
 import json
 from datetime import datetime, timedelta
 from uuid import uuid4
@@ -10,8 +10,11 @@ try:
     import psutil
     PSUTIL_AVAILABLE = True
 except ImportError:
-    psutil = None
+    psutil = None  # type: ignore
     PSUTIL_AVAILABLE = False
+
+if TYPE_CHECKING:
+    from psutil import Process
 
 from ciris_engine.logic.config import get_sqlite_db_full_path
 from ciris_engine.logic.persistence import initialize_database, get_db_connection
@@ -38,7 +41,7 @@ logger = logging.getLogger(__name__)
 class DateTimeEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles datetime objects."""
 
-    def default(self, obj: object) -> str:
+    def default(self, obj: object) -> Any:
         if isinstance(obj, datetime):
             return obj.isoformat()
         return super().default(obj)
@@ -53,13 +56,12 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
         self._time_service = time_service
         self.secrets_service = secrets_service  # Must be provided, not created here
         self._start_time: Optional[datetime] = None
-        if PSUTIL_AVAILABLE:
+        self._process: Optional["Process"] = None
+        if PSUTIL_AVAILABLE and psutil is not None:
             try:
                 self._process = psutil.Process()  # For memory tracking
             except Exception:
-                self._process = None  # Failed to create process object
-        else:
-            self._process = None  # psutil not available
+                pass  # Failed to create process object
 
     async def memorize(self, node: GraphNode) -> MemoryOpResult:
         """Store a node with automatic secrets detection and processing."""
@@ -68,7 +70,10 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
             processed_node = await self._process_secrets_for_memorize(node)
 
             from ciris_engine.logic.persistence.models import graph as persistence
-            persistence.add_graph_node(processed_node, db_path=self.db_path, time_service=self._time_service)
+            if self._time_service:
+                persistence.add_graph_node(processed_node, db_path=self.db_path, time_service=self._time_service)
+            else:
+                raise RuntimeError("TimeService is required for adding graph nodes")
             return MemoryOpResult(status=MemoryOpStatus.OK)
         except Exception as e:
             logger.exception("Error storing node %s: %s", node.id, e)
@@ -192,6 +197,8 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
 
         # Process for secrets detection and replacement
         # SecretsService requires source_message_id
+        if not self.secrets_service:
+            return node
         processed_text, secret_refs = await self.secrets_service.process_incoming_text(
             attributes_str,
             source_message_id=f"memorize_{node.id}"
@@ -202,7 +209,8 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
 
         # Add secret references to node metadata if any were found
         if secret_refs:
-            processed_attributes.setdefault("_secret_refs", []).extend([ref.uuid for ref in secret_refs])
+            if isinstance(processed_attributes, dict):
+                processed_attributes.setdefault("_secret_refs", []).extend([ref.uuid for ref in secret_refs])
             logger.info(f"Stored {len(secret_refs)} secret references in memory node {node.id}")
 
         return GraphNode(
@@ -221,6 +229,7 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
             return {}
 
         # Convert GraphNodeAttributes to dict if needed
+        attributes_dict: Dict[str, Any]
         if hasattr(attributes, 'model_dump'):
             attributes_dict = attributes.model_dump()
         elif hasattr(attributes, 'dict'):
@@ -228,23 +237,28 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
         elif isinstance(attributes, dict):
             attributes_dict = attributes
         else:
-            return {}
+            attributes_dict = {}
 
         secret_refs = attributes_dict.get("_secret_refs", [])
         if not secret_refs:
             return attributes_dict
 
-        should_decrypt = action_type in getattr(self.secrets_service.filter.detection_config, "auto_decrypt_for_actions", ["speak", "tool"])
+        should_decrypt = False
+        if self.secrets_service and hasattr(self.secrets_service, 'filter'):
+            should_decrypt = action_type in getattr(self.secrets_service.filter.detection_config, "auto_decrypt_for_actions", ["speak", "tool"])
 
         if should_decrypt:
             _attributes_str = json.dumps(attributes_dict, cls=DateTimeEncoder)
 
+            if not self.secrets_service:
+                return attributes_dict
             decapsulated_attributes = await self.secrets_service.decapsulate_secrets_in_parameters(
                 action_type=action_type,
                 action_params=attributes_dict,
                 context=DecapsulationContext(
-                    source="memory_recall",
-                    handler="LocalGraphMemoryService"
+                    action_type=action_type,
+                    thought_id="memory_recall",
+                    user_id="system"
                 )
             )
 
@@ -262,6 +276,7 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
             return
 
         # Convert GraphNodeAttributes to dict if needed
+        attributes_dict: Dict[str, Any]
         if hasattr(attributes, 'model_dump'):
             attributes_dict = attributes.model_dump()
         elif hasattr(attributes, 'dict'):
@@ -269,14 +284,17 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
         elif isinstance(attributes, dict):
             attributes_dict = attributes
         else:
-            return
+            attributes_dict = {}
 
         # Check for secret references
         secret_refs = attributes_dict.get("_secret_refs", [])
         if secret_refs:
             # Note: We don't automatically delete secrets on FORGET since they might be
             # referenced elsewhere. This would need to be a conscious decision by the agent.
-            logger.info(f"Node being forgotten contained {len(secret_refs)} secret references")
+            if isinstance(secret_refs, list):
+                logger.info(f"Node being forgotten contained {len(secret_refs)} secret references")
+            else:
+                logger.info("Node being forgotten contained secret references")
 
             # Could implement reference counting here in the future if needed
 
@@ -298,6 +316,8 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
             from ciris_engine.schemas.telemetry.core import CorrelationType
 
             # Calculate time window
+            if not self._time_service:
+                raise RuntimeError("TimeService is required for recall_timeseries")
             end_time = self._time_service.now()
             start_time = end_time - timedelta(hours=hours)
 
@@ -375,13 +395,15 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
                 if not isinstance(timestamp, datetime):
                     continue  # Skip invalid entries
 
-                metric_name = corr.get('metric_name')
-                if not metric_name or not isinstance(metric_name, str):
+                metric_name_raw = corr.get('metric_name')
+                if not metric_name_raw or not isinstance(metric_name_raw, str):
                     continue  # Skip entries without valid metric name
+                metric_name = metric_name_raw
 
-                metric_value = corr.get('metric_value')
-                if metric_value is None or not isinstance(metric_value, (int, float)):
+                metric_value_raw = corr.get('metric_value')
+                if metric_value_raw is None or not isinstance(metric_value_raw, (int, float)):
                     continue  # Skip entries without valid value
+                metric_value = metric_value_raw
 
                 tags_raw = corr.get('tags')
                 point_tags: Optional[Dict[str, str]] = None
@@ -399,7 +421,7 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
                     metric_name=metric_name,
                     value=float(metric_value),
                     correlation_type=correlation_type,
-                    tags=point_tags,
+                    tags=point_tags or {},
                     source=source
                 )
                 data_points.append(data_point)
@@ -423,6 +445,8 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
             from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, ServiceCorrelationStatus
 
             # Create a graph node for the metric
+            if not self._time_service:
+                raise RuntimeError("TimeService is required for memorize_metric")
             now = self._time_service.now()
             node_id = f"metric_{metric_name}_{int(now.timestamp())}"
 
@@ -442,7 +466,9 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
                 id=node_id,
                 type=NodeType.TSDB_DATA,
                 scope=GraphScope(scope),
-                attributes=attrs_dict
+                attributes=attrs_dict,
+                updated_by="memory_service",
+                updated_at=now
             )
 
             # Store in graph memory
@@ -457,22 +483,34 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
                 handler_name="memory_service",
                 action_type="memorize_metric",
                 correlation_type=CorrelationType.METRIC_DATAPOINT,
-                timestamp=self._time_service.now(),
-                created_at=self._time_service.now(),
-                updated_at=self._time_service.now(),
+                timestamp=now,
+                created_at=now,
+                updated_at=now,
                 metric_data=MetricData(
                     metric_name=metric_name,
                     metric_value=value,
                     metric_unit="count",  # Default unit
                     metric_type="gauge",
-                    labels=tags or {}
+                    labels=tags or {},
+                    min_value=value,
+                    max_value=value,
+                    mean_value=value
                 ),
                 tags={**tags, "scope": scope} if tags else {"scope": scope},
                 status=ServiceCorrelationStatus.COMPLETED,
-                retention_policy="raw"
+                retention_policy="raw",
+                request_data=None,
+                response_data=None,
+                log_data=None,
+                trace_context=None,
+                ttl_seconds=None,
+                parent_correlation_id=None
             )
 
-            add_correlation(correlation, db_path=self.db_path, time_service=self._time_service)
+            if self._time_service:
+                add_correlation(correlation, db_path=self.db_path, time_service=self._time_service)
+            else:
+                raise RuntimeError("TimeService is required for add_correlation")
 
             return memory_result
 
@@ -490,6 +528,8 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
             from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, ServiceCorrelationStatus
 
             # Create a graph node for the log entry
+            if not self._time_service:
+                raise RuntimeError("TimeService is required for memorize_log")
             now = self._time_service.now()
             node_id = f"log_{log_level}_{int(now.timestamp())}"
 
@@ -509,7 +549,9 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
                 id=node_id,
                 type=NodeType.TSDB_DATA,
                 scope=GraphScope(scope),
-                attributes=attrs_dict
+                attributes=attrs_dict,
+                updated_by="memory_service",
+                updated_at=now
             )
 
             # Store in graph memory
@@ -522,15 +564,25 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
                 handler_name="memory_service",
                 action_type="memorize_log",
                 correlation_type=CorrelationType.LOG_ENTRY,
-                timestamp=self._time_service.now(),
-                log_level=log_level,
+                timestamp=now,
+                created_at=now,
+                updated_at=now,
                 tags={**tags, "scope": scope, "message": log_message} if tags else {"scope": scope, "message": log_message},
-                request_data={"message": log_message, "log_level": log_level},
                 status=ServiceCorrelationStatus.COMPLETED,
-                retention_policy="raw"
+                retention_policy="raw",
+                request_data=None,
+                response_data=None,
+                metric_data=None,
+                log_data=None,
+                trace_context=None,
+                ttl_seconds=None,
+                parent_correlation_id=None
             )
 
-            add_correlation(correlation, db_path=self.db_path, time_service=self._time_service)
+            if self._time_service:
+                add_correlation(correlation, db_path=self.db_path, time_service=self._time_service)
+            else:
+                raise RuntimeError("TimeService is required for add_correlation")
 
             return memory_result
 
@@ -567,13 +619,13 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
             if node_type:
                 nodes = get_nodes_by_type(
                     node_type=node_type,
-                    scope=scope,
+                    scope=scope if isinstance(scope, GraphScope) else GraphScope.LOCAL,
                     limit=limit,
                     db_path=self.db_path
                 )
             else:
                 nodes = get_all_graph_nodes(
-                    scope=scope,
+                    scope=scope if isinstance(scope, GraphScope) else GraphScope.LOCAL,
                     limit=limit,
                     db_path=self.db_path
                 )
@@ -695,7 +747,8 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
                 "graph_node_count": float(node_count)
             },
             last_error=None,
-            last_health_check=self._time_service.now() if self._time_service else None
+            last_health_check=self._time_service.now() if self._time_service else None,
+            custom_metrics={}
         )
 
     async def is_healthy(self) -> bool:

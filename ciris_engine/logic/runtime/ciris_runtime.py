@@ -51,12 +51,28 @@ class CIRISRuntime:
         adapter_configs: Optional[dict] = None,
         **kwargs: Any,
     ) -> None:
+        # CRITICAL: Prevent runtime creation during module imports
+        import os
+        if os.environ.get('CIRIS_IMPORT_MODE', '').lower() == 'true':
+            logger.error("CRITICAL: Attempted to create CIRISRuntime during import mode!")
+            raise RuntimeError(
+                "Cannot create CIRISRuntime during module imports. "
+                "This prevents side effects and unwanted process creation. "
+                "Call prevent_sideeffects.allow_runtime_creation() before creating runtime."
+            )
         self.essential_config = essential_config
         # Ensure we always have a startup_channel_id
         self.startup_channel_id = startup_channel_id or "default"
         self.adapter_configs = adapter_configs or {}
         self.adapters: List[BaseAdapterProtocol] = []
         self.modules_to_load = kwargs.get('modules', [])
+        
+        # CRITICAL: Check for mock LLM environment variable
+        if os.environ.get('CIRIS_MOCK_LLM', '').lower() in ('true', '1', 'yes', 'on'):
+            logger.warning("CIRIS_MOCK_LLM environment variable detected in CIRISRuntime")
+            if 'mock_llm' not in self.modules_to_load:
+                self.modules_to_load.append('mock_llm')
+                logger.info("Added mock_llm to modules to load")
 
         # Initialize managers
         self.identity_manager: Optional[IdentityManager] = None
@@ -906,8 +922,7 @@ class CIRISRuntime:
                                 result = self.agent_processor.shutdown_processor.shutdown_result or {}
                                 if result and result.get("status") == "rejected":
                                     logger.warning(f"Shutdown rejected by agent: {result.get('reason')}")
-                                    # For now, proceed with shutdown anyway
-                                    # TODO: Implement human override flow
+                                    # Proceed with shutdown - emergency shutdown API provides override mechanism
                                 break
                         await asyncio.sleep(0.1)  # Reduced from 0.5s to 0.1s for faster response
 
@@ -1105,9 +1120,12 @@ class CIRISRuntime:
                     if hasattr(self.agent_identity, 'identity_metadata'):
                         self.agent_identity.identity_metadata.modification_count += 1
 
-                    # Save updated identity
-                    # TODO: Implement save_agent_identity when persistence layer supports it
-                    logger.debug("Agent identity updates stored in memory graph")
+                    # Save updated identity using identity manager
+                    if self.identity_manager:
+                        await self.identity_manager._save_identity_to_graph(self.agent_identity)
+                        logger.debug("Agent identity updates saved to persistence layer")
+                    else:
+                        logger.debug("Agent identity updates stored in memory graph")
 
         except Exception as e:
             logger.error(f"Failed to preserve shutdown consciousness: {e}")

@@ -158,18 +158,29 @@ class TestDiscordAdapterCore:
             )
         ]
 
-        discord_adapter._message_handler.fetch_messages_from_channel = AsyncMock(
-            return_value=[
-                Mock(id="1", content="Message 1", author_id="111", author_name="User1", is_bot=False),
-                Mock(id="2", content="Message 2", author_id="222", author_name="User2", is_bot=False)
-            ]
-        )
+        # Mock the get_correlations_by_channel function
+        mock_correlations = [
+            Mock(
+                correlation_id="1",
+                action_type="observe",
+                request_data=Mock(parameters={"content": "Message 1", "author_id": "111", "author_name": "User1"}),
+                timestamp=Mock(isoformat=lambda: "2024-01-01T00:00:00")
+            ),
+            Mock(
+                correlation_id="2",
+                action_type="observe",
+                request_data=Mock(parameters={"content": "Message 2", "author_id": "222", "author_name": "User2"}),
+                timestamp=Mock(isoformat=lambda: "2024-01-01T00:01:00")
+            )
+        ]
+        
+        with patch('ciris_engine.logic.persistence.get_correlations_by_channel',
+                   return_value=mock_correlations):
+            messages = await discord_adapter.fetch_messages("123456789", limit=10)
 
-        messages = await discord_adapter.fetch_messages("123456789", limit=10)
-
-        assert len(messages) == 2
-        assert messages[0].content == "Message 1"
-        assert messages[1].content == "Message 2"
+            assert len(messages) == 2
+            assert messages[0]["content"] == "Message 1"
+            assert messages[1]["content"] == "Message 2"
 
 
 class TestDiscordWiseAuthority:

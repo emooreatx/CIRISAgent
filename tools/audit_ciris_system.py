@@ -13,7 +13,7 @@ import ast
 import os
 import json
 from pathlib import Path
-from typing import Dict, List, Set, Optional, Tuple, Any
+from typing import Dict, List, Set, Optional, Tuple, Any, cast
 from collections import defaultdict
 import re
 
@@ -25,7 +25,7 @@ class CIRISSystemAuditor:
         self.ciris_root = self.project_root / "ciris_engine"
         
         # Component categories
-        self.categories = {
+        self.categories: Dict[str, Any] = {
             "services_bussed": {
                 "communication": [],
                 "memory": [],
@@ -88,7 +88,7 @@ class CIRISSystemAuditor:
         }
         
         # Track all findings
-        self.findings = {
+        self.findings: Dict[str, List[Dict[str, Any]]] = {
             "duplicate_functionality": [],
             "missing_protocols": [],
             "incorrect_inheritance": [],
@@ -99,10 +99,10 @@ class CIRISSystemAuditor:
         }
         
         # Class information
-        self.all_classes = {}
-        self.inheritance_map = {}
-        self.protocol_map = {}
-        self.import_map = defaultdict(set)
+        self.all_classes: Dict[str, Dict[str, Any]] = {}
+        self.inheritance_map: Dict[str, List[str]] = {}
+        self.protocol_map: Dict[str, Dict[str, Any]] = {}
+        self.import_map: Dict[str, Set[str]] = defaultdict(set)
         
     def audit(self) -> Dict[str, Any]:
         """Run complete system audit."""
@@ -129,7 +129,7 @@ class CIRISSystemAuditor:
         # Phase 7: Generate report
         return self._generate_report()
     
-    def _scan_all_files(self):
+    def _scan_all_files(self) -> None:
         """Scan all Python files and extract class information."""
         print("📂 Scanning all Python files...")
         
@@ -144,7 +144,7 @@ class CIRISSystemAuditor:
                 # Extract classes
                 for node in ast.walk(tree):
                     if isinstance(node, ast.ClassDef):
-                        class_info = {
+                        class_info: Dict[str, Any] = {
                             "name": node.name,
                             "file": str(file_path.relative_to(self.project_root)),
                             "line": node.lineno,
@@ -157,13 +157,14 @@ class CIRISSystemAuditor:
                         }
                         
                         # Get base classes
+                        bases_list = class_info["bases"]
                         for base in node.bases:
                             if isinstance(base, ast.Name):
-                                class_info["bases"].append(base.id)
+                                bases_list.append(base.id)
                                 if "Protocol" in base.id:
                                     class_info["is_protocol"] = True
                             elif isinstance(base, ast.Attribute):
-                                class_info["bases"].append(base.attr)
+                                bases_list.append(base.attr)
                         
                         # Get methods
                         for item in node.body:
@@ -176,7 +177,8 @@ class CIRISSystemAuditor:
                                     "is_private": item.name.startswith("_"),
                                     "line": item.lineno
                                 }
-                                class_info["methods"].append(method_info)
+                                methods_list = class_info["methods"]
+                                methods_list.append(method_info)
                         
                         # Check decorators
                         class_info["decorators"] = [d.id if isinstance(d, ast.Name) else str(d) 
@@ -197,7 +199,7 @@ class CIRISSystemAuditor:
         
         print(f"  ✓ Found {len(self.all_classes)} classes")
     
-    def _categorize_components(self):
+    def _categorize_components(self) -> None:
         """Categorize each component into its proper category."""
         print("\n📊 Categorizing components...")
         
@@ -214,114 +216,156 @@ class CIRISSystemAuditor:
             # Services (Bussed)
             if "Service" in class_name and any(base in ["Service", "BaseService"] for base in class_info["bases"]):
                 if "memory" in file_path.lower() or "Memory" in class_name:
-                    self.categories["services_bussed"]["memory"].append(class_name)
+                    services_bussed = self.categories["services_bussed"]
+                    if isinstance(services_bussed, dict):
+                        services_bussed["memory"].append(class_name)
                 elif "telemetry" in file_path.lower() or "Telemetry" in class_name:
-                    self.categories["services_bussed"]["telemetry"].append(class_name)
+                    services_bussed = self.categories["services_bussed"]
+                    if isinstance(services_bussed, dict):
+                        services_bussed["telemetry"].append(class_name)
                 elif "audit" in file_path.lower() or "Audit" in class_name:
-                    self.categories["services_bussed"]["audit"].append(class_name)
+                    services_bussed = self.categories["services_bussed"]
+                    if isinstance(services_bussed, dict):
+                        services_bussed["audit"].append(class_name)
                 elif "secret" in file_path.lower() or "Secret" in class_name:
-                    self.categories["services_bussed"]["secrets"].append(class_name)
+                    services_bussed = self.categories["services_bussed"]
+                    if isinstance(services_bussed, dict):
+                        services_bussed["secrets"].append(class_name)
                 elif "llm" in file_path.lower() or "LLM" in class_name:
-                    self.categories["services_bussed"]["llm"].append(class_name)
+                    services_bussed = self.categories["services_bussed"]
+                    if isinstance(services_bussed, dict):
+                        services_bussed["llm"].append(class_name)
                 elif "tool" in file_path.lower() or "Tool" in class_name:
-                    self.categories["services_bussed"]["tool"].append(class_name)
+                    services_bussed = self.categories["services_bussed"]
+                    if isinstance(services_bussed, dict):
+                        services_bussed["tool"].append(class_name)
                 elif "runtime" in file_path.lower() or "RuntimeControl" in class_name:
-                    self.categories["services_bussed"]["runtime_control"].append(class_name)
+                    services_bussed = self.categories["services_bussed"]
+                    if isinstance(services_bussed, dict):
+                        services_bussed["runtime_control"].append(class_name)
                 elif "wa" in file_path.lower() or "WA" in class_name or "WiseAuthority" in class_name:
-                    self.categories["services_bussed"]["wise_authority"].append(class_name)
+                    services_bussed = self.categories["services_bussed"]
+                    if isinstance(services_bussed, dict):
+                        services_bussed["wise_authority"].append(class_name)
                 else:
                     # Check if it's unbussed
-                    if "config" in class_name.lower() or "configuration" in file_path.lower():
-                        self.categories["services_unbussed"]["configuration"].append(class_name)
-                    elif "filter" in class_name.lower():
-                        self.categories["services_unbussed"]["filter"].append(class_name)
-                    elif "monitor" in class_name.lower():
-                        self.categories["services_unbussed"]["monitoring"].append(class_name)
-                    else:
-                        self.categories["services_unbussed"]["utility"].append(class_name)
+                    services_unbussed = self.categories["services_unbussed"]
+                    if isinstance(services_unbussed, dict):
+                        if "config" in class_name.lower() or "configuration" in file_path.lower():
+                            services_unbussed["configuration"].append(class_name)
+                        elif "filter" in class_name.lower():
+                            services_unbussed["filter"].append(class_name)
+                        elif "monitor" in class_name.lower():
+                            services_unbussed["monitoring"].append(class_name)
+                        else:
+                            services_unbussed["utility"].append(class_name)
                 categorized = True
                 
             # Adapters
             elif "Adapter" in class_name or "adapter" in file_path:
-                if any(x in file_path for x in ["api", "cli", "discord"]):
-                    self.categories["adapters"]["platform"].append(class_name)
-                else:
-                    self.categories["adapters"]["communication"].append(class_name)
+                adapters = self.categories["adapters"]
+                if isinstance(adapters, dict):
+                    if any(x in file_path for x in ["api", "cli", "discord"]):
+                        adapters["platform"].append(class_name)
+                    else:
+                        adapters["communication"].append(class_name)
                 categorized = True
                 
             # Processors
             elif "Processor" in class_name or "processor" in file_path:
-                if "Main" in class_name or "Agent" in class_name:
-                    self.categories["processors"]["main"].append(class_name)
-                elif "Task" in class_name:
-                    self.categories["processors"]["task"].append(class_name)
-                else:
-                    self.categories["processors"]["specialized"].append(class_name)
+                processors = self.categories["processors"]
+                if isinstance(processors, dict):
+                    if "Main" in class_name or "Agent" in class_name:
+                        processors["main"].append(class_name)
+                    elif "Task" in class_name:
+                        processors["task"].append(class_name)
+                    else:
+                        processors["specialized"].append(class_name)
                 categorized = True
                 
             # Handlers
             elif "Handler" in class_name or "handler" in file_path:
-                if any(x in class_name for x in ["Speak", "Tool", "Observe"]):
-                    self.categories["handlers"]["external_actions"].append(class_name)
-                elif any(x in class_name for x in ["Ponder", "Defer", "Reject"]):
-                    self.categories["handlers"]["control_actions"].append(class_name)
-                elif any(x in class_name for x in ["Memorize", "Recall", "Forget"]):
-                    self.categories["handlers"]["memory_actions"].append(class_name)
-                elif "TaskComplete" in class_name:
-                    self.categories["handlers"]["terminal_actions"].append(class_name)
-                else:
-                    self.categories["handlers"]["external_actions"].append(class_name)
+                handlers = self.categories["handlers"]
+                if isinstance(handlers, dict):
+                    if any(x in class_name for x in ["Speak", "Tool", "Observe"]):
+                        handlers["external_actions"].append(class_name)
+                    elif any(x in class_name for x in ["Ponder", "Defer", "Reject"]):
+                        handlers["control_actions"].append(class_name)
+                    elif any(x in class_name for x in ["Memorize", "Recall", "Forget"]):
+                        handlers["memory_actions"].append(class_name)
+                    elif "TaskComplete" in class_name:
+                        handlers["terminal_actions"].append(class_name)
+                    else:
+                        handlers["external_actions"].append(class_name)
                 categorized = True
                 
             # DMAs
             elif "DMA" in class_name or "dma" in file_path:
-                if "Ethical" in class_name or "PDMA" in class_name:
-                    self.categories["dmas"]["ethical"].append(class_name)
-                elif "CSDMA" in class_name:
-                    self.categories["dmas"]["common_sense"].append(class_name)
-                elif "DSDMA" in class_name:
-                    self.categories["dmas"]["domain_specific"].append(class_name)
-                elif "ActionSelection" in class_name:
-                    self.categories["dmas"]["action_selection"].append(class_name)
-                else:
-                    self.categories["dmas"]["ethical"].append(class_name)
+                dmas = self.categories["dmas"]
+                if isinstance(dmas, dict):
+                    if "Ethical" in class_name or "PDMA" in class_name:
+                        dmas["ethical"].append(class_name)
+                    elif "CSDMA" in class_name:
+                        dmas["common_sense"].append(class_name)
+                    elif "DSDMA" in class_name:
+                        dmas["domain_specific"].append(class_name)
+                    elif "ActionSelection" in class_name:
+                        dmas["action_selection"].append(class_name)
+                    else:
+                        dmas["ethical"].append(class_name)
                 categorized = True
                 
             # Faculties
             elif "Faculty" in class_name or "faculty" in file_path:
-                self.categories["faculties"]["cognitive"].append(class_name)
+                faculties = self.categories["faculties"]
+                if isinstance(faculties, dict):
+                    faculties["cognitive"].append(class_name)
                 categorized = True
                 
             # Guardrails
             elif "Guardrail" in class_name or "guardrail" in file_path:
-                self.categories["guardrails"]["process"].append(class_name)
+                guardrails = self.categories["guardrails"]
+                if isinstance(guardrails, dict):
+                    guardrails["process"].append(class_name)
                 categorized = True
                 
             # Runtime
             elif "runtime" in file_path:
-                if "Runtime" in class_name and not "Control" in class_name:
-                    self.categories["runtime"]["core"].append(class_name)
-                elif "Initializer" in class_name:
-                    self.categories["runtime"]["initialization"].append(class_name)
-                else:
-                    self.categories["runtime"]["management"].append(class_name)
+                runtime = self.categories["runtime"]
+                if isinstance(runtime, dict):
+                    if "Runtime" in class_name and not "Control" in class_name:
+                        runtime["core"].append(class_name)
+                    elif "Initializer" in class_name:
+                        runtime["initialization"].append(class_name)
+                    else:
+                        runtime["management"].append(class_name)
                 categorized = True
                 
             # Infrastructure
             elif "Bus" in class_name or "bus" in file_path:
-                self.categories["infrastructure"]["buses"].append(class_name)
+                infrastructure = self.categories["infrastructure"]
+                if isinstance(infrastructure, dict):
+                    infrastructure["buses"].append(class_name)
                 categorized = True
             elif "Registry" in class_name or "registry" in file_path:
-                self.categories["infrastructure"]["registry"].append(class_name)
+                infrastructure = self.categories["infrastructure"]
+                if isinstance(infrastructure, dict):
+                    infrastructure["registry"].append(class_name)
                 categorized = True
             elif "persistence" in file_path or "Persistence" in class_name:
-                self.categories["infrastructure"]["persistence"].append(class_name)
+                infrastructure = self.categories["infrastructure"]
+                if isinstance(infrastructure, dict):
+                    infrastructure["persistence"].append(class_name)
                 categorized = True
             elif "schema" in file_path and (class_info["bases"] and any("Model" in b for b in class_info["bases"])):
-                self.categories["infrastructure"]["schemas"].append(class_name)
+                infrastructure = self.categories["infrastructure"]
+                if isinstance(infrastructure, dict):
+                    infrastructure["schemas"].append(class_name)
                 categorized = True
             elif "utils" in file_path or "utility" in file_path:
-                self.categories["infrastructure"]["utilities"].append(class_name)
+                infrastructure = self.categories["infrastructure"]
+                if isinstance(infrastructure, dict):
+                    infrastructure["utilities"].append(class_name)
                 categorized = True
                 
             # Protocols
@@ -332,9 +376,11 @@ class CIRISSystemAuditor:
                 
             # Uncategorized
             if not categorized:
-                self.categories["uncategorized"].append(class_name)
+                uncategorized = self.categories["uncategorized"]
+                if isinstance(uncategorized, list):
+                    uncategorized.append(class_name)
     
-    def _check_inheritance_chains(self):
+    def _check_inheritance_chains(self) -> None:
         """Verify inheritance chains are correct."""
         print("\n🔗 Checking inheritance chains...")
         
@@ -366,12 +412,12 @@ class CIRISSystemAuditor:
                         "category": category
                     })
     
-    def _find_duplicates(self):
+    def _find_duplicates(self) -> None:
         """Find duplicate functionality."""
         print("\n🔍 Finding duplicate functionality...")
         
         # Group by similar names
-        name_groups = defaultdict(list)
+        name_groups: Dict[str, List[str]] = defaultdict(list)
         for class_name in self.all_classes:
             # Normalize name for comparison
             normalized = class_name.lower().replace("_", "").replace("-", "")
@@ -400,7 +446,7 @@ class CIRISSystemAuditor:
                             "similarity": len(intersection)
                         })
     
-    def _check_protocol_compliance(self):
+    def _check_protocol_compliance(self) -> None:
         """Check if modules comply with their protocols."""
         print("\n📋 Checking protocol compliance...")
         
@@ -444,7 +490,7 @@ class CIRISSystemAuditor:
                                 "extra_methods": list(extra)
                             })
     
-    def _find_orphaned_code(self):
+    def _find_orphaned_code(self) -> None:
         """Find code that isn't used anywhere."""
         print("\n🗑️  Finding orphaned code...")
         
@@ -488,11 +534,14 @@ class CIRISSystemAuditor:
         print("\n📊 Generating audit report...")
         
         # Count totals
-        total_categorized = sum(
-            len(subcat) if isinstance(subcat, list) else 
-            sum(len(v) for v in subcat.values())
-            for subcat in self.categories.values()
-        )
+        total_categorized = 0
+        for subcat in self.categories.values():
+            if isinstance(subcat, list):
+                total_categorized += len(subcat)
+            elif isinstance(subcat, dict):
+                for v in subcat.values():
+                    if isinstance(v, list):
+                        total_categorized += len(v)
         
         report = {
             "summary": {
@@ -517,17 +566,18 @@ class CIRISSystemAuditor:
         print("🔍 CIRIS System Audit Summary")
         print("="*60)
         print(f"\n📊 Component Distribution:")
-        print(f"   Total Classes: {report['summary']['total_classes']}")
-        print(f"   Total Protocols: {report['summary']['total_protocols']}")
-        print(f"   ✅ Categorized: {report['summary']['categorized']}")
-        print(f"   ❓ Uncategorized: {report['summary']['uncategorized']}")
+        summary = report.get('summary', {})
+        print(f"   Total Classes: {summary.get('total_classes', 0)}")
+        print(f"   Total Protocols: {summary.get('total_protocols', 0)}")
+        print(f"   ✅ Categorized: {summary.get('categorized', 0)}")
+        print(f"   ❓ Uncategorized: {summary.get('uncategorized', 0)}")
         
         print(f"\n⚠️  Issues Found:")
-        print(f"   Duplicate Functionality Groups: {report['summary']['duplicate_groups']}")
-        print(f"   Missing Protocol Implementations: {report['summary']['missing_implementations']}")
-        print(f"   Incorrect Inheritance: {report['summary']['incorrect_inheritance']}")
-        print(f"   Protocol Mismatches: {report['summary']['protocol_mismatches']}")
-        print(f"   Orphaned Classes: {report['summary']['orphaned_classes']}")
+        print(f"   Duplicate Functionality Groups: {summary.get('duplicate_groups', 0)}")
+        print(f"   Missing Protocol Implementations: {summary.get('missing_implementations', 0)}")
+        print(f"   Incorrect Inheritance: {summary.get('incorrect_inheritance', 0)}")
+        print(f"   Protocol Mismatches: {summary.get('protocol_mismatches', 0)}")
+        print(f"   Orphaned Classes: {summary.get('orphaned_classes', 0)}")
         
         print(f"\n📁 Category Breakdown:")
         for cat, subcats in self.categories.items():
@@ -537,12 +587,12 @@ class CIRISSystemAuditor:
                 total = sum(len(v) for v in subcats.values())
                 print(f"   {cat}: {total}")
                 for subcat, items in subcats.items():
-                    if items:
+                    if isinstance(items, list) and items:
                         print(f"      - {subcat}: {len(items)}")
         
         return report
     
-    def save_report(self, filename: str = "ciris_audit_report.json"):
+    def save_report(self, filename: str = "ciris_audit_report.json") -> None:
         """Save the audit report to a file."""
         report = self.audit()
         with open(filename, "w") as f:
@@ -552,61 +602,71 @@ class CIRISSystemAuditor:
         # Also save a markdown summary
         self._save_markdown_summary(report, filename.replace(".json", ".md"))
     
-    def _save_markdown_summary(self, report: Dict[str, Any], filename: str):
+    def _save_markdown_summary(self, report: Dict[str, Any], filename: str) -> None:
         """Save a human-readable markdown summary."""
         with open(filename, "w") as f:
             f.write("# CIRIS System Audit Report\n\n")
             
             # Summary
             f.write("## Summary\n\n")
-            for key, value in report["summary"].items():
+            summary = report.get("summary", {})
+            for key, value in summary.items():
                 f.write(f"- **{key.replace('_', ' ').title()}**: {value}\n")
             
             # Issues
             f.write("\n## Critical Issues\n\n")
             
-            if report["findings"]["duplicate_functionality"]:
+            findings = report.get("findings", {})
+            if findings.get("duplicate_functionality"):
                 f.write("### Duplicate Functionality\n\n")
-                for dup in report["findings"]["duplicate_functionality"]:
+                for dup in findings["duplicate_functionality"]:
                     f.write(f"- Classes: {', '.join(dup['classes'])}\n")
                     f.write(f"  - Shared methods: {', '.join(dup['shared_methods'][:5])}\n")
             
-            if report["findings"]["missing_protocols"]:
+            if findings.get("missing_protocols"):
                 f.write("\n### Missing Protocol Implementations\n\n")
-                for miss in report["findings"]["missing_protocols"][:10]:
+                for miss in findings["missing_protocols"][:10]:
                     f.write(f"- **{miss['protocol']}**\n")
                     f.write(f"  - Required methods: {', '.join(miss['methods'][:5])}\n")
             
-            if report["findings"]["incorrect_inheritance"]:
+            if findings.get("incorrect_inheritance"):
                 f.write("\n### Incorrect Inheritance\n\n")
-                for inc in report["findings"]["incorrect_inheritance"][:10]:
+                for inc in findings["incorrect_inheritance"][:10]:
                     f.write(f"- **{inc['class']}**\n")
                     f.write(f"  - Current bases: {', '.join(inc['bases'])}\n")
                     f.write(f"  - Expected: {', '.join(inc['expected'])}\n")
             
             # Component listing
             f.write("\n## Component Categorization\n\n")
-            for cat, subcats in report["categories"].items():
+            categories = report.get("categories", {})
+            all_classes = report.get("all_classes", {})
+            for cat, subcats in categories.items():
                 if cat == "uncategorized":
                     continue
                 if isinstance(subcats, dict):
                     for subcat, items in subcats.items():
-                        if items:
+                        if isinstance(items, list) and items:
                             f.write(f"\n### {cat.replace('_', ' ').title()} - {subcat.replace('_', ' ').title()}\n\n")
                             for item in items[:10]:
-                                class_info = report["all_classes"].get(item, {})
+                                class_info = all_classes.get(item, {})
                                 f.write(f"- **{item}** ({class_info.get('file', 'unknown')})\n")
             
             # Uncategorized
-            if report["categories"]["uncategorized"]:
+            uncategorized = categories.get("uncategorized", [])
+            if isinstance(uncategorized, list) and uncategorized:
                 f.write("\n### ❓ Uncategorized Components\n\n")
-                for item in report["categories"]["uncategorized"][:20]:
-                    class_info = report["all_classes"].get(item, {})
+                for item in uncategorized[:20]:
+                    class_info = all_classes.get(item, {})
                     f.write(f"- **{item}** ({class_info.get('file', 'unknown')})\n")
         
         print(f"📝 Markdown summary saved to {filename}")
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Main entry point."""
     auditor = CIRISSystemAuditor()
     auditor.save_report()
+
+
+if __name__ == "__main__":
+    main()

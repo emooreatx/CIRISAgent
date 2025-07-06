@@ -78,7 +78,7 @@ class AgentProcessor:
             action_dispatcher=self._action_dispatcher, # Use internal dispatcher
             services=services,
             startup_channel_id=startup_channel_id,
-            time_service=services.get('time_service') if isinstance(services, dict) else getattr(services, 'time_service', None)
+            time_service=time_service  # Use the injected time service directly
         )
 
         self.work_processor = WorkProcessor(
@@ -121,7 +121,7 @@ class AgentProcessor:
             thought_processor=thought_processor,
             action_dispatcher=self._action_dispatcher,
             services=services,
-            time_service=services.get('time_service') if isinstance(services, dict) else getattr(services, 'time_service', None),
+            time_service=time_service,  # Use the injected time service directly
             runtime=runtime
         )
 
@@ -154,7 +154,11 @@ class AgentProcessor:
                     tm = TaskManager(time_service=time_service)
                     for desc in preload_tasks:
                         try:
-                            tm.create_task(desc, context={"channel_id": self.startup_channel_id})
+                            tm.create_task(
+                            description=desc,
+                            channel_id=self.startup_channel_id,
+                            context={"channel_id": self.startup_channel_id}
+                        )
                             logger.info(f"Created preload task: {desc}")
                         except Exception as e:
                             logger.error(f"Error creating preload task '{desc}': {e}", exc_info=True)
@@ -414,6 +418,7 @@ class AgentProcessor:
         trace_context = TraceContext(
             trace_id=trace_id,
             span_id=span_id,
+            parent_span_id=None,  # Add missing parent_span_id
             span_name="process_single_thought",
             span_kind="internal",
             baggage={
@@ -440,7 +445,16 @@ class AgentProcessor:
                 "trace_depth": "1",
                 "thought_type": thought.thought_type.value if thought.thought_type else "unknown",
                 "processor_state": self.state_manager.get_state().value
-            }
+            },
+            # Add missing required fields
+            request_data=None,
+            response_data=None,
+            status=ServiceCorrelationStatus.PENDING,
+            metric_data=None,
+            log_data=None,
+            retention_policy="raw",
+            ttl_seconds=None,
+            parent_correlation_id=None
         )
         
         # Add correlation to track this processing
@@ -465,7 +479,15 @@ class AgentProcessor:
                     success=False,
                     error_message=f"No processor for state {self.state_manager.get_state()}",
                     execution_time_ms=(end_time - start_time).total_seconds() * 1000,
-                    response_timestamp=end_time
+                    response_timestamp=end_time,
+                    # Add missing required fields
+                    result_summary=None,
+                    result_type=None,
+                    result_size=None,
+                    error_type="ProcessorNotFound",
+                    error_traceback=None,
+                    tokens_used=None,
+                    memory_bytes=None
                 )
                 correlation.updated_at = end_time
                 persistence.update_correlation(correlation.correlation_id, correlation, self._time_service)
@@ -476,7 +498,7 @@ class AgentProcessor:
                 logger.info(f"[DEBUG TIMING] Calling processor.process_thought_item for thought {thought.thought_id}")
                 context = {"origin": "wakeup_async"}
                 if prefetched:
-                    context["prefetched_thought"] = thought
+                    context["prefetched_thought"] = thought  # Pass the full thought object
                 if batch_context:
                     context["batch_context"] = batch_context
                 result = await processor.process_thought_item(item, context=context)
@@ -493,7 +515,15 @@ class AgentProcessor:
                     success=False,
                     error_message=f"Processor error: {e}",
                     execution_time_ms=(end_time - start_time).total_seconds() * 1000,
-                    response_timestamp=end_time
+                    response_timestamp=end_time,
+                    # Add missing required fields
+                    result_summary=None,
+                    result_type=None,
+                    result_size=None,
+                    error_type=type(e).__name__,
+                    error_traceback=None,
+                    tokens_used=None,
+                    memory_bytes=None
                 )
                 correlation.updated_at = end_time
                 persistence.update_correlation(correlation.correlation_id, correlation, self._time_service)
@@ -538,7 +568,15 @@ class AgentProcessor:
                         success=False,
                         error_message=f"Dispatch error: {e}",
                         execution_time_ms=(end_time - start_time).total_seconds() * 1000,
-                        response_timestamp=end_time
+                        response_timestamp=end_time,
+                        # Add missing required fields
+                        result_summary=None,
+                        result_type=None,
+                        result_size=None,
+                        error_type=type(e).__name__,
+                        error_traceback=None,
+                        tokens_used=None,
+                        memory_bytes=None
                     )
                     correlation.updated_at = end_time
                     persistence.update_correlation(correlation.correlation_id, correlation, self._time_service)
@@ -555,7 +593,15 @@ class AgentProcessor:
                             success=True,
                             result_summary=f"Thought already handled with status {updated_thought.status.value}",
                             execution_time_ms=(end_time - start_time).total_seconds() * 1000,
-                            response_timestamp=end_time
+                            response_timestamp=end_time,
+                            # Add missing required fields
+                            result_type="already_handled",
+                            result_size=None,
+                            error_type=None,
+                            error_message=None,
+                            error_traceback=None,
+                            tokens_used=None,
+                            memory_bytes=None
                         )
                         correlation.updated_at = end_time
                         persistence.update_correlation(correlation.correlation_id, correlation, self._time_service)
@@ -588,7 +634,15 @@ class AgentProcessor:
                 success=False,
                 error_message=f"Critical processing error: {e}",
                 execution_time_ms=(end_time - start_time).total_seconds() * 1000,
-                response_timestamp=end_time
+                response_timestamp=end_time,
+                # Add missing required fields
+                result_summary=None,
+                result_type=None,
+                result_size=None,
+                error_type="CriticalError",
+                error_traceback=None,
+                tokens_used=None,
+                memory_bytes=None
             )
             correlation.updated_at = end_time
             correlation.tags["task_status"] = "FAILED"
@@ -694,8 +748,11 @@ class AgentProcessor:
                                     await self._handle_state_transition(AgentState.DREAM)
 
                             elif current_state == AgentState.SOLITUDE and processor == self.solitude_processor:
-                                if result.get("should_exit_solitude"):
-                                    logger.info(f"Exiting solitude: {result.get('exit_reason', 'Unknown reason')}")
+                                # Check if the result indicates we should exit solitude
+                                # Result is now typed as SolitudeResult
+                                if hasattr(result, 'should_exit_solitude') and result.should_exit_solitude:
+                                    exit_reason = getattr(result, 'exit_reason', 'Unknown reason')
+                                    logger.info(f"Exiting solitude: {exit_reason}")
                                     await self._handle_state_transition(AgentState.WORK)
 
                         except Exception as e:
@@ -733,23 +790,13 @@ class AgentProcessor:
                                 # Check if shutdown is complete
                                 logger.info(f"Shutdown check - result type: {type(result)}, result: {result}")
 
-                                # Handle dict result
-                                if isinstance(result, dict):
-                                    logger.debug(f"Result is dict: {result}")
-                                    if result.get('shutdown_ready', False):
-                                        logger.info("Shutdown negotiation complete (shutdown_ready=True), exiting processing loop")
+                                # Handle ShutdownResult object (not dict)
+                                logger.debug(f"Result is object, checking for shutdown_ready: hasattr={hasattr(result, 'shutdown_ready')}")
+                                if hasattr(result, 'shutdown_ready'):
+                                    logger.debug(f"result.shutdown_ready = {result.shutdown_ready}")
+                                    if result.shutdown_ready:
+                                        logger.info("Shutdown negotiation complete (from result object), exiting processing loop")
                                         break
-                                    elif result.get('status') == 'completed':
-                                        logger.info("Shutdown negotiation complete (status=completed), exiting processing loop")
-                                        break
-                                # Handle object result (ShutdownResult)
-                                else:
-                                    logger.debug(f"Result is object, checking for shutdown_ready: hasattr={hasattr(result, 'shutdown_ready')}")
-                                    if hasattr(result, 'shutdown_ready'):
-                                        logger.debug(f"result.shutdown_ready = {result.shutdown_ready}")
-                                        if result.shutdown_ready:
-                                            logger.info("Shutdown negotiation complete (from result object), exiting processing loop")
-                                            break
 
                                 # Check processor's shutdown_complete attribute directly
                                 if hasattr(processor, 'shutdown_complete'):
@@ -857,7 +904,10 @@ class AgentProcessor:
         processor = self.state_processors.get(current_state)
 
         if processor:
-            return await processor.process(round_number)
+            # Process and convert typed result to dict for backward compatibility
+            typed_result = await processor.process(round_number)
+            # Convert typed result to dict
+            return typed_result.model_dump() if hasattr(typed_result, 'model_dump') else {"state": current_state.value, "round_number": round_number}
         elif current_state == AgentState.DREAM:
             # Dream state handled separately
             return {"state": "dream", "round_number": round_number}
@@ -937,7 +987,10 @@ class AgentProcessor:
                     "defer_window_hours": 2,
                     "message": "Time for introspection and learning",
                     "is_initial": True
-                }
+                },
+                # Add missing required fields
+                updated_by="main_processor",
+                updated_at=self._time_service.now()
             )
 
             await memory_bus.memorize(
@@ -981,7 +1034,9 @@ class AgentProcessor:
             now = self._time_service.now()
 
             for task in dream_tasks:
-                scheduled_for = task.attributes.get("scheduled_for")
+                # Handle both dict and GraphNodeAttributes
+                attributes = task.attributes
+                scheduled_for = attributes.get("scheduled_for") if hasattr(attributes, 'get') else getattr(attributes, 'scheduled_for', None)
                 if scheduled_for:
                     # Parse ISO format datetime
                     if isinstance(scheduled_for, str):
@@ -994,7 +1049,10 @@ class AgentProcessor:
                         scheduled_time = scheduled_for
 
                     # Check if it's time (with 2 hour defer window)
-                    defer_window = timedelta(hours=task.attributes.get("defer_window_hours", 2))
+                    # Handle both dict and GraphNodeAttributes
+                    attributes = task.attributes
+                    defer_hours = attributes.get("defer_window_hours", 2) if hasattr(attributes, 'get') else getattr(attributes, 'defer_window_hours', 2)
+                    defer_window = timedelta(hours=defer_hours)
 
                     if now >= scheduled_time and now <= scheduled_time + defer_window:
                         # Check dream health - when was last dream?
@@ -1100,7 +1158,7 @@ class AgentProcessor:
         # Return the most recent transitions up to the limit
         return all_transitions[-limit:] if len(all_transitions) > limit else all_transitions
     
-    def get_queue_status(self):
+    def get_queue_status(self) -> Any:
         """
         Get current queue status with pending tasks and thoughts.
         

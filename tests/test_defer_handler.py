@@ -8,7 +8,7 @@ and proper integration with the Wise Authority service.
 import pytest
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, cast
 
 from ciris_engine.logic.handlers.control.defer_handler import DeferHandler
 from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies
@@ -31,14 +31,18 @@ from ciris_engine.schemas.services.authority_core import (
 
 class MockTimeService:
     """Mock time service for testing."""
-    def __init__(self, now_time: Optional[datetime] = None):
+    def __init__(self, now_time: Optional[datetime] = None) -> None:
         self._now = now_time or datetime.now(timezone.utc)
 
     def now(self) -> datetime:
         return self._now
 
-    def set_now(self, new_time: datetime):
+    def set_now(self, new_time: datetime) -> None:
         self._now = new_time
+    
+    async def sleep(self, seconds: float) -> None:
+        """Mock sleep method required by TimeServiceProtocol."""
+        pass
 
 
 def create_test_thought(
@@ -55,10 +59,17 @@ def create_test_thought(
         thought_depth=1,
         created_at=datetime.now(timezone.utc).isoformat(),
         updated_at=datetime.now(timezone.utc).isoformat(),
+        channel_id="test_channel",
+        round_number=1,
+        ponder_notes=None,
+        parent_thought_id=None,
+        final_action=None,
         context=ThoughtContext(
             task_id=task_id,
+            channel_id="test_channel",
             round_number=1,
             depth=1,
+            parent_thought_id=None,
             correlation_id="test_correlation"
         )
     )
@@ -75,7 +86,14 @@ def create_test_task(
         description=description,
         status=TaskStatus.ACTIVE,
         created_at=datetime.now(timezone.utc).isoformat(),
-        updated_at=datetime.now(timezone.utc).isoformat()
+        updated_at=datetime.now(timezone.utc).isoformat(),
+        priority=0,
+        parent_task_id=None,
+        context=None,
+        outcome=None,
+        signed_by=None,
+        signature=None,
+        signed_at=None
     )
 
 
@@ -92,7 +110,14 @@ def create_dispatch_context(
             channel_id=channel_id,
             channel_name=f"Channel {channel_id}",
             channel_type="text",
-            created_at=datetime.now(timezone.utc)
+            created_at=datetime.now(timezone.utc),
+            is_private=False,
+            participants=[],
+            is_active=True,
+            last_activity=None,
+            message_count=0,
+            allowed_actions=[],
+            moderation_level="standard"
         ),
         author_id="test_author",
         author_name="Test Author",
@@ -104,7 +129,14 @@ def create_dispatch_context(
         source_task_id=task_id,
         event_summary="Test defer action",
         event_timestamp=datetime.now(timezone.utc).isoformat(),
-        correlation_id="test_correlation_id"
+        wa_id=None,
+        wa_authorized=False,
+        wa_context=None,
+        conscience_failure_context=None,
+        epistemic_data=None,
+        correlation_id="test_correlation_id",
+        span_id=None,
+        trace_id=None
     )
 
 
@@ -112,12 +144,12 @@ class TestDeferHandler:
     """Test suite for DeferHandler functionality."""
 
     @pytest.fixture
-    def mock_time_service(self):
+    def mock_time_service(self) -> MockTimeService:
         """Provide a mock time service."""
         return MockTimeService()
 
     @pytest.fixture
-    def mock_persistence(self, monkeypatch):
+    def mock_persistence(self, monkeypatch: pytest.MonkeyPatch) -> Mock:
         """Mock persistence module."""
         mock = Mock()
         mock.update_thought_status = Mock()
@@ -127,21 +159,21 @@ class TestDeferHandler:
         return mock
 
     @pytest.fixture
-    def mock_wise_bus(self):
+    def mock_wise_bus(self) -> AsyncMock:
         """Mock wise authority bus."""
         mock_bus = AsyncMock()
         mock_bus.send_deferral = AsyncMock(return_value=True)
         return mock_bus
 
     @pytest.fixture
-    def mock_audit_bus(self):
+    def mock_audit_bus(self) -> Mock:
         """Mock audit bus."""
         mock_bus = Mock()
         mock_bus.log_event = AsyncMock()
         return mock_bus
 
     @pytest.fixture
-    def mock_task_scheduler(self):
+    def mock_task_scheduler(self) -> AsyncMock:
         """Mock task scheduler service."""
         mock_scheduler = AsyncMock()
         mock_scheduler.schedule_deferred_task = AsyncMock(
@@ -150,14 +182,14 @@ class TestDeferHandler:
         return mock_scheduler
 
     @pytest.fixture
-    def mock_service_registry(self, mock_task_scheduler):
+    def mock_service_registry(self, mock_task_scheduler: AsyncMock) -> Mock:
         """Mock service registry with task scheduler."""
         mock_registry = Mock()
         mock_registry.get_service = AsyncMock(return_value=mock_task_scheduler)
         return mock_registry
 
     @pytest.fixture
-    def bus_manager(self, mock_wise_bus, mock_audit_bus, mock_time_service):
+    def bus_manager(self, mock_wise_bus: AsyncMock, mock_audit_bus: Mock, mock_time_service: MockTimeService) -> BusManager:
         """Create a bus manager with mocked buses."""
         manager = BusManager(
             Mock(),
@@ -168,36 +200,39 @@ class TestDeferHandler:
         return manager
 
     @pytest.fixture
-    def defer_handler(self, bus_manager, mock_time_service, mock_service_registry):
+    def defer_handler(self, bus_manager: BusManager, mock_time_service: MockTimeService, mock_service_registry: Mock) -> DeferHandler:
         """Create a DeferHandler instance with dependencies."""
         deps = ActionHandlerDependencies(
             bus_manager=bus_manager,
             time_service=mock_time_service
         )
         handler = DeferHandler(deps)
-        handler._service_registry = mock_service_registry
+        setattr(handler, '_service_registry', mock_service_registry)
         return handler
 
     @pytest.mark.asyncio
     async def test_basic_deferral_success(
         self,
-        defer_handler,
-        mock_persistence,
-        mock_wise_bus
-    ):
+        defer_handler: DeferHandler,
+        mock_persistence: Mock,
+        mock_wise_bus: AsyncMock
+    ) -> None:
         """Test successful basic deferral without time specification."""
         # Arrange
         thought = create_test_thought()
         params = DeferParams(
             reason="Need human review for sensitive content",
-            context={"sensitivity": "high", "topic": "medical"}
+            context={"sensitivity": "high", "topic": "medical"},
+            defer_until=None
         )
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
             action_parameters=params,
             rationale="Content requires human oversight",
             reasoning="Medical advice detected",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
         dispatch_context = create_dispatch_context(
             thought.thought_id,
@@ -237,12 +272,12 @@ class TestDeferHandler:
     @pytest.mark.asyncio
     async def test_time_based_deferral(
         self,
-        defer_handler,
-        mock_persistence,
-        mock_wise_bus,
-        mock_task_scheduler,
-        mock_time_service
-    ):
+        defer_handler: DeferHandler,
+        mock_persistence: Mock,
+        mock_wise_bus: AsyncMock,
+        mock_task_scheduler: AsyncMock,
+        mock_time_service: MockTimeService
+    ) -> None:
         """Test deferral with future reactivation time."""
         # Arrange
         current_time = datetime.now(timezone.utc)
@@ -260,7 +295,9 @@ class TestDeferHandler:
             action_parameters=params,
             rationale="Waiting for payment confirmation",
             reasoning="External dependency",
-            evaluation_time_ms=80
+            evaluation_time_ms=80,
+            raw_llm_response=None,
+            resource_usage=None
         )
         dispatch_context = create_dispatch_context(
             thought.thought_id,
@@ -290,16 +327,17 @@ class TestDeferHandler:
     @pytest.mark.asyncio
     async def test_deferral_with_minimal_params(
         self,
-        defer_handler,
-        mock_persistence,
-        mock_wise_bus
-    ):
+        defer_handler: DeferHandler,
+        mock_persistence: Mock,
+        mock_wise_bus: AsyncMock
+    ) -> None:
         """Test deferral handling with minimal valid parameters."""
         # Arrange
         thought = create_test_thought()
         # Create minimal valid params
         minimal_params = DeferParams(
-            reason="Minimal deferral test"
+            reason="Minimal deferral test",
+            defer_until=None
         )
 
         result = ActionSelectionDMAResult(
@@ -307,7 +345,9 @@ class TestDeferHandler:
             action_parameters=minimal_params,
             rationale="Testing minimal deferral",
             reasoning="Testing with minimal params",
-            evaluation_time_ms=50
+            evaluation_time_ms=50,
+            raw_llm_response=None,
+            resource_usage=None
         )
         dispatch_context = create_dispatch_context(
             thought.thought_id,
@@ -335,22 +375,24 @@ class TestDeferHandler:
     @pytest.mark.asyncio
     async def test_deferral_when_wise_authority_fails(
         self,
-        defer_handler,
-        mock_persistence,
-        mock_wise_bus
-    ):
+        defer_handler: DeferHandler,
+        mock_persistence: Mock,
+        mock_wise_bus: AsyncMock
+    ) -> None:
         """Test that deferral is still processed when WA service fails."""
         # Arrange
         mock_wise_bus.send_deferral.side_effect = Exception("WA service unavailable")
 
         thought = create_test_thought()
-        params = DeferParams(reason="Test deferral with WA failure")
+        params = DeferParams(reason="Test deferral with WA failure", defer_until=None)
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
             action_parameters=params,
             rationale="Testing WA failure handling",
             reasoning="Resilience test",
-            evaluation_time_ms=75
+            evaluation_time_ms=75,
+            raw_llm_response=None,
+            resource_usage=None
         )
         dispatch_context = create_dispatch_context(
             thought.thought_id,
@@ -375,10 +417,10 @@ class TestDeferHandler:
     @pytest.mark.asyncio
     async def test_deferral_with_task_metadata(
         self,
-        defer_handler,
-        mock_persistence,
-        mock_wise_bus
-    ):
+        defer_handler: DeferHandler,
+        mock_persistence: Mock,
+        mock_wise_bus: AsyncMock
+    ) -> None:
         """Test that task description is included in deferral metadata."""
         # Arrange
         task = create_test_task(
@@ -390,14 +432,17 @@ class TestDeferHandler:
         thought = create_test_thought(task_id=task.task_id)
         params = DeferParams(
             reason="Medical expertise required",
-            context={"patient_id": "p123", "urgency": "high"}
+            context={"patient_id": "p123", "urgency": "high"},
+            defer_until=None
         )
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
             action_parameters=params,
             rationale="Medical decision requires human doctor",
             reasoning="High stakes medical decision",
-            evaluation_time_ms=120
+            evaluation_time_ms=120,
+            raw_llm_response=None,
+            resource_usage=None
         )
         dispatch_context = create_dispatch_context(
             thought.thought_id,
@@ -419,23 +464,25 @@ class TestDeferHandler:
     @pytest.mark.asyncio
     async def test_system_task_not_deferred(
         self,
-        defer_handler,
-        mock_persistence,
-        mock_wise_bus
-    ):
+        defer_handler: DeferHandler,
+        mock_persistence: Mock,
+        mock_wise_bus: AsyncMock
+    ) -> None:
         """Test that system tasks are not marked as deferred."""
         # Arrange
         thought = create_test_thought(
             thought_id="system_thought",
             task_id="SYSTEM_TASK"
         )
-        params = DeferParams(reason="System task deferral")
+        params = DeferParams(reason="System task deferral", defer_until=None)
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
             action_parameters=params,
             rationale="System task defer test",
             reasoning="Testing system task handling",
-            evaluation_time_ms=60
+            evaluation_time_ms=60,
+            raw_llm_response=None,
+            resource_usage=None
         )
         dispatch_context = create_dispatch_context(
             thought.thought_id,
@@ -455,10 +502,10 @@ class TestDeferHandler:
     @pytest.mark.asyncio
     async def test_concurrent_deferrals(
         self,
-        defer_handler,
-        mock_persistence,
-        mock_wise_bus
-    ):
+        defer_handler: DeferHandler,
+        mock_persistence: Mock,
+        mock_wise_bus: AsyncMock
+    ) -> None:
         """Test handling multiple concurrent deferrals."""
         # Arrange
         thoughts = [
@@ -467,7 +514,7 @@ class TestDeferHandler:
         ]
 
         params = [
-            DeferParams(reason=f"Deferral reason {i}")
+            DeferParams(reason=f"Deferral reason {i}", defer_until=None)
             for i in range(3)
         ]
 
@@ -477,7 +524,9 @@ class TestDeferHandler:
                 action_parameters=params[i],
                 rationale=f"Rationale {i}",
                 reasoning=f"Reasoning {i}",
-                evaluation_time_ms=100 + i * 10
+                evaluation_time_ms=100 + i * 10,
+                raw_llm_response=None,
+                resource_usage=None
             )
             for i in range(3)
         ]
@@ -510,10 +559,10 @@ class TestDeferHandler:
     @pytest.mark.asyncio
     async def test_deferral_with_priority(
         self,
-        defer_handler,
-        mock_persistence,
-        mock_wise_bus
-    ):
+        defer_handler: DeferHandler,
+        mock_persistence: Mock,
+        mock_wise_bus: AsyncMock
+    ) -> None:
         """Test deferral with different priority levels."""
         # Arrange
         thought = create_test_thought()
@@ -526,7 +575,8 @@ class TestDeferHandler:
                 "priority": "critical",
                 "security_level": "high",
                 "threat_type": "data_breach"
-            }
+            },
+            defer_until=None
         )
 
         result = ActionSelectionDMAResult(
@@ -534,7 +584,9 @@ class TestDeferHandler:
             action_parameters=params,
             rationale="Security breach requires immediate human intervention",
             reasoning="Critical security issue",
-            evaluation_time_ms=50
+            evaluation_time_ms=50,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         dispatch_context = create_dispatch_context(
@@ -554,6 +606,7 @@ class TestDeferHandler:
         assert deferral_context.priority == "medium"
 
         # But original context should be preserved in metadata
+        assert params.context is not None
         assert "priority" in params.context
         assert params.context["priority"] == "critical"
 
@@ -562,7 +615,7 @@ class TestDeferralLifecycle:
     """Test the complete deferral lifecycle including WA resolution."""
 
     @pytest.fixture
-    def mock_persistence(self, monkeypatch):
+    def mock_persistence(self, monkeypatch: pytest.MonkeyPatch) -> Mock:
         """Mock persistence for tests."""
         mock = Mock()
         mock.update_thought_status = Mock()
@@ -572,21 +625,21 @@ class TestDeferralLifecycle:
         return mock
 
     @pytest.fixture
-    def mock_wise_bus(self):
+    def mock_wise_bus(self) -> Mock:
         """Mock wise bus for tests."""
         mock = Mock()
         mock.send_deferral = AsyncMock(return_value="defer_123")
         return mock
 
     @pytest.fixture
-    def mock_audit_bus(self):
+    def mock_audit_bus(self) -> Mock:
         """Mock audit bus for tests."""
         mock = Mock()
         mock.log_event = AsyncMock()
         return mock
 
     @pytest.fixture
-    def defer_handler(self, mock_persistence, mock_wise_bus, mock_audit_bus):
+    def defer_handler(self, mock_persistence: Mock, mock_wise_bus: Mock, mock_audit_bus: Mock) -> DeferHandler:
         """Create a DeferHandler instance with dependencies."""
         from ciris_engine.logic.handlers.control.defer_handler import DeferHandler
         from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies
@@ -613,7 +666,7 @@ class TestDeferralLifecycle:
         )
         mock_service_registry = Mock()
         mock_service_registry.get_service = AsyncMock(return_value=mock_task_scheduler)
-        handler._service_registry = mock_service_registry
+        setattr(handler, '_service_registry', mock_service_registry)
 
         # Inject mocked persistence
         import ciris_engine.logic.handlers.control.defer_handler
@@ -622,7 +675,7 @@ class TestDeferralLifecycle:
         return handler
 
     @pytest.fixture
-    def mock_wise_authority_service(self):
+    def mock_wise_authority_service(self) -> AsyncMock:
         """Mock wise authority service with full deferral capabilities."""
         service = AsyncMock()
 
@@ -668,7 +721,7 @@ class TestDeferralLifecycle:
         return service
 
     @pytest.mark.asyncio
-    async def test_list_pending_deferrals(self, mock_wise_authority_service):
+    async def test_list_pending_deferrals(self, mock_wise_authority_service: AsyncMock) -> None:
         """Test listing pending deferrals for WA review."""
         # Act
         pending = await mock_wise_authority_service.get_pending_deferrals()
@@ -681,7 +734,7 @@ class TestDeferralLifecycle:
         assert pending[1].assigned_wa_id == "wa_authority_001"
 
     @pytest.mark.asyncio
-    async def test_filter_deferrals_by_wa(self, mock_wise_authority_service):
+    async def test_filter_deferrals_by_wa(self, mock_wise_authority_service: AsyncMock) -> None:
         """Test filtering deferrals by specific WA."""
         # Setup to return only assigned deferrals
         mock_wise_authority_service.get_pending_deferrals = AsyncMock(
@@ -711,7 +764,7 @@ class TestDeferralLifecycle:
         assert assigned_deferrals[0].assigned_wa_id == "wa_authority_001"
 
     @pytest.mark.asyncio
-    async def test_resolve_deferral_approve(self, mock_wise_authority_service):
+    async def test_resolve_deferral_approve(self, mock_wise_authority_service: AsyncMock) -> None:
         """Test WA approving a deferred decision."""
         # Arrange
         resolution = DeferralResolution(
@@ -752,7 +805,7 @@ class TestDeferralLifecycle:
         )
 
     @pytest.mark.asyncio
-    async def test_resolve_deferral_reject(self, mock_wise_authority_service):
+    async def test_resolve_deferral_reject(self, mock_wise_authority_service: AsyncMock) -> None:
         """Test WA rejecting a deferred decision."""
         # Arrange
         resolution = DeferralResolution(
@@ -789,7 +842,7 @@ class TestDeferralLifecycle:
         assert mock_wise_authority_service.resolve_deferral.called
 
     @pytest.mark.asyncio
-    async def test_resolve_deferral_modify(self, mock_wise_authority_service):
+    async def test_resolve_deferral_modify(self, mock_wise_authority_service: AsyncMock) -> None:
         """Test WA modifying a deferred action."""
         # Arrange
         modified_params = {
@@ -834,7 +887,7 @@ class TestDeferralLifecycle:
         assert call_args[0][1].modified_time is not None
 
     @pytest.mark.asyncio
-    async def test_unauthorized_resolution_attempt(self, mock_wise_authority_service):
+    async def test_unauthorized_resolution_attempt(self, mock_wise_authority_service: AsyncMock) -> None:
         """Test that only authorized WAs can resolve deferrals."""
         # Setup authorization to fail
         mock_wise_authority_service.check_authorization = AsyncMock(return_value=False)
@@ -864,7 +917,7 @@ class TestDeferralLifecycle:
         )
 
     @pytest.mark.asyncio
-    async def test_deferral_expiration_handling(self, mock_wise_authority_service):
+    async def test_deferral_expiration_handling(self, mock_wise_authority_service: AsyncMock) -> None:
         """Test handling of expired deferrals."""
         # Create an expired deferral
         expired_deferral = PendingDeferral(
@@ -874,7 +927,10 @@ class TestDeferralLifecycle:
             task_id="task_old_001",
             thought_id="thought_old_001",
             reason="Old deferral that expired",
+            channel_id="channel_001",
+            user_id="user_001",
             priority="low",
+            assigned_wa_id=None,
             requires_role="AUTHORITY",
             status="expired",  # Marked as expired
             resolution="auto_expired",
@@ -892,9 +948,14 @@ class TestDeferralLifecycle:
                     task_id="task_new_001",
                     thought_id="thought_new_001",
                     reason="Active deferral",
+                    channel_id="channel_001",
+                    user_id="user_001",
                     priority="medium",
+                    assigned_wa_id=None,
                     requires_role="AUTHORITY",
-                    status="pending"
+                    status="pending",
+                    resolution=None,
+                    resolved_at=None
                 )
             ]
         )
@@ -913,11 +974,11 @@ class TestDeferralLifecycle:
     @pytest.mark.asyncio
     async def test_deferral_notification_flow(
         self,
-        defer_handler,
-        mock_persistence,
-        mock_wise_bus,
-        mock_audit_bus
-    ):
+        defer_handler: DeferHandler,
+        mock_persistence: Mock,
+        mock_wise_bus: AsyncMock,
+        mock_audit_bus: Mock
+    ) -> None:
         """Test that deferrals trigger proper notifications."""
         # Arrange
         thought = create_test_thought()
@@ -927,7 +988,8 @@ class TestDeferralLifecycle:
                 "notification_required": "true",
                 "notify_channels": "wa_emergency,wa_safety",
                 "urgency": "critical"
-            }
+            },
+            defer_until=None
         )
 
         result = ActionSelectionDMAResult(
@@ -935,7 +997,9 @@ class TestDeferralLifecycle:
             action_parameters=params,
             rationale="Safety issue requires immediate WA attention",
             reasoning="Critical safety protocol triggered",
-            evaluation_time_ms=25
+            evaluation_time_ms=25,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         dispatch_context = create_dispatch_context(
