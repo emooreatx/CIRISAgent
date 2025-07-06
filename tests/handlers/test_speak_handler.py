@@ -673,13 +673,11 @@ class TestEdgeCases:
 
     async def test_send_to_nonexistent_discord_channel(
         self, speak_handler, test_thought, dispatch_context,
-        mock_communication_bus, test_task
+        mock_communication_bus, test_task, mock_persistence
     ):
         """Test sending to a Discord channel when no Discord adapter exists."""
-        # Configure communication bus to raise RuntimeError (no adapter found)
-        mock_communication_bus.send_message_sync.side_effect = RuntimeError(
-            "No adapter found for channel prefix: discord_"
-        )
+        # Configure communication bus to return False (no adapter found)
+        mock_communication_bus.send_message_sync.return_value = False
         
         # Create params with Discord channel
         params = SpeakParams(
@@ -698,19 +696,22 @@ class TestEdgeCases:
             rationale="Test Discord channel"
         )
         
-        with patch_persistence_properly(test_task) as mock_persistence:
-            # Execute handler
-            follow_up_id = await speak_handler.handle(
-                result, test_thought, dispatch_context
-            )
-            
-            # Verify thought was marked as failed
-            assert mock_persistence.update_thought_status.called
-            update_call = mock_persistence.update_thought_status.call_args
-            assert update_call.kwargs['thought_id'] == "thought_123"
-            assert update_call.kwargs['status'] == ThoughtStatus.FAILED
-            
-            # Verify follow-up thought was created with failure message
-            assert follow_up_id is not None
-            follow_up_call = mock_persistence.add_thought.call_args[0][0]
-            assert "SPEAK action failed" in follow_up_call.content
+        # Configure persistence mocks  
+        mock_persistence.get_task_by_id.return_value = test_task
+        
+        # Execute handler
+        follow_up_id = await speak_handler.handle(
+            result, test_thought, dispatch_context
+        )
+        
+        # Verify thought was marked as failed when send fails
+        assert mock_persistence.update_thought_status.called
+        update_call = mock_persistence.update_thought_status.call_args
+        assert update_call.kwargs['thought_id'] == "thought_123"
+        assert update_call.kwargs['status'] == ThoughtStatus.FAILED
+        
+        # Verify follow-up thought was created with failure message
+        assert follow_up_id is not None
+        assert mock_persistence.add_thought.called
+        follow_up_call = mock_persistence.add_thought.call_args[0][0]
+        assert "SPEAK action failed" in follow_up_call.content

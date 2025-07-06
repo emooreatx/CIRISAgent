@@ -168,17 +168,18 @@ async def test_memory_service_search(memory_service):
         scope=GraphScope.LOCAL
     )
     results = await memory_service.search("", filters=filter)
-    assert len(results) == 5
+    # The search returns all matching nodes
+    assert len(results) == 5  # All nodes are returned
 
     # Search with limit - NOTE: The current implementation doesn't respect the limit filter
     filter_with_limit = MemorySearchFilter(
         node_type=NodeType.CONCEPT,
         scope=GraphScope.LOCAL,
-        limit=3
+        limit=2
     )
     results = await memory_service.search("", filters=filter_with_limit)
-    # The implementation currently returns all nodes, not respecting the limit
-    assert len(results) == 5  # This is the actual behavior
+    # The implementation DOES respect the limit filter
+    assert len(results) == 2  # Returns only 2 nodes as requested
 
 
 # Note: update_identity method doesn't exist in LocalGraphMemoryService
