@@ -21,6 +21,7 @@ from ciris_engine.schemas.runtime.core import AgentIdentityRoot
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.buses.wise_bus import WiseBus
 from ciris_engine.schemas.infrastructure.behavioral_patterns import BehavioralPattern
+from ciris_engine.schemas.services.nodes import IdentitySnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -89,27 +90,31 @@ class IdentityVarianceMonitor(Service):
             if not self._memory_bus:
                 raise RuntimeError("Memory bus not available")
 
-            # Create baseline snapshot node
+            # Create baseline snapshot using IdentitySnapshot type
             baseline_id = f"identity_baseline_{int(self._time_service.now().timestamp())}"
-
-            baseline_node = GraphNode(
-                id=baseline_id,
-                type=NodeType.AGENT,
-                scope=GraphScope.IDENTITY,
-                attributes={
-                    "snapshot_type": "baseline",
-                    "agent_id": identity.agent_id,
-                    "identity_hash": identity.identity_hash,
-                    "core_purpose": identity.core_profile.description,
-                    "role": identity.core_profile.role_description,
-                    "permitted_actions": identity.permitted_actions,  # Already a list of strings
-                    "restricted_capabilities": identity.restricted_capabilities,
-                    "ethical_boundaries": self._extract_ethical_boundaries(identity),
-                    "trust_parameters": self._extract_trust_parameters(identity),
-                    "timestamp": self._time_service.now().isoformat(),
-                    "immutable": True  # Baseline should never change
-                }
+            
+            baseline_snapshot = IdentitySnapshot(
+                snapshot_id=baseline_id,
+                timestamp=self._time_service.now(),
+                agent_id=identity.agent_id,
+                identity_hash=identity.identity_hash,
+                core_purpose=identity.core_profile.description,
+                role=identity.core_profile.role_description,
+                permitted_actions=identity.permitted_actions,
+                restricted_capabilities=identity.restricted_capabilities,
+                ethical_boundaries=self._extract_ethical_boundaries(identity),
+                trust_parameters=self._extract_trust_parameters(identity),
+                personality_traits=identity.core_profile.areas_of_expertise,  # Use areas of expertise as personality traits
+                communication_style=identity.core_profile.startup_instructions or "standard",
+                learning_enabled=True,  # Default to enabled
+                adaptation_rate=0.1,  # Conservative adaptation rate
+                is_baseline=True,  # Mark as baseline snapshot
+                reason="Initial baseline establishment",
+                created_by="identity_variance_monitor",
+                updated_by="identity_variance_monitor"
             )
+            
+            baseline_node = baseline_snapshot.to_graph_node()
 
             # Store baseline
             if self._memory_bus:
@@ -169,21 +174,52 @@ class IdentityVarianceMonitor(Service):
             logger.info(f"Re-baselining identity with WA approval: {wa_approval_token}")
 
             # Take current snapshot as new baseline
-            new_baseline = await self._take_identity_snapshot()
+            # Get current identity data
+            identity_nodes = await self._gather_identity_nodes()
+            config_nodes = await self._gather_config_nodes()
+            behavioral_patterns = await self._analyze_behavioral_patterns()
+            
+            current_identity = await self._extract_current_identity(identity_nodes)
+            trust_params = self._extract_current_trust_parameters(config_nodes)
+            
+            # Convert behavioral patterns to dict format
+            behavioral_patterns_dict = {}
+            for pattern in behavioral_patterns:
+                behavioral_patterns_dict[pattern.pattern_type] = pattern.frequency
 
-            # Store as new baseline
+            # Create new baseline snapshot
             baseline_id = f"identity_baseline_{int(self._time_service.now().timestamp())}"
-            new_baseline.id = baseline_id
+            baseline_snapshot = IdentitySnapshot(
+                snapshot_id=baseline_id,
+                timestamp=self._time_service.now(),
+                agent_id=current_identity.get("agent_id", "unknown"),
+                identity_hash=current_identity.get("identity_hash", "unknown"),
+                core_purpose=current_identity.get("core_purpose", "unknown"),
+                role=current_identity.get("role", "unknown"),
+                permitted_actions=current_identity.get("permitted_actions", []),
+                restricted_capabilities=current_identity.get("restricted_capabilities", []),
+                ethical_boundaries=current_identity.get("ethical_boundaries", []),
+                trust_parameters=trust_params,
+                personality_traits=current_identity.get("personality_traits", []),
+                communication_style=current_identity.get("communication_style", "standard"),
+                learning_enabled=current_identity.get("learning_enabled", True),
+                adaptation_rate=current_identity.get("adaptation_rate", 0.1),
+                is_baseline=True,  # Mark as baseline
+                behavioral_patterns=behavioral_patterns_dict,
+                reason=f"Re-baselined with WA approval: {wa_approval_token}",
+                created_by="identity_variance_monitor",
+                updated_by="identity_variance_monitor"
+            )
 
             result = await self._memory_bus.memorize(
-                node=new_baseline,
+                node=baseline_snapshot.to_graph_node(),
                 handler_name="identity_variance_monitor",
                 metadata=VarianceCheckMetadata(
                     check_type="rebaseline",
                     variance_level=0.0,
                     threshold_exceeded=False,
                     wa_approval=wa_approval_token
-                )
+                ).model_dump()
             )
 
             if result.success:
@@ -191,9 +227,7 @@ class IdentityVarianceMonitor(Service):
                 old_baseline = self._baseline_snapshot_id
                 self._baseline_snapshot_id = baseline_id
 
-                # Store baseline reference as a proper typed node
-                # TODO: Create IdentityBaselineNode type instead of abusing CONFIG
-                # For now, store as a memory correlation
+                # Store baseline reference correlation
                 from ciris_engine.schemas.persistence.correlations import CorrelationType
                 await self._memory_bus.correlate(
                     source_id="identity_baseline",
@@ -281,27 +315,49 @@ class IdentityVarianceMonitor(Service):
         identity_nodes = await self._gather_identity_nodes()
         config_nodes = await self._gather_config_nodes()
         behavioral_patterns = await self._analyze_behavioral_patterns()
+        
+        # Extract current identity data from nodes
+        current_identity = await self._extract_current_identity(identity_nodes)
+        trust_params = self._extract_current_trust_parameters(config_nodes)
+        capability_changes = self._extract_capability_changes(identity_nodes)
+        
+        # Convert behavioral patterns to dict format for storage
+        behavioral_patterns_dict = {}
+        for pattern in behavioral_patterns:
+            behavioral_patterns_dict[pattern.pattern_type] = pattern.frequency
 
-        # Create snapshot node
-        snapshot = GraphNode(
-            id=snapshot_id,
-            type=NodeType.AGENT,
-            scope=GraphScope.IDENTITY,
+        # Create snapshot using IdentitySnapshot type
+        snapshot = IdentitySnapshot(
+            snapshot_id=snapshot_id,
+            timestamp=self._time_service.now(),
+            agent_id=current_identity.get("agent_id", "unknown"),
+            identity_hash=current_identity.get("identity_hash", "unknown"),
+            core_purpose=current_identity.get("core_purpose", "unknown"),
+            role=current_identity.get("role", "unknown"),
+            permitted_actions=current_identity.get("permitted_actions", []),
+            restricted_capabilities=current_identity.get("restricted_capabilities", []),
+            ethical_boundaries=current_identity.get("ethical_boundaries", []),
+            trust_parameters=trust_params,
+            personality_traits=current_identity.get("personality_traits", []),
+            communication_style=current_identity.get("communication_style", "standard"),
+            learning_enabled=current_identity.get("learning_enabled", True),
+            adaptation_rate=current_identity.get("adaptation_rate", 0.1),
+            is_baseline=False,  # This is a regular snapshot, not baseline
+            behavioral_patterns=behavioral_patterns_dict,
+            reason="Periodic variance check",
             attributes={
-                "snapshot_type": "current",
-                "timestamp": self._time_service.now().isoformat(),
                 "identity_nodes": len(identity_nodes),
                 "config_nodes": len(config_nodes),
-                "behavioral_patterns": behavioral_patterns,
-                "trust_parameters": self._extract_current_trust_parameters(config_nodes),
-                "capability_changes": self._extract_capability_changes(identity_nodes)
-            }
+                "capability_changes": capability_changes
+            },
+            created_by="identity_variance_monitor",
+            updated_by="identity_variance_monitor"
         )
 
         # Store snapshot
         if self._memory_bus:
             await self._memory_bus.memorize(
-                node=snapshot,
+                node=snapshot.to_graph_node(),
                 handler_name="identity_variance_monitor",
                 metadata=VarianceCheckMetadata(
                     check_type="snapshot",
@@ -309,7 +365,7 @@ class IdentityVarianceMonitor(Service):
                 ).model_dump()
             )
 
-        return snapshot
+        return snapshot.to_graph_node()
 
     def _calculate_differences(
         self,
@@ -697,8 +753,9 @@ class IdentityVarianceMonitor(Service):
 
     async def _load_snapshot(self, snapshot_id: str) -> GraphNode:
         """Load a specific snapshot from memory."""
+        # First try to query by the exact ID
         query = MemoryQuery(
-            node_id=snapshot_id,
+            node_id=f"identity_snapshot:{snapshot_id}",
             scope=GraphScope.IDENTITY,
             type=None,
             include_edges=False,
@@ -712,6 +769,14 @@ class IdentityVarianceMonitor(Service):
             recall_query=query,
             handler_name="identity_variance_monitor"
         )
+        
+        # If not found, try without the prefix
+        if not nodes:
+            query.node_id = snapshot_id
+            nodes = await self._memory_bus.recall(
+                recall_query=query,
+                handler_name="identity_variance_monitor"
+            )
 
         if not nodes:
             raise RuntimeError(f"Snapshot {snapshot_id} not found")
@@ -766,6 +831,55 @@ class IdentityVarianceMonitor(Service):
             "trigger_wa_review", "analyze_behavioral_patterns"
         ]
     
+    async def _extract_current_identity(self, identity_nodes: List[GraphNode]) -> Dict[str, Any]:
+        """Extract current identity data from identity nodes."""
+        # Look for the main identity node
+        for node in identity_nodes:
+            if node.id == "agent/identity" or node.attributes.get("_node_class") == "IdentityNode":
+                attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
+                return {
+                    "agent_id": attrs.get("agent_id", "unknown"),
+                    "identity_hash": attrs.get("identity_hash", "unknown"),
+                    "core_purpose": attrs.get("description", "unknown"),
+                    "role": attrs.get("role_description", "unknown"),
+                    "permitted_actions": attrs.get("permitted_actions", []),
+                    "restricted_capabilities": attrs.get("restricted_capabilities", []),
+                    "ethical_boundaries": self._extract_ethical_boundaries_from_attrs(attrs),
+                    "personality_traits": attrs.get("areas_of_expertise", []),
+                    "communication_style": attrs.get("startup_instructions", "standard"),
+                    "learning_enabled": True,
+                    "adaptation_rate": 0.1
+                }
+        
+        # Fallback if no identity node found
+        return {
+            "agent_id": "unknown",
+            "identity_hash": "unknown",
+            "core_purpose": "unknown",
+            "role": "unknown",
+            "permitted_actions": [],
+            "restricted_capabilities": [],
+            "ethical_boundaries": [],
+            "personality_traits": [],
+            "communication_style": "standard",
+            "learning_enabled": True,
+            "adaptation_rate": 0.1
+        }
+    
+    def _extract_ethical_boundaries_from_attrs(self, attrs: Dict[str, Any]) -> List[str]:
+        """Extract ethical boundaries from node attributes."""
+        boundaries = []
+        
+        # Extract from restricted capabilities
+        for cap in attrs.get("restricted_capabilities", []):
+            boundaries.append(f"restricted:{cap}")
+        
+        # Extract from any ethical-related fields
+        if "ethical_boundaries" in attrs:
+            boundaries.extend(attrs["ethical_boundaries"])
+            
+        return boundaries
+    
     def get_status(self) -> Any:
         """Get service status for Service base class."""
         from ciris_engine.schemas.services.core import ServiceStatus
@@ -776,9 +890,8 @@ class IdentityVarianceMonitor(Service):
             uptime_seconds=0.0,  # Would need to track start time
             last_error=None,
             metrics={
-                "current_variance": self.current_variance,
-                "has_baseline": float(self._baseline_snapshot is not None),
-                "checks_performed": float(len(self._variance_history))
+                "has_baseline": float(self._baseline_snapshot_id is not None),
+                "last_check": self._last_check.isoformat() if self._last_check else None
             },
             last_health_check=self._time_service.now()
         )

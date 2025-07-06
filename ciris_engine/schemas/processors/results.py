@@ -36,6 +36,8 @@ class SolitudeResult(BaseModel):
     thoughts_processed: int = Field(0)
     errors: int = Field(0)
     duration_seconds: float = Field(...)
+    should_exit_solitude: bool = Field(False, description="Whether to exit solitude state")
+    exit_reason: str = Field("Unknown reason", description="Reason for exiting solitude")
 
 
 class DreamResult(BaseModel):

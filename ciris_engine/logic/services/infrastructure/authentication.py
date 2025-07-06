@@ -506,8 +506,8 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             headers={'kid': wa.jwt_kid}
         )
 
-    async def _verify_jwt_and_get_context(self, token: str) -> Optional[AuthorizationContext]:
-        """Verify any JWT token and return auth context (internal method)."""
+    async def _verify_jwt_and_get_context(self, token: str) -> Optional[Tuple[AuthorizationContext, Optional[datetime]]]:
+        """Verify any JWT token and return auth context and expiration (internal method)."""
         try:
             # Decode header to get kid
             header = jwt.get_unverified_header(token)
@@ -577,7 +577,13 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             # Update last login
             await self.update_last_login(wa.wa_id)
 
-            return context
+            # Extract expiration if present
+            exp_timestamp = decoded.get('exp')
+            expiration = None
+            if exp_timestamp:
+                expiration = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc)
+
+            return (context, expiration)
 
         except jwt.InvalidTokenError:
             return None
@@ -716,17 +722,26 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
     async def verify_token(self, token: str) -> Optional[TokenVerification]:
         """Verify and decode a token (AuthenticationServiceProtocol version)."""
         try:
-            # Use the existing verify logic
-            context = await self._verify_token_internal(token)
-            if not context:
+            # Directly call _verify_jwt_and_get_context to get both context and expiration
+            result = await self._verify_jwt_and_get_context(token)
+            if not result:
                 return None
+            
+            context, expiration = result
+            
+            # Get the WA name
+            wa = await self.get_wa(context.wa_id)
+            wa_name = wa.name if wa else context.wa_id
+            
+            # Use expiration from token, or current time as fallback
+            expires_at = expiration if expiration else self._time_service.now()
 
             return TokenVerification(
                 valid=True,
                 wa_id=context.wa_id,
-                name=context.name,
+                name=wa_name,
                 role=context.role.value,
-                expires_at=self._time_service.now(),  # TODO: Extract from token
+                expires_at=expires_at,
                 error=None
             )
         except Exception as e:
@@ -804,13 +819,15 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             return self._token_cache[token]
 
         # Verify token
-        context = await self._verify_jwt_and_get_context(token)
-
-        # Cache valid tokens
-        if context:
+        result = await self._verify_jwt_and_get_context(token)
+        
+        if result:
+            context, _ = result  # We don't need expiration here
+            # Cache valid tokens
             self._token_cache[token] = context
+            return context
 
-        return context
+        return None
 
     def _require_scope(self, scope: str) -> Callable[[F], F]:
         """Decorator to require specific scope for endpoint."""

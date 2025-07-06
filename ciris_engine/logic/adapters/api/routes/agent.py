@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ciris_engine.schemas.runtime.messages import IncomingMessage
 from ..dependencies.auth import require_observer, AuthContext
+from ciris_engine.schemas.api.auth import UserRole, ROLE_PERMISSIONS
 from ciris_engine.schemas.api.agent import (
     MessageContext, AgentLineage, ServiceAvailability, ActiveTask
 )
@@ -713,7 +714,6 @@ import json
 @router.websocket("/stream")
 async def websocket_stream(
     websocket: WebSocket,
-    auth: Optional[AuthContext] = None  # TODO: Add WebSocket auth
 ):
     """
     WebSocket endpoint for real-time updates.
@@ -724,6 +724,46 @@ async def websocket_stream(
     - reasoning: Reasoning traces
     - logs: System logs
     """
+    # Extract authorization header from WebSocket request
+    authorization = websocket.headers.get("authorization")
+    
+    if not authorization:
+        await websocket.close(code=1008, reason="Missing authorization header")
+        return
+    
+    # Get auth service from app state
+    auth_service = getattr(websocket.app.state, 'auth_service', None)
+    if not auth_service:
+        await websocket.close(code=1011, reason="Auth service not initialized")
+        return
+    
+    # Validate bearer token
+    if not authorization.startswith("Bearer "):
+        await websocket.close(code=1008, reason="Invalid authorization format")
+        return
+    
+    api_key = authorization[7:]  # Remove "Bearer " prefix
+    
+    # Validate API key
+    key_info = await auth_service.validate_api_key(api_key)
+    if not key_info:
+        await websocket.close(code=1008, reason="Invalid API key")
+        return
+    
+    # Create auth context
+    auth_context = AuthContext(
+        user_id=key_info.user_id,
+        role=key_info.role,
+        permissions=ROLE_PERMISSIONS.get(key_info.role, set()),
+        api_key_id=auth_service._get_key_id(api_key),
+        authenticated_at=datetime.now(timezone.utc)
+    )
+    
+    # Check minimum role requirement (OBSERVER)
+    if not auth_context.role.has_permission(UserRole.OBSERVER):
+        await websocket.close(code=1008, reason="Insufficient permissions")
+        return
+    
     await websocket.accept()
     client_id = f"ws_{id(websocket)}"
     

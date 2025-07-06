@@ -5,6 +5,8 @@ Tests the adapter without requiring actual Discord connection.
 import pytest
 import pytest_asyncio
 import asyncio
+import tempfile
+import os
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timezone
 
@@ -16,10 +18,46 @@ from ciris_engine.schemas.adapters.tools import (
     ToolExecutionStatus, ToolResult
 )
 from ciris_engine.logic.services.lifecycle.time import TimeService
+from ciris_engine.logic.persistence import initialize_database
 
 
 class TestDiscordAdapter:
     """Test Discord adapter functionality."""
+
+    @pytest.fixture(autouse=True)
+    def setup_test_db(self):
+        """Set up a temporary test database for each test."""
+        # Create a temporary database file
+        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
+            db_path = tmp_file.name
+        
+        # Initialize the database with all required tables
+        initialize_database(db_path)
+        
+        # Patch get_db_connection to use our test database
+        with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn:
+            import sqlite3
+            # Return a context manager that yields a connection
+            from contextlib import contextmanager
+            
+            @contextmanager
+            def get_test_connection(db_path_arg=None):
+                conn = sqlite3.connect(db_path)
+                conn.row_factory = sqlite3.Row
+                try:
+                    yield conn
+                finally:
+                    conn.close()
+            
+            mock_get_conn.side_effect = get_test_connection
+            
+            yield db_path
+        
+        # Clean up
+        try:
+            os.unlink(db_path)
+        except:
+            pass
 
     @pytest.fixture
     def mock_bot(self):
@@ -120,14 +158,30 @@ class TestDiscordAdapter:
             Mock(id="2", content="Message 2", author_id="222", author_name="User2", is_bot=False)
         ]
 
-        with patch.object(adapter._message_handler, 'fetch_messages_from_channel',
-                         return_value=mock_msgs) as mock_fetch:
+        # Mock the get_correlations_by_channel function
+        mock_correlations = [
+            Mock(
+                correlation_id="1",
+                action_type="observe",
+                request_data=Mock(parameters={"content": "Message 1", "author_id": "111", "author_name": "User1"}),
+                timestamp=Mock(isoformat=lambda: "2024-01-01T00:00:00")
+            ),
+            Mock(
+                correlation_id="2",
+                action_type="observe",
+                request_data=Mock(parameters={"content": "Message 2", "author_id": "222", "author_name": "User2"}),
+                timestamp=Mock(isoformat=lambda: "2024-01-01T00:01:00")
+            )
+        ]
+        
+        with patch('ciris_engine.logic.persistence.get_correlations_by_channel',
+                   return_value=mock_correlations) as mock_get_corr:
             messages = await adapter.fetch_messages("123456789", limit=10)
 
             assert len(messages) == 2
-            assert messages[0].content == "Message 1"
-            assert messages[1].content == "Message 2"
-            mock_fetch.assert_called_once_with("123456789", 10)
+            assert messages[0]["content"] == "Message 1"
+            assert messages[1]["content"] == "Message 2"
+            mock_get_corr.assert_called_once_with(channel_id="123456789", limit=10)
 
     @pytest.mark.asyncio
     async def test_request_guidance(self, adapter):

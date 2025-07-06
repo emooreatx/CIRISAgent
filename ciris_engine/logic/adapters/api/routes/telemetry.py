@@ -4,7 +4,7 @@ Telemetry & Observability endpoints for CIRIS API v1.
 Consolidated metrics, traces, logs, and insights from all system components.
 """
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Any as AnyType
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Query, Path
 from pydantic import BaseModel, Field, field_serializer
@@ -27,10 +27,10 @@ class MetricData(BaseModel):
     """Single metric data point."""
     timestamp: datetime = Field(..., description="When metric was recorded")
     value: float = Field(..., description="Metric value")
-    tags: MetricTags = Field(default_factory=MetricTags, description="Metric tags")
+    tags: MetricTags = Field(default_factory=lambda: MetricTags.model_validate({}), description="Metric tags")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info):
+    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None
 
 class MetricSeries(BaseModel):
@@ -85,7 +85,7 @@ class MetricsResponse(BaseModel):
     timestamp: datetime = Field(..., description="Response timestamp")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info):
+    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None
 
 class ReasoningTraceData(BaseModel):
@@ -102,7 +102,7 @@ class ReasoningTraceData(BaseModel):
     outcome: Optional[str] = Field(None, description="Final outcome")
 
     @field_serializer('start_time')
-    def serialize_timestamp(self, timestamp: datetime, _info):
+    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None
 
 class TracesResponse(BaseModel):
@@ -117,11 +117,11 @@ class LogEntry(BaseModel):
     level: str = Field(..., description="Log level: DEBUG|INFO|WARNING|ERROR|CRITICAL")
     service: str = Field(..., description="Source service")
     message: str = Field(..., description="Log message")
-    context: LogContext = Field(default_factory=LogContext, description="Additional context")
+    context: LogContext = Field(default_factory=lambda: LogContext.model_validate({}), description="Additional context")
     trace_id: Optional[str] = Field(None, description="Associated trace ID")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info):
+    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None
 
 class LogsResponse(BaseModel):
@@ -133,14 +133,14 @@ class LogsResponse(BaseModel):
 class TelemetryQuery(BaseModel):
     """Custom telemetry query."""
     query_type: str = Field(..., description="Query type: metrics|traces|logs|incidents|insights")
-    filters: TelemetryQueryFilters = Field(default_factory=TelemetryQueryFilters, description="Query filters")
+    filters: TelemetryQueryFilters = Field(default_factory=lambda: TelemetryQueryFilters.model_validate({}), description="Query filters")
     aggregations: Optional[List[str]] = Field(None, description="Aggregations to apply")
     start_time: Optional[datetime] = Field(None, description="Query start time")
     end_time: Optional[datetime] = Field(None, description="Query end time")
     limit: int = Field(100, ge=1, le=1000, description="Result limit")
 
     @field_serializer('start_time', 'end_time')
-    def serialize_times(self, dt: Optional[datetime], _info):
+    def serialize_times(self, dt: Optional[datetime], _info: Any) -> Optional[str]:
         return dt.isoformat() if dt else None
 
 class QueryResponse(BaseModel):
@@ -162,10 +162,26 @@ async def _get_system_overview(request: Request) -> SystemOverview:
     incident_service = getattr(request.app.state, 'incident_management', None)
     wise_authority = getattr(request.app.state, 'wise_authority', None)
 
-    # Initialize overview
+    # Initialize overview with all required fields
     overview = SystemOverview(
         uptime_seconds=0.0,
-        cognitive_state="UNKNOWN"
+        cognitive_state="UNKNOWN",
+        messages_processed_24h=0,
+        thoughts_processed_24h=0,
+        tasks_completed_24h=0,
+        errors_24h=0,
+        tokens_per_hour=0.0,
+        cost_per_hour_cents=0.0,
+        carbon_per_hour_grams=0.0,
+        memory_mb=0.0,
+        cpu_percent=0.0,
+        healthy_services=0,
+        degraded_services=0,
+        error_rate_percent=0.0,
+        current_task=None,
+        reasoning_depth=0,
+        active_deferrals=0,
+        recent_incidents=0
     )
 
     # Get uptime from time service
@@ -263,7 +279,7 @@ async def _get_system_overview(request: Request) -> SystemOverview:
 async def get_telemetry_overview(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[SystemOverview]:
     """
     System metrics summary.
 
@@ -282,7 +298,7 @@ async def get_telemetry_overview(
 async def get_resource_telemetry(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[Dict[str, Any]]:
     """
     Get current resource usage telemetry.
     
@@ -360,7 +376,7 @@ async def get_resource_telemetry(
 async def get_detailed_metrics(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[MetricsResponse]:
     """
     Detailed metrics.
 
@@ -473,7 +489,7 @@ async def get_reasoning_traces(
     limit: int = Query(10, ge=1, le=100, description="Maximum traces to return"),
     start_time: Optional[datetime] = Query(None, description="Start of time range"),
     end_time: Optional[datetime] = Query(None, description="End of time range")
-):
+) -> SuccessResponse[TracesResponse]:
     """
     Reasoning traces.
 
@@ -543,7 +559,8 @@ async def get_reasoning_traces(
                                 confidence=t.get('confidence')
                             )
                             for i, t in enumerate(current.get('thoughts', []))
-                        ]
+                        ],
+                        outcome=None
                     )
                     traces.append(trace_data)
         except Exception as e:
@@ -574,6 +591,7 @@ async def get_reasoning_traces(
                     trace_data = ReasoningTraceData(
                         trace_id=f"trace_{trace_id}",
                         task_id=trace_id if trace_id != entries[0].timestamp.strftime('%Y%m%d%H%M') else None,
+                        task_description=None,
                         start_time=entries[0].timestamp,
                         duration_ms=(entries[-1].timestamp - entries[0].timestamp).total_seconds() * 1000,
                         thought_count=len(entries),
@@ -589,7 +607,8 @@ async def get_reasoning_traces(
                                 confidence=e.context.get('confidence')
                             )
                             for i, e in enumerate(entries)
-                        ]
+                        ],
+                        outcome=None
                     )
                     traces.append(trace_data)
         except Exception as e:
@@ -612,7 +631,7 @@ async def get_system_logs(
     level: Optional[str] = Query(None, description="Log level filter"),
     service: Optional[str] = Query(None, description="Service filter"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum logs to return")
-):
+) -> SuccessResponse[LogsResponse]:
     """
     System logs.
 
@@ -706,7 +725,7 @@ async def query_telemetry(
     request: Request,
     query: TelemetryQuery,
     auth: AuthContext = Depends(require_admin)
-):
+) -> SuccessResponse[QueryResponse]:
     """
     Custom telemetry queries.
 
@@ -863,7 +882,7 @@ async def query_telemetry(
                     )]
                 elif agg == "group_by_service" and query.query_type == "logs":
                     # Group logs by service
-                    grouped = defaultdict(int)
+                    grouped: Dict[str, int] = defaultdict(int)
                     for r in results:
                         # Access service from the data field
                         service = r.data.get('service', 'unknown')
@@ -902,7 +921,7 @@ async def get_detailed_metric(
     metric_name: str,
     auth: AuthContext = Depends(require_observer),
     hours: int = Query(24, ge=1, le=168, description="Hours of history to include")
-):
+) -> SuccessResponse[DetailedMetric]:
     """
     Get detailed information about a specific metric.
     
@@ -991,7 +1010,7 @@ async def get_resource_history(
     request: Request,
     auth: AuthContext = Depends(require_observer),
     hours: int = Query(24, ge=1, le=168, description="Hours of history")
-):
+) -> SuccessResponse[Dict[str, Any]]:
     """
     Get historical resource usage data.
     
@@ -1030,7 +1049,7 @@ async def get_resource_history(
             )
         
         # Calculate aggregations
-        def calculate_stats(data):
+        def calculate_stats(data: List[Dict[str, Any]]) -> Dict[str, float]:
             if not data:
                 return {"min": 0, "max": 0, "avg": 0, "current": 0}
             values = [d.get('value', 0) for d in data]

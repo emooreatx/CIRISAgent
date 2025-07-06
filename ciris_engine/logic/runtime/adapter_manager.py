@@ -7,7 +7,7 @@ extending the existing processor control capabilities with adapter lifecycle man
 
 import asyncio
 import logging
-from typing import Dict, List, Optional, TYPE_CHECKING
+from typing import Dict, List, Optional, TYPE_CHECKING, cast, Any, Union
 
 if TYPE_CHECKING:
     from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
@@ -17,13 +17,16 @@ from datetime import datetime
 from ciris_engine.logic.adapters.base import Service
 from ciris_engine.schemas.infrastructure.base import ServiceRegistration
 from ciris_engine.schemas.adapters.registration import AdapterServiceRegistration
+from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.logic.adapters import load_adapter
+from ciris_engine.protocols.runtime.base import BaseAdapterProtocol
 from ciris_engine.logic.config import ConfigBootstrap
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.runtime.adapter_management import (
     AdapterConfig, AdapterOperationResult, AdapterStatus,
     AdapterMetrics
 )
+from ciris_engine.logic.registries.base import Priority, SelectionStrategy
 
 logger = logging.getLogger(__name__)
 
@@ -32,11 +35,13 @@ class AdapterInstance:
     """Information about a loaded adapter instance"""
     adapter_id: str
     adapter_type: str
-    adapter: Service
+    adapter: Any  # Actually Service but also needs BaseAdapterProtocol methods
     config_params: dict  # Adapter-specific settings
     loaded_at: datetime
     is_running: bool = False
     services_registered: List[str] = field(default_factory=list)
+    lifecycle_task: Optional[asyncio.Task[Any]] = field(default=None, init=False)
+    lifecycle_runner: Optional[asyncio.Task[Any]] = field(default=None, init=False)
 
     def __post_init__(self) -> None:
         # services_registered is now properly initialized with default_factory
@@ -92,7 +97,9 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                     success=False,
                     adapter_id=adapter_id,
                     adapter_type=adapter_type,
-                    error=f"Adapter with ID '{adapter_id}' already exists"
+                    message=f"Adapter with ID '{adapter_id}' already exists",
+                    error=f"Adapter with ID '{adapter_id}' already exists",
+                    details={}
                 )
 
             logger.info(f"Loading adapter: type={adapter_type}, id={adapter_id}, params={config_params}")
@@ -100,7 +107,8 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             adapter_class = load_adapter(adapter_type)
 
             adapter_kwargs = config_params or {}
-            adapter = adapter_class(self.runtime, **adapter_kwargs)
+            # Adapters expect runtime as first argument, then kwargs
+            adapter = adapter_class(self.runtime, **adapter_kwargs)  # type: ignore[call-arg]
 
             instance = AdapterInstance(
                 adapter_id=adapter_id,
@@ -142,6 +150,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 adapter_id=adapter_id,
                 adapter_type=adapter_type,
                 message=f"Successfully loaded adapter with {len(instance.services_registered)} services",
+                error=None,
                 details={"loaded_at": instance.loaded_at.isoformat(), "services": len(instance.services_registered)}
             )
 
@@ -151,7 +160,9 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 success=False,
                 adapter_id=adapter_id,
                 adapter_type=adapter_type,
-                error=str(e)
+                message=f"Failed to load adapter: {str(e)}",
+                error=str(e),
+                details={}
             )
 
     async def unload_adapter(self, adapter_id: str) -> AdapterOperationResult:
@@ -168,7 +179,10 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 return AdapterOperationResult(
                     success=False,
                     adapter_id=adapter_id,
-                    error=f"Adapter with ID '{adapter_id}' not found"
+                    adapter_type="unknown",
+                    message=f"Adapter with ID '{adapter_id}' not found",
+                    error=f"Adapter with ID '{adapter_id}' not found",
+                    details={}
                 )
 
             instance = self.loaded_adapters[adapter_id]
@@ -185,13 +199,15 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                         success=False,
                         adapter_id=adapter_id,
                         adapter_type=instance.adapter_type,
-                        error=f"Cannot unload {adapter_id}: it is one of the last communication-capable adapters"
+                        message=f"Cannot unload {adapter_id}: it is one of the last communication-capable adapters",
+                        error=f"Cannot unload {adapter_id}: it is one of the last communication-capable adapters",
+                        details={}
                     )
 
             logger.info(f"Unloading adapter {adapter_id}")
 
             # Cancel lifecycle tasks for Discord adapters
-            if hasattr(instance, 'lifecycle_runner') and instance.lifecycle_runner:
+            if hasattr(instance, 'lifecycle_runner') and instance.lifecycle_runner is not None:
                 logger.debug(f"Cancelling lifecycle runner for {adapter_id}")
                 instance.lifecycle_runner.cancel()
                 try:
@@ -199,7 +215,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 except asyncio.CancelledError:
                     pass
             
-            if hasattr(instance, 'lifecycle_task') and instance.lifecycle_task:
+            if hasattr(instance, 'lifecycle_task') and instance.lifecycle_task is not None:
                 logger.debug(f"Cancelling lifecycle task for {adapter_id}")
                 instance.lifecycle_task.cancel()
                 try:
@@ -213,8 +229,12 @@ class RuntimeAdapterManager(AdapterManagerInterface):
 
             await self._unregister_adapter_services(instance)
 
-            if instance.adapter in self.runtime.adapters:
-                self.runtime.adapters.remove(instance.adapter)
+            # Remove adapter from runtime adapters list
+            # Need to find matching adapter by comparing instances
+            for i, adapter in enumerate(self.runtime.adapters):
+                if adapter is instance.adapter:
+                    self.runtime.adapters.pop(i)
+                    break
 
             del self.loaded_adapters[adapter_id]
 
@@ -224,6 +244,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 adapter_id=adapter_id,
                 adapter_type=instance.adapter_type,
                 message=f"Successfully unloaded adapter with {len(instance.services_registered)} services unregistered",
+                error=None,
                 details={"services_unregistered": len(instance.services_registered), "was_running": True}
             )
 
@@ -232,7 +253,10 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             return AdapterOperationResult(
                 success=False,
                 adapter_id=adapter_id,
-                error=str(e)
+                adapter_type="unknown",
+                message=f"Failed to unload adapter: {str(e)}",
+                error=str(e),
+                details={}
             )
 
     async def reload_adapter(self, adapter_id: str, config_params: Optional[dict] = None) -> AdapterOperationResult:
@@ -250,7 +274,10 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 return AdapterOperationResult(
                     success=False,
                     adapter_id=adapter_id,
-                    error=f"Adapter with ID '{adapter_id}' not found"
+                    adapter_type="unknown",
+                    message=f"Adapter with ID '{adapter_id}' not found",
+                    error=f"Adapter with ID '{adapter_id}' not found",
+                    details={}
                 )
 
             instance = self.loaded_adapters[adapter_id]
@@ -274,7 +301,10 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             return AdapterOperationResult(
                 success=False,
                 adapter_id=adapter_id,
-                error=str(e)
+                adapter_type="unknown",
+                message=f"Failed to reload adapter: {str(e)}",
+                error=str(e),
+                details={}
             )
 
     async def list_adapters(self) -> List[AdapterStatus]:
@@ -298,6 +328,14 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 except Exception:
                     health_status = "error"
 
+                metrics_dict: Optional[dict] = None
+                if health_status == "healthy":
+                    uptime_seconds = (self.time_service.now() - instance.loaded_at).total_seconds()
+                    metrics_dict = {
+                        "uptime_seconds": uptime_seconds,
+                        "health_status": health_status
+                    }
+
                 adapters.append(AdapterStatus(
                     adapter_id=adapter_id,
                     adapter_type=instance.adapter_type,
@@ -306,11 +344,12 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                     services_registered=instance.services_registered,
                     config_params=AdapterConfig(
                         adapter_type=instance.adapter_type,
+                        enabled=instance.is_running,
                         settings=instance.config_params
                     ),
-                    metrics=AdapterMetrics(
-                        uptime_seconds=(self.time_service.now() - instance.loaded_at).total_seconds()
-                    ) if health_status == "healthy" else None
+                    metrics=metrics_dict,
+                    last_activity=None,
+                    tools=None
                 ))
 
             return adapters
@@ -350,18 +389,29 @@ class RuntimeAdapterManager(AdapterManagerInterface):
 
             service_details = []
             try:
-                registrations = instance.adapter.get_services_to_register()
-                for reg in registrations:
-                    service_details.append({
-                        "service_type": reg.service_type.value,
-                        "priority": reg.priority.name,
-                        "handlers": reg.handlers,
-                        "capabilities": reg.capabilities
-                    })
+                if hasattr(instance.adapter, 'get_services_to_register'):
+                    registrations = instance.adapter.get_services_to_register()
+                    for reg in registrations:
+                        service_details.append({
+                            "service_type": reg.service_type.value if hasattr(reg.service_type, 'value') else str(reg.service_type),
+                            "priority": reg.priority.name if hasattr(reg.priority, 'name') else str(reg.priority),
+                            "handlers": reg.handlers,
+                            "capabilities": reg.capabilities
+                        })
+                else:
+                    service_details = [{"info": "Adapter does not provide service registration details"}]
             except Exception as e:
                 service_details = [{"error": f"Failed to get service registrations: {e}"}]
 
             uptime_seconds = (self.time_service.now() - instance.loaded_at).total_seconds()
+
+            metrics_dict: Optional[dict] = None
+            if health_status == "healthy":
+                metrics_dict = {
+                    "uptime_seconds": uptime_seconds,
+                    "health_status": health_status,
+                    "service_details": service_details
+                }
 
             return AdapterStatus(
                 adapter_id=adapter_id,
@@ -371,18 +421,19 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 services_registered=instance.services_registered,
                 config_params=AdapterConfig(
                     adapter_type=instance.adapter_type,
+                    enabled=instance.is_running,
                     settings=instance.config_params
                 ),
-                metrics=AdapterMetrics(
-                    uptime_seconds=uptime_seconds
-                ) if health_status == "healthy" else None
+                metrics=metrics_dict,
+                last_activity=None,
+                tools=None
             )
 
         except Exception as e:
             logger.error(f"Failed to get adapter status for {adapter_id}: {e}", exc_info=True)
             return None
 
-    async def load_adapter_from_template(self, template_name: str, adapter_id: Optional[str] = None) -> dict:
+    async def load_adapter_from_template(self, template_name: str, adapter_id: Optional[str] = None) -> AdapterOperationResult:
         """Load adapter configuration from an agent template
 
         Args:
@@ -419,18 +470,24 @@ class RuntimeAdapterManager(AdapterManagerInterface):
 
             # Templates are not part of essential config anymore
             # This functionality has been removed
-            return {
-                "success": False,
-                "error": "Template loading has been removed. Use direct adapter configuration instead."
-            }
+            return AdapterOperationResult(
+                success=False,
+                adapter_id=adapter_id or "template",
+                adapter_type="template",
+                message="Template loading has been removed. Use direct adapter configuration instead.",
+                error="Template loading has been removed. Use direct adapter configuration instead.",
+                details={}
+            )
 
         except Exception as e:
             logger.error(f"Failed to load adapters from template {template_name}: {e}", exc_info=True)
             return AdapterOperationResult(
                 success=False,
-                adapter_id=adapter_id,
+                adapter_id=adapter_id or "template",
                 adapter_type="template",  # Default to "template" since this is template loading
-                error=str(e)
+                message=f"Failed to load template: {str(e)}",
+                error=str(e),
+                details={}
             )
 
     async def _register_adapter_services(self, instance: AdapterInstance) -> None:
@@ -440,23 +497,44 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 logger.error("ServiceRegistry not initialized. Cannot register adapter services.")
                 return
 
+            if not hasattr(instance.adapter, 'get_services_to_register'):
+                logger.warning(f"Adapter {instance.adapter_id} does not provide services to register")
+                return
+
             registrations = instance.adapter.get_services_to_register()
             for reg in registrations:
                 if not isinstance(reg, (ServiceRegistration, AdapterServiceRegistration)):
                     logger.error(f"Adapter {instance.adapter.__class__.__name__} provided invalid ServiceRegistration: {reg}")
                     continue
 
-                service_key = f"{reg.service_type.value}:{reg.provider.__class__.__name__}"
+                # Handle both ServiceType enum and string
+                service_type_str = reg.service_type.value if hasattr(reg.service_type, 'value') else str(reg.service_type)
+                provider_name = reg.provider.__class__.__name__ if hasattr(reg, 'provider') else instance.adapter.__class__.__name__
+                service_key = f"{service_type_str}:{provider_name}"
 
                 # All services are global now
                 # AdapterServiceRegistration doesn't have priority_group or strategy
+                # Get provider from reg if available, otherwise use adapter itself
+                provider = getattr(reg, 'provider', instance.adapter)
+                priority = getattr(reg, 'priority', Priority.NORMAL)
+                capabilities = getattr(reg, 'capabilities', [])
+                
+                # Handle both string and enum service_type
+                # AdapterServiceRegistration has ServiceType enum, ServiceRegistration has string
+                service_type_val: ServiceType
+                if hasattr(reg, 'service_type') and isinstance(reg.service_type, ServiceType):
+                    service_type_val = reg.service_type
+                else:
+                    # Must be a string from ServiceRegistration
+                    service_type_val = ServiceType(str(reg.service_type))
+                
                 self.runtime.service_registry.register_service(
-                    service_type=reg.service_type,  # Pass ServiceType enum, not .value
-                    provider=reg.provider,
-                    priority=reg.priority,
-                    capabilities=reg.capabilities,
-                    priority_group=getattr(reg, 'priority_group', None),
-                    strategy=getattr(reg, 'strategy', None)
+                    service_type=service_type_val,  # Ensure it's a ServiceType enum
+                    provider=provider,
+                    priority=priority,
+                    capabilities=capabilities,
+                    priority_group=getattr(reg, 'priority_group', 0),  # Default to 0
+                    strategy=getattr(reg, 'strategy', SelectionStrategy.FALLBACK)  # Default strategy
                 )
                 instance.services_registered.append(f"global:{service_key}")
 

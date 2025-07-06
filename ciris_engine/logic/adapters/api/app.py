@@ -29,13 +29,13 @@ async def lifespan(app: FastAPI):
     # Shutdown
     print("Shutting down CIRIS API...")
 
-def create_app(runtime: Any = None, config: Any = None) -> FastAPI:
+def create_app(runtime: Any = None, adapter_config: Any = None) -> FastAPI:
     """
     Create and configure the FastAPI application.
 
     Args:
         runtime: Optional runtime instance for service access
-        config: Optional APIAdapterConfig instance
+        adapter_config: Optional APIAdapterConfig instance
 
     Returns:
         Configured FastAPI application
@@ -57,8 +57,8 @@ def create_app(runtime: Any = None, config: Any = None) -> FastAPI:
     )
     
     # Add rate limiting middleware if enabled in config
-    if config and getattr(config, 'rate_limit_enabled', False):
-        rate_limit = getattr(config, 'rate_limit_per_minute', 60)
+    if adapter_config and getattr(adapter_config, 'rate_limit_enabled', False):
+        rate_limit = getattr(adapter_config, 'rate_limit_per_minute', 60)
         app.add_middleware(RateLimitMiddleware, requests_per_minute=rate_limit)
         print(f"Rate limiting enabled: {rate_limit} requests per minute")
 

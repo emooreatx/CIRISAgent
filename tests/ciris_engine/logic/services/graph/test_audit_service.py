@@ -162,7 +162,7 @@ async def test_audit_service_get_audit_trail(audit_service, memory_bus):
     # Get audit trail - requires entity_id
     entries = await audit_service.get_audit_trail(
         entity_id="entity1",
-        limit=10
+        hours=24
     )
 
     # Should have retrieved entries
@@ -234,20 +234,12 @@ def test_audit_service_status(audit_service):
 @pytest.mark.asyncio
 async def test_audit_service_log_conscience_event(audit_service):
     """Test logging a conscience decision event."""
-    from ciris_engine.schemas.runtime.audit import AuditConscienceResult
-
-    # Create conscience check result
-    result = AuditConscienceResult(
-        allowed=True,
-        reason="Action permitted",
-        risk_level="low"
-    )
-
-    # Log conscience event - takes conscience_name, action_type, result
+    # Log conscience event with new signature
     await audit_service.log_conscience_event(
-        conscience_name="test_conscience",
-        action_type="test_action",
-        result=result
+        thought_id="test_thought_123",
+        decision="allow",
+        reasoning="Action permitted based on ethical guidelines",
+        metadata={"risk_level": "low", "confidence": 0.95}
     )
 
     # Verify memory bus was called now that the bug is fixed

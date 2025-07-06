@@ -4,6 +4,9 @@ import pytest
 import asyncio
 import tempfile
 import os
+
+# CRITICAL: Import and use the proper function to allow runtime creation
+from ciris_engine.logic.runtime.prevent_sideeffects import allow_runtime_creation
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,6 +21,14 @@ pytestmark = pytest.mark.skipif(os.environ.get('CI') == 'true', reason='Skipping
 
 class TestCIRISRuntime:
     """Test cases for CIRISRuntime."""
+
+    @pytest.fixture(autouse=True)
+    def allow_runtime(self):
+        """Allow runtime creation for these tests."""
+        allow_runtime_creation()
+        yield
+        # Re-enable import protection after test
+        os.environ['CIRIS_IMPORT_MODE'] = 'true'
 
     @pytest.fixture
     def temp_data_dir(self):

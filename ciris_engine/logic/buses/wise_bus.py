@@ -37,15 +37,24 @@ class WiseBus(BaseBus[WiseAuthorityService]):
         context: DeferralContext,
         handler_name: str
     ) -> bool:
-        """Send a deferral to wise authority"""
+        """Send a deferral to ALL wise authority services (broadcast)"""
+        # Get ALL services with send_deferral capability
+        # Since we want to broadcast to all WA services, we need to get them all
+        # The registry returns services based on priority, so we'll get multiple if available
+        services = []
         service = await self.get_service(
             handler_name=handler_name,
             required_capabilities=["send_deferral"]
         )
+        if service:
+            services.append(service)
 
-        if not service:
-            logger.error(f"No wise authority service available for {handler_name}")
+        if not services:
+            logger.info(f"No wise authority service available for {handler_name}")
             return False
+
+        # Track if any service successfully received the deferral
+        any_success = False
 
         try:
             # Convert DeferralContext to DeferralRequest
@@ -82,10 +91,21 @@ class WiseBus(BaseBus[WiseAuthorityService]):
                 context=context.metadata  # Map metadata to context
             )
 
-            result = await service.send_deferral(deferral_request)
-            return bool(result)
+            # Broadcast to ALL registered WA services
+            logger.info(f"Broadcasting deferral to {len(services)} wise authority service(s)")
+            for service in services:
+                try:
+                    result = await service.send_deferral(deferral_request)
+                    if result:
+                        any_success = True
+                        logger.debug(f"Successfully sent deferral to WA service: {service.__class__.__name__}")
+                except Exception as e:
+                    logger.warning(f"Failed to send deferral to WA service {service.__class__.__name__}: {e}")
+                    continue
+
+            return any_success
         except Exception as e:
-            logger.error(f"Failed to send deferral: {e}", exc_info=True)
+            logger.error(f"Failed to prepare deferral request: {e}", exc_info=True)
             return False
 
     async def fetch_guidance(

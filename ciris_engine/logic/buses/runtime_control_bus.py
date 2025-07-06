@@ -4,7 +4,7 @@ Runtime Control message bus - handles all runtime control operations with safety
 
 import logging
 import asyncio
-from typing import Optional, List, TYPE_CHECKING, Dict
+from typing import Optional, List, TYPE_CHECKING, Dict, Any, cast
 from enum import Enum
 
 if TYPE_CHECKING:
@@ -12,8 +12,11 @@ if TYPE_CHECKING:
 
 from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.protocols.services import RuntimeControlService
-from ciris_engine.schemas.services.core.runtime import ProcessorQueueStatus, AdapterInfo
-from ciris_engine.schemas.services.core.runtime import ProcessorControlResponse, ConfigSnapshot
+from ciris_engine.schemas.services.core.runtime import (
+    ProcessorQueueStatus, AdapterInfo, AdapterStatus, ProcessorStatus,
+    ProcessorControlResponse, ConfigSnapshot,
+    AdapterOperationResponse, RuntimeStatusResponse
+)
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from .base_bus import BaseBus, BusMessage
 
@@ -62,11 +65,12 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
             logger.error(f"No runtime control service available for {handler_name}")
             # Return empty status on error
             return ProcessorQueueStatus(
+                processor_name=handler_name,
                 queue_size=0,
-                processing=False,
-                current_item=None,
-                items_processed=0,
-                average_processing_time=None
+                max_size=1000,
+                processing_rate=0.0,
+                average_latency_ms=0.0,
+                oldest_message_age_seconds=None
             )
 
         try:
@@ -75,11 +79,12 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
             logger.error(f"Failed to get queue status: {e}", exc_info=True)
             # Return empty status on exception
             return ProcessorQueueStatus(
+                processor_name=handler_name,
                 queue_size=0,
-                processing=False,
-                current_item=None,
-                items_processed=0,
-                average_processing_time=None
+                max_size=1000,
+                processing_rate=0.0,
+                average_latency_ms=0.0,
+                oldest_message_age_seconds=None
             )
 
     async def shutdown_runtime(
@@ -93,9 +98,10 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 logger.info("Shutdown already in progress")
                 return ProcessorControlResponse(
                     success=True,
-                    action="shutdown",
-                    timestamp=self._time_service.now(),
-                    result={"message": "Already shutting down"}
+                    processor_name=handler_name,
+                    operation="shutdown",
+                    new_status=ProcessorStatus.STOPPED,
+                    error=None
                 )
 
             service = await self.get_service(
@@ -107,8 +113,9 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 logger.error(f"No runtime control service available for {handler_name}")
                 return ProcessorControlResponse(
                     success=False,
-                    action="shutdown",
-                    timestamp=self._time_service.now(),
+                    processor_name=handler_name,
+                    operation="shutdown",
+                    new_status=ProcessorStatus.ERROR,
                     error="Service unavailable"
                 )
 
@@ -130,8 +137,9 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 logger.error(f"Exception during shutdown: {e}", exc_info=True)
                 return ProcessorControlResponse(
                     success=False,
-                    action="shutdown",
-                    timestamp=self._time_service.now(),
+                    processor_name=handler_name,
+                    operation="shutdown",
+                    new_status=ProcessorStatus.ERROR,
                     error=str(e)
                 )
 
@@ -168,7 +176,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
     async def get_runtime_status(
         self,
         handler_name: str = "default"
-    ) -> dict:
+    ) -> Dict[str, Any]:
         """Get runtime status - safe to call anytime"""
         service = await self.get_service(
             handler_name=handler_name,
@@ -183,15 +191,23 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
             }
 
         try:
-            status = await service.get_runtime_status()
+            response = await service.get_runtime_status()
 
-            # Add bus-level status
-            status["bus_status"] = {
-                "active_operations": list(self._active_operations.keys()),
-                "shutting_down": self._shutting_down
+            # Convert RuntimeStatusResponse to dict and add bus-level status
+            status_dict = {
+                "is_running": response.is_running,
+                "uptime_seconds": response.uptime_seconds,
+                "processor_count": response.processor_count,
+                "adapter_count": response.adapter_count,
+                "total_messages_processed": response.total_messages_processed,
+                "current_load": response.current_load,
+                "bus_status": {
+                    "active_operations": list(self._active_operations.keys()),
+                    "shutting_down": self._shutting_down
+                }
             }
 
-            return status
+            return status_dict
         except Exception as e:
             logger.error(f"Failed to get runtime status: {e}", exc_info=True)
             return {
@@ -213,10 +229,12 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
             return AdapterInfo(
                 adapter_id=adapter_id,
                 adapter_type=adapter_type,
-                status="error",
-                loaded_at=self._time_service.now(),
-                configuration={"error": "System shutting down"},
-                metrics=None
+                status=AdapterStatus.ERROR,
+                started_at=self._time_service.now(),
+                messages_processed=0,
+                error_count=0,
+                last_error="System shutting down",
+                tools=None
             )
 
         service = await self.get_service(
@@ -229,25 +247,39 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
             return AdapterInfo(
                 adapter_id=adapter_id,
                 adapter_type=adapter_type,
-                status="error",
-                loaded_at=self._time_service.now(),
-                configuration={"error": "Service unavailable"},
-                metrics=None
+                status=AdapterStatus.ERROR,
+                started_at=self._time_service.now(),
+                messages_processed=0,
+                error_count=0,
+                last_error="Service unavailable",
+                tools=None
             )
 
         try:
             logger.info(f"Loading adapter {adapter_id} of type {adapter_type}")
-            response = await service.load_adapter(adapter_type, adapter_id, config, auto_start)
-            return response
+            operation_response = await service.load_adapter(adapter_type, adapter_id, config, auto_start)
+            # Convert AdapterOperationResponse to AdapterInfo
+            return AdapterInfo(
+                adapter_id=operation_response.adapter_id,
+                adapter_type=operation_response.adapter_type,
+                status=operation_response.status,
+                started_at=operation_response.timestamp if operation_response.success else None,
+                messages_processed=0,
+                error_count=0 if operation_response.success else 1,
+                last_error=operation_response.error,
+                tools=None
+            )
         except Exception as e:
             logger.error(f"Failed to load adapter: {e}", exc_info=True)
             return AdapterInfo(
                 adapter_id=adapter_id,
                 adapter_type=adapter_type,
-                status="error",
-                loaded_at=self._time_service.now(),
-                configuration={"error": str(e)},
-                metrics=None
+                status=AdapterStatus.ERROR,
+                started_at=self._time_service.now(),
+                messages_processed=0,
+                error_count=1,
+                last_error=str(e),
+                tools=None
             )
 
     async def unload_adapter(
@@ -267,25 +299,39 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
             return AdapterInfo(
                 adapter_id=adapter_id,
                 adapter_type="unknown",
-                status="error",
-                loaded_at=self._time_service.now(),
-                configuration={"error": "Service unavailable"},
-                metrics=None
+                status=AdapterStatus.ERROR,
+                started_at=self._time_service.now(),
+                messages_processed=0,
+                error_count=1,
+                last_error="Service unavailable",
+                tools=None
             )
 
         try:
             logger.info(f"Unloading adapter {adapter_id}")
-            response = await service.unload_adapter(adapter_id, force)
-            return response
+            operation_response = await service.unload_adapter(adapter_id, force)
+            # Convert AdapterOperationResponse to AdapterInfo
+            return AdapterInfo(
+                adapter_id=operation_response.adapter_id,
+                adapter_type=operation_response.adapter_type,
+                status=operation_response.status,
+                started_at=None,  # Adapter is unloaded
+                messages_processed=0,
+                error_count=0 if operation_response.success else 1,
+                last_error=operation_response.error,
+                tools=None
+            )
         except Exception as e:
             logger.error(f"Failed to unload adapter: {e}", exc_info=True)
             return AdapterInfo(
                 adapter_id=adapter_id,
                 adapter_type="unknown",
-                status="error",
-                loaded_at=self._time_service.now(),
-                configuration={"error": str(e)},
-                metrics=None
+                status=AdapterStatus.ERROR,
+                started_at=self._time_service.now(),
+                messages_processed=0,
+                error_count=1,
+                last_error=str(e),
+                tools=None
             )
 
     async def list_adapters(
@@ -428,23 +474,40 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
             return AdapterInfo(
                 adapter_id=adapter_id,
                 adapter_type="unknown",
-                status="error",
-                loaded_at=self._time_service.now(),
-                configuration={"error": "Service unavailable"},
-                metrics=None
+                status=AdapterStatus.ERROR,
+                started_at=self._time_service.now(),
+                messages_processed=0,
+                error_count=1,
+                last_error="Service unavailable",
+                tools=None
             )
 
         try:
-            return await service.get_adapter_info(adapter_id)
+            result = await service.get_adapter_info(adapter_id)
+            if result is None:
+                # If service returns None, create an error AdapterInfo
+                return AdapterInfo(
+                    adapter_id=adapter_id,
+                    adapter_type="unknown",
+                    status=AdapterStatus.ERROR,
+                    started_at=None,
+                    messages_processed=0,
+                    error_count=1,
+                    last_error="Adapter not found",
+                    tools=None
+                )
+            return result
         except Exception as e:
             logger.error(f"Failed to get adapter info: {e}", exc_info=True)
             return AdapterInfo(
                 adapter_id=adapter_id,
                 adapter_type="unknown",
-                status="error",
-                loaded_at=self._time_service.now(),
-                configuration={"error": str(e)},
-                metrics=None
+                status=AdapterStatus.ERROR,
+                started_at=self._time_service.now(),
+                messages_processed=0,
+                error_count=1,
+                last_error=str(e),
+                tools=None
             )
 
     async def is_healthy(self, handler_name: str = "default") -> bool:
@@ -464,7 +527,10 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
         if not service:
             return []
         try:
-            return await service.get_capabilities()
+            capabilities = service.get_capabilities()
+            # ServiceCapabilities is not awaitable, it's a synchronous method
+            # Extract the actions list from the capabilities
+            return capabilities.actions
         except Exception as e:
             logger.error(f"Failed to get capabilities: {e}")
             return []

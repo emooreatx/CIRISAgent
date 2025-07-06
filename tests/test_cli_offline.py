@@ -1,5 +1,9 @@
-import asyncio
+# CRITICAL: Prevent side effects during imports
 import os
+os.environ['CIRIS_IMPORT_MODE'] = 'true'
+os.environ['CIRIS_MOCK_LLM'] = 'true'
+
+import asyncio
 from click.testing import CliRunner
 from unittest.mock import AsyncMock, MagicMock
 from typing import List
