@@ -1,12 +1,64 @@
-body { 
-  font-family: sans-serif; 
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #000000;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-brand-regular);
+  --font-mono: var(--font-geist-mono);
+  --text-xxs: 0.5rem;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss04" 1, "ss02" 1, "ss08" 1;
+}
+.text-9xl {
+  font-weight: 500;
+  letter-spacing: -0.34rem;
+  font-kerning: auto;
+  font-feature-settings: "ss04" 1, "ss02" 1, "ss08" 1;
+}
+.p-bold {
+  font-weight: 850;
+  letter-spacing: -0.02rem;
+}
+@theme {
+  --color-brand-primary: #7b70ff;
+
+  --color-ciris-purple: #7b70ff;
+  --color-ciris-yellow: #ffe480;
+  --color-ciris-blue: #81eeff;
+  --color-ciris-green: #28ffb4;
+  --color-ciris-vlback: #f0ecff;
+}
+
+@utility container {
+  margin-inline: auto;
+}
+
+@utility h0 {
+  @apply text-4xl leading-tight;
+}
+h4 {
+  @apply text-lg leading-tight;
+}
+
+body {
+  font-family: sans-serif;
   margin: 0;
   padding: 0;
 }
 
-.sidebar { 
-  width: 200px; 
-  float: left; 
+.sidebar {
+  width: 200px;
+  float: left;
   background-color: #f5f5f5;
   height: 100vh;
   padding: 1rem;
@@ -43,7 +95,7 @@ body {
   background-color: #e0e0e0;
 }
 
-main { 
-  margin-left: 220px; 
-  padding: 1rem; 
+main {
+  margin-left: 220px;
+  padding: 1rem;
 }
