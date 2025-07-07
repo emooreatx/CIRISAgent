@@ -127,7 +127,7 @@ export default function LoginPage() {
           </div>
 
           <div className="text-sm text-center text-gray-600">
-            <p>Default credentials:</p>
+            <p className="">Default credentials:</p>
             <p className="font-mono">admin / ciris_admin_password</p>
           </div>
 
