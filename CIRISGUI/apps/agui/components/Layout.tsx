@@ -142,7 +142,6 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar className="top-2 z-50" />
-
       <main className=" container pt-10 sm:px-6 lg:px-8">
         <div className=" pt-20 sm:px-6 lg:px-8">
           {user && (
