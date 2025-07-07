@@ -6,6 +6,11 @@ REJECT, TASK_COMPLETE, TOOL, RECALL, FORGET, PONDER) works correctly when
 invoked through the API with appropriate mock LLM commands.
 """
 
+# CRITICAL: Prevent side effects during imports
+import os
+os.environ['CIRIS_IMPORT_MODE'] = 'true'
+os.environ['CIRIS_MOCK_LLM'] = 'true'
+
 import pytest
 import requests
 import time

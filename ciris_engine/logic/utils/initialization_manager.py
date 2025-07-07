@@ -8,6 +8,7 @@ the InitializationService.
 import logging
 from typing import Optional, Callable
 from ciris_engine.logic.services.lifecycle.initialization import InitializationService
+from ciris_engine.schemas.services.operations import InitializationPhase, InitializationStatus
 
 logger = logging.getLogger(__name__)
 

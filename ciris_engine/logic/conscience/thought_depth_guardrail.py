@@ -14,7 +14,6 @@ from ciris_engine.schemas.conscience.core import ConscienceCheckResult, Conscien
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.schemas.actions import DeferParams
 from ciris_engine.logic.conscience.interface import ConscienceInterface
-# TODO: Refactor to use dependency injection instead of get_config
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.logic import persistence
 from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, TraceContext, ServiceCorrelationStatus

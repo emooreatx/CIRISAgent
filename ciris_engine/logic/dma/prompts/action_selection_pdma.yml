@@ -5,33 +5,16 @@ system_header: "You are the CIRIS Action\u2011Selection evaluator. Given PDMA, C
 decision_format: 'Return JSON with exactly these keys: selected_action, action_parameters, rationale.'
 closing_reminder: Recall CIRIS principles override personal preference.
 action_parameter_schemas: "Schemas for 'action_parameters' based on the selected_action:\n\
-  SPEAK: {\"content\": string, \"channel_context\"?: ChannelContext}\nPONDER: {\"questions\": [string],\
-  \ \"focus_areas\"?: [string]}\nMEMORIZE: {\"node\": {id: string, type: \"agent\"\
-  |\"user\"|\"channel\"|\"concept\", scope: \"local\"|\"identity\"|\"environment\"\
-  , attributes?: object}}\nFor type: use 'user' for user data, 'channel' for channel\
-  \ data, 'concept' for facts/beliefs/knowledge, 'agent' for agent data.\nFor scope:\
-  \ use 'local' for user/channel data, 'identity' for personal facts/beliefs, 'environment'\
-  \ for external/internet data.\nRECALL: {\"node\": {id: string, type: \"agent\"|\"\
-  user\"|\"channel\"|\"concept\", scope: \"local\"|\"identity\"|\"environment\"}}\n\
-  FORGET: {\"node\": {id: string, type: \"agent\"|\"user\"|\"channel\"|\"concept\"\
-  , scope: \"local\"|\"identity\"|\"environment\"}, \"reason\": string}\nDEFER: {\"\
-  reason\": string, \"context\"?: {string: string}, \"defer_until\"?: string}\nSend to your Wise Authority (WA) for further\
-  \ processing. REJECT: {\"reason\": string, \"create_filter\"?: boolean, \"filter_pattern\"?: string, \"filter_type\"?: string, \"filter_priority\"?: string}\nReject\
-  \ means ignore, so it is unactionable or it is nothing you need to worry about.\n\
-  TOOL: {\"name\": string, \"parameters\": object} - Available tools and their argument\
-  \ schemas:\n  - discord_delete_message: Delete a message\n    parameters: {\"channel_id\"\
-  : integer, \"message_id\": integer}\n    Use when: Message violates rules, contains\
-  \ harmful content, or needs removal\n  - discord_timeout_user: Temporarily mute\
-  \ a user\n    parameters: {\"guild_id\": integer, \"user_id\": integer, \"duration_seconds\"\
-  : integer, \"reason\"?: string}\n    Use when: User needs a cooling-off period (max\
-  \ 28 days = 2419200 seconds)\n  - discord_ban_user: Permanently ban a user from\
-  \ the server\n    parameters: {\"guild_id\": integer, \"user_id\": integer, \"reason\"\
-  ?: string, \"delete_message_days\"?: integer (0-7)}\n    Use when: Severe or repeated\
-  \ violations requiring permanent removal\n  - discord_kick_user: Remove user from\
-  \ server (they can rejoin)\n    parameters: {\"guild_id\": integer, \"user_id\"\
-  : integer, \"reason\"?: string}\n    Use when: User needs removal but may be allowed\
-  \ back later\nOBSERVE: {\"channel_id\"?: string, \"active\"?: boolean, \"context\"\
-  ?: {string: string}}\nTASK_COMPLETE: {\"completion_reason\"?: string, \"context\"?: {string: string}, \"positive_moment\"?: string}"
+  SPEAK: {\"content\": string, \"channel_context\"?: ChannelContext}\n\
+  PONDER: {\"questions\": [string]}\n\
+  MEMORIZE: {\"node\": GraphNode} - GraphNode has fields: id, type, scope, attributes\n\
+  RECALL: {\"query\"?: string, \"node_type\"?: string, \"node_id\"?: string, \"scope\"?: GraphScope, \"limit\"?: integer}\n\
+  FORGET: {\"node\": GraphNode, \"reason\": string, \"no_audit\"?: boolean}\n\
+  DEFER: {\"reason\": string, \"context\"?: {string: string}, \"defer_until\"?: string}\n\
+  REJECT: {\"reason\": string, \"create_filter\"?: boolean, \"filter_pattern\"?: string, \"filter_type\"?: string, \"filter_priority\"?: string}\n\
+  TOOL: {\"name\": string, \"parameters\": object} - Parameters depend on the specific tool\n\
+  OBSERVE: {\"channel_context\"?: ChannelContext, \"active\"?: boolean, \"context\"?: {string: string}}\n\
+  TASK_COMPLETE: {\"completion_reason\": string, \"context\"?: {string: string}, \"positive_moment\"?: string}"
 csdma_ambiguity_guidance: If CSDMA highlighted critical ambiguity, highly
   align 'Speak' (for user clarification) or 'Ponder' (to formulate key clarifying
   questions) with Fidelity & Do-Good.
@@ -51,11 +34,9 @@ action_params_ponder_guidance: "If 'Ponder' is chosen (and not in final\
 rationale_csdma_guidance: If addressing CSDMA-flagged
   ambiguity, this MUST be a central part of your rationale.
 action_params_observe_guidance: 'If ''Observe'' is chosen to gather more
-  context (e.g., about a user''s message or current state of a discussion), ''perform_active_look''
-  SHOULD generally be true to actively fetch recent information. Set ''sources'' to
-  relevant identifiers (e.g., channel IDs, user IDs if applicable). Provide a clear
-  ''reason'' for the observation. Example: {{"sources": ["channel_id_1", "user_id_2"],
-  "perform_active_look": true, "reason": "Checking for recent user activity"}}'
+  context (e.g., about a user''s message or current state of a discussion), set ''active''
+  to true to actively observe. Provide ''channel_context'' if observing a specific channel.
+  Use ''context'' dict for additional information. Example: {{"active": true, "context": {"reason": "Checking for recent user activity"}}}'
 final_ponder_advisory: '
 
   IMPORTANT FINAL ATTEMPT ADVISORY (Thought Depth for NEXT attempt would be {current_thought_depth_plus_1}/{max_rounds}):

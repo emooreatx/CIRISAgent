@@ -4,7 +4,7 @@ import pytest
 import asyncio
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Generator
 
 from ciris_engine.logic.processors.core.thought_processor import ThoughtProcessor
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueue, ProcessingQueueItem, ThoughtContent
@@ -25,11 +25,11 @@ class TestThoughtProcessor:
     """Test cases for ThoughtProcessor."""
 
     @pytest.fixture
-    def mock_time_service(self):
+    def mock_time_service(self) -> Mock:
         """Create mock time service."""
         import itertools
         counter = itertools.count()
-        def get_time():
+        def get_time() -> datetime:
             # Return incrementing timestamps to avoid correlation ID conflicts
             base_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
             return base_time.replace(microsecond=next(counter) * 1000)
@@ -40,14 +40,18 @@ class TestThoughtProcessor:
         return mock_service
 
     @pytest.fixture
-    def mock_bus_manager(self):
+    def mock_bus_manager(self) -> Mock:
         """Create mock bus manager."""
         from ciris_engine.schemas.actions.parameters import SpeakParams
         mock_llm_bus = Mock()
         mock_llm_bus.select_action = AsyncMock(return_value=ActionSelectionDMAResult(
             selected_action=HandlerActionType.SPEAK,
             action_parameters=SpeakParams(content="Test response"),
-            rationale="Test rationale"
+            rationale="Test rationale",
+            raw_llm_response="Test LLM response",
+            reasoning="Test reasoning",
+            evaluation_time_ms=100.0,
+            resource_usage={"tokens": 50}
         ))
 
         mock_bus_manager = Mock()
@@ -58,7 +62,7 @@ class TestThoughtProcessor:
         return mock_bus_manager
 
     @pytest.fixture
-    def mock_action_dispatcher(self):
+    def mock_action_dispatcher(self) -> Mock:
         """Create mock action dispatcher."""
         dispatcher = Mock()
         dispatcher.can_handle = Mock(return_value=True)
@@ -70,7 +74,7 @@ class TestThoughtProcessor:
         return dispatcher
 
     @pytest.fixture
-    def mock_persistence(self):
+    def mock_persistence(self) -> Generator[Mock, None, None]:
         """Create mock persistence functions."""
         # Patch persistence in multiple places where it's imported
         with patch('ciris_engine.logic.processors.core.thought_processor.persistence') as mock_persist, \
@@ -111,11 +115,11 @@ class TestThoughtProcessor:
     @pytest.fixture
     def thought_processor(
         self,
-        mock_time_service,
-        mock_bus_manager,
-        mock_action_dispatcher,
-        mock_persistence
-    ):
+        mock_time_service: Mock,
+        mock_bus_manager: Mock,
+        mock_action_dispatcher: Mock,
+        mock_persistence: Mock
+    ) -> ThoughtProcessor:
         """Create ThoughtProcessor instance."""
         # Create mock dependencies
         mock_dma_orchestrator = Mock()
@@ -133,7 +137,11 @@ class TestThoughtProcessor:
         mock_action_result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.SPEAK,
             action_parameters=SpeakParams(content="Test response"),
-            rationale="Test rationale"
+            rationale="Test rationale",
+            raw_llm_response="Test LLM response",
+            reasoning="Test reasoning",
+            evaluation_time_ms=100.0,
+            resource_usage={"tokens": 50}
         )
         mock_dma_orchestrator.run_action_selection = AsyncMock(return_value=mock_action_result)
 
@@ -162,7 +170,7 @@ class TestThoughtProcessor:
         return processor
 
     @pytest.mark.asyncio
-    async def test_process_thought(self, thought_processor, mock_persistence):
+    async def test_process_thought(self, thought_processor: ThoughtProcessor, mock_persistence: Mock) -> None:
         """Test processing a thought."""
         # Create a queue item
         thought = Thought(
@@ -172,7 +180,14 @@ class TestThoughtProcessor:
             status=ThoughtStatus.PENDING,
             created_at=thought_processor._time_service.now().isoformat(),
             updated_at=thought_processor._time_service.now().isoformat(),
-            thought_type=ThoughtType.STANDARD
+            thought_type=ThoughtType.STANDARD,
+            channel_id=None,
+            round_number=0,
+            context=None,
+            thought_depth=0,
+            ponder_notes=None,
+            parent_thought_id=None,
+            final_action=None
         )
 
         item = ProcessingQueueItem.from_thought(thought)
@@ -188,7 +203,7 @@ class TestThoughtProcessor:
         assert result.selected_action in [HandlerActionType.SPEAK, HandlerActionType.PONDER]
 
     @pytest.mark.asyncio
-    async def test_process_thought_with_ponder(self, thought_processor):
+    async def test_process_thought_with_ponder(self, thought_processor: ThoughtProcessor) -> None:
         """Test processing a thought that results in pondering."""
         # Create a queue item
         thought = Thought(
@@ -198,7 +213,14 @@ class TestThoughtProcessor:
             status=ThoughtStatus.PENDING,
             created_at=thought_processor._time_service.now().isoformat(),
             updated_at=thought_processor._time_service.now().isoformat(),
-            thought_type=ThoughtType.STANDARD
+            thought_type=ThoughtType.STANDARD,
+            channel_id=None,
+            round_number=0,
+            context=None,
+            thought_depth=0,
+            ponder_notes=None,
+            parent_thought_id=None,
+            final_action=None
         )
 
         item = ProcessingQueueItem.from_thought(thought)
@@ -207,7 +229,11 @@ class TestThoughtProcessor:
         mock_result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.PONDER,
             action_parameters=PonderParams(questions=["What does this mean?"]),
-            rationale="Need to think about this"
+            rationale="Need to think about this",
+            raw_llm_response="Test LLM response",
+            reasoning="Test reasoning",
+            evaluation_time_ms=100.0,
+            resource_usage={"tokens": 50}
         )
         thought_processor.dma_orchestrator.run_action_selection = AsyncMock(return_value=mock_result)
 
@@ -218,7 +244,7 @@ class TestThoughtProcessor:
         assert result.selected_action == HandlerActionType.PONDER
 
     @pytest.mark.asyncio
-    async def test_process_thought_with_defer(self, thought_processor):
+    async def test_process_thought_with_defer(self, thought_processor: ThoughtProcessor) -> None:
         """Test processing a thought that results in deferral."""
         # Create a queue item
         thought = Thought(
@@ -228,7 +254,14 @@ class TestThoughtProcessor:
             status=ThoughtStatus.PENDING,
             created_at=thought_processor._time_service.now().isoformat(),
             updated_at=thought_processor._time_service.now().isoformat(),
-            thought_type=ThoughtType.STANDARD
+            thought_type=ThoughtType.STANDARD,
+            channel_id=None,
+            round_number=0,
+            context=None,
+            thought_depth=0,
+            ponder_notes=None,
+            parent_thought_id=None,
+            final_action=None
         )
 
         item = ProcessingQueueItem.from_thought(thought)
@@ -236,8 +269,12 @@ class TestThoughtProcessor:
         # Mock DMA result for DEFER
         mock_result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.DEFER,
-            action_parameters=DeferParams(reason="Waiting for user input"),
-            rationale="Need to wait"
+            action_parameters=DeferParams(reason="Waiting for user input", defer_until=None),
+            rationale="Need to wait",
+            raw_llm_response="Test LLM response",
+            reasoning="Test reasoning",
+            evaluation_time_ms=100.0,
+            resource_usage={"tokens": 50}
         )
         thought_processor.dma_orchestrator.run_action_selection = AsyncMock(return_value=mock_result)
 
@@ -248,7 +285,7 @@ class TestThoughtProcessor:
         assert result.selected_action == HandlerActionType.DEFER
 
     @pytest.mark.asyncio
-    async def test_process_thought_with_error(self, thought_processor):
+    async def test_process_thought_with_error(self, thought_processor: ThoughtProcessor) -> None:
         """Test processing a thought that encounters an error."""
         # Create a queue item
         thought = Thought(
@@ -258,7 +295,14 @@ class TestThoughtProcessor:
             status=ThoughtStatus.PENDING,
             created_at=thought_processor._time_service.now().isoformat(),
             updated_at=thought_processor._time_service.now().isoformat(),
-            thought_type=ThoughtType.STANDARD
+            thought_type=ThoughtType.STANDARD,
+            channel_id=None,
+            round_number=0,
+            context=None,
+            thought_depth=0,
+            ponder_notes=None,
+            parent_thought_id=None,
+            final_action=None
         )
 
         item = ProcessingQueueItem.from_thought(thought)
@@ -272,14 +316,12 @@ class TestThoughtProcessor:
         # Should return DEFER result on DMA error
         assert result is not None
         assert result.selected_action == HandlerActionType.DEFER
-        # action_parameters is a dict when model_dump() is called
-        if isinstance(result.action_parameters, dict):
-            assert "DMA timeout" in result.action_parameters["reason"]
-        else:
-            assert "DMA timeout" in result.action_parameters.reason
+        # Check that it's a DeferParams with the expected reason
+        assert isinstance(result.action_parameters, DeferParams)
+        assert "DMA timeout" in result.action_parameters.reason
 
     @pytest.mark.asyncio
-    async def test_process_thought_with_circuit_breaker(self, thought_processor):
+    async def test_process_thought_with_circuit_breaker(self, thought_processor: ThoughtProcessor) -> None:
         """Test processing thought with circuit breaker error."""
         # Create a queue item
         thought = Thought(
@@ -289,7 +331,14 @@ class TestThoughtProcessor:
             status=ThoughtStatus.PENDING,
             created_at=thought_processor._time_service.now().isoformat(),
             updated_at=thought_processor._time_service.now().isoformat(),
-            thought_type=ThoughtType.STANDARD
+            thought_type=ThoughtType.STANDARD,
+            channel_id=None,
+            round_number=0,
+            context=None,
+            thought_depth=0,
+            ponder_notes=None,
+            parent_thought_id=None,
+            final_action=None
         )
 
         item = ProcessingQueueItem.from_thought(thought)
@@ -304,7 +353,7 @@ class TestThoughtProcessor:
             await thought_processor.process_thought(item)
 
     @pytest.mark.asyncio
-    async def test_process_thought_with_conscience(self, thought_processor):
+    async def test_process_thought_with_conscience(self, thought_processor: ThoughtProcessor) -> None:
         """Test processing thought with conscience evaluation."""
         # Create a queue item
         thought = Thought(
@@ -314,7 +363,14 @@ class TestThoughtProcessor:
             status=ThoughtStatus.PENDING,
             created_at=thought_processor._time_service.now().isoformat(),
             updated_at=thought_processor._time_service.now().isoformat(),
-            thought_type=ThoughtType.STANDARD
+            thought_type=ThoughtType.STANDARD,
+            channel_id=None,
+            round_number=0,
+            context=None,
+            thought_depth=0,
+            ponder_notes=None,
+            parent_thought_id=None,
+            final_action=None
         )
 
         item = ProcessingQueueItem.from_thought(thought)
@@ -323,7 +379,11 @@ class TestThoughtProcessor:
         mock_result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.SPEAK,
             action_parameters=SpeakParams(content="I'll think carefully about this"),
-            rationale="Being thoughtful"
+            rationale="Being thoughtful",
+            raw_llm_response="Test LLM response",
+            reasoning="Test reasoning",
+            evaluation_time_ms=100.0,
+            resource_usage={"tokens": 50}
         )
         thought_processor.dma_orchestrator.orchestrate = AsyncMock(return_value=mock_result)
 
@@ -337,7 +397,7 @@ class TestThoughtProcessor:
         assert result is not None
 
     @pytest.mark.asyncio
-    async def test_process_thought_task_complete(self, thought_processor):
+    async def test_process_thought_task_complete(self, thought_processor: ThoughtProcessor) -> None:
         """Test processing thought that completes a task."""
         # Create a queue item
         thought = Thought(
@@ -347,7 +407,14 @@ class TestThoughtProcessor:
             status=ThoughtStatus.PENDING,
             created_at=thought_processor._time_service.now().isoformat(),
             updated_at=thought_processor._time_service.now().isoformat(),
-            thought_type=ThoughtType.STANDARD
+            thought_type=ThoughtType.STANDARD,
+            channel_id=None,
+            round_number=0,
+            context=None,
+            thought_depth=0,
+            ponder_notes=None,
+            parent_thought_id=None,
+            final_action=None
         )
 
         item = ProcessingQueueItem.from_thought(thought)
@@ -355,12 +422,17 @@ class TestThoughtProcessor:
         # Mock DMA result for TASK_COMPLETE
         from ciris_engine.schemas.actions.parameters import TaskCompleteParams
         task_complete_params = TaskCompleteParams(
-            completion_reason="Successfully completed"
+            completion_reason="Successfully completed",
+            positive_moment=None
         )
         mock_result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.TASK_COMPLETE,
             action_parameters=task_complete_params,
-            rationale="Task finished"
+            rationale="Task finished",
+            raw_llm_response="Test LLM response",
+            reasoning="Test reasoning",
+            evaluation_time_ms=100.0,
+            resource_usage={"tokens": 50}
         )
         thought_processor.dma_orchestrator.run_action_selection = AsyncMock(return_value=mock_result)
 
@@ -371,7 +443,7 @@ class TestThoughtProcessor:
         assert result.selected_action == HandlerActionType.TASK_COMPLETE
 
     @pytest.mark.asyncio
-    async def test_process_thought_with_context(self, thought_processor):
+    async def test_process_thought_with_context(self, thought_processor: ThoughtProcessor) -> None:
         """Test processing thought with additional context."""
         # Create a queue item with context
         thought = Thought(
@@ -381,7 +453,14 @@ class TestThoughtProcessor:
             status=ThoughtStatus.PENDING,
             created_at=thought_processor._time_service.now().isoformat(),
             updated_at=thought_processor._time_service.now().isoformat(),
-            thought_type=ThoughtType.STANDARD
+            thought_type=ThoughtType.STANDARD,
+            channel_id=None,
+            round_number=0,
+            context=None,
+            thought_depth=0,
+            ponder_notes=None,
+            parent_thought_id=None,
+            final_action=None
         )
 
         item = ProcessingQueueItem.from_thought(
@@ -398,7 +477,11 @@ class TestThoughtProcessor:
         mock_result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.SPEAK,
             action_parameters=SpeakParams(content="Context aware response"),
-            rationale="Using context"
+            rationale="Using context",
+            raw_llm_response="Test LLM response",
+            reasoning="Test reasoning",
+            evaluation_time_ms=100.0,
+            resource_usage={"tokens": 50}
         )
         thought_processor.dma_orchestrator.orchestrate = AsyncMock(return_value=mock_result)
 

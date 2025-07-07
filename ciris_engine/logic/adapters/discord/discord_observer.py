@@ -321,8 +321,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                             # Create channel context for guidance
                             guidance_channel_context = create_channel_context(
                                 channel_id=msg.channel_id,
-                                channel_type="discord",
-                                is_deferral=True
+                                channel_type="discord"
                             )
                             # Create a minimal valid ThoughtContext
                             guidance_context = ProcessingThoughtContext(

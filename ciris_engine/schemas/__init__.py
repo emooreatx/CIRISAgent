@@ -75,7 +75,7 @@ from .handlers.schemas import (
 
 # Faculty assessments removed - merged into consciences
 
-# ConscienceResult import removed - module doesn't exist
+from .conscience.results import ConscienceResult
 
 __all__ = [
     # Service schemas

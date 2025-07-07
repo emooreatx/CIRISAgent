@@ -28,7 +28,7 @@ try:
     import psutil
     PSUTIL_AVAILABLE = True
 except ImportError:
-    psutil = None
+    psutil = None  # type: ignore
     PSUTIL_AVAILABLE = False
 
 if TYPE_CHECKING:
@@ -43,7 +43,7 @@ from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, Node
 from ciris_engine.schemas.services.nodes import AuditEntry as AuditEntryNode, AuditEntryContext
 # Type alias for protocol compatibility
 AuditEntry = AuditEntryNode
-from ciris_engine.schemas.services.operations import MemoryOpStatus
+from ciris_engine.schemas.services.operations import MemoryOpStatus, MemoryQuery
 from ciris_engine.schemas.services.graph.audit import (
     AuditEventData, VerificationReport, AuditQuery
 )
@@ -52,6 +52,7 @@ from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.audit.hash_chain import AuditHashChain
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.logic.audit.verifier import AuditVerifier
+from ciris_engine.schemas.audit.verification import CompleteVerificationResult
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +141,9 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         
         # Track uptime
         self._start_time: Optional[datetime] = None
+        
+        # Lock for hash chain operations
+        self._hash_chain_lock = asyncio.Lock()
 
     def set_service_registry(self, registry: object) -> None:
         """Set the service registry for accessing memory bus."""
@@ -149,6 +153,7 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         if not self._memory_bus and registry:
             try:
                 from ciris_engine.logic.buses import MemoryBus
+                # ServiceRegistry is already imported above from base module
                 self._memory_bus = MemoryBus(registry, self._time_service)
             except Exception as e:
                 logger.error(f"Failed to initialize memory bus: {e}")
@@ -196,6 +201,8 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
             outcome="success",
             severity="info",
             action="shutdown",
+            resource="audit_service",
+            reason="service_shutdown",
             metadata={
                 "cached_entries": len(self._recent_entries),
                 "pending_exports": len(self._export_buffer)
@@ -257,7 +264,8 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
     async def log_event(
         self,
         event_type: str,
-        event_data: Union[AuditEventData, Dict[str, Any]]
+        event_data: Dict[Any, Any],
+        **kwargs: object
     ) -> None:
         """Log a general event.
         
@@ -269,16 +277,30 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         if isinstance(event_data, dict):
             # Extract required fields with defaults
             audit_data = AuditEventData(
-                entity_id=event_data.get('thought_id', event_data.get('entity_id', 'unknown')),
-                actor=event_data.get('handler_name', event_data.get('actor', 'system')),
+                entity_id=str(event_data.get('thought_id', event_data.get('entity_id', 'unknown'))),
+                actor=str(event_data.get('handler_name', event_data.get('actor', 'system'))),
                 outcome=event_data.get('outcome', 'success'),
                 severity=event_data.get('severity', 'info'),
                 action=event_data.get('action', event_type),
-                reason=event_data.get('reason'),
-                metadata=event_data
+                resource=event_data.get('resource', event_type),
+                reason=event_data.get('reason', 'event_logged'),
+                metadata=event_data.get('metadata', {}) if 'metadata' in event_data else {}
             )
-        else:
+        elif isinstance(event_data, AuditEventData):
+            # Already an AuditEventData object
             audit_data = event_data
+        else:
+            # Fallback for unexpected types
+            audit_data = AuditEventData(
+                entity_id='unknown',
+                actor='system',
+                outcome='success',
+                severity='info',
+                action=event_type,
+                resource=event_type,
+                reason='event_logged',
+                metadata={}
+            )
         try:
             # Create audit entry with string-only details
             details_dict = {}
@@ -311,11 +333,10 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
                         "outcome": entry.outcome or "logged"
                     }
                 ),
+                signature=None,  # Will be set by hash chain if enabled
+                hash_chain=None,  # Will be set by hash chain if enabled
                 scope=GraphScope.LOCAL,
-                attributes={
-                    "event_id": entry.entry_id,
-                    "severity": audit_data.severity
-                }
+                attributes={}
             )
 
             # Store in graph
@@ -351,62 +372,73 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
 
     async def log_conscience_event(
         self,
-        conscience_name: str,
-        action_type: str,
-        result: AuditConscienceResult
+        thought_id: str,
+        decision: str,
+        reasoning: str,
+        metadata: Optional[dict] = None
     ) -> None:
         """Log conscience check events."""
         # Create proper AuditEventData object
         from ciris_engine.schemas.services.graph.audit import AuditEventData
 
         event_data = AuditEventData(
-            entity_id=conscience_name,
+            entity_id=thought_id,
             actor="conscience_system",
-            outcome="allowed" if result.allowed else "denied",
-            severity="high" if not result.allowed else "info",
-            action=action_type,
-            reason=result.reason,
-            metadata={
-                "conscience_name": conscience_name,
-                "allowed": result.allowed,
-                "risk_level": result.risk_level or "unknown",
-                "modifications": json.dumps(result.modifications) if result.modifications else "{}"
-            }
+            outcome="allowed" if decision == "ALLOW" else "denied",
+            severity="high" if decision != "ALLOW" else "info",
+            action="conscience_check",
+            resource="conscience",
+            reason=reasoning,
+            metadata=metadata or {}
         )
 
         await self.log_event("conscience_check", event_data)
 
     async def get_audit_trail(
         self,
-        entity_id: str,
-        limit: int = 100
-    ) -> List[AuditRequest]:
+        entity_id: Optional[str] = None,
+        hours: int = 24,
+        action_types: Optional[List[str]] = None
+    ) -> List[AuditEntry]:
         """Get audit trail for an entity."""
-        # Check cache first
-        cached = [e for e in self._recent_entries if e.entity_id == entity_id]
-        if len(cached) >= limit:
-            return cached[:limit]
+        # Check cache first if entity_id provided
+        cached = []
+        if entity_id:
+            cached = [e for e in self._recent_entries if e.entity_id == entity_id]
+        else:
+            cached = list(self._recent_entries)
 
         # Query from graph
         if not self._memory_bus:
             logger.error("Memory bus not available for audit queries")
-            return cached
+            # Convert cached AuditRequest to AuditEntry
+            return [self._audit_request_to_entry(e) for e in cached]
 
         try:
             # Query timeseries data
             timeseries_data = await self._memory_bus.recall_timeseries(
                 scope="local",
-                hours=24 * 30,  # 30 days
+                hours=hours,
                 correlation_types=["AUDIT_EVENT"],
                 handler_name="audit_service"
             )
 
-            # Convert to AuditEntry objects
+            # Convert to AuditEntry objects and filter
             results = self._convert_timeseries_to_entries(timeseries_data, entity_id)
 
             # Combine with cache and deduplicate
-            all_entries = {e.entry_id: e for e in cached}
-            all_entries.update({e.entry_id: e for e in results})
+            # Convert AuditRequest to AuditEntry if needed
+            all_entries: Dict[str, AuditEntry] = {}
+            for e in cached:
+                if hasattr(e, 'entry_id'):
+                    entry = self._audit_request_to_entry(e)
+                    all_entries[entry.id] = entry
+            for e in results:
+                if hasattr(e, 'id'):
+                    all_entries[e.id] = e
+                elif hasattr(e, 'entry_id'):
+                    entry = self._audit_request_to_entry(e)
+                    all_entries[entry.id] = entry
 
             # Sort and limit
             sorted_entries = sorted(
@@ -415,11 +447,16 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
                 reverse=True
             )
 
-            return sorted_entries[:limit]
+            # Apply action_types filter if provided
+            if action_types:
+                sorted_entries = [e for e in sorted_entries if hasattr(e, 'action') and e.action in action_types]
+            
+            return sorted_entries
 
         except Exception as e:
             logger.error(f"Failed to get audit trail: {e}")
-            return cached
+            # Convert cached AuditRequest to AuditEntry
+            return [self._audit_request_to_entry(e) for e in cached]
 
     async def query_audit_trail(
         self,
@@ -444,7 +481,13 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         audit_entries = []
         for node in nodes:
             # Extract audit data from node attributes
-            attrs = node.attributes
+            attrs: Dict[str, Any] = {}
+            if isinstance(node.attributes, dict):
+                attrs = node.attributes
+            elif hasattr(node.attributes, 'model_dump'):
+                attrs = node.attributes.model_dump()
+            else:
+                continue
             
             # Parse timestamp if it's a string
             timestamp = attrs.get("timestamp", self._time_service.now())
@@ -465,7 +508,7 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
                 additional_data = context_data.get("additional_data", {})
                 if isinstance(additional_data, dict):
                     # Filter out non-primitive values
-                    flat_data = {}
+                    flat_data: Dict[str, Union[str, int, float, bool]] = {}
                     for k, v in additional_data.items():
                         if isinstance(v, (str, int, float, bool, type(None))):
                             flat_data[k] = v
@@ -492,7 +535,7 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
                 signature=attrs.get("signature"),
                 hash_chain=attrs.get("hash_chain"),
                 scope=node.scope,
-                attributes=node.attributes  # Include the raw attributes from GraphNode
+                attributes={}
             )
             
             # Apply filters from query
@@ -562,20 +605,7 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
                 audit_request = self._tsdb_to_audit_entry(data)
                 if audit_request:
                     # Convert AuditRequest to AuditEntry for API
-                    audit_entry = AuditEntryNode(
-                        id=f"audit_{audit_request.entry_id}",
-                        action=audit_request.event_type,
-                        actor=audit_request.actor,
-                        timestamp=audit_request.timestamp,
-                        context=AuditEntryContext(
-                            service_name=audit_request.details.get("handler_name", ""),
-                            correlation_id=audit_request.entity_id,
-                            additional_data=audit_request.details
-                        ),
-                        signature=None,  # Would be in the data if present
-                        hash_chain=None,  # Would be in the data if present
-                        scope=GraphScope.LOCAL
-                    )
+                    audit_entry = self._audit_request_to_entry(audit_request)
                     results.append(audit_entry)
 
             # Sort and limit
@@ -607,19 +637,26 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
             result = await asyncio.to_thread(self.verifier.verify_complete_chain)
             end_time = self._time_service.now()
 
+            # Extract all errors
+            all_errors = []
+            all_errors.extend(result.hash_chain_errors or [])
+            all_errors.extend(result.signature_errors or [])
+            if result.error:
+                all_errors.append(result.error)
+
             return VerificationReport(
-                verified=result.get("valid", False),
-                total_entries=result.get("total_entries", 0),
-                valid_entries=result.get("valid_entries", 0),
-                invalid_entries=result.get("invalid_entries", 0),
-                chain_intact=result.get("chain_valid", False),
-                last_valid_entry=result.get("last_valid_entry"),
-                first_invalid_entry=result.get("first_invalid_entry"),
+                verified=result.valid,
+                total_entries=result.entries_verified,
+                valid_entries=result.entries_verified if result.valid else 0,
+                invalid_entries=0 if result.valid else result.entries_verified,
+                chain_intact=result.hash_chain_valid,
+                last_valid_entry=None,  # Not provided by CompleteVerificationResult
+                first_invalid_entry=None,  # Not provided by CompleteVerificationResult
                 verification_started=start_time,
                 verification_completed=end_time,
                 duration_ms=(end_time - start_time).total_seconds() * 1000,
-                errors=result.get("errors", []),
-                warnings=result.get("warnings", [])
+                errors=all_errors,
+                warnings=[]  # No warnings in CompleteVerificationResult
             )
         except Exception as e:
             logger.error(f"Audit verification failed: {e}")
@@ -714,44 +751,13 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         result = await self._memory_bus.memorize(node)
         return node.id if result.status == MemoryOpStatus.OK else ""
 
-    async def query_graph(self, query: AuditQuery) -> List[AuditRequest]:
+    async def query_graph(self, query: MemoryQuery) -> List[GraphNode]:
         """Query the graph."""
         if not self._memory_bus:
             return []
-        # Convert AuditQuery to parameters
-        if query.start_time and query.end_time:
-            hours = int((query.end_time - query.start_time).total_seconds() / 3600)
-        else:
-            hours = 24  # Default to last 24 hours
-
-        # Query timeseries data
-        nodes = await self._memory_bus.recall_timeseries(
-            scope="local",
-            hours=hours,
-            correlation_types=["AUDIT_EVENT"]
-        )
-
-        # Convert nodes to AuditEntry objects using proper conversion
-        entries = []
-        for node in nodes:
-            entry = self._tsdb_to_audit_entry(node)
-            if entry:
-                entries.append(entry)
-
-        # Apply filters
-        if query.event_type:
-            entries = [e for e in entries if e.event_type == query.event_type]
-        if query.actor:
-            entries = [e for e in entries if e.actor == query.actor]
-        if query.entity_id:
-            entries = [e for e in entries if e.entity_id == query.entity_id]
-
-        # Sort and limit
-        entries.sort(key=lambda e: e.timestamp, reverse=query.order_desc)
-        if query.limit:
-            entries = entries[query.offset:query.offset + query.limit]
-
-        return entries
+        # Use memory bus to recall nodes
+        nodes = await self._memory_bus.recall(query)
+        return nodes
 
     def get_node_type(self) -> str:
         """Get the type of nodes this service manages."""
@@ -967,53 +973,54 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         if not self.enable_hash_chain:
             return
 
-        def _write_to_chain() -> None:
-            entry_dict = {
-                "event_id": entry.entry_id,
-                "event_timestamp": entry.timestamp.isoformat(),
-                "event_type": entry.event_type,
-                "originator_id": entry.entity_id,
-                "event_payload": json.dumps(entry.details)
-            }
+        async with self._hash_chain_lock:
+            def _write_to_chain() -> None:
+                entry_dict = {
+                    "event_id": entry.entry_id,
+                    "event_timestamp": entry.timestamp.isoformat(),
+                    "event_type": entry.event_type,
+                    "originator_id": entry.entity_id,
+                    "event_payload": json.dumps(entry.details)
+                }
 
-            if not self.hash_chain or not self.signature_manager:
-                raise RuntimeError("Hash chain not available")
+                if not self.hash_chain or not self.signature_manager:
+                    raise RuntimeError("Hash chain not available")
 
-            prepared = self.hash_chain.prepare_entry(entry_dict)
-            signature = self.signature_manager.sign_entry(prepared["entry_hash"])
+                prepared = self.hash_chain.prepare_entry(entry_dict)
+                signature = self.signature_manager.sign_entry(prepared["entry_hash"])
 
-            if not self._db_connection:
-                raise RuntimeError("Database connection not available")
+                if not self._db_connection:
+                    raise RuntimeError("Database connection not available")
 
-            cursor = self._db_connection.cursor()
-            cursor.execute("""
-                INSERT INTO audit_log
-                (event_id, event_timestamp, event_type, originator_id,
-                 event_summary, event_payload, sequence_number, previous_hash,
-                 entry_hash, signature, signing_key_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                entry.entry_id,
-                entry.timestamp.isoformat(),
-                entry.event_type,
-                entry.entity_id,
-                f"{entry.event_type} by {entry.actor}",
-                json.dumps(entry.details),
-                prepared["sequence_number"],
-                prepared["previous_hash"],
-                prepared["entry_hash"],
-                signature,
-                self.signature_manager.key_id or "unknown"
-            ))
+                cursor = self._db_connection.cursor()
+                cursor.execute("""
+                    INSERT INTO audit_log
+                    (event_id, event_timestamp, event_type, originator_id,
+                     event_summary, event_payload, sequence_number, previous_hash,
+                     entry_hash, signature, signing_key_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    entry.entry_id,
+                    entry.timestamp.isoformat(),
+                    entry.event_type,
+                    entry.entity_id,
+                    f"{entry.event_type} by {entry.actor}",
+                    json.dumps(entry.details),
+                    prepared["sequence_number"],
+                    prepared["previous_hash"],
+                    prepared["entry_hash"],
+                    signature,
+                    self.signature_manager.key_id or "unknown"
+                ))
 
-            self._db_connection.commit()
+                self._db_connection.commit()
 
-        try:
-            logger.info(f"[AUDIT DEBUG] About to write to hash chain for entry {entry.entry_id}")
-            await asyncio.to_thread(_write_to_chain)
-            logger.info(f"[AUDIT DEBUG] Successfully wrote to hash chain for entry {entry.entry_id}")
-        except Exception as e:
-            logger.error(f"[AUDIT DEBUG] Failed to add to hash chain: {e}", exc_info=True)
+            try:
+                logger.info(f"[AUDIT DEBUG] About to write to hash chain for entry {entry.entry_id}")
+                await asyncio.to_thread(_write_to_chain)
+                logger.info(f"[AUDIT DEBUG] Successfully wrote to hash chain for entry {entry.entry_id}")
+            except Exception as e:
+                logger.error(f"[AUDIT DEBUG] Failed to add to hash chain: {e}", exc_info=True)
 
     def _cache_entry(self, entry: AuditRequest) -> None:
         """Add entry to cache."""
@@ -1253,7 +1260,7 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         self,
         timeseries_data: List[GraphNode],
         entity_id: Optional[str] = None
-    ) -> List[AuditRequest]:
+    ) -> List[AuditEntry]:
         """Convert timeseries data to audit entries."""
         results = []
 
@@ -1290,17 +1297,29 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         entries = await self.query_audit_trail(query)
 
         # Convert to dict format expected by protocol
-        return [
-            {
-                "event_id": entry.entry_id,
-                "event_type": entry.event_type,
-                "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
-                "user_id": entry.actor,  # Using actor as user_id
-                "data": entry.details,
-                "metadata": {"outcome": entry.outcome} if entry.outcome else {}
-            }
-            for entry in entries
-        ]
+        result = []
+        for entry in entries:
+            if hasattr(entry, 'entry_id'):
+                # AuditRequest format
+                result.append({
+                    "event_id": entry.entry_id,
+                    "event_type": entry.event_type,
+                    "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
+                    "user_id": entry.actor,  # Using actor as user_id
+                    "data": entry.details,
+                    "metadata": {"outcome": entry.outcome} if entry.outcome else {}
+                })
+            else:
+                # AuditEntry format
+                result.append({
+                    "event_id": entry.id,
+                    "event_type": entry.action,
+                    "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
+                    "user_id": entry.actor,  # Using actor as user_id
+                    "data": {"context": entry.context.model_dump()},
+                    "metadata": {"signature": entry.signature} if entry.signature else {}
+                })
+        return result
 
     async def get_event_by_id(self, event_id: str) -> Optional[dict]:
         """Get specific audit event by ID."""
@@ -1343,3 +1362,21 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
                 }
 
         return None
+    
+    def _audit_request_to_entry(self, req: AuditRequest) -> AuditEntry:
+        """Convert AuditRequest to AuditEntry."""
+        return AuditEntryNode(
+            id=f"audit_{req.entry_id}",
+            action=req.event_type,
+            actor=req.actor,
+            timestamp=req.timestamp,
+            context=AuditEntryContext(
+                service_name=req.details.get("handler_name", ""),
+                correlation_id=req.entity_id,
+                additional_data={k: str(v) for k, v in req.details.items()}
+            ),
+            signature=None,
+            hash_chain=None,
+            scope=GraphScope.LOCAL,
+            attributes={}
+        )

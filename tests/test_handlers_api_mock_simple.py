@@ -251,19 +251,16 @@ class TestHandlers:
         assert "data" in result
         assert result["data"]["message_id"] is not None
         
-        # Task complete typically doesn't generate a response, so we expect timeout
+        # Task complete should NOT generate a response - this is correct behavior
+        # The API will timeout waiting for a response, which is expected
         response = result["data"]["response"]
-        valid_responses = ["Still processing", "[MOCK LLM]", "[MOCKLLM", "mock llm", "Agent response is not guaranteed"]
-        assert any(expected.lower() in response.lower() for expected in valid_responses)
         
-        # The task should still be completed even without a response
-        # Wait a bit for processing
-        time.sleep(1)  # Reduced from 2s
+        # The response should indicate no agent response (timeout)
+        assert "Still processing" in response or "Agent response is not guaranteed" in response
         
-        # Check completed tasks
-        tasks = api_client.get_tasks("completed")
-        assert isinstance(tasks, list)
-        # Task completion is async, so we don't assert on task status
+        # The important thing is that the task was completed in the audit log
+        # We can't easily check audit logs in this test, but the lack of response
+        # is the correct behavior for TASK_COMPLETE
         
     def test_help_bug_fixed(self, api_client):
         """Test that $help doesn't break subsequent commands."""

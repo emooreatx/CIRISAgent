@@ -6,7 +6,7 @@ import logging
 import uuid
 from typing import List, Optional, TYPE_CHECKING
 
-from ciris_engine.schemas.runtime.models import Task, ThoughtContext
+from ciris_engine.schemas.runtime.models import Task, TaskContext, ThoughtContext
 from ciris_engine.schemas.runtime.enums import TaskStatus
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 from ciris_engine.logic import persistence
@@ -43,14 +43,13 @@ class TaskManager:
 
         # Build context dict
         context_dict = context or {}
-
-        # Convert dict to ThoughtContext
-        from ciris_engine.schemas.runtime.system_context import SystemSnapshot
-        from ciris_engine.schemas.runtime.processing_context import ProcessingThoughtContext
-        from ciris_engine.logic.utils.channel_utils import create_channel_context
-        channel_context = create_channel_context(channel_id)
-        thought_context = ProcessingThoughtContext(
-            system_snapshot=SystemSnapshot(channel_context=channel_context)
+        
+        # Create TaskContext (not ProcessingThoughtContext)
+        task_context = TaskContext(
+            channel_id=channel_id,
+            user_id=context_dict.get('user_id'),
+            correlation_id=context_dict.get('correlation_id', str(uuid.uuid4())),
+            parent_task_id=parent_task_id
         )
 
         task = Task(
@@ -62,14 +61,14 @@ class TaskManager:
             created_at=now_iso,
             updated_at=now_iso,
             parent_task_id=parent_task_id,
-            context=thought_context,
-            outcome={},
+            context=task_context,
+            outcome=None,  # Use None instead of empty dict
+            # Explicitly set optional signing fields to None
+            signed_by=None,
+            signature=None,
+            signed_at=None,
         )
 
-        if context_dict and 'agent_name' in context_dict:
-            # Store agent name in ThoughtContext if provided
-            # Note: ThoughtContext uses extra="allow" so we can add custom fields
-            setattr(task.context, 'agent_name', context_dict['agent_name'])
         persistence.add_task(task)
         logger.info(f"Created task {task.task_id}: {description}")
         return task
@@ -115,8 +114,11 @@ class TaskManager:
             logger.error(f"Task {task_id} not found")
             return False
 
+        # NOTE: Currently we don't have a way to update task outcome in persistence
+        # This would require adding an update_task method to persistence
+        # For now, we just update the status
         if outcome:
-            pass
+            logger.info(f"Task {task_id} completed with outcome: {outcome}")
 
         return persistence.update_task_status(task_id, TaskStatus.COMPLETED, self.time_service)
 
@@ -127,29 +129,29 @@ class TaskManager:
             logger.error(f"Task {task_id} not found")
             return False
 
-        # TODO: Store failure reason in outcome
+        # NOTE: Currently we don't have a way to update task outcome in persistence
+        # This would require adding an update_task method to persistence
+        # For now, we just log the failure reason and update the status
+        logger.info(f"Task {task_id} failed: {reason}")
+        
         return persistence.update_task_status(task_id, TaskStatus.FAILED, self.time_service)
 
     def create_wakeup_sequence_tasks(self, channel_id: Optional[str] = None) -> List[Task]:
         """Create the WAKEUP sequence tasks using v1 schema."""
         now_iso = self.time_service.now_iso()
 
-        # Convert to ThoughtContext
-        from ciris_engine.schemas.runtime.system_context import SystemSnapshot
-        from ciris_engine.schemas.runtime.processing_context import ProcessingThoughtContext
-        from ciris_engine.logic.utils.channel_utils import create_channel_context
-
-        # Create channel context from channel ID
-        channel_context = create_channel_context(channel_id) if channel_id else None
-
-        root_context = ProcessingThoughtContext(
-            system_snapshot=SystemSnapshot(channel_context=channel_context)
-        )
-
         # Get channel_id, use default if not provided
         if not channel_id:
             from ciris_engine.logic.config.env_utils import get_env_var
             channel_id = get_env_var('DISCORD_CHANNEL_ID') or 'system'
+
+        # Create TaskContext for root task
+        root_context = TaskContext(
+            channel_id=channel_id,
+            user_id='system',
+            correlation_id=str(uuid.uuid4()),
+            parent_task_id=None
+        )
 
         root_task = Task(
             task_id="WAKEUP_ROOT",
@@ -159,7 +161,13 @@ class TaskManager:
             priority=1,
             created_at=now_iso,
             updated_at=now_iso,
+            parent_task_id=None,
             context=root_context,
+            outcome=None,
+            # Explicitly set optional signing fields to None
+            signed_by=None,
+            signature=None,
+            signed_at=None,
         )
 
         if not persistence.task_exists(root_task.task_id):
@@ -177,15 +185,14 @@ class TaskManager:
 
         tasks = [root_task]
 
-        channel_context = root_task.context.system_snapshot.channel_context if root_task.context else None
-
         for step_type, content in wakeup_steps:
-            # Create ThoughtContext for each step
-            step_thought_context = ThoughtContext(
-                system_snapshot=SystemSnapshot(channel_context=channel_context)
+            # Create TaskContext for each step
+            step_context = TaskContext(
+                channel_id=channel_id,
+                user_id='system',
+                correlation_id=str(uuid.uuid4()),
+                parent_task_id=root_task.task_id
             )
-            # Add step_type as a custom field (ThoughtContext allows extra fields)
-            setattr(step_thought_context, 'step_type', step_type)
 
             step_task = Task(
                 task_id=str(uuid.uuid4()),
@@ -196,7 +203,12 @@ class TaskManager:
                 created_at=now_iso,
                 updated_at=now_iso,
                 parent_task_id=root_task.task_id,
-                context=step_thought_context,
+                context=step_context,
+                outcome=None,
+                # Explicitly set optional signing fields to None
+                signed_by=None,
+                signature=None,
+                signed_at=None,
             )
             persistence.add_task(step_task)
             tasks.append(step_task)

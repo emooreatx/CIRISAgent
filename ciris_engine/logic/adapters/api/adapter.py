@@ -51,7 +51,7 @@ class ApiPlatform(Service):
         self.config.load_env_vars()
         
         # Create FastAPI app - services will be injected later in start()
-        self.app = create_app(runtime)
+        self.app = create_app(runtime, self.config)
         self._server = None
         self._server_task = None
         

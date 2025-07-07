@@ -7,6 +7,7 @@ As more endpoints are fixed, tests can be moved from test_sdk_endpoints.py to he
 """
 import asyncio
 import pytest
+import pytest_asyncio
 import socket
 from datetime import datetime, timezone
 
@@ -34,7 +35,7 @@ pytestmark = pytest.mark.skipif(not check_api_available(), reason="API not runni
 class TestWorkingSDKEndpoints:
     """Tests for SDK endpoints that currently work."""
     
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def client(self):
         """Create authenticated CIRIS client."""
         async with CIRISClient(base_url="http://localhost:8080", timeout=30.0) as client:
@@ -43,7 +44,7 @@ class TestWorkingSDKEndpoints:
             client._transport.set_api_key(response.access_token)
             yield client
     
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def unauthenticated_client(self):
         """Create unauthenticated CIRIS client."""
         async with CIRISClient(base_url="http://localhost:8080", timeout=30.0) as client:
@@ -60,7 +61,7 @@ class TestWorkingSDKEndpoints:
         unauthenticated_client._transport.set_api_key(response.access_token)
         # Check transport has the token
         assert unauthenticated_client._transport.api_key is not None
-        assert unauthenticated_client._transport.api_key.startswith("ciris_admin_")
+        assert unauthenticated_client._transport.api_key.startswith("ciris_system_admin_")
         
         # Test failed login - SDK raises generic CIRISAPIError for 401
         from ciris_sdk.exceptions import CIRISAPIError
@@ -81,8 +82,8 @@ class TestWorkingSDKEndpoints:
     async def test_auth_me(self, client):
         """Test GET /v1/auth/me."""
         user_info = await client.auth.get_current_user()
-        assert user_info.user_id == "SYSTEM_ADMIN"
-        assert user_info.username == "SYSTEM_ADMIN"
+        assert user_info.user_id == "wa-system-admin"
+        assert user_info.username == "wa-system-admin"
         assert user_info.role == "SYSTEM_ADMIN"
         assert len(user_info.permissions) > 0
         # Check some expected permissions
@@ -105,7 +106,7 @@ class TestWorkingSDKEndpoints:
         
         # Verify new token works
         user_info = await client.auth.get_current_user()
-        assert user_info.user_id == "SYSTEM_ADMIN"
+        assert user_info.user_id == "wa-system-admin"
 
     # ========== System Tests (1 endpoint) ==========
     

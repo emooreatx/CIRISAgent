@@ -3,11 +3,11 @@ from discord.errors import HTTPException, ConnectionClosed
 import logging
 import asyncio
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Awaitable, Callable, List, Optional, TYPE_CHECKING, Any, Dict
 
-from ciris_engine.schemas.runtime.messages import FetchedMessage, IncomingMessage
-from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, ToolService
+from ciris_engine.schemas.runtime.messages import IncomingMessage
+from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService
 from ciris_engine.schemas.telemetry.core import (
     ServiceCorrelation,
     ServiceCorrelationStatus,
@@ -15,7 +15,6 @@ from ciris_engine.schemas.telemetry.core import (
     ServiceResponseData,
 )
 from ciris_engine.schemas.services.context import GuidanceContext, DeferralContext
-from ciris_engine.schemas.adapters.tools import ToolInfo, ToolExecutionResult, ToolParameterSchema
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.schemas.services.authority_core import (
     DeferralRequest, DeferralResponse, GuidanceRequest, GuidanceResponse,
@@ -28,7 +27,6 @@ from ciris_engine.logic.adapters.base import Service
 
 from .discord_message_handler import DiscordMessageHandler
 from .discord_guidance_handler import DiscordGuidanceHandler
-from .discord_tool_handler import DiscordToolHandler
 from .discord_channel_manager import DiscordChannelManager
 from .discord_reaction_handler import DiscordReactionHandler, ApprovalRequest, ApprovalStatus
 from .discord_audit import DiscordAuditLogger
@@ -45,13 +43,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolService):
+class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
     """
-    Discord adapter implementing CommunicationService, WiseAuthorityService, and ToolService protocols.
+    Discord adapter implementing CommunicationService and WiseAuthorityService protocols.
     Coordinates specialized handlers for different aspects of Discord functionality.
     """
     def __init__(self, token: str,
-                 tool_registry: Optional[Any] = None, bot: Optional[discord.Client] = None,
+                 bot: Optional[discord.Client] = None,
                  on_message: Optional[Callable[[IncomingMessage], Awaitable[None]]] = None,
                  time_service: Optional["TimeServiceProtocol"] = None,
                  bus_manager: Optional[Any] = None,
@@ -84,7 +82,6 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         self._message_handler = DiscordMessageHandler(bot)
         self._guidance_handler = DiscordGuidanceHandler(bot, self._time_service,
                                                        self.bus_manager.memory if self.bus_manager else None)
-        self._tool_handler = DiscordToolHandler(tool_registry, bot, self._time_service)
         self._reaction_handler = DiscordReactionHandler(bot, self._time_service)
         self._audit_logger = DiscordAuditLogger(self._time_service)
         self._connection_manager = DiscordConnectionManager(token, bot, self._time_service)
@@ -92,11 +89,12 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         self._rate_limiter = DiscordRateLimiter()
         self._embed_formatter = DiscordEmbedFormatter()
         self._access_control = DiscordAccessControl(bot)
+        self._start_time: Optional[datetime] = None
 
         # Set up connection callbacks
         self._setup_connection_callbacks()
 
-    async def _retry_discord_operation(self, operation: Callable, *args, operation_name: str, config_key: str = "discord_api", **kwargs) -> Any:
+    async def _retry_discord_operation(self, operation: Callable[..., Awaitable[Any]], *args: Any, operation_name: str, config_key: str = "discord_api", **kwargs: Any) -> Any:
         """Wrapper for retry_with_backoff that handles Discord-specific configuration."""
         # Apply rate limiting before the operation
         endpoint = kwargs.get('endpoint', operation_name)
@@ -128,7 +126,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                     raise
             raise
 
-    async def _emit_telemetry(self, metric_name: str, value: float = 1.0, tags: Optional[dict] = None) -> None:
+    async def _emit_telemetry(self, metric_name: str, value: float = 1.0, tags: Optional[Dict[str, Any]] = None) -> None:
         """Emit telemetry as TSDBGraphNode through memory bus."""
         if not self.bus_manager or not self.bus_manager.memory:
             return  # No bus manager, can't emit telemetry
@@ -165,7 +163,11 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             return False
 
         correlation_id = str(uuid.uuid4())
-        start_time = self._time_service.now()
+        time_service = self._time_service
+        if time_service is None:
+            logger.error("Time service not initialized")
+            return False
+        start_time = time_service.now()
 
         try:
             _result = await self._retry_discord_operation(
@@ -175,7 +177,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                 config_key="discord_api"
             )
 
-            end_time = self._time_service.now()
+            end_time = time_service.now()
             execution_time_ms = (end_time - start_time).total_seconds() * 1000
 
             # result contains the return value from send_message_to_channel
@@ -203,14 +205,14 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                     updated_at=end_time,
                     timestamp=start_time
                 ),
-                self._time_service
+                time_service
             )
 
             # Emit telemetry for message sent
-            await self._emit_telemetry("discord.message.sent", {
+            await self._emit_telemetry("discord.message.sent", 1.0, {
                 "adapter_type": "discord",
                 "channel_id": channel_id,
-                "execution_time": execution_time_ms
+                "execution_time": str(execution_time_ms)
             })
 
             # Audit log the operation
@@ -230,7 +232,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.error(f"Failed to send message via Discord: {error_info}")
             return False
 
-    async def fetch_messages(self, channel_id: str, limit: int = 100) -> List[FetchedMessage]:
+    async def fetch_messages(self, channel_id: str, *, limit: int = 50, before: Optional[datetime] = None) -> List[Dict[str, Any]]:
         """Implementation of CommunicationService.fetch_messages - fetches from correlations"""
         from ciris_engine.logic.persistence import get_correlations_by_channel
         
@@ -250,14 +252,15 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                     if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
                         content = corr.request_data.parameters.get("content", "")
                     
-                    messages.append(FetchedMessage(
-                        message_id=corr.correlation_id,
-                        author_id="ciris",
-                        author_name="CIRIS",
-                        content=content,
-                        timestamp=corr.timestamp or corr.created_at,
-                        channel_id=channel_id
-                    ))
+                    messages.append({
+                        "id": corr.correlation_id,
+                        "author_id": "ciris",
+                        "author_name": "CIRIS",
+                        "content": content,
+                        "timestamp": (corr.timestamp or corr.created_at).isoformat() if corr.timestamp or corr.created_at else None,
+                        "channel_id": channel_id,
+                        "is_bot": True
+                    })
                 elif corr.action_type == "observe" and corr.request_data:
                     # This is an incoming message from a user
                     content = ""
@@ -270,17 +273,18 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                         author_id = params.get("author_id", "unknown")
                         author_name = params.get("author_name", "User")
                     
-                    messages.append(FetchedMessage(
-                        message_id=corr.correlation_id,
-                        author_id=author_id,
-                        author_name=author_name,
-                        content=content,
-                        timestamp=corr.timestamp or corr.created_at,
-                        channel_id=channel_id
-                    ))
+                    messages.append({
+                        "id": corr.correlation_id,
+                        "author_id": author_id,
+                        "author_name": author_name,
+                        "content": content,
+                        "timestamp": (corr.timestamp or corr.created_at).isoformat() if corr.timestamp or corr.created_at else None,
+                        "channel_id": channel_id,
+                        "is_bot": False
+                    })
             
             # Sort by timestamp
-            messages.sort(key=lambda m: m.timestamp)
+            messages.sort(key=lambda m: m.get("timestamp") or "")
             
             return messages
             
@@ -307,7 +311,11 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.error("DiscordAdapter: Guidance channel not configured.")
             raise RuntimeError("Guidance channel not configured.")
 
-        start_time = self._time_service.now()
+        time_service = self._time_service
+        if time_service is None:
+            logger.error("Time service not initialized")
+            return False
+        start_time = time_service.now()
 
         try:
             correlation_id = str(uuid.uuid4())
@@ -320,7 +328,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             # Type assertion: retry_with_backoff should return dict from fetch_guidance_from_channel
             guidance: dict = guidance_result
 
-            end_time = self._time_service.now()
+            end_time = time_service.now()
             execution_time_ms = (end_time - start_time).total_seconds() * 1000
 
             persistence.add_correlation(
@@ -347,7 +355,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                     updated_at=end_time,
                     timestamp=start_time
                 ),
-                self._time_service
+                time_service
             )
             guidance_text = guidance.get("guidance")
 
@@ -461,11 +469,15 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
 
             # Wait for approval resolution (up to timeout)
             max_wait = approval_request.timeout_seconds + 5
-            start_time = self._time_service.now()
+            time_service = self._time_service
+            if time_service is None:
+                logger.error("Time service not initialized")
+                return False
+            start_time = time_service.now()
 
             while approval_result is None:
                 await asyncio.sleep(0.5)
-                elapsed = (self._time_service.now() - start_time).total_seconds()
+                elapsed = (time_service.now() - start_time).total_seconds()
                 if elapsed > max_wait:
                     logger.error("Approval request timed out")
                     return False
@@ -488,8 +500,8 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                         resolver_name=approval_result.resolver_name,
                         context={"channel_id": context.channel_id} if context.channel_id else {},
                         action_params=context.action_params,
-                        created_at=self._time_service.now(),
-                        updated_at=self._time_service.now(),
+                        created_at=time_service.now(),
+                        updated_at=time_service.now(),
                         created_by="discord_adapter",
                         updated_by="discord_adapter"
                     )
@@ -575,7 +587,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                     task_id=attrs.get('task_id', ''),
                     thought_id=attrs.get('thought_id', ''),
                     reason=attrs.get('reason', ''),
-                    created_at=attrs.get('created_at', self._time_service.now()),
+                    created_at=attrs.get('created_at', self._time_service.now() if self._time_service else datetime.now()),
                     deferred_by=attrs.get('created_by', 'discord_agent'),
                     channel_id=attrs.get('channel_id'),
                     priority=attrs.get('priority', 'normal')
@@ -685,6 +697,53 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.exception(f"Failed to revoke permission: {e}")
             return False
 
+    async def get_active_channels(self) -> List[Dict[str, Any]]:
+        """Get list of active Discord channels."""
+        channels = []
+        
+        logger.info(f"[DISCORD] get_active_channels called, client ready: {self._channel_manager.client.is_ready() if self._channel_manager.client else False}")
+        
+        if not self._channel_manager.client or not self._channel_manager.client.is_ready():
+            logger.warning(f"[DISCORD] Client not ready, returning empty channels")
+            return channels
+        
+        try:
+            # Get all monitored channels
+            logger.info(f"[DISCORD] Checking {len(self.discord_config.monitored_channel_ids)} monitored channels")
+            for channel_id in self.discord_config.monitored_channel_ids:
+                channel = self._channel_manager.client.get_channel(int(channel_id))
+                logger.info(f"[DISCORD] Channel {channel_id}: {'found' if channel else 'not found'}")
+                if channel:
+                    channels.append({
+                        'channel_id': f'discord_{channel_id}',
+                        'channel_type': 'discord',
+                        'display_name': f'#{channel.name}' if hasattr(channel, 'name') else f'Discord Channel {channel_id}',
+                        'is_active': True,
+                        'created_at': channel.created_at.isoformat() if hasattr(channel, 'created_at') else None,
+                        'last_activity': None,  # Could track this if needed
+                        'message_count': 0  # Could track this if needed
+                    })
+            
+            # Add deferral channel if configured
+            if self.discord_config.deferral_channel_id:
+                channel = self._channel_manager.client.get_channel(int(self.discord_config.deferral_channel_id))
+                if channel and f'discord_{self.discord_config.deferral_channel_id}' not in [ch['channel_id'] for ch in channels]:
+                    channels.append({
+                        'channel_id': f'discord_{self.discord_config.deferral_channel_id}',
+                        'channel_type': 'discord',
+                        'display_name': f'#{channel.name} (Deferrals)' if hasattr(channel, 'name') else f'Discord Deferral Channel',
+                        'is_active': True,
+                        'created_at': channel.created_at.isoformat() if hasattr(channel, 'created_at') else None,
+                        'last_activity': None,
+                        'message_count': 0
+                    })
+                    
+        except Exception as e:
+            logger.error(f"Error getting active channels: {e}", exc_info=True)
+        
+        logger.info(f"[DISCORD] Returning {len(channels)} channels")    
+        return channels
+
     async def list_permissions(self, wa_id: str) -> List[WAPermission]:
         """List all permissions for a Discord user."""
         permissions = []
@@ -703,7 +762,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                                 wa_id=wa_id,
                                 permission=role.name.upper(),
                                 resource=f"guild:{guild.id}",
-                                granted_at=self._time_service.now(),
+                                granted_at=self._time_service.now() if self._time_service else datetime.now(),
                                 granted_by="discord_adapter"
                             ))
 
@@ -727,7 +786,11 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         logger.info(f"  - Thought ID: {deferral.thought_id}")
         logger.info(f"  - Reason: {deferral.reason}")
 
-        start_time = self._time_service.now()
+        time_service = self._time_service
+        if time_service is None:
+            logger.error("Time service not initialized")
+            return False
+        start_time = time_service.now()
 
         try:
             correlation_id = str(uuid.uuid4())
@@ -826,7 +889,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                 except Exception as e:
                     logger.error(f"Failed to store deferral in memory: {e}")
 
-            end_time = self._time_service.now()
+            end_time = time_service.now()
             execution_time_ms = (end_time - start_time).total_seconds() * 1000
 
             persistence.add_correlation(
@@ -853,7 +916,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                     updated_at=end_time,
                     timestamp=start_time
                 ),
-                self._time_service
+                time_service
             )
 
             return correlation_id
@@ -870,7 +933,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                 task_id=context.task_id,
                 thought_id=context.thought_id,
                 reason=context.reason,
-                defer_until=context.defer_until or self._time_service.now() + timedelta(hours=1),
+                defer_until=context.defer_until or (self._time_service.now() if self._time_service else datetime.now()) + timedelta(hours=1),
                 context=context.metadata
             )
             _deferral_id = await self.send_deferral(request)
@@ -878,62 +941,6 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         except Exception:
             return False
 
-    # --- ToolService ---
-    async def execute_tool(self, tool_name: str, parameters: dict) -> ToolExecutionResult:
-        """Execute a registered Discord tool via the tool registry and store the result."""
-        # The handler returns ToolExecutionResult
-        # Note: execute_tool is already async, so we call it directly
-        result = await self._tool_handler.execute_tool(tool_name, parameters)
-
-        # Emit telemetry for tool execution
-        await self._emit_telemetry("discord.tool.executed", {
-            "adapter_type": "discord",
-            "tool_name": tool_name,
-            "success": result.success
-        })
-
-        # Audit log the tool execution
-        await self._audit_logger.log_tool_execution(
-            user_id="discord_adapter",
-            tool_name=tool_name,
-            parameters=parameters,
-            success=result.success,
-            execution_time_ms=0,  # TODO: Add execution time tracking to ToolExecutionResult
-            error=result.error if not result.success else None
-        )
-
-        return result
-
-    async def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
-        """Get detailed information about a specific tool."""
-        return await self._tool_handler.get_tool_info(tool_name)
-
-    async def get_all_tool_info(self) -> List[ToolInfo]:
-        """Get detailed information about all available tools."""
-        return await self._tool_handler.get_all_tool_info()
-
-    async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[ToolExecutionResult]:
-        """Fetch a tool result by correlation ID from the internal cache."""
-        return await self._tool_handler.get_tool_result(correlation_id, int(timeout))
-
-    async def get_tool_schema(self, tool_name: str) -> Optional[ToolParameterSchema]:
-        """Get parameter schema for a specific tool."""
-        tool_info = await self.get_tool_info(tool_name)
-        if tool_info:
-            return tool_info.parameters
-        return None
-
-    async def list_tools(self) -> List[str]:
-        """List available tool names (required by ToolServiceProtocol)."""
-        return await self.get_available_tools()
-
-    async def get_available_tools(self) -> List[str]:
-        """Return names of registered Discord tools."""
-        return await self._tool_handler.get_available_tools()
-
-    async def validate_parameters(self, tool_name: str, parameters: dict) -> bool:
-        """Basic parameter validation using tool registry schemas."""
-        return await self._tool_handler.validate_tool_parameters(tool_name, parameters)
 
     def get_capabilities(self) -> ServiceCapabilities:
         """Return service capabilities in the proper format."""
@@ -946,11 +953,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                 "fetch_guidance", "send_deferral", "check_authorization",
                 "request_approval", "get_guidance", "get_pending_deferrals",
                 "resolve_deferral", "grant_permission", "revoke_permission",
-                "list_permissions",
-                # Tool capabilities
-                "execute_tool", "get_available_tools", "get_tool_result",
-                "validate_parameters", "get_tool_info", "get_all_tool_info",
-                "get_tool_schema", "list_tools"
+                "list_permissions"
             ],
             version="1.0.0",
             dependencies=["discord.py"]
@@ -965,13 +968,21 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.warning(f"Discord health check failed: {type(e).__name__}: {str(e)} - Client state unknown, latency check failed")
             is_healthy = False
 
+        # Get actual latency from Discord client
+        latency_ms = 0.0
+        if self._message_handler and self._message_handler.client:
+            # Discord.py provides latency in seconds, convert to milliseconds
+            latency_seconds = self._message_handler.client.latency
+            if latency_seconds is not None and latency_seconds >= 0:
+                latency_ms = latency_seconds * 1000.0
+        
         return ServiceStatus(
             service_name="DiscordAdapter",
             service_type="adapter",
             is_healthy=is_healthy,
-            uptime_seconds=3600,  # TODO: Track actual uptime
+            uptime_seconds=(self._time_service.now() - self._start_time).total_seconds() if self._start_time else 0.0,
             metrics={
-                "latency": 50  # TODO: Track actual latency
+                "latency": latency_ms
             }
         )
 
@@ -990,7 +1001,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         await self._channel_manager.on_message(message)
 
         # Emit telemetry for message received
-        await self._emit_telemetry("discord.message.received", {
+        await self._emit_telemetry("discord.message.received", 1.0, {
             "adapter_type": "discord",
             "channel_id": str(message.channel.id),
             "author_id": str(message.author.id)
@@ -1009,7 +1020,6 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         self._channel_manager.set_client(client)
         self._message_handler.set_client(client)
         self._guidance_handler.set_client(client)
-        self._tool_handler.set_client(client)
         self._reaction_handler.set_client(client)
 
         self._channel_manager.attach_to_client(client)
@@ -1038,8 +1048,11 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         Note: This doesn't start the Discord client connection - that's handled by the runtime.
         """
         try:
+            # Capture start time
+            self._start_time = self._time_service.now()
+
             # Emit telemetry for adapter start
-            await self._emit_telemetry("discord.adapter.starting", {
+            await self._emit_telemetry("discord.adapter.starting", 1.0, {
                 "adapter_type": "discord"
             })
 
@@ -1067,9 +1080,9 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.info("Discord adapter started successfully")
 
             # Emit telemetry for successful start
-            await self._emit_telemetry("discord.adapter.started", {
+            await self._emit_telemetry("discord.adapter.started", 1.0, {
                 "adapter_type": "discord",
-                "has_client": client is not None
+                "has_client": str(client is not None)
             })
 
             # Note: Don't connect here - the platform will handle the connection in run_lifecycle
@@ -1103,7 +1116,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.info("Stopping Discord adapter...")
 
             # Emit telemetry for adapter stopping
-            await self._emit_telemetry("discord.adapter.stopping", {
+            await self._emit_telemetry("discord.adapter.stopping", 1.0, {
                 "adapter_type": "discord"
             })
 
@@ -1117,7 +1130,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.info("Discord adapter stopped successfully")
 
             # Emit telemetry for successful stop
-            await self._emit_telemetry("discord.adapter.stopped", {
+            await self._emit_telemetry("discord.adapter.stopped", 1.0, {
                 "adapter_type": "discord"
             })
         except AttributeError as e:
@@ -1213,10 +1226,10 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                         user_count=user_count
                     )
 
-                    await self._emit_telemetry("discord.connection.established", {
+                    await self._emit_telemetry("discord.connection.established", 1.0, {
                         "adapter_type": "discord",
-                        "guilds": guild_count,
-                        "users": user_count
+                        "guilds": str(guild_count),
+                        "users": str(user_count)
                     })
             except Exception as e:
                 logger.error(f"Error in connection callback: {e}")
@@ -1231,7 +1244,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                     error=str(error) if error else None
                 )
 
-                await self._emit_telemetry("discord.connection.lost", {
+                await self._emit_telemetry("discord.connection.lost", 1.0, {
                     "adapter_type": "discord",
                     "error": str(error) if error else "clean_disconnect"
                 })
@@ -1241,10 +1254,10 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         async def on_reconnecting(attempt: int) -> None:
             """Handle reconnection attempts."""
             try:
-                await self._emit_telemetry("discord.connection.reconnecting", {
+                await self._emit_telemetry("discord.connection.reconnecting", 1.0, {
                     "adapter_type": "discord",
-                    "attempt": attempt,
-                    "max_attempts": self._connection_manager.max_reconnect_attempts
+                    "attempt": str(attempt),
+                    "max_attempts": str(self._connection_manager.max_reconnect_attempts)
                 })
             except Exception as e:
                 logger.error(f"Error in reconnecting callback: {e}")
@@ -1259,7 +1272,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                     error=reason
                 )
 
-                await self._emit_telemetry("discord.connection.failed", {
+                await self._emit_telemetry("discord.connection.failed", 1.0, {
                     "adapter_type": "discord",
                     "reason": reason
                 })

@@ -6,6 +6,7 @@ Tests all 35 endpoints through the SDK with proper authentication.
 """
 import asyncio
 import pytest
+import pytest_asyncio
 import json
 import socket
 from datetime import datetime, timezone, timedelta
@@ -39,7 +40,7 @@ pytestmark = [
 class TestCIRISSDKEndpoints:
     """Test suite for all CIRIS API endpoints through the SDK."""
     
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def client(self):
         """Create authenticated CIRIS client."""
         async with CIRISClient(
@@ -52,7 +53,7 @@ class TestCIRISSDKEndpoints:
             client._transport.set_api_key(response.access_token)
             yield client
     
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def unauthenticated_client(self):
         """Create unauthenticated CIRIS client."""
         async with CIRISClient(
@@ -71,7 +72,7 @@ class TestCIRISSDKEndpoints:
         assert response.access_token
         assert response.token_type == "Bearer"
         assert response.role == "SYSTEM_ADMIN"
-        assert response.user_id == "SYSTEM_ADMIN"
+        assert response.user_id == "wa-system-admin"
         # SDK doesn't auto-update transport token yet, so manually set it for later use
         unauthenticated_client._transport.set_api_key(response.access_token)
         
@@ -96,8 +97,8 @@ class TestCIRISSDKEndpoints:
     async def test_auth_me(self, client):
         """Test GET /v1/auth/me."""
         user_info = await client.auth.get_current_user()
-        assert user_info.user_id == "SYSTEM_ADMIN"
-        assert user_info.username == "SYSTEM_ADMIN"
+        assert user_info.user_id == "wa-system-admin"
+        assert user_info.username == "wa-system-admin"
         assert user_info.role == "SYSTEM_ADMIN"
         assert len(user_info.permissions) > 0
     

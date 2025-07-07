@@ -1,4 +1,5 @@
 import pytest
+import pytest_asyncio
 from typing import Any
 import sys
 
@@ -6,7 +7,7 @@ from ciris_engine.logic.registries.base import ServiceRegistry
 from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def service_registry() -> Any:
     """Provide a configured service registry with mock services."""
     registry = ServiceRegistry()
@@ -14,7 +15,7 @@ async def service_registry() -> Any:
     return registry
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def runtime():
     """Provide a CIRISRuntime instance with proper initialization."""
     runtime = CIRISRuntime(adapter_types=["cli"])

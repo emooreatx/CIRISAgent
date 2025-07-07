@@ -87,21 +87,8 @@ export class MemoryResource extends BaseResource {
    * Get memory statistics
    */
   async getStats(): Promise<MemoryStats> {
-    // Memory stats are part of the query response
-    const result = await this.transport.post<{
-      results: GraphNode[];
-      stats: MemoryStats;
-    }>('/v1/memory/query', {
-      query: '',
-      include_stats: true
-    });
-    return result.stats || {
-      total_nodes: 0,
-      nodes_by_type: {},
-      nodes_by_scope: {},
-      oldest_memory: undefined,
-      newest_memory: undefined
-    };
+    // Get memory stats from dedicated endpoint
+    return this.transport.get<MemoryStats>('/v1/memory/stats');
   }
 
   /**
@@ -167,6 +154,7 @@ export class MemoryResource extends BaseResource {
     width?: number;
     height?: number;
     limit?: number;
+    include_metrics?: boolean;
   } = {}): Promise<string> {
     // This returns SVG as text
     const response = await this.transport.get('/v1/memory/visualize/graph', {

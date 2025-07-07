@@ -14,10 +14,10 @@ from unittest.mock import Mock, AsyncMock, MagicMock
 from ciris_engine.logic.services.graph.telemetry_service import GraphTelemetryService
 from ciris_engine.logic.services.lifecycle.time import TimeService
 from ciris_engine.schemas.services.graph.telemetry import (
-    TelemetryServiceStatus, TelemetrySnapshotResult, TelemetryData,
-    ResourceData, BehavioralData,
-    ServiceCapabilities as TelemetryCapabilities
+    TelemetrySnapshotResult, TelemetryData,
+    ResourceData, BehavioralData
 )
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.schemas.runtime.system_context import UserProfile, ChannelContext
 from ciris_engine.schemas.services.operations import MemoryOpStatus, MemoryOpResult
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
@@ -254,15 +254,17 @@ async def test_telemetry_service_different_metric_types(telemetry_service, memor
 def test_telemetry_service_capabilities(telemetry_service):
     """Test TelemetryService.get_capabilities() returns correct info."""
     caps = telemetry_service.get_capabilities()
-    assert isinstance(caps, TelemetryCapabilities)
+    assert isinstance(caps, ServiceCapabilities)
     assert "record_metric" in caps.actions
     assert "record_resource_usage" in caps.actions
     assert "query_metrics" in caps.actions
     assert "get_service_status" in caps.actions
     assert "get_resource_limits" in caps.actions
     assert "process_system_snapshot" in caps.actions
-    assert "graph_storage" in caps.features
-    assert caps.node_type == "TELEMETRY"
+    assert caps.metadata is not None
+    assert "features" in caps.metadata
+    assert "graph_storage" in caps.metadata["features"]
+    assert caps.metadata["node_type"] == "TELEMETRY"
 
 
 @pytest.mark.asyncio
@@ -271,9 +273,9 @@ async def test_telemetry_service_status(telemetry_service, memory_bus):
     await telemetry_service.start()
 
     status = telemetry_service.get_status()
-    assert isinstance(status, TelemetryServiceStatus)
-    assert status.healthy is True
-    assert status.memory_bus_available is True
+    assert isinstance(status, ServiceStatus)
+    assert status.is_healthy is True
+    assert status.service_name == "telemetry_service"
 
     # Record some metrics to populate cache
     for i in range(10):
@@ -283,8 +285,8 @@ async def test_telemetry_service_status(telemetry_service, memory_bus):
         )
 
     status = telemetry_service.get_status()
-    assert status.cached_metrics > 0
-    assert len(status.metric_types) > 0
+    assert status.metrics.get("cached_metrics", 0) > 0
+    assert status.metrics.get("unique_metric_types", 0) > 0
 
 
 @pytest.mark.asyncio

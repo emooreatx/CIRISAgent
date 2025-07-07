@@ -1,4 +1,8 @@
+# CRITICAL: Prevent side effects during imports
 import os
+os.environ['CIRIS_IMPORT_MODE'] = 'true'
+os.environ['CIRIS_MOCK_LLM'] = 'true'
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, ANY
 from click.testing import CliRunner

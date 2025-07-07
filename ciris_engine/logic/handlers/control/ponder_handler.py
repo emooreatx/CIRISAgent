@@ -10,7 +10,7 @@ from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.logic import persistence
 from ciris_engine.logic.infrastructure.handlers.base_handler import BaseActionHandler, ActionHandlerDependencies
-# TODO: Refactor to use dependency injection instead of get_config
+# Configuration handled through ActionHandlerDependencies
 
 logger = logging.getLogger(__name__)
 
