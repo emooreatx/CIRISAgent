@@ -143,8 +143,8 @@ export function Layout({ children }: LayoutProps) {
     <div className="min-h-screen bg-gray-50">
       <Navbar className="top-2 z-50" />
 
-      <main className="max-w-7xl mx-auto pt-10 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto pt-20 sm:px-6 lg:px-8">
+      <main className=" container pt-10 sm:px-6 lg:px-8">
+        <div className=" pt-20 sm:px-6 lg:px-8">
           {user && (
             <div className="flex  items-start border border-gray-200 bg-gray-800 rounded-xl justify-between lg:shadow-lg p-6 mb-6">
               <div>
