@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ciris_engine.schemas.runtime.messages import IncomingMessage
 from ..dependencies.auth import require_observer, AuthContext
+from ciris_engine.schemas.api.auth import UserRole, ROLE_PERMISSIONS
 from ciris_engine.schemas.api.agent import (
     MessageContext, AgentLineage, ServiceAvailability, ActiveTask
 )
@@ -629,22 +630,23 @@ async def get_channels(
     channels = []
     
     try:
-        # Get runtime and adapter manager
+        # Get runtime
         runtime = getattr(request.app.state, 'runtime', None)
-        if runtime and hasattr(runtime, 'adapter_manager'):
-            adapter_manager = runtime.adapter_manager
-            
-            # Get all active adapters
-            for adapter_name, adapter in adapter_manager._adapters.items():
-                if hasattr(adapter, 'get_channel_list'):
+        
+        # First check bootstrap adapters
+        if runtime and hasattr(runtime, 'adapters'):
+            logger.info(f"Checking {len(runtime.adapters)} bootstrap adapters for channels")
+            for adapter in runtime.adapters:
+                logger.info(f"Checking adapter: {adapter.__class__.__name__}, has get_active_channels: {hasattr(adapter, 'get_active_channels')}")
+                if hasattr(adapter, 'get_active_channels'):
                     # Get channels from this adapter
-                    adapter_channels = adapter.get_channel_list()
+                    adapter_channels = await adapter.get_active_channels()
                     
                     for ch in adapter_channels:
                         # Convert adapter channel info to our format
                         channel_info = ChannelInfo(
                             channel_id=ch.get('channel_id', ''),
-                            channel_type=ch.get('channel_type', adapter_name.lower()),
+                            channel_type=ch.get('channel_type', adapter.__class__.__name__.lower().replace('platform', '')),
                             display_name=ch.get('display_name', ch.get('channel_id', '')),
                             is_active=ch.get('is_active', True),
                             created_at=ch.get('created_at'),
@@ -652,6 +654,62 @@ async def get_channels(
                             message_count=ch.get('message_count', 0)
                         )
                         channels.append(channel_info)
+        
+        # Also check RuntimeControlService's adapter_manager for dynamically loaded adapters
+        # Use the main runtime control service which has the actual adapter_manager
+        control_service = getattr(request.app.state, 'main_runtime_control_service', None)
+        logger.info(f"Looking for main_runtime_control_service: found={control_service is not None}")
+        if control_service:
+            logger.info(f"Got main runtime control service: {control_service.__class__.__name__}")
+        else:
+            logger.info("main_runtime_control_service not found in app.state, trying fallback")
+            # Fallback to getting it from service registry
+            if runtime and hasattr(runtime, 'service_registry') and runtime.service_registry:
+                from ciris_engine.schemas.runtime.enums import ServiceType
+                # Get runtime control service - use get_services_by_type to get all providers
+                providers = runtime.service_registry.get_services_by_type(ServiceType.RUNTIME_CONTROL)
+                if providers:
+                    control_service = providers[0]  # Use the first provider
+                    logger.info(f"Got control service from registry: {control_service.__class__.__name__}")
+        
+        if control_service:
+            # Access adapter_manager directly
+            if hasattr(control_service, 'adapter_manager') and control_service.adapter_manager:
+                adapter_manager = control_service.adapter_manager
+                logger.info(f"Found adapter_manager on control service")
+                
+                if hasattr(adapter_manager, 'loaded_adapters'):
+                    loaded = adapter_manager.loaded_adapters
+                    logger.info(f"Checking {len(loaded)} dynamically loaded adapters")
+                    logger.info(f"Adapter manager class: {adapter_manager.__class__.__name__}")
+                    logger.info(f"Adapter manager id: {id(adapter_manager)}")
+                    
+                    for adapter_id, instance in loaded.items():
+                        adapter = instance.adapter
+                        logger.info(f"Checking adapter {adapter_id}: {adapter.__class__.__name__}, has get_active_channels: {hasattr(adapter, 'get_active_channels')}")
+                        
+                        if hasattr(adapter, 'get_active_channels'):
+                            try:
+                                adapter_channels = await adapter.get_active_channels()
+                                logger.info(f"Adapter {adapter_id} returned {len(adapter_channels)} channels")
+                                
+                                for ch in adapter_channels:
+                                    # Avoid duplicates
+                                    if not any(existing.channel_id == ch.get('channel_id', '') for existing in channels):
+                                        channel_info = ChannelInfo(
+                                            channel_id=ch.get('channel_id', ''),
+                                            channel_type=ch.get('channel_type', instance.adapter_type),
+                                            display_name=ch.get('display_name', ch.get('channel_id', '')),
+                                            is_active=ch.get('is_active', True),
+                                            created_at=ch.get('created_at'),
+                                            last_activity=ch.get('last_activity'),
+                                            message_count=ch.get('message_count', 0)
+                                        )
+                                        channels.append(channel_info)
+                            except Exception as e:
+                                logger.error(f"Error getting channels from adapter {adapter_id}: {e}", exc_info=True)
+            else:
+                logger.warning("Control service has no adapter_manager")
         
         # Also check if there's a default API channel
         api_host = getattr(request.app.state, 'api_host', '0.0.0.0')
@@ -695,7 +753,7 @@ async def get_channels(
         return SuccessResponse(data=channel_list)
         
     except Exception as e:
-        logger.error(f"Failed to get channels: {e}")
+        logger.error(f"Failed to get channels: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 # Helper function to notify interact responses
@@ -713,7 +771,6 @@ import json
 @router.websocket("/stream")
 async def websocket_stream(
     websocket: WebSocket,
-    auth: Optional[AuthContext] = None  # TODO: Add WebSocket auth
 ):
     """
     WebSocket endpoint for real-time updates.
@@ -724,6 +781,46 @@ async def websocket_stream(
     - reasoning: Reasoning traces
     - logs: System logs
     """
+    # Extract authorization header from WebSocket request
+    authorization = websocket.headers.get("authorization")
+    
+    if not authorization:
+        await websocket.close(code=1008, reason="Missing authorization header")
+        return
+    
+    # Get auth service from app state
+    auth_service = getattr(websocket.app.state, 'auth_service', None)
+    if not auth_service:
+        await websocket.close(code=1011, reason="Auth service not initialized")
+        return
+    
+    # Validate bearer token
+    if not authorization.startswith("Bearer "):
+        await websocket.close(code=1008, reason="Invalid authorization format")
+        return
+    
+    api_key = authorization[7:]  # Remove "Bearer " prefix
+    
+    # Validate API key
+    key_info = await auth_service.validate_api_key(api_key)
+    if not key_info:
+        await websocket.close(code=1008, reason="Invalid API key")
+        return
+    
+    # Create auth context
+    auth_context = AuthContext(
+        user_id=key_info.user_id,
+        role=key_info.role,
+        permissions=ROLE_PERMISSIONS.get(key_info.role, set()),
+        api_key_id=auth_service._get_key_id(api_key),
+        authenticated_at=datetime.now(timezone.utc)
+    )
+    
+    # Check minimum role requirement (OBSERVER)
+    if not auth_context.role.has_permission(UserRole.OBSERVER):
+        await websocket.close(code=1008, reason="Insufficient permissions")
+        return
+    
     await websocket.accept()
     client_id = f"ws_{id(websocket)}"
     

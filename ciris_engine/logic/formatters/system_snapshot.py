@@ -43,17 +43,15 @@ def format_system_snapshot(system_snapshot: SystemSnapshot) -> str:
         lines.append("=== Resource Usage ===")
 
         # Current hour usage
-        if telemetry.tokens_per_hour > 0:
-            lines.append(f"Tokens (Current Hour): {int(telemetry.tokens_per_hour):,} tokens, ${telemetry.cost_per_hour_cents/100:.2f}, {telemetry.carbon_per_hour_grams:.1f}g CO2")
+        if telemetry.tokens_last_hour > 0:
+            lines.append(f"Tokens (Last Hour): {int(telemetry.tokens_last_hour):,} tokens, ${telemetry.cost_last_hour_cents/100:.2f}, {telemetry.carbon_last_hour_grams:.1f}g CO2, {telemetry.energy_last_hour_kwh:.3f} kWh")
 
         # 24h usage
         if telemetry.messages_processed_24h > 0 or telemetry.thoughts_processed_24h > 0:
-            # Calculate 24h totals from hourly rates
-            tokens_24h = int(telemetry.tokens_per_hour * 24)
-            cost_24h = telemetry.cost_per_hour_cents * 24 / 100
-            carbon_24h = telemetry.carbon_per_hour_grams * 24
-
-            lines.append(f"Tokens (Past 24h): {tokens_24h:,} tokens, ${cost_24h:.2f}, {carbon_24h:.1f}g CO2")
+            # Note: We only have actual last hour data, not 24h totals
+            lines.append(f"Messages Processed (24h): {telemetry.messages_processed_24h}")
+            lines.append(f"Thoughts Processed (24h): {telemetry.thoughts_processed_24h}")
+            lines.append(f"Tasks Completed (24h): {telemetry.tasks_completed_24h}")
 
         # Activity metrics
         if telemetry.messages_processed_24h > 0:

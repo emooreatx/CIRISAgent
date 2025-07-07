@@ -117,10 +117,15 @@ class DeferHandler(BaseActionHandler):
                     metadata=metadata
                 )
 
-                await self.bus_manager.wise.send_deferral(
+                wa_sent = await self.bus_manager.wise.send_deferral(
                     context=deferral_context,
                     handler_name=self.__class__.__name__
                 )
+                if not wa_sent:
+                    logger.info(f"Marked thought {thought_id} and task {thought.source_task_id} as deferred, but no WA service is available to deliver the deferral package")
+                else:
+                    logger.info(f"Successfully sent deferral to WA service for thought {thought_id}")
+                action_performed_successfully = True
             except Exception as e:
                 self.logger.error(f"WiseAuthorityService deferral failed for thought {thought_id}: {e}")
                 # Deferral still considered processed even if WA fails
@@ -142,10 +147,12 @@ class DeferHandler(BaseActionHandler):
                         "attempted_action": getattr(dispatch_context, 'attempted_action', 'defer')
                     }
                 )
-                await self.bus_manager.wise.send_deferral(
+                wa_sent = await self.bus_manager.wise.send_deferral(
                     context=error_context,
                     handler_name=self.__class__.__name__
                 )
+                if not wa_sent:
+                    logger.info(f"Marked thought {thought_id} as deferred (parameter error), but no WA service is available to deliver the deferral package")
             except Exception as e_sink_fallback:
                 self.logger.error(
                     f"Fallback deferral submission failed for thought {thought_id}: {e_sink_fallback}"

@@ -1,6 +1,7 @@
 """Test that verifies the CONFIG node fix prevents malformed nodes."""
 
 import pytest
+import pytest_asyncio
 import tempfile
 import os
 from datetime import datetime, timezone
@@ -29,7 +30,7 @@ def temp_db():
     os.unlink(db_path)
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def services(temp_db, time_service):
     """Create all services needed for testing."""
     # Initialize the database

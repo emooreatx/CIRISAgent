@@ -151,7 +151,10 @@ async def resolve_deferral(
             resolved_at=datetime.now(timezone.utc)
         )
 
-        logger.info(f"Deferral {deferral_id} resolved by {auth.user_id} with resolution: {resolve_request.resolution}")
+        # Sanitize user input for logging to prevent log injection
+        safe_resolution = ''.join(c if c.isprintable() and c not in '\n\r\t' else ' ' for c in resolve_request.resolution)
+        safe_deferral_id = ''.join(c if c.isprintable() and c not in '\n\r\t' else ' ' for c in deferral_id)
+        logger.info(f"Deferral {safe_deferral_id} resolved by {auth.user_id} with resolution: {safe_resolution}")
 
         return SuccessResponse(data=response)
 

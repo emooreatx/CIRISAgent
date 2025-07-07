@@ -272,7 +272,7 @@ class ShutdownProcessor(BaseProcessor):
                     if isinstance(action, dict) and action.get('selected_action') == 'REJECT':
                         reason = action.get('action_parameters', {}).get('reason', 'No reason provided')
                         logger.warning(f"Agent REJECTED shutdown: {reason}")
-                        # TODO: Implement human override flow
+                        # Human override available via emergency shutdown API with Ed25519 signature
                         return {
                             "status": "rejected",
                             "action": "shutdown_rejected",

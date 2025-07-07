@@ -196,6 +196,13 @@ def main(
         nonlocal mock_llm, handler, params, task, num_rounds
         from ciris_engine.logic.config.env_utils import get_env_var
 
+        # Check for CIRIS_MOCK_LLM environment variable first
+        if not mock_llm and get_env_var("CIRIS_MOCK_LLM"):
+            mock_llm_env = get_env_var("CIRIS_MOCK_LLM", "").lower()
+            if mock_llm_env in ("true", "1", "yes", "on"):
+                logger.info("CIRIS_MOCK_LLM environment variable detected, enabling mock LLM")
+                mock_llm = True
+
         # Check for API key and auto-enable mock LLM if none is set
         api_key = get_env_var("OPENAI_API_KEY")
         if not mock_llm and not api_key:

@@ -20,10 +20,7 @@ from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatu
 from ciris_engine.schemas.services.capabilities import LLMCapabilities
 from ciris_engine.logic.registries.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerError
 
-# TODO: Refactor to use dependency injection instead of get_config
-# LLMServicesConfig removed - use dependency injection
-
-# Simple config for OpenAI until dependency injection is implemented
+# Configuration class for OpenAI-compatible LLM services
 class OpenAIConfig(BaseModel):
     api_key: str = Field(default="")
     model_name: str = Field(default="gpt-4o-mini")

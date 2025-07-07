@@ -164,6 +164,7 @@ export function Layout({ children }: LayoutProps) {
           )}
           {children}
         </div>
+
       </main>
     </div>
   );

@@ -168,8 +168,10 @@ class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
         elif isinstance(value, dict):
             config_value.dict_value = value
         else:
-            # Log unexpected type
-            logger.warning(f"Unexpected config value type for key {key}: {type(value)} = {value}")
+            # Log unexpected type with sanitized values to prevent log injection
+            safe_key = ''.join(c if c.isprintable() and c not in '\n\r\t' else ' ' for c in str(key))
+            safe_value = ''.join(c if c.isprintable() and c not in '\n\r\t' else ' ' for c in str(value)[:100])  # Limit length
+            logger.warning(f"Unexpected config value type for key {safe_key}: {type(value).__name__} = {safe_value}")
 
         # Check if value has changed
         if current:

@@ -14,7 +14,8 @@ These tests cover:
 import pytest
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Any, Tuple, Union
+import pytest_asyncio
 
 from ciris_engine.logic.handlers.memory.memorize_handler import MemorizeHandler
 from ciris_engine.logic.handlers.memory.recall_handler import RecallHandler
@@ -47,7 +48,12 @@ def create_channel_context(channel_id: str = "test_channel") -> ChannelContext:
         channel_id=channel_id,
         channel_name=f"Channel {channel_id}",
         channel_type="text",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
+        is_private=False,
+        is_active=True,
+        last_activity=datetime.now(timezone.utc),
+        message_count=0,
+        moderation_level="standard"
     )
 
 
@@ -71,7 +77,13 @@ def create_dispatch_context(
         event_summary="Test action",
         event_timestamp=datetime.now(timezone.utc).isoformat(),
         correlation_id="test_correlation_id",
-        wa_authorized=wa_authorized
+        wa_authorized=wa_authorized,
+        wa_id=None,
+        wa_context=None,
+        conscience_failure_context=None,
+        epistemic_data=None,
+        span_id=None,
+        trace_id=None
     )
 
 
@@ -89,11 +101,18 @@ def create_test_thought(
         thought_depth=1,
         created_at=datetime.now(timezone.utc).isoformat(),
         updated_at=datetime.now(timezone.utc).isoformat(),
+        channel_id="test_channel",
+        round_number=1,
+        ponder_notes=None,
+        parent_thought_id=None,
+        final_action=None,
         context=ThoughtContext(
             task_id=task_id,
             round_number=1,
             depth=1,
-            correlation_id="test_correlation"
+            correlation_id="test_correlation",
+            channel_id="test_channel",
+            parent_thought_id=None
         )
     )
 
@@ -119,7 +138,9 @@ def create_graph_node(
         id=node_id,
         type=node_type,
         scope=scope,
-        attributes=attributes  # Pass dict directly
+        attributes=attributes,  # Pass dict directly
+        updated_by="test_user",
+        updated_at=datetime.now(timezone.utc)
     )
 
 
@@ -136,7 +157,7 @@ def create_memory_op_result(
     )
 
 
-def setup_handler_mocks(monkeypatch, memory_result=None):
+def setup_handler_mocks(monkeypatch: Any, memory_result: Optional[MemoryOpResult] = None) -> Tuple[ActionHandlerDependencies, Any, Any, Any]:
     """Common setup for handler tests."""
     # Mock persistence in both locations
     mock_persistence = Mock()
@@ -196,7 +217,7 @@ class TestMemorizeHandler:
     """Test suite for MemorizeHandler."""
 
     @pytest.mark.asyncio
-    async def test_memorize_success(self, monkeypatch):
+    async def test_memorize_success(self, monkeypatch: Any) -> None:
         """Test successful memorization of a node."""
         memory_result = create_memory_op_result(status=MemoryOpStatus.SUCCESS)
         deps, mock_persistence, mock_memory_bus, mock_audit_service = setup_handler_mocks(
@@ -217,7 +238,9 @@ class TestMemorizeHandler:
             action_parameters=params,
             rationale="Testing successful memorize",
             reasoning="This should succeed",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         thought = create_test_thought()
@@ -249,7 +272,7 @@ class TestMemorizeHandler:
         assert mock_audit_service.log_event.call_count >= 2  # Start and success
 
     @pytest.mark.asyncio
-    async def test_memorize_identity_node_without_wa_authorization(self, monkeypatch):
+    async def test_memorize_identity_node_without_wa_authorization(self, monkeypatch: Any) -> None:
         """Test memorizing identity node without WA authorization fails."""
         memory_result = create_memory_op_result(status=MemoryOpStatus.SUCCESS)
         deps, mock_persistence, mock_memory_bus, mock_audit_service = setup_handler_mocks(
@@ -271,7 +294,9 @@ class TestMemorizeHandler:
             action_parameters=params,
             rationale="Testing identity memorize without WA",
             reasoning="This should fail",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         thought = create_test_thought()
@@ -304,7 +329,7 @@ class TestMemorizeHandler:
         assert any("failed_wa_required" in str(call) for call in audit_calls)
 
     @pytest.mark.asyncio
-    async def test_memorize_identity_node_with_wa_authorization(self, monkeypatch):
+    async def test_memorize_identity_node_with_wa_authorization(self, monkeypatch: Any) -> None:
         """Test memorizing identity node with WA authorization succeeds."""
         memory_result = create_memory_op_result(status=MemoryOpStatus.SUCCESS)
         deps, mock_persistence, mock_memory_bus, mock_audit_service = setup_handler_mocks(
@@ -326,7 +351,9 @@ class TestMemorizeHandler:
             action_parameters=params,
             rationale="Testing identity memorize with WA",
             reasoning="This should succeed",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         thought = create_test_thought()
@@ -352,7 +379,7 @@ class TestMemorizeHandler:
         )
 
     @pytest.mark.asyncio
-    async def test_memorize_invalid_parameters(self, monkeypatch):
+    async def test_memorize_invalid_parameters(self, monkeypatch: Any) -> None:
         """Test memorize with invalid parameters."""
         deps, mock_persistence, mock_memory_bus, mock_audit_service = setup_handler_mocks(
             monkeypatch
@@ -369,11 +396,13 @@ class TestMemorizeHandler:
             action_parameters=params,
             rationale="Testing invalid params",
             reasoning="This should fail validation",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         # Now override with invalid data to simulate validation failure in handler
-        result.action_parameters = {"invalid": "data"}
+        result.action_parameters = {"invalid": "data"}  # type: ignore[assignment]
 
         thought = create_test_thought()
         dispatch_context = create_dispatch_context()
@@ -397,7 +426,7 @@ class TestMemorizeHandler:
         assert "MEMORIZE action failed" in follow_up_thought.content
 
     @pytest.mark.asyncio
-    async def test_memorize_memory_service_error(self, monkeypatch):
+    async def test_memorize_memory_service_error(self, monkeypatch: Any) -> None:
         """Test memorize when memory service returns error."""
         memory_result = create_memory_op_result(
             status=MemoryOpStatus.ERROR,
@@ -416,9 +445,10 @@ class TestMemorizeHandler:
             selected_action=HandlerActionType.MEMORIZE,
             action_parameters=params,
             rationale="Testing memory service error",
-
             reasoning="This should handle error gracefully",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         thought = create_test_thought()
@@ -444,7 +474,7 @@ class TestMemorizeHandler:
         assert "Database connection failed" in follow_up_thought.content
 
     @pytest.mark.asyncio
-    async def test_memorize_exception_handling(self, monkeypatch):
+    async def test_memorize_exception_handling(self, monkeypatch: Any) -> None:
         """Test memorize when memory service throws exception."""
         deps, mock_persistence, mock_memory_bus, mock_audit_service = setup_handler_mocks(
             monkeypatch
@@ -462,9 +492,10 @@ class TestMemorizeHandler:
             selected_action=HandlerActionType.MEMORIZE,
             action_parameters=params,
             rationale="Testing exception handling",
-
             reasoning="This should handle exception",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         thought = create_test_thought()
@@ -487,7 +518,7 @@ class TestMemorizeHandler:
         assert "Unexpected error" in follow_up_thought.content
 
     @pytest.mark.asyncio
-    async def test_memorize_node_with_different_attributes(self, monkeypatch):
+    async def test_memorize_node_with_different_attributes(self, monkeypatch: Any) -> None:
         """Test memorizing nodes with various attribute types."""
         memory_result = create_memory_op_result(status=MemoryOpStatus.SUCCESS)
         deps, mock_persistence, mock_memory_bus, mock_audit_service = setup_handler_mocks(
@@ -516,9 +547,10 @@ class TestMemorizeHandler:
                 selected_action=HandlerActionType.MEMORIZE,
                 action_parameters=params,
                 rationale=f"Testing attributes case {idx}",
-
                 reasoning="Testing attribute handling",
-                evaluation_time_ms=100
+                evaluation_time_ms=100,
+                raw_llm_response=None,
+                resource_usage=None
             )
 
             thought = create_test_thought(thought_id=f"thought_{idx}")
@@ -545,7 +577,7 @@ class TestRecallHandler:
     """Test suite for RecallHandler."""
 
     @pytest.mark.asyncio
-    async def test_recall_by_node_id_success(self, monkeypatch):
+    async def test_recall_by_node_id_success(self, monkeypatch: Any) -> None:
         """Test successful recall by node ID."""
         # Create test nodes to return
         test_nodes = [
@@ -565,16 +597,20 @@ class TestRecallHandler:
         # Create parameters for node ID recall
         params = RecallParams(
             node_id="recalled_node",
-            scope=GraphScope.LOCAL
+            scope=GraphScope.LOCAL,
+            query=None,
+            node_type=None,
+            limit=10
         )
 
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.RECALL,
             action_parameters=params,
             rationale="Testing recall by node ID",
-
             reasoning="Should find specific node",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         thought = create_test_thought()
@@ -604,7 +640,7 @@ class TestRecallHandler:
         assert "'data': 'test'" in str(follow_up_thought.content)
 
     @pytest.mark.asyncio
-    async def test_recall_by_query_success(self, monkeypatch):
+    async def test_recall_by_query_success(self, monkeypatch: Any) -> None:
         """Test successful recall by text query."""
         # Create test nodes to return
         test_nodes = [
@@ -625,16 +661,19 @@ class TestRecallHandler:
         params = RecallParams(
             query="test search query",
             node_type=NodeType.CONCEPT,
-            limit=5
+            limit=5,
+            node_id=None,
+            scope=None
         )
 
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.RECALL,
             action_parameters=params,
             rationale="Testing recall by query",
-
             reasoning="Should find matching nodes",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         thought = create_test_thought()
@@ -662,7 +701,7 @@ class TestRecallHandler:
         assert "node2" in follow_up_thought.content
 
     @pytest.mark.asyncio
-    async def test_recall_no_results(self, monkeypatch):
+    async def test_recall_no_results(self, monkeypatch: Any) -> None:
         """Test recall when no nodes are found."""
         deps, mock_persistence, mock_memory_bus, mock_audit_service = setup_handler_mocks(
             monkeypatch
@@ -674,16 +713,20 @@ class TestRecallHandler:
 
         params = RecallParams(
             query="nonexistent query",
-            scope=GraphScope.ENVIRONMENT
+            scope=GraphScope.ENVIRONMENT,
+            node_type=None,
+            node_id=None,
+            limit=10
         )
 
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.RECALL,
             action_parameters=params,
             rationale="Testing recall with no results",
-
             reasoning="Should handle empty results",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         thought = create_test_thought()
@@ -704,7 +747,7 @@ class TestRecallHandler:
         assert "scope environment" in follow_up_thought.content
 
     @pytest.mark.asyncio
-    async def test_recall_invalid_parameters(self, monkeypatch):
+    async def test_recall_invalid_parameters(self, monkeypatch: Any) -> None:
         """Test recall with invalid parameters."""
         deps, mock_persistence, mock_memory_bus, mock_audit_service = setup_handler_mocks(
             monkeypatch
@@ -716,14 +759,17 @@ class TestRecallHandler:
         with pytest.raises(ValidationError) as exc_info:
             RecallParams(
                 query="test",
-                limit="not_a_number"  # Should be int
+                limit="not_a_number",  # type: ignore[arg-type]  # Should be int
+                node_type=None,
+                node_id=None,
+                scope=None
             )
 
         # Verify the validation error
         assert "limit" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_recall_with_all_parameters(self, monkeypatch):
+    async def test_recall_with_all_parameters(self, monkeypatch: Any) -> None:
         """Test recall with all possible parameters."""
         test_nodes = [create_graph_node()]
 
@@ -747,9 +793,10 @@ class TestRecallHandler:
             selected_action=HandlerActionType.RECALL,
             action_parameters=params,
             rationale="Testing all parameters",
-
             reasoning="Should use node_id preferentially",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         thought = create_test_thought()
@@ -782,26 +829,15 @@ class TestForgetHandler:
     """
 
     @pytest.mark.asyncio
-    async def test_forget_success(self, monkeypatch):
+    async def test_forget_success(self, monkeypatch: Any) -> None:
         """Test successful forget operation."""
         memory_result = create_memory_op_result(status=MemoryOpStatus.OK)
         deps, mock_persistence, mock_memory_bus, mock_audit_service = setup_handler_mocks(
             monkeypatch, memory_result
         )
 
-        # Mock create_follow_up_thought and capture the content passed to it
-        actual_content = None
-        def capture_follow_up(parent, time_service, content):
-            nonlocal actual_content
-            actual_content = content
-            mock_follow_up = create_test_thought(thought_id="follow_up_1")
-            mock_follow_up.content = content  # Use the actual content passed
-            return mock_follow_up
-
-        monkeypatch.setattr(
-            'ciris_engine.logic.handlers.memory.forget_handler.create_follow_up_thought',
-            capture_follow_up
-        )
+        # The ForgetHandler uses complete_thought_and_create_followup from BaseActionHandler
+        # which is already mocked in our setup_handler_mocks function
 
         handler = ForgetHandler(deps)
 
@@ -819,9 +855,10 @@ class TestForgetHandler:
             selected_action=HandlerActionType.FORGET,
             action_parameters=params,
             rationale="Testing forget",
-
             reasoning="Should delete node",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         thought = create_test_thought()
@@ -844,7 +881,7 @@ class TestForgetHandler:
         assert mock_audit_service.log_event.call_count >= 3  # Start, forget_executed, success
 
     @pytest.mark.asyncio
-    async def test_forget_identity_scope_without_wa(self, monkeypatch):
+    async def test_forget_identity_scope_without_wa(self, monkeypatch: Any) -> None:
         """Test forget on identity scope without WA authorization."""
         deps, mock_persistence, mock_memory_bus, mock_audit_service = setup_handler_mocks(
             monkeypatch
@@ -866,9 +903,10 @@ class TestForgetHandler:
             selected_action=HandlerActionType.FORGET,
             action_parameters=params,
             rationale="Testing identity forget without WA",
-
             reasoning="Should be denied",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         thought = create_test_thought()
@@ -889,7 +927,7 @@ class TestForgetHandler:
         assert any("wa_denied" in str(call) for call in audit_calls)
 
     @pytest.mark.asyncio
-    async def test_forget_environment_scope_with_wa(self, monkeypatch):
+    async def test_forget_environment_scope_with_wa(self, monkeypatch: Any) -> None:
         """Test forget on environment scope with WA authorization."""
         memory_result = create_memory_op_result(status=MemoryOpStatus.OK)
         deps, mock_persistence, mock_memory_bus, mock_audit_service = setup_handler_mocks(
@@ -912,9 +950,10 @@ class TestForgetHandler:
             selected_action=HandlerActionType.FORGET,
             action_parameters=params,
             rationale="Testing environment forget with WA",
-
             reasoning="Should succeed",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         thought = create_test_thought()
@@ -932,7 +971,7 @@ class TestForgetHandler:
         assert "Successfully forgot key 'env_node'" in follow_up_thought.content
 
     @pytest.mark.asyncio
-    async def test_forget_with_no_audit_flag(self, monkeypatch):
+    async def test_forget_with_no_audit_flag(self, monkeypatch: Any) -> None:
         """Test forget with no_audit flag set."""
         memory_result = create_memory_op_result(status=MemoryOpStatus.OK)
         deps, mock_persistence, mock_memory_bus, mock_audit_service = setup_handler_mocks(
@@ -952,9 +991,10 @@ class TestForgetHandler:
             selected_action=HandlerActionType.FORGET,
             action_parameters=params,
             rationale="Testing no-audit forget",
-
             reasoning="Should skip some audit logs",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         thought = create_test_thought()
@@ -972,7 +1012,7 @@ class TestForgetHandler:
         # Should have fewer audit calls than normal
 
     @pytest.mark.asyncio
-    async def test_forget_invalid_params_dict(self, monkeypatch):
+    async def test_forget_invalid_params_dict(self, monkeypatch: Any) -> None:
         """Test forget with invalid parameter dictionary."""
         deps, mock_persistence, mock_memory_bus, mock_audit_service = setup_handler_mocks(
             monkeypatch
@@ -992,14 +1032,16 @@ class TestForgetHandler:
             action_parameters=params,
             rationale="Testing invalid dict params",
             reasoning="Should fail validation",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         # Now override with invalid data to simulate validation failure in handler
         result.action_parameters = {
             "node_id": "test",  # Wrong field name - should be 'node'
             "reason": "test"
-        }
+        }  # type: ignore[assignment]
 
         thought = create_test_thought()
         dispatch_context = create_dispatch_context()
@@ -1017,7 +1059,7 @@ class TestForgetHandler:
         assert "node" in follow_up_thought.content.lower()
 
     @pytest.mark.asyncio
-    async def test_forget_invalid_params_type(self, monkeypatch):
+    async def test_forget_invalid_params_type(self, monkeypatch: Any) -> None:
         """Test forget with wrong parameter type."""
         deps, mock_persistence, mock_memory_bus, mock_audit_service = setup_handler_mocks(
             monkeypatch
@@ -1037,11 +1079,13 @@ class TestForgetHandler:
             action_parameters=params,
             rationale="Testing wrong param type",
             reasoning="Should fail type check",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         # Override the action_parameters after creation to simulate wrong type
-        result.action_parameters = "not a dict or ForgetParams"
+        result.action_parameters = "not a dict or ForgetParams"  # type: ignore[assignment]
 
         thought = create_test_thought()
         dispatch_context = create_dispatch_context()
@@ -1057,7 +1101,7 @@ class TestForgetHandler:
         assert "FORGET action failed: Invalid parameters type" in follow_up_thought.content
 
     @pytest.mark.asyncio
-    async def test_forget_permission_denied(self, monkeypatch):
+    async def test_forget_permission_denied(self, monkeypatch: Any) -> None:
         """Test forget when permission is denied (via _can_forget)."""
         deps, mock_persistence, mock_memory_bus, mock_audit_service = setup_handler_mocks(
             monkeypatch
@@ -1066,7 +1110,7 @@ class TestForgetHandler:
         handler = ForgetHandler(deps)
 
         # Mock _can_forget to return False
-        handler._can_forget = Mock(return_value=False)
+        handler._can_forget = Mock(return_value=False)  # type: ignore[method-assign]
 
         node = create_graph_node()
         params = ForgetParams(
@@ -1078,9 +1122,10 @@ class TestForgetHandler:
             selected_action=HandlerActionType.FORGET,
             action_parameters=params,
             rationale="Testing permission denial",
-
             reasoning="Should be denied",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         thought = create_test_thought()
@@ -1097,7 +1142,7 @@ class TestForgetHandler:
         assert "FORGET action was not permitted" in follow_up_thought.content
 
     @pytest.mark.asyncio
-    async def test_forget_failed_operation(self, monkeypatch):
+    async def test_forget_failed_operation(self, monkeypatch: Any) -> None:
         """Test forget when memory service returns failure."""
         memory_result = create_memory_op_result(
             status=MemoryOpStatus.ERROR,
@@ -1119,9 +1164,10 @@ class TestForgetHandler:
             selected_action=HandlerActionType.FORGET,
             action_parameters=params,
             rationale="Testing failed forget",
-
             reasoning="Should handle failure",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         thought = create_test_thought()
@@ -1146,20 +1192,20 @@ class TestMemoryHandlersIntegration:
     """Integration and edge case tests for memory handlers."""
 
     @pytest.mark.asyncio
-    async def test_memorize_recall_forget_workflow(self, monkeypatch):
+    async def test_memorize_recall_forget_workflow(self, monkeypatch: Any) -> None:
         """Test full workflow: memorize → recall → forget."""
         # This would be more of an integration test with real services
         # For unit tests, we just verify the handlers work correctly in sequence
         pass
 
     @pytest.mark.asyncio
-    async def test_concurrent_memory_operations(self, monkeypatch):
+    async def test_concurrent_memory_operations(self, monkeypatch: Any) -> None:
         """Test handlers can handle concurrent operations."""
         # Would test thread safety and concurrent access
         pass
 
     @pytest.mark.asyncio
-    async def test_large_node_handling(self, monkeypatch):
+    async def test_large_node_handling(self, monkeypatch: Any) -> None:
         """Test handling of nodes with large attributes."""
         memory_result = create_memory_op_result(status=MemoryOpStatus.SUCCESS)
         deps, mock_persistence, mock_memory_bus, mock_audit_service = setup_handler_mocks(
@@ -1179,9 +1225,10 @@ class TestMemoryHandlersIntegration:
             selected_action=HandlerActionType.MEMORIZE,
             action_parameters=params,
             rationale="Testing large node",
-
             reasoning="Should handle large content",
-            evaluation_time_ms=100
+            evaluation_time_ms=100,
+            raw_llm_response=None,
+            resource_usage=None
         )
 
         thought = create_test_thought()

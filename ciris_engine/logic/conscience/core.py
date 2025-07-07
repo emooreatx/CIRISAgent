@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any, TYPE_CHECKING
 from pydantic import BaseModel, Field
 
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
@@ -105,7 +105,15 @@ class _BaseConscience(ConscienceInterface):
                 "component_type": "guardrail",
                 "guardrail_type": conscience_type,
                 "trace_depth": "4"
-            }
+            },
+            request_data=None,
+            response_data=None,
+            status=ServiceCorrelationStatus.COMPLETED,
+            metric_data=None,
+            log_data=None,
+            retention_policy="short",
+            ttl_seconds=None,
+            parent_correlation_id=None
         )
         
         # Add correlation
@@ -134,11 +142,13 @@ class _BaseConscience(ConscienceInterface):
                 "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
                 "response_timestamp": end_time.isoformat()
             },
-            status=ServiceCorrelationStatus.COMPLETED if success else ServiceCorrelationStatus.FAILED
+            status=ServiceCorrelationStatus.COMPLETED if success else ServiceCorrelationStatus.FAILED,
+            metric_value=None,
+            tags=None
         )
         persistence.update_correlation(update_req, self._time_service)
 
-    async def _get_sink(self):
+    async def _get_sink(self) -> Any:
         """Get the multi-service sink for centralized LLM calls with circuit breakers."""
         if not self.sink:
             raise RuntimeError("No sink (BusManager) provided to conscience - this is required")
@@ -162,13 +172,14 @@ class EntropyConscience(_BaseConscience):
         start_time = self._time_service.now()
         correlation = self._create_trace_correlation("entropy", context, start_time)
         
-        ts = self._time_service.now().isoformat() if self._time_service else datetime.now(timezone.utc).isoformat()
+        ts_datetime = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
+        ts = ts_datetime.isoformat()
         if action.selected_action != HandlerActionType.SPEAK:
             self._update_trace_correlation(correlation, True, "Non-speak action, no entropy check needed", start_time)
             return ConscienceCheckResult(
                 status=ConscienceStatus.PASSED,
                 passed=True,
-                check_timestamp=ts,
+                check_timestamp=ts_datetime,
             )
         sink = await self._get_sink()
         if not sink:
@@ -177,13 +188,12 @@ class EntropyConscience(_BaseConscience):
                 status=ConscienceStatus.WARNING,
                 passed=True,
                 reason="Sink service unavailable",
-                check_timestamp=ts,
+                check_timestamp=ts_datetime,
             )
         text = ""
         params = action.action_parameters
-        if isinstance(params, dict):
-            text = params.get("content", "")
-        elif hasattr(params, "content"):
+        # Extract content from params - params is a typed union, not dict
+        if hasattr(params, "content"):
             text = getattr(params, "content", "")
         if not text:
             self._update_trace_correlation(correlation, True, "No content to evaluate", start_time)
@@ -191,20 +201,23 @@ class EntropyConscience(_BaseConscience):
                 status=ConscienceStatus.PASSED,
                 passed=True,
                 reason="No content to evaluate",
-                check_timestamp=ts,
+                check_timestamp=ts_datetime,
             )
 
         # Inline the entropy evaluation
         entropy = 0.1  # Default safe value
         try:
             messages = self._create_entropy_messages(text)
-            entropy_eval, _ = await sink.llm.call_llm_structured(
+            if hasattr(sink, 'llm'):
+                entropy_eval, _ = await sink.llm.call_llm_structured(
                 messages=messages,
                 response_model=EntropyResult,
                 handler_name="entropy_conscience",
                 max_tokens=64,
                 temperature=0.0
-            )
+                )
+            else:
+                raise RuntimeError("Sink does not have LLM service")
             if isinstance(entropy_eval, EntropyResult):
                 entropy = float(entropy_eval.entropy)
         except Exception as e:
@@ -228,7 +241,7 @@ class EntropyConscience(_BaseConscience):
             passed=passed,
             reason=reason,
             entropy_score=entropy,
-            check_timestamp=ts,
+            check_timestamp=ts_datetime,
         )
 
     def _create_entropy_messages(self, text: str) -> List[Dict[str, str]]:
@@ -254,35 +267,38 @@ class CoherenceConscience(_BaseConscience):
         start_time = self._time_service.now()
         correlation = self._create_trace_correlation("coherence", context, start_time)
         
-        ts = self._time_service.now().isoformat() if self._time_service else datetime.now(timezone.utc).isoformat()
+        ts_datetime = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
+        ts = ts_datetime.isoformat()
         if action.selected_action != HandlerActionType.SPEAK:
             self._update_trace_correlation(correlation, True, "Non-speak action, no coherence check needed", start_time)
-            return ConscienceCheckResult(status=ConscienceStatus.PASSED, passed=True, check_timestamp=ts)
+            return ConscienceCheckResult(status=ConscienceStatus.PASSED, passed=True, check_timestamp=ts_datetime)
         sink = await self._get_sink()
         if not sink:
             self._update_trace_correlation(correlation, True, "Sink service unavailable, allowing action", start_time)
-            return ConscienceCheckResult(status=ConscienceStatus.WARNING, passed=True, reason="Sink service unavailable", check_timestamp=ts)
+            return ConscienceCheckResult(status=ConscienceStatus.WARNING, passed=True, reason="Sink service unavailable", check_timestamp=ts_datetime)
         text = ""
         params = action.action_parameters
-        if isinstance(params, dict):
-            text = params.get("content", "")
-        elif hasattr(params, "content"):
+        # Extract content from params - params is a typed union, not dict
+        if hasattr(params, "content"):
             text = getattr(params, "content", "")
         if not text:
             self._update_trace_correlation(correlation, True, "No content to evaluate", start_time)
-            return ConscienceCheckResult(status=ConscienceStatus.PASSED, passed=True, reason="No content to evaluate", check_timestamp=ts)
+            return ConscienceCheckResult(status=ConscienceStatus.PASSED, passed=True, reason="No content to evaluate", check_timestamp=ts_datetime)
 
         # Inline the coherence evaluation
         coherence = 0.9  # Default safe value
         try:
             messages = self._create_coherence_messages(text)
-            coherence_eval, _ = await sink.llm.call_llm_structured(
+            if hasattr(sink, 'llm'):
+                coherence_eval, _ = await sink.llm.call_llm_structured(
                 messages=messages,
                 response_model=CoherenceResult,
                 handler_name="coherence_conscience",
                 max_tokens=64,
                 temperature=0.0
-            )
+                )
+            else:
+                raise RuntimeError("Sink does not have LLM service")
             if isinstance(coherence_eval, CoherenceResult):
                 coherence = float(coherence_eval.coherence)
         except Exception as e:
@@ -306,7 +322,7 @@ class CoherenceConscience(_BaseConscience):
             passed=passed,
             reason=reason,
             coherence_score=coherence,
-            check_timestamp=ts,
+            check_timestamp=ts_datetime,
         )
 
     def _create_coherence_messages(self, text: str) -> List[Dict[str, str]]:
@@ -356,24 +372,28 @@ class OptimizationVetoConscience(_BaseConscience):
         start_time = self._time_service.now()
         correlation = self._create_trace_correlation("optimization_veto", context, start_time)
         
-        ts = self._time_service.now().isoformat() if self._time_service else datetime.now(timezone.utc).isoformat()
+        ts_datetime = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
+        ts = ts_datetime.isoformat()
         sink = await self._get_sink()
         if not sink:
             self._update_trace_correlation(correlation, True, "Sink service unavailable, allowing action", start_time)
-            return ConscienceCheckResult(status=ConscienceStatus.WARNING, passed=True, reason="Sink service unavailable", check_timestamp=ts)
+            return ConscienceCheckResult(status=ConscienceStatus.WARNING, passed=True, reason="Sink service unavailable", check_timestamp=ts_datetime)
 
         # Inline the optimization veto evaluation
         action_desc = f"{action.selected_action} {action.action_parameters}"
         messages = self._create_optimization_veto_messages(action_desc)
 
         try:
-            result, _ = await sink.llm.call_llm_structured(
+            if hasattr(sink, 'llm'):
+                result, _ = await sink.llm.call_llm_structured(
                 messages=messages,
                 response_model=OptimizationVetoResult,
                 handler_name="optimization_veto_conscience",
                 max_tokens=500,
                 temperature=0.0
-            )
+                )
+            else:
+                raise RuntimeError("Sink does not have LLM service")
             if not isinstance(result, OptimizationVetoResult):
                 # Fallback if type is wrong
                 result = OptimizationVetoResult(
@@ -407,7 +427,7 @@ class OptimizationVetoConscience(_BaseConscience):
             passed=passed,
             reason=reason,
             optimization_veto_check=result,
-            check_timestamp=ts,
+            check_timestamp=ts_datetime,
         )
 
     def _create_optimization_veto_messages(self, action_description: str) -> List[Dict[str, str]]:
@@ -440,24 +460,28 @@ class EpistemicHumilityConscience(_BaseConscience):
         start_time = self._time_service.now()
         correlation = self._create_trace_correlation("epistemic_humility", context, start_time)
         
-        ts = self._time_service.now().isoformat() if self._time_service else datetime.now(timezone.utc).isoformat()
+        ts_datetime = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
+        ts = ts_datetime.isoformat()
         sink = await self._get_sink()
         if not sink:
             self._update_trace_correlation(correlation, True, "Sink service unavailable, allowing action", start_time)
-            return ConscienceCheckResult(status=ConscienceStatus.WARNING, passed=True, reason="Sink service unavailable", check_timestamp=ts)
+            return ConscienceCheckResult(status=ConscienceStatus.WARNING, passed=True, reason="Sink service unavailable", check_timestamp=ts_datetime)
 
         # Inline the epistemic humility evaluation
         desc = f"{action.selected_action} {action.action_parameters}"
         messages = self._create_epistemic_humility_messages(desc)
 
         try:
-            result, _ = await sink.llm.call_llm_structured(
+            if hasattr(sink, 'llm'):
+                result, _ = await sink.llm.call_llm_structured(
                 messages=messages,
                 response_model=EpistemicHumilityResult,
                 handler_name="epistemic_humility_conscience",
                 max_tokens=384,
                 temperature=0.0
-            )
+                )
+            else:
+                raise RuntimeError("Sink does not have LLM service")
             # Handle string certainty values if needed
             if isinstance(result.epistemic_certainty, str):
                 mapping = {"low": 0.0, "moderate": 0.5, "high": 1.0}
@@ -496,7 +520,7 @@ class EpistemicHumilityConscience(_BaseConscience):
             passed=passed,
             reason=reason,
             epistemic_humility_check=result,
-            check_timestamp=ts,
+            check_timestamp=ts_datetime,
         )
 
     def _create_epistemic_humility_messages(self, action_description: str) -> List[Dict[str, str]]:

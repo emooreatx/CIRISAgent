@@ -303,4 +303,17 @@ export class SystemResource extends BaseResource {
   }> {
     return this.transport.post('/v1/system/shutdown', { reason });
   }
+
+  /**
+   * Get all available tools from all providers
+   */
+  async getTools(): Promise<{
+    name: string;
+    description: string;
+    provider: string;
+    schema: any;
+    category: string;
+  }[]> {
+    return this.transport.get('/v1/system/tools');
+  }
 }

@@ -2,7 +2,17 @@ pytest_plugins = ("tests.fixtures",)
 import os
 import pytest
 
+from ciris_engine.logic.runtime.prevent_sideeffects import allow_runtime_creation
 from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+
+
+@pytest.fixture(autouse=True)
+def allow_runtime():
+    """Allow runtime creation for integration tests."""
+    allow_runtime_creation()
+    yield
+    # Re-enable import protection after test
+    os.environ['CIRIS_IMPORT_MODE'] = 'true'
 
 
 @pytest.mark.asyncio

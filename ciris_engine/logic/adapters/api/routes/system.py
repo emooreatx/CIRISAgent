@@ -4,7 +4,7 @@ System management endpoints for CIRIS API v3.0 (Simplified).
 Consolidates health, time, resources, runtime control, services, and shutdown
 into a unified system operations interface.
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Depends, Body
 from pydantic import BaseModel, Field, field_serializer
@@ -39,7 +39,7 @@ class SystemHealthResponse(BaseModel):
     timestamp: datetime = Field(..., description="Current server time")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info):
+    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None
 
 
@@ -51,7 +51,7 @@ class SystemTimeResponse(BaseModel):
     time_sync: TimeSyncStatus = Field(..., description="Time synchronization status")
 
     @field_serializer('system_time', 'agent_time')
-    def serialize_times(self, dt: datetime, _info):
+    def serialize_times(self, dt: datetime, _info: Any) -> Optional[str]:
         return dt.isoformat() if dt else None
 
 
@@ -85,7 +85,14 @@ class ServiceStatus(BaseModel):
     healthy: bool = Field(..., description="Whether service is healthy")
     available: bool = Field(..., description="Whether service is available")
     uptime_seconds: Optional[float] = Field(None, description="Service uptime if tracked")
-    metrics: ServiceMetrics = Field(default_factory=ServiceMetrics, description="Service-specific metrics")
+    metrics: ServiceMetrics = Field(default_factory=lambda: ServiceMetrics(
+        uptime_seconds=None,
+        requests_handled=None,
+        error_count=None,
+        avg_response_time_ms=None,
+        memory_mb=None,
+        custom_metrics=None
+    ), description="Service-specific metrics")
 
 
 class ServicesStatusResponse(BaseModel):
@@ -96,7 +103,7 @@ class ServicesStatusResponse(BaseModel):
     timestamp: datetime = Field(..., description="When status was collected")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info):
+    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None
 
 
@@ -115,7 +122,7 @@ class ShutdownResponse(BaseModel):
     timestamp: datetime = Field(..., description="When shutdown was initiated")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info):
+    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None
 
 
@@ -129,7 +136,7 @@ class AdapterActionRequest(BaseModel):
 # Endpoints
 
 @router.get("/health", response_model=SuccessResponse[SystemHealthResponse])
-async def get_system_health(request: Request):
+async def get_system_health(request: Request) -> SuccessResponse[SystemHealthResponse]:
     """
     Overall system health.
 
@@ -219,7 +226,7 @@ async def get_system_health(request: Request):
 async def get_system_time(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[SystemTimeResponse]:
     """
     System time information.
 
@@ -273,7 +280,7 @@ async def get_system_time(
 async def get_resource_usage(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[ResourceUsageResponse]:
     """
     Resource usage and limits.
 
@@ -318,7 +325,7 @@ async def control_runtime(
     request: Request,
     body: RuntimeAction = Body(...),
     auth: AuthContext = Depends(require_admin)
-):
+) -> SuccessResponse[RuntimeControlResponse]:
     """
     Runtime control actions.
 
@@ -404,7 +411,7 @@ async def control_runtime(
 async def get_services_status(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[ServicesStatusResponse]:
     """
     Service status.
 
@@ -445,7 +452,14 @@ async def get_services_status(
                         is_healthy = service.is_healthy()
 
                 # Get metrics if available
-                metrics = ServiceMetrics()
+                metrics = ServiceMetrics(
+                    uptime_seconds=None,
+                    requests_handled=None,
+                    error_count=None,
+                    avg_response_time_ms=None,
+                    memory_mb=None,
+                    custom_metrics=None
+                )
                 if hasattr(service, 'get_status'):
                     status = service.get_status()
                     if hasattr(status, 'metrics'):
@@ -487,7 +501,15 @@ async def get_services_status(
                     type=service_type,
                     healthy=False,
                     available=True,
-                    metrics=ServiceMetrics(custom_metrics={"error": str(e)})
+                    uptime_seconds=None,
+                    metrics=ServiceMetrics(
+                        uptime_seconds=None,
+                        requests_handled=None,
+                        error_count=None,
+                        avg_response_time_ms=None,
+                        memory_mb=None,
+                        custom_metrics={"error": str(e)}
+                    )
                 ))
 
     # Collect registry services
@@ -513,7 +535,14 @@ async def get_services_status(
                             is_healthy = provider.is_healthy()
 
                     # Get metrics if available
-                    metrics = ServiceMetrics()
+                    metrics = ServiceMetrics(
+                    uptime_seconds=None,
+                    requests_handled=None,
+                    error_count=None,
+                    avg_response_time_ms=None,
+                    memory_mb=None,
+                    custom_metrics=None
+                )
                     if hasattr(provider, 'get_status'):
                         status = provider.get_status()
                         if hasattr(status, 'metrics'):
@@ -534,6 +563,7 @@ async def get_services_status(
                         type=category,
                         healthy=is_healthy,
                         available=True,
+                        uptime_seconds=None,
                         metrics=metrics
                     ))
             except Exception as e:
@@ -557,7 +587,7 @@ async def shutdown_system(
     body: ShutdownRequest,
     request: Request,
     auth: AuthContext = Depends(require_admin)
-):
+) -> SuccessResponse[ShutdownResponse]:
     """
     Graceful shutdown.
 
@@ -596,8 +626,12 @@ async def shutdown_system(
         if body.force:
             reason += " [FORCED]"
 
-        # Log shutdown request
-        logger.warning(f"SHUTDOWN requested: {reason}")
+        # Sanitize reason for logging to prevent log injection
+        # Replace newlines and control characters with spaces
+        safe_reason = ''.join(c if c.isprintable() and c not in '\n\r\t' else ' ' for c in reason)
+        
+        # Log shutdown request with sanitized reason
+        logger.warning(f"SHUTDOWN requested: {safe_reason}")
 
         # Execute shutdown
         await shutdown_service.request_shutdown(reason)
@@ -624,7 +658,7 @@ async def shutdown_system(
 async def list_adapters(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[AdapterListResponse]:
     """
     List all loaded adapters.
     
@@ -655,7 +689,8 @@ async def list_adapters(
                     messages_processed=adapter.messages_processed,
                     errors_count=adapter.error_count,
                     uptime_seconds=(datetime.now(timezone.utc) - adapter.started_at).total_seconds() if adapter.started_at else 0,
-                    last_error=adapter.last_error
+                    last_error=adapter.last_error,
+                    last_error_time=None
                 )
             
             adapter_statuses.append(AdapterStatusSchema(
@@ -665,7 +700,8 @@ async def list_adapters(
                 loaded_at=adapter.started_at or datetime.now(timezone.utc),
                 services_registered=[],  # Not available from AdapterInfo
                 config_params=config,
-                metrics=metrics,
+                metrics=metrics.__dict__ if metrics else None,
+                last_activity=None,
                 tools=adapter.tools  # Include tools information
             ))
         
@@ -689,7 +725,7 @@ async def get_adapter_status(
     adapter_id: str,
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[AdapterStatusSchema]:
     """
     Get detailed status of a specific adapter.
     
@@ -708,6 +744,17 @@ async def get_adapter_status(
             raise HTTPException(status_code=404, detail=f"Adapter '{adapter_id}' not found")
         
         # Convert to response format
+        metrics_dict = None
+        if adapter_info.messages_processed > 0 or adapter_info.error_count > 0:
+            metrics = AdapterMetrics(
+                messages_processed=adapter_info.messages_processed,
+                errors_count=adapter_info.error_count,
+                uptime_seconds=(datetime.now(timezone.utc) - adapter_info.started_at).total_seconds() if adapter_info.started_at else 0,
+                last_error=adapter_info.last_error,
+                last_error_time=None
+            )
+            metrics_dict = metrics.__dict__
+        
         status = AdapterStatusSchema(
             adapter_id=adapter_info.adapter_id,
             adapter_type=adapter_info.adapter_type,
@@ -719,12 +766,8 @@ async def get_adapter_status(
                 enabled=True,
                 settings={}
             ),
-            metrics=AdapterMetrics(
-                messages_processed=adapter_info.messages_processed,
-                errors_count=adapter_info.error_count,
-                uptime_seconds=(datetime.now(timezone.utc) - adapter_info.started_at).total_seconds() if adapter_info.started_at else 0,
-                last_error=adapter_info.last_error
-            ) if adapter_info.messages_processed > 0 or adapter_info.error_count > 0 else None,
+            metrics=metrics_dict,
+            last_activity=None,
             tools=adapter_info.tools  # Include tools information
         )
         
@@ -743,7 +786,7 @@ async def load_adapter(
     body: AdapterActionRequest,
     request: Request,
     auth: AuthContext = Depends(require_admin)
-):
+) -> SuccessResponse[AdapterOperationResult]:
     """
     Load a new adapter instance.
     
@@ -762,6 +805,10 @@ async def load_adapter(
         adapter_id = f"{adapter_type}_{uuid.uuid4().hex[:8]}"
         
         # Load adapter through runtime control service
+        logger.info(f"Loading adapter through runtime_control: {runtime_control.__class__.__name__} (id: {id(runtime_control)})")
+        if hasattr(runtime_control, 'adapter_manager'):
+            logger.info(f"Runtime control adapter_manager id: {id(runtime_control.adapter_manager)}")
+        
         result = await runtime_control.load_adapter(
             adapter_type=adapter_type,
             adapter_id=adapter_id,
@@ -791,7 +838,7 @@ async def unload_adapter(
     adapter_id: str,
     request: Request,
     auth: AuthContext = Depends(require_admin)
-):
+) -> SuccessResponse[AdapterOperationResult]:
     """
     Unload an adapter instance.
     
@@ -833,7 +880,7 @@ async def reload_adapter(
     body: AdapterActionRequest,
     request: Request,
     auth: AuthContext = Depends(require_admin)
-):
+) -> SuccessResponse[AdapterOperationResult]:
     """
     Reload an adapter with new configuration.
     
@@ -880,4 +927,90 @@ async def reload_adapter(
         raise
     except Exception as e:
         logger.error(f"Error reloading adapter: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Tool endpoints
+@router.get("/tools", response_model=SuccessResponse[List[dict]])
+async def get_available_tools(
+    request: Request,
+    auth: AuthContext = Depends(require_observer)
+) -> SuccessResponse[List[dict]]:
+    """
+    Get list of all available tools from all tool providers.
+    
+    Returns tools from:
+    - Core tool services (secrets, self_help)
+    - Adapter tool services (API, Discord, etc.)
+    
+    Requires OBSERVER role.
+    """
+    
+    try:
+        all_tools = []
+        tool_providers = []
+        
+        # Get all tool providers from the service registry
+        service_registry = getattr(request.app.state, 'service_registry', None)
+        if service_registry:
+            # Get provider info for TOOL services
+            provider_info = service_registry.get_provider_info(service_type=ServiceType.TOOL.value)
+            tool_services = provider_info.get('services', {}).get(ServiceType.TOOL.value, [])
+            
+            # Get the actual provider instances from the registry
+            if hasattr(service_registry, '_services') and ServiceType.TOOL in service_registry._services:
+                for provider_data in service_registry._services[ServiceType.TOOL]:
+                    try:
+                        provider = provider_data.provider
+                        provider_name = provider.__class__.__name__
+                        tool_providers.append(provider_name)
+                        
+                        if hasattr(provider, 'get_all_tool_info'):
+                            # Modern interface with ToolInfo objects
+                            tool_infos = await provider.get_all_tool_info()
+                            for info in tool_infos:
+                                all_tools.append({
+                                    "name": info.name,
+                                    "description": info.description,
+                                    "provider": provider_name,
+                                    "schema": info.parameters.model_dump() if info.parameters else {},
+                                    "category": getattr(info, 'category', 'general')
+                                })
+                        elif hasattr(provider, 'list_tools'):
+                            # Legacy interface
+                            tool_names = await provider.list_tools()
+                            for name in tool_names:
+                                all_tools.append({
+                                    "name": name,
+                                    "description": f"{name} tool",
+                                    "provider": provider_name,
+                                    "schema": {},
+                                    "category": "general"
+                                })
+                    except Exception as e:
+                        logger.warning(f"Failed to get tools from provider: {e}")
+        
+        # Deduplicate tools by name (in case multiple providers offer the same tool)
+        seen_tools = {}
+        unique_tools = []
+        for tool in all_tools:
+            if tool['name'] not in seen_tools:
+                seen_tools[tool['name']] = tool
+                unique_tools.append(tool)
+            else:
+                # If we see the same tool from multiple providers, add provider info
+                existing = seen_tools[tool['name']]
+                if existing['provider'] != tool['provider']:
+                    existing['provider'] = f"{existing['provider']}, {tool['provider']}"
+        
+        return SuccessResponse(
+            data=unique_tools,
+            metadata={
+                "total_tools": len(unique_tools),
+                "tool_providers": tool_providers
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting available tools: {e}")
         raise HTTPException(status_code=500, detail=str(e))
