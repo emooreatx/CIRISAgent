@@ -141,7 +141,9 @@ class RuntimeAdapterManager(AdapterManagerInterface):
 
             await self._register_adapter_services(instance)
 
-            self.runtime.adapters.append(adapter)
+            # Don't add dynamically loaded adapters to runtime.adapters
+            # to avoid duplicate bootstrap entries in control_service
+            # self.runtime.adapters.append(adapter)
             self.loaded_adapters[adapter_id] = instance
 
             logger.info(f"Successfully loaded and started adapter {adapter_id}")
@@ -229,12 +231,14 @@ class RuntimeAdapterManager(AdapterManagerInterface):
 
             await self._unregister_adapter_services(instance)
 
-            # Remove adapter from runtime adapters list
-            # Need to find matching adapter by comparing instances
-            for i, adapter in enumerate(self.runtime.adapters):
-                if adapter is instance.adapter:
-                    self.runtime.adapters.pop(i)
-                    break
+            # Remove adapter from runtime adapters list (if it was added there)
+            # Note: Dynamically loaded adapters are no longer added to runtime.adapters
+            # to avoid duplicate bootstrap entries
+            if hasattr(self.runtime, 'adapters'):
+                for i, adapter in enumerate(self.runtime.adapters):
+                    if adapter is instance.adapter:
+                        self.runtime.adapters.pop(i)
+                        break
 
             del self.loaded_adapters[adapter_id]
 
@@ -336,6 +340,27 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                         "health_status": health_status
                     }
 
+                # Get tools from adapter if it has a tool service
+                tools = None
+                try:
+                    if hasattr(instance.adapter, 'tool_service') and instance.adapter.tool_service:
+                        tool_service = instance.adapter.tool_service
+                        if hasattr(tool_service, 'get_all_tool_info'):
+                            tool_infos = await tool_service.get_all_tool_info()
+                            tools = [
+                                {
+                                    "name": info.name,
+                                    "description": info.description,
+                                    "schema": info.parameters.model_dump() if info.parameters else {}
+                                }
+                                for info in tool_infos
+                            ]
+                        elif hasattr(tool_service, 'list_tools'):
+                            tool_names = await tool_service.list_tools()
+                            tools = [{"name": name, "description": f"{name} tool", "schema": {}} for name in tool_names]
+                except Exception as e:
+                    logger.warning(f"Failed to get tools for adapter {adapter_id}: {e}")
+
                 adapters.append(AdapterStatus(
                     adapter_id=adapter_id,
                     adapter_type=instance.adapter_type,
@@ -349,7 +374,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                     ),
                     metrics=metrics_dict,
                     last_activity=None,
-                    tools=None
+                    tools=tools
                 ))
 
             return adapters
@@ -413,6 +438,27 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                     "service_details": service_details
                 }
 
+            # Get tools from adapter if it has a tool service
+            tools = None
+            try:
+                if hasattr(instance.adapter, 'tool_service') and instance.adapter.tool_service:
+                    tool_service = instance.adapter.tool_service
+                    if hasattr(tool_service, 'get_all_tool_info'):
+                        tool_infos = await tool_service.get_all_tool_info()
+                        tools = [
+                            {
+                                "name": info.name,
+                                "description": info.description,
+                                "schema": info.parameters.model_dump() if info.parameters else {}
+                            }
+                            for info in tool_infos
+                        ]
+                    elif hasattr(tool_service, 'list_tools'):
+                        tool_names = await tool_service.list_tools()
+                        tools = [{"name": name, "description": f"{name} tool", "schema": {}} for name in tool_names]
+            except Exception as e:
+                logger.warning(f"Failed to get tools for adapter {adapter_id}: {e}")
+
             return AdapterStatus(
                 adapter_id=adapter_id,
                 adapter_type=instance.adapter_type,
@@ -426,7 +472,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 ),
                 metrics=metrics_dict,
                 last_activity=None,
-                tools=None
+                tools=tools
             )
 
         except Exception as e:

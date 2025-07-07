@@ -122,6 +122,15 @@ class BaseActionHandler(ABC):
             
         # Create follow-up thought if content provided
         if follow_up_content:
+            # Add guidance about next action unless already present
+            if "TASK_COMPLETE" not in follow_up_content and "next action" not in follow_up_content.lower():
+                # Check thought depth to provide appropriate guidance
+                current_depth = getattr(thought, 'thought_depth', 0)
+                if current_depth >= 5:
+                    follow_up_content += "\n\nIMPORTANT: Consider if your task is now complete. The next action is most likely TASK_COMPLETE unless further action is truly required. You have limited actions remaining in this task chain."
+                elif current_depth >= 3:
+                    follow_up_content += "\n\nNote: After completing this action, consider if the task is done. TASK_COMPLETE may be the appropriate next action."
+            
             follow_up = create_follow_up_thought(
                 parent=thought,
                 time_service=self.time_service,

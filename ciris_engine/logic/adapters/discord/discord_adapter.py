@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from typing import Awaitable, Callable, List, Optional, TYPE_CHECKING, Any, Dict
 
 from ciris_engine.schemas.runtime.messages import IncomingMessage
-from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService, ToolService
+from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService
 from ciris_engine.schemas.telemetry.core import (
     ServiceCorrelation,
     ServiceCorrelationStatus,
@@ -15,7 +15,6 @@ from ciris_engine.schemas.telemetry.core import (
     ServiceResponseData,
 )
 from ciris_engine.schemas.services.context import GuidanceContext, DeferralContext
-from ciris_engine.schemas.adapters.tools import ToolInfo, ToolExecutionResult, ToolParameterSchema
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.schemas.services.authority_core import (
     DeferralRequest, DeferralResponse, GuidanceRequest, GuidanceResponse,
@@ -28,7 +27,6 @@ from ciris_engine.logic.adapters.base import Service
 
 from .discord_message_handler import DiscordMessageHandler
 from .discord_guidance_handler import DiscordGuidanceHandler
-from .discord_tool_handler import DiscordToolHandler
 from .discord_channel_manager import DiscordChannelManager
 from .discord_reaction_handler import DiscordReactionHandler, ApprovalRequest, ApprovalStatus
 from .discord_audit import DiscordAuditLogger
@@ -45,13 +43,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolService):
+class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
     """
-    Discord adapter implementing CommunicationService, WiseAuthorityService, and ToolService protocols.
+    Discord adapter implementing CommunicationService and WiseAuthorityService protocols.
     Coordinates specialized handlers for different aspects of Discord functionality.
     """
     def __init__(self, token: str,
-                 tool_registry: Optional[Any] = None, bot: Optional[discord.Client] = None,
+                 bot: Optional[discord.Client] = None,
                  on_message: Optional[Callable[[IncomingMessage], Awaitable[None]]] = None,
                  time_service: Optional["TimeServiceProtocol"] = None,
                  bus_manager: Optional[Any] = None,
@@ -84,7 +82,6 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         self._message_handler = DiscordMessageHandler(bot)
         self._guidance_handler = DiscordGuidanceHandler(bot, self._time_service,
                                                        self.bus_manager.memory if self.bus_manager else None)
-        self._tool_handler = DiscordToolHandler(tool_registry, bot, self._time_service)
         self._reaction_handler = DiscordReactionHandler(bot, self._time_service)
         self._audit_logger = DiscordAuditLogger(self._time_service)
         self._connection_manager = DiscordConnectionManager(token, bot, self._time_service)
@@ -700,6 +697,53 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
             logger.exception(f"Failed to revoke permission: {e}")
             return False
 
+    async def get_active_channels(self) -> List[Dict[str, Any]]:
+        """Get list of active Discord channels."""
+        channels = []
+        
+        logger.info(f"[DISCORD] get_active_channels called, client ready: {self._channel_manager.client.is_ready() if self._channel_manager.client else False}")
+        
+        if not self._channel_manager.client or not self._channel_manager.client.is_ready():
+            logger.warning(f"[DISCORD] Client not ready, returning empty channels")
+            return channels
+        
+        try:
+            # Get all monitored channels
+            logger.info(f"[DISCORD] Checking {len(self.discord_config.monitored_channel_ids)} monitored channels")
+            for channel_id in self.discord_config.monitored_channel_ids:
+                channel = self._channel_manager.client.get_channel(int(channel_id))
+                logger.info(f"[DISCORD] Channel {channel_id}: {'found' if channel else 'not found'}")
+                if channel:
+                    channels.append({
+                        'channel_id': f'discord_{channel_id}',
+                        'channel_type': 'discord',
+                        'display_name': f'#{channel.name}' if hasattr(channel, 'name') else f'Discord Channel {channel_id}',
+                        'is_active': True,
+                        'created_at': channel.created_at.isoformat() if hasattr(channel, 'created_at') else None,
+                        'last_activity': None,  # Could track this if needed
+                        'message_count': 0  # Could track this if needed
+                    })
+            
+            # Add deferral channel if configured
+            if self.discord_config.deferral_channel_id:
+                channel = self._channel_manager.client.get_channel(int(self.discord_config.deferral_channel_id))
+                if channel and f'discord_{self.discord_config.deferral_channel_id}' not in [ch['channel_id'] for ch in channels]:
+                    channels.append({
+                        'channel_id': f'discord_{self.discord_config.deferral_channel_id}',
+                        'channel_type': 'discord',
+                        'display_name': f'#{channel.name} (Deferrals)' if hasattr(channel, 'name') else f'Discord Deferral Channel',
+                        'is_active': True,
+                        'created_at': channel.created_at.isoformat() if hasattr(channel, 'created_at') else None,
+                        'last_activity': None,
+                        'message_count': 0
+                    })
+                    
+        except Exception as e:
+            logger.error(f"Error getting active channels: {e}", exc_info=True)
+        
+        logger.info(f"[DISCORD] Returning {len(channels)} channels")    
+        return channels
+
     async def list_permissions(self, wa_id: str) -> List[WAPermission]:
         """List all permissions for a Discord user."""
         permissions = []
@@ -897,91 +941,6 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         except Exception:
             return False
 
-    # --- ToolService ---
-    async def execute_tool(self, tool_name: str, parameters: dict) -> ToolExecutionResult:
-        """Execute a registered Discord tool via the tool registry and store the result."""
-        # Track execution time
-        start_time = datetime.now()
-        
-        try:
-            # The handler returns ToolExecutionResult
-            # Note: execute_tool is already async, so we call it directly
-            result = await self._tool_handler.execute_tool(tool_name, parameters)
-            
-            # Calculate execution time
-            execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-            
-            # Emit telemetry for tool execution
-            await self._emit_telemetry("discord.tool.executed", 1.0, {
-                "adapter_type": "discord",
-                "tool_name": tool_name,
-                "success": str(result.success)
-            })
-
-            # Audit log the tool execution
-            await self._audit_logger.log_tool_execution(
-                user_id="discord_adapter",
-                tool_name=tool_name,
-                parameters=parameters,
-                success=result.success,
-                execution_time_ms=execution_time_ms,
-                error=result.error if not result.success else None
-            )
-
-            return result
-        except Exception as e:
-            # Calculate execution time for error case
-            execution_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
-            
-            # Create error result
-            error_result = ToolExecutionResult(
-                success=False,
-                result=None,
-                error=str(e)
-            )
-            
-            # Audit log the failed execution
-            await self._audit_logger.log_tool_execution(
-                user_id="discord_adapter",
-                tool_name=tool_name,
-                parameters=parameters,
-                success=False,
-                execution_time_ms=execution_time_ms,
-                error=str(e)
-            )
-            
-            return error_result
-
-    async def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
-        """Get detailed information about a specific tool."""
-        return await self._tool_handler.get_tool_info(tool_name)
-
-    async def get_all_tool_info(self) -> List[ToolInfo]:
-        """Get detailed information about all available tools."""
-        return await self._tool_handler.get_all_tool_info()
-
-    async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[ToolExecutionResult]:
-        """Fetch a tool result by correlation ID from the internal cache."""
-        return await self._tool_handler.get_tool_result(correlation_id, int(timeout))
-
-    async def get_tool_schema(self, tool_name: str) -> Optional[ToolParameterSchema]:
-        """Get parameter schema for a specific tool."""
-        tool_info = await self.get_tool_info(tool_name)
-        if tool_info:
-            return tool_info.parameters
-        return None
-
-    async def list_tools(self) -> List[str]:
-        """List available tool names (required by ToolServiceProtocol)."""
-        return await self.get_available_tools()
-
-    async def get_available_tools(self) -> List[str]:
-        """Return names of registered Discord tools."""
-        return await self._tool_handler.get_available_tools()
-
-    async def validate_parameters(self, tool_name: str, parameters: dict) -> bool:
-        """Basic parameter validation using tool registry schemas."""
-        return await self._tool_handler.validate_tool_parameters(tool_name, parameters)
 
     def get_capabilities(self) -> ServiceCapabilities:
         """Return service capabilities in the proper format."""
@@ -994,11 +953,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
                 "fetch_guidance", "send_deferral", "check_authorization",
                 "request_approval", "get_guidance", "get_pending_deferrals",
                 "resolve_deferral", "grant_permission", "revoke_permission",
-                "list_permissions",
-                # Tool capabilities
-                "execute_tool", "get_available_tools", "get_tool_result",
-                "validate_parameters", "get_tool_info", "get_all_tool_info",
-                "get_tool_schema", "list_tools"
+                "list_permissions"
             ],
             version="1.0.0",
             dependencies=["discord.py"]
@@ -1065,7 +1020,6 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService, ToolSe
         self._channel_manager.set_client(client)
         self._message_handler.set_client(client)
         self._guidance_handler.set_client(client)
-        self._tool_handler.set_client(client)
         self._reaction_handler.set_client(client)
 
         self._channel_manager.attach_to_client(client)

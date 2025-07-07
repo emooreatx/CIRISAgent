@@ -13,6 +13,7 @@ import {
   LightningBoltIcon, 
   CurrencyDollarIcon 
 } from '../../components/Icons';
+import { AdapterConfigModal } from './AdapterConfigModal';
 
 export default function SystemPage() {
   const { hasRole } = useAuth();
@@ -20,6 +21,11 @@ export default function SystemPage() {
   const [confirmDialog, setConfirmDialog] = useState<{ type: string; name?: string } | null>(null);
   const [adapterConfigModal, setAdapterConfigModal] = useState<{ type: string } | null>(null);
   const [adapterConfig, setAdapterConfig] = useState<any>({});
+  
+  // Debug logging - only log when modals change
+  if (confirmDialog || adapterConfigModal) {
+    console.log('Modal states:', { confirmDialog, adapterConfigModal });
+  }
 
   // Fetch system health
   const { data: health } = useQuery({
@@ -387,15 +393,9 @@ export default function SystemPage() {
               <div className="space-y-2">
                 <div>
                   <p className="text-2xl font-bold text-green-700">
-                    {telemetryOverview?.carbon_per_hour_grams ? (telemetryOverview.carbon_per_hour_grams / 1000).toFixed(3) : '0.000'} kg
+                    {telemetryOverview?.carbon_last_hour_grams ? (telemetryOverview.carbon_last_hour_grams / 1000).toFixed(3) : '0.000'} kg
                   </p>
-                  <p className="text-xs text-gray-600">Last hour</p>
-                </div>
-                <div className="pt-2 border-t border-green-200">
-                  <p className="text-sm font-medium text-green-600">
-                    {telemetryOverview?.carbon_per_hour_grams ? (telemetryOverview.carbon_per_hour_grams).toFixed(1) : '0.0'} g
-                  </p>
-                  <p className="text-xs text-gray-600">Per hour (actual)</p>
+                  <p className="text-xs text-gray-600">Last hour total</p>
                 </div>
               </div>
             </div>
@@ -409,15 +409,9 @@ export default function SystemPage() {
               <div className="space-y-2">
                 <div>
                   <p className="text-2xl font-bold text-blue-700">
-                    {telemetryOverview?.energy_per_hour_kwh ? telemetryOverview.energy_per_hour_kwh.toFixed(4) : '0.0000'} kWh
+                    {telemetryOverview?.energy_last_hour_kwh ? telemetryOverview.energy_last_hour_kwh.toFixed(4) : '0.0000'} kWh
                   </p>
-                  <p className="text-xs text-gray-600">Last hour</p>
-                </div>
-                <div className="pt-2 border-t border-blue-200">
-                  <p className="text-sm font-medium text-blue-600">
-                    {telemetryOverview?.energy_per_hour_kwh ? (telemetryOverview.energy_per_hour_kwh * 1000).toFixed(1) : '0.0'} Wh
-                  </p>
-                  <p className="text-xs text-gray-600">Per hour (actual)</p>
+                  <p className="text-xs text-gray-600">Last hour total</p>
                 </div>
               </div>
             </div>
@@ -431,26 +425,14 @@ export default function SystemPage() {
               <div className="space-y-2">
                 <div>
                   <p className="text-2xl font-bold text-purple-700">
-                    ${telemetryOverview?.cost_per_hour_cents ? (telemetryOverview.cost_per_hour_cents / 100).toFixed(2) : '0.00'}
+                    ${telemetryOverview?.cost_last_hour_cents ? (telemetryOverview.cost_last_hour_cents / 100).toFixed(2) : '0.00'}
                   </p>
-                  <p className="text-xs text-gray-600">Last hour</p>
-                </div>
-                <div className="pt-2 border-t border-purple-200">
-                  <p className="text-sm font-medium text-purple-600">
-                    {telemetryOverview?.cost_per_hour_cents ? telemetryOverview.cost_per_hour_cents.toFixed(2) : '0.00'} ¢
-                  </p>
-                  <p className="text-xs text-gray-600">Per hour (actual)</p>
+                  <p className="text-xs text-gray-600">Last hour total</p>
                 </div>
               </div>
             </div>
           </div>
           
-          <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-            <p className="text-xs text-gray-600">
-              <strong>Note:</strong> Environmental metrics are estimated based on token usage and typical LLM energy consumption patterns. 
-              Actual values may vary based on hardware efficiency and energy sources.
-            </p>
-          </div>
           
           {/* Token Usage Details */}
           <div className="mt-6 border-t pt-4">
@@ -459,13 +441,13 @@ export default function SystemPage() {
               <div className="bg-gray-50 rounded p-3">
                 <p className="text-xs text-gray-600">Total Tokens (24h)</p>
                 <p className="text-lg font-semibold text-gray-900">
-                  {telemetryOverview?.tokens_per_hour ? (telemetryOverview.tokens_per_hour * 24).toLocaleString() : '0'}
+                  {telemetryOverview?.tokens_24h ? telemetryOverview.tokens_24h.toLocaleString() : '0'}
                 </p>
               </div>
               <div className="bg-gray-50 rounded p-3">
                 <p className="text-xs text-gray-600">Avg Tokens/Hour</p>
                 <p className="text-lg font-semibold text-gray-900">
-                  {telemetryOverview?.tokens_per_hour?.toLocaleString() || '0'}
+                  {telemetryOverview?.tokens_last_hour?.toLocaleString() || '0'}
                 </p>
               </div>
               <div className="bg-gray-50 rounded p-3">
@@ -618,10 +600,15 @@ export default function SystemPage() {
             <h3 className="text-lg font-medium text-gray-900 mb-4">Register New Adapter</h3>
             <div className="flex items-center space-x-4">
               <select
+                value=""
                 onChange={(e) => {
-                  if (e.target.value) {
-                    if (e.target.value === 'discord') {
-                      setAdapterConfigModal({ type: e.target.value });
+                  const selectedValue = e.target.value;
+                  console.log('Adapter selected:', selectedValue);
+                  if (selectedValue) {
+                    setAdapterConfigModal({ type: selectedValue });
+                    
+                    // Set default config based on adapter type
+                    if (selectedValue === 'discord') {
                       setAdapterConfig({
                         bot_token: '',
                         server_id: '',
@@ -631,13 +618,23 @@ export default function SystemPage() {
                         respond_to_mentions: true,
                         respond_to_dms: true,
                       });
-                    } else {
-                      setConfirmDialog({ type: 'registerAdapter', name: e.target.value });
+                    } else if (selectedValue === 'api') {
+                      setAdapterConfig({
+                        host: '0.0.0.0',
+                        port: 8080,
+                        cors_origins: ['*'],
+                        enable_auth: true,
+                      });
+                    } else if (selectedValue === 'cli') {
+                      setAdapterConfig({
+                        prompt: '> ',
+                        enable_colors: true,
+                        history_file: '.ciris_history',
+                      });
                     }
-                    e.target.value = '';
                   }
                 }}
-                className="block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                className="block w-full max-w-xs px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               >
                 <option value="">Select adapter type...</option>
                 <option value="api">API</option>
@@ -791,212 +788,88 @@ export default function SystemPage() {
         </div>
       )}
 
-      {/* Confirmation Dialog */}
-      {confirmDialog && (
-        <div className="fixed z-10 inset-0 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-              <div className="sm:flex sm:items-start">
-                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-yellow-100 sm:mx-0 sm:h-10 sm:w-10">
-                  <ExclamationTriangleIcon className="text-yellow-600" size="sm" />
-                </div>
-                <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
-                    Confirm Action
-                  </h3>
-                  <div className="mt-2">
-                    <p className="text-sm text-gray-500">
-                      {confirmDialog.type === 'pauseRuntime' && 'Are you sure you want to pause the runtime? This will temporarily stop all message processing.'}
-                      {confirmDialog.type === 'resumeRuntime' && 'Are you sure you want to resume the runtime? Message processing will continue.'}
-                      {confirmDialog.type === 'reloadAdapter' && `Are you sure you want to reload the ${confirmDialog.name} adapter?`}
-                      {confirmDialog.type === 'unregisterAdapter' && `Are you sure you want to remove the ${confirmDialog.name} adapter? This cannot be undone.`}
-                      {confirmDialog.type === 'registerAdapter' && `Are you sure you want to register a new ${confirmDialog.name} adapter?`}
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
-                <button
-                  type="button"
-                  onClick={handleConfirmAction}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-yellow-600 text-base font-medium text-white hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 sm:ml-3 sm:w-auto sm:text-sm"
-                >
-                  Confirm
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmDialog(null)}
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:w-auto sm:text-sm"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
+      {/* Simple Test Modal */}
+      {confirmDialog && confirmDialog.type === 'registerAdapter' && confirmDialog.name === 'test' && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999 }}>
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', backgroundColor: 'white', padding: '20px', borderRadius: '8px' }}>
+            <h2>Test Modal Works!</h2>
+            <button onClick={() => setConfirmDialog(null)} style={{ marginTop: '10px', padding: '5px 10px' }}>
+              Close
+            </button>
           </div>
         </div>
       )}
 
-      {/* Adapter Configuration Modal */}
-      {adapterConfigModal && (
-        <div className="fixed z-10 inset-0 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
-              <div>
-                <div className="text-center">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
-                    Configure Discord Adapter
-                  </h3>
-                  <div className="mt-2">
-                    <p className="text-sm text-gray-500">
-                      Enter the configuration details for the Discord adapter.
-                    </p>
-                  </div>
-                </div>
-                <div className="mt-5 space-y-4">
-                  {/* Bot Token */}
-                  <div>
-                    <label htmlFor="bot_token" className="block text-sm font-medium text-gray-700">
-                      Bot Token <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="password"
-                      id="bot_token"
-                      value={adapterConfig.bot_token || ''}
-                      onChange={(e) => setAdapterConfig({ ...adapterConfig, bot_token: e.target.value })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                      placeholder="Your Discord bot token"
-                    />
-                  </div>
-
-                  {/* Server ID */}
-                  <div>
-                    <label htmlFor="server_id" className="block text-sm font-medium text-gray-700">
-                      Server ID (Guild ID) <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      id="server_id"
-                      value={adapterConfig.server_id || ''}
-                      onChange={(e) => setAdapterConfig({ ...adapterConfig, server_id: e.target.value })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                      placeholder="Discord server/guild ID"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Right-click your server name in Discord and select "Copy Server ID" (requires Developer Mode)
-                    </p>
-                  </div>
-
-                  {/* Home Channel ID */}
-                  <div>
-                    <label htmlFor="home_channel_id" className="block text-sm font-medium text-gray-700">
-                      Home Channel ID
-                    </label>
-                    <input
-                      type="text"
-                      id="home_channel_id"
-                      value={adapterConfig.home_channel_id || ''}
-                      onChange={(e) => setAdapterConfig({ ...adapterConfig, home_channel_id: e.target.value })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                      placeholder="Primary channel for agent communication"
-                    />
-                  </div>
-
-                  {/* Monitored Channel IDs */}
-                  <div>
-                    <label htmlFor="monitored_channels" className="block text-sm font-medium text-gray-700">
-                      Monitored Channel IDs
-                    </label>
-                    <input
-                      type="text"
-                      id="monitored_channels"
-                      value={adapterConfig.monitored_channel_ids?.join(', ') || ''}
-                      onChange={(e) => setAdapterConfig({ 
-                        ...adapterConfig, 
-                        monitored_channel_ids: e.target.value.split(',').map(s => s.trim()).filter(s => s) 
-                      })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                      placeholder="Comma-separated list of channel IDs to monitor"
-                    />
-                  </div>
-
-                  {/* Deferral Channel ID */}
-                  <div>
-                    <label htmlFor="deferral_channel_id" className="block text-sm font-medium text-gray-700">
-                      Deferral Channel ID
-                    </label>
-                    <input
-                      type="text"
-                      id="deferral_channel_id"
-                      value={adapterConfig.deferral_channel_id || ''}
-                      onChange={(e) => setAdapterConfig({ ...adapterConfig, deferral_channel_id: e.target.value })}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                      placeholder="Channel for deferrals and WA guidance"
-                    />
-                  </div>
-
-                  {/* Options */}
-                  <div className="space-y-2">
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={adapterConfig.respond_to_mentions}
-                        onChange={(e) => setAdapterConfig({ ...adapterConfig, respond_to_mentions: e.target.checked })}
-                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">Respond to mentions</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input
-                        type="checkbox"
-                        checked={adapterConfig.respond_to_dms}
-                        onChange={(e) => setAdapterConfig({ ...adapterConfig, respond_to_dms: e.target.checked })}
-                        className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <span className="ml-2 text-sm text-gray-700">Respond to direct messages</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!adapterConfig.bot_token) {
-                      toast.error('Bot token is required');
-                      return;
-                    }
-                    if (!adapterConfig.server_id) {
-                      toast.error('Server ID is required');
-                      return;
-                    }
-                    registerAdapterMutation.mutate({ 
-                      adapterType: 'discord', 
-                      config: adapterConfig 
-                    });
-                  }}
-                  disabled={registerAdapterMutation.isPending}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:col-start-2 sm:text-sm disabled:opacity-50"
-                >
-                  {registerAdapterMutation.isPending ? 'Registering...' : 'Register Adapter'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAdapterConfigModal(null);
-                    setAdapterConfig({});
-                  }}
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:col-start-1 sm:text-sm"
-                >
-                  Cancel
-                </button>
-              </div>
+      {/* Confirmation Dialog */}
+      {confirmDialog && confirmDialog.name !== 'test' ? (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999 }}>
+          <div style={{ 
+            position: 'absolute', 
+            top: '50%', 
+            left: '50%', 
+            transform: 'translate(-50%, -50%)', 
+            backgroundColor: 'white', 
+            padding: '30px', 
+            borderRadius: '8px',
+            maxWidth: '500px',
+            width: '90%'
+          }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px' }}>
+              Confirm Action
+            </h3>
+            <p style={{ marginBottom: '20px', color: '#666' }}>
+              {confirmDialog.type === 'pauseRuntime' && 'Are you sure you want to pause the runtime? This will temporarily stop all message processing.'}
+              {confirmDialog.type === 'resumeRuntime' && 'Are you sure you want to resume the runtime? Message processing will continue.'}
+              {confirmDialog.type === 'reloadAdapter' && `Are you sure you want to reload the ${confirmDialog.name} adapter?`}
+              {confirmDialog.type === 'unregisterAdapter' && `Are you sure you want to remove the ${confirmDialog.name} adapter? This cannot be undone.`}
+              {confirmDialog.type === 'registerAdapter' && `Are you sure you want to register a new ${confirmDialog.name} adapter?`}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                onClick={() => setConfirmDialog(null)}
+                style={{ 
+                  padding: '8px 16px', 
+                  border: '1px solid #ccc', 
+                  borderRadius: '4px',
+                  backgroundColor: 'white',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmAction}
+                style={{ 
+                  padding: '8px 16px', 
+                  backgroundColor: '#f59e0b', 
+                  color: 'white', 
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                Confirm
+              </button>
             </div>
           </div>
         </div>
+      ) : null}
+
+      {/* Adapter Configuration Modal */}
+      {adapterConfigModal && (
+        <AdapterConfigModal
+          adapterType={adapterConfigModal.type}
+          config={adapterConfig}
+          setConfig={setAdapterConfig}
+          onSubmit={(adapterType, config) => {
+            registerAdapterMutation.mutate({ adapterType, config });
+          }}
+          onClose={() => {
+            setAdapterConfigModal(null);
+            setAdapterConfig({});
+          }}
+          isPending={registerAdapterMutation.isPending}
+        />
       )}
     </div>
   );

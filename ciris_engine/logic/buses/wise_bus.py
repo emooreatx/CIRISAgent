@@ -40,14 +40,23 @@ class WiseBus(BaseBus[WiseAuthorityService]):
         """Send a deferral to ALL wise authority services (broadcast)"""
         # Get ALL services with send_deferral capability
         # Since we want to broadcast to all WA services, we need to get them all
-        # The registry returns services based on priority, so we'll get multiple if available
+        from ciris_engine.schemas.runtime.enums import ServiceType
+        all_wa_services = self.service_registry.get_services_by_type(ServiceType.WISE_AUTHORITY)
+        logger.info(f"Found {len(all_wa_services)} total WiseAuthority services")
+        
+        # Filter for services with send_deferral capability
         services = []
-        service = await self.get_service(
-            handler_name=handler_name,
-            required_capabilities=["send_deferral"]
-        )
-        if service:
-            services.append(service)
+        for service in all_wa_services:
+            logger.debug(f"Checking service {service.__class__.__name__} for send_deferral capability")
+            # Check if service has get_capabilities method
+            if hasattr(service, 'get_capabilities'):
+                caps = service.get_capabilities()
+                logger.debug(f"Service {service.__class__.__name__} has capabilities: {caps.actions}")
+                if 'send_deferral' in caps.actions:
+                    services.append(service)
+                    logger.info(f"Adding service {service.__class__.__name__} to deferral broadcast list")
+            else:
+                logger.warning(f"Service {service.__class__.__name__} has no get_capabilities method")
 
         if not services:
             logger.info(f"No wise authority service available for {handler_name}")

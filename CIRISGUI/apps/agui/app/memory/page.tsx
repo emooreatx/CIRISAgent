@@ -36,12 +36,13 @@ export default function MemoryPage() {
   const [graphLayout, setGraphLayout] = useState<'force' | 'timeline' | 'hierarchical'>('force');
   const [timeRange, setTimeRange] = useState<number>(24);
   const [showVisualization, setShowVisualization] = useState(true);
+  const [includeMetrics, setIncludeMetrics] = useState(false);
   const svgContainerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
   // Fetch visualization
   const { data: svgContent, isLoading: vizLoading, refetch: refetchViz } = useQuery<string>({
-    queryKey: ['memory-visualization', activeScope, activeNodeType, graphLayout, timeRange],
+    queryKey: ['memory-visualization', activeScope, activeNodeType, graphLayout, timeRange, includeMetrics],
     queryFn: async () => {
       return await cirisClient.memory.getVisualization({
         scope: activeScope as 'local' | 'identity' | 'environment' | 'community',
@@ -50,7 +51,8 @@ export default function MemoryPage() {
         hours: graphLayout === 'timeline' ? timeRange : undefined,
         width: 1200,
         height: 600,
-        limit: 100
+        limit: 100,
+        include_metrics: includeMetrics
       });
     },
     enabled: showVisualization,
@@ -273,6 +275,25 @@ export default function MemoryPage() {
                 </select>
               </div>
             )}
+          </div>
+
+          {/* Include Metrics Checkbox */}
+          <div className="mt-4">
+            <label className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                checked={includeMetrics}
+                onChange={(e) => {
+                  setIncludeMetrics(e.target.checked);
+                  refetchViz();
+                }}
+              />
+              <span className="text-sm text-gray-700">Include metric nodes</span>
+            </label>
+            <p className="text-xs text-gray-500 mt-1">
+              Show metric_ TSDB_DATA nodes in the visualization (may be numerous)
+            </p>
           </div>
 
           {/* Node Type Stats */}

@@ -805,6 +805,10 @@ async def load_adapter(
         adapter_id = f"{adapter_type}_{uuid.uuid4().hex[:8]}"
         
         # Load adapter through runtime control service
+        logger.info(f"Loading adapter through runtime_control: {runtime_control.__class__.__name__} (id: {id(runtime_control)})")
+        if hasattr(runtime_control, 'adapter_manager'):
+            logger.info(f"Runtime control adapter_manager id: {id(runtime_control.adapter_manager)}")
+        
         result = await runtime_control.load_adapter(
             adapter_type=adapter_type,
             adapter_id=adapter_id,
@@ -923,4 +927,90 @@ async def reload_adapter(
         raise
     except Exception as e:
         logger.error(f"Error reloading adapter: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Tool endpoints
+@router.get("/tools", response_model=SuccessResponse[List[dict]])
+async def get_available_tools(
+    request: Request,
+    auth: AuthContext = Depends(require_observer)
+) -> SuccessResponse[List[dict]]:
+    """
+    Get list of all available tools from all tool providers.
+    
+    Returns tools from:
+    - Core tool services (secrets, self_help)
+    - Adapter tool services (API, Discord, etc.)
+    
+    Requires OBSERVER role.
+    """
+    
+    try:
+        all_tools = []
+        tool_providers = []
+        
+        # Get all tool providers from the service registry
+        service_registry = getattr(request.app.state, 'service_registry', None)
+        if service_registry:
+            # Get provider info for TOOL services
+            provider_info = service_registry.get_provider_info(service_type=ServiceType.TOOL.value)
+            tool_services = provider_info.get('services', {}).get(ServiceType.TOOL.value, [])
+            
+            # Get the actual provider instances from the registry
+            if hasattr(service_registry, '_services') and ServiceType.TOOL in service_registry._services:
+                for provider_data in service_registry._services[ServiceType.TOOL]:
+                    try:
+                        provider = provider_data.provider
+                        provider_name = provider.__class__.__name__
+                        tool_providers.append(provider_name)
+                        
+                        if hasattr(provider, 'get_all_tool_info'):
+                            # Modern interface with ToolInfo objects
+                            tool_infos = await provider.get_all_tool_info()
+                            for info in tool_infos:
+                                all_tools.append({
+                                    "name": info.name,
+                                    "description": info.description,
+                                    "provider": provider_name,
+                                    "schema": info.parameters.model_dump() if info.parameters else {},
+                                    "category": getattr(info, 'category', 'general')
+                                })
+                        elif hasattr(provider, 'list_tools'):
+                            # Legacy interface
+                            tool_names = await provider.list_tools()
+                            for name in tool_names:
+                                all_tools.append({
+                                    "name": name,
+                                    "description": f"{name} tool",
+                                    "provider": provider_name,
+                                    "schema": {},
+                                    "category": "general"
+                                })
+                    except Exception as e:
+                        logger.warning(f"Failed to get tools from provider: {e}")
+        
+        # Deduplicate tools by name (in case multiple providers offer the same tool)
+        seen_tools = {}
+        unique_tools = []
+        for tool in all_tools:
+            if tool['name'] not in seen_tools:
+                seen_tools[tool['name']] = tool
+                unique_tools.append(tool)
+            else:
+                # If we see the same tool from multiple providers, add provider info
+                existing = seen_tools[tool['name']]
+                if existing['provider'] != tool['provider']:
+                    existing['provider'] = f"{existing['provider']}, {tool['provider']}"
+        
+        return SuccessResponse(
+            data=unique_tools,
+            metadata={
+                "total_tools": len(unique_tools),
+                "tool_providers": tool_providers
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error getting available tools: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -549,6 +549,14 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
             for adapter in self.runtime.adapters:
                 # Get adapter type from class name
                 adapter_type = adapter.__class__.__name__.lower().replace('platform', '').replace('adapter', '')
+                
+                # Skip creating bootstrap entries for adapters that are managed by adapter_manager
+                # Only create bootstrap entries for adapters that were started with --adapter flag
+                if adapter_type == 'discord' and self.adapter_manager and any(
+                    a.adapter_type == 'discord' for a in await self.adapter_manager.list_adapters()
+                ):
+                    continue
+                    
                 adapter_id = f"{adapter_type}_bootstrap"
                 
                 # Check if adapter has tools
