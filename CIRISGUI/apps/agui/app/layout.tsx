@@ -51,7 +51,8 @@ export default function RootLayout({
 
   return (
     <html lang="en">
-      <body>
+      <body
+        className={` ${fontBrandRegular.className} ${geistMono.variable} antialiased`}>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             {isLoginPage ? children : <Layout>{children}</Layout>}
