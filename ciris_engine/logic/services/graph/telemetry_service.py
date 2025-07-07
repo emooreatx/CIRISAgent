@@ -493,9 +493,10 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                         "messages_current_hour": snapshot.telemetry_summary.messages_current_hour,
                         "thoughts_current_hour": snapshot.telemetry_summary.thoughts_current_hour,
                         "errors_current_hour": snapshot.telemetry_summary.errors_current_hour,
-                        "tokens_per_hour": snapshot.telemetry_summary.tokens_per_hour,
-                        "cost_per_hour_cents": snapshot.telemetry_summary.cost_per_hour_cents,
-                        "carbon_per_hour_grams": snapshot.telemetry_summary.carbon_per_hour_grams,
+                        "tokens_last_hour": snapshot.telemetry_summary.tokens_last_hour,
+                        "cost_last_hour_cents": snapshot.telemetry_summary.cost_last_hour_cents,
+                        "carbon_last_hour_grams": snapshot.telemetry_summary.carbon_last_hour_grams,
+                        "energy_last_hour_kwh": snapshot.telemetry_summary.energy_last_hour_kwh,
                         "error_rate_percent": snapshot.telemetry_summary.error_rate_percent,
                         "avg_thought_depth": snapshot.telemetry_summary.avg_thought_depth,
                         "queue_saturation": snapshot.telemetry_summary.queue_saturation,
@@ -838,6 +839,45 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         """Check if service is healthy."""
         return self._memory_bus is not None and self._time_service is not None
 
+    async def get_metric_count(self) -> int:
+        """Get the total count of metrics stored in the system.
+        
+        This counts metrics from the tsdb_correlations table which stores
+        all telemetry data points.
+        """
+        try:
+            if not self._memory_bus:
+                logger.debug("Memory bus not available, returning 0 metric count")
+                return 0
+            
+            # Query the database directly to count metric correlations
+            from ciris_engine.logic.persistence import get_db_connection
+            from ciris_engine.schemas.telemetry.core import CorrelationType
+            
+            # Get the memory service to access its db_path
+            memory_service = await self._memory_bus.get_service(handler_name="telemetry_service")
+            if not memory_service:
+                logger.debug("Memory service not available, returning 0 metric count")
+                return 0
+            
+            db_path = getattr(memory_service, 'db_path', None)
+            with get_db_connection(db_path=db_path) as conn:
+                cursor = conn.cursor()
+                # Count all METRIC_DATAPOINT correlations
+                cursor.execute(
+                    "SELECT COUNT(*) FROM service_correlations WHERE correlation_type = ?",
+                    (CorrelationType.METRIC_DATAPOINT.value,)
+                )
+                result = cursor.fetchone()
+                count = result[0] if result else 0
+                
+                logger.debug(f"Total metric count from database: {count}")
+                return count
+                
+        except Exception as e:
+            logger.error(f"Failed to get metric count: {e}")
+            return 0
+
     async def get_telemetry_summary(self) -> TelemetrySummary:
         """Get aggregated telemetry summary for system snapshot.
 
@@ -870,9 +910,14 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 messages_current_hour=0,
                 thoughts_current_hour=0,
                 errors_current_hour=0,
-                tokens_per_hour=0.0,
-                cost_per_hour_cents=0.0,
-                carbon_per_hour_grams=0.0,
+                tokens_last_hour=0.0,
+                cost_last_hour_cents=0.0,
+                carbon_last_hour_grams=0.0,
+                energy_last_hour_kwh=0.0,
+                tokens_24h=0.0,
+                cost_24h_cents=0.0,
+                carbon_24h_grams=0.0,
+                energy_24h_kwh=0.0,
                 error_rate_percent=0.0,
                 avg_thought_depth=0.0,
                 queue_saturation=0.0
@@ -995,10 +1040,11 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                         service = tags["service"]
                         service_calls[service] = service_calls.get(service, 0) + 1
 
-            # Show actual values for the last hour (not extrapolated rates)
-            tokens_per_hour = tokens_1h
-            cost_per_hour_cents = cost_1h_cents
-            carbon_per_hour_grams = carbon_1h_grams
+            # Use actual values for the last hour
+            tokens_last_hour = tokens_1h
+            cost_last_hour_cents = cost_1h_cents
+            carbon_last_hour_grams = carbon_1h_grams
+            energy_last_hour_kwh = energy_1h_kwh
 
             # Calculate error rate
             total_operations = messages_24h + thoughts_24h + tasks_24h
@@ -1033,9 +1079,14 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 service_calls=service_calls,
                 service_errors=service_errors,
                 service_latency_ms=service_latency_ms,
-                tokens_per_hour=float(tokens_per_hour),
-                cost_per_hour_cents=cost_per_hour_cents,
-                carbon_per_hour_grams=carbon_per_hour_grams,
+                tokens_last_hour=float(tokens_last_hour),
+                cost_last_hour_cents=cost_last_hour_cents,
+                carbon_last_hour_grams=carbon_last_hour_grams,
+                energy_last_hour_kwh=energy_last_hour_kwh,
+                tokens_24h=float(tokens_24h),
+                cost_24h_cents=cost_24h_cents,
+                carbon_24h_grams=carbon_24h_grams,
+                energy_24h_kwh=energy_24h_kwh,
                 error_rate_percent=error_rate_percent,
                 avg_thought_depth=1.5,  # TODO: Calculate from thought data
                 queue_saturation=0.0  # TODO: Calculate from queue metrics
@@ -1060,9 +1111,14 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 messages_current_hour=0,
                 thoughts_current_hour=0,
                 errors_current_hour=0,
-                tokens_per_hour=0.0,
-                cost_per_hour_cents=0.0,
-                carbon_per_hour_grams=0.0,
+                tokens_last_hour=0.0,
+                cost_last_hour_cents=0.0,
+                carbon_last_hour_grams=0.0,
+                energy_last_hour_kwh=0.0,
+                tokens_24h=0.0,
+                cost_24h_cents=0.0,
+                carbon_24h_grams=0.0,
+                energy_24h_kwh=0.0,
                 error_rate_percent=0.0,
                 avg_thought_depth=0.0,
                 queue_saturation=0.0

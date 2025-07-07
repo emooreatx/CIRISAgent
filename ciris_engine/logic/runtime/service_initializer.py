@@ -64,7 +64,7 @@ class ServiceInitializer:
         self.adaptive_filter_service: Optional[AdaptiveFilterService] = None
         self.agent_config_service: Optional[Any] = None  # Optional[AgentConfigService]
         self.transaction_orchestrator: Optional[Any] = None  # Optional[MultiServiceTransactionOrchestrator]
-        # CoreToolService removed - tools are adapter-only per user request
+        self.core_tool_service: Optional[Any] = None  # SecretsToolService
         self.maintenance_service: Optional[DatabaseMaintenanceService] = None
         self.incident_management_service: Optional[Any] = None  # Will be IncidentManagementService
         self.tsdb_consolidation_service: Optional[Any] = None  # Will be TSDBConsolidationService
@@ -201,21 +201,12 @@ This directory contains critical cryptographic keys for the CIRIS system.
 
         # Create and register SecretsToolService
         from ciris_engine.logic.services.tools import SecretsToolService
-        self.secrets_tool_service = SecretsToolService(
+        self.core_tool_service = SecretsToolService(
             secrets_service=self.secrets_service,
             time_service=self.time_service
         )
-        await self.secrets_tool_service.start()
-
-        # Register as a global tool service
-        if self.service_registry:
-            self.service_registry.register_service(
-                service_type=ServiceType.TOOL,
-                provider=self.secrets_tool_service,
-                priority=Priority.HIGH,
-                capabilities=["execute_tool", "get_available_tools", "get_tool_info", "get_all_tool_info", "validate_parameters"]
-            )
-            logger.info("SecretsToolService registered globally")
+        await self.core_tool_service.start()
+        logger.info("SecretsToolService created and started")
 
         # LocalGraphMemoryService uses SQLite by default
         self.memory_service = LocalGraphMemoryService(
@@ -804,8 +795,19 @@ This directory contains critical cryptographic keys for the CIRIS system.
 
         # Transaction orchestrator is single-instance - NO ServiceRegistry needed
 
-        # CoreToolService removed - tools are adapter-only per user request
-        # SELF_HELP moved to memory service
+        # Register SecretsToolService for core secrets tools
+        if self.core_tool_service:
+            self.service_registry.register_service(
+                service_type=ServiceType.TOOL,
+                provider=self.core_tool_service,
+                priority=Priority.HIGH,
+                capabilities=[
+                    "execute_tool", "get_available_tools", "get_tool_result",
+                    "validate_parameters", "get_tool_info", "get_all_tool_info"
+                ],
+                metadata={"service_name": "SecretsToolService", "provider": "core"}
+            )
+            logger.info("SecretsToolService registered in ServiceRegistry")
 
         # Task scheduler is single-instance - NO ServiceRegistry needed
 

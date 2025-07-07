@@ -13,6 +13,7 @@ from ciris_engine.schemas.runtime.messages import DiscordMessage
 
 from ciris_engine.logic.adapters.discord.discord_adapter import DiscordAdapter
 from ciris_engine.logic.adapters.discord.discord_observer import DiscordObserver
+from ciris_engine.logic.adapters.discord.discord_tool_service import DiscordToolService
 # from ciris_engine.logic.adapters.discord.discord_tools import register_discord_tools
 
 logger = logging.getLogger(__name__)
@@ -87,11 +88,21 @@ class DiscordPlatform(Service):
         # Get time_service from runtime
         time_service = getattr(self.runtime, 'time_service', None)
 
+        # Get bus_manager from runtime
+        bus_manager = getattr(self.runtime, 'bus_manager', None)
+        
+        # Create tool service for Discord tools
+        self.tool_service = DiscordToolService(
+            client=self.client,
+            time_service=time_service
+        )
+        
         self.discord_adapter = DiscordAdapter(
             token=self.token,
             bot=self.client,
             on_message=self._handle_discord_message_event,
             time_service=time_service,
+            bus_manager=bus_manager,
             config=self.config
         )
 
@@ -173,10 +184,10 @@ class DiscordPlatform(Service):
             ),
             AdapterServiceRegistration(
                 service_type=ServiceType.TOOL,
-                provider=self.discord_adapter,
+                provider=self.tool_service,
                 priority=Priority.HIGH,
                 handlers=["ToolHandler"],
-                capabilities=["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"]
+                capabilities=["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters", "get_tool_info", "get_all_tool_info"]
             ),
         ]
         logger.info(f"DiscordPlatform: Registering {len(registrations)} services for adapter: {self.adapter_id}")
@@ -212,6 +223,8 @@ class DiscordPlatform(Service):
 
         if hasattr(self.discord_observer, 'start'):
             await self.discord_observer.start()
+        if hasattr(self.tool_service, 'start'):
+            await self.tool_service.start()
         if hasattr(self.discord_adapter, 'start'):
             await self.discord_adapter.start()
         logger.info("DiscordPlatform: Internal components started. Discord client connection deferred to run_lifecycle.")
@@ -367,7 +380,9 @@ class DiscordPlatform(Service):
                                 self.discord_adapter._channel_manager.set_message_callback(self._handle_discord_message_event)
                                 self.discord_adapter.attach_to_client(self.client)
                                 self.discord_adapter.bot = self.client
-                                logger.info("Discord adapter re-attached to new client with observer callback")
+                                # Also update tool service client
+                                self.tool_service.set_client(self.client)
+                                logger.info("Discord adapter and tool service re-attached to new client with observer callback")
 
                             # Wait with exponential backoff before reconnecting
                             wait_time = min(5.0 * (2 ** (self._reconnect_attempts - 1)), 60.0)  # Max 60 seconds
@@ -435,9 +450,11 @@ class DiscordPlatform(Service):
     async def stop(self) -> None:
         logger.info("DiscordPlatform: Stopping...")
 
-        # Stop observer and adapter first
+        # Stop observer, tool service and adapter first
         if hasattr(self.discord_observer, 'stop'):
             await self.discord_observer.stop()
+        if hasattr(self.tool_service, 'stop'):
+            await self.tool_service.stop()
         if hasattr(self.discord_adapter, 'stop'):
             await self.discord_adapter.stop()
 
@@ -460,3 +477,14 @@ class DiscordPlatform(Service):
                 logger.info("DiscordPlatform: Discord client task successfully cancelled.")
 
         logger.info("DiscordPlatform: Stopped.")
+
+    async def get_active_channels(self) -> List[dict[str, Any]]:
+        """Get list of active Discord channels."""
+        logger.info("[DISCORD_PLATFORM] get_active_channels called on wrapper")
+        if hasattr(self.discord_adapter, 'get_active_channels'):
+            logger.info("[DISCORD_PLATFORM] Calling discord_adapter.get_active_channels")
+            result = await self.discord_adapter.get_active_channels()
+            logger.info(f"[DISCORD_PLATFORM] Got {len(result)} channels from adapter")
+            return result
+        logger.warning("[DISCORD_PLATFORM] discord_adapter doesn't have get_active_channels")
+        return []

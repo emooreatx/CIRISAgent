@@ -296,10 +296,17 @@ class TelemetrySummary(BaseModel):
     service_errors: Dict[str, int] = Field(default_factory=dict, description="Errors per service type")
     service_latency_ms: Dict[str, float] = Field(default_factory=dict, description="Avg latency per service")
 
-    # Resource consumption rates
-    tokens_per_hour: float = Field(0.0, description="Total tokens used in the last hour")
-    cost_per_hour_cents: float = Field(0.0, description="Total cost in the last hour (cents)")
-    carbon_per_hour_grams: float = Field(0.0, description="Total carbon emissions in the last hour (grams)")
+    # Resource consumption totals (actuals for the last hour)
+    tokens_last_hour: float = Field(0.0, description="Total tokens used in the last hour")
+    cost_last_hour_cents: float = Field(0.0, description="Total cost in the last hour (cents)")
+    carbon_last_hour_grams: float = Field(0.0, description="Total carbon emissions in the last hour (grams)")
+    energy_last_hour_kwh: float = Field(0.0, description="Total energy usage in the last hour (kWh)")
+    
+    # Resource consumption totals (actuals for the last 24 hours)
+    tokens_24h: float = Field(0.0, description="Total tokens used in the last 24 hours")
+    cost_24h_cents: float = Field(0.0, description="Total cost in the last 24 hours (cents)")
+    carbon_24h_grams: float = Field(0.0, description="Total carbon emissions in the last 24 hours (grams)")
+    energy_24h_kwh: float = Field(0.0, description="Total energy usage in the last 24 hours (kWh)")
 
     # Health indicators
     error_rate_percent: float = Field(0.0, description="Error rate as percentage")

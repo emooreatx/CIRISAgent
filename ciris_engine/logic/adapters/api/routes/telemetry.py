@@ -50,10 +50,17 @@ class SystemOverview(BaseModel):
     tasks_completed_24h: int = Field(0, description="Tasks completed in last 24 hours")
     errors_24h: int = Field(0, description="Errors in last 24 hours")
 
-    # Resource usage
-    tokens_per_hour: float = Field(0.0, description="Average tokens per hour")
-    cost_per_hour_cents: float = Field(0.0, description="Average cost per hour in cents")
-    carbon_per_hour_grams: float = Field(0.0, description="Carbon footprint per hour")
+    # Resource usage (last hour actuals)
+    tokens_last_hour: float = Field(0.0, description="Total tokens in last hour")
+    cost_last_hour_cents: float = Field(0.0, description="Total cost in last hour (cents)")
+    carbon_last_hour_grams: float = Field(0.0, description="Total carbon in last hour (grams)")
+    energy_last_hour_kwh: float = Field(0.0, description="Total energy in last hour (kWh)")
+    
+    # Resource usage (24 hour totals)
+    tokens_24h: float = Field(0.0, description="Total tokens in last 24 hours")
+    cost_24h_cents: float = Field(0.0, description="Total cost in last 24 hours (cents)")
+    carbon_24h_grams: float = Field(0.0, description="Total carbon in last 24 hours (grams)")
+    energy_24h_kwh: float = Field(0.0, description="Total energy in last 24 hours (kWh)")
     memory_mb: float = Field(0.0, description="Current memory usage")
     cpu_percent: float = Field(0.0, description="Current CPU usage")
 
@@ -67,6 +74,10 @@ class SystemOverview(BaseModel):
     reasoning_depth: int = Field(0, description="Current reasoning depth")
     active_deferrals: int = Field(0, description="Pending WA deferrals")
     recent_incidents: int = Field(0, description="Incidents in last hour")
+    
+    # Telemetry metrics
+    total_metrics: int = Field(0, description="Total metrics collected")
+    active_services: int = Field(0, description="Number of active services reporting telemetry")
 
 class DetailedMetric(BaseModel):
     """Detailed metric information."""
@@ -181,7 +192,9 @@ async def _get_system_overview(request: Request) -> SystemOverview:
         current_task=None,
         reasoning_depth=0,
         active_deferrals=0,
-        recent_incidents=0
+        recent_incidents=0,
+        total_metrics=0,
+        active_services=0
     )
 
     # Get uptime from time service
@@ -200,9 +213,14 @@ async def _get_system_overview(request: Request) -> SystemOverview:
             overview.thoughts_processed_24h = summary.thoughts_processed_24h
             overview.tasks_completed_24h = summary.tasks_completed_24h
             overview.errors_24h = summary.errors_24h
-            overview.tokens_per_hour = summary.tokens_per_hour
-            overview.cost_per_hour_cents = summary.cost_per_hour_cents
-            overview.carbon_per_hour_grams = summary.carbon_per_hour_grams
+            overview.tokens_last_hour = summary.tokens_last_hour
+            overview.cost_last_hour_cents = summary.cost_last_hour_cents
+            overview.carbon_last_hour_grams = summary.carbon_last_hour_grams
+            overview.energy_last_hour_kwh = summary.energy_last_hour_kwh
+            overview.tokens_24h = summary.tokens_24h
+            overview.cost_24h_cents = summary.cost_24h_cents
+            overview.carbon_24h_grams = summary.carbon_24h_grams
+            overview.energy_24h_kwh = summary.energy_24h_kwh
             overview.error_rate_percent = summary.error_rate_percent
         except Exception as e:
             logger.warning(f"Telemetry metric retrieval failed for telemetry summary: {type(e).__name__}: {str(e)} - Returning default/empty value")
@@ -270,6 +288,36 @@ async def _get_system_overview(request: Request) -> SystemOverview:
             overview.active_deferrals = len(deferrals) if deferrals else 0
         except Exception as e:
             logger.warning(f"Telemetry metric retrieval failed for deferral count: {type(e).__name__}: {str(e)} - Returning default/empty value")
+
+    # Get telemetry metrics count and active services
+    if telemetry_service:
+        try:
+            # Count total metrics collected
+            if hasattr(telemetry_service, 'get_metric_count'):
+                overview.total_metrics = await telemetry_service.get_metric_count()
+            elif hasattr(telemetry_service, 'query_metrics'):
+                # Estimate from common metrics
+                metric_names = ["messages_processed", "thoughts_processed", "tasks_completed", 
+                               "errors", "tokens_consumed", "api_requests", "memory_operations"]
+                total = 0
+                for metric in metric_names:
+                    try:
+                        data = await telemetry_service.query_metrics(
+                            metric_name=metric,
+                            start_time=datetime.now(timezone.utc) - timedelta(hours=24),
+                            end_time=datetime.now(timezone.utc)
+                        )
+                        if data:
+                            total += len(data)
+                    except:
+                        pass
+                overview.total_metrics = total
+            
+            # Count active services (services that have reported metrics)
+            overview.active_services = healthy  # Use healthy services count as proxy
+            
+        except Exception as e:
+            logger.warning(f"Telemetry metric retrieval failed for metrics count: {type(e).__name__}: {str(e)} - Returning default/empty value")
 
     return overview
 

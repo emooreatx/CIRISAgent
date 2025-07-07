@@ -266,19 +266,19 @@ export default function DashboardPage() {
               <div className="grid grid-cols-3 gap-4">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-green-700">
-                    {telemetryOverview?.carbon_per_hour_grams ? (telemetryOverview.carbon_per_hour_grams * 24 / 1000).toFixed(3) : '0.000'}
+                    {telemetryOverview?.carbon_24h_grams ? (telemetryOverview.carbon_24h_grams / 1000).toFixed(3) : '0.000'}
                   </div>
                   <div className="text-xs text-gray-600 mt-1">kg CO₂ (24h)</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-700">
-                    {telemetryOverview?.tokens_per_hour ? telemetryOverview.tokens_per_hour.toLocaleString() : '0'}
+                    {telemetryOverview?.tokens_last_hour ? telemetryOverview.tokens_last_hour.toLocaleString() : '0'}
                   </div>
                   <div className="text-xs text-gray-600 mt-1">Tokens/hour</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-purple-700">
-                    ${telemetryOverview?.cost_per_hour_cents ? (telemetryOverview.cost_per_hour_cents * 24 / 100).toFixed(2) : '0.00'}
+                    ${telemetryOverview?.cost_24h_cents ? (telemetryOverview.cost_24h_cents / 100).toFixed(2) : '0.00'}
                   </div>
                   <div className="text-xs text-gray-600 mt-1">Cost (24h)</div>
                 </div>
@@ -286,11 +286,11 @@ export default function DashboardPage() {
               <div className="mt-4 pt-4 border-t grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="text-gray-600">Hourly Rate:</span>
-                  <span className="ml-2 font-medium">${telemetryOverview?.cost_per_hour_cents ? (telemetryOverview.cost_per_hour_cents / 100).toFixed(4) : '0.00'}/hr</span>
+                  <span className="ml-2 font-medium">${telemetryOverview?.cost_last_hour_cents ? (telemetryOverview.cost_last_hour_cents / 100).toFixed(2) : '0.00'}/hr</span>
                 </div>
                 <div>
                   <span className="text-gray-600">Carbon Rate:</span>
-                  <span className="ml-2 font-medium">{telemetryOverview?.carbon_per_hour_grams?.toFixed(1) || '0.0'}g/hr</span>
+                  <span className="ml-2 font-medium">{telemetryOverview?.carbon_last_hour_grams?.toFixed(1) || '0.0'}g/hr</span>
                 </div>
               </div>
             </div>
