@@ -67,7 +67,9 @@ function Navbar({ className }: { className?: string }) {
   return (
     <div className={cn("fixed   inset-x-0 max-w-2xl mx-auto z-50", className)}>
       <Menu setActive={setActive}>
-        <LogoIcon className="h-12 w-12 text-brand-primary fill-brand-primary" />
+        <Link href={"/"}>
+          <LogoIcon className="h-12 w-12 text-brand-primary fill-brand-primary" />
+        </Link>
         {visibleNavigation.map((item) => (
           <Link
             key={item.name}
