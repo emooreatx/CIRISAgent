@@ -20,9 +20,7 @@ function Navbar({ className }: { className?: string }) {
   const router = useRouter();
   const [active, setActive] = useState<string | null>(null);
 
-  const navigation = [
-    { name: "Dashboard", href: "/dashboard", minRole: "OBSERVER" },
-  ];
+  const navigation = [{ name: "Home", href: "/", minRole: "OBSERVER" }];
   const navigation2 = [
     { name: "API Explorer", href: "/api-demo", minRole: "OBSERVER" },
     { name: "API Docs", href: "/docs", minRole: "OBSERVER" },
@@ -107,7 +105,7 @@ function Navbar({ className }: { className?: string }) {
             {hasRole("SYSTEM_ADMIN") && (
               <button
                 onClick={() => router.push("/emergency")}
-                className="text-sm bg-transparent transition-all duration-300 cursor-pointer px-4 py-1 rounded-xs text-red-500 border-red-500 border hover:border-gray-700 hover:text-gray-700">
+                className="text-xs bg-transparent transition-all duration-300 cursor-pointer px-4 py-1 rounded-sm text-red-500 border-red-500 border hover:border-gray-700 hover:text-gray-700">
                 Emergency
               </button>
             )}
@@ -164,7 +162,6 @@ export function Layout({ children }: LayoutProps) {
           )}
           {children}
         </div>
-
       </main>
     </div>
   );
