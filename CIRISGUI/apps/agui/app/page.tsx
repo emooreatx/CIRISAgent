@@ -26,6 +26,7 @@ export default function Home() {
   return (
     <div className="space-y-6">
       {/* Welcome Section */}
+
       <div className="bg-white shadow rounded-lg">
         <div className="px-4 py-5 sm:p-6">
           <h1 className="text-5xl font-bold text-brand-primary">
