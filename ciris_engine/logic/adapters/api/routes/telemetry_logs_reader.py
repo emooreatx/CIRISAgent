@@ -39,6 +39,60 @@ class LogFileReader:
     
     def __init__(self, logs_dir: str = "/app/logs"):
         self.logs_dir = Path(logs_dir)
+    
+    def _get_actual_log_files(self) -> tuple[Optional[Path], Optional[Path]]:
+        """Get the actual log files from stored filenames or logging handlers."""
+        main_log_file = None
+        incident_log_file = None
+        
+        # First try to read from stored filenames
+        current_log_path = self.logs_dir / ".current_log"
+        if current_log_path.exists():
+            try:
+                with open(current_log_path, 'r') as f:
+                    main_log_file = Path(f.read().strip())
+            except:
+                pass
+        
+        current_incident_path = self.logs_dir / ".current_incident_log"
+        if current_incident_path.exists():
+            try:
+                with open(current_incident_path, 'r') as f:
+                    incident_log_file = Path(f.read().strip())
+            except:
+                pass
+        
+        # If we couldn't find stored filenames, try logging handlers
+        if main_log_file is None or incident_log_file is None:
+            import logging
+            root_logger = logging.getLogger()
+            
+            for handler in root_logger.handlers:
+                if isinstance(handler, logging.FileHandler):
+                    filename = Path(handler.baseFilename)
+                    if 'incident' in filename.name and incident_log_file is None:
+                        incident_log_file = filename
+                    elif main_log_file is None:
+                        main_log_file = filename
+        
+        # Final fallback to symlinks
+        if main_log_file is None:
+            latest_log = self.logs_dir / "latest.log"
+            if latest_log.exists():
+                try:
+                    main_log_file = latest_log.resolve()
+                except:
+                    main_log_file = latest_log
+        
+        if incident_log_file is None:
+            incidents_log = self.logs_dir / "incidents_latest.log"
+            if incidents_log.exists():
+                try:
+                    incident_log_file = incidents_log.resolve()
+                except:
+                    incident_log_file = incidents_log
+                    
+        return main_log_file, incident_log_file
         
     def read_logs(
         self,
@@ -52,16 +106,16 @@ class LogFileReader:
         """Read logs from files and return as LogEntry objects."""
         logs = []
         
-        # Read from latest.log
-        latest_log = self.logs_dir / "latest.log"
-        if latest_log.exists():
-            logs.extend(self._parse_log_file(latest_log, level, service, limit, start_time, end_time))
+        # Get actual log files instead of using symlinks
+        main_log_file, incident_log_file = self._get_actual_log_files()
         
-        # Read from incidents_latest.log if requested
-        if include_incidents and len(logs) < limit:
-            incidents_log = self.logs_dir / "incidents_latest.log"
-            if incidents_log.exists():
-                logs.extend(self._parse_log_file(incidents_log, level, service, limit - len(logs), start_time, end_time))
+        # Read from main log file
+        if main_log_file and main_log_file.exists():
+            logs.extend(self._parse_log_file(main_log_file, level, service, limit, start_time, end_time))
+        
+        # Read from incidents log if requested
+        if include_incidents and len(logs) < limit and incident_log_file and incident_log_file.exists():
+            logs.extend(self._parse_log_file(incident_log_file, level, service, limit - len(logs), start_time, end_time))
         
         # Sort by timestamp ascending (oldest first, newest last)
         logs.sort(key=lambda x: x.timestamp, reverse=False)

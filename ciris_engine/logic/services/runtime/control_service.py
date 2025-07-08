@@ -1442,6 +1442,16 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
             custom_metrics={}
         )
 
+    def set_runtime(self, runtime: Any) -> None:
+        """Set the runtime reference after initialization."""
+        self.runtime = runtime
+        # If adapter manager exists, update its runtime reference too
+        if self.adapter_manager:
+            self.adapter_manager.runtime = runtime
+            # Re-register config listener with updated runtime
+            self.adapter_manager._register_config_listener()
+        logger.info("Runtime reference set in RuntimeControlService")
+    
     async def start(self) -> None:
         """Start the runtime control service."""
         await self._initialize()

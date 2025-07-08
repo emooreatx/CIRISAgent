@@ -314,6 +314,12 @@ export class SystemResource extends BaseResource {
     schema: any;
     category: string;
   }[]> {
-    return this.transport.get('/v1/system/tools');
+    return this.transport.get<{
+      name: string;
+      description: string;
+      provider: string;
+      schema: any;
+      category: string;
+    }[]>('/v1/system/tools');
   }
 }

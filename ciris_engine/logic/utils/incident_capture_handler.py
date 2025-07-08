@@ -33,6 +33,14 @@ class IncidentCaptureHandler(logging.Handler):
         # Create symlink to latest dead letter log
         self.latest_link = self.log_dir / f"{filename_prefix}_latest.log"
         self._create_symlink()
+        
+        # Store the actual incident log filename for the telemetry endpoint
+        actual_incident_path = self.log_dir / ".current_incident_log"
+        try:
+            with open(actual_incident_path, 'w') as f:
+                f.write(str(self.log_file.absolute()))
+        except Exception:
+            pass
 
         # Set level to WARNING so we only capture WARNING and above
         self.setLevel(logging.WARNING)

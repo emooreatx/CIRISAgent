@@ -609,15 +609,11 @@ class DiscordToolService(ToolService):
         if tool_name not in tool_schemas:
             return None
             
-        from datetime import datetime, timezone
         return ToolInfo(
             name=tool_name,
             description=tool_descriptions.get(tool_name, ""),
             parameters=tool_schemas[tool_name],
-            category="discord",
-            version="1.0.0",
-            created_at=datetime.now(timezone.utc) if self._time_service is None else self._time_service.now(),
-            updated_at=datetime.now(timezone.utc) if self._time_service is None else self._time_service.now()
+            category="discord"
         )
 
     async def get_all_tool_info(self) -> List[ToolInfo]:

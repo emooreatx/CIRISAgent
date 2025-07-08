@@ -96,6 +96,9 @@ class DatabaseMaintenanceService:
 
         # --- Clean up thoughts with invalid/malformed context ---
         await self._cleanup_invalid_thoughts()
+        
+        # --- Clean up runtime-specific configuration from previous runs ---
+        await self._cleanup_runtime_config()
 
         # --- 0. Cleanup Incomplete Wakeup Steps from Previous Runs ---
         WAKEUP_ROOT_TASK_ID = "WAKEUP_ROOT" # Define if not already available class-wide
@@ -268,3 +271,60 @@ class DatabaseMaintenanceService:
 
         except Exception as e:
             logger.error(f"Failed to clean up invalid thoughts: {e}", exc_info=True)
+    
+    async def _cleanup_runtime_config(self) -> None:
+        """Clean up runtime-specific configuration from previous runs."""
+        try:
+            # Import here to avoid circular dependencies
+            from ciris_engine.logic.services.graph.config_service import GraphConfigService
+            from ciris_engine.logic.buses.memory_bus import get_memory_bus
+            
+            # Get the config service instance if available
+            memory_bus = get_memory_bus()
+            if not memory_bus:
+                logger.warning("Cannot clean up runtime config - memory bus not available")
+                return
+                
+            config_service = GraphConfigService(memory_bus=memory_bus)
+            
+            # Get all config entries
+            all_configs = await config_service.get_all()
+            
+            runtime_config_patterns = [
+                "adapter.",  # Adapter configurations
+                "runtime.",  # Runtime-specific settings
+                "session.",  # Session-specific data
+                "temp.",     # Temporary configurations
+            ]
+            
+            deleted_count = 0
+            
+            for config in all_configs:
+                # Check if this is a runtime-specific config
+                is_runtime_config = any(config.key.startswith(pattern) for pattern in runtime_config_patterns)
+                
+                if is_runtime_config:
+                    # Special handling for adapter configs - only delete if adapter is not currently loaded
+                    if config.key.startswith("adapter."):
+                        # Extract adapter_id from key (e.g., "adapter.api_bootstrap.host" -> "api_bootstrap")
+                        parts = config.key.split(".")
+                        if len(parts) >= 2:
+                            adapter_id = parts[1]
+                            # For now, delete all adapter configs on startup
+                            # In the future, we could check if the adapter is in the startup config
+                            await config_service.delete(config.key)
+                            deleted_count += 1
+                            logger.debug(f"Deleted runtime config: {config.key}")
+                    else:
+                        # Delete other runtime configs
+                        await config_service.delete(config.key)
+                        deleted_count += 1
+                        logger.debug(f"Deleted runtime config: {config.key}")
+            
+            if deleted_count > 0:
+                logger.info(f"Cleaned up {deleted_count} runtime-specific configuration entries from previous runs")
+            else:
+                logger.info("No runtime-specific configuration entries to clean up")
+                
+        except Exception as e:
+            logger.error(f"Failed to clean up runtime config: {e}", exc_info=True)

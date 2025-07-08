@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  pytest:
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile.pytest
+    container_name: ciris_pytest
+    volumes:
+      # Mount the source code for live test updates
+      - ../:/app
+      # Exclude python cache and build artifacts
+      - /app/__pycache__
+      - /app/.pytest_cache
+      - /app/.mypy_cache
+    environment:
+      # Don't set CI=true so we can run tests that are skipped in CI
+      # - CI=true
+      - PYTHONUNBUFFERED=1
+      # Add any test-specific environment variables here
+      - PYTEST_TIMEOUT=60
+    # Override command to run specific tests if needed
+    # command: pytest tests/adapters/test_discord/ -v
+    # For interactive debugging:
+    # stdin_open: true
+    # tty: true
+    # command: /bin/bash

@@ -565,7 +565,10 @@ class CIRISRuntime:
         
         # Update runtime control service with runtime reference
         if self.runtime_control_service:
-            self.runtime_control_service.runtime = self
+            if hasattr(self.runtime_control_service, 'set_runtime'):
+                self.runtime_control_service.set_runtime(self)
+            else:
+                self.runtime_control_service.runtime = self
             logger.info("Updated runtime control service with runtime reference")
 
     async def _verify_core_services(self) -> bool:
@@ -586,6 +589,51 @@ class CIRISRuntime:
         """Start all adapters."""
         await asyncio.gather(*(adapter.start() for adapter in self.adapters))
         logger.info(f"All {len(self.adapters)} adapters started")
+        
+        # Migrate adapter configurations to graph config
+        await self._migrate_adapter_configs_to_graph()
+    
+    async def _migrate_adapter_configs_to_graph(self) -> None:
+        """Migrate adapter configurations to graph config service."""
+        if not self.service_initializer or not self.service_initializer.config_service:
+            logger.warning("Cannot migrate adapter configs - GraphConfigService not available")
+            return
+            
+        config_service = self.service_initializer.config_service
+        
+        # Migrate bootstrap adapter configs
+        for adapter_type, adapter_config in self.adapter_configs.items():
+            try:
+                # Determine adapter ID (handle instance-specific types like "api:8081")
+                adapter_id = adapter_type
+                if ":" in adapter_type:
+                    base_type, instance_id = adapter_type.split(":", 1)
+                    adapter_id = f"{base_type}_{instance_id}"
+                else:
+                    # For bootstrap adapters without instance ID, use a standard naming
+                    adapter_id = f"{adapter_type}_bootstrap"
+                
+                # Store the full config object
+                await config_service.set_config(
+                    key=f"adapter.{adapter_id}.config",
+                    value=adapter_config.model_dump() if hasattr(adapter_config, 'model_dump') else adapter_config,
+                    updated_by="system_bootstrap"
+                )
+                
+                # Also store individual config values for easy access
+                config_dict = adapter_config.model_dump() if hasattr(adapter_config, 'model_dump') else adapter_config
+                if isinstance(config_dict, dict):
+                    for key, value in config_dict.items():
+                        await config_service.set_config(
+                            key=f"adapter.{adapter_id}.{key}",
+                            value=value,
+                            updated_by="system_bootstrap"
+                        )
+                
+                logger.info(f"Migrated adapter config for {adapter_id} to graph")
+                
+            except Exception as e:
+                logger.error(f"Failed to migrate adapter config for {adapter_type}: {e}")
 
     async def _final_verification(self) -> None:
         """Perform final system verification."""

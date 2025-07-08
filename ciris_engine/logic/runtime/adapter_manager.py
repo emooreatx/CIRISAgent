@@ -78,6 +78,10 @@ class RuntimeAdapterManager(AdapterManagerInterface):
         self.time_service = time_service
         self.loaded_adapters: Dict[str, AdapterInstance] = {}
         self._adapter_counter = 0
+        self._config_listener_registered = False
+        
+        # Register for config changes after initialization
+        self._register_config_listener()
 
     async def load_adapter(self, adapter_type: str, adapter_id: str, config_params: Optional[dict] = None) -> AdapterOperationResult:
         """Load and start a new adapter instance
@@ -140,6 +144,9 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             instance.is_running = True
 
             await self._register_adapter_services(instance)
+            
+            # Save adapter config to graph
+            await self._save_adapter_config_to_graph(adapter_id, adapter_type, adapter_kwargs)
 
             # Don't add dynamically loaded adapters to runtime.adapters
             # to avoid duplicate bootstrap entries in control_service
@@ -240,6 +247,9 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                         self.runtime.adapters.pop(i)
                         break
 
+            # Remove adapter config from graph
+            await self._remove_adapter_config_from_graph(adapter_id)
+            
             del self.loaded_adapters[adapter_id]
 
             logger.info(f"Successfully unloaded adapter {adapter_id}")
@@ -657,3 +667,154 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             "safe_to_unload": safe_to_unload,
             "warning_message": warning_message
         }
+    
+    async def _save_adapter_config_to_graph(self, adapter_id: str, adapter_type: str, config_params: dict) -> None:
+        """Save adapter configuration to graph config service."""
+        try:
+            # Get config service from runtime
+            config_service = None
+            if hasattr(self.runtime, 'service_initializer') and self.runtime.service_initializer:
+                config_service = getattr(self.runtime.service_initializer, 'config_service', None)
+            
+            if not config_service:
+                logger.warning(f"Cannot save adapter config for {adapter_id} - GraphConfigService not available")
+                return
+            
+            # Store the full config object
+            await config_service.set_config(
+                key=f"adapter.{adapter_id}.config",
+                value=config_params,
+                updated_by="runtime_adapter_manager"
+            )
+            
+            # Store adapter type separately for easy identification
+            await config_service.set_config(
+                key=f"adapter.{adapter_id}.type",
+                value=adapter_type,
+                updated_by="runtime_adapter_manager"
+            )
+            
+            # Also store individual config values for easy access
+            if isinstance(config_params, dict):
+                for key, value in config_params.items():
+                    # Skip complex objects that might not serialize well
+                    if isinstance(value, (str, int, float, bool, list)):
+                        await config_service.set_config(
+                            key=f"adapter.{adapter_id}.{key}",
+                            value=value,
+                            updated_by="runtime_adapter_manager"
+                        )
+            
+            logger.info(f"Saved adapter config for {adapter_id} to graph")
+            
+        except Exception as e:
+            logger.error(f"Failed to save adapter config for {adapter_id}: {e}")
+    
+    async def _remove_adapter_config_from_graph(self, adapter_id: str) -> None:
+        """Remove adapter configuration from graph config service."""
+        try:
+            # Get config service from runtime
+            config_service = None
+            if hasattr(self.runtime, 'service_initializer') and self.runtime.service_initializer:
+                config_service = getattr(self.runtime.service_initializer, 'config_service', None)
+            
+            if not config_service:
+                logger.warning(f"Cannot remove adapter config for {adapter_id} - GraphConfigService not available")
+                return
+            
+            # Get all config keys for this adapter
+            all_configs = await config_service.get_all()
+            adapter_prefix = f"adapter.{adapter_id}."
+            
+            # Remove all config entries for this adapter
+            for config in all_configs:
+                if config.key.startswith(adapter_prefix) or config.key == f"adapter.{adapter_id}.config":
+                    await config_service.delete(config.key)
+                    logger.debug(f"Removed config key: {config.key}")
+            
+            logger.info(f"Removed adapter config for {adapter_id} from graph")
+            
+        except Exception as e:
+            logger.error(f"Failed to remove adapter config for {adapter_id}: {e}")
+    
+    def _register_config_listener(self) -> None:
+        """Register to listen for adapter config changes."""
+        if self._config_listener_registered:
+            return
+            
+        try:
+            # Get config service from runtime
+            if hasattr(self.runtime, 'service_initializer') and self.runtime.service_initializer:
+                config_service = self.runtime.service_initializer.config_service
+                if config_service:
+                    # Register for all adapter config changes
+                    config_service.register_config_listener("adapter.*", self._on_adapter_config_change)
+                    self._config_listener_registered = True
+                    logger.info("RuntimeAdapterManager registered for adapter config changes")
+                else:
+                    logger.debug("Config service not available yet for adapter manager")
+            else:
+                logger.debug("Runtime service initializer not available yet")
+        except Exception as e:
+            logger.error(f"Failed to register config listener: {e}")
+    
+    async def _on_adapter_config_change(self, key: str, old_value: any, new_value: any) -> None:
+        """Handle adapter configuration changes.
+        
+        This is called by the config service when adapter configs change.
+        """
+        # Extract adapter_id from key (e.g., "adapter.api_bootstrap.host" -> "api_bootstrap")
+        parts = key.split(".")
+        if len(parts) < 2 or parts[0] != "adapter":
+            return
+            
+        adapter_id = parts[1]
+        
+        # Check if this adapter is loaded
+        if adapter_id not in self.loaded_adapters:
+            logger.debug(f"Config change for unloaded adapter {adapter_id}, ignoring")
+            return
+            
+        # Get the adapter instance
+        instance = self.loaded_adapters[adapter_id]
+        
+        # If it's a full config update (adapter.X.config), reload the adapter
+        if len(parts) == 3 and parts[2] == "config":
+            logger.info(f"Full config update detected for adapter {adapter_id}, reloading adapter")
+            await self.reload_adapter(adapter_id, new_value if isinstance(new_value, dict) else None)
+            return
+            
+        # For individual config values, check if the adapter supports hot reload
+        if hasattr(instance.adapter, 'update_config'):
+            try:
+                # Extract the specific config key (e.g., "host" from "adapter.api_bootstrap.host")
+                config_key = parts[2] if len(parts) > 2 else None
+                if config_key:
+                    logger.info(f"Updating {config_key} for adapter {adapter_id}")
+                    await instance.adapter.update_config({config_key: new_value})
+            except Exception as e:
+                logger.error(f"Failed to update config for adapter {adapter_id}: {e}")
+        else:
+            logger.info(f"Adapter {adapter_id} doesn't support hot config updates, consider reloading")
+    
+    def register_config_listener(self) -> None:
+        """Register to listen for adapter config changes."""
+        if self._config_listener_registered:
+            return
+            
+        try:
+            # Get config service from runtime
+            config_service = None
+            if hasattr(self.runtime, 'service_initializer') and self.runtime.service_initializer:
+                config_service = getattr(self.runtime.service_initializer, 'config_service', None)
+            
+            if config_service:
+                # Register to listen for all adapter config changes
+                config_service.register_config_listener("adapter.*", self._on_adapter_config_change)
+                self._config_listener_registered = True
+                logger.info("Adapter manager registered for config change notifications")
+            else:
+                logger.warning("Cannot register for config changes - GraphConfigService not available")
+                
+        except Exception as e:
+            logger.error(f"Failed to register config listener: {e}")

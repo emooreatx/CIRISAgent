@@ -170,6 +170,56 @@ export default function ConfigPage() {
       sections[sectionName].items.push(item);
     });
 
+    // Add adapter configurations from adapters endpoint
+    if (adapters && adapters.adapters) {
+      adapters.adapters.forEach(adapter => {
+        const sectionName = `adapter.${adapter.adapter_id}`;
+        
+        // Skip if filtered by search
+        if (searchTerm) {
+          const searchLower = searchTerm.toLowerCase();
+          if (
+            !adapter.adapter_id.toLowerCase().includes(searchLower) &&
+            !adapter.adapter_type.toLowerCase().includes(searchLower) &&
+            !JSON.stringify(adapter.config_params).toLowerCase().includes(searchLower)
+          ) {
+            return;
+          }
+        }
+
+        if (!sections[sectionName]) {
+          sections[sectionName] = {
+            name: sectionName,
+            items: [],
+            category: 'adapters'
+          };
+        }
+
+        // Add adapter config as a pseudo-config item
+        sections[sectionName].items.push({
+          key: `${adapter.adapter_id}.config`,
+          value: adapter.config_params || {},
+          updated_at: adapter.loaded_at || new Date().toISOString(),
+          updated_by: 'system',
+          is_sensitive: false
+        });
+
+        // Add adapter status info
+        sections[sectionName].items.push({
+          key: `${adapter.adapter_id}.status`,
+          value: {
+            type: adapter.adapter_type,
+            is_running: adapter.is_running,
+            tools_count: adapter.tools?.length || 0,
+            last_activity: adapter.last_activity || 'Never'
+          },
+          updated_at: new Date().toISOString(),
+          updated_by: 'system',
+          is_sensitive: false
+        });
+      });
+    }
+
     // Sort sections
     const sortedSections: Record<string, ConfigSection> = {};
     Object.keys(sections)
@@ -179,7 +229,7 @@ export default function ConfigPage() {
       });
 
     return sortedSections;
-  }, [configResponse, searchTerm]);
+  }, [configResponse, searchTerm, adapters]);
 
   // Filter sections by category
   const filteredSections = useMemo(() => {

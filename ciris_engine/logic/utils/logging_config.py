@@ -78,6 +78,14 @@ def setup_basic_logging(level: int = logging.INFO,
             latest_link.symlink_to(log_filename.name)
         except Exception:
             pass
+        
+        # Store the actual log filename for the telemetry endpoint
+        actual_log_path = log_path / ".current_log"
+        try:
+            with open(actual_log_path, 'w') as f:
+                f.write(str(log_filename.absolute()))
+        except Exception:
+            pass
 
     target_logger.setLevel(level)
     target_logger.propagate = False

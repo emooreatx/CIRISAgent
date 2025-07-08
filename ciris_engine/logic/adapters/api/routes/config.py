@@ -107,21 +107,24 @@ async def get_config(
         raise HTTPException(status_code=503, detail="Config service not available")
 
     try:
-        # Get config value
-        value = await config_service.get_config(key)
+        # Get config node
+        config_node = await config_service.get_config(key)
 
-        if value is None:
+        if config_node is None:
             raise HTTPException(status_code=404, detail=f"Configuration key '{key}' not found")
+
+        # Extract the actual value from the ConfigNode
+        actual_value = config_node.value
 
         # Apply role-based filtering
         is_sensitive = ConfigSecurity.is_sensitive(key)
-        filtered_value = ConfigSecurity.filter_value(key, value, auth.role)
+        filtered_value = ConfigSecurity.filter_value(key, actual_value, auth.role)
 
         config = ConfigItemResponse(
             key=key,
             value=filtered_value,
-            updated_at=datetime.now(timezone.utc),
-            updated_by="system",
+            updated_at=config_node.updated_at,
+            updated_by=config_node.updated_by,
             is_sensitive=is_sensitive
         )
 
