@@ -519,7 +519,7 @@ async def test_end_to_end_consolidation_all_types(consolidation_service, mock_me
             correlation_types = hours
             hours = None
         
-        if "METRIC_DATAPOINT" in correlation_types:
+        if "metric_datapoint" in correlation_types:
             return metric_datapoints
         elif "service_interaction" in correlation_types:
             # Convert to correlation objects

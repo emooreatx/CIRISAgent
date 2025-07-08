@@ -962,14 +962,12 @@ class AgentProcessor:
     async def _schedule_initial_dream(self) -> None:
         """Schedule the first dream session 6 hours from startup."""
         try:
-            from ciris_engine.logic.buses.memory_bus import MemoryBus
             from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 
-            if not self.services.get("service_registry"):
-                logger.warning("Cannot schedule initial dream - no service registry")
+            memory_service = self.services.get("memory_service")
+            if not memory_service:
+                logger.warning("Cannot schedule initial dream - no memory service")
                 return
-
-            memory_bus = MemoryBus(self.services["service_registry"], self._time_service)
 
             # Schedule 6 hours from now
             dream_time = self._time_service.now() + timedelta(hours=6)
@@ -993,11 +991,7 @@ class AgentProcessor:
                 updated_at=self._time_service.now()
             )
 
-            await memory_bus.memorize(
-                node=dream_task,
-                handler_name="main_processor",
-                metadata={"future_task": True, "trigger_at": dream_time.isoformat()}
-            )
+            await memory_service.memorize(dream_task)
 
             logger.info(f"Scheduled initial dream session for {dream_time.isoformat()}")
 
@@ -1008,14 +1002,12 @@ class AgentProcessor:
         """Check if there's a scheduled dream task that's due."""
         try:
             # Import at function level to avoid circular imports
-            from ciris_engine.logic.buses.memory_bus import MemoryBus
             from ciris_engine.schemas.services.operations import MemoryQuery
             from ciris_engine.schemas.services.graph_core import GraphScope
 
-            if not self.services.get("service_registry"):
+            memory_service = self.services.get("memory_service")
+            if not memory_service:
                 return False
-
-            memory_bus = MemoryBus(self.services["service_registry"], self._time_service)
 
             # Query for scheduled dream tasks
             query = MemoryQuery(
@@ -1026,10 +1018,7 @@ class AgentProcessor:
                 depth=1
             )
 
-            dream_tasks = await memory_bus.recall(
-                recall_query=query,
-                handler_name="main_processor"
-            )
+            dream_tasks = await memory_service.recall(query)
 
             now = self._time_service.now()
 

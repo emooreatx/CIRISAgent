@@ -329,9 +329,6 @@ class CIRISRuntime:
             # Run the initialization sequence
             await init_manager.initialize()
 
-            # Run startup maintenance to clean up invalid data from previous runs
-            await self._perform_startup_maintenance()
-
             self._initialized = True
             agent_name = self.agent_identity.agent_id if self.agent_identity else "NO_IDENTITY"
             logger.info(f"CIRIS Runtime initialized successfully with identity '{agent_name}'")
@@ -682,6 +679,55 @@ class CIRISRuntime:
             logger.critical("Database integrity cannot be guaranteed - initiating graceful shutdown")
             await self._request_shutdown("No maintenance service available")
             raise RuntimeError("No maintenance service available")
+    
+    async def _clean_runtime_configs(self) -> None:
+        """Clean up runtime-specific configuration from previous runs."""
+        if not self.config_service:
+            logger.warning("Config service not available - skipping runtime config cleanup")
+            return
+            
+        try:
+            logger.info("Cleaning up runtime-specific configurations...")
+            
+            # Get all config entries
+            all_configs = await self.config_service.list_configs()
+            
+            runtime_config_patterns = [
+                "adapter.",  # Adapter configurations
+                "runtime.",  # Runtime-specific settings
+                "session.",  # Session-specific data
+                "temp.",     # Temporary configurations
+            ]
+            
+            deleted_count = 0
+            
+            for key, value in all_configs.items():
+                # Check if this is a runtime-specific config
+                is_runtime_config = any(key.startswith(pattern) for pattern in runtime_config_patterns)
+                
+                if is_runtime_config:
+                    # Get the actual config node to check if it should be deleted
+                    config_node = await self.config_service.get_config(key)
+                    if config_node:
+                        # Skip configs created by system_bootstrap (essential configs)
+                        if config_node.updated_by == "system_bootstrap":
+                            logger.debug(f"Preserving bootstrap config: {key}")
+                            continue
+                            
+                        # Convert to GraphNode and use memory service to forget it
+                        graph_node = config_node.to_graph_node()
+                        await self.config_service.graph.forget(graph_node)
+                        deleted_count += 1
+                        logger.debug(f"Deleted runtime config node: {key}")
+            
+            if deleted_count > 0:
+                logger.info(f"Cleaned up {deleted_count} runtime-specific configuration entries from previous runs")
+            else:
+                logger.info("No runtime-specific configuration entries to clean up")
+                
+        except Exception as e:
+            logger.error(f"Failed to clean up runtime config: {e}", exc_info=True)
+            # Non-critical - don't fail initialization
 
     async def _register_adapter_services(self) -> None:
         """Register services provided by the loaded adapters."""
