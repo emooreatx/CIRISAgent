@@ -4,7 +4,7 @@ Telemetry & Observability endpoints for CIRIS API v1.
 Consolidated metrics, traces, logs, and insights from all system components.
 """
 import logging
-from typing import List, Optional, Dict, Any, Any as AnyType
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Query, Path
 from pydantic import BaseModel, Field, field_serializer

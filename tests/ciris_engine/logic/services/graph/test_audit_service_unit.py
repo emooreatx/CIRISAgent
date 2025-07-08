@@ -4,7 +4,7 @@ import pytest
 import asyncio
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Generator
 
 from ciris_engine.logic.services.graph.audit_service import GraphAuditService
 from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
@@ -19,7 +19,7 @@ class TestGraphAuditService:
     """Test cases for GraphAuditService."""
 
     @pytest.fixture
-    def mock_time_service(self):
+    def mock_time_service(self) -> Mock:
         """Create mock time service."""
         current_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
         return Mock(
@@ -28,7 +28,7 @@ class TestGraphAuditService:
         )
 
     @pytest.fixture
-    def mock_memory_bus(self):
+    def mock_memory_bus(self) -> Mock:
         """Create mock memory bus."""
         bus = Mock()
         bus.memorize = AsyncMock()
@@ -37,7 +37,7 @@ class TestGraphAuditService:
         return bus
 
     @pytest.fixture
-    def audit_service(self, mock_time_service, mock_memory_bus):
+    def audit_service(self, mock_time_service: Mock, mock_memory_bus: Mock) -> Generator[GraphAuditService, None, None]:
         """Create GraphAuditService instance."""
         import tempfile
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -50,7 +50,7 @@ class TestGraphAuditService:
             yield service
 
     @pytest.mark.asyncio
-    async def test_start_stop(self, audit_service):
+    async def test_start_stop(self, audit_service: GraphAuditService) -> None:
         """Test service start and stop."""
         # Start
         await audit_service.start()
@@ -61,7 +61,7 @@ class TestGraphAuditService:
         # Service should be stopped
 
     @pytest.mark.asyncio
-    async def test_log_event(self, audit_service, mock_memory_bus):
+    async def test_log_event(self, audit_service: GraphAuditService, mock_memory_bus: Mock) -> None:
         """Test logging an event."""
         await audit_service.start()
 
@@ -72,6 +72,8 @@ class TestGraphAuditService:
             outcome="success",
             severity="info",
             action="start",
+            resource="service",
+            reason="service startup",
             metadata={"version": "1.0.0"}
         )
 
@@ -91,7 +93,7 @@ class TestGraphAuditService:
         assert call_args['handler_name'] == "audit_service"
 
     @pytest.mark.asyncio
-    async def test_log_action(self, audit_service, mock_memory_bus):
+    async def test_log_action(self, audit_service: GraphAuditService, mock_memory_bus: Mock) -> None:
         """Test logging an action."""
         await audit_service.start()
 
@@ -117,7 +119,7 @@ class TestGraphAuditService:
         assert call_args['metadata']['immutable'] is True
 
     @pytest.mark.asyncio
-    async def test_log_authentication_failure(self, audit_service, mock_memory_bus):
+    async def test_log_authentication_failure(self, audit_service: GraphAuditService, mock_memory_bus: Mock) -> None:
         """Test logging failed authentication."""
         await audit_service.start()
 
@@ -128,6 +130,7 @@ class TestGraphAuditService:
             outcome="failure",
             severity="warning",
             action="authenticate",
+            resource="auth",
             reason="Invalid credentials",
             metadata={
                 "method": "password",
@@ -147,7 +150,7 @@ class TestGraphAuditService:
         assert call_args['metadata']['immutable'] is True
 
     @pytest.mark.asyncio
-    async def test_log_configuration_change(self, audit_service, mock_memory_bus):
+    async def test_log_configuration_change(self, audit_service: GraphAuditService, mock_memory_bus: Mock) -> None:
         """Test logging configuration changes."""
         await audit_service.start()
 
@@ -157,6 +160,8 @@ class TestGraphAuditService:
             outcome="success",
             severity="info",
             action="update_config",
+            resource="config",
+            reason="configuration update",
             metadata={
                 "config_key": "max_retries",
                 "old_value": "3",
@@ -175,7 +180,7 @@ class TestGraphAuditService:
         assert call_args['handler_name'] == "audit_service"
 
     @pytest.mark.asyncio
-    async def test_log_data_access(self, audit_service, mock_memory_bus):
+    async def test_log_data_access(self, audit_service: GraphAuditService, mock_memory_bus: Mock) -> None:
         """Test logging data access events."""
         await audit_service.start()
 
@@ -185,6 +190,8 @@ class TestGraphAuditService:
             outcome="success",
             severity="info",
             action="read",
+            resource="patient_record",
+            reason="data access",
             metadata={
                 "resource_type": "patient_record",
                 "resource_id": "12345"
@@ -202,7 +209,7 @@ class TestGraphAuditService:
         assert call_args['handler_name'] == "audit_service"
 
     @pytest.mark.asyncio
-    async def test_log_error(self, audit_service, mock_memory_bus):
+    async def test_log_error(self, audit_service: GraphAuditService, mock_memory_bus: Mock) -> None:
         """Test logging error events."""
         await audit_service.start()
 
@@ -212,6 +219,7 @@ class TestGraphAuditService:
             outcome="error",
             severity="error",
             action="process_data",
+            resource="data_processor",
             reason="Invalid input format",
             metadata={
                 "error_type": "ValidationError",
@@ -231,7 +239,7 @@ class TestGraphAuditService:
         assert call_args['handler_name'] == "audit_service"
 
     @pytest.mark.asyncio
-    async def test_query_audit_trail(self, audit_service, mock_memory_bus, mock_time_service):
+    async def test_query_audit_trail(self, audit_service: GraphAuditService, mock_memory_bus: Mock, mock_time_service: Mock) -> None:
         """Test querying audit trail."""
         from ciris_engine.schemas.services.graph.audit import AuditQuery
         
@@ -257,7 +265,7 @@ class TestGraphAuditService:
         assert isinstance(entries, list)
 
     @pytest.mark.asyncio
-    async def test_get_audit_trail(self, audit_service, mock_memory_bus):
+    async def test_get_audit_trail(self, audit_service: GraphAuditService, mock_memory_bus: Mock) -> None:
         """Test getting audit trail for entity."""
         await audit_service.start()
 
@@ -281,7 +289,7 @@ class TestGraphAuditService:
         assert isinstance(entries, list)
 
     @pytest.mark.asyncio
-    async def test_verify_audit_integrity(self, audit_service):
+    async def test_verify_audit_integrity(self, audit_service: GraphAuditService) -> None:
         """Test audit integrity verification."""
         await audit_service.start()
 

@@ -460,6 +460,44 @@ def datapoints_to_correlations(datapoints: List[TimeSeriesDataPoint], correlatio
     return correlations
 
 
+def create_audit_nodes_from_datapoints(datapoints: List[TimeSeriesDataPoint]) -> List[GraphNode]:
+    """Convert audit datapoints to actual AUDIT_ENTRY graph nodes."""
+    from ciris_engine.schemas.services.nodes import AuditEntry, AuditEntryContext
+    
+    nodes = []
+    for dp in datapoints:
+        if dp.tags.get("correlation_type") == "AUDIT_EVENT":
+            # Create an AuditEntry node
+            event_type = dp.tags.get("event_type", "unknown")
+            actor = dp.tags.get("actor", "unknown")
+            service = dp.tags.get("service", "unknown")
+            
+            context = AuditEntryContext(
+                service_name=service,
+                additional_data={
+                    "event_type": event_type,
+                    "severity": "warning" if "FAIL" in event_type or "DENIED" in event_type else "info",
+                    "outcome": "failure" if "FAIL" in event_type or "DENIED" in event_type else "success"
+                }
+            )
+            
+            audit_entry = AuditEntry(
+                id=f"audit_{dp.tags.get('correlation_id', dp.timestamp.strftime('%Y%m%d_%H%M%S'))}",
+                action=event_type,
+                actor=actor,
+                timestamp=dp.timestamp,
+                context=context,
+                created_at=dp.timestamp,
+                updated_at=dp.timestamp,
+                scope=GraphScope.LOCAL,
+                attributes={}  # Required by GraphNode base class
+            )
+            
+            nodes.append(audit_entry.to_graph_node())
+    
+    return nodes
+
+
 @pytest.mark.asyncio
 async def test_end_to_end_consolidation_all_types(consolidation_service, mock_memory_bus, mock_time_service):
     """Test complete consolidation flow for all correlation types."""
@@ -474,7 +512,13 @@ async def test_end_to_end_consolidation_all_types(consolidation_service, mock_me
     audit_datapoints = create_audit_datapoints(period_start, period_end)
     
     # Mock memory bus responses for each correlation type
-    async def mock_recall_timeseries(scope, hours, correlation_types):
+    async def mock_recall_timeseries(scope, hours=None, correlation_types=None, start_time=None, end_time=None, handler_name=None):
+        # Handle both calling patterns
+        if correlation_types is None and hours is not None:
+            # Old pattern: (scope, hours, correlation_types) - hours is actually correlation_types
+            correlation_types = hours
+            hours = None
+        
         if "METRIC_DATAPOINT" in correlation_types:
             return metric_datapoints
         elif "service_interaction" in correlation_types:
@@ -497,8 +541,19 @@ async def test_end_to_end_consolidation_all_types(consolidation_service, mock_me
         error=None
     )
     
-    # Mock query response (no existing summaries)
-    mock_memory_bus.recall.return_value = []
+    # Mock query response (no existing summaries for initial check, but audit nodes for wildcard query)
+    async def mock_recall(query, handler_name="default"):
+        # If querying for audit nodes with wildcard, return the audit nodes
+        if hasattr(query, 'node_id') and query.node_id == "audit_*":
+            return create_audit_nodes_from_datapoints(audit_datapoints)
+        # Otherwise return empty (no existing summaries)
+        return []
+    
+    mock_memory_bus.recall.side_effect = mock_recall
+    
+    # Mock search response for audit nodes - return actual audit nodes
+    audit_nodes = create_audit_nodes_from_datapoints(audit_datapoints)
+    mock_memory_bus.search.return_value = audit_nodes
     
     # Run consolidation
     summaries = await consolidation_service._consolidate_period(period_start, period_end)
@@ -506,8 +561,8 @@ async def test_end_to_end_consolidation_all_types(consolidation_service, mock_me
     # Verify we got 4 summaries (no LOG_ENTRY)
     assert len(summaries) == 4
     
-    # Verify memorize was called 4 times
-    assert mock_memory_bus.memorize.call_count == 4
+    # Verify memorize was called at least 4 times (summaries + edges)
+    assert mock_memory_bus.memorize.call_count >= 4
     
     # Check each summary type
     memorize_calls = mock_memory_bus.memorize.call_args_list
@@ -520,14 +575,22 @@ async def test_end_to_end_consolidation_all_types(consolidation_service, mock_me
     audit_summary = None
     
     for node in stored_nodes:
-        if "tsdb_summary_" in node.id:
-            tsdb_summary = node
-        elif "conversation_summary_" in node.id:
-            conversation_summary = node
-        elif "trace_summary_" in node.id:
-            trace_summary = node
-        elif "audit_summary_" in node.id:
-            audit_summary = node
+        # Only look at nodes with an id attribute (skip edges)
+        if hasattr(node, 'id'):
+            # Skip edge nodes - they have 'edge_' prefix or contain '_to_'
+            if node.id.startswith('edge_') or '_to_' in node.id:
+                continue
+                
+            if node.id.startswith("tsdb_summary_") and node.type == NodeType.TSDB_SUMMARY:
+                # Check it's actually a TSDB summary (has metrics field)
+                if 'metrics' in node.attributes:
+                    tsdb_summary = node
+            elif node.id.startswith("conversation_summary_") and node.type == NodeType.CONVERSATION_SUMMARY:
+                conversation_summary = node
+            elif node.id.startswith("trace_summary_") and node.type == NodeType.TSDB_SUMMARY:
+                trace_summary = node
+            elif node.id.startswith("audit_summary_") and node.type == NodeType.TSDB_SUMMARY:
+                audit_summary = node
     
     # Validate TSDB Summary
     assert tsdb_summary is not None
@@ -573,6 +636,7 @@ async def test_consolidation_with_no_data(consolidation_service, mock_memory_bus
     # Mock empty responses
     mock_memory_bus.recall_timeseries.return_value = []
     mock_memory_bus.recall.return_value = []
+    mock_memory_bus.search.return_value = []
     
     # Run consolidation
     summaries = await consolidation_service._consolidate_period(period_start, period_end)
@@ -610,6 +674,7 @@ async def test_consolidation_idempotency(consolidation_service, mock_memory_bus,
     # Mock empty data for all correlation types
     mock_memory_bus.recall_timeseries.return_value = []
     mock_memory_bus.recall.return_value = []
+    mock_memory_bus.search.return_value = []  # No audit nodes
     
     # Mock successful memorize operations
     mock_memory_bus.memorize.return_value = MemoryOpResult(
@@ -637,10 +702,19 @@ async def test_conversation_summary_preserves_full_content(consolidation_service
     
     # Mock responses
     mock_memory_bus.recall.return_value = []
-    mock_memory_bus.recall_timeseries.side_effect = lambda scope, hours, correlation_types: (
-        datapoints_to_correlations(conversation_datapoints, "SERVICE_INTERACTION")
-        if "service_interaction" in correlation_types else []
-    )
+    mock_memory_bus.search.return_value = []
+    async def mock_recall_timeseries_conv(scope, hours=None, correlation_types=None, start_time=None, end_time=None, handler_name=None):
+        # Handle both calling patterns
+        if correlation_types is None and hours is not None:
+            # Old pattern: (scope, hours, correlation_types) - hours is actually correlation_types
+            correlation_types = hours
+            hours = None
+        
+        if "service_interaction" in correlation_types:
+            return datapoints_to_correlations(conversation_datapoints, "SERVICE_INTERACTION")
+        return []
+    
+    mock_memory_bus.recall_timeseries.side_effect = mock_recall_timeseries_conv
     # Ensure memorize returns a proper result for async calls
     memorize_result = MemoryOpResult(
         status=MemoryOpStatus.OK,
@@ -689,11 +763,22 @@ async def test_audit_hash_generation(consolidation_service, mock_memory_bus, moc
     audit_datapoints = create_audit_datapoints(period_start, period_end)
     
     # Mock responses
-    mock_memory_bus.recall.return_value = []
-    mock_memory_bus.recall_timeseries.side_effect = lambda scope, hours, correlation_types: (
-        datapoints_to_correlations(audit_datapoints, "AUDIT_EVENT")
-        if "audit_event" in correlation_types else []
-    )
+    # Return actual audit nodes for recall (for wildcard queries)
+    audit_nodes = create_audit_nodes_from_datapoints(audit_datapoints)
+    mock_memory_bus.recall.return_value = audit_nodes
+    mock_memory_bus.search.return_value = audit_nodes
+    async def mock_recall_timeseries_audit(scope, hours=None, correlation_types=None, start_time=None, end_time=None, handler_name=None):
+        # Handle both calling patterns
+        if correlation_types is None and hours is not None:
+            # Old pattern: (scope, hours, correlation_types) - hours is actually correlation_types
+            correlation_types = hours
+            hours = None
+        
+        if "audit_event" in correlation_types:
+            return datapoints_to_correlations(audit_datapoints, "AUDIT_EVENT")
+        return []
+    
+    mock_memory_bus.recall_timeseries.side_effect = mock_recall_timeseries_audit
     # Ensure memorize returns a proper result for async calls
     memorize_result = MemoryOpResult(
         status=MemoryOpStatus.OK,
@@ -739,10 +824,19 @@ async def test_trace_summary_metrics(consolidation_service, mock_memory_bus, moc
     
     # Mock responses
     mock_memory_bus.recall.return_value = []
-    mock_memory_bus.recall_timeseries.side_effect = lambda scope, hours, correlation_types: (
-        datapoints_to_correlations(trace_datapoints, "TRACE_SPAN")
-        if "trace_span" in correlation_types else []
-    )
+    mock_memory_bus.search.return_value = []
+    async def mock_recall_timeseries_trace(scope, hours=None, correlation_types=None, start_time=None, end_time=None, handler_name=None):
+        # Handle both calling patterns
+        if correlation_types is None and hours is not None:
+            # Old pattern: (scope, hours, correlation_types) - hours is actually correlation_types
+            correlation_types = hours
+            hours = None
+        
+        if "trace_span" in correlation_types:
+            return datapoints_to_correlations(trace_datapoints, "TRACE_SPAN")
+        return []
+    
+    mock_memory_bus.recall_timeseries.side_effect = mock_recall_timeseries_trace
     # Ensure memorize returns a proper result for async calls
     memorize_result = MemoryOpResult(
         status=MemoryOpStatus.OK,

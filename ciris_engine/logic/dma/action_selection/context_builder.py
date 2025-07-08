@@ -6,7 +6,6 @@ from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.dma.results import EthicalDMAResult, CSDMAResult, DSDMAResult
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.logic.formatters import format_user_profiles, format_system_snapshot
-from ciris_engine.logic.utils import ENGINE_OVERVIEW_TEMPLATE
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +81,7 @@ class ActionSelectionContextBuilder:
 
         # Assemble final content
         main_user_content = """
-{ENGINE_OVERVIEW_TEMPLATE}Your task is to determine the single most appropriate HANDLER ACTION based on an original thought and evaluations from three prior DMAs (Ethical PDMA, CSDMA, DSDMA).
+Your task is to determine the single most appropriate HANDLER ACTION based on an original thought and evaluations from three prior DMAs (Ethical PDMA, CSDMA, DSDMA).
 You MUST execute the Principled Decision-Making Algorithm (PDMA) to choose this HANDLER ACTION and structure your response as a JSON object matching the provided schema.
 All fields specified in the schema for your response are MANDATORY unless explicitly marked as optional.
 Permitted Handler Actions: {action_options_str}{available_tools_str}
@@ -120,7 +119,6 @@ Adhere strictly to the schema for your JSON output.
 """
         # Format the template with all the variables
         formatted_content = main_user_content.format(
-            ENGINE_OVERVIEW_TEMPLATE="",  # This is typically empty
             action_options_str=_action_options_str,
             available_tools_str=_available_tools_str,
             startup_guidance=_startup_guidance,

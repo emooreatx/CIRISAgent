@@ -176,6 +176,32 @@ export class ConfigResource extends BaseResource {
   }
   
   /**
+   * Get a single configuration value by key (returns unwrapped value)
+   */
+  async getConfigByKey(key: string): Promise<{ key: string; value: any; updated_at: string; updated_by?: string }> {
+    const configValue = await this.get(key);
+    return {
+      key: configValue.key,
+      value: unwrapConfigValue(configValue.value),
+      updated_at: configValue.updated_at,
+      updated_by: configValue.updated_by
+    };
+  }
+  
+  /**
+   * Update a single configuration value by key
+   */
+  async updateConfigByKey(key: string, value: any, reason?: string): Promise<ConfigUpdateResponse> {
+    const result = await this.set(key, value, reason);
+    return {
+      success: true,
+      key: result.key,
+      new_value: unwrapConfigValue(result.value),
+      message: 'Configuration updated successfully'
+    };
+  }
+  
+  /**
    * Get configuration values by prefix
    */
   async getByPrefix(prefix: string): Promise<ConfigListResponse> {

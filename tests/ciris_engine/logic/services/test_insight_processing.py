@@ -8,6 +8,7 @@ This tests that:
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
 
 from ciris_engine.logic.infrastructure.sub_services.pattern_analysis_loop import PatternAnalysisLoop
 from ciris_engine.logic.processors.states.dream_processor import DreamProcessor
@@ -20,7 +21,7 @@ from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 class MockTimeService(TimeServiceProtocol):
     """Mock time service for testing."""
-    def __init__(self, current_time: datetime = None):
+    def __init__(self, current_time: Optional[datetime] = None):
         self._current_time = current_time or datetime.now(timezone.utc)
 
     def now(self) -> datetime:
@@ -44,15 +45,15 @@ class MockTimeService(TimeServiceProtocol):
     async def is_healthy(self) -> bool:
         return True
 
-    def get_capabilities(self):
+    def get_capabilities(self) -> None:
         return None
 
-    def get_status(self):
+    def get_status(self) -> None:
         return None
 
 
 @pytest.mark.asyncio
-async def test_feedback_loop_stores_insights_as_concept_nodes():
+async def test_feedback_loop_stores_insights_as_concept_nodes() -> None:
     """Test that PatternAnalysisLoop stores insights as CONCEPT nodes."""
     # Setup
     time_service = MockTimeService()
@@ -76,7 +77,8 @@ async def test_feedback_loop_stores_insights_as_concept_nodes():
         detected_at=time_service.now(),
         metrics=PatternMetrics(
             occurrence_count=10,
-            average_value=0.5
+            average_value=0.5,
+            confidence=0.8  # type: ignore
         )
     )
 
@@ -100,7 +102,7 @@ async def test_feedback_loop_stores_insights_as_concept_nodes():
 
 
 @pytest.mark.asyncio
-async def test_dream_processor_queries_behavioral_insights():
+async def test_dream_processor_queries_behavioral_insights() -> None:
     """Test that DreamProcessor queries for behavioral pattern insights."""
     # Setup
     time_service = MockTimeService()
@@ -118,7 +120,9 @@ async def test_dream_processor_queries_behavioral_insights():
                 "description": "Action SPEAK is used 80% of the time",
                 "actionable": True,
                 "detected_at": (time_service.now() - timedelta(hours=1)).isoformat()
-            }
+            },
+            updated_by="test",
+            updated_at=time_service.now()
         ),
         GraphNode(
             id="insight_2",
@@ -130,7 +134,9 @@ async def test_dream_processor_queries_behavioral_insights():
                 "description": "Different tools preferred at different times of day",
                 "actionable": True,
                 "detected_at": (time_service.now() - timedelta(hours=2)).isoformat()
-            }
+            },
+            updated_by="test",
+            updated_at=time_service.now()
         )
     ]
 
@@ -173,7 +179,7 @@ async def test_dream_processor_queries_behavioral_insights():
 
 
 @pytest.mark.asyncio
-async def test_all_insights_processed_without_filtering():
+async def test_all_insights_processed_without_filtering() -> None:
     """Test that all behavioral pattern insights are processed without reliability filtering."""
     # Setup
     time_service = MockTimeService()
@@ -191,7 +197,9 @@ async def test_all_insights_processed_without_filtering():
                 "description": "High reliability pattern",
                 "actionable": True,
                 "detected_at": (time_service.now() - timedelta(hours=1)).isoformat()
-            }
+            },
+            updated_by="test",
+            updated_at=time_service.now()
         ),
         GraphNode(
             id="low_reliability",
@@ -203,7 +211,9 @@ async def test_all_insights_processed_without_filtering():
                 "description": "Low reliability pattern",
                 "actionable": True,
                 "detected_at": (time_service.now() - timedelta(hours=1)).isoformat()
-            }
+            },
+            updated_by="test",
+            updated_at=time_service.now()
         )
     ]
 
@@ -237,7 +247,7 @@ async def test_all_insights_processed_without_filtering():
 
 
 @pytest.mark.asyncio
-async def test_feedback_loop_stores_all_detected_patterns():
+async def test_feedback_loop_stores_all_detected_patterns() -> None:
     """Test that feedback loop stores all detected patterns as insights."""
     # Setup
     time_service = MockTimeService()
@@ -262,7 +272,8 @@ async def test_feedback_loop_stores_all_detected_patterns():
                 detected_at=time_service.now(),
             metrics=PatternMetrics(
                 occurrence_count=10,
-                average_value=0.8
+                average_value=0.8,
+                confidence=0.9  # type: ignore
             )
         ),
         DetectedPattern(
@@ -273,7 +284,8 @@ async def test_feedback_loop_stores_all_detected_patterns():
             detected_at=time_service.now(),
             metrics=PatternMetrics(
                 occurrence_count=5,
-                average_value=0.5
+                average_value=0.5,
+                confidence=0.6  # type: ignore
             )
         )
     ]
@@ -287,7 +299,7 @@ async def test_feedback_loop_stores_all_detected_patterns():
 
 
 @pytest.mark.asyncio
-async def test_integration_feedback_loop_to_dream_processor():
+async def test_integration_feedback_loop_to_dream_processor() -> None:
     """Test the full integration from feedback loop to dream processor."""
     # Setup
     time_service = MockTimeService()
@@ -296,11 +308,11 @@ async def test_integration_feedback_loop_to_dream_processor():
     # Track stored nodes
     stored_nodes = []
 
-    async def mock_memorize(node, **kwargs):
+    async def mock_memorize(node: GraphNode, **kwargs: Any) -> MemoryOpResult:
         stored_nodes.append(node)
         return MemoryOpResult(status=MemoryOpStatus.OK, reason="Success")
 
-    async def mock_search(query, **kwargs):
+    async def mock_search(query: str, **kwargs: Any) -> List[GraphNode]:
         # Return nodes that match the query
         if query == "type:concept":
             return [n for n in stored_nodes if n.type == NodeType.CONCEPT and
@@ -325,7 +337,8 @@ async def test_integration_feedback_loop_to_dream_processor():
         metrics=PatternMetrics(
             average_value=250.0,
             peak_value=500.0,
-            trend="increasing"
+            trend="increasing",  # type: ignore
+            confidence=0.95  # type: ignore
         )
     )
 
@@ -362,7 +375,7 @@ async def test_integration_feedback_loop_to_dream_processor():
 
 
 @pytest.mark.asyncio
-async def test_dream_processor_handles_missing_attributes():
+async def test_dream_processor_handles_missing_attributes() -> None:
     """Test that DreamProcessor handles nodes with missing attributes gracefully."""
     # Setup
     time_service = MockTimeService()
@@ -374,7 +387,9 @@ async def test_dream_processor_handles_missing_attributes():
             id="missing_attrs",
             type=NodeType.CONCEPT,
             scope=GraphScope.LOCAL,
-            attributes={}  # No attributes
+            attributes={},  # No attributes
+            updated_by="test",
+            updated_at=time_service.now()
         ),
         GraphNode(
             id="partial_attrs",
@@ -383,7 +398,9 @@ async def test_dream_processor_handles_missing_attributes():
             attributes={
                 "insight_type": "behavioral_pattern",
                 # Missing other fields
-            }
+            },
+            updated_by="test",
+            updated_at=time_service.now()
         ),
         GraphNode(
             id="complete",
@@ -395,7 +412,9 @@ async def test_dream_processor_handles_missing_attributes():
                 "description": "Complete pattern",
                 "actionable": True,
                 "detected_at": (time_service.now() - timedelta(hours=1)).isoformat()
-            }
+            },
+            updated_by="test",
+            updated_at=time_service.now()
         )
     ]
 

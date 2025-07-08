@@ -246,6 +246,17 @@ export default function ApiDemoPage() {
           endpoint: 'POST /v1/system/runtime/single-step',
           method: 'POST' as const,
           execute: () => cirisClient.system.singleStepProcessor()
+        },
+        {
+          title: 'Available Tools',
+          description: 'Get list of all available tools from all tool providers',
+          endpoint: 'GET /v1/system/tools',
+          method: 'GET' as const,
+          execute: async () => {
+            const result = await cirisClient.system.getTools();
+            console.log('Tools API response:', result);
+            return result;
+          }
         }
       ]
     },

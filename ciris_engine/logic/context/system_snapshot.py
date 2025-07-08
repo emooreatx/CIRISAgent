@@ -1,4 +1,5 @@
 import logging
+import json
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -425,6 +426,162 @@ async def build_system_snapshot(
                 context_data["identity_context"] = enriched_context.identity_context
             if enriched_context.community_context:
                 context_data["community_context"] = enriched_context.community_context
+
+    # Enrich user profiles from memory graph (supplement or replace GraphQL data)
+    if memory_service and thought:
+        # Extract user IDs from the thought content and context
+        user_ids_to_enrich = set()
+        
+        # Look for user mentions in thought content (Discord format: <@USER_ID> or @username)
+        import re
+        thought_content = getattr(thought, 'content', '')
+        # Discord user ID pattern
+        discord_mentions = re.findall(r'<@(\d+)>', thought_content)
+        user_ids_to_enrich.update(discord_mentions)
+        # Also look for "ID: <number>" pattern
+        id_mentions = re.findall(r'ID:\s*(\d+)', thought_content)
+        user_ids_to_enrich.update(id_mentions)
+        
+        # Also check the current channel context for the message author
+        if hasattr(thought, 'context') and thought.context:
+            if hasattr(thought.context, 'user_id') and thought.context.user_id:
+                user_ids_to_enrich.add(str(thought.context.user_id))
+                
+        logger.info(f"Enriching user profiles for users: {user_ids_to_enrich}")
+        
+        # Get existing user profiles or create new list
+        existing_profiles = context_data.get("user_profiles", [])
+        existing_user_ids = {p.user_id for p in existing_profiles}
+        
+        for user_id in user_ids_to_enrich:
+            if user_id in existing_user_ids:
+                continue  # Already have profile from GraphQL
+                
+            try:
+                # Query user node with ALL attributes
+                user_query = MemoryQuery(
+                    node_id=f"user/{user_id}",
+                    scope=GraphScope.LOCAL,
+                    type=NodeType.USER,
+                    include_edges=True,  # Get edges too
+                    depth=2  # Get connected nodes
+                )
+                logger.info(f"[DEBUG] Querying memory for user/{user_id}")
+                user_results = await memory_service.recall(user_query)
+                
+                if user_results:
+                    user_node = user_results[0]
+                    # Extract ALL attributes from the user node
+                    attrs = user_node.attributes if isinstance(user_node.attributes, dict) else {}
+                    
+                    # Get edges and connected nodes
+                    connected_nodes_info = []
+                    try:
+                        # Get edges for this user node
+                        from ciris_engine.logic.persistence.models.graph import get_edges_for_node
+                        edges = get_edges_for_node(f"user/{user_id}", GraphScope.LOCAL)
+                        
+                        for edge in edges:
+                            # Get the connected node
+                            connected_node_id = edge.target if edge.source == f"user/{user_id}" else edge.source
+                            connected_query = MemoryQuery(
+                                node_id=connected_node_id,
+                                scope=GraphScope.LOCAL,
+                                include_edges=False,
+                                depth=1
+                            )
+                            connected_results = await memory_service.recall(connected_query)
+                            if connected_results:
+                                connected_node = connected_results[0]
+                                connected_attrs = connected_node.attributes if isinstance(connected_node.attributes, dict) else {}
+                                connected_nodes_info.append({
+                                    'node_id': connected_node.id,
+                                    'node_type': connected_node.type,
+                                    'relationship': edge.relationship,
+                                    'attributes': connected_attrs
+                                })
+                    except Exception as e:
+                        logger.warning(f"Failed to get connected nodes for user {user_id}: {e}")
+                    
+                    # Create UserProfile with all available data
+                    notes_content = f"All attributes: {json.dumps(attrs)}"
+                    if connected_nodes_info:
+                        notes_content += f"\nConnected nodes: {json.dumps(connected_nodes_info)}"
+                    
+                    user_profile = UserProfile(
+                        user_id=user_id,
+                        display_name=attrs.get('username', attrs.get('display_name', f'User_{user_id}')),
+                        created_at=datetime.now(),  # Could parse from node if available
+                        preferred_language=attrs.get('language', 'en'),
+                        timezone=attrs.get('timezone', 'UTC'),
+                        communication_style=attrs.get('communication_style', 'formal'),
+                        trust_level=attrs.get('trust_level', 0.5),
+                        last_interaction=attrs.get('last_seen'),
+                        is_wa=attrs.get('is_wa', False),
+                        permissions=attrs.get('permissions', []),
+                        restrictions=attrs.get('restrictions', []),
+                        # Store ALL other attributes and connected nodes in notes for access
+                        notes=notes_content
+                    )
+                    existing_profiles.append(user_profile)
+                    logger.info(f"Added user profile for {user_id} with attributes: {list(attrs.keys())} and {len(connected_nodes_info)} connected nodes")
+                    
+                # Get messages from other channels
+                if channel_id:
+                    # Query service correlations for user's recent messages
+                    with persistence.get_db_connection() as conn:
+                        cursor = conn.cursor()
+                        # Look for handler actions from this user in other channels
+                        cursor.execute("""
+                            SELECT 
+                                c.correlation_id,
+                                c.handler_name,
+                                c.request_data,
+                                c.created_at,
+                                c.tags
+                            FROM service_correlations c
+                            WHERE 
+                                c.tags LIKE ? 
+                                AND c.tags NOT LIKE ?
+                                AND c.handler_name IN ('ObserveHandler', 'SpeakHandler')
+                            ORDER BY c.created_at DESC
+                            LIMIT 3
+                        """, (f'%"user_id":"{user_id}"%', f'%"channel_id":"{channel_id}"%'))
+                        
+                        recent_messages = []
+                        for row in cursor.fetchall():
+                            try:
+                                tags = json.loads(row['tags']) if row['tags'] else {}
+                                msg_channel = tags.get('channel_id', 'unknown')
+                                msg_content = 'Message in ' + msg_channel
+                                
+                                # Try to extract content from request_data
+                                if row['request_data']:
+                                    req_data = json.loads(row['request_data'])
+                                    if isinstance(req_data, dict):
+                                        msg_content = req_data.get('content', req_data.get('message', msg_content))
+                                
+                                recent_messages.append({
+                                    'channel': msg_channel,
+                                    'content': msg_content,
+                                    'timestamp': row['created_at']
+                                })
+                            except:
+                                pass
+                        
+                        if recent_messages and existing_profiles:
+                            # Find the user profile we just added
+                            for profile in existing_profiles:
+                                if profile.user_id == user_id:
+                                    profile.notes += f"\nRecent messages from other channels: {json.dumps(recent_messages)}"
+                                    break
+                                
+            except Exception as e:
+                logger.warning(f"Failed to enrich user {user_id}: {e}")
+        
+        # Update context data with enriched profiles
+        if existing_profiles:
+            context_data["user_profiles"] = existing_profiles
 
     snapshot = SystemSnapshot(**context_data)
 

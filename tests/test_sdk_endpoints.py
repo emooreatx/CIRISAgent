@@ -10,7 +10,7 @@ import pytest_asyncio
 import json
 import socket
 from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, AsyncGenerator
 
 from ciris_sdk import CIRISClient
 from ciris_sdk.exceptions import CIRISAuthenticationError, CIRISNotFoundError, CIRISValidationError, CIRISAPIError
@@ -18,7 +18,7 @@ from ciris_sdk.models import GraphNode
 
 
 # Skip all tests in this module if API is not available
-def check_api_available():
+def check_api_available() -> bool:
     """Check if API is accessible."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -41,7 +41,7 @@ class TestCIRISSDKEndpoints:
     """Test suite for all CIRIS API endpoints through the SDK."""
     
     @pytest_asyncio.fixture
-    async def client(self):
+    async def client(self) -> AsyncGenerator[CIRISClient, None]:
         """Create authenticated CIRIS client."""
         async with CIRISClient(
             base_url="http://localhost:8080",
@@ -54,7 +54,7 @@ class TestCIRISSDKEndpoints:
             yield client
     
     @pytest_asyncio.fixture
-    async def unauthenticated_client(self):
+    async def unauthenticated_client(self) -> AsyncGenerator[CIRISClient, None]:
         """Create unauthenticated CIRIS client."""
         async with CIRISClient(
             base_url="http://localhost:8080",
@@ -65,7 +65,7 @@ class TestCIRISSDKEndpoints:
     # ========== Authentication Tests (4 endpoints) ==========
     
     @pytest.mark.asyncio
-    async def test_auth_login(self, unauthenticated_client):
+    async def test_auth_login(self, unauthenticated_client: CIRISClient) -> None:
         """Test POST /v1/auth/login."""
         # Test successful login
         response = await unauthenticated_client.auth.login("admin", "ciris_admin_password")
@@ -83,7 +83,7 @@ class TestCIRISSDKEndpoints:
         assert exc_info.value.status_code == 401
     
     @pytest.mark.asyncio
-    async def test_auth_logout(self, client):
+    async def test_auth_logout(self, client: CIRISClient) -> None:
         """Test POST /v1/auth/logout."""
         # Should succeed with authenticated client
         await client.auth.logout()
@@ -94,7 +94,7 @@ class TestCIRISSDKEndpoints:
         assert exc_info.value.status_code == 401
     
     @pytest.mark.asyncio
-    async def test_auth_me(self, client):
+    async def test_auth_me(self, client: CIRISClient) -> None:
         """Test GET /v1/auth/me."""
         user_info = await client.auth.get_current_user()
         assert user_info.user_id == "wa-system-admin"
@@ -103,7 +103,7 @@ class TestCIRISSDKEndpoints:
         assert len(user_info.permissions) > 0
     
     @pytest.mark.asyncio
-    async def test_auth_refresh(self, client):
+    async def test_auth_refresh(self, client: CIRISClient) -> None:
         """Test POST /v1/auth/refresh."""
         # Get current token
         old_token = client._transport.api_key
@@ -117,7 +117,7 @@ class TestCIRISSDKEndpoints:
     # ========== Agent Tests (5 endpoints) ==========
     
     @pytest.mark.asyncio
-    async def test_agent_identity(self, client):
+    async def test_agent_identity(self, client: CIRISClient) -> None:
         """Test GET /v1/agent/identity."""
         identity = await client.agent.get_identity()
         assert identity.agent_id
@@ -126,7 +126,7 @@ class TestCIRISSDKEndpoints:
         assert identity.created_at
     
     @pytest.mark.asyncio
-    async def test_agent_status(self, client):
+    async def test_agent_status(self, client: CIRISClient) -> None:
         """Test GET /v1/agent/status."""
         status = await client.agent.get_status()
         assert status.cognitive_state in ["WAKEUP", "WORK", "PLAY", "SOLITUDE", "DREAM", "SHUTDOWN"]
@@ -135,7 +135,7 @@ class TestCIRISSDKEndpoints:
         assert status.uptime_seconds >= 0
     
     @pytest.mark.asyncio
-    async def test_agent_interact(self, client):
+    async def test_agent_interact(self, client: CIRISClient) -> None:
         """Test POST /v1/agent/interact."""
         response = await client.agent.interact("Hello, CIRIS! What is 2+2?")
         assert response.response
@@ -144,7 +144,7 @@ class TestCIRISSDKEndpoints:
         assert response.processing_time_ms >= 0
     
     @pytest.mark.asyncio
-    async def test_agent_history(self, client):
+    async def test_agent_history(self, client: CIRISClient) -> None:
         """Test GET /v1/agent/history."""
         # First create an interaction with a unique marker
         import time
@@ -171,7 +171,7 @@ class TestCIRISSDKEndpoints:
         assert len(history_small.interactions) <= 10  # Allow some flexibility for paired messages
     
     @pytest.mark.asyncio
-    async def test_agent_stream(self, client):
+    async def test_agent_stream(self, client: CIRISClient) -> None:
         """Test WebSocket /v1/agent/stream."""
         # WebSocket testing requires special handling
         # For now, just verify the endpoint exists
@@ -180,7 +180,7 @@ class TestCIRISSDKEndpoints:
     # ========== Memory Tests (4 endpoints) ==========
     
     @pytest.mark.asyncio
-    async def test_memory_store(self, client):
+    async def test_memory_store(self, client: CIRISClient) -> None:
         """Test POST /v1/memory/store."""
         # Create a test node
         node = GraphNode(
@@ -191,7 +191,9 @@ class TestCIRISSDKEndpoints:
                 "test": True,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data": "Test memory node"
-            }
+            },
+            updated_by="test_user",
+            updated_at=datetime.now(timezone.utc)
         )
         
         result = await client.memory.store(node)
@@ -200,7 +202,7 @@ class TestCIRISSDKEndpoints:
         assert result.operation == "MEMORIZE"
     
     @pytest.mark.asyncio
-    async def test_memory_query(self, client):
+    async def test_memory_query(self, client: CIRISClient) -> None:
         """Test POST /v1/memory/query."""
         # Query for recent memories
         nodes = await client.memory.query(
@@ -211,7 +213,7 @@ class TestCIRISSDKEndpoints:
         assert len(nodes) <= 10
     
     @pytest.mark.asyncio
-    async def test_memory_recall(self, client):
+    async def test_memory_recall(self, client: CIRISClient) -> None:
         """Test GET /v1/memory/recall/{node_id}."""
         # First store a node
         node = GraphNode(
@@ -221,7 +223,9 @@ class TestCIRISSDKEndpoints:
             attributes={
                 "test": True,
                 "created_at": datetime.now(timezone.utc).isoformat()
-            }
+            },
+            updated_by="test_user",
+            updated_at=datetime.now(timezone.utc)
         )
         result = await client.memory.store(node)
         
@@ -231,7 +235,7 @@ class TestCIRISSDKEndpoints:
         assert recalled.type == "concept"
     
     @pytest.mark.asyncio
-    async def test_memory_timeline(self, client):
+    async def test_memory_timeline(self, client: CIRISClient) -> None:
         """Test GET /v1/memory/timeline."""
         timeline = await client.memory.timeline(hours=24, limit=20)
         assert isinstance(timeline.memories, list)
@@ -242,7 +246,7 @@ class TestCIRISSDKEndpoints:
     # ========== System Tests (6 endpoints) ==========
     
     @pytest.mark.asyncio
-    async def test_system_health(self, unauthenticated_client):
+    async def test_system_health(self, unauthenticated_client: CIRISClient) -> None:
         """Test GET /v1/system/health (no auth required)."""
         health = await unauthenticated_client.system.health()
         assert health.status in ["healthy", "degraded", "critical", "initializing"]
@@ -251,7 +255,7 @@ class TestCIRISSDKEndpoints:
         assert health.services
     
     @pytest.mark.asyncio
-    async def test_system_time(self, client):
+    async def test_system_time(self, client: CIRISClient) -> None:
         """Test GET /v1/system/time."""
         time_info = await client.system.time()
         assert time_info.system_time
@@ -260,7 +264,7 @@ class TestCIRISSDKEndpoints:
         assert time_info.time_sync
     
     @pytest.mark.asyncio
-    async def test_system_resources(self, client):
+    async def test_system_resources(self, client: CIRISClient) -> None:
         """Test GET /v1/system/resources."""
         resources = await client.system.resources()
         assert resources.current_usage
@@ -268,7 +272,7 @@ class TestCIRISSDKEndpoints:
         assert resources.health_status in ["healthy", "warning", "critical"]
     
     @pytest.mark.asyncio
-    async def test_system_services(self, client):
+    async def test_system_services(self, client: CIRISClient) -> None:
         """Test GET /v1/system/services."""
         services = await client.system.services()
         assert services.services

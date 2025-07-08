@@ -34,7 +34,10 @@ class MockWiseAuthorityService:
     def __init__(self):
         self.send_deferral = AsyncMock(return_value="defer_id_123")
         self.fetch_guidance = AsyncMock(return_value="Test guidance response")
-        self.get_capabilities = Mock(return_value={"send_deferral", "fetch_guidance"})
+        # get_capabilities should return an object with actions attribute
+        capabilities = Mock()
+        capabilities.actions = {"send_deferral", "fetch_guidance"}
+        self.get_capabilities = Mock(return_value=capabilities)
         self.start = AsyncMock()
         self.stop = AsyncMock()
         self.health_check = AsyncMock(return_value={"status": "healthy"})
@@ -58,6 +61,8 @@ class TestWiseBusDeferrals:
         """Mock service registry that returns our WA service."""
         registry = Mock()
         registry.get_service = AsyncMock(return_value=mock_wise_service)
+        # WiseBus now uses get_services_by_type for broadcasting
+        registry.get_services_by_type = Mock(return_value=[mock_wise_service])
         return registry
 
     @pytest.fixture
@@ -187,6 +192,7 @@ class TestWiseBusDeferrals:
         """Test deferral when no WA service is available."""
         # Arrange
         mock_service_registry.get_service.return_value = None
+        mock_service_registry.get_services_by_type.return_value = []
 
         context = DeferralContext(
             thought_id="thought_123",
@@ -338,7 +344,9 @@ class TestWiseBusDeferrals:
         # Arrange
         # Create services with different capabilities
         service_without_defer = Mock()
-        service_without_defer.get_capabilities = Mock(return_value={"fetch_guidance"})
+        capabilities_without_defer = Mock()
+        capabilities_without_defer.actions = {"fetch_guidance"}
+        service_without_defer.get_capabilities = Mock(return_value=capabilities_without_defer)
 
         service_with_defer = mock_wise_service
 
@@ -354,7 +362,7 @@ class TestWiseBusDeferrals:
             # Check if service has required capabilities
             if required_capabilities:
                 service_caps = service.get_capabilities()
-                if not all(cap in service_caps for cap in required_capabilities):
+                if not all(cap in service_caps.actions for cap in required_capabilities):
                     return None
 
             return service
@@ -437,6 +445,7 @@ class TestWiseBusErrorHandling:
     def wise_bus(self):
         """Create WiseBus with minimal mocking."""
         mock_registry = Mock()
+        mock_registry.get_services_by_type = Mock(return_value=[])
         mock_time = MockTimeService()
         return WiseBus(mock_registry, mock_time)
 
@@ -450,6 +459,7 @@ class TestWiseBusErrorHandling:
         # Arrange
         mock_service = MockWiseAuthorityService()
         wise_bus.service_registry.get_service = AsyncMock(return_value=mock_service)
+        wise_bus.service_registry.get_services_by_type = Mock(return_value=[mock_service])
 
         # Since DeferralContext expects datetime or None, passing an invalid string
         # will raise a Pydantic ValidationError at model creation time

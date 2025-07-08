@@ -15,15 +15,12 @@ from ciris_engine.logic.adapters.base import Service
 from ciris_engine.schemas.services.core import ServiceStatus, ServiceCapabilities
 from ciris_engine.schemas.services.core.runtime import (
     ProcessorStatus, ProcessorQueueStatus, AdapterInfo, ConfigBackup,
-    ServiceRegistryInfo, CircuitBreakerResetResult, ServiceHealthStatus,
+    ServiceHealthStatus,
     ServiceSelectionExplanation, RuntimeEvent, ConfigReloadResult,
     ProcessorControlResponse, AdapterOperationResponse, RuntimeStatusResponse,
     RuntimeStateSnapshot, ConfigSnapshot, ConfigOperationResponse, ConfigValidationResponse,
-    ConfigBackupResponse, ConfigScope, ConfigValidationLevel,
+    ConfigScope, ConfigValidationLevel,
     AdapterStatus
-)
-from ciris_engine.schemas.services.core.runtime_config import (
-    ServiceHealthReport
 )
 
 from ciris_engine.protocols.services import TimeServiceProtocol
@@ -1445,6 +1442,16 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
             custom_metrics={}
         )
 
+    def set_runtime(self, runtime: Any) -> None:
+        """Set the runtime reference after initialization."""
+        self.runtime = runtime
+        # If adapter manager exists, update its runtime reference too
+        if self.adapter_manager:
+            self.adapter_manager.runtime = runtime
+            # Re-register config listener with updated runtime
+            self.adapter_manager._register_config_listener()
+        logger.info("Runtime reference set in RuntimeControlService")
+    
     async def start(self) -> None:
         """Start the runtime control service."""
         await self._initialize()

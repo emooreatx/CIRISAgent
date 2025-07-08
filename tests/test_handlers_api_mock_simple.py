@@ -239,10 +239,15 @@ class TestHandlers:
             # Accept various mock LLM responses
             assert any(word in response.lower() for word in ["reject", "inappropriate", "mock llm", "mockllm", "speak in response"])
         
+        # Wait for the reject to fully process before next test
+        time.sleep(2)
+        
     def test_task_complete(self, api_client):
         """Test TASK_COMPLETE handler - validates task completion."""
         # First create a task by sending a regular message
-        api_client.interact("$speak Creating a task")
+        # Use a benign message that won't trigger any filters
+        speak_result = api_client.interact("$speak Working on test scenario")
+        assert speak_result["data"]["response"] == "Working on test scenario"  # Verify speak worked
         time.sleep(1)  # Reduced from 2s
         
         # Then complete it

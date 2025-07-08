@@ -1,4 +1,5 @@
 # Protocol-facing mock responses for ActionSelectionDMAResult and related types
+from typing import Any, Dict, List, Optional, Union
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.actions.parameters import (
     SpeakParams, MemorizeParams, RecallParams, PonderParams,
@@ -8,7 +9,7 @@ from ciris_engine.schemas.actions.parameters import (
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
 
-def action_selection(context=None, messages=None):
+def action_selection(context: Optional[List[str]] = None, messages: Optional[List[Dict[str, Any]]] = None) -> ActionSelectionDMAResult:
     """Mock ActionSelectionDMAResult with passing values and protocol-compliant types."""
     context = context or []
     messages = messages or []
@@ -17,12 +18,12 @@ def action_selection(context=None, messages=None):
     if "is_followup_thought" in context:
         # Follow-up thought - always TASK_COMPLETE
         action = HandlerActionType.TASK_COMPLETE
-        params = {}
+        params: Dict[str, Any] = {}
         rationale = "Completing follow-up thought (detected via is_followup_thought)"
 
         result = ActionSelectionDMAResult(
             selected_action=action,
-            action_parameters=params,
+            action_parameters=params,  # type: ignore
             rationale=rationale
         )
         object.__setattr__(result, 'choices', [result])
@@ -34,12 +35,12 @@ def action_selection(context=None, messages=None):
     # print(f"[ACTION_SELECTION_DEBUG] Context: {context}")
 
     # Extract messages from context if available
-    messages = []
+    messages_extracted: List[Dict[str, Any]] = []
     for item in context:
         if item.startswith("__messages__:"):
             import json
             try:
-                messages = json.loads(item.split(":", 1)[1])
+                messages_extracted = json.loads(item.split(":", 1)[1])
             except:
                 pass
             break
@@ -100,6 +101,10 @@ def action_selection(context=None, messages=None):
             break
 
     # Determine action based on context
+    action: HandlerActionType
+    params: Any
+    rationale: str
+    
     if forced_action:
         try:
             action = getattr(HandlerActionType, forced_action.upper())
@@ -118,7 +123,7 @@ def action_selection(context=None, messages=None):
 
                         # Get the original messages if available
                         context_display += "\n**Original Messages:**\n"
-                        for i, msg in enumerate(messages):
+                        for i, msg in enumerate(messages_extracted if messages_extracted else messages or []):
                             role = msg.get('role', 'unknown')
                             content = msg.get('content', '')
                             context_display += f"\n[{i}] {role}:\n{content}\n"
@@ -157,7 +162,9 @@ def action_selection(context=None, messages=None):
                                 node=GraphNode(
                                     id=node_id,
                                     type=getattr(NodeType, node_type.upper()),
-                                    scope=getattr(GraphScope, scope.upper())
+                                    scope=getattr(GraphScope, scope.upper()),
+                                    data={},  # type: ignore
+                                    metadata={}  # type: ignore
                                 )
                             )
                     else:
@@ -180,7 +187,9 @@ def action_selection(context=None, messages=None):
                         node=GraphNode(
                             id=node_id,
                             type=getattr(NodeType, node_type.upper(), NodeType.CONCEPT),
-                            scope=getattr(GraphScope, scope.upper(), GraphScope.LOCAL)
+                            scope=getattr(GraphScope, scope.upper(), GraphScope.LOCAL),
+                            data={},  # type: ignore
+                            metadata={}  # type: ignore
                         )
                     )
                 else:
@@ -208,7 +217,7 @@ def action_selection(context=None, messages=None):
                 if action_params:
                     parts = action_params.split(None, 1)
                     tool_name = parts[0]
-                    tool_params = {}
+                    tool_params: Dict[str, Any] = {}
 
                     # Parse JSON-like parameters if provided
                     if len(parts) > 1:
@@ -251,7 +260,13 @@ def action_selection(context=None, messages=None):
                         node_id = parts[0]
                         reason = parts[1]
                         params = ForgetParams(
-                            node=GraphNode(id=node_id, type=NodeType.CONCEPT, scope=GraphScope.LOCAL),
+                            node=GraphNode(
+                                id=node_id, 
+                                type=NodeType.CONCEPT, 
+                                scope=GraphScope.LOCAL,
+                                data={},  # type: ignore
+                                metadata={}  # type: ignore
+                            ),
                             reason=reason
                         )
                     else:
@@ -339,18 +354,19 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
         is_followup = False
 
         # The first message should be the system message with covenant
-        if messages and len(messages) > 0:
-            first_msg = messages[0]
+        messages_to_check = messages_extracted if messages_extracted else messages or []
+        if messages_to_check and len(messages_to_check) > 0:
+            first_msg = messages_to_check[0]
             if isinstance(first_msg, dict) and first_msg.get('role') == 'system':
-                content = first_msg.get('content', '')
+                msg_content = first_msg.get('content', '')
                 # Check if this is a follow_up thought type
-                if content.startswith('THOUGHT_TYPE=follow_up'):
+                if msg_content.startswith('THOUGHT_TYPE=follow_up'):
                     is_followup = True
 
         if is_followup:
             # Follow-up thought → TASK_COMPLETE
             action = HandlerActionType.TASK_COMPLETE
-            params = TaskCompleteParams(completion_reason="Follow-up thought processing completed")
+            params = {}  # TASK_COMPLETE doesn't need params
             rationale = "Completing follow-up thought"
         else:
             # Default: new task → SPEAK
@@ -363,7 +379,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
 
     result = ActionSelectionDMAResult(
         selected_action=action,
-        action_parameters=params,
+        action_parameters=params,  # type: ignore
         rationale=final_rationale
     )
     object.__setattr__(result, 'choices', [result])

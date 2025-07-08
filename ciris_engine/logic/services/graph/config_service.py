@@ -36,6 +36,7 @@ class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
         self._start_time: Optional[datetime] = None
         self._process = psutil.Process() if PSUTIL_AVAILABLE else None  # For memory tracking
         self._config_cache: Dict[str, ConfigNode] = {}  # Cache for config nodes
+        self._config_listeners: Dict[str, List[callable]] = {}  # key_pattern -> [callbacks]
 
     async def start(self) -> None:
         """Start the service."""
@@ -202,6 +203,10 @@ class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
 
         # Store in graph (base class will handle conversion)
         await self.store_in_graph(new_config)
+        
+        # Notify listeners of the change
+        old_value = current.value.value if current else None
+        await self._notify_listeners(key, old_value, value)
 
 
     async def list_configs(self, prefix: Optional[str] = None) -> Dict[str, Union[str, int, float, bool, List, Dict]]:
@@ -223,3 +228,39 @@ class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
     async def is_healthy(self) -> bool:
         """Check if service is healthy."""
         return self._running
+    
+    def register_config_listener(self, key_pattern: str, callback: callable) -> None:
+        """Register a callback for config changes matching the key pattern.
+        
+        Args:
+            key_pattern: Config key pattern (e.g., "adapter.*" for all adapter configs)
+            callback: Async function to call with (key, old_value, new_value)
+        """
+        if key_pattern not in self._config_listeners:
+            self._config_listeners[key_pattern] = []
+        self._config_listeners[key_pattern].append(callback)
+        logger.info(f"Registered config listener for pattern: {key_pattern}")
+    
+    def unregister_config_listener(self, key_pattern: str, callback: callable) -> None:
+        """Unregister a config change callback."""
+        if key_pattern in self._config_listeners:
+            self._config_listeners[key_pattern].remove(callback)
+            if not self._config_listeners[key_pattern]:
+                del self._config_listeners[key_pattern]
+    
+    async def _notify_listeners(self, key: str, old_value: any, new_value: any) -> None:
+        """Notify registered listeners of config changes."""
+        import fnmatch
+        
+        for pattern, callbacks in self._config_listeners.items():
+            if fnmatch.fnmatch(key, pattern):
+                for callback in callbacks:
+                    try:
+                        # Support both sync and async callbacks
+                        import asyncio
+                        if asyncio.iscoroutinefunction(callback):
+                            await callback(key, old_value, new_value)
+                        else:
+                            callback(key, old_value, new_value)
+                    except Exception as e:
+                        logger.error(f"Error notifying config listener for {key}: {e}")

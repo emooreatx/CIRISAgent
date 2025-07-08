@@ -112,7 +112,7 @@ class CIRISMypyToolkit:
         schema_issues = self.schema_validator.validate_all_files()
         
         # Analyze protocol usage
-        protocol_issues = self.protocol_analyzer.analyze_protocol_usage()
+        protocol_issues = self.protocol_analyzer.check_all_services()
         
         # Detect unused/uncalled code
         unused_code = self.unused_code_detector.find_unused_code()

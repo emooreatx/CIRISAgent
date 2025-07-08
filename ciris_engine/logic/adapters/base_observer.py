@@ -198,7 +198,14 @@ class BaseObserver(Generic[MessageT], ABC):
                         node_type = NodeType.USER
                     else:
                         node_type = NodeType.CONCEPT
-                    node = GraphNode(id=rid, type=node_type, scope=scope)
+                    from datetime import datetime, timezone
+                    node = GraphNode(
+                        id=rid, 
+                        type=node_type, 
+                        scope=scope,
+                        updated_by="base_observer",
+                        updated_at=self.time_service.now() if self.time_service else datetime.now(timezone.utc)
+                    )
                     await self.memory_service.recall(node)
                 except Exception:
                     continue
@@ -263,12 +270,17 @@ class BaseObserver(Generic[MessageT], ABC):
                 channel_name=getattr(msg, "channel_name", f"Channel {getattr(msg, 'channel_id', 'system')}"),
                 channel_type="text",
                 is_private=False,
-                created_at=self.time_service.now(),
-                allowed_actions=["send_messages", "read_messages"]
+                created_at=self.time_service.now() if self.time_service else datetime.now(timezone.utc),
+                allowed_actions=["send_messages", "read_messages"],
+                is_active=True,
+                last_activity=self.time_service.now() if self.time_service else datetime.now(timezone.utc),
+                message_count=0,
+                moderation_level="standard"
             )
 
             _minimal_snapshot = SystemSnapshot(
                 channel_context=channel_context,
+                channel_id=getattr(msg, "channel_id", "system"),
                 agent_identity={
                     "agent_id": self.agent_id or "ciris",
                     "purpose": "Process and respond to messages"
@@ -285,14 +297,14 @@ class BaseObserver(Generic[MessageT], ABC):
                 description=f"Respond to message from @{msg.author_name} (ID: {msg.author_id}) in #{msg.channel_id}: '{msg.content}'",  # type: ignore[attr-defined]
                 status=TaskStatus.PENDING,
                 priority=0,
-                created_at=self.time_service.now_iso(),
-                updated_at=self.time_service.now_iso(),
+                created_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
+                updated_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
                 context=TaskContext(
                     channel_id=getattr(msg, "channel_id", None),
                     user_id=msg.author_id,  # type: ignore[attr-defined]
                     correlation_id=msg.message_id,  # type: ignore[attr-defined]
                     parent_task_id=None
-                ),
+                )
             )
 
             await self._sign_and_add_task(task)
@@ -319,12 +331,17 @@ class BaseObserver(Generic[MessageT], ABC):
                     task_id=task.task_id
                 ),
                 source_task_id=task.task_id,
+                channel_id=getattr(msg, "channel_id", None),
                 thought_type=ThoughtType.OBSERVATION,
                 status=ThoughtStatus.PENDING,
                 created_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
                 updated_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
                 round_number=0,
                 content=thought_content,
+                thought_depth=0,
+                ponder_notes=None,
+                parent_thought_id=None,
+                final_action=None,
                 context=ThoughtModelContext(
                     task_id=task.task_id,
                     channel_id=getattr(msg, "channel_id", None),
@@ -332,7 +349,7 @@ class BaseObserver(Generic[MessageT], ABC):
                     depth=0,
                     parent_thought_id=None,
                     correlation_id=msg.message_id  # type: ignore[attr-defined]
-                ),
+                )
             )
 
             persistence.add_thought(thought)
@@ -364,7 +381,7 @@ class BaseObserver(Generic[MessageT], ABC):
                     user_id=msg.author_id,  # type: ignore[attr-defined]
                     correlation_id=msg.message_id,  # type: ignore[attr-defined]
                     parent_task_id=None
-                ),
+                )
             )
             await self._sign_and_add_task(task)
 
@@ -374,12 +391,17 @@ class BaseObserver(Generic[MessageT], ABC):
                     task_id=task.task_id
                 ),
                 source_task_id=task.task_id,
+                channel_id=getattr(msg, "channel_id", None),
                 thought_type=ThoughtType.OBSERVATION,
                 status=ThoughtStatus.PENDING,
                 created_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
                 updated_at=self.time_service.now_iso() if self.time_service else datetime.now(timezone.utc).isoformat(),
                 round_number=0,
                 content=f"PRIORITY ({filter_result.priority.value}): User @{msg.author_name} (ID: {msg.author_id}) said: {msg.content} | Filter: {filter_result.reasoning}",  # type: ignore[attr-defined]
+                thought_depth=0,
+                ponder_notes=None,
+                parent_thought_id=None,
+                final_action=None,
                 context=ThoughtModelContext(
                     task_id=task.task_id,
                     channel_id=getattr(msg, "channel_id", None),
@@ -387,7 +409,7 @@ class BaseObserver(Generic[MessageT], ABC):
                     depth=0,
                     parent_thought_id=None,
                     correlation_id=msg.message_id  # type: ignore[attr-defined]
-                ),
+                )
             )
             persistence.add_thought(thought)
         except Exception as e:  # pragma: no cover - rarely hit in tests

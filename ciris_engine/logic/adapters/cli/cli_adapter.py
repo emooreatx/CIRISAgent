@@ -11,18 +11,18 @@ from datetime import datetime
 
 from ciris_engine.schemas.adapters.cli import (
     ListFilesToolParams, ListFilesToolResult, ReadFileToolParams,
-    ReadFileToolResult, SystemInfoToolResult,
-    CLICorrelationData
+    ReadFileToolResult, SystemInfoToolResult
 )
 from ciris_engine.protocols.services import CommunicationService, ToolService
 from ciris_engine.schemas.runtime.messages import IncomingMessage
-from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, ServiceRequestData, ServiceResponseData
-from ciris_engine.schemas.adapters.tools import ToolInfo, ToolExecutionResult, ToolExecutionStatus
+from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, ServiceRequestData, ServiceResponseData, CorrelationType
+from ciris_engine.schemas.adapters.tools import ToolInfo, ToolExecutionResult, ToolExecutionStatus, ToolParameterSchema
 from ciris_engine.logic import persistence
 
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.logic.adapters.base import Service
+from ciris_engine.schemas.services.core import ServiceStatus, ServiceCapabilities
 
 logger = logging.getLogger(__name__)
 
@@ -149,14 +149,24 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                 method_name="send_message",
                 channel_id=channel_id,
                 parameters={"content": content},
-                request_timestamp=now
+                request_timestamp=now,
+                thought_id=None,
+                task_id=None,
+                timeout_seconds=None
             )
 
             response_data = ServiceResponseData(
                 success=True,
                 result_summary=f"Message sent to {channel_id}",
                 execution_time_ms=10.0,
-                response_timestamp=now
+                response_timestamp=now,
+                result_type=None,
+                result_size=None,
+                error_type=None,
+                error_message=None,
+                error_traceback=None,
+                tokens_used=None,
+                memory_bytes=None
             )
 
             persistence.add_correlation(
@@ -170,7 +180,14 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                     status=ServiceCorrelationStatus.COMPLETED,
                     created_at=now,
                     updated_at=now,
-                    timestamp=now
+                    timestamp=now,
+                    correlation_type=CorrelationType.SERVICE_INTERACTION,
+                    metric_data=None,
+                    log_data=None,
+                    trace_context=None,
+                    retention_policy="raw",
+                    ttl_seconds=None,
+                    parent_correlation_id=None
                 ),
                 self._get_time_service()
             )
@@ -297,18 +314,36 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                         service_type="tool",
                         method_name="execute_tool",
                         parameters={"tool_name": tool_name, "parameters": str(parameters)},
-                        request_timestamp=now
+                        request_timestamp=now,
+                        thought_id=None,
+                        task_id=None,
+                        channel_id=None,
+                        timeout_seconds=None
                     ),
                     response_data=ServiceResponseData(
                         success=result.get("success", True),
                         result_summary=f"Tool {tool_name} executed",
                         execution_time_ms=execution_time,
-                        response_timestamp=now
+                        response_timestamp=now,
+                        result_type=None,
+                        result_size=None,
+                        error_type=None,
+                        error_message=None,
+                        error_traceback=None,
+                        tokens_used=None,
+                        memory_bytes=None
                     ),
                     status=ServiceCorrelationStatus.COMPLETED,
                     created_at=now,
                     updated_at=now,
-                    timestamp=now
+                    timestamp=now,
+                    correlation_type=CorrelationType.SERVICE_INTERACTION,
+                    metric_data=None,
+                    log_data=None,
+                    trace_context=None,
+                    retention_policy="raw",
+                    ttl_seconds=None,
+                    parent_correlation_id=None
                 ),
                 self._get_time_service()
             )
@@ -403,11 +438,12 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                     author_name="User",
                     content=user_input,
                     channel_id=self.get_home_channel_id(),
-                    timestamp=self._get_time_service().now_iso()
+                    timestamp=self._get_time_service().now_iso(),
+                    reference_message_id=None
                 )
 
                 # Create an "observe" correlation for this incoming message
-                from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, ServiceRequestData, ServiceResponseData
+                from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, ServiceRequestData, ServiceResponseData, CorrelationType
                 from ciris_engine.schemas.telemetry.core import ServiceRequestData, ServiceResponseData
                 
                 now = self._get_time_service().now()
@@ -428,18 +464,35 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                             "author_name": msg.author_name,
                             "message_id": msg.message_id
                         },
-                        request_timestamp=now
+                        request_timestamp=now,
+                        thought_id=None,
+                        task_id=None,
+                        timeout_seconds=None
                     ),
                     response_data=ServiceResponseData(
                         success=True,
                         result_summary="Message observed",
                         execution_time_ms=0,
-                        response_timestamp=now
+                        response_timestamp=now,
+                        result_type=None,
+                        result_size=None,
+                        error_type=None,
+                        error_message=None,
+                        error_traceback=None,
+                        tokens_used=None,
+                        memory_bytes=None
                     ),
                     status=ServiceCorrelationStatus.COMPLETED,
                     created_at=now,
                     updated_at=now,
-                    timestamp=now
+                    timestamp=now,
+                    correlation_type=CorrelationType.SERVICE_INTERACTION,
+                    metric_data=None,
+                    log_data=None,
+                    trace_context=None,
+                    retention_policy="raw",
+                    ttl_seconds=None,
+                    parent_correlation_id=None
                 )
                 
                 persistence.add_correlation(correlation, self._get_time_service())
@@ -487,13 +540,13 @@ Tools available:
             # Validate parameters using schema
             list_params = ListFilesToolParams.model_validate(params)
             files = os.listdir(list_params.path)
-            result = ListFilesToolResult(success=True, files=files, count=len(files))
+            result = ListFilesToolResult(success=True, files=files, count=len(files), error=None)
             return result.model_dump()
         except ValueError:
-            result = ListFilesToolResult(success=False, error="Invalid parameters")
+            result = ListFilesToolResult(success=False, error="Invalid parameters", files=[], count=0)
             return result.model_dump()
         except Exception as e:
-            result = ListFilesToolResult(success=False, error=str(e))
+            result = ListFilesToolResult(success=False, error=str(e), files=[], count=0)
             return result.model_dump()
 
     async def _tool_read_file(self, params: dict) -> dict:
@@ -503,13 +556,13 @@ Tools available:
             read_params = ReadFileToolParams.model_validate(params)
             with open(read_params.path, 'r') as f:
                 content = f.read()
-            result = ReadFileToolResult(success=True, content=content, size=len(content))
+            result = ReadFileToolResult(success=True, content=content, size=len(content), error=None)
             return result.model_dump()
         except ValueError:
-            result = ReadFileToolResult(success=False, error="No path provided")
+            result = ReadFileToolResult(success=False, error="No path provided", content=None, size=None)
             return result.model_dump()
         except Exception as e:
-            result = ReadFileToolResult(success=False, error=str(e))
+            result = ReadFileToolResult(success=False, error=str(e), content=None, size=None)
             return result.model_dump()
 
     async def _tool_system_info(self, params: dict) -> dict:
@@ -606,7 +659,7 @@ Tools available:
         logger.debug(f"CLI adapter health check: _running={self._running}")
         return self._running
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> ServiceStatus:
         """Get current service status."""
         from ciris_engine.schemas.services.core import ServiceStatus
         return ServiceStatus(
@@ -620,39 +673,56 @@ Tools available:
                 "available_tools": len(self._available_tools)
             },
             last_error=None,
+            custom_metrics=None,
             last_health_check=self._get_time_service().now() if self._time_service else None
+        )
+
+    def get_capabilities(self) -> ServiceCapabilities:
+        """Get service capabilities."""
+        return ServiceCapabilities(
+            service_type=ServiceType.COMMUNICATION,
+            version="1.0.0",
+            supported_actions=["send_message", "receive_message", "execute_tool", "list_tools"],
+            max_concurrent_operations=1,
+            supports_streaming=False,
+            custom_capabilities={
+                "interactive": self._interactive,
+                "available_tools": list(self._available_tools.keys())
+            }
         )
 
     async def list_tools(self) -> List[str]:
         """List available tools."""
         return list(self._available_tools.keys())
 
-    async def get_tool_schema(self, tool_name: str) -> Optional[Dict[str, Any]]:
+    async def get_tool_schema(self, tool_name: str) -> Optional[ToolParameterSchema]:
         """Get schema for a specific tool."""
         if tool_name not in self._available_tools:
             return None
 
         # Return basic schema info for CLI tools
+        from ciris_engine.schemas.adapters.tools import ToolParameterSchema
+        
         schemas = {
-            "list_files": {
-                "name": "list_files",
-                "description": "List files in a directory",
-                "parameters": {
+            "list_files": ToolParameterSchema(
+                type="object",
+                properties={
                     "path": {"type": "string", "description": "Directory path", "default": "."}
-                }
-            },
-            "read_file": {
-                "name": "read_file",
-                "description": "Read a file's contents",
-                "parameters": {
-                    "path": {"type": "string", "description": "File path", "required": True}
-                }
-            },
-            "system_info": {
-                "name": "system_info",
-                "description": "Get system information",
-                "parameters": {}
-            }
+                },
+                required=[]
+            ),
+            "read_file": ToolParameterSchema(
+                type="object",
+                properties={
+                    "path": {"type": "string", "description": "File path"}
+                },
+                required=["path"]
+            ),
+            "system_info": ToolParameterSchema(
+                type="object",
+                properties={},
+                required=[]
+            )
         }
 
         return schemas.get(tool_name)
@@ -662,23 +732,46 @@ Tools available:
         if tool_name not in self._available_tools:
             return None
 
-        # Return basic tool info for CLI tools
+        from ciris_engine.schemas.adapters.tools import ToolParameterSchema
+        
+        # Define tool information
+        tool_descriptions = {
+            "list_files": "List files in a directory",
+            "read_file": "Read a file's contents",
+            "system_info": "Get system information"
+        }
+        
+        # Define parameter schemas
+        tool_parameters = {
+            "list_files": ToolParameterSchema(
+                type="object",
+                properties={
+                    "path": {"type": "string", "description": "Directory path", "default": "."}
+                },
+                required=[]
+            ),
+            "read_file": ToolParameterSchema(
+                type="object",
+                properties={
+                    "path": {"type": "string", "description": "File path"}
+                },
+                required=["path"]
+            ),
+            "system_info": ToolParameterSchema(
+                type="object",
+                properties={},
+                required=[]
+            )
+        }
+
+        # Return tool info using the correct schema
         return ToolInfo(
-            tool_name=tool_name,
-            display_name=tool_name.replace("_", " ").title(),
-            description=f"CLI tool: {tool_name}",
+            name=tool_name,
+            description=tool_descriptions.get(tool_name, f"CLI tool: {tool_name}"),
+            parameters=tool_parameters.get(tool_name, ToolParameterSchema(type="object", properties={}, required=[])),
             category="cli",
-            adapter_id="cli",
-            adapter_type="cli",
-            adapter_instance_name="CLI Adapter",
-            parameters=[],
-            returns_schema=None,
-            examples=None,
-            requires_auth=False,
-            rate_limit=None,
-            timeout_seconds=30.0,
-            enabled=True,
-            health_status="healthy"
+            cost=0.0,
+            when_to_use=None
         )
 
     async def get_all_tool_info(self) -> List[ToolInfo]:
@@ -689,17 +782,6 @@ Tools available:
             if tool_info:
                 tools.append(tool_info)
         return tools
-
-    async def get_capabilities(self) -> List[str]:
-        """Return list of capabilities this service supports."""
-        capabilities = [
-            "send_message", "fetch_messages",
-            "execute_tool", "get_available_tools", "get_tool_result", "validate_parameters",
-            "get_tool_info", "get_all_tool_info"
-        ]
-        if self.interactive:
-            capabilities.append("interactive_mode")
-        return capabilities
 
     def get_home_channel_id(self) -> str:
         """Get the home channel ID for this CLI adapter instance."""

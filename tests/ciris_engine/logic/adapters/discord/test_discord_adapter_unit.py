@@ -6,6 +6,7 @@ import tempfile
 import os
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timezone
+from typing import Generator, Dict, Any, Optional
 import discord
 from discord.ext import commands
 
@@ -22,7 +23,7 @@ class TestDiscordAdapter:
     """Test cases for Discord adapter."""
 
     @pytest.fixture(autouse=True)
-    def setup_test_db(self):
+    def setup_test_db(self) -> Generator[str, None, None]:
         """Set up a temporary test database for each test."""
         # Create a temporary database file
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
@@ -38,7 +39,7 @@ class TestDiscordAdapter:
             from contextlib import contextmanager
             
             @contextmanager
-            def get_test_connection(db_path_arg=None):
+            def get_test_connection(db_path_arg: Optional[str] = None) -> Generator[Any, None, None]:
                 conn = sqlite3.connect(db_path)
                 conn.row_factory = sqlite3.Row
                 try:
@@ -57,7 +58,7 @@ class TestDiscordAdapter:
             pass
 
     @pytest.fixture
-    def mock_time_service(self):
+    def mock_time_service(self) -> Mock:
         """Create mock time service."""
         current_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
         return Mock(
@@ -66,7 +67,7 @@ class TestDiscordAdapter:
         )
 
     @pytest.fixture
-    def mock_config(self):
+    def mock_config(self) -> DiscordAdapterConfig:
         """Create mock Discord config."""
         return DiscordAdapterConfig(
             bot_token="test_token",
@@ -77,7 +78,7 @@ class TestDiscordAdapter:
         )
 
     @pytest.fixture
-    def mock_services(self, mock_time_service):
+    def mock_services(self, mock_time_service: Mock) -> Dict[str, Mock]:
         """Create mock services."""
         return {
             'time_service': mock_time_service,
@@ -87,17 +88,18 @@ class TestDiscordAdapter:
         }
 
     @pytest.fixture
-    def discord_adapter(self, mock_config, mock_services):
+    def discord_adapter(self, mock_config: DiscordAdapterConfig, mock_services: Dict[str, Mock]) -> DiscordAdapter:
         """Create Discord adapter instance."""
         adapter = DiscordAdapter(
             token=mock_config.bot_token,
             time_service=mock_services['time_service'],
             config=mock_config
         )
-        # Inject services
-        adapter.telemetry_service = mock_services['telemetry_service']
-        adapter.audit_service = mock_services['audit_service']
-        adapter.memory_bus = mock_services['memory_bus']
+        # Note: These services are injected through other mechanisms in production
+        # For testing, we're mocking them directly
+        # adapter.telemetry_service = mock_services['telemetry_service']
+        # adapter.audit_service = mock_services['audit_service']
+        # adapter.memory_bus = mock_services['memory_bus']
 
         # Mock channel manager's client
         mock_client = Mock(spec=discord.Client)
@@ -109,12 +111,12 @@ class TestDiscordAdapter:
 
         # Set the client on channel manager (which is what _client property reads from)
         adapter._channel_manager.client = mock_client
-        adapter._channel_manager.bot = mock_client
+        # adapter._channel_manager.bot = mock_client  # bot attribute doesn't exist on channel manager
 
         return adapter
 
     @pytest.mark.asyncio
-    async def test_start(self, discord_adapter):
+    async def test_start(self, discord_adapter: DiscordAdapter) -> None:
         """Test adapter start."""
         # Mock bus manager for telemetry
         discord_adapter.bus_manager = Mock()
@@ -132,7 +134,7 @@ class TestDiscordAdapter:
         assert any(name in ['discord.adapter.starting', 'discord.adapter.started'] for name in metric_names)
 
     @pytest.mark.asyncio
-    async def test_stop(self, discord_adapter):
+    async def test_stop(self, discord_adapter: DiscordAdapter) -> None:
         """Test adapter stop."""
         # Mock connection manager's stop
         discord_adapter._connection_manager = Mock()
@@ -143,7 +145,7 @@ class TestDiscordAdapter:
         discord_adapter._connection_manager.disconnect.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_send_message(self, discord_adapter):
+    async def test_send_message(self, discord_adapter: DiscordAdapter) -> None:
         """Test sending a message."""
         # Mock connection manager to return connected
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
@@ -163,7 +165,7 @@ class TestDiscordAdapter:
         )
 
     @pytest.mark.asyncio
-    async def test_send_message_with_embed(self, discord_adapter):
+    async def test_send_message_with_embed(self, discord_adapter: DiscordAdapter) -> None:
         """Test sending a message with embed."""
         # Mock connection manager to return connected
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
@@ -185,7 +187,7 @@ class TestDiscordAdapter:
         )
 
     @pytest.mark.asyncio
-    async def test_send_message_too_long(self, discord_adapter):
+    async def test_send_message_too_long(self, discord_adapter: DiscordAdapter) -> None:
         """Test sending a message that's too long."""
         # Mock connection manager to return connected
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
@@ -206,7 +208,7 @@ class TestDiscordAdapter:
         discord_adapter._message_handler.send_message_to_channel.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_channel_manager_resolve_channel(self, discord_adapter):
+    async def test_channel_manager_resolve_channel(self, discord_adapter: DiscordAdapter) -> None:
         """Test channel manager can resolve channels."""
         # Mock channel
         mock_channel = Mock(spec=discord.TextChannel)
@@ -218,7 +220,7 @@ class TestDiscordAdapter:
         discord_adapter._channel_manager.client.get_channel.assert_called_once_with(123456)
 
     @pytest.mark.asyncio
-    async def test_channel_manager_resolve_channel_not_found(self, discord_adapter):
+    async def test_channel_manager_resolve_channel_not_found(self, discord_adapter: DiscordAdapter) -> None:
         """Test channel manager when channel not found."""
         # Mock channel not found
         discord_adapter._channel_manager.client.get_channel = Mock(return_value=None)
@@ -229,7 +231,7 @@ class TestDiscordAdapter:
         assert channel is None
 
     @pytest.mark.asyncio
-    async def test_channel_manager_validate_access(self, discord_adapter):
+    async def test_channel_manager_validate_access(self, discord_adapter: DiscordAdapter) -> None:
         """Test channel manager access validation."""
         # Mock channel with send method
         mock_channel = Mock(spec=discord.TextChannel)
@@ -241,7 +243,7 @@ class TestDiscordAdapter:
         assert has_access is True
 
     @pytest.mark.asyncio
-    async def test_connection_state(self, discord_adapter):
+    async def test_connection_state(self, discord_adapter: DiscordAdapter) -> None:
         """Test connection state management."""
         # Mock the client and connection manager
         discord_adapter._channel_manager.client.user = Mock(name="TestBot")
@@ -255,7 +257,7 @@ class TestDiscordAdapter:
         assert discord_adapter._connection_manager.is_connected()
 
     @pytest.mark.asyncio
-    async def test_channel_manager_client_ready(self, discord_adapter):
+    async def test_channel_manager_client_ready(self, discord_adapter: DiscordAdapter) -> None:
         """Test channel manager client readiness check."""
         # Mock client ready state
         discord_adapter._channel_manager.client.is_ready = Mock(return_value=True)
@@ -267,7 +269,7 @@ class TestDiscordAdapter:
         assert is_ready is True
 
     @pytest.mark.asyncio
-    async def test_error_handler_message_error(self, discord_adapter):
+    async def test_error_handler_message_error(self, discord_adapter: DiscordAdapter) -> None:
         """Test error handler for message errors."""
         # Create a test error
         test_error = Exception("Test message error")
@@ -281,7 +283,7 @@ class TestDiscordAdapter:
         assert "Test message error" in str(error_info)
 
     @pytest.mark.asyncio
-    async def test_rate_limiter(self, discord_adapter):
+    async def test_rate_limiter(self, discord_adapter: DiscordAdapter) -> None:
         """Test rate limiter functionality."""
         # Test rate limiter acquire
         discord_adapter._rate_limiter.acquire = AsyncMock()
@@ -293,7 +295,7 @@ class TestDiscordAdapter:
         discord_adapter._rate_limiter.acquire.assert_called_once_with("test_channel")
 
     @pytest.mark.asyncio
-    async def test_embed_formatter(self, discord_adapter):
+    async def test_embed_formatter(self, discord_adapter: DiscordAdapter) -> None:
         """Test embed formatter functionality."""
         # Test formatting an error embed
         error_info = {
@@ -310,7 +312,7 @@ class TestDiscordAdapter:
         assert embed.description is not None
 
     @pytest.mark.asyncio
-    async def test_delete_message(self, discord_adapter):
+    async def test_delete_message(self, discord_adapter: DiscordAdapter) -> None:
         """Test deleting a message."""
         mock_message = Mock(spec=discord.Message)
         mock_message.delete = AsyncMock()
@@ -325,7 +327,7 @@ class TestDiscordAdapter:
         assert True
 
     @pytest.mark.asyncio
-    async def test_delete_message_not_found(self, discord_adapter):
+    async def test_delete_message_not_found(self, discord_adapter: DiscordAdapter) -> None:
         """Test deleting non-existent message."""
         # Mock channel but message not found
         mock_channel = Mock(spec=discord.TextChannel)
@@ -341,7 +343,7 @@ class TestDiscordAdapter:
         assert True
 
     @pytest.mark.asyncio
-    async def test_edit_message(self, discord_adapter):
+    async def test_edit_message(self, discord_adapter: DiscordAdapter) -> None:
         """Test editing a message."""
         mock_message = Mock(spec=discord.Message)
         mock_message.edit = AsyncMock()
@@ -355,7 +357,7 @@ class TestDiscordAdapter:
         assert True
 
     @pytest.mark.asyncio
-    async def test_add_reaction(self, discord_adapter):
+    async def test_add_reaction(self, discord_adapter: DiscordAdapter) -> None:
         """Test adding a reaction."""
         mock_message = Mock(spec=discord.Message)
         mock_message.add_reaction = AsyncMock()

@@ -17,6 +17,7 @@ import pytest
 from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime, timezone
 import uuid
+from typing import Optional, Any
 
 from ciris_engine.logic.handlers.external.speak_handler import SpeakHandler, _build_speak_error_context
 from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies
@@ -39,7 +40,7 @@ from contextlib import contextmanager
 
 
 @contextmanager
-def patch_persistence_properly(test_task=None):
+def patch_persistence_properly(test_task: Optional[Task] = None) -> Any:
     """Properly patch persistence in both handler and base handler."""
     with patch('ciris_engine.logic.handlers.external.speak_handler.persistence') as mock_p, \
          patch('ciris_engine.logic.infrastructure.handlers.base_handler.persistence') as mock_base_p:
@@ -59,7 +60,7 @@ def patch_persistence_properly(test_task=None):
 
 # Test fixtures
 @pytest.fixture
-def mock_time_service():
+def mock_time_service() -> Mock:
     """Mock time service."""
     service = Mock(spec=TimeServiceProtocol)
     service.now = Mock(return_value=datetime.now(timezone.utc))
@@ -67,7 +68,7 @@ def mock_time_service():
 
 
 @pytest.fixture
-def mock_secrets_service():
+def mock_secrets_service() -> Mock:
     """Mock secrets service."""
     service = Mock(spec=SecretsService)
     service.decapsulate_secrets_in_parameters = AsyncMock(
@@ -77,7 +78,7 @@ def mock_secrets_service():
 
 
 @pytest.fixture
-def mock_communication_bus():
+def mock_communication_bus() -> AsyncMock:
     """Mock communication bus."""
     bus = AsyncMock()
     bus.send_message = AsyncMock(return_value=True)
@@ -86,7 +87,7 @@ def mock_communication_bus():
 
 
 @pytest.fixture
-def mock_bus_manager(mock_communication_bus):
+def mock_bus_manager(mock_communication_bus: AsyncMock) -> Mock:
     """Mock bus manager with communication bus."""
     manager = Mock(spec=BusManager)
     manager.communication = mock_communication_bus
@@ -96,7 +97,7 @@ def mock_bus_manager(mock_communication_bus):
 
 
 @pytest.fixture
-def handler_dependencies(mock_bus_manager, mock_time_service, mock_secrets_service):
+def handler_dependencies(mock_bus_manager: Mock, mock_time_service: Mock, mock_secrets_service: Mock) -> ActionHandlerDependencies:
     """Create handler dependencies."""
     return ActionHandlerDependencies(
         bus_manager=mock_bus_manager,
@@ -107,24 +108,29 @@ def handler_dependencies(mock_bus_manager, mock_time_service, mock_secrets_servi
 
 
 @pytest.fixture
-def speak_handler(handler_dependencies):
+def speak_handler(handler_dependencies: ActionHandlerDependencies) -> SpeakHandler:
     """Create SPEAK handler instance."""
     return SpeakHandler(handler_dependencies)
 
 
 @pytest.fixture
-def channel_context():
+def channel_context() -> ChannelContext:
     """Create test channel context."""
     return ChannelContext(
         channel_id="test_channel_123",
-        channel_name="Test Channel",
         channel_type="text",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
+        channel_name="Test Channel",
+        is_private=False,
+        is_active=True,
+        last_activity=None,
+        message_count=0,
+        moderation_level="standard"
     )
 
 
 @pytest.fixture
-def dispatch_context(channel_context):
+def dispatch_context(channel_context: ChannelContext) -> DispatchContext:
     """Create test dispatch context."""
     return DispatchContext(
         channel_context=channel_context,
@@ -138,34 +144,46 @@ def dispatch_context(channel_context):
         source_task_id="task_123",
         event_summary="Test speak action",
         event_timestamp=datetime.now(timezone.utc).isoformat(),
+        wa_id=None,
+        wa_authorized=False,
+        wa_context=None,
+        conscience_failure_context=None,
+        epistemic_data=None,
         correlation_id="corr_123",
-        wa_authorized=True
+        span_id=None,
+        trace_id=None
     )
 
 
 @pytest.fixture
-def test_thought():
+def test_thought() -> Thought:
     """Create test thought."""
     return Thought(
         thought_id="thought_123",
         source_task_id="task_123",
         content="Test thought content",
-        status=ThoughtStatus.PROCESSING,
-        thought_depth=1,
         created_at=datetime.now(timezone.utc).isoformat(),
         updated_at=datetime.now(timezone.utc).isoformat(),
+        channel_id="test_channel_123",
+        status=ThoughtStatus.PROCESSING,
+        thought_depth=1,
+        round_number=1,
+        ponder_notes=None,
+        parent_thought_id=None,
+        final_action=None,
         context=ThoughtContext(
             task_id="task_123",
+            correlation_id="corr_123",
             round_number=1,
             depth=1,
-            correlation_id="corr_123",
-            channel_id="test_channel_123"
+            channel_id="test_channel_123",
+            parent_thought_id=None
         )
     )
 
 
 @pytest.fixture
-def test_task():
+def test_task() -> Task:
     """Create test task."""
     return Task(
         task_id="task_123",
@@ -175,12 +193,17 @@ def test_task():
         created_at=datetime.now(timezone.utc).isoformat(),
         updated_at=datetime.now(timezone.utc).isoformat(),
         priority=5,
-        context=None
+        parent_task_id=None,
+        context=None,
+        outcome=None,
+        signed_by=None,
+        signature=None,
+        signed_at=None
     )
 
 
 @pytest.fixture
-def mock_persistence():
+def mock_persistence() -> Any:
     """Mock persistence for tests."""
     with patch('ciris_engine.logic.handlers.external.speak_handler.persistence') as mock_p, \
          patch('ciris_engine.logic.infrastructure.handlers.base_handler.persistence') as mock_base_p:
@@ -210,7 +233,7 @@ def mock_persistence():
 
 
 @pytest.fixture
-def speak_params():
+def speak_params() -> SpeakParams:
     """Create test SPEAK parameters."""
     return SpeakParams(
         content="Hello, this is a test message!",
@@ -219,7 +242,7 @@ def speak_params():
 
 
 @pytest.fixture
-def action_result(speak_params):
+def action_result(speak_params: SpeakParams) -> ActionSelectionDMAResult:
     """Create test action selection result."""
     return ActionSelectionDMAResult(
         selected_action=HandlerActionType.SPEAK,
@@ -227,7 +250,8 @@ def action_result(speak_params):
         rationale="Need to respond to user",
         raw_llm_response="SPEAK: Hello, this is a test message!",
         reasoning="User asked a question, providing response",
-        evaluation_time_ms=100.0
+        evaluation_time_ms=100.0,
+        resource_usage=None
     )
 
 
@@ -236,9 +260,9 @@ class TestSpeakHandler:
 
     @pytest.mark.asyncio
     async def test_successful_message_send(
-        self, speak_handler, action_result, test_thought, dispatch_context,
-        mock_communication_bus, test_task, mock_persistence
-    ):
+        self, speak_handler: SpeakHandler, action_result: ActionSelectionDMAResult, test_thought: Thought, dispatch_context: DispatchContext,
+        mock_communication_bus: AsyncMock, test_task: Task, mock_persistence: Any
+    ) -> None:
         """Test successful message sending through communication bus."""
         mock_persistence.get_task_by_id.return_value = test_task
 
@@ -270,9 +294,9 @@ class TestSpeakHandler:
 
     @pytest.mark.asyncio
     async def test_communication_failure(
-        self, speak_handler, action_result, test_thought, dispatch_context,
-        mock_communication_bus, test_task, mock_persistence
-    ):
+        self, speak_handler: SpeakHandler, action_result: ActionSelectionDMAResult, test_thought: Thought, dispatch_context: DispatchContext,
+        mock_communication_bus: AsyncMock, test_task: Task, mock_persistence: Any
+    ) -> None:
         """Test handling of communication bus failures."""
         # Configure communication to fail
         mock_communication_bus.send_message_sync.return_value = False
@@ -297,15 +321,35 @@ class TestSpeakHandler:
 
     @pytest.mark.asyncio
     async def test_missing_channel_id(
-        self, speak_handler, action_result, test_thought, dispatch_context
-    ):
+        self, speak_handler: SpeakHandler, action_result: ActionSelectionDMAResult, test_thought: Thought, dispatch_context: DispatchContext
+    ) -> None:
         """Test error handling when channel ID is missing."""
         # Remove channel ID from contexts
-        dispatch_context.channel_context = None
-        test_thought.context.channel_id = None
+        dispatch_context.channel_context = None  # type: ignore
+        test_thought.channel_id = None
+        if test_thought.context:
+            test_thought.context.channel_id = None
 
         with patch_persistence_properly() as mock_persistence:
-            # Should raise Pydantic ValidationError for channel_id
+            # Mock get_task_by_id to return a task with no channel_id
+            mock_task = Task(
+                task_id="task_123",
+                channel_id="",  # Empty channel_id
+                description="Test task",
+                status=TaskStatus.ACTIVE,
+                created_at=datetime.now(timezone.utc).isoformat(),
+                updated_at=datetime.now(timezone.utc).isoformat(),
+                priority=5,
+                parent_task_id=None,
+                context=None,
+                outcome=None,
+                signed_by=None,
+                signature=None,
+                signed_at=None
+            )
+            mock_persistence.get_task_by_id.return_value = mock_task
+            
+            # Should raise ValidationError when creating ServiceRequestData with invalid channel_id
             from pydantic_core import ValidationError
             with pytest.raises(ValidationError, match="channel_id"):
                 await speak_handler.handle(
@@ -314,9 +358,9 @@ class TestSpeakHandler:
 
     @pytest.mark.asyncio
     async def test_different_content_types(
-        self, speak_handler, test_thought, dispatch_context,
-        mock_communication_bus, test_task
-    ):
+        self, speak_handler: SpeakHandler, test_thought: Thought, dispatch_context: DispatchContext,
+        mock_communication_bus: AsyncMock, test_task: Task
+    ) -> None:
         """Test handling different content types."""
         content_types = [
             "Simple text message",
@@ -339,7 +383,11 @@ class TestSpeakHandler:
                 result = ActionSelectionDMAResult(
                     selected_action=HandlerActionType.SPEAK,
                     action_parameters=params,
-                    rationale="Test different content"
+                    rationale="Test different content",
+                    raw_llm_response=None,
+                    reasoning=None,
+                    evaluation_time_ms=None,
+                    resource_usage=None
                 )
 
                 # Execute handler
@@ -355,8 +403,8 @@ class TestSpeakHandler:
 
     @pytest.mark.asyncio
     async def test_parameter_validation_error(
-        self, speak_handler, test_thought, dispatch_context
-    ):
+        self, speak_handler: SpeakHandler, test_thought: Thought, dispatch_context: DispatchContext
+    ) -> None:
         """Test handling of invalid parameters."""
         # Since ActionSelectionDMAResult validates parameters at construction,
         # we need to simulate validation error happening within the handler
@@ -369,7 +417,11 @@ class TestSpeakHandler:
             result = ActionSelectionDMAResult(
                 selected_action=HandlerActionType.SPEAK,
                 action_parameters=SpeakParams(content="test"),  # Valid params
-                rationale="Test validation"
+                rationale="Test validation",
+                raw_llm_response=None,
+                reasoning=None,
+                evaluation_time_ms=None,
+                resource_usage=None
             )
 
             # Mock the validation method to raise an error
@@ -396,9 +448,9 @@ class TestSpeakHandler:
 
     @pytest.mark.asyncio
     async def test_audit_trail(
-        self, speak_handler, action_result, test_thought, dispatch_context,
-        mock_bus_manager, test_task
-    ):
+        self, speak_handler: SpeakHandler, action_result: ActionSelectionDMAResult, test_thought: Thought, dispatch_context: DispatchContext,
+        mock_bus_manager: Mock, test_task: Task
+    ) -> None:
         """Test audit logging for SPEAK actions."""
         with patch_persistence_properly(test_task) as mock_persistence:
 
@@ -423,9 +475,9 @@ class TestSpeakHandler:
 
     @pytest.mark.asyncio
     async def test_multiple_channels(
-        self, speak_handler, speak_params, test_thought, dispatch_context,
-        mock_communication_bus, test_task
-    ):
+        self, speak_handler: SpeakHandler, speak_params: SpeakParams, test_thought: Thought, dispatch_context: DispatchContext,
+        mock_communication_bus: AsyncMock, test_task: Task
+    ) -> None:
         """Test sending messages to different channels."""
         channels = [
             ("channel_1", "Channel 1"),
@@ -443,16 +495,25 @@ class TestSpeakHandler:
                 # Update channel context
                 dispatch_context.channel_context = ChannelContext(
                     channel_id=channel_id,
-                    channel_name=channel_name,
                     channel_type="text",
-                    created_at=datetime.now(timezone.utc)
+                    created_at=datetime.now(timezone.utc),
+                    channel_name=channel_name,
+                    is_private=False,
+                    is_active=True,
+                    last_activity=None,
+                    message_count=0,
+                    moderation_level="standard"
                 )
 
                 # Create action result
                 result = ActionSelectionDMAResult(
                     selected_action=HandlerActionType.SPEAK,
                     action_parameters=speak_params,
-                    rationale="Test multiple channels"
+                    rationale="Test multiple channels",
+                    raw_llm_response=None,
+                    reasoning=None,
+                    evaluation_time_ms=None,
+                    resource_usage=None
                 )
 
                 # Execute handler
@@ -467,9 +528,9 @@ class TestSpeakHandler:
 
     @pytest.mark.asyncio
     async def test_communication_bus_exception(
-        self, speak_handler, action_result, test_thought, dispatch_context,
-        mock_communication_bus, test_task, mock_persistence
-    ):
+        self, speak_handler: SpeakHandler, action_result: ActionSelectionDMAResult, test_thought: Thought, dispatch_context: DispatchContext,
+        mock_communication_bus: AsyncMock, test_task: Task, mock_persistence: Any
+    ) -> None:
         """Test handling of exceptions from communication bus."""
         # Configure communication to raise exception
         mock_communication_bus.send_message_sync.side_effect = Exception("Network error")
@@ -492,9 +553,9 @@ class TestSpeakHandler:
 
     @pytest.mark.asyncio
     async def test_service_correlation_tracking(
-        self, speak_handler, action_result, test_thought, dispatch_context,
-        mock_time_service, test_task
-    ):
+        self, speak_handler: SpeakHandler, action_result: ActionSelectionDMAResult, test_thought: Thought, dispatch_context: DispatchContext,
+        mock_time_service: Mock, test_task: Task
+    ) -> None:
         """Test service correlation tracking for telemetry."""
         with patch_persistence_properly(test_task) as mock_persistence:
 
@@ -512,16 +573,23 @@ class TestSpeakHandler:
             assert correlation.service_type == "handler"
             assert correlation.handler_name == "SpeakHandler"
             assert correlation.action_type == "speak_action"
-            assert correlation.request_data.thought_id == "thought_123"
-            assert correlation.request_data.task_id == "task_123"
-            assert correlation.request_data.channel_id == "test_channel_123"
-            assert correlation.response_data.success is True
+            assert correlation.request_data is not None
+            # ServiceRequestData is a Pydantic model, not a dict
+            assert hasattr(correlation.request_data, 'thought_id')
+            assert getattr(correlation.request_data, 'thought_id', None) == "thought_123"
+            assert hasattr(correlation.request_data, 'task_id')
+            assert getattr(correlation.request_data, 'task_id', None) == "task_123"
+            assert hasattr(correlation.request_data, 'channel_id')
+            assert getattr(correlation.request_data, 'channel_id', None) == "test_channel_123"
+            assert correlation.response_data is not None
+            assert hasattr(correlation.response_data, 'success')
+            assert getattr(correlation.response_data, 'success', None) is True
 
     @pytest.mark.asyncio
     async def test_secret_decapsulation(
-        self, speak_handler, test_thought, dispatch_context,
-        mock_secrets_service, test_task
-    ):
+        self, speak_handler: SpeakHandler, test_thought: Thought, dispatch_context: DispatchContext,
+        mock_secrets_service: Mock, test_task: Task
+    ) -> None:
         """Test automatic secret decapsulation in parameters."""
         # Create params with a secret placeholder
         params_with_secret = {
@@ -531,7 +599,11 @@ class TestSpeakHandler:
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.SPEAK,
             action_parameters=SpeakParams(content="Message with secret: {SECRET:api_key}"),
-            rationale="Test secret handling"
+            rationale="Test secret handling",
+            raw_llm_response=None,
+            reasoning=None,
+            evaluation_time_ms=None,
+            resource_usage=None
         )
 
         # Configure secrets service to replace secret
@@ -555,7 +627,7 @@ class TestSpeakHandler:
 class TestBuildSpeakErrorContext:
     """Test the error context builder helper function."""
 
-    def test_notification_failed_error(self, speak_params):
+    def test_notification_failed_error(self, speak_params: SpeakParams) -> None:
         """Test notification failed error context."""
         context = _build_speak_error_context(
             speak_params, "thought_123", "notification_failed"
@@ -564,7 +636,7 @@ class TestBuildSpeakErrorContext:
         assert "thought_123" in context
         assert "Hello, this is a test message!" in context
 
-    def test_channel_unavailable_error(self, speak_params):
+    def test_channel_unavailable_error(self, speak_params: SpeakParams) -> None:
         """Test channel unavailable error context."""
         context = _build_speak_error_context(
             speak_params, "thought_123", "channel_unavailable"
@@ -572,28 +644,28 @@ class TestBuildSpeakErrorContext:
         assert "Channel" in context
         assert "not available" in context
 
-    def test_content_rejected_error(self, speak_params):
+    def test_content_rejected_error(self, speak_params: SpeakParams) -> None:
         """Test content rejected error context."""
         context = _build_speak_error_context(
             speak_params, "thought_123", "content_rejected"
         )
         assert "Content was rejected" in context
 
-    def test_service_timeout_error(self, speak_params):
+    def test_service_timeout_error(self, speak_params: SpeakParams) -> None:
         """Test service timeout error context."""
         context = _build_speak_error_context(
             speak_params, "thought_123", "service_timeout"
         )
         assert "timed out" in context
 
-    def test_unknown_error(self, speak_params):
+    def test_unknown_error(self, speak_params: SpeakParams) -> None:
         """Test unknown error context."""
         context = _build_speak_error_context(
             speak_params, "thought_123", "unknown_error_type"
         )
         assert "Unknown error" in context
 
-    def test_long_content_truncation(self):
+    def test_long_content_truncation(self) -> None:
         """Test that long content is truncated in error context."""
         long_content = "x" * 200
         params = SpeakParams(content=long_content)
@@ -609,9 +681,9 @@ class TestEdgeCases:
     """Test edge cases and error conditions."""
 
     async def test_follow_up_creation_failure(
-        self, speak_handler, action_result, test_thought, dispatch_context,
-        test_task
-    ):
+        self, speak_handler: SpeakHandler, action_result: ActionSelectionDMAResult, test_thought: Thought, dispatch_context: DispatchContext,
+        test_task: Task
+    ) -> None:
         """Test handling when follow-up thought creation fails."""
         with patch('ciris_engine.logic.handlers.external.speak_handler.persistence') as mock_persistence:
             mock_persistence.get_task_by_id.return_value = test_task
@@ -627,9 +699,9 @@ class TestEdgeCases:
                 )
 
     async def test_missing_task(
-        self, speak_handler, action_result, test_thought, dispatch_context,
-        mock_communication_bus
-    ):
+        self, speak_handler: SpeakHandler, action_result: ActionSelectionDMAResult, test_thought: Thought, dispatch_context: DispatchContext,
+        mock_communication_bus: AsyncMock
+    ) -> None:
         """Test handling when task is not found."""
         with patch_persistence_properly(None) as mock_persistence:  # Pass None for missing task
 
@@ -643,16 +715,16 @@ class TestEdgeCases:
             mock_communication_bus.send_message_sync.assert_called_once()
 
     async def test_concurrent_message_sends(
-        self, speak_handler, action_result, test_thought, dispatch_context,
-        mock_communication_bus, test_task
-    ):
+        self, speak_handler: SpeakHandler, action_result: ActionSelectionDMAResult, test_thought: Thought, dispatch_context: DispatchContext,
+        mock_communication_bus: AsyncMock, test_task: Task
+    ) -> None:
         """Test handling concurrent message sends."""
         import asyncio
 
         with patch_persistence_properly(test_task) as mock_persistence:
 
             # Configure slow communication
-            async def slow_send(*args, **kwargs):
+            async def slow_send(*args: Any, **kwargs: Any) -> bool:
                 await asyncio.sleep(0.1)
                 return True
 
@@ -672,9 +744,9 @@ class TestEdgeCases:
             assert all(r is not None for r in results)
 
     async def test_send_to_nonexistent_discord_channel(
-        self, speak_handler, test_thought, dispatch_context,
-        mock_communication_bus, test_task, mock_persistence
-    ):
+        self, speak_handler: SpeakHandler, test_thought: Thought, dispatch_context: DispatchContext,
+        mock_communication_bus: AsyncMock, test_task: Task, mock_persistence: Any
+    ) -> None:
         """Test sending to a Discord channel when no Discord adapter exists."""
         # Configure communication bus to return False (no adapter found)
         mock_communication_bus.send_message_sync.return_value = False
@@ -684,16 +756,25 @@ class TestEdgeCases:
             content="Hello Discord!",
             channel_context=ChannelContext(
                 channel_id="discord_1364300186003968060_1382010877171073108",
-                channel_name="Discord Channel",
                 channel_type="text",
-                created_at=datetime.now(timezone.utc)
+                created_at=datetime.now(timezone.utc),
+                channel_name="Discord Channel",
+                is_private=False,
+                is_active=True,
+                last_activity=None,
+                message_count=0,
+                moderation_level="standard"
             )
         )
         
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.SPEAK,
             action_parameters=params,
-            rationale="Test Discord channel"
+            rationale="Test Discord channel",
+            raw_llm_response=None,
+            reasoning=None,
+            evaluation_time_ms=None,
+            resource_usage=None
         )
         
         # Configure persistence mocks  

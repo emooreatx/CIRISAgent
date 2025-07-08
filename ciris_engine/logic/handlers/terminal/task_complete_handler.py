@@ -56,13 +56,15 @@ class TaskCompleteHandler(BaseActionHandler):
                     ponder_result = ActionSelectionDMAResult(
                         selected_action=HandlerActionType.PONDER,
                         action_parameters=PonderParams(questions=[ponder_content]).model_dump(),
-                        selection_reasoning="Wakeup task attempted completion without first performing SPEAK action - overriding to PONDER for guidance"
+                        rationale="Wakeup task requires SPEAK action before completion",
+                        reasoning="Wakeup task attempted completion without first performing SPEAK action - overriding to PONDER for guidance",
+                        evaluation_time_ms=0.0
                     )
 
                     ponder_result_dict = {
                         "selected_action": ponder_result.selected_action.value,
                         "action_parameters": ponder_result.action_parameters.model_dump() if hasattr(ponder_result.action_parameters, 'model_dump') else ponder_result.action_parameters,
-                        "rationale": ponder_result.selection_reasoning
+                        "rationale": ponder_result.rationale
                     }
 
                     persistence.update_thought_status(

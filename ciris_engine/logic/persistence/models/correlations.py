@@ -22,7 +22,7 @@ def _parse_response_data(response_data_json: Optional[Dict[str, Any]], timestamp
     
     return response_data_json
 
-def add_correlation(corr: ServiceCorrelation, time_service: TimeServiceProtocol, db_path: Optional[str] = None) -> str:
+def add_correlation(corr: ServiceCorrelation, time_service: Optional[TimeServiceProtocol] = None, db_path: Optional[str] = None) -> str:
     sql = """
         INSERT INTO service_correlations (
             correlation_id, service_type, handler_name, action_type,
@@ -38,17 +38,19 @@ def add_correlation(corr: ServiceCorrelation, time_service: TimeServiceProtocol,
             timestamp_str = corr.timestamp.isoformat()
         else:
             timestamp_str = str(corr.timestamp)
+    else:
+        timestamp_str = None
 
     params = (
         corr.correlation_id,
         corr.service_type,
         corr.handler_name,
         corr.action_type,
-        corr.request_data.model_dump_json() if hasattr(corr.request_data, 'model_dump_json') else json.dumps(corr.request_data) if corr.request_data is not None else None,
-        corr.response_data.model_dump_json() if hasattr(corr.response_data, 'model_dump_json') else json.dumps(corr.response_data) if corr.response_data is not None else None,
+        corr.request_data.model_dump_json() if corr.request_data and hasattr(corr.request_data, 'model_dump_json') else json.dumps(corr.request_data) if corr.request_data else None,
+        corr.response_data.model_dump_json() if corr.response_data and hasattr(corr.response_data, 'model_dump_json') else json.dumps(corr.response_data) if corr.response_data else None,
         corr.status.value,
-        corr.created_at.isoformat() if isinstance(corr.created_at, datetime) else str(corr.created_at) if corr.created_at else time_service.now().isoformat(),
-        corr.updated_at.isoformat() if isinstance(corr.updated_at, datetime) else str(corr.updated_at) if corr.updated_at else time_service.now().isoformat(),
+        corr.created_at.isoformat() if isinstance(corr.created_at, datetime) else str(corr.created_at) if corr.created_at else (time_service.now().isoformat() if time_service else datetime.now(timezone.utc).isoformat()),
+        corr.updated_at.isoformat() if isinstance(corr.updated_at, datetime) else str(corr.updated_at) if corr.updated_at else (time_service.now().isoformat() if time_service else datetime.now(timezone.utc).isoformat()),
         corr.correlation_type.value,
         timestamp_str,
         corr.metric_data.metric_name if corr.metric_data else None,
@@ -89,20 +91,20 @@ def update_correlation(update_request_or_id: Union[CorrelationUpdateRequest, str
                 "execution_time_ms": str(getattr(correlation.response_data, 'execution_time_ms', 0)),
                 "response_timestamp": str(getattr(correlation.response_data, 'response_timestamp', actual_time_service.now()).isoformat())
             } if correlation.response_data else None,
-            status=ServiceCorrelationStatus.COMPLETED if getattr(correlation.response_data, 'success', False) else ServiceCorrelationStatus.FAILED
+            status=ServiceCorrelationStatus.COMPLETED if correlation.response_data and getattr(correlation.response_data, 'success', False) else ServiceCorrelationStatus.FAILED
         )
         db_path = db_path
     # Handle new signature: update_correlation(update_request, time_service)
     elif isinstance(update_request_or_id, CorrelationUpdateRequest):
         update_request = update_request_or_id
-        actual_time_service = correlation_or_time_service
+        actual_time_service = correlation_or_time_service  # type: ignore[assignment]
         if not hasattr(actual_time_service, 'now'):
             raise ValueError("time_service must have 'now' method for new signature")
     else:
         raise ValueError("Invalid arguments to update_correlation")
     
     # Call the implementation
-    return _update_correlation_impl(update_request, actual_time_service, db_path)
+    return _update_correlation_impl(update_request, actual_time_service, db_path)  # type: ignore[arg-type]
 
 def _update_correlation_impl(update_request: CorrelationUpdateRequest, time_service: TimeServiceProtocol, db_path: Optional[str] = None) -> bool:
     updates: List[Any] = []
@@ -153,13 +155,16 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
                     except (ValueError, AttributeError):
                         timestamp = None
 
+                # Parse request_data
+                request_data_json = json.loads(row["request_data"]) if row["request_data"] else {}
+                
                 # Build the correlation without None values for optional fields
                 correlation_data = {
                     "correlation_id": row["correlation_id"],
                     "service_type": row["service_type"],
                     "handler_name": row["handler_name"],
                     "action_type": row["action_type"],
-                    "request_data": json.loads(row["request_data"]) if row["request_data"] else None,
+                    "request_data": request_data_json if request_data_json else None,
                     "response_data": _parse_response_data(json.loads(row["response_data"]) if row["response_data"] else None, timestamp),
                     "status": ServiceCorrelationStatus(row["status"]),
                     "created_at": row["created_at"],
@@ -178,7 +183,8 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
                         metric_value=row["metric_value"],
                         metric_unit="count",
                         metric_type="gauge",
-                        labels={}
+                        labels={},
+                        timestamp=timestamp or datetime.now(timezone.utc)
                     )
 
                 if row["log_level"]:
@@ -197,7 +203,8 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
                     trace_context = TraceContext(
                         trace_id=row["trace_id"],
                         span_id=row["span_id"] or "",
-                        span_name=""
+                        span_name="",
+                        attributes={}
                     )
                     if row["parent_span_id"]:
                         trace_context.parent_span_id = row["parent_span_id"]
@@ -244,13 +251,16 @@ def get_correlations_by_task_and_action(task_id: str, action_type: str, status: 
                     except (ValueError, AttributeError):
                         timestamp = None
 
+                # Parse request_data
+                request_data_json = json.loads(row["request_data"]) if row["request_data"] else {}
+                
                 # Build the correlation without None values for optional fields
                 correlation_data = {
                     "correlation_id": row["correlation_id"],
                     "service_type": row["service_type"],
                     "handler_name": row["handler_name"],
                     "action_type": row["action_type"],
-                    "request_data": json.loads(row["request_data"]) if row["request_data"] else None,
+                    "request_data": request_data_json if request_data_json else None,
                     "response_data": _parse_response_data(json.loads(row["response_data"]) if row["response_data"] else None, timestamp),
                     "status": ServiceCorrelationStatus(row["status"]),
                     "created_at": row["created_at"],
@@ -269,7 +279,8 @@ def get_correlations_by_task_and_action(task_id: str, action_type: str, status: 
                         metric_value=row["metric_value"],
                         metric_unit="count",
                         metric_type="gauge",
-                        labels={}
+                        labels={},
+                        timestamp=timestamp or datetime.now(timezone.utc)
                     )
 
                 if row["log_level"]:
@@ -288,7 +299,8 @@ def get_correlations_by_task_and_action(task_id: str, action_type: str, status: 
                     trace_context = TraceContext(
                         trace_id=row["trace_id"],
                         span_id=row["span_id"] or "",
-                        span_name=""
+                        span_name="",
+                        attributes={}
                     )
                     if row["parent_span_id"]:
                         trace_context.parent_span_id = row["parent_span_id"]
@@ -388,7 +400,8 @@ def get_correlations_by_type_and_time(
                     trace_context = TraceContext(
                         trace_id=row["trace_id"],
                         span_id=row["span_id"] or "",
-                        span_name=""
+                        span_name="",
+                        attributes={}
                     )
                     if row["parent_span_id"]:
                         trace_context.parent_span_id = row["parent_span_id"]
@@ -409,7 +422,7 @@ def get_correlations_by_type_and_time(
                     log_data=log_data,
                     trace_context=trace_context,
                     tags=json.loads(row["tags"]) if row["tags"] else {},
-                    retention_policy=row["retention_policy"] or "raw",
+                    retention_policy=row["retention_policy"] or "raw"
                 ))
             return correlations
     except Exception as e:
@@ -460,13 +473,16 @@ def get_correlations_by_channel(
                     except (ValueError, AttributeError):
                         timestamp = None
                 
+                # Parse request_data
+                request_data_json = json.loads(row["request_data"]) if row["request_data"] else {}
+                
                 # Build the correlation without None values for optional fields
                 correlation_data = {
                     "correlation_id": row["correlation_id"],
                     "service_type": row["service_type"],
                     "handler_name": row["handler_name"],
                     "action_type": row["action_type"],
-                    "request_data": json.loads(row["request_data"]) if row["request_data"] else None,
+                    "request_data": request_data_json if request_data_json else None,
                     "response_data": _parse_response_data(json.loads(row["response_data"]) if row["response_data"] else None, timestamp),
                     "status": ServiceCorrelationStatus(row["status"]),
                     "created_at": row["created_at"],
@@ -567,7 +583,8 @@ def get_metrics_timeseries(
                     trace_context = TraceContext(
                         trace_id=row["trace_id"],
                         span_id=row["span_id"] or "",
-                        span_name=""
+                        span_name="",
+                        attributes={}
                     )
                     if row["parent_span_id"]:
                         trace_context.parent_span_id = row["parent_span_id"]
@@ -588,7 +605,7 @@ def get_metrics_timeseries(
                     log_data=log_data,
                     trace_context=trace_context,
                     tags=json.loads(row["tags"]) if row["tags"] else {},
-                    retention_policy=row["retention_policy"] or "raw",
+                    retention_policy=row["retention_policy"] or "raw"
                 ))
             return correlations
     except Exception as e:

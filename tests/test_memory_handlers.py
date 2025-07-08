@@ -1,6 +1,7 @@
 import pytest
 from unittest.mock import Mock, AsyncMock
 from datetime import datetime, timezone
+from typing import Any
 from ciris_engine.logic.handlers.memory.memorize_handler import MemorizeHandler
 from ciris_engine.logic.handlers.memory.recall_handler import RecallHandler
 from ciris_engine.schemas.runtime.enums import HandlerActionType
@@ -25,7 +26,14 @@ def create_channel_context(channel_id: str) -> ChannelContext:
         channel_id=channel_id,
         channel_name=f"Channel {channel_id}",
         channel_type="text",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
+        is_private=False,
+        is_active=True,
+        participants=[],
+        last_activity=None,
+        message_count=0,
+        allowed_actions=[],
+        moderation_level="standard"
     )
 
 
@@ -43,7 +51,14 @@ def create_dispatch_context(thought_id: str, task_id: str, channel_id: str = "te
         source_task_id=task_id,
         event_summary="Test action",
         event_timestamp=datetime.now(timezone.utc).isoformat(),
-        correlation_id="test_correlation_id"
+        correlation_id="test_correlation_id",
+        wa_id=None,
+        wa_authorized=False,
+        wa_context=None,
+        conscience_failure_context=None,
+        epistemic_data=None,
+        span_id=None,
+        trace_id=None
     )
 
 
@@ -116,7 +131,9 @@ async def test_memorize_handler_with_graph_node(monkeypatch):
 
     deps = ActionHandlerDependencies(
         bus_manager=bus_manager,
-        time_service=mock_time_service
+        time_service=mock_time_service,
+        secrets_service=None,
+        shutdown_callback=None
     )
 
     handler = MemorizeHandler(deps)
@@ -133,7 +150,9 @@ async def test_memorize_handler_with_graph_node(monkeypatch):
         id="test_node_id",
         type=NodeType.CONCEPT,
         scope=GraphScope.LOCAL,
-        attributes=node_attrs
+        attributes=node_attrs,
+        updated_by="test_user",
+        updated_at=datetime.now(timezone.utc)
     )
 
     # Create parameters
@@ -189,7 +208,9 @@ async def test_recall_handler_with_query(monkeypatch):
                 created_at=datetime.now(timezone.utc),
                 updated_at=datetime.now(timezone.utc),
                 created_by="test_user"
-            )
+            ),
+            updated_by="test_user",
+            updated_at=datetime.now(timezone.utc)
         ),
         GraphNode(
             id="node2",
@@ -199,7 +220,9 @@ async def test_recall_handler_with_query(monkeypatch):
                 created_at=datetime.now(timezone.utc),
                 updated_at=datetime.now(timezone.utc),
                 created_by="test_user"
-            )
+            ),
+            updated_by="test_user",
+            updated_at=datetime.now(timezone.utc)
         )
     ]
     memory_service.recall = AsyncMock(return_value=test_nodes)
@@ -227,7 +250,9 @@ async def test_recall_handler_with_query(monkeypatch):
 
     deps = ActionHandlerDependencies(
         bus_manager=bus_manager,
-        time_service=mock_time_service
+        time_service=mock_time_service,
+        secrets_service=None,
+        shutdown_callback=None
     )
 
     handler = RecallHandler(deps)
@@ -311,7 +336,9 @@ async def test_memorize_handler_error_handling(monkeypatch):
 
     deps = ActionHandlerDependencies(
         bus_manager=bus_manager,
-        time_service=mock_time_service
+        time_service=mock_time_service,
+        secrets_service=None,
+        shutdown_callback=None
     )
 
     handler = MemorizeHandler(deps)
@@ -325,7 +352,9 @@ async def test_memorize_handler_error_handling(monkeypatch):
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
             created_by="test_user"
-        )
+        ),
+        updated_by="test_user",
+        updated_at=datetime.now(timezone.utc)
     )
 
     params = MemorizeParams(node=node)

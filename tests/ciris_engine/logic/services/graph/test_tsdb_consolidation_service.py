@@ -121,18 +121,19 @@ async def test_tsdb_service_consolidate_period(tsdb_service, mock_memory_bus):
     # Find the TSDBSummary in the list
     tsdb_summary = None
     for summary in summaries:
-        if isinstance(summary, TSDBSummary):
+        if "tsdb_summary_" in summary.id:
             tsdb_summary = summary
             break
     
     assert tsdb_summary is not None
-    assert tsdb_summary.period_start == start_time
-    assert tsdb_summary.period_end == end_time
-    assert "api.requests" in tsdb_summary.metrics
-    assert tsdb_summary.metrics["api.requests"]["count"] == 2
-    assert tsdb_summary.metrics["api.requests"]["sum"] == 250
-    assert tsdb_summary.metrics["api.requests"]["avg"] == 125
-    assert tsdb_summary.source_node_count == 3
+    attrs = tsdb_summary.attributes
+    assert attrs['period_start'] == start_time.isoformat()
+    assert attrs['period_end'] == end_time.isoformat()
+    assert "api.requests" in attrs['metrics']
+    assert attrs['metrics']["api.requests"]["count"] == 2
+    assert attrs['metrics']["api.requests"]["sum"] == 250
+    assert attrs['metrics']["api.requests"]["avg"] == 125
+    assert attrs['source_node_count'] == 3
 
 
 @pytest.mark.asyncio
@@ -238,14 +239,15 @@ async def test_tsdb_service_resource_aggregation(tsdb_service, mock_memory_bus):
     # Find the TSDBSummary in the list
     tsdb_summary = None
     for summary in summaries:
-        if isinstance(summary, TSDBSummary):
+        if "tsdb_summary_" in summary.id:
             tsdb_summary = summary
             break
     
     assert tsdb_summary is not None
-    assert tsdb_summary.total_tokens == 1000
-    assert tsdb_summary.total_cost_cents == 5.5
-    assert tsdb_summary.total_carbon_grams == 2.3
+    attrs = tsdb_summary.attributes
+    assert attrs['total_tokens'] == 1000
+    assert attrs['total_cost_cents'] == 5.5
+    assert attrs['total_carbon_grams'] == 2.3
 
 
 def test_tsdb_service_capabilities(tsdb_service):
@@ -364,15 +366,16 @@ async def test_tsdb_service_action_summary(tsdb_service, mock_memory_bus):
     # Find the TSDBSummary in the list
     tsdb_summary = None
     for summary in summaries:
-        if isinstance(summary, TSDBSummary):
+        if "tsdb_summary_" in summary.id:
             tsdb_summary = summary
             break
     
     assert tsdb_summary is not None
-    assert "SPEAK" in tsdb_summary.action_counts
-    assert tsdb_summary.action_counts["SPEAK"] == 2
-    assert "TOOL" in tsdb_summary.action_counts
-    assert tsdb_summary.action_counts["TOOL"] == 1
+    attrs = tsdb_summary.attributes
+    assert "SPEAK" in attrs['action_counts']
+    assert attrs['action_counts']["SPEAK"] == 2
+    assert "TOOL" in attrs['action_counts']
+    assert attrs['action_counts']["TOOL"] == 1
 
 
 @pytest.mark.asyncio

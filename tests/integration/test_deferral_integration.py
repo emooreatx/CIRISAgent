@@ -163,6 +163,15 @@ class IntegrationTestBase:
 
         # Use AsyncMock to properly handle both sync and async calls
         registry.get_service = AsyncMock(side_effect=get_service_async)
+        
+        # Add get_services_by_type method that WiseBus needs
+        def get_services_by_type(service_type: str) -> List[Any]:
+            if service_type == ServiceType.WISE_AUTHORITY or service_type == "wise_authority":
+                return [wa_service]
+            return []
+        
+        registry.get_services_by_type = Mock(side_effect=get_services_by_type)
+        
         return registry
 
     @pytest.fixture

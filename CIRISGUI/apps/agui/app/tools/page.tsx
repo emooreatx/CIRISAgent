@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { cirisClient } from '../../lib/ciris-sdk';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { InfoIcon, StatusDot, SpinnerIcon, CubeIcon } from '../../components/Icons';
+import { ProtectedRoute } from '../../components/ProtectedRoute';
 
 interface Tool {
   name: string;
@@ -18,9 +19,16 @@ interface ToolsByAdapter {
   [adapter: string]: Tool[];
 }
 
-export default function ToolsPage() {
-  // Fetch adapters to get their tools
-  const { data: adapterResponse, isLoading: loadingAdapters, refetch } = useQuery({
+function ToolsPageContent() {
+  // Fetch tools from the system tools endpoint
+  const { data: toolsResponse, isLoading: loadingTools, refetch: refetchTools, error: toolsError } = useQuery({
+    queryKey: ['system-tools'],
+    queryFn: () => cirisClient.system.getTools(),
+    refetchInterval: 5000, // Auto-refresh every 5 seconds
+  });
+
+  // Also fetch adapters for additional info
+  const { data: adapterResponse, isLoading: loadingAdapters } = useQuery({
     queryKey: ['adapter-tools'],
     queryFn: async () => {
       const response = await cirisClient.system.getAdapters();
@@ -29,21 +37,28 @@ export default function ToolsPage() {
     refetchInterval: 5000, // Auto-refresh every 5 seconds
   });
 
-  // Group tools by adapter
-  const toolsByAdapter: ToolsByAdapter = {};
+  // Group tools by provider
+  const toolsByProvider: ToolsByAdapter = {};
   let totalTools = 0;
 
-  adapterResponse?.adapters?.forEach((adapter: any) => {
-    if (adapter.tools && adapter.tools.length > 0) {
-      toolsByAdapter[adapter.adapter_id || adapter.adapter_type] = adapter.tools.map((tool: any) => ({
-        ...tool,
-        adapter: adapter.adapter_id || adapter.adapter_type
-      }));
-      totalTools += adapter.tools.length;
-    }
-  });
+  if (toolsResponse && Array.isArray(toolsResponse)) {
+    toolsResponse.forEach((tool: any) => {
+      const provider = tool.provider || 'unknown';
+      if (!toolsByProvider[provider]) {
+        toolsByProvider[provider] = [];
+      }
+      toolsByProvider[provider].push({
+        name: tool.name,
+        description: tool.description,
+        adapter: provider,
+        schema: tool.schema
+      });
+      totalTools++;
+    });
+  }
 
-  const activeAdapterCount = Object.keys(toolsByAdapter).length;
+  const activeProviderCount = Object.keys(toolsByProvider).length;
+  const isLoading = loadingTools || loadingAdapters;
 
   return (
     <div className="space-y-6">
@@ -58,11 +73,11 @@ export default function ToolsPage() {
               </p>
             </div>
             <button
-              onClick={() => refetch()}
-              disabled={loadingAdapters}
+              onClick={() => refetchTools()}
+              disabled={isLoading}
               className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50"
             >
-              <ArrowPathIcon className={`h-4 w-4 mr-2 ${loadingAdapters ? 'animate-spin' : ''}`} />
+              <ArrowPathIcon className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </button>
           </div>
@@ -74,10 +89,10 @@ export default function ToolsPage() {
         <div className="bg-white overflow-hidden shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <dt className="text-sm font-medium text-gray-500 truncate">
-              Active Adapters with Tools
+              Tool Providers
             </dt>
             <dd className="mt-1 text-3xl font-semibold text-gray-900">
-              {activeAdapterCount}
+              {activeProviderCount}
             </dd>
           </div>
         </div>
@@ -104,8 +119,8 @@ export default function ToolsPage() {
         </div>
       </div>
 
-      {/* Tools by Adapter */}
-      {loadingAdapters ? (
+      {/* Tools by Provider */}
+      {isLoading ? (
         <div className="bg-white shadow rounded-lg p-8">
           <div className="text-center">
             <SpinnerIcon size="lg" className="mx-auto text-gray-500" />
@@ -119,18 +134,18 @@ export default function ToolsPage() {
               <CubeIcon size="lg" className="mx-auto text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">No tools available</h3>
               <p className="mt-1 text-sm text-gray-500">
-                Tools become available when adapters are loaded. Visit the System page to manage adapters.
+                Tools become available when adapters and tool services are loaded.
               </p>
             </div>
           </div>
         </div>
       ) : (
-        Object.entries(toolsByAdapter).map(([adapterName, tools]) => (
-          <div key={adapterName} className="bg-white shadow rounded-lg">
+        Object.entries(toolsByProvider).map(([providerName, tools]) => (
+          <div key={providerName} className="bg-white shadow rounded-lg">
             <div className="px-4 py-5 sm:p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">
-                  {adapterName}
+                  {providerName}
                 </h3>
                 <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                   {tools.length} {tools.length === 1 ? 'tool' : 'tools'}
@@ -140,7 +155,7 @@ export default function ToolsPage() {
               <div className="space-y-3">
                 {tools.map((tool, index) => (
                   <div
-                    key={`${adapterName}-${tool.name}-${index}`}
+                    key={`${providerName}-${tool.name}-${index}`}
                     className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50"
                   >
                     <div className="flex items-start justify-between">
@@ -196,3 +211,13 @@ export default function ToolsPage() {
     </div>
   );
 }
+
+const ToolsPage = () => {
+  return (
+    <ProtectedRoute>
+      <ToolsPageContent />
+    </ProtectedRoute>
+  );
+};
+
+export default ToolsPage;

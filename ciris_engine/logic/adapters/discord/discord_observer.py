@@ -161,8 +161,6 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                         raw_message=msg.raw_message
                     )
 
-                    logger.info(f"Processed images in message {msg.message_id} from {msg.author_name}")
-
             except Exception as e:
                 logger.error(f"Failed to process images in message {msg.message_id}: {e}")
         

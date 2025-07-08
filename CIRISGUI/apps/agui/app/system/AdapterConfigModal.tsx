@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import toast from 'react-hot-toast';
 
 interface AdapterConfigModalProps {
   adapterType: string;
+  adapterId?: string;
+  isEdit?: boolean;
   config: any;
   setConfig: (config: any) => void;
   onSubmit: (adapterType: string, config: any) => void;
@@ -11,13 +13,18 @@ interface AdapterConfigModalProps {
 }
 
 export function AdapterConfigModal({ 
-  adapterType, 
+  adapterType,
+  adapterId,
+  isEdit = false,
   config, 
   setConfig, 
   onSubmit, 
   onClose,
   isPending = false 
 }: AdapterConfigModalProps) {
+  const [showAdvanced, setShowAdvanced] = React.useState(false);
+  const [jsonError, setJsonError] = React.useState<string | null>(null);
+  
   const handleSubmit = () => {
     // Validation based on adapter type
     if (adapterType === 'discord') {
@@ -79,7 +86,7 @@ export function AdapterConfigModal({
         overflowY: 'auto'
       }}>
         <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px' }}>
-          Configure {adapterType.charAt(0).toUpperCase() + adapterType.slice(1)} Adapter
+          {isEdit ? 'Edit' : 'Configure'} {adapterType.charAt(0).toUpperCase() + adapterType.slice(1)} Adapter {adapterId ? `(${adapterId})` : ''}
         </h3>
         
         {/* Discord Configuration */}
@@ -94,7 +101,7 @@ export function AdapterConfigModal({
                 value={config.bot_token || ''}
                 onChange={(e) => setConfig({ ...config, bot_token: e.target.value })}
                 style={inputStyle}
-                placeholder="Your Discord bot token"
+                placeholder={isEdit ? '••••••••' : 'Your Discord bot token'}
               />
             </div>
             
@@ -120,6 +127,55 @@ export function AdapterConfigModal({
                 style={inputStyle}
                 placeholder="Primary channel for agent"
               />
+            </div>
+            
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Deferral Channel ID</label>
+              <input
+                type="text"
+                value={config.deferral_channel_id || ''}
+                onChange={(e) => setConfig({ ...config, deferral_channel_id: e.target.value })}
+                style={inputStyle}
+                placeholder="Channel for deferred messages"
+              />
+            </div>
+            
+            <div style={fieldStyle}>
+              <label style={labelStyle}>Monitored Channel IDs (comma-separated)</label>
+              <input
+                type="text"
+                value={Array.isArray(config.monitored_channel_ids) ? config.monitored_channel_ids.join(', ') : ''}
+                onChange={(e) => setConfig({ 
+                  ...config, 
+                  monitored_channel_ids: e.target.value ? e.target.value.split(',').map(s => s.trim()) : [] 
+                })}
+                style={inputStyle}
+                placeholder="Channel IDs to monitor"
+              />
+            </div>
+            
+            <div style={fieldStyle}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={config.respond_to_mentions !== false}
+                  onChange={(e) => setConfig({ ...config, respond_to_mentions: e.target.checked })}
+                  style={{ marginRight: '8px' }}
+                />
+                Respond to Mentions
+              </label>
+            </div>
+            
+            <div style={fieldStyle}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={config.respond_to_dms !== false}
+                  onChange={(e) => setConfig({ ...config, respond_to_dms: e.target.checked })}
+                  style={{ marginRight: '8px' }}
+                />
+                Respond to DMs
+              </label>
             </div>
           </>
         )}
@@ -168,11 +224,23 @@ export function AdapterConfigModal({
               <label>
                 <input
                   type="checkbox"
-                  checked={config.enable_auth || false}
+                  checked={config.enable_auth !== false}
                   onChange={(e) => setConfig({ ...config, enable_auth: e.target.checked })}
                   style={{ marginRight: '8px' }}
                 />
                 Enable Authentication
+              </label>
+            </div>
+            
+            <div style={fieldStyle}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={config.cors_enabled !== false}
+                  onChange={(e) => setConfig({ ...config, cors_enabled: e.target.checked })}
+                  style={{ marginRight: '8px' }}
+                />
+                Enable CORS
               </label>
             </div>
           </>
@@ -217,6 +285,68 @@ export function AdapterConfigModal({
           </>
         )}
         
+        {/* Advanced JSON Editor */}
+        <div style={{ marginTop: '20px', borderTop: '1px solid #e5e7eb', paddingTop: '20px' }}>
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 12px',
+              border: '1px solid #e5e7eb',
+              borderRadius: '4px',
+              backgroundColor: 'white',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: '500',
+              width: '100%',
+              justifyContent: 'space-between'
+            }}
+          >
+            <span>Advanced Configuration (JSON)</span>
+            <span style={{ fontSize: '12px' }}>{showAdvanced ? '▼' : '▶'}</span>
+          </button>
+          
+          {showAdvanced && (
+            <div style={{ marginTop: '15px' }}>
+              <label style={{ ...labelStyle, marginBottom: '10px' }}>
+                Raw Configuration JSON
+                {jsonError && (
+                  <span style={{ color: 'red', fontSize: '12px', marginLeft: '10px' }}>
+                    {jsonError}
+                  </span>
+                )}
+              </label>
+              <textarea
+                value={JSON.stringify(config, null, 2)}
+                onChange={(e) => {
+                  try {
+                    const parsed = JSON.parse(e.target.value);
+                    setConfig(parsed);
+                    setJsonError(null);
+                  } catch (error) {
+                    setJsonError('Invalid JSON');
+                  }
+                }}
+                style={{
+                  ...inputStyle,
+                  fontFamily: 'monospace',
+                  fontSize: '12px',
+                  minHeight: '200px',
+                  resize: 'vertical',
+                  borderColor: jsonError ? 'red' : '#ccc'
+                }}
+                placeholder="{}"
+              />
+              <p style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
+                Edit the raw JSON configuration. Changes here will override the form fields above.
+              </p>
+            </div>
+          )}
+        </div>
+        
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
           <button
             onClick={onClose}
@@ -242,7 +372,7 @@ export function AdapterConfigModal({
               cursor: isPending ? 'not-allowed' : 'pointer'
             }}
           >
-            {isPending ? 'Registering...' : 'Register Adapter'}
+            {isPending ? (isEdit ? 'Saving...' : 'Registering...') : (isEdit ? 'Save Changes' : 'Register Adapter')}
           </button>
         </div>
       </div>

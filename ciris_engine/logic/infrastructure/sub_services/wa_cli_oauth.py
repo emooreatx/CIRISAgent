@@ -25,14 +25,14 @@ from ciris_engine.schemas.infrastructure.oauth import (
 import logging
 
 if TYPE_CHECKING:
-    from ciris_engine.protocols.services.infrastructure import ITimeService
+    from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
 
 class WACLIOAuthService:
     """Handles OAuth provider configuration and authentication flows."""
 
-    def __init__(self, auth_service: AuthenticationService, time_service: "ITimeService"):
+    def __init__(self, auth_service: AuthenticationService, time_service: "TimeServiceProtocol"):
         """Initialize OAuth service with authentication service."""
         self.auth_service = auth_service
         self.time_service = time_service

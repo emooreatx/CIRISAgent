@@ -18,7 +18,7 @@ from ciris_engine.schemas.services.resources_core import ResourceSnapshot, Resou
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.api.telemetry import TimeSyncStatus, ServiceMetrics
 from ciris_engine.schemas.runtime.adapter_management import (
-    AdapterLoadRequest, AdapterOperationResult, AdapterListResponse,
+    AdapterOperationResult, AdapterListResponse,
     AdapterStatus as AdapterStatusSchema, AdapterConfig, AdapterMetrics
 )
 
@@ -961,7 +961,7 @@ async def get_available_tools(
             if hasattr(service_registry, '_services') and ServiceType.TOOL in service_registry._services:
                 for provider_data in service_registry._services[ServiceType.TOOL]:
                     try:
-                        provider = provider_data.provider
+                        provider = provider_data.instance
                         provider_name = provider.__class__.__name__
                         tool_providers.append(provider_name)
                         

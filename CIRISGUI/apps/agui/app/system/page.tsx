@@ -19,7 +19,7 @@ export default function SystemPage() {
   const { hasRole } = useAuth();
   const queryClient = useQueryClient();
   const [confirmDialog, setConfirmDialog] = useState<{ type: string; name?: string } | null>(null);
-  const [adapterConfigModal, setAdapterConfigModal] = useState<{ type: string } | null>(null);
+  const [adapterConfigModal, setAdapterConfigModal] = useState<{ type: string; adapterId?: string; isEdit?: boolean } | null>(null);
   const [adapterConfig, setAdapterConfig] = useState<any>({});
   
   // Debug logging - only log when modals change
@@ -766,6 +766,32 @@ export default function SystemPage() {
                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                         <div className="flex items-center justify-end space-x-3">
                           <button
+                            onClick={() => {
+                              // Fetch adapter config from the config service
+                              const configKey = `adapter.${adapter.adapter_id}.config`;
+                              cirisClient.config.getConfigByKey(configKey).then((configData) => {
+                                if (configData && configData.value) {
+                                  // The value is already unwrapped by getConfigByKey
+                                  setAdapterConfig(configData.value);
+                                } else {
+                                  // Use empty config if not found
+                                  setAdapterConfig({});
+                                }
+                                setAdapterConfigModal({ 
+                                  type: adapter.adapter_type, 
+                                  adapterId: adapter.adapter_id,
+                                  isEdit: true 
+                                });
+                              }).catch((error) => {
+                                console.error('Failed to fetch adapter config:', error);
+                                toast.error('Failed to load adapter configuration');
+                              });
+                            }}
+                            className="text-indigo-600 hover:text-indigo-900"
+                          >
+                            Edit
+                          </button>
+                          <button
                             onClick={() => setConfirmDialog({ type: 'reloadAdapter', name: adapter.adapter_id })}
                             className="text-blue-600 hover:text-blue-900"
                           >
@@ -859,10 +885,26 @@ export default function SystemPage() {
       {adapterConfigModal && (
         <AdapterConfigModal
           adapterType={adapterConfigModal.type}
+          adapterId={adapterConfigModal.adapterId}
+          isEdit={adapterConfigModal.isEdit}
           config={adapterConfig}
           setConfig={setAdapterConfig}
           onSubmit={(adapterType, config) => {
-            registerAdapterMutation.mutate({ adapterType, config });
+            if (adapterConfigModal.isEdit && adapterConfigModal.adapterId) {
+              // Update the adapter configuration
+              const configKey = `adapter.${adapterConfigModal.adapterId}.config`;
+              cirisClient.config.updateConfigByKey(configKey, config).then(() => {
+                toast.success('Adapter configuration updated');
+                queryClient.invalidateQueries({ queryKey: ['system-adapters'] });
+                setAdapterConfigModal(null);
+                setAdapterConfig({});
+              }).catch((error) => {
+                toast.error('Failed to update adapter configuration');
+              });
+            } else {
+              // Register new adapter
+              registerAdapterMutation.mutate({ adapterType, config });
+            }
           }}
           onClose={() => {
             setAdapterConfigModal(null);

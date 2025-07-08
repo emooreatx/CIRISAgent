@@ -45,26 +45,82 @@ class ToolBus(BaseBus[ToolService]):
     ) -> ToolExecutionResult:
         """Execute a tool and return the result"""
         logger.info(f"[TOOL_BUS] execute_tool called with tool_name={tool_name}, parameters={parameters}")
-        service = await self.get_service(
-            handler_name=handler_name,
-            required_capabilities=["execute_tool"]
-        )
-
-        if not service:
-            logger.error(f"No tool service available for {handler_name}")
+        
+        # Step 1: Get ALL tool services to find which ones support this tool
+        all_tool_services = []
+        try:
+            # Access the registry's internal services dict to get all tool services
+            from ciris_engine.schemas.runtime.enums import ServiceType
+            
+            # Use reflection to access the registry's internal structure
+            # This is a temporary solution until we add a proper method
+            if hasattr(self.service_registry, '_services'):
+                tool_providers = self.service_registry._services.get(ServiceType.TOOL, [])
+                for provider in tool_providers:
+                    if hasattr(provider, 'instance') and hasattr(provider.instance, 'get_available_tools'):
+                        all_tool_services.append(provider.instance)
+                        
+            logger.info(f"[TOOL_BUS] Found {len(all_tool_services)} tool services")
+        except Exception as e:
+            logger.error(f"Failed to get all tool services: {e}")
+            
+        # If we couldn't get all services, fall back to getting at least one
+        if not all_tool_services:
+            service = await self.get_service(
+                handler_name=handler_name,
+                required_capabilities=["execute_tool"]
+            )
+            if service:
+                all_tool_services = [service]
+        
+        # Step 2: Find which services support this specific tool
+        supporting_services = []
+        for service in all_tool_services:
+            try:
+                available_tools = await service.get_available_tools()
+                logger.info(f"[TOOL_BUS] Service {type(service).__name__} supports tools: {available_tools}")
+                if tool_name in available_tools:
+                    supporting_services.append(service)
+            except Exception as e:
+                logger.warning(f"Failed to get tools from {type(service).__name__}: {e}")
+        
+        # Step 3: If no service supports this tool, return NOT_FOUND
+        if not supporting_services:
+            logger.error(f"No service supports tool: {tool_name}")
             return ToolExecutionResult(
                 tool_name=tool_name,
                 status=ToolExecutionStatus.NOT_FOUND,
                 success=False,
                 data=None,
-                error="No tool service available",
+                error=f"No service supports tool: {tool_name}",
                 correlation_id=str(uuid.uuid4())
             )
+        
+        # Step 4: Select the appropriate service
+        selected_service = None
+        
+        if len(supporting_services) == 1:
+            # Only one service supports this tool
+            selected_service = supporting_services[0]
+            logger.info(f"[TOOL_BUS] Using {type(selected_service).__name__} (only service with this tool)")
+        else:
+            # Multiple services support this tool - use routing logic
+            # TODO: In future, extract channel_id/guild_id from context to route appropriately
+            # For now, prefer APIToolService over SecretsToolService for general tools
+            for service in supporting_services:
+                if 'APIToolService' in type(service).__name__:
+                    selected_service = service
+                    break
+            
+            if not selected_service:
+                selected_service = supporting_services[0]
+            
+            logger.info(f"[TOOL_BUS] Selected {type(selected_service).__name__} from {len(supporting_services)} options")
 
+        # Step 5: Execute the tool
         try:
-            logger.info(f"[TOOL_BUS] Calling service.execute_tool with service={type(service).__name__}")
-            result = await service.execute_tool(tool_name, parameters)
-            # Protocol now returns ToolExecutionResult
+            logger.info(f"[TOOL_BUS] Executing tool '{tool_name}' with {type(selected_service).__name__}")
+            result = await selected_service.execute_tool(tool_name, parameters)
             return result
         except Exception as e:
             logger.error(f"Failed to execute tool {tool_name}: {e}", exc_info=True)

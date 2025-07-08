@@ -83,10 +83,11 @@ class TestBaseObserverNumericIds:
             nonlocal captured_thought
             captured_thought = thought
 
-        # Patch persistence
+        # Patch persistence and database calls
         with patch('ciris_engine.logic.persistence.add_task', side_effect=capture_task):
             with patch('ciris_engine.logic.persistence.add_thought', side_effect=capture_thought):
-                await observer._create_passive_observation_result(test_msg)
+                with patch('ciris_engine.logic.persistence.get_correlations_by_channel', return_value=[]):
+                    await observer._create_passive_observation_result(test_msg)
 
         # Verify task was created with numeric ID in description
         assert captured_task is not None
