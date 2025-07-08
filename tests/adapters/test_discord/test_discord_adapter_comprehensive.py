@@ -141,17 +141,15 @@ class TestDiscordAdapterCore:
         # Mock connection manager to return connected
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
 
-        # Mock channel
-        mock_channel = AsyncMock()
-        mock_channel.send = AsyncMock(return_value=Mock(id=123))
-        discord_adapter._channel_manager.resolve_channel = AsyncMock(return_value=mock_channel)
-        discord_adapter._message_handler._resolve_channel = AsyncMock(return_value=mock_channel)
+        # Mock the message handler's send method to return a message object
+        mock_message = Mock(id=123)
+        discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=mock_message)
 
         # Send message
         result = await discord_adapter.send_message("123456789", "Test message")
 
         assert result is True
-        mock_channel.send.assert_called_once_with("Test message")
+        discord_adapter._message_handler.send_message_to_channel.assert_called_once_with("123456789", "Test message")
 
         # Check telemetry was emitted
         discord_adapter.bus_manager.memory.memorize_metric.assert_called()
@@ -511,9 +509,8 @@ class TestDiscordAuditLogging:
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
 
         # Mock successful message send
-        mock_channel = AsyncMock()
-        mock_channel.send = AsyncMock(return_value=Mock(id=123))
-        discord_adapter._message_handler._resolve_channel = AsyncMock(return_value=mock_channel)
+        mock_message = Mock(id=123)
+        discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=mock_message)
 
         # Send message
         await discord_adapter.send_message("123456789", "Test message")

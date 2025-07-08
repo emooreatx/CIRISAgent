@@ -151,7 +151,8 @@ class TestDiscordAdapter:
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
 
         # Mock the message handler's send_message_to_channel method directly
-        discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=None)
+        mock_message = Mock(id=123)
+        discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=mock_message)
 
         result = await discord_adapter.send_message(
             "test_channel",
@@ -171,7 +172,8 @@ class TestDiscordAdapter:
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
 
         # Mock the message handler
-        discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=None)
+        mock_message = Mock(id=123)
+        discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=mock_message)
 
         # Discord adapter's send_message doesn't support embeds directly
         # This would need to be done through a different method
@@ -193,7 +195,8 @@ class TestDiscordAdapter:
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
 
         # Mock the message handler to handle long messages
-        discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=None)
+        mock_message = Mock(id=123)
+        discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=mock_message)
 
         # Create long message
         long_message = "x" * 3000
