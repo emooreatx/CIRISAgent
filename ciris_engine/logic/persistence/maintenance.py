@@ -26,13 +26,14 @@ class DatabaseMaintenanceService:
     """
     Service for performing database maintenance tasks like cleanup and archiving.
     """
-    def __init__(self, time_service: TimeServiceProtocol, archive_dir_path: str = "data_archive", archive_older_than_hours: int = 24) -> None:
+    def __init__(self, time_service: TimeServiceProtocol, archive_dir_path: str = "data_archive", archive_older_than_hours: int = 24, config_service: Optional[Any] = None) -> None:
         self.time_service = time_service
         self.archive_dir = Path(archive_dir_path)
         self.archive_older_than_hours = archive_older_than_hours
         self.valid_root_task_ids = {"WAKEUP_ROOT"}
         self._maintenance_task: Optional[asyncio.Task] = None
         self._shutdown_event: Optional[asyncio.Event] = None
+        self.config_service = config_service
 
     def _ensure_shutdown_event(self) -> None:
         """Ensure shutdown event is created when needed in async context."""
@@ -275,20 +276,13 @@ class DatabaseMaintenanceService:
     async def _cleanup_runtime_config(self) -> None:
         """Clean up runtime-specific configuration from previous runs."""
         try:
-            # Import here to avoid circular dependencies
-            from ciris_engine.logic.services.graph.config_service import GraphConfigService
-            from ciris_engine.logic.buses.memory_bus import get_memory_bus
-            
-            # Get the config service instance if available
-            memory_bus = get_memory_bus()
-            if not memory_bus:
-                logger.warning("Cannot clean up runtime config - memory bus not available")
+            # Use injected config service
+            if not self.config_service:
+                logger.warning("Cannot clean up runtime config - config service not available")
                 return
-                
-            config_service = GraphConfigService(memory_bus=memory_bus)
             
             # Get all config entries
-            all_configs = await config_service.get_all()
+            all_configs = await self.config_service.list_configs()
             
             runtime_config_patterns = [
                 "adapter.",  # Adapter configurations
@@ -299,27 +293,24 @@ class DatabaseMaintenanceService:
             
             deleted_count = 0
             
-            for config in all_configs:
+            for key, value in all_configs.items():
                 # Check if this is a runtime-specific config
-                is_runtime_config = any(config.key.startswith(pattern) for pattern in runtime_config_patterns)
+                is_runtime_config = any(key.startswith(pattern) for pattern in runtime_config_patterns)
                 
                 if is_runtime_config:
-                    # Special handling for adapter configs - only delete if adapter is not currently loaded
-                    if config.key.startswith("adapter."):
-                        # Extract adapter_id from key (e.g., "adapter.api_bootstrap.host" -> "api_bootstrap")
-                        parts = config.key.split(".")
-                        if len(parts) >= 2:
-                            adapter_id = parts[1]
-                            # For now, delete all adapter configs on startup
-                            # In the future, we could check if the adapter is in the startup config
-                            await config_service.delete(config.key)
-                            deleted_count += 1
-                            logger.debug(f"Deleted runtime config: {config.key}")
-                    else:
-                        # Delete other runtime configs
-                        await config_service.delete(config.key)
+                    # Get the actual config node to check if it should be deleted
+                    config_node = await self.config_service.get_config(key)
+                    if config_node:
+                        # Skip configs created by system_bootstrap (essential configs)
+                        if config_node.updated_by == "system_bootstrap":
+                            logger.debug(f"Preserving bootstrap config: {key}")
+                            continue
+                            
+                        # Convert to GraphNode and use memory service to forget it
+                        graph_node = config_node.to_graph_node()
+                        await self.config_service.graph.forget(graph_node)
                         deleted_count += 1
-                        logger.debug(f"Deleted runtime config: {config.key}")
+                        logger.debug(f"Deleted runtime config node: {key}")
             
             if deleted_count > 0:
                 logger.info(f"Cleaned up {deleted_count} runtime-specific configuration entries from previous runs")

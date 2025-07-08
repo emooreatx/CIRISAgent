@@ -460,13 +460,14 @@ This directory contains critical cryptographic keys for the CIRIS system.
         self.maintenance_service = DatabaseMaintenanceService(
             time_service=self.time_service,
             archive_dir_path=archive_dir,
-            archive_older_than_hours=archive_hours
+            archive_older_than_hours=archive_hours,
+            config_service=self.config_service
         )
 
         # Initialize TSDB consolidation service
         from ciris_engine.logic.services.graph.tsdb_consolidation_service import TSDBConsolidationService
         self.tsdb_consolidation_service = TSDBConsolidationService(
-            memory_bus=self.memory_service,  # Direct reference to memory service
+            memory_bus=self.bus_manager.memory,  # Use memory bus, not direct service
             time_service=self.time_service   # Pass time service
         )
         await self.tsdb_consolidation_service.start()

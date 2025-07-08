@@ -86,20 +86,23 @@ class TestDiscordAdapterCore:
         """Set up a temporary test database for each test."""
         # Create a temporary database file
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
-            db_path = tmp_file.name
+            test_db_path = tmp_file.name
         
         # Initialize the database with all required tables
-        initialize_database(db_path)
+        initialize_database(test_db_path)
         
         # Patch get_db_connection to use our test database
-        with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn:
+        # Need to patch it in multiple places where it's imported
+        with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn, \
+             patch('ciris_engine.logic.persistence.models.correlations.get_db_connection') as mock_get_conn2:
             import sqlite3
             # Return a context manager that yields a connection
             from contextlib import contextmanager
             
             @contextmanager
-            def get_test_connection(db_path_arg=None):
-                conn = sqlite3.connect(db_path)
+            def get_test_connection(db_path=None):
+                # Use the test db_path from outer scope, ignore the argument
+                conn = sqlite3.connect(test_db_path)
                 conn.row_factory = sqlite3.Row
                 try:
                     yield conn
@@ -107,12 +110,13 @@ class TestDiscordAdapterCore:
                     conn.close()
             
             mock_get_conn.side_effect = get_test_connection
+            mock_get_conn2.side_effect = get_test_connection
             
-            yield db_path
+            yield test_db_path
         
         # Clean up
         try:
-            os.unlink(db_path)
+            os.unlink(test_db_path)
         except:
             pass
 
@@ -141,17 +145,15 @@ class TestDiscordAdapterCore:
         # Mock connection manager to return connected
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
 
-        # Mock channel
-        mock_channel = AsyncMock()
-        mock_channel.send = AsyncMock(return_value=Mock(id=123))
-        discord_adapter._channel_manager.resolve_channel = AsyncMock(return_value=mock_channel)
-        discord_adapter._message_handler._resolve_channel = AsyncMock(return_value=mock_channel)
+        # Mock the message handler's send method to return a message object
+        mock_message = Mock(id=123)
+        discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=mock_message)
 
         # Send message
         result = await discord_adapter.send_message("123456789", "Test message")
 
         assert result is True
-        mock_channel.send.assert_called_once_with("Test message")
+        discord_adapter._message_handler.send_message_to_channel.assert_called_once_with("123456789", "Test message")
 
         # Check telemetry was emitted
         discord_adapter.bus_manager.memory.memorize_metric.assert_called()
@@ -470,20 +472,23 @@ class TestDiscordAuditLogging:
         """Set up a temporary test database for each test."""
         # Create a temporary database file
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
-            db_path = tmp_file.name
+            test_db_path = tmp_file.name
         
         # Initialize the database with all required tables
-        initialize_database(db_path)
+        initialize_database(test_db_path)
         
         # Patch get_db_connection to use our test database
-        with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn:
+        # Need to patch it in multiple places where it's imported
+        with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn, \
+             patch('ciris_engine.logic.persistence.models.correlations.get_db_connection') as mock_get_conn2:
             import sqlite3
             # Return a context manager that yields a connection
             from contextlib import contextmanager
             
             @contextmanager
-            def get_test_connection(db_path_arg=None):
-                conn = sqlite3.connect(db_path)
+            def get_test_connection(db_path=None):
+                # Use the test db_path from outer scope, ignore the argument
+                conn = sqlite3.connect(test_db_path)
                 conn.row_factory = sqlite3.Row
                 try:
                     yield conn
@@ -491,12 +496,13 @@ class TestDiscordAuditLogging:
                     conn.close()
             
             mock_get_conn.side_effect = get_test_connection
+            mock_get_conn2.side_effect = get_test_connection
             
-            yield db_path
+            yield test_db_path
         
         # Clean up
         try:
-            os.unlink(db_path)
+            os.unlink(test_db_path)
         except:
             pass
 
@@ -511,9 +517,8 @@ class TestDiscordAuditLogging:
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
 
         # Mock successful message send
-        mock_channel = AsyncMock()
-        mock_channel.send = AsyncMock(return_value=Mock(id=123))
-        discord_adapter._message_handler._resolve_channel = AsyncMock(return_value=mock_channel)
+        mock_message = Mock(id=123)
+        discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=mock_message)
 
         # Send message
         await discord_adapter.send_message("123456789", "Test message")

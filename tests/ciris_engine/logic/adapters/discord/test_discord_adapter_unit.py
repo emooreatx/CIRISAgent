@@ -27,20 +27,22 @@ class TestDiscordAdapter:
         """Set up a temporary test database for each test."""
         # Create a temporary database file
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
-            db_path = tmp_file.name
+            test_db_path = tmp_file.name
         
         # Initialize the database with all required tables
-        initialize_database(db_path)
+        initialize_database(test_db_path)
         
         # Patch get_db_connection to use our test database
-        with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn:
+        with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn, \
+             patch('ciris_engine.logic.persistence.models.correlations.get_db_connection') as mock_get_conn2:
             import sqlite3
             # Return a context manager that yields a connection
             from contextlib import contextmanager
             
             @contextmanager
-            def get_test_connection(db_path_arg: Optional[str] = None) -> Generator[Any, None, None]:
-                conn = sqlite3.connect(db_path)
+            def get_test_connection(db_path: Optional[str] = None) -> Generator[Any, None, None]:
+                # Use the test db_path from outer scope, ignore the argument
+                conn = sqlite3.connect(test_db_path)
                 conn.row_factory = sqlite3.Row
                 try:
                     yield conn
@@ -48,12 +50,13 @@ class TestDiscordAdapter:
                     conn.close()
             
             mock_get_conn.side_effect = get_test_connection
+            mock_get_conn2.side_effect = get_test_connection
             
-            yield db_path
+            yield test_db_path
         
         # Clean up
         try:
-            os.unlink(db_path)
+            os.unlink(test_db_path)
         except:
             pass
 
@@ -151,7 +154,8 @@ class TestDiscordAdapter:
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
 
         # Mock the message handler's send_message_to_channel method directly
-        discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=None)
+        mock_message = Mock(id=123)
+        discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=mock_message)
 
         result = await discord_adapter.send_message(
             "test_channel",
@@ -171,7 +175,8 @@ class TestDiscordAdapter:
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
 
         # Mock the message handler
-        discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=None)
+        mock_message = Mock(id=123)
+        discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=mock_message)
 
         # Discord adapter's send_message doesn't support embeds directly
         # This would need to be done through a different method
@@ -193,7 +198,8 @@ class TestDiscordAdapter:
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
 
         # Mock the message handler to handle long messages
-        discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=None)
+        mock_message = Mock(id=123)
+        discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=mock_message)
 
         # Create long message
         long_message = "x" * 3000

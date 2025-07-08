@@ -29,20 +29,22 @@ class TestDiscordAdapter:
         """Set up a temporary test database for each test."""
         # Create a temporary database file
         with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
-            db_path = tmp_file.name
+            test_db_path = tmp_file.name
         
         # Initialize the database with all required tables
-        initialize_database(db_path)
+        initialize_database(test_db_path)
         
         # Patch get_db_connection to use our test database
-        with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn:
+        with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn, \
+             patch('ciris_engine.logic.persistence.models.correlations.get_db_connection') as mock_get_conn2:
             import sqlite3
             # Return a context manager that yields a connection
             from contextlib import contextmanager
             
             @contextmanager
-            def get_test_connection(db_path_arg=None):
-                conn = sqlite3.connect(db_path)
+            def get_test_connection(db_path=None):
+                # Use the test db_path from outer scope, ignore the argument
+                conn = sqlite3.connect(test_db_path)
                 conn.row_factory = sqlite3.Row
                 try:
                     yield conn
@@ -50,12 +52,13 @@ class TestDiscordAdapter:
                     conn.close()
             
             mock_get_conn.side_effect = get_test_connection
+            mock_get_conn2.side_effect = get_test_connection
             
-            yield db_path
+            yield test_db_path
         
         # Clean up
         try:
-            os.unlink(db_path)
+            os.unlink(test_db_path)
         except:
             pass
 
@@ -119,18 +122,15 @@ class TestDiscordAdapter:
         # Mock connection manager to return connected
         adapter._connection_manager.is_connected = Mock(return_value=True)
 
-        # Setup mock channel
-        mock_channel = Mock()
-        mock_channel.send = AsyncMock(return_value=Mock(id=123))
-        mock_bot.get_channel.return_value = mock_channel
-        # The message handler converts channel_id to int
-        mock_bot.get_channel.side_effect = lambda ch_id: mock_channel if ch_id == 123456789 else None
+        # Mock the message handler's send method
+        mock_message = Mock(id=123)
+        adapter._message_handler.send_message_to_channel = AsyncMock(return_value=mock_message)
 
         # Send message - Discord channel IDs are integers
         result = await adapter.send_message("123456789", "Test message")
 
         assert result is True
-        mock_channel.send.assert_called_once_with("Test message")
+        adapter._message_handler.send_message_to_channel.assert_called_once_with("123456789", "Test message")
 
         # Check telemetry was emitted
         mock_bus_manager.memory.memorize_metric.assert_called()

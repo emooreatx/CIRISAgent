@@ -75,18 +75,11 @@ class TSDBConsolidationService(BaseGraphService):
     def _set_service_registry(self, registry: "ServiceRegistry") -> None:
         """Set the service registry for accessing memory bus and time service (internal method)."""
         self._service_registry = registry
-        if not self._memory_bus and registry:
-            try:
-                from ciris_engine.logic.buses import MemoryBus
-                # MemoryBus requires TimeServiceProtocol, ensure we have it
-                if self._time_service:
-                    self._memory_bus = MemoryBus(registry, self._time_service)
-                else:
-                    logger.error("Cannot initialize MemoryBus without TimeService")
-            except Exception as e:
-                logger.error(f"Failed to initialize memory bus: {e}")
-
-        # Get time service from registry if not provided
+        # NOTE: We should NOT create a new MemoryBus here!
+        # The TSDB service is initialized with the correct memory_bus in service_initializer.py
+        # Creating a new one here causes issues with handler_name parameter passing
+        
+        # Only get time service from registry if not provided
         if not self._time_service and registry:
             from ciris_engine.schemas.runtime.enums import ServiceType
             time_services = registry.get_services_by_type(ServiceType.TIME)
@@ -147,9 +140,13 @@ class TSDBConsolidationService(BaseGraphService):
                 if wait_seconds > 0:
                     logger.info(f"Next consolidation at {next_run} ({wait_seconds:.0f}s)")
                     await asyncio.sleep(wait_seconds)
+                    logger.info(f"Woke up from consolidation sleep at {self._now()}, running={self._running}")
 
                 if self._running:  # Check again after sleep
+                    logger.info("Starting consolidation run...")
                     await self._run_consolidation()
+                else:
+                    logger.warning("Service stopped during sleep, skipping consolidation")
 
             except asyncio.CancelledError:
                 break
@@ -353,7 +350,7 @@ class TSDBConsolidationService(BaseGraphService):
 
         summaries_created: List[GraphNode] = []
         
-        # 1. METRIC_DATAPOINT → TSDBSummary
+        # 1. metric_datapoint → TSDBSummary
         metric_summary = await self._consolidate_metrics(period_start, period_end)
         if metric_summary:
             summaries_created.append(metric_summary)
@@ -394,7 +391,7 @@ class TSDBConsolidationService(BaseGraphService):
         period_start: datetime,
         period_end: datetime
     ) -> Optional[TSDBSummary]:
-        """Consolidate METRIC_DATAPOINT correlations into TSDBSummary."""
+        """Consolidate metric_datapoint correlations into TSDBSummary."""
         # Query TSDB nodes for this period
         tsdb_nodes = await self._query_tsdb_nodes(period_start, period_end)
 
@@ -495,7 +492,7 @@ class TSDBConsolidationService(BaseGraphService):
 
         # Store summary
         if self._memory_bus:
-            result = await self._memory_bus.memorize(node=summary.to_graph_node(), handler_name="tsdb_consolidation")
+            result = await self._memory_bus.memorize(node=summary.to_graph_node())
             if result.status != MemoryOpStatus.OK:
                 logger.error(f"Failed to store summary: {result.error}")
                 return None
@@ -505,7 +502,7 @@ class TSDBConsolidationService(BaseGraphService):
 
         # Mark source correlations as consolidated in the database
         await self._mark_correlations_consolidated(
-            correlation_type="METRIC_DATAPOINT",
+            correlation_type="metric_datapoint",
             period_start=period_start,
             period_end=period_end,
             summary_id=summary.id
@@ -525,10 +522,10 @@ class TSDBConsolidationService(BaseGraphService):
         # Use timeseries recall with specific time range
         datapoints = await self._memory_bus.recall_timeseries(
             scope="local",
-            correlation_types=["METRIC_DATAPOINT"],
+            correlation_types=["metric_datapoint"],
             start_time=period_start,
             end_time=period_end,
-            handler_name="tsdb_consolidation"
+            # handler_name removed - not supported by memory bus
         )
 
         # Convert TimeSeriesDataPoint to GraphNode format for processing
@@ -788,7 +785,7 @@ class TSDBConsolidationService(BaseGraphService):
             scope="local",
             hours=int((period_end - period_start).total_seconds() / 3600),
             correlation_types=["service_interaction"],
-            handler_name="tsdb_consolidation"
+            # handler_name removed - not supported by memory bus
         )
         
         if not correlations:
@@ -880,7 +877,7 @@ class TSDBConsolidationService(BaseGraphService):
         )
         
         # Store summary
-        result = await self._memory_bus.memorize(node=summary.to_graph_node(), handler_name="tsdb_consolidation")
+        result = await self._memory_bus.memorize(node=summary.to_graph_node())
         
         if result.status != MemoryOpStatus.OK:
             logger.error(f"Failed to store conversation summary: {result.error}")
@@ -920,7 +917,7 @@ class TSDBConsolidationService(BaseGraphService):
             scope="local",
             hours=int((period_end - period_start).total_seconds() / 3600),
             correlation_types=["trace_span"],
-            handler_name="tsdb_consolidation"
+            # handler_name removed - not supported by memory bus
         )
         
         if not correlations:
@@ -1268,7 +1265,7 @@ class TSDBConsolidationService(BaseGraphService):
         )
         
         # Store summary
-        result = await self._memory_bus.memorize(node=summary.to_graph_node(), handler_name="tsdb_consolidation")
+        result = await self._memory_bus.memorize(node=summary.to_graph_node())
         
         if result.status != MemoryOpStatus.OK:
             logger.error(f"Failed to store audit summary: {result.error}")
@@ -1313,7 +1310,7 @@ class TSDBConsolidationService(BaseGraphService):
                             updated_by="tsdb_consolidation",
                             updated_at=self._now()
                         ),
-                        handler_name="tsdb_consolidation"
+                        # handler_name removed - not supported by memory bus
                     )
                     
                     if result.status == MemoryOpStatus.OK:
@@ -1370,7 +1367,7 @@ class TSDBConsolidationService(BaseGraphService):
                         updated_by="tsdb_consolidation",
                         updated_at=self._now()
                     ),
-                    handler_name="tsdb_consolidation"
+                    # handler_name removed - not supported by memory bus
                 )
                 
                 if result.status == MemoryOpStatus.OK:
@@ -1435,7 +1432,7 @@ class TSDBConsolidationService(BaseGraphService):
                         updated_by="tsdb_consolidation",
                         updated_at=self._now()
                     ),
-                    handler_name="tsdb_consolidation"
+                    # handler_name removed - not supported by memory bus
                 )
             
             # 2. Link traces to metrics (task processing drives resource usage)
@@ -1460,7 +1457,7 @@ class TSDBConsolidationService(BaseGraphService):
                         updated_by="tsdb_consolidation",
                         updated_at=self._now()
                     ),
-                    handler_name="tsdb_consolidation"
+                    # handler_name removed - not supported by memory bus
                 )
             
             # 3. Link metrics back to conversations (resource usage affects user experience)
@@ -1485,7 +1482,7 @@ class TSDBConsolidationService(BaseGraphService):
                         updated_by="tsdb_consolidation",
                         updated_at=self._now()
                     ),
-                    handler_name="tsdb_consolidation"
+                    # handler_name removed - not supported by memory bus
                 )
                 
             # 4. Link audit to traces (security events during task processing)
@@ -1510,7 +1507,7 @@ class TSDBConsolidationService(BaseGraphService):
                         updated_by="tsdb_consolidation",
                         updated_at=self._now()
                     ),
-                    handler_name="tsdb_consolidation"
+                    # handler_name removed - not supported by memory bus
                 )
             
             # 5. Link traces to audit (task processing generates audit events)
@@ -1608,7 +1605,7 @@ class TSDBConsolidationService(BaseGraphService):
                 WHERE 
                     json_extract(tags, '$.consolidated') = true AND
                     timestamp < ? AND
-                    correlation_type IN ('METRIC_DATAPOINT', 'SERVICE_INTERACTION', 'TRACE_SPAN')
+                    correlation_type IN ('metric_datapoint', 'service_interaction', 'trace_span')
             """, (cutoff,))
             
             deleted_count = cursor.rowcount
