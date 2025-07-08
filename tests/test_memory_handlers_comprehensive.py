@@ -635,9 +635,9 @@ class TestRecallHandler:
         follow_up_thought = mock_persistence.add_thought.call_args[0][0]
         assert "Memory query 'recalled_node' returned" in follow_up_thought.content
         assert "recalled_node" in follow_up_thought.content
-        # Check for the actual content without being specific about format
-        assert "'content': 'Recalled content'" in str(follow_up_thought.content)
-        assert "'data': 'test'" in str(follow_up_thought.content)
+        # Check for the actual content in the attributes section
+        assert '"content": "Recalled content"' in str(follow_up_thought.content)
+        assert '"data": "test"' in str(follow_up_thought.content)
 
     @pytest.mark.asyncio
     async def test_recall_by_query_success(self, monkeypatch: Any) -> None:

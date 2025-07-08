@@ -22,6 +22,7 @@ from ciris_engine.schemas.services.authority_core import (
 )
 from ciris_engine.schemas.services.authority.wise_authority import PendingDeferral
 from ciris_engine.schemas.services.discord_nodes import DiscordDeferralNode, DiscordApprovalNode
+from ciris_engine.schemas.adapters.tools import ToolExecutionResult
 from ciris_engine.logic import persistence
 from ciris_engine.logic.adapters.base import Service
 
@@ -35,6 +36,7 @@ from .discord_error_handler import DiscordErrorHandler
 from .discord_rate_limiter import DiscordRateLimiter
 from .discord_embed_formatter import DiscordEmbedFormatter
 from .discord_access_control import DiscordAccessControl
+from .discord_tool_handler import DiscordToolHandler
 from .config import DiscordAdapterConfig
 
 if TYPE_CHECKING:
@@ -89,6 +91,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         self._rate_limiter = DiscordRateLimiter()
         self._embed_formatter = DiscordEmbedFormatter()
         self._access_control = DiscordAccessControl(bot)
+        self._tool_handler = DiscordToolHandler(None, bot, self._time_service)
         self._start_time: Optional[datetime] = None
 
         # Set up connection callbacks
@@ -744,6 +747,27 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         logger.info(f"[DISCORD] Returning {len(channels)} channels")    
         return channels
 
+    async def execute_tool(self, tool_name: str, tool_args: Optional[Dict[str, Any]] = None, *, parameters: Optional[Dict[str, Any]] = None) -> ToolExecutionResult:
+        """Execute a tool through the tool handler."""
+        from ciris_engine.schemas.adapters.tools import ToolExecutionResult
+        # Support both tool_args and parameters for compatibility
+        args = tool_args or parameters or {}
+        result = await self._tool_handler.execute_tool(tool_name, args)
+        
+        # Emit telemetry for tool execution
+        await self._emit_telemetry("discord.tool.executed", 1.0, {
+            "adapter_type": "discord",
+            "tool_name": tool_name,
+            "success": str(result.success),
+            "status": result.status.value if hasattr(result.status, 'value') else str(result.status)
+        })
+        
+        return result
+    
+    async def list_tools(self) -> List[str]:
+        """List available tools through the tool handler."""
+        return await self._tool_handler.get_available_tools()
+
     async def list_permissions(self, wa_id: str) -> List[WAPermission]:
         """List all permissions for a Discord user."""
         permissions = []
@@ -949,6 +973,8 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             actions=[
                 # Communication capabilities
                 "send_message", "fetch_messages",
+                # Tool capabilities
+                "execute_tool", "list_tools",
                 # WiseAuthority capabilities
                 "fetch_guidance", "send_deferral", "check_authorization",
                 "request_approval", "get_guidance", "get_pending_deferrals",
@@ -1021,6 +1047,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         self._message_handler.set_client(client)
         self._guidance_handler.set_client(client)
         self._reaction_handler.set_client(client)
+        self._tool_handler.set_client(client)
 
         self._channel_manager.attach_to_client(client)
         self._connection_manager.set_client(client)

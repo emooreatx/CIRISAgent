@@ -167,7 +167,7 @@ class SpeakHandler(BaseActionHandler):
         persistence.add_correlation(correlation, self.time_service)
 
         follow_up_text = (
-            f"CIRIS_FOLLOW_UP_THOUGHT: Message sent successfully to channel {channel_id}."
+            f"CIRIS_FOLLOW_UP_THOUGHT: Message sent successfully to channel {channel_id}. NEXT ACTION IS ALMOST CERTAINLY TASK COMPLETE"
             if success
             else f"CIRIS_FOLLOW_UP_THOUGHT: SPEAK action failed for thought {thought_id}."
         )

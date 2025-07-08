@@ -46,12 +46,10 @@ class DiscordToolService(ToolService):
 
     async def start(self) -> None:
         """Start the Discord tool service."""
-        await super().start()
         logger.info("Discord tool service started")
 
     async def stop(self) -> None:
         """Stop the Discord tool service."""
-        await super().stop()
         logger.info("Discord tool service stopped")
 
     async def execute_tool(self, tool_name: str, parameters: dict) -> ToolExecutionResult:
@@ -123,11 +121,16 @@ class DiscordToolService(ToolService):
             return {"success": False, "error": "channel_id and content are required"}
         
         try:
+            if not self._client:
+                return {"success": False, "error": "Discord client not initialized"}
             channel = self._client.get_channel(int(channel_id))
             if not channel:
                 channel = await self._client.fetch_channel(int(channel_id))
             
-            message = await channel.send(content)
+            if not hasattr(channel, 'send'):
+                return {"success": False, "error": "Channel does not support sending messages"}
+                
+            message = await channel.send(content)  # type: ignore[attr-defined]
             return {
                 "success": True,
                 "data": {
@@ -150,6 +153,8 @@ class DiscordToolService(ToolService):
             return {"success": False, "error": "channel_id is required"}
         
         try:
+            if not self._client:
+                return {"success": False, "error": "Discord client not initialized"}
             channel = self._client.get_channel(int(channel_id))
             if not channel:
                 channel = await self._client.fetch_channel(int(channel_id))
@@ -162,7 +167,10 @@ class DiscordToolService(ToolService):
                     inline=field.get("inline", False)
                 )
             
-            message = await channel.send(embed=embed)
+            if not hasattr(channel, 'send'):
+                return {"success": False, "error": "Channel does not support sending messages"}
+                
+            message = await channel.send(embed=embed)  # type: ignore[attr-defined]
             return {
                 "success": True,
                 "data": {
@@ -182,11 +190,16 @@ class DiscordToolService(ToolService):
             return {"success": False, "error": "channel_id and message_id are required"}
         
         try:
+            if not self._client:
+                return {"success": False, "error": "Discord client not initialized"}
             channel = self._client.get_channel(int(channel_id))
             if not channel:
                 channel = await self._client.fetch_channel(int(channel_id))
             
-            message = await channel.fetch_message(int(message_id))
+            if not hasattr(channel, 'fetch_message'):
+                return {"success": False, "error": "Channel does not support fetching messages"}
+                
+            message = await channel.fetch_message(int(message_id))  # type: ignore[attr-defined]
             await message.delete()
             
             return {
@@ -210,6 +223,8 @@ class DiscordToolService(ToolService):
             return {"success": False, "error": "guild_id and user_id are required"}
         
         try:
+            if not self._client:
+                return {"success": False, "error": "Discord client not initialized"}
             guild = self._client.get_guild(int(guild_id))
             if not guild:
                 return {"success": False, "error": f"Guild {guild_id} not found"}
@@ -244,10 +259,14 @@ class DiscordToolService(ToolService):
             return {"success": False, "error": "guild_id and user_id are required"}
         
         try:
+            if not self._client:
+                return {"success": False, "error": "Discord client not initialized"}
             guild = self._client.get_guild(int(guild_id))
             if not guild:
                 return {"success": False, "error": f"Guild {guild_id} not found"}
             
+            if not self._client:
+                return {"success": False, "error": "Discord client not initialized"}
             user = await self._client.fetch_user(int(user_id))
             await guild.ban(user, reason=reason, delete_message_days=delete_message_days)
             
@@ -271,6 +290,8 @@ class DiscordToolService(ToolService):
             return {"success": False, "error": "guild_id and user_id are required"}
         
         try:
+            if not self._client:
+                return {"success": False, "error": "Discord client not initialized"}
             guild = self._client.get_guild(int(guild_id))
             if not guild:
                 return {"success": False, "error": f"Guild {guild_id} not found"}
@@ -301,6 +322,8 @@ class DiscordToolService(ToolService):
             return {"success": False, "error": "guild_id, user_id, and role_name are required"}
         
         try:
+            if not self._client:
+                return {"success": False, "error": "Discord client not initialized"}
             guild = self._client.get_guild(int(guild_id))
             if not guild:
                 return {"success": False, "error": f"Guild {guild_id} not found"}
@@ -337,6 +360,8 @@ class DiscordToolService(ToolService):
             return {"success": False, "error": "guild_id, user_id, and role_name are required"}
         
         try:
+            if not self._client:
+                return {"success": False, "error": "Discord client not initialized"}
             guild = self._client.get_guild(int(guild_id))
             if not guild:
                 return {"success": False, "error": f"Guild {guild_id} not found"}
@@ -372,6 +397,8 @@ class DiscordToolService(ToolService):
             return {"success": False, "error": "user_id is required"}
         
         try:
+            if not self._client:
+                return {"success": False, "error": "Discord client not initialized"}
             user = await self._client.fetch_user(int(user_id))
             
             data = {
@@ -385,6 +412,8 @@ class DiscordToolService(ToolService):
             
             # Add guild-specific info if guild_id provided
             if guild_id:
+                if not self._client:
+                    return {"success": False, "error": "Discord client not initialized"}
                 guild = self._client.get_guild(int(guild_id))
                 if guild:
                     member = guild.get_member(int(user_id))
@@ -405,6 +434,8 @@ class DiscordToolService(ToolService):
             return {"success": False, "error": "channel_id is required"}
         
         try:
+            if not self._client:
+                return {"success": False, "error": "Discord client not initialized"}
             channel = self._client.get_channel(int(channel_id))
             if not channel:
                 channel = await self._client.fetch_channel(int(channel_id))
@@ -413,7 +444,7 @@ class DiscordToolService(ToolService):
                 "channel_id": str(channel.id),
                 "name": channel.name,
                 "type": str(channel.type),
-                "created_at": channel.created_at.isoformat()
+                "created_at": channel.created_at.isoformat() if hasattr(channel, 'created_at') and channel.created_at else None  # type: ignore[attr-defined]
             }
             
             # Add guild info if it's a guild channel
@@ -578,11 +609,15 @@ class DiscordToolService(ToolService):
         if tool_name not in tool_schemas:
             return None
             
+        from datetime import datetime, timezone
         return ToolInfo(
             name=tool_name,
             description=tool_descriptions.get(tool_name, ""),
             parameters=tool_schemas[tool_name],
-            category="discord"
+            category="discord",
+            version="1.0.0",
+            created_at=datetime.now(timezone.utc) if self._time_service is None else self._time_service.now(),
+            updated_at=datetime.now(timezone.utc) if self._time_service is None else self._time_service.now()
         )
 
     async def get_all_tool_info(self) -> List[ToolInfo]:
@@ -598,7 +633,7 @@ class DiscordToolService(ToolService):
         """Check if the Discord tool service is healthy."""
         return self._client is not None and not self._client.is_closed()
 
-    def get_capabilities(self) -> List[str]:
+    async def get_capabilities(self) -> List[str]:
         """Get service capabilities."""
         return [
             "execute_tool",
@@ -609,15 +644,22 @@ class DiscordToolService(ToolService):
             "get_all_tool_info"
         ]
 
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> Any:
         """Get service status."""
-        return {
-            "service": "DiscordToolService",
-            "healthy": self._client is not None and not self._client.is_closed(),
-            "tools_available": len(self._tools),
-            "tools": list(self._tools.keys()),
-            "client_connected": self._client is not None and not self._client.is_closed() if self._client else False
-        }
+        from ciris_engine.schemas.services.core import ServiceStatus
+        from datetime import datetime, timezone
+        return ServiceStatus(
+            service_name="DiscordToolService",
+            service_type="TOOL",
+            is_healthy=self._client is not None and not self._client.is_closed(),
+            uptime_seconds=0.0,  # Would need to track start time
+            last_error=None,
+            metrics={
+                "tools_available": len(self._tools),
+                "client_connected": self._client is not None and not self._client.is_closed() if self._client else False
+            },
+            last_health_check=datetime.now(timezone.utc) if self._time_service is None else self._time_service.now()
+        )
 
     async def list_tools(self) -> List[str]:
         """List available tools - required by ToolServiceProtocol."""

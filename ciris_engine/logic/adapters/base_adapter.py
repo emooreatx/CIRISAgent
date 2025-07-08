@@ -67,9 +67,13 @@ class BaseAdapter(Service):
         
         correlation = ServiceCorrelation(
             correlation_id=correlation_id,
+            trace_id=str(uuid.uuid4()),  # Required field
+            parent_span_id=None,  # Required field
+            span_id=str(uuid.uuid4()),  # Required field
             service_type=self.adapter_type,
             handler_name=f"{self.adapter_type.title()}Adapter",
             action_type="speak",
+            channel_id=channel_id,  # Required field
             request_data=ServiceRequestData(
                 service_type=self.adapter_type,
                 method_name="speak",
@@ -78,6 +82,8 @@ class BaseAdapter(Service):
                 request_timestamp=now
             ),
             response_data=ServiceResponseData(
+                service_type=self.adapter_type,  # Required field
+                method_name="speak",  # Required field
                 success=True,
                 result_summary="Message sent",
                 execution_time_ms=0,
@@ -89,7 +95,7 @@ class BaseAdapter(Service):
             timestamp=now
         )
         
-        persistence.add_correlation(correlation, time_service)
+        persistence.add_correlation(correlation)
         logger.debug(f"Created speak correlation {correlation_id} for channel {channel_id}")
         return correlation_id
     
@@ -120,9 +126,13 @@ class BaseAdapter(Service):
         
         correlation = ServiceCorrelation(
             correlation_id=correlation_id,
+            trace_id=str(uuid.uuid4()),  # Required field
+            parent_span_id=None,  # Required field
+            span_id=str(uuid.uuid4()),  # Required field
             service_type=self.adapter_type,
             handler_name=f"{self.adapter_type.title()}Adapter",
             action_type="observe",
+            channel_id=channel_id,  # Required field
             request_data=ServiceRequestData(
                 service_type=self.adapter_type,
                 method_name="observe",
@@ -131,6 +141,8 @@ class BaseAdapter(Service):
                 request_timestamp=now
             ),
             response_data=ServiceResponseData(
+                service_type=self.adapter_type,  # Required field
+                method_name="observe",  # Required field
                 success=True,
                 result_summary="Message observed",
                 execution_time_ms=0,
@@ -142,7 +154,7 @@ class BaseAdapter(Service):
             timestamp=now
         )
         
-        persistence.add_correlation(correlation, time_service)
+        persistence.add_correlation(correlation)
         logger.debug(f"Created observe correlation {correlation_id} for message {message_id}")
         return correlation_id
     
@@ -211,7 +223,7 @@ class BaseAdapter(Service):
                     })
             
             # Sort by timestamp
-            messages.sort(key=lambda m: m["timestamp"])
+            messages.sort(key=lambda m: m["timestamp"] if isinstance(m["timestamp"], datetime) else datetime.fromisoformat(str(m["timestamp"])))
             
             return messages
             

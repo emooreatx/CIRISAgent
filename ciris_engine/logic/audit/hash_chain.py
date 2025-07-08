@@ -14,7 +14,6 @@ from typing import Optional, List
 from ciris_engine.schemas.audit.hash_chain import (
     HashChainVerificationResult, ChainSummary
 )
-from ciris_engine.schemas.audit.verification import ChainVerificationResult
 
 logger = logging.getLogger(__name__)
 

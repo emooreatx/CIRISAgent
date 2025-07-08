@@ -140,7 +140,7 @@ class ActionInstructionGenerator:
         elif action_name == "RECALL":
             # RECALL has a completely different schema
             base_schema = (f"RECALL: {{\"query\"?: string (search text), "
-                          "\"node_type\"?: \"agent\"|\"user\"|\"channel\"|\"concept\", "
+                          "\"node_type\"?: string (agent, user, channel, concept, config, tsdb_data, tsdb_summary, conversation_summary, audit_entry, identity_snapshot, behavioral, social, identity, observation), "
                           "\"node_id\"?: string (specific node ID), "
                           "\"scope\"?: \"local\"|\"identity\"|\"environment\", "
                           "\"limit\"?: integer (default: 10)}}")

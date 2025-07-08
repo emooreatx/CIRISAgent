@@ -24,29 +24,76 @@ class DateTimeEncoder(json.JSONEncoder):
         return super().default(obj)
 
 def add_graph_node(node: GraphNode, time_service: TimeServiceProtocol, db_path: Optional[str] = None) -> str:
-    """Insert or replace a graph node."""
-    sql = """
-        INSERT OR REPLACE INTO graph_nodes
-        (node_id, scope, node_type, attributes_json, version, updated_by, updated_at)
-        VALUES (:node_id, :scope, :node_type, :attributes_json, :version, :updated_by, :updated_at)
-    """
-    params = {
-        "node_id": node.id,
-        "scope": node.scope.value,
-        "node_type": node.type.value,
-        "attributes_json": json.dumps(node.attributes, cls=DateTimeEncoder),
-        "version": node.version,
-        "updated_by": node.updated_by,
-        "updated_at": node.updated_at or time_service.now().isoformat(),
-    }
+    """Insert or update a graph node, merging attributes if it exists."""
     try:
         with get_db_connection(db_path=db_path) as conn:
-            conn.execute(sql, params)
+            # First check if node exists and get its current attributes
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT attributes_json FROM graph_nodes WHERE node_id = ? AND scope = ?",
+                (node.id, node.scope.value)
+            )
+            existing_row = cursor.fetchone()
+            
+            if existing_row:
+                # Node exists - merge attributes
+                existing_attrs = json.loads(existing_row["attributes_json"]) if existing_row["attributes_json"] else {}
+                
+                # Convert node.attributes to dict if it's a Pydantic model
+                if hasattr(node.attributes, 'model_dump'):
+                    new_attrs = node.attributes.model_dump()
+                elif hasattr(node.attributes, 'dict'):
+                    new_attrs = node.attributes.dict()
+                elif isinstance(node.attributes, dict):
+                    new_attrs = node.attributes
+                else:
+                    new_attrs = {}
+                
+                # Merge attributes - new values override old ones
+                merged_attrs = {**existing_attrs, **new_attrs}
+                
+                # Update the node
+                sql = """
+                    UPDATE graph_nodes
+                    SET attributes_json = :attributes_json,
+                        version = version + 1,
+                        updated_by = :updated_by,
+                        updated_at = :updated_at
+                    WHERE node_id = :node_id AND scope = :scope
+                """
+                params = {
+                    "node_id": node.id,
+                    "scope": node.scope.value,
+                    "attributes_json": json.dumps(merged_attrs, cls=DateTimeEncoder),
+                    "updated_by": node.updated_by,
+                    "updated_at": node.updated_at or time_service.now().isoformat(),
+                }
+                logger.debug("Updating graph node %s with merged attributes", node.id)
+            else:
+                # Node doesn't exist - insert new
+                sql = """
+                    INSERT INTO graph_nodes
+                    (node_id, scope, node_type, attributes_json, version, updated_by, updated_at)
+                    VALUES (:node_id, :scope, :node_type, :attributes_json, :version, :updated_by, :updated_at)
+                """
+                params = {
+                    "node_id": node.id,
+                    "scope": node.scope.value,
+                    "node_type": node.type.value,
+                    "attributes_json": json.dumps(node.attributes, cls=DateTimeEncoder),
+                    "version": node.version,
+                    "updated_by": node.updated_by,
+                    "updated_at": node.updated_at or time_service.now().isoformat(),
+                }
+                logger.debug("Inserting new graph node %s", node.id)
+            
+            cursor.execute(sql, params)
             conn.commit()
-        logger.debug("Added graph node %s in scope %s", node.id, node.scope.value)
+            
+        logger.debug("Successfully saved graph node %s in scope %s", node.id, node.scope.value)
         return node.id
     except Exception as e:
-        logger.exception("Failed to add graph node %s: %s", node.id, e)
+        logger.exception("Failed to add/update graph node %s: %s", node.id, e)
         raise
 
 def get_graph_node(node_id: str, scope: GraphScope, db_path: Optional[str] = None) -> Optional[GraphNode]:

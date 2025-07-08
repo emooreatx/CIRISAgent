@@ -7,8 +7,7 @@ from datetime import datetime
 
 from ..services.auth_service import APIAuthService
 from ciris_engine.schemas.runtime.api import (
-    APIRole,
-    APIUserInfo
+    APIRole
 )
 from ciris_engine.schemas.services.authority_core import WARole
 from ..dependencies.auth import (

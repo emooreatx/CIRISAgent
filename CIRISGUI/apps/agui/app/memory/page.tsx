@@ -31,6 +31,7 @@ export default function MemoryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingNode, setIsLoadingNode] = useState(false);
   const [activeScope, setActiveScope] = useState<string>('local');
   const [activeNodeType, setActiveNodeType] = useState<string | null>(null);
   const [graphLayout, setGraphLayout] = useState<'force' | 'timeline' | 'hierarchical'>('force');
@@ -123,42 +124,85 @@ export default function MemoryPage() {
       const container = svgContainerRef.current;
       container.innerHTML = svgContent;
       
+      // Create tooltip element
+      const tooltip = document.createElement('div');
+      tooltip.style.cssText = `
+        position: absolute;
+        background: rgba(0, 0, 0, 0.9);
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-family: monospace;
+        pointer-events: none;
+        z-index: 1000;
+        visibility: hidden;
+        white-space: nowrap;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      `;
+      document.body.appendChild(tooltip);
+      
       // Add click handlers to all circles (nodes)
       const circles = container.querySelectorAll('circle');
       circles.forEach((circle, index) => {
         circle.style.cursor = 'pointer';
+        const nodeId = circle.getAttribute('data-node-id');
+        
         circle.addEventListener('click', async () => {
-          // Get the full node ID from the data attribute
-          const nodeId = circle.getAttribute('data-node-id');
-          
           if (nodeId) {
-            // Search for the node using its full ID
-            setSearchQuery(nodeId);
-            toast.success(`Searching for node: ${nodeId}`);
+            // Clear existing search to force refresh
+            setSearchQuery('');
+            // Small delay to ensure state update
+            setTimeout(() => {
+              setSearchQuery(nodeId);
+              toast.success(`Querying node: ${nodeId}`);
+            }, 50);
           }
         });
         
-        // Highlight on hover
-        circle.addEventListener('mouseenter', () => {
+        // Show tooltip on hover
+        circle.addEventListener('mouseenter', (e) => {
           circle.setAttribute('opacity', '1.0');
           circle.style.filter = 'brightness(1.2)';
+          
+          if (nodeId) {
+            tooltip.textContent = `Click to query: ${nodeId}`;
+            tooltip.style.visibility = 'visible';
+            
+            const rect = (e.target as Element).getBoundingClientRect();
+            tooltip.style.left = `${rect.left + rect.width / 2 - tooltip.offsetWidth / 2}px`;
+            tooltip.style.top = `${rect.top - tooltip.offsetHeight - 5}px`;
+          }
         });
         
         circle.addEventListener('mouseleave', () => {
           circle.setAttribute('opacity', '0.8');
           circle.style.filter = 'none';
+          tooltip.style.visibility = 'hidden';
         });
       });
+      
+      // Cleanup tooltip on unmount
+      return () => {
+        if (tooltip.parentNode) {
+          tooltip.parentNode.removeChild(tooltip);
+        }
+      };
     }
   }, [svgContent]);
 
   // Load selected node details
   const loadNodeDetails = async (nodeId: string) => {
+    setIsLoadingNode(true);
     try {
       const node = await cirisClient.memory.getNode(nodeId);
       setSelectedNode(node);
+      toast.success('Node details loaded');
     } catch (error) {
       toast.error('Failed to load node details');
+      console.error('Error loading node:', error);
+    } finally {
+      setIsLoadingNode(false);
     }
   };
 
@@ -399,6 +443,9 @@ export default function MemoryPage() {
                       <p className="mt-1 text-xs text-gray-500">
                         {formatDate(node.attributes.created_at || node.updated_at || '')}
                       </p>
+                      <p className="mt-2 text-xs text-indigo-600">
+                        Click to view full details →
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -409,14 +456,23 @@ export default function MemoryPage() {
       )}
 
       {/* Selected Node Details */}
-      {selectedNode && (
-        <div className="bg-white shadow rounded-lg">
+      {(selectedNode || isLoadingNode) && (
+        <div className="bg-white shadow rounded-lg relative">
+          {isLoadingNode && (
+            <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-10 rounded-lg">
+              <SpinnerIcon size="lg" />
+            </div>
+          )}
           <div className="px-4 py-5 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-medium text-gray-900">Node Details</h3>
               <button
-                onClick={() => setSelectedNode(null)}
+                onClick={() => {
+                  setSelectedNode(null);
+                  setIsLoadingNode(false);
+                }}
                 className="text-gray-400 hover:text-gray-500"
+                disabled={isLoadingNode}
               >
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -424,14 +480,15 @@ export default function MemoryPage() {
               </button>
             </div>
             
-            <div className="space-y-4">
-              {/* Node Info */}
-              <div>
-                <h4 className="text-sm font-medium text-gray-700">Node Information</h4>
-                <dl className="mt-2 border-t border-gray-200 divide-y divide-gray-200">
-                  <div className="py-3 flex justify-between text-sm">
-                    <dt className="text-gray-500">ID</dt>
-                    <dd className="text-gray-900 font-mono text-xs">{selectedNode.id}</dd>
+            {selectedNode && (
+              <div className="space-y-4">
+                {/* Node Info */}
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700">Node Information</h4>
+                  <dl className="mt-2 border-t border-gray-200 divide-y divide-gray-200">
+                    <div className="py-3 flex justify-between text-sm">
+                      <dt className="text-gray-500">ID</dt>
+                      <dd className="text-gray-900 font-mono text-xs">{selectedNode.id}</dd>
                   </div>
                   <div className="py-3 flex justify-between text-sm">
                     <dt className="text-gray-500">Type</dt>
@@ -466,6 +523,7 @@ export default function MemoryPage() {
                 </div>
               </div>
             </div>
+            )}
           </div>
         </div>
       )}

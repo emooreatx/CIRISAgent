@@ -16,7 +16,7 @@ from ciris_engine.schemas.runtime.messages import IncomingMessage
 from ..dependencies.auth import require_observer, AuthContext
 from ciris_engine.schemas.api.auth import UserRole, ROLE_PERMISSIONS
 from ciris_engine.schemas.api.agent import (
-    MessageContext, AgentLineage, ServiceAvailability, ActiveTask
+    MessageContext, AgentLineage, ServiceAvailability
 )
 
 logger = logging.getLogger(__name__)

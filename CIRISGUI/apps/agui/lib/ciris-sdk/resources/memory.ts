@@ -1,7 +1,7 @@
 // CIRIS TypeScript SDK - Memory Resource
 
 import { BaseResource } from './base';
-import { GraphNode, MemoryOpResult } from '../types';
+import { GraphNode, GraphEdge, MemoryOpResult } from '../types';
 
 export interface MemoryStats {
   total_nodes: number;
@@ -18,6 +18,8 @@ export interface MemoryQueryOptions {
   offset?: number;
   order_by?: 'created_at' | 'updated_at' | 'relevance';
   order?: 'asc' | 'desc';
+  include_edges?: boolean;
+  depth?: number;
 }
 
 export class MemoryResource extends BaseResource {
@@ -30,11 +32,20 @@ export class MemoryResource extends BaseResource {
   ): Promise<GraphNode[]> {
     // If query looks like a node ID, search by ID
     const isNodeId = query && (
+      // Known node type prefixes
       query.startsWith('metric_') || 
       query.startsWith('audit_') || 
       query.startsWith('log_') ||
       query.startsWith('dream_schedule_') ||
-      query.includes('_') && /\d{10}/.test(query)
+      query.startsWith('thought_') ||
+      query.startsWith('task_') ||
+      query.startsWith('observation_') ||
+      query.startsWith('concept_') ||
+      query.startsWith('identity_') ||
+      query.startsWith('config_') ||
+      query.startsWith('tsdb_data_') ||
+      // Generic pattern: contains underscore (not at start) and 10-digit timestamp
+      (query.includes('_') && !query.startsWith('_') && /\d{10}/.test(query))
     );
     
     const body: any = {
@@ -162,5 +173,31 @@ export class MemoryResource extends BaseResource {
       responseType: 'text'
     });
     return response as unknown as string;
+  }
+
+  /**
+   * Create an edge between two nodes
+   */
+  async createEdge(edge: GraphEdge): Promise<MemoryOpResult> {
+    return this.transport.post<MemoryOpResult>('/v1/memory/edges', { edge });
+  }
+
+  /**
+   * Get all edges for a specific node
+   */
+  async getNodeEdges(nodeId: string, scope: string = 'local'): Promise<GraphEdge[]> {
+    return this.transport.get<GraphEdge[]>(`/v1/memory/${nodeId}/edges`, {
+      params: { scope }
+    });
+  }
+
+  /**
+   * Query nodes with edges included
+   */
+  async queryWithEdges(
+    query: string,
+    options: MemoryQueryOptions = {}
+  ): Promise<GraphNode[]> {
+    return this.query(query, { ...options, include_edges: true });
   }
 }

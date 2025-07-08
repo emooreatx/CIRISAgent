@@ -65,6 +65,15 @@ export interface InteractResponse {
 }
 
 // Memory Types
+export interface GraphEdge {
+  source: string;
+  target: string;
+  relationship: string;
+  scope: string;
+  weight: number;
+  attributes?: Record<string, any>;
+}
+
 export interface GraphNode {
   id: string;
   type: string;
@@ -73,6 +82,7 @@ export interface GraphNode {
   version: number;
   updated_by?: string;
   updated_at?: string;
+  // Edges are included in attributes._edges when include_edges=true in query
 }
 
 export interface MemoryOpResult {

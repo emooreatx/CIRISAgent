@@ -4,7 +4,7 @@ import pytest
 import pytest_asyncio
 from datetime import datetime, timedelta
 from unittest.mock import Mock, AsyncMock, patch
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from ciris_engine.logic.services.graph.telemetry_service import GraphTelemetryService
 from ciris_engine.schemas.runtime.system_context import TelemetrySummary
@@ -15,7 +15,7 @@ class TestTelemetrySummary:
     """Test telemetry summary generation and caching."""
 
     @pytest.fixture
-    def mock_time_service(self):
+    def mock_time_service(self) -> Mock:
         """Create a mock time service."""
         mock = Mock()
         mock.now.return_value = datetime(2024, 1, 1, 12, 0, 0)
@@ -23,19 +23,19 @@ class TestTelemetrySummary:
         return mock
 
     @pytest.fixture
-    def mock_memory_bus(self):
+    def mock_memory_bus(self) -> Mock:
         """Create a mock memory bus."""
         return Mock(spec=MemoryBus)
 
     @pytest_asyncio.fixture
-    async def telemetry_service(self, mock_memory_bus, mock_time_service):
+    async def telemetry_service(self, mock_memory_bus: Mock, mock_time_service: Mock) -> GraphTelemetryService:
         """Create telemetry service with mocks."""
         service = GraphTelemetryService(
             memory_bus=mock_memory_bus,
             time_service=mock_time_service
         )
         # Set start time for uptime calculation
-        service._start_time = datetime(2024, 1, 1, 0, 0, 0)
+        setattr(service, '_start_time', datetime(2024, 1, 1, 0, 0, 0))
         return service
 
     def create_mock_metrics(self, base_time: datetime, metric_name: str,
@@ -53,10 +53,10 @@ class TestTelemetrySummary:
         return metrics
 
     @pytest.mark.asyncio
-    async def test_get_telemetry_summary_basic(self, telemetry_service, mock_time_service):
+    async def test_get_telemetry_summary_basic(self, telemetry_service: GraphTelemetryService, mock_time_service: Mock) -> None:
         """Test basic telemetry summary generation."""
         # Mock query_metrics to return test data
-        async def mock_query_metrics(metric_name, start_time, end_time, tags=None):
+        async def mock_query_metrics(metric_name: str, start_time: datetime, end_time: datetime, tags: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
             if metric_name == "llm.tokens.total":
                 return self.create_mock_metrics(
                     mock_time_service.now(),
@@ -84,17 +84,17 @@ class TestTelemetrySummary:
 
         # Verify results
         assert isinstance(summary, TelemetrySummary)
-        assert summary.tokens_per_hour == 750  # Sum of tokens in last hour
-        assert summary.cost_per_hour_cents == 11.25
-        assert summary.carbon_per_hour_grams == 1.125
+        assert summary.tokens_last_hour == 750  # Sum of tokens in last hour
+        assert summary.cost_last_hour_cents == 11.25
+        assert summary.carbon_last_hour_grams == 1.125
         assert summary.uptime_seconds == 43200.0  # 12 hours
 
     @pytest.mark.asyncio
-    async def test_telemetry_summary_caching(self, telemetry_service, mock_time_service):
+    async def test_telemetry_summary_caching(self, telemetry_service: GraphTelemetryService, mock_time_service: Mock) -> None:
         """Test that telemetry summary uses caching."""
         call_count = 0
 
-        async def mock_query_metrics(metric_name, start_time, end_time, tags=None):
+        async def mock_query_metrics(metric_name: str, start_time: datetime, end_time: datetime, tags: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
             nonlocal call_count
             call_count += 1
             return self.create_mock_metrics(
@@ -114,8 +114,8 @@ class TestTelemetrySummary:
         assert call_count == initial_calls  # No new queries
 
         # Summaries should be identical
-        assert summary1.tokens_per_hour == summary2.tokens_per_hour
-        assert summary1.cost_per_hour_cents == summary2.cost_per_hour_cents
+        assert summary1.tokens_last_hour == summary2.tokens_last_hour
+        assert summary1.cost_last_hour_cents == summary2.cost_last_hour_cents
 
         # Advance time past cache TTL
         mock_time_service.now.return_value = datetime(2024, 1, 1, 12, 2, 0)  # 2 minutes later
@@ -125,10 +125,10 @@ class TestTelemetrySummary:
         assert call_count > initial_calls  # New queries made
 
     @pytest.mark.asyncio
-    async def test_telemetry_summary_error_handling(self, telemetry_service, mock_time_service):
+    async def test_telemetry_summary_error_handling(self, telemetry_service: GraphTelemetryService, mock_time_service: Mock) -> None:
         """Test telemetry summary handles errors gracefully."""
         # Mock query_metrics to raise an error
-        async def mock_query_metrics(metric_name, start_time, end_time, tags=None):
+        async def mock_query_metrics(metric_name: str, start_time: datetime, end_time: datetime, tags: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
             raise Exception("Database error")
 
         telemetry_service.query_metrics = mock_query_metrics
@@ -137,14 +137,14 @@ class TestTelemetrySummary:
         summary = await telemetry_service.get_telemetry_summary()
 
         assert isinstance(summary, TelemetrySummary)
-        assert summary.tokens_per_hour == 0.0
-        assert summary.cost_per_hour_cents == 0.0
+        assert summary.tokens_last_hour == 0.0
+        assert summary.cost_last_hour_cents == 0.0
         assert summary.messages_processed_24h == 0
 
     @pytest.mark.asyncio
-    async def test_telemetry_summary_service_breakdown(self, telemetry_service, mock_time_service):
+    async def test_telemetry_summary_service_breakdown(self, telemetry_service: GraphTelemetryService, mock_time_service: Mock) -> None:
         """Test service call breakdown in telemetry summary."""
-        async def mock_query_metrics(metric_name, start_time, end_time, tags=None):
+        async def mock_query_metrics(metric_name: str, start_time: datetime, end_time: datetime, tags: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
             if metric_name == "llm.tokens.total":
                 metrics = []
                 # Create metrics from different services
@@ -190,7 +190,7 @@ class TestTelemetrySummary:
 class TestResourceUsageCalculation:
     """Test resource usage calculation in LLM service."""
 
-    def test_llama_model_cost_calculation(self):
+    def test_llama_model_cost_calculation(self) -> None:
         """Test cost calculation for Llama models."""
         from ciris_engine.schemas.runtime.resources import ResourceUsage
 
@@ -210,7 +210,7 @@ class TestResourceUsageCalculation:
         assert output_cost_cents == 5.0   # $0.05
         assert total_cost_cents == 15.0  # $0.15
 
-    def test_carbon_footprint_calculation(self):
+    def test_carbon_footprint_calculation(self) -> None:
         """Test carbon footprint calculation for different models."""
         # Test Llama 17B model
         model_name = "meta-llama/Llama-4-Scout-17B-16E-Instruct"
@@ -226,7 +226,7 @@ class TestResourceUsageCalculation:
         assert energy_kwh == 0.002  # 0.002 kWh
         assert carbon_grams == 1.0   # 1g CO2
 
-    def test_openai_model_costs(self):
+    def test_openai_model_costs(self) -> None:
         """Test cost calculations for various OpenAI models."""
         test_cases = [
             ("gpt-4o-mini", 1_000_000, 1_000_000, 15.0, 60.0),  # $0.15 + $0.60
@@ -253,7 +253,7 @@ class TestSystemSnapshotIntegration:
     """Test system snapshot integration with telemetry."""
 
     @pytest.mark.asyncio
-    async def test_system_snapshot_includes_telemetry(self):
+    async def test_system_snapshot_includes_telemetry(self) -> None:
         """Test that build_system_snapshot includes telemetry summary."""
         from ciris_engine.logic.context.system_snapshot import build_system_snapshot
 
@@ -263,9 +263,9 @@ class TestSystemSnapshotIntegration:
             window_start=datetime.now() - timedelta(hours=24),
             window_end=datetime.now(),
             uptime_seconds=86400.0,
-            tokens_per_hour=1000.0,
-            cost_per_hour_cents=50.0,
-            carbon_per_hour_grams=10.0,
+            tokens_last_hour=1000.0,
+            cost_last_hour_cents=50.0,
+            carbon_last_hour_grams=10.0,
             messages_processed_24h=100,
             errors_24h=2
         )
@@ -284,10 +284,10 @@ class TestSystemSnapshotIntegration:
 
         # Verify telemetry is included
         assert snapshot.telemetry_summary is not None
-        assert snapshot.telemetry_summary.tokens_per_hour == 1000.0
-        assert snapshot.telemetry_summary.cost_per_hour_cents == 50.0
+        assert snapshot.telemetry_summary.tokens_last_hour == 1000.0
+        assert snapshot.telemetry_summary.cost_last_hour_cents == 50.0
 
-    def test_system_snapshot_formatting_with_telemetry(self):
+    def test_system_snapshot_formatting_with_telemetry(self) -> None:
         """Test formatting of system snapshot with telemetry data."""
         from ciris_engine.logic.formatters.system_snapshot import format_system_snapshot
         from ciris_engine.schemas.runtime.system_context import SystemSnapshot
@@ -297,9 +297,10 @@ class TestSystemSnapshotIntegration:
             window_start=datetime.now() - timedelta(hours=24),
             window_end=datetime.now(),
             uptime_seconds=86400.0,
-            tokens_per_hour=1500.0,
-            cost_per_hour_cents=75.0,
-            carbon_per_hour_grams=15.0,
+            tokens_last_hour=1500.0,
+            cost_last_hour_cents=75.0,
+            carbon_last_hour_grams=15.0,
+            energy_last_hour_kwh=0.003,  # Added missing field
             messages_processed_24h=200,
             messages_current_hour=25,
             thoughts_processed_24h=150,
@@ -322,8 +323,7 @@ class TestSystemSnapshotIntegration:
 
         # Verify output contains telemetry data
         assert "=== Resource Usage ===" in formatted
-        assert "Tokens (Current Hour): 1,500 tokens, $0.75, 15.0g CO2" in formatted
-        assert "Tokens (Past 24h): 36,000 tokens, $18.00, 360.0g CO2" in formatted
+        assert "Tokens (Last Hour): 1,500 tokens, $0.75, 15.0g CO2, 0.003 kWh" in formatted
         assert "Messages Processed: 25 (current hour), 200 (24h)" in formatted
         assert "Thoughts Processed: 20 (current hour), 150 (24h)" in formatted
         assert "⚠️ Error Rate: 2.5%" in formatted

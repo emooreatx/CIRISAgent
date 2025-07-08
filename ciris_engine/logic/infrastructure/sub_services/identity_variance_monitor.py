@@ -94,6 +94,11 @@ class IdentityVarianceMonitor(Service):
             baseline_id = f"identity_baseline_{int(self._time_service.now().timestamp())}"
             
             baseline_snapshot = IdentitySnapshot(
+                id=baseline_id,
+                scope=GraphScope.IDENTITY,
+                system_state="BASELINE",
+                expires_at=None,
+                identity_root=identity,
                 snapshot_id=baseline_id,
                 timestamp=self._time_service.now(),
                 agent_id=identity.agent_id,
@@ -122,6 +127,9 @@ class IdentityVarianceMonitor(Service):
                     node=baseline_node,
                     handler_name="identity_variance_monitor",
                     metadata=VarianceCheckMetadata(
+                        handler_name="identity_variance_monitor",
+                        check_reason="baseline",
+                        previous_check=None,
                         check_type="baseline",
                         baseline_established=self._time_service.now()
                     ).model_dump()
@@ -129,7 +137,7 @@ class IdentityVarianceMonitor(Service):
 
                 if result.status.value == "OK":
                     self._baseline_snapshot_id = baseline_id
-                logger.info(f"Identity baseline established: {baseline_id}")
+                    logger.info(f"Identity baseline established: {baseline_id}")
 
                 # Also store baseline reference
                 reference_node = GraphNode(
@@ -139,7 +147,9 @@ class IdentityVarianceMonitor(Service):
                     attributes={
                         "baseline_id": baseline_id,
                         "established_at": self._time_service.now().isoformat()
-                    }
+                    },
+                    updated_by="identity_variance_monitor",
+                    updated_at=self._time_service.now()
                 )
                 if self._memory_bus:
                     await self._memory_bus.memorize(reference_node, handler_name="identity_variance_monitor")
@@ -190,6 +200,11 @@ class IdentityVarianceMonitor(Service):
             # Create new baseline snapshot
             baseline_id = f"identity_baseline_{int(self._time_service.now().timestamp())}"
             baseline_snapshot = IdentitySnapshot(
+                id=baseline_id,
+                scope=GraphScope.IDENTITY,
+                system_state="BASELINE",
+                expires_at=None,
+                identity_root=None,  # No identity root for re-baseline
                 snapshot_id=baseline_id,
                 timestamp=self._time_service.now(),
                 agent_id=current_identity.get("agent_id", "unknown"),
@@ -211,10 +226,16 @@ class IdentityVarianceMonitor(Service):
                 updated_by="identity_variance_monitor"
             )
 
+            if not self._memory_bus:
+                raise RuntimeError("Memory bus not available")
+                
             result = await self._memory_bus.memorize(
                 node=baseline_snapshot.to_graph_node(),
                 handler_name="identity_variance_monitor",
                 metadata=VarianceCheckMetadata(
+                    handler_name="identity_variance_monitor",
+                    check_reason="rebaseline",
+                    previous_check=self._baseline_snapshot_id,
                     check_type="rebaseline",
                     variance_level=0.0,
                     threshold_exceeded=False,
@@ -222,14 +243,15 @@ class IdentityVarianceMonitor(Service):
                 ).model_dump()
             )
 
-            if result.success:
+            if result.status.value == "OK":
                 # Update baseline reference
                 old_baseline = self._baseline_snapshot_id
                 self._baseline_snapshot_id = baseline_id
 
                 # Store baseline reference correlation
                 from ciris_engine.schemas.persistence.correlations import CorrelationType
-                await self._memory_bus.correlate(
+                if self._memory_bus:
+                    await self._memory_bus.correlate(
                     source_id="identity_baseline",
                     target_id=baseline_id,
                     relationship=CorrelationType.REFERENCES,
@@ -328,6 +350,11 @@ class IdentityVarianceMonitor(Service):
 
         # Create snapshot using IdentitySnapshot type
         snapshot = IdentitySnapshot(
+            id=snapshot_id,
+            scope=GraphScope.IDENTITY,
+            system_state="SNAPSHOT",
+            expires_at=None,
+            identity_root=None,  # No identity root for snapshots
             snapshot_id=snapshot_id,
             timestamp=self._time_service.now(),
             agent_id=current_identity.get("agent_id", "unknown"),
@@ -360,6 +387,9 @@ class IdentityVarianceMonitor(Service):
                 node=snapshot.to_graph_node(),
                 handler_name="identity_variance_monitor",
                 metadata=VarianceCheckMetadata(
+                    handler_name="identity_variance_monitor",
+                    check_reason="snapshot",
+                    previous_check=self._baseline_snapshot_id,
                     check_type="snapshot",
                     baseline_established=self._time_service.now()
                 ).model_dump()
@@ -453,8 +483,8 @@ class IdentityVarianceMonitor(Service):
             Variance as a percentage (0.0 to 1.0)
         """
         # Get all attributes from both snapshots
-        baseline_attrs = baseline_snapshot.attributes or {}
-        current_attrs = current_snapshot.attributes or {}
+        baseline_attrs = baseline_snapshot.attributes if isinstance(baseline_snapshot.attributes, dict) else baseline_snapshot.attributes.model_dump() if hasattr(baseline_snapshot.attributes, 'model_dump') else {}
+        current_attrs = current_snapshot.attributes if isinstance(current_snapshot.attributes, dict) else current_snapshot.attributes.model_dump() if hasattr(current_snapshot.attributes, 'model_dump') else {}
 
         # Get all unique keys from both snapshots
         all_keys = set(baseline_attrs.keys()) | set(current_attrs.keys())
@@ -681,8 +711,9 @@ class IdentityVarianceMonitor(Service):
         trust_params = {}
 
         for node in config_nodes:
-            if node.attributes.get("config_type") == ConfigNodeType.TRUST_PARAMETERS.value:
-                trust_params.update(node.attributes.get("values", {}))
+            node_attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump() if hasattr(node.attributes, 'model_dump') else {}
+            if node_attrs.get("config_type") == ConfigNodeType.TRUST_PARAMETERS.value:
+                trust_params.update(node_attrs.get("values", {}))
 
         return trust_params
 
@@ -691,8 +722,9 @@ class IdentityVarianceMonitor(Service):
         capabilities = []
 
         for node in identity_nodes:
-            if node.attributes.get("node_type") == "capability_change":
-                capabilities.append(node.attributes.get("capability", "unknown"))
+            node_attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump() if hasattr(node.attributes, 'model_dump') else {}
+            if node_attrs.get("node_type") == "capability_change":
+                capabilities.append(node_attrs.get("capability", "unknown"))
 
         return capabilities
 
@@ -745,7 +777,8 @@ class IdentityVarianceMonitor(Service):
             )
 
             if nodes:
-                self._baseline_snapshot_id = nodes[0].attributes.get("baseline_id")
+                node_attrs = nodes[0].attributes if isinstance(nodes[0].attributes, dict) else nodes[0].attributes.model_dump() if hasattr(nodes[0].attributes, 'model_dump') else {}
+                self._baseline_snapshot_id = node_attrs.get("baseline_id")
                 logger.info(f"Loaded baseline ID: {self._baseline_snapshot_id}")
 
         except Exception as e:
@@ -796,7 +829,9 @@ class IdentityVarianceMonitor(Service):
                 "requires_wa_review": report.requires_wa_review,
                 "difference_count": len(report.differences),
                 "recommendations": report.recommendations
-            }
+            },
+            updated_by="identity_variance_monitor",
+            updated_at=self._time_service.now()
         )
 
         if self._memory_bus:

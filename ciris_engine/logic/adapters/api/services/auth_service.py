@@ -536,7 +536,6 @@ class APIAuthService:
         import json
         from pathlib import Path
         from cryptography.hazmat.primitives.asymmetric import ed25519
-        from cryptography.hazmat.backends import default_backend
         
         try:
             # Load ROOT public key from seed/

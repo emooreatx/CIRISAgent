@@ -12,7 +12,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_serializer, model_validator
 
 from ciris_engine.schemas.api.responses import SuccessResponse
-from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
+from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope, GraphEdge
 from ciris_engine.schemas.services.operations import MemoryQuery, MemoryOpResult
 from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
 from ..dependencies.auth import require_observer, require_admin, AuthContext
@@ -30,6 +30,10 @@ router = APIRouter(prefix="/memory", tags=["memory"])
 class StoreRequest(BaseModel):
     """Request to store typed nodes in memory (MEMORIZE)."""
     node: GraphNode = Field(..., description="Typed graph node to store")
+
+class CreateEdgeRequest(BaseModel):
+    """Request to create an edge between nodes."""
+    edge: GraphEdge = Field(..., description="Edge to create between nodes")
 
 class QueryRequest(BaseModel):
     """Flexible query interface for memory (RECALL).
@@ -190,7 +194,7 @@ async def query_memory(
                 node_id=body.related_to,
                 scope=body.scope or GraphScope.LOCAL,
                 type=body.type,
-                include_edges=True,
+                include_edges=body.include_edges or True,  # Default to True for related queries
                 depth=body.depth or 2
             )
             related_nodes = await memory_service.recall(query)
@@ -520,6 +524,8 @@ async def get_timeline(
 async def recall_memory(
     request: Request,
     node_id: str = Path(..., description="Node ID to recall"),
+    include_edges: bool = Query(False, description="Include edges in response"),
+    depth: int = Query(1, ge=1, le=3, description="Graph traversal depth if include_edges is true"),
     auth: AuthContext = Depends(require_observer)
 ) -> SuccessResponse[GraphNode]:
     """
@@ -527,12 +533,81 @@ async def recall_memory(
 
     Direct access to a memory node using the RECALL verb.
     """
-    return await get_memory(request, node_id, auth)
+    return await get_memory(request, node_id, include_edges, depth, auth)
+
+@router.get("/stats", response_model=SuccessResponse[MemoryStats])
+async def get_memory_stats(
+    request: Request,
+    auth: AuthContext = Depends(require_observer)
+) -> SuccessResponse[MemoryStats]:
+    """
+    Get memory graph statistics.
+    
+    Returns counts and metadata about nodes in memory without requiring any query parameters.
+    OBSERVER role can view memory statistics.
+    """
+    try:
+        stats = MemoryStats()
+        
+        # Get stats from database
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Total node count
+            cursor.execute("SELECT COUNT(*) as total FROM graph_nodes")
+            stats.total_nodes = cursor.fetchone()['total'] or 0
+            
+            # Nodes by type
+            cursor.execute("""
+                SELECT node_type, COUNT(*) as count 
+                FROM graph_nodes 
+                GROUP BY node_type
+            """)
+            stats.nodes_by_type = {row['node_type']: row['count'] for row in cursor.fetchall()}
+            
+            # Nodes by scope  
+            cursor.execute("""
+                SELECT scope, COUNT(*) as count 
+                FROM graph_nodes 
+                GROUP BY scope
+            """)
+            stats.nodes_by_scope = {row['scope']: row['count'] for row in cursor.fetchall()}
+            
+            # Recent nodes (24h)
+            twenty_four_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+            cursor.execute("""
+                SELECT COUNT(*) as count 
+                FROM graph_nodes 
+                WHERE updated_at >= ?
+            """, (twenty_four_hours_ago,))
+            stats.recent_nodes_24h = cursor.fetchone()['count'] or 0
+            
+            # Date range
+            cursor.execute("""
+                SELECT 
+                    MIN(updated_at) as oldest,
+                    MAX(updated_at) as newest
+                FROM graph_nodes
+            """)
+            row = cursor.fetchone()
+            if row and row['oldest']:
+                stats.oldest_node_date = datetime.fromisoformat(row['oldest'].replace('Z', '+00:00'))
+            if row and row['newest']:
+                stats.newest_node_date = datetime.fromisoformat(row['newest'].replace('Z', '+00:00'))
+        
+        return SuccessResponse(data=stats)
+        
+    except Exception as e:
+        logger.error(f"Failed to get memory stats: {e}")
+        # Return empty stats on error
+        return SuccessResponse(data=MemoryStats())
 
 @router.get("/{node_id}", response_model=SuccessResponse[GraphNode])
 async def get_memory(
     request: Request,
     node_id: str = Path(..., description="Node ID to retrieve"),
+    include_edges: bool = Query(False, description="Include edges in response"),
+    depth: int = Query(1, ge=1, le=3, description="Graph traversal depth if include_edges is true"),
     auth: AuthContext = Depends(require_observer)
 ) -> SuccessResponse[GraphNode]:
     """
@@ -549,8 +624,8 @@ async def get_memory(
             node_id=node_id,
             scope=GraphScope.LOCAL,
             type=None,
-            include_edges=False,
-            depth=1
+            include_edges=include_edges,
+            depth=depth
         )
 
         nodes = await memory_service.recall(query)
@@ -577,7 +652,7 @@ async def visualize_memory_graph(
     layout: Literal["force", "timeline", "hierarchical"] = Query("force", description="Graph layout algorithm"),
     width: int = Query(1200, ge=400, le=4000, description="SVG width in pixels"),
     height: int = Query(800, ge=300, le=3000, description="SVG height in pixels"),
-    limit: int = Query(50, ge=1, le=200, description="Maximum nodes to visualize"),
+    limit: int = Query(500, ge=1, le=1000, description="Maximum nodes to visualize"),
     include_metrics: bool = Query(False, description="Include metric TSDB_DATA nodes"),
     auth: AuthContext = Depends(require_observer)
 ) -> Response:
@@ -926,13 +1001,59 @@ async def visualize_memory_graph(
             }
             G.add_node(node.id, **node_attrs)
         
-        # TODO: Add edges if we implement relationship queries
+        # Query edges for all nodes in the visualization
+        edges_to_add = []
+        node_ids = [node.id for node in nodes]
+        
+        # Import edge query function
+        from ciris_engine.logic.persistence.models.graph import get_edges_for_node
+        
+        # Query edges for each node
+        edge_set = set()  # To avoid duplicate edges
+        for node in nodes:
+            try:
+                node_edges = get_edges_for_node(node.id, node.scope, db_path=memory_service.db_path)
+                for edge in node_edges:
+                    # Only include edges where both nodes are in our visualization
+                    if edge.source in node_ids and edge.target in node_ids:
+                        # Create a unique edge identifier to avoid duplicates
+                        edge_key = (edge.source, edge.target, edge.relationship)
+                        if edge_key not in edge_set:
+                            edge_set.add(edge_key)
+                            edges_to_add.append(edge)
+                            # Add edge to NetworkX graph
+                            G.add_edge(edge.source, edge.target, 
+                                     relationship=edge.relationship,
+                                     weight=edge.weight,
+                                     attributes=edge.attributes)
+            except Exception as e:
+                logger.warning(f"Failed to get edges for node {node.id}: {e}")
+        
+        logger.info(f"Found {len(edges_to_add)} edges connecting {len(nodes)} nodes")
         
         # Calculate layout based on selected algorithm
         if layout == "timeline" and hours:
             pos = _calculate_timeline_layout(G, nodes, width, height)
         elif layout == "hierarchical":
-            pos = nx.spring_layout(G, k=2, iterations=50)
+            # Try to use hierarchical layout if the graph has a tree-like structure
+            try:
+                # Check if graph is a tree or can be converted to one
+                if nx.is_tree(G.to_undirected()):
+                    # Find root nodes (nodes with no incoming edges)
+                    root_nodes = [n for n in G.nodes() if G.in_degree(n) == 0]
+                    if root_nodes:
+                        # Use the first root node for hierarchical layout
+                        pos = _hierarchy_pos(G, root_nodes[0])
+                    else:
+                        # Fallback to spring layout
+                        pos = nx.spring_layout(G, k=2, iterations=50)
+                else:
+                    # For non-tree graphs, use spring layout with higher k value
+                    pos = nx.spring_layout(G, k=3, iterations=50)
+            except:
+                # Fallback to spring layout if hierarchical fails
+                pos = nx.spring_layout(G, k=2, iterations=50)
+            
             # Scale to fit canvas
             pos = {node: (x * (width - 100) + 50, y * (height - 100) + 50) for node, (x, y) in pos.items()}
         else:  # force layout
@@ -940,8 +1061,8 @@ async def visualize_memory_graph(
             # Scale to fit canvas
             pos = {node: (x * (width - 100) + 50, y * (height - 100) + 50) for node, (x, y) in pos.items()}
         
-        # Generate SVG
-        svg = _generate_svg(G, pos, width, height, layout, hours)
+        # Generate SVG with edges
+        svg = _generate_svg(G, pos, width, height, layout, hours, edges_to_add)
         
         return Response(content=svg, media_type="image/svg+xml")
         
@@ -953,6 +1074,57 @@ async def visualize_memory_graph(
     except Exception as e:
         logger.exception(f"Error generating graph visualization: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+def _get_edge_color(relationship: str) -> str:
+    """Get color for edge based on relationship type."""
+    # Define color mapping for common relationship types
+    color_map = {
+        "created": "#4CAF50",        # Green - creation relationships
+        "updated": "#2196F3",        # Blue - update relationships
+        "references": "#FF9800",     # Orange - reference relationships
+        "part_of": "#9C27B0",        # Purple - hierarchical relationships
+        "related_to": "#607D8B",     # Blue Grey - general relationships
+        "follows": "#00BCD4",        # Cyan - temporal relationships
+        "responds_to": "#E91E63",    # Pink - response relationships
+        "depends_on": "#F44336",     # Red - dependency relationships
+        "contains": "#795548",       # Brown - containment relationships
+        "tagged_with": "#FFC107",    # Amber - tagging relationships
+    }
+    
+    # Check if relationship contains any of the mapped types (case-insensitive)
+    relationship_lower = relationship.lower()
+    for key, color in color_map.items():
+        if key in relationship_lower:
+            return color
+    
+    return "#999999"  # Default grey for unknown relationships
+
+
+def _get_edge_style(relationship: str) -> str:
+    """Get dash style for edge based on relationship type."""
+    # Define style mapping for relationship types
+    style_map = {
+        "weak": "5,5",          # Dotted for weak relationships
+        "strong": "0",          # Solid for strong relationships
+        "temporal": "10,5",     # Long dash for temporal relationships
+        "inferred": "2,2",      # Short dash for inferred relationships
+        "potential": "5,10",    # Dash-dot for potential relationships
+    }
+    
+    # Check if relationship contains any style keywords
+    relationship_lower = relationship.lower()
+    for key, style in style_map.items():
+        if key in relationship_lower:
+            return style
+    
+    # Default styles for common relationships
+    if any(word in relationship_lower for word in ["created", "updated", "depends"]):
+        return "0"  # Solid line for strong relationships
+    elif any(word in relationship_lower for word in ["related", "references", "tagged"]):
+        return "5,5"  # Dotted for looser relationships
+    
+    return "0"  # Default solid line
 
 
 def _get_node_color(node_type: NodeType) -> str:
@@ -989,6 +1161,43 @@ def _get_node_size(node: GraphNode) -> int:
         base_size += 10
     
     return base_size
+
+
+def _hierarchy_pos(G: "nx.DiGraph", root: str, width: float = 1., vert_gap: float = 0.2, vert_loc: float = 0, xcenter: float = 0.5) -> Dict[str, Tuple[float, float]]:
+    """
+    Create a hierarchical tree layout.
+    
+    If the graph is not a tree, this will still produce a hierarchical layout
+    by doing a breadth-first traversal.
+    """
+    def _hierarchy_pos_recursive(G, root, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5, 
+                                pos=None, parent=None, parsed=None):
+        if pos is None:
+            pos = {root: (xcenter, vert_loc)}
+        else:
+            pos[root] = (xcenter, vert_loc)
+            
+        if parsed is None:
+            parsed = set([root])
+        else:
+            parsed.add(root)
+            
+        children = []
+        for neighbor in G.neighbors(root):
+            if neighbor not in parsed:
+                children.append(neighbor)
+                
+        if len(children) != 0:
+            dx = width / len(children)
+            nextx = xcenter - width/2 - dx/2
+            for child in children:
+                nextx += dx
+                pos = _hierarchy_pos_recursive(G, child, width=dx, vert_gap=vert_gap, 
+                                             vert_loc=vert_loc-vert_gap, xcenter=nextx, pos=pos, 
+                                             parent=root, parsed=parsed)
+        return pos
+
+    return _hierarchy_pos_recursive(G, root, width, vert_gap, vert_loc, xcenter)
 
 
 def _calculate_timeline_layout(G: "nx.DiGraph", nodes: List[GraphNode], width: int, height: int) -> Dict[str, Tuple[float, float]]:
@@ -1095,15 +1304,28 @@ def _calculate_timeline_layout(G: "nx.DiGraph", nodes: List[GraphNode], width: i
 
 
 def _generate_svg(G: "nx.DiGraph", pos: Dict[str, tuple], width: int, height: int, 
-                  layout: str, hours: Optional[int]) -> str:
+                  layout: str, hours: Optional[int], edges: Optional[List[GraphEdge]] = None) -> str:
     """Generate SVG visualization of the graph."""
     svg_parts = [
         f'<svg width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">',
         f'<rect width="{width}" height="{height}" fill="#f8f9fa"/>',
         '<defs>',
-        '<marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">',
+        # Define multiple arrow markers for different relationship types
+        '<marker id="arrowhead-default" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">',
         '<polygon points="0 0, 10 3.5, 0 7" fill="#999" />',
         '</marker>',
+        '<marker id="arrowhead-strong" markerWidth="12" markerHeight="8" refX="11" refY="4" orient="auto">',
+        '<polygon points="0 0, 12 4, 0 8" fill="#666" />',
+        '</marker>',
+        '<marker id="arrowhead-weak" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">',
+        '<polygon points="0 0, 8 3, 0 6" fill="#ccc" />',
+        '</marker>',
+        # Add hover style
+        '<style>',
+        '.edge-line { cursor: pointer; }',
+        '.edge-line:hover { stroke-width: 4; opacity: 1.0; }',
+        '.edge-label { pointer-events: none; font-family: Arial; font-size: 10px; fill: #666; }',
+        '</style>',
         '</defs>'
     ]
     
@@ -1116,14 +1338,45 @@ def _generate_svg(G: "nx.DiGraph", pos: Dict[str, tuple], width: int, height: in
         f'font-size="20" font-weight="bold" fill="#333">{title}</text>'
     )
     
-    # Draw edges (if any)
-    for edge in G.edges():
-        x1, y1 = pos[edge[0]]
-        x2, y2 = pos[edge[1]]
-        svg_parts.append(
-            f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
-            f'stroke="#999" stroke-width="2" marker-end="url(#arrowhead)" opacity="0.6"/>'
-        )
+    # Draw edges with different styles for different relationship types
+    if edges:
+        for edge in edges:
+            if edge.source in pos and edge.target in pos:
+                x1, y1 = pos[edge.source]
+                x2, y2 = pos[edge.target]
+                
+                # Calculate edge style based on relationship type and weight
+                edge_color = _get_edge_color(edge.relationship)
+                edge_style = _get_edge_style(edge.relationship)
+                edge_width = 1 + (edge.weight * 2)  # Width based on weight
+                opacity = 0.4 + (edge.weight * 0.4)  # Opacity based on weight
+                
+                # Choose arrow marker based on weight
+                if edge.weight > 0.7:
+                    marker = "arrowhead-strong"
+                elif edge.weight < 0.3:
+                    marker = "arrowhead-weak"
+                else:
+                    marker = "arrowhead-default"
+                
+                # Draw edge line with data attributes for interactivity
+                svg_parts.append(
+                    f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" '
+                    f'stroke="{edge_color}" stroke-width="{edge_width}" '
+                    f'stroke-dasharray="{edge_style}" '
+                    f'marker-end="url(#{marker})" opacity="{opacity}" '
+                    f'class="edge-line" '
+                    f'data-source="{edge.source}" data-target="{edge.target}" '
+                    f'data-relationship="{edge.relationship}" data-weight="{edge.weight}"/>'
+                )
+                
+                # Add edge label at midpoint
+                mid_x = (x1 + x2) / 2
+                mid_y = (y1 + y2) / 2
+                svg_parts.append(
+                    f'<text x="{mid_x}" y="{mid_y}" class="edge-label" '
+                    f'text-anchor="middle">{edge.relationship}</text>'
+                )
     
     # Draw nodes
     for node_id, attrs in G.nodes(data=True):
@@ -1186,7 +1439,9 @@ def _generate_svg(G: "nx.DiGraph", pos: Dict[str, tuple], width: int, height: in
             )
     
     # Add legend
-    legend_y = height - 150
+    legend_y = height - 200
+    
+    # Node types legend
     svg_parts.append(
         f'<text x="20" y="{legend_y}" font-family="Arial" font-size="14" '
         f'font-weight="bold" fill="#333">Node Types:</text>'
@@ -1209,74 +1464,74 @@ def _generate_svg(G: "nx.DiGraph", pos: Dict[str, tuple], width: int, height: in
             f'<text x="45" y="{y_offset + 5}" font-family="Arial" font-size="12" fill="#333">{label}</text>'
         )
     
+    # Edge relationships legend (if we have edges)
+    if edges and len(edges) > 0:
+        edge_legend_y = legend_y + 100
+        svg_parts.append(
+            f'<text x="20" y="{edge_legend_y}" font-family="Arial" font-size="14" '
+            f'font-weight="bold" fill="#333">Edge Types:</text>'
+        )
+        
+        # Get unique relationship types from displayed edges
+        unique_relationships = list(set(edge.relationship for edge in edges))[:4]  # Show max 4
+        
+        for i, relationship in enumerate(unique_relationships):
+            y_offset = edge_legend_y + 20 + i * 20
+            color = _get_edge_color(relationship)
+            style = _get_edge_style(relationship)
+            
+            # Draw sample edge line
+            svg_parts.append(
+                f'<line x1="20" y1="{y_offset}" x2="40" y2="{y_offset}" '
+                f'stroke="{color}" stroke-width="2" stroke-dasharray="{style}"/>'
+            )
+            svg_parts.append(
+                f'<text x="45" y="{y_offset + 5}" font-family="Arial" font-size="12" fill="#333">{relationship}</text>'
+            )
+    
     svg_parts.append('</svg>')
     
     return '\n'.join(svg_parts)
 
-
-@router.get("/stats", response_model=SuccessResponse[MemoryStats])
-async def get_memory_stats(
+@router.post("/edges", response_model=SuccessResponse[MemoryOpResult])
+async def create_edge(
     request: Request,
-    auth: AuthContext = Depends(require_observer)
-) -> SuccessResponse[MemoryStats]:
+    body: CreateEdgeRequest,
+    auth: AuthContext = Depends(require_admin)
+) -> SuccessResponse[MemoryOpResult]:
     """
-    Get memory graph statistics.
+    Create an edge between two nodes in the memory graph.
     
-    Returns counts and metadata about nodes in memory without requiring any query parameters.
-    OBSERVER role can view memory statistics.
+    Requires ADMIN role as this modifies the graph structure.
     """
+    memory_service = getattr(request.app.state, 'memory_service', None)
+    if not memory_service:
+        raise HTTPException(status_code=503, detail="Memory service not available")
+    
     try:
-        stats = MemoryStats()
-        
-        # Get stats from database
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Total node count
-            cursor.execute("SELECT COUNT(*) as total FROM graph_nodes")
-            stats.total_nodes = cursor.fetchone()['total'] or 0
-            
-            # Nodes by type
-            cursor.execute("""
-                SELECT node_type, COUNT(*) as count 
-                FROM graph_nodes 
-                GROUP BY node_type
-            """)
-            stats.nodes_by_type = {row['node_type']: row['count'] for row in cursor.fetchall()}
-            
-            # Nodes by scope  
-            cursor.execute("""
-                SELECT scope, COUNT(*) as count 
-                FROM graph_nodes 
-                GROUP BY scope
-            """)
-            stats.nodes_by_scope = {row['scope']: row['count'] for row in cursor.fetchall()}
-            
-            # Recent nodes (24h)
-            twenty_four_hours_ago = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-            cursor.execute("""
-                SELECT COUNT(*) as count 
-                FROM graph_nodes 
-                WHERE updated_at >= ?
-            """, (twenty_four_hours_ago,))
-            stats.recent_nodes_24h = cursor.fetchone()['count'] or 0
-            
-            # Date range
-            cursor.execute("""
-                SELECT 
-                    MIN(updated_at) as oldest,
-                    MAX(updated_at) as newest
-                FROM graph_nodes
-            """)
-            row = cursor.fetchone()
-            if row and row['oldest']:
-                stats.oldest_node_date = datetime.fromisoformat(row['oldest'].replace('Z', '+00:00'))
-            if row and row['newest']:
-                stats.newest_node_date = datetime.fromisoformat(row['newest'].replace('Z', '+00:00'))
-        
-        return SuccessResponse(data=stats)
-        
+        result = await memory_service.create_edge(body.edge)
+        return SuccessResponse(data=result)
     except Exception as e:
-        logger.error(f"Failed to get memory stats: {e}")
-        # Return empty stats on error
-        return SuccessResponse(data=MemoryStats())
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/{node_id}/edges", response_model=SuccessResponse[List[GraphEdge]])
+async def get_node_edges(
+    request: Request,
+    node_id: str = Path(..., description="Node ID to get edges for"),
+    scope: GraphScope = Query(GraphScope.LOCAL, description="Scope of the node"),
+    auth: AuthContext = Depends(require_observer)
+) -> SuccessResponse[List[GraphEdge]]:
+    """
+    Get all edges connected to a specific node.
+    
+    Returns both incoming and outgoing edges.
+    """
+    memory_service = getattr(request.app.state, 'memory_service', None)
+    if not memory_service:
+        raise HTTPException(status_code=503, detail="Memory service not available")
+    
+    try:
+        edges = await memory_service.get_node_edges(node_id, scope)
+        return SuccessResponse(data=edges)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

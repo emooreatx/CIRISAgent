@@ -14,7 +14,6 @@ from ..dependencies.auth import require_observer, require_admin, AuthContext
 from ciris_engine.schemas.services.core.runtime import (
     ProcessorQueueStatus, ServiceHealthStatus, ServiceSelectionExplanation
 )
-from ciris_engine.schemas.api.runtime import ProcessingSpeedResult
 
 router = APIRouter(prefix="/system", tags=["system-extensions"])
 logger = logging.getLogger(__name__)

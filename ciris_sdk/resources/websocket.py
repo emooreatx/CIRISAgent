@@ -7,13 +7,17 @@ The API interfaces may change without notice.
 Enhanced WebSocket design with channel-specific filters, backpressure handling,
 and automatic reconnection support.
 """
-from typing import Optional, Dict, Any, List, Callable, AsyncIterator
+from typing import Optional, Dict, Any, List, Callable, AsyncIterator, TYPE_CHECKING
 from datetime import datetime, timezone
 import asyncio
 import json
 import logging
 from enum import Enum
 from pydantic import BaseModel, Field
+from typing import Literal
+
+if TYPE_CHECKING:
+    from typing import Any as WebSocketClientProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -47,22 +51,22 @@ class ChannelFilter(BaseModel):
 
 class SubscribeRequest(BaseModel):
     """WebSocket subscription request with channel filters."""
-    action: str = Field("subscribe", const=True)
+    action: Literal["subscribe"] = Field(default="subscribe")
     channels: Dict[str, ChannelFilter] = Field(
         ..., 
         description="Channels to subscribe with optional filters",
-        example={
+        examples=[{
             "telemetry": {"services": ["memory", "llm"]},
             "logs": {"level": "ERROR", "service": "audit"},
             "messages": {},
             "reasoning": {"min_depth": 3}
-        }
+        }]
     )
 
 
 class UnsubscribeRequest(BaseModel):
     """WebSocket unsubscribe request."""
-    action: str = Field("unsubscribe", const=True)
+    action: Literal["unsubscribe"] = Field(default="unsubscribe")
     channels: List[str] = Field(..., description="Channels to unsubscribe from")
 
 
@@ -122,21 +126,21 @@ class WebSocketResource:
         self.heartbeat_interval = heartbeat_interval
         
         self.state = WebSocketState.DISCONNECTED
-        self.ws = None
+        self.ws: Optional['WebSocketClientProtocol'] = None
         self._message_queue: asyncio.Queue = asyncio.Queue(maxsize=message_buffer_size)
         self._reconnect_attempts = 0
         self._last_sequence = 0
         self._subscriptions: Dict[str, ChannelFilter] = {}
         self._tasks: List[asyncio.Task] = []
         
-    async def __aenter__(self):
+    async def __aenter__(self) -> 'WebSocketResource':
         await self.connect()
         return self
         
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         await self.disconnect()
         
-    async def connect(self):
+    async def connect(self) -> None:
         """Establish WebSocket connection with authentication."""
         import websockets
         
@@ -161,7 +165,8 @@ class WebSocketResource:
             
             # Resubscribe to previous channels after reconnection
             if self._subscriptions:
-                await self.subscribe(self._subscriptions)
+                # Re-subscribe with type ignore as the types are compatible
+                await self.subscribe(self._subscriptions)  # type: ignore[arg-type]
                 
             logger.info(f"WebSocket connected to {self.url}")
             
@@ -173,7 +178,7 @@ class WebSocketResource:
             else:
                 raise
                 
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Gracefully disconnect WebSocket."""
         self.state = WebSocketState.DISCONNECTED
         
@@ -187,7 +192,7 @@ class WebSocketResource:
             
         logger.info("WebSocket disconnected")
         
-    async def subscribe(self, channels: Dict[str, Optional[ChannelFilter]]):
+    async def subscribe(self, channels: Dict[str, Optional[ChannelFilter]]) -> None:
         """
         Subscribe to channels with optional filters.
         
@@ -212,17 +217,22 @@ class WebSocketResource:
             else:
                 channel_filters[channel] = {}
                 
-        request = SubscribeRequest(channels=channel_filters)
+        request = SubscribeRequest(channels=channel_filters)  # type: ignore[arg-type]
         
         # Send subscription
-        await self.ws.send(request.json())
+        if self.ws:
+            await self.ws.send(request.json())
         
         # Track subscriptions for reconnection
-        self._subscriptions.update(channels)
+        for ch, filt in channels.items():
+            if filt:
+                self._subscriptions[ch] = filt
+            else:
+                self._subscriptions.pop(ch, None)
         
         logger.info(f"Subscribed to channels: {list(channels.keys())}")
         
-    async def unsubscribe(self, channels: List[str]):
+    async def unsubscribe(self, channels: List[str]) -> None:
         """
         Unsubscribe from channels.
         
@@ -233,7 +243,8 @@ class WebSocketResource:
             raise RuntimeError("WebSocket not connected")
             
         request = UnsubscribeRequest(channels=channels)
-        await self.ws.send(request.json())
+        if self.ws:
+            await self.ws.send(request.json())
         
         # Remove from tracked subscriptions
         for channel in channels:
@@ -258,7 +269,7 @@ class WebSocketResource:
             except asyncio.CancelledError:
                 break
                 
-    async def send(self, data: Dict[str, Any]):
+    async def send(self, data: Dict[str, Any]) -> None:
         """
         Send arbitrary data to the server.
         
@@ -268,58 +279,61 @@ class WebSocketResource:
         if self.state != WebSocketState.CONNECTED:
             raise RuntimeError("WebSocket not connected")
             
-        await self.ws.send(json.dumps(data))
+        if self.ws:
+            await self.ws.send(json.dumps(data))
         
-    async def _receive_messages(self):
+    async def _receive_messages(self) -> None:
         """Background task to receive and queue messages."""
         try:
-            async for message in self.ws:
-                try:
-                    data = json.loads(message)
-                    
-                    # Handle different message types
-                    if data.get("type") == "error":
-                        logger.error(f"Server error: {data.get('message')}")
-                        continue
-                        
-                    if data.get("type") == "pong":
-                        # Heartbeat response
-                        continue
-                        
-                    # Parse as WebSocketMessage
-                    ws_message = WebSocketMessage(**data)
-                    
-                    # Check sequence for gaps
-                    if ws_message.sequence > self._last_sequence + 1:
-                        logger.warning(
-                            f"Message gap detected: expected {self._last_sequence + 1}, "
-                            f"got {ws_message.sequence}"
-                        )
-                    self._last_sequence = ws_message.sequence
-                    
-                    # Queue message with backpressure handling
+            if self.ws:
+                async for message in self.ws:
                     try:
-                        self._message_queue.put_nowait(ws_message)
-                    except asyncio.QueueFull:
-                        # Drop oldest message and retry
-                        try:
-                            self._message_queue.get_nowait()
-                            self._message_queue.put_nowait(ws_message)
-                            logger.warning("Message buffer full, dropped oldest message")
-                        except asyncio.QueueEmpty:
-                            pass
+                        data = json.loads(message)
+                        
+                        # Handle different message types
+                        if data.get("type") == "error":
+                            logger.error(f"Server error: {data.get('message')}")
+                            continue
                             
-                except json.JSONDecodeError:
-                    logger.error(f"Invalid JSON received: {message}")
-                except Exception as e:
-                    logger.error(f"Error processing message: {e}")
+                        if data.get("type") == "pong":
+                            # Heartbeat response
+                            continue
+                            
+                        # Parse as WebSocketMessage
+                        ws_message = WebSocketMessage(**data)
+                        
+                        # Check sequence for gaps
+                        if ws_message.sequence > self._last_sequence + 1:
+                            logger.warning(
+                                f"Message gap detected: expected {self._last_sequence + 1}, "
+                                f"got {ws_message.sequence}"
+                            )
+                        self._last_sequence = ws_message.sequence
+                        
+                        # Queue message with backpressure handling
+                        try:
+                            self._message_queue.put_nowait(ws_message)
+                        except asyncio.QueueFull:
+                            # Drop oldest message and retry
+                            try:
+                                self._message_queue.get_nowait()
+                                self._message_queue.put_nowait(ws_message)
+                                logger.warning("Message buffer full, dropped oldest message")
+                            except asyncio.QueueEmpty:
+                                pass
+                                
+                    except json.JSONDecodeError:
+                        logger.error(f"Invalid JSON received: {message}")
+                    except Exception as e:
+                        logger.error(f"Error processing message: {e}")
                     
-        except websockets.exceptions.ConnectionClosed:
-            logger.info("WebSocket connection closed by server")
-            if self.reconnect:
-                await self._schedule_reconnect()
+        except Exception as e:
+            if "ConnectionClosed" in str(type(e).__name__):
+                logger.info("WebSocket connection closed by server")
+                if self.reconnect:
+                    await self._schedule_reconnect()
                 
-    async def _heartbeat(self):
+    async def _heartbeat(self) -> None:
         """Send periodic heartbeat to keep connection alive."""
         while self.state == WebSocketState.CONNECTED:
             try:
@@ -329,7 +343,7 @@ class WebSocketResource:
                 logger.error(f"Heartbeat failed: {e}")
                 break
                 
-    async def _schedule_reconnect(self):
+    async def _schedule_reconnect(self) -> None:
         """Schedule reconnection with exponential backoff."""
         if self.state == WebSocketState.RECONNECTING:
             return

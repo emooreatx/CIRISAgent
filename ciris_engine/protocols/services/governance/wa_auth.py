@@ -17,7 +17,7 @@ from ciris_engine.schemas.services.authority.wa_updates import (
     WACertificateUpdate
 )
 from ciris_engine.schemas.infrastructure.oauth import (
-    OAuthProviderConfig, OAuthProviderConfigDB, OAuthUserProfile, OAuthProviderSummary,
+    OAuthProviderConfig, OAuthUserProfile,
     OAuthCallbackResponse
 )
 

@@ -119,7 +119,7 @@ class MemoryResource:
         if isinstance(node, (GraphNode, ModelsGraphNode)):
             # Handle both Pydantic v1 (dict) and v2 (model_dump)
             if hasattr(node, 'model_dump'):
-                node_dict = node.model_dump(exclude_none=True)
+                node_dict = node.model_dump(exclude_none=True, mode='json')
             else:
                 node_dict = node.dict(exclude_none=True)
         else:

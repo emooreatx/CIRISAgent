@@ -18,7 +18,7 @@ from ciris_engine.schemas.services.resources_core import ResourceSnapshot, Resou
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.api.telemetry import TimeSyncStatus, ServiceMetrics
 from ciris_engine.schemas.runtime.adapter_management import (
-    AdapterLoadRequest, AdapterOperationResult, AdapterListResponse,
+    AdapterOperationResult, AdapterListResponse,
     AdapterStatus as AdapterStatusSchema, AdapterConfig, AdapterMetrics
 )
 

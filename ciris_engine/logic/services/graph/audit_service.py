@@ -481,7 +481,6 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         audit_entries = []
         for node in nodes:
             # Extract audit data from node attributes
-            attrs: Dict[str, Any] = {}
             if isinstance(node.attributes, dict):
                 attrs = node.attributes
             elif hasattr(node.attributes, 'model_dump'):
@@ -565,56 +564,6 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         end = query.offset + query.limit if query.limit else None
         
         return audit_entries[start:end]
-
-    async def query_audit_trail_legacy(
-        self,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-        action_types: Optional[List[str]] = None,
-        thought_id: Optional[str] = None,
-        task_id: Optional[str] = None,
-        limit: int = 100
-    ) -> List[AuditEntry]:
-        """Query audit trail with filters."""
-        try:
-            
-            # Calculate time range
-            hours = self._calculate_hours(start_time, end_time)
-
-            # Query from graph
-            if not self._memory_bus:
-                return []
-
-            timeseries_data = await self._memory_bus.recall_timeseries(
-                scope="local",
-                hours=hours,
-                correlation_types=["AUDIT_EVENT"],
-                handler_name="audit_service"
-            )
-
-            # Filter and convert
-            results = []
-            for data in timeseries_data:
-                # Apply filters
-                if not self._matches_filters(
-                    data, start_time, end_time, action_types, thought_id, task_id
-                ):
-                    continue
-
-                # Convert to AuditEntry
-                audit_request = self._tsdb_to_audit_entry(data)
-                if audit_request:
-                    # Convert AuditRequest to AuditEntry for API
-                    audit_entry = self._audit_request_to_entry(audit_request)
-                    results.append(audit_entry)
-
-            # Sort and limit
-            results.sort(key=lambda x: x.timestamp, reverse=True)
-            return results[:limit]
-
-        except Exception as e:
-            logger.error(f"Failed to query audit trail: {e}")
-            return []
 
     async def verify_audit_integrity(self) -> VerificationReport:
         """Verify the integrity of the audit trail."""

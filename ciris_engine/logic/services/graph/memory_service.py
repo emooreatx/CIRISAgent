@@ -24,6 +24,7 @@ from ciris_engine.schemas.services.graph_core import (
     GraphNode,
     NodeType,
     GraphNodeAttributes,
+    GraphEdge,
 )
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.schemas.services.operations import MemoryOpStatus, MemoryOpResult, MemoryQuery
@@ -103,20 +104,45 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
                 # Process secrets for all nodes
                 processed_nodes = []
                 for node in nodes:
+                    processed_attrs = node.attributes
                     if node.attributes:
                         processed_attrs = await self._process_secrets_for_recall(node.attributes, "recall")
-                        processed_node = GraphNode(
-                            id=node.id,
-                            type=node.type,
-                            scope=node.scope,
-                            attributes=processed_attrs,
-                            version=node.version,
-                            updated_by=node.updated_by,
-                            updated_at=node.updated_at
-                        )
-                        processed_nodes.append(processed_node)
-                    else:
-                        processed_nodes.append(node)
+                    
+                    # Include edges if requested
+                    if recall_query.include_edges:
+                        from ciris_engine.logic.persistence.models.graph import get_edges_for_node
+                        edges = get_edges_for_node(node.id, node.scope, db_path=self.db_path)
+                        
+                        if edges:
+                            edges_data = []
+                            for edge in edges:
+                                edge_dict = {
+                                    "source": edge.source,
+                                    "target": edge.target,
+                                    "relationship": edge.relationship,
+                                    "weight": edge.weight,
+                                    "attributes": edge.attributes.model_dump() if hasattr(edge.attributes, 'model_dump') else edge.attributes
+                                }
+                                edges_data.append(edge_dict)
+                            
+                            # Add edges to attributes
+                            if isinstance(processed_attrs, dict):
+                                processed_attrs["_edges"] = edges_data
+                            else:
+                                attrs_dict = processed_attrs.model_dump() if hasattr(processed_attrs, 'model_dump') else processed_attrs
+                                attrs_dict["_edges"] = edges_data
+                                processed_attrs = attrs_dict
+                    
+                    processed_node = GraphNode(
+                        id=node.id,
+                        type=node.type,
+                        scope=node.scope,
+                        attributes=processed_attrs,
+                        version=node.version,
+                        updated_by=node.updated_by,
+                        updated_at=node.updated_at
+                    )
+                    processed_nodes.append(processed_node)
                 
                 return processed_nodes
             
@@ -144,8 +170,114 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
 
                 # If include_edges is True, fetch connected nodes up to specified depth
                 if recall_query.include_edges and recall_query.depth > 0:
-                    # TODO: Implement graph traversal for connected nodes
-                    pass
+                    # Import edge functions
+                    from ciris_engine.logic.persistence.models.graph import get_edges_for_node
+                    
+                    # Get edges for the node
+                    edges = get_edges_for_node(stored.id, stored.scope, db_path=self.db_path)
+                    
+                    # Add edges to the node's attributes if they exist
+                    if edges:
+                        # Convert edges to dict format for inclusion in response
+                        edges_data = []
+                        for edge in edges:
+                            edge_dict = {
+                                "source": edge.source,
+                                "target": edge.target,
+                                "relationship": edge.relationship,
+                                "weight": edge.weight,
+                                "attributes": edge.attributes.model_dump() if hasattr(edge.attributes, 'model_dump') else edge.attributes
+                            }
+                            edges_data.append(edge_dict)
+                        
+                        # Add edges to node attributes
+                        if isinstance(stored.attributes, dict):
+                            stored.attributes["_edges"] = edges_data
+                        else:
+                            # For typed attributes, we need to convert to dict first
+                            attrs_dict = stored.attributes.model_dump() if hasattr(stored.attributes, 'model_dump') else stored.attributes
+                            attrs_dict["_edges"] = edges_data
+                            stored = GraphNode(
+                                id=stored.id,
+                                type=stored.type,
+                                scope=stored.scope,
+                                attributes=attrs_dict,
+                                version=stored.version,
+                                updated_by=stored.updated_by,
+                                updated_at=stored.updated_at
+                            )
+                        
+                        nodes = [stored]
+                    
+                    # If depth > 1, fetch connected nodes recursively
+                    if recall_query.depth > 1:
+                        visited_nodes = {stored.id}
+                        nodes_to_process = [(stored, 0)]
+                        all_nodes = [stored]
+                        
+                        while nodes_to_process:
+                            current_node, current_depth = nodes_to_process.pop(0)
+                            
+                            if current_depth < recall_query.depth - 1:
+                                # Get edges for current node
+                                current_edges = get_edges_for_node(current_node.id, current_node.scope, db_path=self.db_path)
+                                
+                                for edge in current_edges:
+                                    # Determine the connected node ID
+                                    connected_id = edge.target if edge.source == current_node.id else edge.source
+                                    
+                                    if connected_id not in visited_nodes:
+                                        # Fetch the connected node
+                                        connected_node = persistence.get_graph_node(connected_id, edge.scope, db_path=self.db_path)
+                                        if connected_node:
+                                            visited_nodes.add(connected_id)
+                                            
+                                            # Process secrets if needed
+                                            if connected_node.attributes:
+                                                processed_attrs = await self._process_secrets_for_recall(connected_node.attributes, "recall")
+                                                connected_node = GraphNode(
+                                                    id=connected_node.id,
+                                                    type=connected_node.type,
+                                                    scope=connected_node.scope,
+                                                    attributes=processed_attrs,
+                                                    version=connected_node.version,
+                                                    updated_by=connected_node.updated_by,
+                                                    updated_at=connected_node.updated_at
+                                                )
+                                            
+                                            # Add edges to connected node
+                                            connected_edges = get_edges_for_node(connected_node.id, connected_node.scope, db_path=self.db_path)
+                                            if connected_edges:
+                                                edges_data = []
+                                                for e in connected_edges:
+                                                    edge_dict = {
+                                                        "source": e.source,
+                                                        "target": e.target,
+                                                        "relationship": e.relationship,
+                                                        "weight": e.weight,
+                                                        "attributes": e.attributes.model_dump() if hasattr(e.attributes, 'model_dump') else e.attributes
+                                                    }
+                                                    edges_data.append(edge_dict)
+                                                
+                                                if isinstance(connected_node.attributes, dict):
+                                                    connected_node.attributes["_edges"] = edges_data
+                                                else:
+                                                    attrs_dict = connected_node.attributes.model_dump() if hasattr(connected_node.attributes, 'model_dump') else connected_node.attributes
+                                                    attrs_dict["_edges"] = edges_data
+                                                    connected_node = GraphNode(
+                                                        id=connected_node.id,
+                                                        type=connected_node.type,
+                                                        scope=connected_node.scope,
+                                                        attributes=attrs_dict,
+                                                        version=connected_node.version,
+                                                        updated_by=connected_node.updated_by,
+                                                        updated_at=connected_node.updated_at
+                                                    )
+                                            
+                                            all_nodes.append(connected_node)
+                                            nodes_to_process.append((connected_node, current_depth + 1))
+                        
+                        nodes = all_nodes
 
                 return nodes
                 
@@ -298,14 +430,17 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
 
             # Could implement reference counting here in the future if needed
 
-    async def recall_timeseries(self, scope: str = "default", hours: int = 24, correlation_types: Optional[List[str]] = None) -> List[TimeSeriesDataPoint]:
+    async def recall_timeseries(self, scope: str = "default", hours: int = 24, correlation_types: Optional[List[str]] = None,
+                              start_time: Optional[datetime] = None, end_time: Optional[datetime] = None) -> List[TimeSeriesDataPoint]:
         """
         Recall time-series data from TSDB correlations.
 
         Args:
             scope: The memory scope to search (mapped to TSDB tags)
-            hours: Number of hours to look back
+            hours: Number of hours to look back (ignored if start_time/end_time provided)
             correlation_types: Optional filter by correlation types
+            start_time: Specific start time for the query (overrides hours)
+            end_time: Specific end time for the query (defaults to now if not provided)
 
         Returns:
             List of time-series data points from correlations
@@ -318,8 +453,18 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
             # Calculate time window
             if not self._time_service:
                 raise RuntimeError("TimeService is required for recall_timeseries")
-            end_time = self._time_service.now()
-            start_time = end_time - timedelta(hours=hours)
+            
+            # Handle time range parameters
+            if start_time and end_time:
+                # Use explicit time range
+                pass
+            elif start_time and not end_time:
+                # Start time provided, use now as end
+                end_time = self._time_service.now()
+            else:
+                # Fall back to hours-based calculation (backward compatible)
+                end_time = end_time or self._time_service.now()
+                start_time = end_time - timedelta(hours=hours)
 
             # Convert to ISO format strings for database query
             start_time_str = start_time.isoformat()
@@ -496,15 +641,13 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
                     max_value=value,
                     mean_value=value
                 ),
-                tags={**tags, "scope": scope} if tags else {"scope": scope},
                 status=ServiceCorrelationStatus.COMPLETED,
-                retention_policy="raw",
                 request_data=None,
                 response_data=None,
                 log_data=None,
                 trace_context=None,
-                ttl_seconds=None,
-                parent_correlation_id=None
+                tags={**tags, "scope": scope} if tags else {"scope": scope},
+                retention_policy="raw"
             )
 
             if self._time_service:
@@ -517,6 +660,30 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
         except Exception as e:
             logger.exception(f"Error memorizing metric {metric_name}: {e}")
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
+
+    async def create_edge(self, edge: GraphEdge) -> MemoryOpResult:
+        """Create an edge between two nodes in the memory graph."""
+        try:
+            from ciris_engine.logic.persistence.models.graph import add_graph_edge
+            
+            edge_id = add_graph_edge(edge, db_path=self.db_path)
+            logger.info(f"Created edge {edge_id}: {edge.source} -{edge.relationship}-> {edge.target}")
+            
+            return MemoryOpResult(status=MemoryOpStatus.OK)
+        except Exception as e:
+            logger.exception(f"Error creating edge: {e}")
+            return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
+    
+    async def get_node_edges(self, node_id: str, scope: GraphScope) -> List[GraphEdge]:
+        """Get all edges connected to a node."""
+        try:
+            from ciris_engine.logic.persistence.models.graph import get_edges_for_node
+            
+            edges = get_edges_for_node(node_id, scope, db_path=self.db_path)
+            return edges
+        except Exception as e:
+            logger.exception(f"Error getting edges for node {node_id}: {e}")
+            return []
 
     async def memorize_log(self, log_message: str, log_level: str = "INFO", tags: Optional[Dict[str, str]] = None, scope: str = "local") -> MemoryOpResult:
         """

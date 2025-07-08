@@ -59,9 +59,10 @@ class RecallHandler(BaseActionHandler):
             )
         
         # If no results with exact match OR if using query, try search
-        if not nodes and (params.query or params.node_id):
+        # ALWAYS try search if no exact match found
+        if not nodes:
             # Use the search method for flexible matching
-            search_query = params.query or params.node_id or ""
+            search_query = params.query or params.node_id or params.node_type or ""
             
             # Build search filter
             search_filter = MemorySearchFilter(
@@ -70,22 +71,86 @@ class RecallHandler(BaseActionHandler):
                 limit=params.limit
             )
             
-            # Perform search
+            # Perform search - this will search in node IDs and attributes
+            logger.info(f"No exact match for recall, trying search with query: '{search_query}', type: {params.node_type}")
             nodes = await self.bus_manager.memory.search(
                 query=search_query,
                 filters=search_filter
             )
-            # Trust the search results - don't filter them again
+            
+            # If still no results and we have a node_type, try getting all nodes of that type
+            if not nodes and params.node_type and not params.query and not params.node_id:
+                # Get all nodes of the specified type
+                wildcard_query = MemoryQuery(
+                    node_id="*",  # Wildcard
+                    scope=params.scope or GraphScope.LOCAL,
+                    type=NodeType(params.node_type),
+                    include_edges=False,
+                    depth=1
+                )
+                nodes = await self.bus_manager.memory.recall(
+                    recall_query=wildcard_query,
+                    handler_name=self.__class__.__name__
+                )
+                # Apply limit if we got all nodes
+                if nodes and len(nodes) > params.limit:
+                    nodes = nodes[:params.limit]
 
         success = bool(nodes)
 
         if success:
-            # Format the recalled nodes for display
-            data = {}
+            # Format the recalled nodes with enhanced information
+            import json
+            enhanced_data = {}
+            
             for n in nodes:
-                # GraphNode object
-                if n.attributes:
-                    data[n.id] = n.attributes
+                node_info = {
+                    "type": n.type,
+                    "scope": n.scope,
+                    "attributes": n.attributes if isinstance(n.attributes, dict) else {}
+                }
+                
+                # Get connected nodes for each recalled node
+                try:
+                    from ciris_engine.logic.persistence.models.graph import get_edges_for_node
+                    edges = get_edges_for_node(n.id, n.scope)
+                    
+                    if edges:
+                        connected_nodes = []
+                        for edge in edges:
+                            # Get the connected node
+                            connected_node_id = edge.target if edge.source == n.id else edge.source
+                            connected_query = MemoryQuery(
+                                node_id=connected_node_id,
+                                scope=edge.scope,
+                                include_edges=False,
+                                depth=1
+                            )
+                            try:
+                                connected_results = await self.bus_manager.memory.recall(
+                                    recall_query=connected_query,
+                                    handler_name=self.__class__.__name__
+                                )
+                                if connected_results:
+                                    connected_node = connected_results[0]
+                                    connected_attrs = connected_node.attributes if isinstance(connected_node.attributes, dict) else {}
+                                    connected_nodes.append({
+                                        'node_id': connected_node.id,
+                                        'node_type': connected_node.type,
+                                        'relationship': edge.relationship,
+                                        'direction': 'outgoing' if edge.source == n.id else 'incoming',
+                                        'attributes': connected_attrs
+                                    })
+                            except Exception as e:
+                                logger.debug(f"Failed to get connected node {connected_node_id}: {e}")
+                        
+                        if connected_nodes:
+                            node_info["connected_nodes"] = connected_nodes
+                            
+                except Exception as e:
+                    logger.warning(f"Failed to get edges for node {n.id}: {e}")
+                
+                enhanced_data[n.id] = node_info
 
             # Build descriptive query string
             query_desc = params.node_id or params.query or "recall request"
@@ -93,13 +158,13 @@ class RecallHandler(BaseActionHandler):
                 query_desc = f"{params.node_type} {query_desc}"
 
             # Convert data to string and check length
-            data_str = str(data)
+            data_str = json.dumps(enhanced_data, indent=2, default=str)
             if len(data_str) > 10000:
                 # Truncate to first 10k characters
                 truncated_data = data_str[:10000]
                 follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: Memory query '{query_desc}' returned over {len(data_str)} characters, first 10000 characters: {truncated_data}"
             else:
-                follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: Memory query '{query_desc}' returned: {data}"
+                follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: Memory query '{query_desc}' returned: {data_str}"
         else:
             # Build descriptive query string
             query_desc = params.node_id or params.query or "recall request"
@@ -118,6 +183,6 @@ class RecallHandler(BaseActionHandler):
         await self._audit_log(
             HandlerActionType.RECALL,
             dispatch_context,
-            outcome="success" if success and data else "failed",
+            outcome="success" if success else "failed",
         )
         return follow_up_id
