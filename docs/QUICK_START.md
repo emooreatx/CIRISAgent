@@ -99,7 +99,7 @@ curl http://localhost:8080/v1/health
 
 ## Next Steps
 
-- **Understand the Philosophy**: Read [WISE_AUTHORITY.md](./WISE_AUTHORITY.md)
+- **Understand the Philosophy**: Read [WISE_AUTHORITIES.md](./WISE_AUTHORITIES.md)
 - **Explore the Architecture**: See [ARCHITECTURE.md](./ARCHITECTURE.md)
 - **Build Custom Agents**: Check [TEMPLATES.md](./TEMPLATES.md)
 - **Deploy to Production**: Follow [DEPLOYMENT.md](./DEPLOYMENT.md)
