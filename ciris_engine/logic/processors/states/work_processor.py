@@ -68,7 +68,6 @@ class WorkProcessor(BaseProcessor):
     async def process(self, round_number: int) -> WorkResult:
         """Execute one round of work processing."""
         start_time = self.time_service.now()
-        logger.info(f"--- Starting Work Round {round_number} ---")
 
         round_metrics: dict = {
             "round_number": round_number,
@@ -111,7 +110,6 @@ class WorkProcessor(BaseProcessor):
                 # Idle mode disabled - no automatic transitions
                 # self.idle_rounds += 1
                 # await self._handle_idle_state(round_number)
-                logger.debug(f"Round {round_number}: No thoughts to process (idle mode disabled)")
 
             # Update metrics
             self.metrics.rounds_completed += 1
@@ -126,10 +124,14 @@ class WorkProcessor(BaseProcessor):
         duration = (end_time - start_time).total_seconds()
         round_metrics["duration_seconds"] = duration
 
-        logger.info(
-            f"--- Finished Work Round {round_number} "
-            f"(Duration: {duration:.2f}s, Processed: {round_metrics['thoughts_processed']}) ---"
-        )
+        # Only log at INFO level if work was actually done
+        if round_metrics['thoughts_processed'] > 0 or round_metrics['tasks_activated'] > 0:
+            logger.info(
+                f"Work round {round_number}: completed "
+                f"({round_metrics['thoughts_processed']} thoughts, {duration:.2f}s)"
+            )
+        else:
+            logger.debug(f"Work round {round_number}: idle (no pending work)")
 
         return WorkResult(
             tasks_processed=round_metrics.get("tasks_activated", 0),
@@ -143,7 +145,7 @@ class WorkProcessor(BaseProcessor):
         if not batch:
             return 0
 
-        logger.info(f"Processing batch of {len(batch)} thoughts")
+        logger.debug(f"Processing batch of {len(batch)} thoughts")
 
         batch = self.thought_manager.mark_thoughts_processing(batch, round_number)
         if not batch:
@@ -176,7 +178,7 @@ class WorkProcessor(BaseProcessor):
         """Dispatch the result of thought processing."""
         thought_id = item.thought_id
 
-        logger.info(
+        logger.debug(
             f"Dispatching action {result.selected_action} "
             f"for thought {thought_id}"
         )

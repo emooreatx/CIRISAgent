@@ -140,11 +140,9 @@ class DiscordConnectionManager:
             except Exception as e:
                 logger.error(f"Error in on_disconnected callback: {e}")
 
-        # Start reconnection process
-        if self.reconnect_attempts < self.max_reconnect_attempts:
-            asyncio.create_task(self._reconnect())
-        else:
-            await self._handle_failed("Maximum reconnection attempts exceeded")
+        # Discord.py handles reconnection automatically when using start() with reconnect=True
+        # We don't need to manually reconnect
+        logger.info("Discord disconnected. Discord.py will handle reconnection automatically.")
 
     async def _handle_failed(self, reason: str) -> None:
         """Handle connection failure.
@@ -162,44 +160,14 @@ class DiscordConnectionManager:
                 logger.error(f"Error in on_failed callback: {e}")
 
     async def _reconnect(self) -> None:
-        """Attempt to reconnect to Discord."""
-        if self.state == ConnectionState.RECONNECTING:
-            logger.debug("Already reconnecting, skipping duplicate attempt")
-            return
-
-        self.state = ConnectionState.RECONNECTING
-        self.reconnect_attempts += 1
-
-        # Calculate delay with exponential backoff
-        delay = min(
-            self.base_reconnect_delay * (2 ** (self.reconnect_attempts - 1)),
-            self.max_reconnect_delay
-        )
-
-        logger.info(f"Reconnecting to Discord (attempt {self.reconnect_attempts}/{self.max_reconnect_attempts}) "
-                   f"in {delay} seconds...")
-
-        if self.on_reconnecting:
-            try:
-                await self.on_reconnecting(self.reconnect_attempts)
-            except Exception as e:
-                logger.error(f"Error in on_reconnecting callback: {e}")
-
-        await asyncio.sleep(delay)
-
-        try:
-            if self.client and not self.client.is_closed():
-                # Client exists and is not closed, try to reconnect
-                await self.client.connect(reconnect=True)
-            else:
-                # Need to create a new client
-                await self.connect()
-        except Exception as e:
-            logger.error(f"Reconnection attempt {self.reconnect_attempts} failed: {e}")
-            await self._handle_disconnected(e)
+        """Note: Discord.py handles reconnection automatically when using start() with reconnect=True.
+        This method is deprecated and should not be called."""
+        logger.warning("_reconnect() called but Discord.py handles reconnection automatically")
+        # Do nothing - let Discord.py handle reconnection
 
     async def connect(self) -> None:
-        """Connect to Discord with resilience."""
+        """Setup connection monitoring for Discord client.
+        Note: The actual connection is managed by DiscordPlatform."""
         if self.state == ConnectionState.CONNECTED:
             logger.debug("Already connected to Discord")
             return
@@ -211,35 +179,20 @@ class DiscordConnectionManager:
         self.state = ConnectionState.CONNECTING
 
         try:
-            if not self.client:
-                # Create a new client if needed
-                intents = discord.Intents.default()
-                intents.message_content = True
-                intents.reactions = True
-                intents.guilds = True
-                intents.members = True
-
-                # Get the current event loop
-                loop = asyncio.get_running_loop()
-                self.client = discord.Client(intents=intents, loop=loop)
-                self._setup_event_handlers()
-                
-                # Start the client only if we created it
-                self.connection_task = asyncio.create_task(
-                    self.client.start(self.token, reconnect=True)
-                )
-                logger.info("Discord client connection initiated (created new client)")
-            else:
+            if self.client:
                 # Client was provided externally, just set up event handlers
                 self._setup_event_handlers()
                 logger.info("Discord connection manager configured with existing client")
-                # Don't start the client here - let the platform handle it
+                # The DiscordPlatform handles the actual connection
+            else:
+                logger.error("No Discord client provided to connection manager")
+                raise ValueError("Discord client must be provided by DiscordPlatform")
             
             self.state = ConnectionState.CONNECTING
-            logger.info("Discord connection manager ready")
+            logger.info("Discord connection manager ready to monitor connection")
 
         except Exception as e:
-            logger.error(f"Failed to connect to Discord: {e}")
+            logger.error(f"Failed to setup Discord connection monitoring: {e}")
             await self._handle_disconnected(e)
 
     async def disconnect(self) -> None:

@@ -229,7 +229,7 @@ class AgentProcessor:
         wakeup_round = 0
 
         while not wakeup_complete and not (self._stop_event and self._stop_event.is_set()) and (num_rounds is None or self.current_round_number < num_rounds):
-            logger.info(f"=== WAKEUP Round {wakeup_round} ===")
+            logger.info(f"Wakeup round {wakeup_round}")
 
             wakeup_result = await self.wakeup_processor.process(wakeup_round)
             wakeup_complete = wakeup_result.wakeup_complete

@@ -44,7 +44,7 @@ class ToolBus(BaseBus[ToolService]):
         handler_name: str = "default"
     ) -> ToolExecutionResult:
         """Execute a tool and return the result"""
-        logger.info(f"[TOOL_BUS] execute_tool called with tool_name={tool_name}, parameters={parameters}")
+        logger.debug(f"execute_tool called with tool_name={tool_name}, parameters={parameters}")
         
         # Step 1: Get ALL tool services to find which ones support this tool
         all_tool_services = []
@@ -60,7 +60,7 @@ class ToolBus(BaseBus[ToolService]):
                     if hasattr(provider, 'instance') and hasattr(provider.instance, 'get_available_tools'):
                         all_tool_services.append(provider.instance)
                         
-            logger.info(f"[TOOL_BUS] Found {len(all_tool_services)} tool services")
+            logger.debug(f"Found {len(all_tool_services)} tool services")
         except Exception as e:
             logger.error(f"Failed to get all tool services: {e}")
             
@@ -78,7 +78,7 @@ class ToolBus(BaseBus[ToolService]):
         for service in all_tool_services:
             try:
                 available_tools = await service.get_available_tools()
-                logger.info(f"[TOOL_BUS] Service {type(service).__name__} supports tools: {available_tools}")
+                logger.debug(f"Service {type(service).__name__} supports tools: {available_tools}")
                 if tool_name in available_tools:
                     supporting_services.append(service)
             except Exception as e:
@@ -102,7 +102,7 @@ class ToolBus(BaseBus[ToolService]):
         if len(supporting_services) == 1:
             # Only one service supports this tool
             selected_service = supporting_services[0]
-            logger.info(f"[TOOL_BUS] Using {type(selected_service).__name__} (only service with this tool)")
+            logger.debug(f"Using {type(selected_service).__name__} (only service with this tool)")
         else:
             # Multiple services support this tool - use routing logic
             # TODO: In future, extract channel_id/guild_id from context to route appropriately
@@ -115,11 +115,11 @@ class ToolBus(BaseBus[ToolService]):
             if not selected_service:
                 selected_service = supporting_services[0]
             
-            logger.info(f"[TOOL_BUS] Selected {type(selected_service).__name__} from {len(supporting_services)} options")
+            logger.debug(f"Selected {type(selected_service).__name__} from {len(supporting_services)} options")
 
         # Step 5: Execute the tool
         try:
-            logger.info(f"[TOOL_BUS] Executing tool '{tool_name}' with {type(selected_service).__name__}")
+            logger.debug(f"Executing tool '{tool_name}' with {type(selected_service).__name__}")
             result = await selected_service.execute_tool(tool_name, parameters)
             return result
         except Exception as e:

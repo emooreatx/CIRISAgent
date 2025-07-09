@@ -32,12 +32,12 @@ class ToolHandler(BaseActionHandler):
 
         try:
             # Debug logging
-            self.logger.info(f"[TOOL_HANDLER] Raw result.action_parameters: {result.action_parameters}")
-            self.logger.info(f"[TOOL_HANDLER] Type: {type(result.action_parameters)}")
+            self.logger.debug(f"Raw result.action_parameters: {result.action_parameters}")
+            self.logger.debug(f"Type: {type(result.action_parameters)}")
             
             processed_result = await self._decapsulate_secrets_in_params(result, "tool", thought_id)
             
-            self.logger.info(f"[TOOL_HANDLER] After decapsulation: {processed_result.action_parameters}")
+            self.logger.debug(f"After decapsulation: {processed_result.action_parameters}")
 
             params: ToolParams = await self._validate_and_convert_params(processed_result.action_parameters, ToolParams)
         except Exception as e:
@@ -57,7 +57,7 @@ class ToolHandler(BaseActionHandler):
             _correlation_id = str(uuid.uuid4())
             try:
                 # Debug logging
-                self.logger.info(f"[TOOL_HANDLER] Executing tool: name={params.name}, parameters={params.parameters}")
+                self.logger.debug(f"Executing tool: name={params.name}, parameters={params.parameters}")
                 self.logger.info(f"[TOOL_HANDLER] Parameters type: {type(params.parameters)}")
                 
                 # Use the tool bus to execute the tool

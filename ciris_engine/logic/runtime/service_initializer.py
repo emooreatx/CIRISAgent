@@ -465,7 +465,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
         )
 
         # Initialize TSDB consolidation service
-        from ciris_engine.logic.services.graph.tsdb_consolidation_service import TSDBConsolidationService
+        from ciris_engine.logic.services.graph.tsdb_consolidation import TSDBConsolidationService
         self.tsdb_consolidation_service = TSDBConsolidationService(
             memory_bus=self.bus_manager.memory,  # Use memory bus, not direct service
             time_service=self.time_service   # Pass time service
@@ -652,6 +652,11 @@ This directory contains critical cryptographic keys for the CIRIS system.
         # Update BusManager with the initialized audit service
         self.bus_manager.audit_service = self.audit_service
         logger.info(f"Updated BusManager with audit_service: {self.audit_service}")
+
+        # Inject graph audit service into incident capture handlers
+        from ciris_engine.logic.utils.incident_capture_handler import inject_graph_audit_service_to_handlers
+        updated_handlers = inject_graph_audit_service_to_handlers(self.audit_service)
+        logger.info(f"Injected graph audit service into {updated_handlers} incident capture handler(s)")
 
         # Audit sink manager removed - GraphAuditService handles its own lifecycle
         logger.info("GraphAuditService handles its own retention and cleanup")

@@ -4,7 +4,7 @@ import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import Mock, AsyncMock, patch
 
-from ciris_engine.logic.services.graph.tsdb_consolidation_service import TSDBConsolidationService
+from ciris_engine.logic.services.graph.tsdb_consolidation import TSDBConsolidationService
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.schemas.services.nodes import TSDBSummary
 from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope

@@ -52,13 +52,13 @@ class ThoughtManager:
 
         # Log for debugging but don't modify the context
         if thought_context:
-            logger.info(f"SEED_THOUGHT: Copying context for task {task.task_id}")
+            logger.debug(f"SEED_THOUGHT: Copying context for task {task.task_id}")
             # Check if we have channel context in the proper location
             # For logging purposes, check the original task context
             if task.context and hasattr(task.context, 'channel_id') and task.context.channel_id:
                 # TaskContext has channel_id directly
                 channel_id = task.context.channel_id
-                logger.info(f"SEED_THOUGHT: Found channel_id='{channel_id}' in task's TaskContext")
+                logger.debug(f"SEED_THOUGHT: Found channel_id='{channel_id}' in task's TaskContext")
             else:
                 logger.warning(f"SEED_THOUGHT: No channel context found for task {task.task_id}")
         else:
@@ -113,7 +113,10 @@ class ThoughtManager:
             if thought:
                 generated_count += 1
 
-        logger.info(f"Generated {generated_count} seed thoughts")
+        if generated_count > 0:
+            logger.info(f"Generated {generated_count} seed thoughts")
+        else:
+            logger.debug("No seed thoughts needed")
         return generated_count
 
 
@@ -150,7 +153,10 @@ class ThoughtManager:
                 )
                 break
 
-        logger.info(f"Round {round_number}: Populated queue with {added_count} thoughts")
+        if added_count > 0:
+            logger.debug(f"Round {round_number}: Populated queue with {added_count} thoughts")
+        else:
+            logger.debug(f"Round {round_number}: No thoughts to queue")
         return added_count
 
     def get_queue_batch(self) -> List[ProcessingQueueItem]:
@@ -217,7 +223,7 @@ class ThoughtManager:
         )
         try:
             persistence.add_thought(thought)
-            logger.info(f"Created follow-up thought {thought.thought_id}")
+            logger.debug(f"Created follow-up thought {thought.thought_id}")
             return thought
         except Exception as e:
             logger.error(f"Failed to create follow-up thought: {e}")

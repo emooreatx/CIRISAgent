@@ -41,7 +41,7 @@ class PlayProcessor(WorkProcessor):
         Execute one round of play processing.
         Currently delegates to work processing but logs differently.
         """
-        logger.info(f"--- Starting Play Round {round_number} (Creative Mode) ---")
+        logger.info(f"Play round {round_number}: creative mode active")
 
         # Get WorkResult from parent
         work_result = await super().process(round_number)

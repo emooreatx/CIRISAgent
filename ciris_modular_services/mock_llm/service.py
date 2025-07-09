@@ -196,12 +196,18 @@ class MockLLMService(Service, MockLLMServiceProtocol):
         input_tokens = int(sum(len(msg.get('content', '').split()) * 1.3 for msg in messages))  # ~1.3 tokens per word
         output_tokens = max_tokens // 4  # Assume ~25% of max tokens used on average
         
+        # Ensure minimum token counts for testing
+        if input_tokens == 0:
+            input_tokens = 50  # Default minimum for non-empty requests
+        if output_tokens == 0:
+            output_tokens = 25  # Default minimum output
+        
         usage = ResourceUsage(
             tokens_used=input_tokens + output_tokens,
             tokens_input=input_tokens,
             tokens_output=output_tokens,
             # Together.ai pricing for Llama models: ~$0.0002/1K input, $0.0003/1K output tokens
-            cost_cents=(input_tokens * 0.0002 + output_tokens * 0.0003) / 10,  # Convert to cents
+            cost_cents=(input_tokens * 0.0002 + output_tokens * 0.0003) * 100,  # Convert to cents (multiply by 100, not divide by 10)
             # Energy estimates: ~0.0001 kWh per 1K tokens (efficient model)
             energy_kwh=(input_tokens + output_tokens) * 0.0001 / 1000,
             # Carbon: ~0.5g CO2 per kWh (US grid average)

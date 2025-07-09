@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from ciris_engine.logic.registries.base import ServiceRegistry
 
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.schemas.services.graph_core import GraphNode
+from ciris_engine.schemas.services.graph_core import GraphNode, NodeType
 from ciris_engine.schemas.services.operations import MemoryQuery, MemoryOpStatus
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.services.graph.base import BaseGraphService
@@ -513,3 +513,7 @@ class TSDBConsolidationService(BaseGraphService):
             last_health_check=current_time,
             custom_metrics={}
         )
+    
+    def get_node_type(self) -> NodeType:
+        """Get the node type this service manages."""
+        return NodeType.TSDB_SUMMARY

@@ -10,7 +10,7 @@ from wyoming.info import Describe, Info, AsrModel, AsrProgram, TtsProgram, TtsVo
 from .config import Config
 from .stt_service import create_stt_service
 from .tts_service import create_tts_service
-from .ciris_client import CIRISClient
+from .ciris_sdk_client import CIRISClient
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +42,19 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     text = await self.stt_service.transcribe(bytes(self.audio_buffer))
                     if text:
                         logger.info(f"Transcribed: {text}")
+                        
+                        # Track timing
+                        start_time = asyncio.get_event_loop().time()
+                        
+                        # Send to CIRIS with extended timeout
                         response = await self.ciris_client.send_message(text)
+                        
+                        # Log response time
+                        elapsed = asyncio.get_event_loop().time() - start_time
                         response_text = response.get("content", "I didn't understand that.")
-                        logger.info(f"CIRIS response: {response_text}")
+                        
+                        logger.info(f"CIRIS responded in {elapsed:.1f}s: {response_text[:50]}...")
+                        
                         return [
                             Transcript(text=text),
                             Synthesize(text=response_text)
@@ -93,12 +103,37 @@ class CIRISWyomingHandler(AsyncEventHandler):
         )
 
 async def main():
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    # Load configuration
     config = Config.from_yaml("config.yaml")
+    
+    # Initialize handler
     handler = CIRISWyomingHandler(config)
+    
+    # Initialize CIRIS SDK client
+    try:
+        await handler.ciris_client.voice_client.initialize()
+        logger.info("CIRIS SDK client initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize CIRIS SDK client: {e}")
+        raise
+    
+    # Create and run server
     server = AsyncServer.from_uri(f"tcp://{config.wyoming.host}:{config.wyoming.port}")
     logger.info(f"Starting CIRIS Wyoming bridge on {config.wyoming.host}:{config.wyoming.port}")
-    await server.run(handler)
+    logger.info(f"Using {config.ciris.timeout}s timeout for CIRIS interactions")
+    
+    try:
+        await server.run(handler)
+    except KeyboardInterrupt:
+        logger.info("Shutting down...")
+    finally:
+        # Cleanup
+        await handler.ciris_client.voice_client.close()
 
 if __name__ == "__main__":
     asyncio.run(main())

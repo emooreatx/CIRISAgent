@@ -268,7 +268,8 @@ class OpenAICompatibleClient(LLMServiceProtocol):
         ) -> Tuple[BaseModel, ResourceUsage]:
 
             try:
-                response = await self.instruct_client.chat.completions.create(
+                # Use instructor but capture the completion for usage data
+                response, completion = await self.instruct_client.chat.completions.create_with_completion(
                     model=self.model_name,
                     messages=cast(List, msg_list),
                     response_model=resp_model,
@@ -277,10 +278,11 @@ class OpenAICompatibleClient(LLMServiceProtocol):
                     temperature=temp,
                 )
 
+                # Extract usage data from completion
+                usage = completion.usage
+
                 # Record success with circuit breaker
                 self.circuit_breaker.record_success()
-
-                usage = getattr(response, "usage", None)
 
                 # Extract token counts
                 total_tokens = getattr(usage, "total_tokens", 0)
