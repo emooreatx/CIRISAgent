@@ -229,6 +229,25 @@ class DiscordPlatform(Service):
             await self.discord_adapter.start()
         logger.info("DiscordPlatform: Internal components started. Discord client connection deferred to run_lifecycle.")
 
+    async def _wait_for_discord_reconnect(self) -> None:
+        """Wait for Discord.py to reconnect automatically."""
+        logger.info("Waiting for Discord.py to handle reconnection...")
+        
+        # Discord.py handles reconnection internally when using start() with reconnect=True
+        # We just need to wait for the client to be ready again
+        max_wait = 300  # 5 minutes max
+        start_time = asyncio.get_event_loop().time()
+        
+        while asyncio.get_event_loop().time() - start_time < max_wait:
+            if self.client and not self.client.is_closed() and self.client.is_ready():
+                logger.info(f"Discord client reconnected! Logged in as: {self.client.user}")
+                self._reconnect_attempts = 0  # Reset on successful reconnection
+                return
+            
+            await asyncio.sleep(1.0)
+        
+        raise TimeoutError("Discord client failed to reconnect within timeout")
+
     async def run_lifecycle(self, agent_run_task: asyncio.Task) -> None:
         logger.info("DiscordPlatform: Running lifecycle - attempting to start Discord client.")
         if not self.client or not self.token:
@@ -238,7 +257,11 @@ class DiscordPlatform(Service):
             return
 
         try:
-            self._discord_client_task = asyncio.create_task(self.client.start(self.token), name="DiscordClientTask")
+            # Start Discord client with reconnect=True to enable automatic reconnection
+            self._discord_client_task = asyncio.create_task(
+                self.client.start(self.token, reconnect=True), 
+                name="DiscordClientTask"
+            )
             logger.info("DiscordPlatform: Discord client start initiated.")
 
             # Give the client a moment to initialize before waiting
@@ -345,7 +368,7 @@ class DiscordPlatform(Service):
 
                     if should_retry:
                         error_type = type(exc).__name__
-                        logger.warning(f"Discord client encountered error ({error_type}: {exc_str[:100]}...). Attempting to reconnect... (attempt {self._reconnect_attempts + 1}/{self._max_reconnect_attempts})")
+                        logger.warning(f"Discord client encountered error ({error_type}: {exc_str[:100]}...). Discord.py will handle reconnection automatically.")
 
                         # Check if we've exceeded max reconnect attempts
                         if self._reconnect_attempts >= self._max_reconnect_attempts:
@@ -353,62 +376,20 @@ class DiscordPlatform(Service):
                             break
 
                         self._reconnect_attempts += 1
-                        # Clear the failed task
-                        self._discord_client_task = None
-                        # Try to restart the Discord client
-                        try:
-                            # Close the client if it's still open
-                            if self.client and not self.client.is_closed():
-                                await self.client.close()
-                            
-                            # Clear all event handlers from the old client to prevent conflicts
-                            if self.client:
-                                self.client.clear()
-                                # Give the client time to fully close
-                                await asyncio.sleep(1.0)
+                        
+                        # Wait with exponential backoff before checking again
+                        wait_time = min(5.0 * (2 ** (self._reconnect_attempts - 1)), 60.0)  # Max 60 seconds
+                        logger.info(f"Waiting {wait_time:.1f} seconds before checking connection status...")
+                        await asyncio.sleep(wait_time)
 
-                            # Always recreate the client for safety when reconnecting
-                            # This ensures we have a fresh session and connection state
-                            logger.info("Recreating Discord client for reconnection...")
-                            # Create a new Discord client instance
-                            intents = self.config.get_intents()
-                            self.client = discord.Client(intents=intents)
-
-                            # Reattach the adapter to the new client
-                            if hasattr(self.discord_adapter, 'attach_to_client'):
-                                # Update the adapter's on_message callback to ensure it routes to observer
-                                self.discord_adapter._channel_manager.set_message_callback(self._handle_discord_message_event)
-                                self.discord_adapter.attach_to_client(self.client)
-                                self.discord_adapter.bot = self.client
-                                # Also update tool service client
-                                self.tool_service.set_client(self.client)
-                                logger.info("Discord adapter and tool service re-attached to new client with observer callback")
-
-                            # Wait with exponential backoff before reconnecting
-                            wait_time = min(5.0 * (2 ** (self._reconnect_attempts - 1)), 60.0)  # Max 60 seconds
-                            logger.info(f"Waiting {wait_time:.1f} seconds before reconnecting...")
-                            await asyncio.sleep(wait_time)
-
-                            # Create a new task to start the client
-                            self._discord_client_task = asyncio.create_task(
-                                self.client.start(self.token),
-                                name="DiscordClientTask"
-                            )
-                            logger.info("Discord client restart task created")
-
-                            # Wait for Discord to be ready after reconnection
-                            ready = await self.discord_adapter.wait_until_ready(timeout=30.0)
-                            if ready:
-                                logger.info(f"Discord client reconnected successfully! Logged in as: {self.client.user}")
-                                self._reconnect_attempts = 0  # Reset on successful reconnection
-                            else:
-                                logger.warning("Discord client failed to become ready after reconnection attempt")
-
-                            continue  # Continue the while loop with the new task
-                        except Exception as e:
-                            logger.error(f"Failed to restart Discord client: {e}")
-                            # Only shutdown if we can't restart
-                            break
+                        # Discord.py with reconnect=True will handle reconnection internally
+                        # We just need to create a new task to wait for it
+                        self._discord_client_task = asyncio.create_task(
+                            self._wait_for_discord_reconnect(),
+                            name="DiscordReconnectWait"
+                        )
+                        
+                        continue  # Continue the while loop with the new task
                     else:
                         # Non-transient error, don't retry
                         logger.error(f"Discord client encountered non-transient error: {exc}")
@@ -477,6 +458,28 @@ class DiscordPlatform(Service):
                 logger.info("DiscordPlatform: Discord client task successfully cancelled.")
 
         logger.info("DiscordPlatform: Stopped.")
+    
+    async def is_healthy(self) -> bool:
+        """Check if the Discord adapter is healthy"""
+        try:
+            # Check if Discord client is connected and ready
+            if not self.client:
+                return False
+                
+            if self.client.is_closed():
+                return False
+                
+            if not self.client.is_ready():
+                return False
+                
+            # Also check if the Discord adapter reports healthy
+            if hasattr(self.discord_adapter, 'is_healthy'):
+                return await self.discord_adapter.is_healthy()
+                
+            return True
+        except Exception as e:
+            logger.warning(f"Discord health check failed: {e}")
+            return False
 
     async def get_active_channels(self) -> List[dict[str, Any]]:
         """Get list of active Discord channels."""

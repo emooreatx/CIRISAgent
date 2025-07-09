@@ -421,7 +421,7 @@ def get_correlations_by_type_and_time(
                     metric_data=metric_data,
                     log_data=log_data,
                     trace_context=trace_context,
-                    tags=json.loads(row["tags"]) if row["tags"] else {},
+                    tags={k: str(v) for k, v in json.loads(row["tags"]).items()} if row["tags"] else {},
                     retention_policy=row["retention_policy"] or "raw"
                 ))
             return correlations
@@ -604,7 +604,7 @@ def get_metrics_timeseries(
                     metric_data=metric_data,
                     log_data=log_data,
                     trace_context=trace_context,
-                    tags=json.loads(row["tags"]) if row["tags"] else {},
+                    tags={k: str(v) for k, v in json.loads(row["tags"]).items()} if row["tags"] else {},
                     retention_policy=row["retention_policy"] or "raw"
                 ))
             return correlations

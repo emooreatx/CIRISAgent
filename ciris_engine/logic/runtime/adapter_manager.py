@@ -380,7 +380,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                     config_params=AdapterConfig(
                         adapter_type=instance.adapter_type,
                         enabled=instance.is_running,
-                        settings=instance.config_params
+                        settings=self._sanitize_config_params(instance.adapter_type, instance.config_params)
                     ),
                     metrics=metrics_dict,
                     last_activity=None,
@@ -478,7 +478,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 config_params=AdapterConfig(
                     adapter_type=instance.adapter_type,
                     enabled=instance.is_running,
-                    settings=instance.config_params
+                    settings=self._sanitize_config_params(instance.adapter_type, instance.config_params)
                 ),
                 metrics=metrics_dict,
                 last_activity=None,
@@ -488,6 +488,49 @@ class RuntimeAdapterManager(AdapterManagerInterface):
         except Exception as e:
             logger.error(f"Failed to get adapter status for {adapter_id}: {e}", exc_info=True)
             return None
+    
+    def _sanitize_config_params(self, adapter_type: str, config_params: dict) -> dict:
+        """Sanitize config parameters to remove sensitive information.
+        
+        Args:
+            adapter_type: Type of adapter (discord, api, etc.)
+            config_params: Raw configuration parameters
+            
+        Returns:
+            Sanitized configuration with sensitive fields masked
+        """
+        if not config_params:
+            return {}
+            
+        # Define sensitive fields per adapter type
+        sensitive_fields = {
+            'discord': ['bot_token', 'token', 'api_key', 'secret'],
+            'api': ['api_key', 'secret_key', 'auth_token', 'password'],
+            'cli': ['password', 'secret'],
+            # Add more adapter types and their sensitive fields as needed
+        }
+        
+        # Get sensitive fields for this adapter type
+        fields_to_mask = sensitive_fields.get(adapter_type, ['token', 'password', 'secret', 'api_key'])
+        
+        # Create a copy of the config to avoid modifying the original
+        sanitized = {}
+        for key, value in config_params.items():
+            # Check if this field should be masked
+            if any(sensitive in key.lower() for sensitive in fields_to_mask):
+                # Mask the value but show it exists
+                if value:
+                    sanitized[key] = "***MASKED***"
+                else:
+                    sanitized[key] = None
+            elif isinstance(value, dict):
+                # Recursively sanitize nested dictionaries
+                sanitized[key] = self._sanitize_config_params(adapter_type, value)
+            else:
+                # Keep non-sensitive values as-is
+                sanitized[key] = value
+                
+        return sanitized
 
     async def load_adapter_from_template(self, template_name: str, adapter_id: Optional[str] = None) -> AdapterOperationResult:
         """Load adapter configuration from an agent template

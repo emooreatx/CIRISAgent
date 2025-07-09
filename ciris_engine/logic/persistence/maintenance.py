@@ -92,7 +92,7 @@ class DatabaseMaintenanceService:
         """
         # Use provided time_service or fallback to instance time_service
         ts = time_service or self.time_service
-        logger.info("--- Starting Startup Database Cleanup ---")
+        logger.info("Starting database cleanup")
         self.archive_dir.mkdir(parents=True, exist_ok=True)
 
         # --- Clean up thoughts with invalid/malformed context ---
@@ -230,7 +230,7 @@ class DatabaseMaintenanceService:
             logger.info(f"No thoughts older than {self.archive_older_than_hours} hours found for archiving.")
 
         logger.info(f"Archival: {archived_tasks_count} tasks, {archived_thoughts_count} thoughts archived and removed.")
-        logger.info("--- Finished Startup Database Cleanup ---")
+        logger.info("Database cleanup completed")
 
     async def _cleanup_invalid_thoughts(self) -> None:
         """Clean up thoughts with invalid or malformed context."""

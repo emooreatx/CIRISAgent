@@ -95,7 +95,7 @@ class TaskManager:
             else:
                 logger.warning(f"Failed to activate task {task.task_id}")
 
-        logger.info(f"Activated {activated_count} tasks")
+        if activated_count > 0:\n            logger.info(f"Activated {activated_count} tasks")\n        else:\n            logger.debug("No tasks to activate")
         return activated_count
 
     def get_tasks_needing_seed(self, limit: int = 50) -> List[Task]:

@@ -53,7 +53,7 @@ class ThoughtProcessor:
         context: Optional[dict] = None
     ) -> Optional[ActionSelectionDMAResult]:
         """Main processing pipeline - coordinates the components."""
-        logger.info(f"[DEBUG TIMING] process_thought START for thought {thought_item.thought_id}")
+        logger.debug(f"process_thought START for thought {thought_item.thought_id}")
         start_time = self._time_service.now()
         # Create trace for thought processing
         trace_id = f"task_{thought_item.source_task_id or 'unknown'}_{thought_item.thought_id}"
@@ -119,11 +119,11 @@ class ThoughtProcessor:
         prefetched_thought = context.get("prefetched_thought") if context else None
         if prefetched_thought and prefetched_thought.thought_id == thought_item.thought_id:
             thought = prefetched_thought
-            logger.info(f"[DEBUG TIMING] Using prefetched thought {thought_item.thought_id}")
+            logger.debug(f"Using prefetched thought {thought_item.thought_id}")
         else:
-            logger.info(f"[DEBUG TIMING] About to fetch thought {thought_item.thought_id}")
+            logger.debug(f"About to fetch thought {thought_item.thought_id}")
             thought = await self._fetch_thought(thought_item.thought_id)
-            logger.info(f"[DEBUG TIMING] Fetched thought {thought_item.thought_id}")
+            logger.debug(f"Fetched thought {thought_item.thought_id}")
         if not thought:
             logger.error(f"Thought {thought_item.thought_id} not found.")
             if self.telemetry_service:
@@ -190,7 +190,7 @@ class ThoughtProcessor:
         # 2. Build context (always build proper ThoughtContext for DMA orchestrator)
         batch_context_data = context.get("batch_context") if context else None
         if batch_context_data:
-            logger.info(f"[DEBUG TIMING] Using batch context for thought {thought_item.thought_id}")
+            logger.debug(f"Using batch context for thought {thought_item.thought_id}")
             # Use optimized batch context building
             from ciris_engine.logic.context.batch_context import build_system_snapshot_with_batch
             system_snapshot = await build_system_snapshot_with_batch(
@@ -203,7 +203,7 @@ class ThoughtProcessor:
             # Build full thought context with the optimized snapshot
             thought_context = await self.context_builder.build_thought_context(thought, system_snapshot=system_snapshot)
         else:
-            logger.info(f"[DEBUG TIMING] Building full context for thought {thought_item.thought_id} (no batch context)")
+            logger.debug(f"Building full context for thought {thought_item.thought_id} (no batch context)")
             thought_context = await self.context_builder.build_thought_context(thought)
         # Store the fresh context on the queue item so DMA executor can use it
         if hasattr(thought_context, "model_dump"):
@@ -218,7 +218,7 @@ class ThoughtProcessor:
         # For now, removing profile_name to fix TypeError.
         # The dsdma_context argument is optional and defaults to None if not provided.
         try:
-            logger.info(f"[DEBUG TIMING] About to call dma_orchestrator.run_initial_dmas for thought {thought_item.thought_id}")
+            logger.debug(f"About to call dma_orchestrator.run_initial_dmas for thought {thought_item.thought_id}")
             dma_results = await self.dma_orchestrator.run_initial_dmas(
                 thought_item=thought_item,
                 processing_context=thought_context,

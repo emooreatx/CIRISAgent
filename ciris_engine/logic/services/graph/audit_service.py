@@ -352,20 +352,20 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
                 )
 
             # Add to hash chain if enabled
-            logger.info(f"[AUDIT DEBUG] enable_hash_chain={self.enable_hash_chain}")
+            logger.debug(f"enable_hash_chain={self.enable_hash_chain}")
             if self.enable_hash_chain:
-                logger.info(f"[AUDIT DEBUG] Adding entry to hash chain")
+                logger.debug(f"Adding entry to hash chain")
                 await self._add_to_hash_chain(entry)
             else:
-                logger.warning(f"[AUDIT DEBUG] Hash chain disabled, not writing to audit_log table")
+                logger.debug(f"Hash chain disabled, not writing to audit_log table")
 
             # Cache and export
             self._cache_entry(entry)
             if self.export_path:
-                logger.info(f"[AUDIT DEBUG] Adding to export buffer, path={self.export_path}")
+                logger.debug(f"Adding to export buffer, path={self.export_path}")
                 self._export_buffer.append(entry)
             else:
-                logger.info(f"[AUDIT DEBUG] No export path configured")
+                logger.debug(f"No export path configured")
 
         except Exception as e:
             logger.error(f"Failed to log event {event_type}: {e}")
@@ -965,11 +965,11 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
                 self._db_connection.commit()
 
             try:
-                logger.info(f"[AUDIT DEBUG] About to write to hash chain for entry {entry.entry_id}")
+                logger.debug(f"About to write to hash chain for entry {entry.entry_id}")
                 await asyncio.to_thread(_write_to_chain)
-                logger.info(f"[AUDIT DEBUG] Successfully wrote to hash chain for entry {entry.entry_id}")
+                logger.debug(f"Successfully wrote to hash chain for entry {entry.entry_id}")
             except Exception as e:
-                logger.error(f"[AUDIT DEBUG] Failed to add to hash chain: {e}", exc_info=True)
+                logger.error(f"Failed to add to hash chain: {e}", exc_info=True)
 
     def _cache_entry(self, entry: AuditRequest) -> None:
         """Add entry to cache."""

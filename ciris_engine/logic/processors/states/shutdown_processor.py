@@ -98,7 +98,7 @@ class ShutdownProcessor(BaseProcessor):
 
     async def _process_shutdown(self, round_number: int) -> dict:
         """Internal method that returns dict for backward compatibility."""
-        logger.info(f"=== SHUTDOWN PROCESSOR: Round {round_number} ===")
+        logger.info(f"Shutdown processor: round {round_number}")
 
         try:
             # Create shutdown task if not exists

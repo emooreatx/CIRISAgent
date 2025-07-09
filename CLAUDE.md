@@ -422,3 +422,23 @@ The mock LLM extracts commands from user context in this order:
 - **Check uptime**: If health shows hours when just started, rebuild needed
 - **Parallel testing**: Use multiple containers (ports 8080-8089)
 - **Incident logs are gold**: Every error reveals system behavior
+
+### Discord Adapter Fix (July 9, 2025)
+
+**Issue**: Discord adapter crashed with "Concurrent call to receive() is not allowed" when receiving messages.
+
+**Root Cause**: Multiple components (DiscordPlatform and DiscordConnectionManager) were trying to manage the Discord client connection simultaneously, causing race conditions.
+
+**Solution**:
+1. **Simplified reconnection logic** in DiscordPlatform - removed client recreation
+2. **Disabled redundant connection management** in DiscordConnectionManager
+3. **Leveraged Discord.py's built-in reconnection** with `reconnect=True` parameter
+4. **Added proper health check** via `is_healthy()` method in DiscordPlatform
+
+**Key Changes**:
+- DiscordPlatform now uses `client.start(token, reconnect=True)` and lets Discord.py handle reconnection
+- Removed complex client recreation logic that was causing websocket conflicts
+- DiscordConnectionManager now only monitors connection state, doesn't attempt reconnection
+- Single point of control for Discord client lifecycle
+
+This fix ensures robust Discord connectivity for both boot-time and runtime adapter loading.

@@ -1,26 +1,42 @@
-# CIRIS API Client Expectations
+# CIRIS SDK Integration
 
-This document outlines how the Wyoming bridge communicates with the CIRIS API.
+This Wyoming bridge now uses the official CIRIS SDK for improved reliability and features.
 
-## Message Submission
+## SDK Features
 
-- **Endpoint**: `POST /v1/messages`
-- **Headers**:
-  - `Content-Type: application/json`
-  - `Authorization: Bearer <CIRIS_API_KEY>` (optional)
-- **Payload**:
-  - `content`: user text to send to CIRIS
-  - `channel_id`: identifies the integration (default: `home_assistant`)
-  - `author_id`: identifier for the voice user
-  - `author_name`: human readable name for the user
-  - `context`: extra data such as profile and source
+- **Endpoint**: Automatically uses `/v1/agent/interact`
+- **Authentication**: Handles API key or username/password auth
+- **Timeout**: Configured for 58 seconds (under HA's 60s limit)
+- **Retries**: Disabled for voice (single attempt)
+- **Type Safety**: Full request/response validation
 
-The server is expected to respond with JSON containing at least the key `content` with the assistant's reply.
+## Message Flow
 
-## Response Retrieval
+1. Voice input is transcribed to text
+2. SDK sends to CIRIS with proper formatting:
+   - `message`: The transcribed text
+   - `channel_id`: Voice-specific channel (e.g., `voice_wyoming_default`)
+   - `context`: Includes source, profile, language, session info
+3. SDK waits up to 58 seconds for response
+4. Response is converted to speech
 
-The optional `get_response` helper polls the `/v1/status` endpoint to fetch a stored response. This is useful if the CIRIS server performs asynchronous processing. It returns the field `last_response.content` when available.
+## Response Format
+
+The SDK returns a structured response:
+```json
+{
+  "content": "CIRIS's response text",
+  "message_id": "unique-id",
+  "state": "WORK",
+  "processing_time": 15000
+}
+```
 
 ## Error Handling
 
-If the API request fails or returns a non-200 status, the client logs the error and returns a fallback message so that the user receives a graceful failure notice.
+The SDK handles various error scenarios:
+- **Timeout** (58s): "That took too long to process. Please try again."
+- **API Error**: "I'm having trouble understanding that request."
+- **Network Error**: "I'm experiencing technical difficulties."
+
+All errors are logged with appropriate context for debugging.

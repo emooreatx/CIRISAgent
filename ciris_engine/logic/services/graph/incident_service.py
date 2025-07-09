@@ -127,43 +127,68 @@ class IncidentManagementService(BaseGraphService):
             raise
 
     async def _get_recent_incidents(self, cutoff_time) -> List[IncidentNode]:
-        """Query recent incidents from graph."""
-        # Use the memory service's search method directly
-        # Look for nodes that have incident attributes in the graph
-        search_query = f"type:{NodeType.AUDIT_ENTRY}"
-
-        # Get the memory service through the bus (it should have a search method)
-        memory_service = self._memory_bus.service_registry.get_service(ServiceType.MEMORY)
-        if not memory_service:
-            logger.error("Memory service not available")
+        """Read recent incidents from the incidents log file."""
+        import os
+        from pathlib import Path
+        
+        # Find the latest incidents log file
+        log_dir = Path("/app/logs")
+        incidents_file = log_dir / "incidents_latest.log"
+        
+        if not incidents_file.exists():
+            logger.warning("No incidents log file found")
             return []
-
+        
+        incidents = []
         try:
-            # Search for audit entries that might be incidents
-            nodes = await memory_service.search(search_query)
-
-            # Filter for incident nodes
-            incidents = []
-            for node in nodes:
-                # Check if this is an incident node by looking at attributes
-                if hasattr(node, 'attributes') and isinstance(node.attributes, dict):
-                    attrs = node.attributes
-                    # Check for incident-specific fields
-                    if 'incident_type' in attrs and 'detected_at' in attrs:
-                        try:
-                            # Convert to IncidentNode
-                            incident = IncidentNode.from_graph_node(node)
-                            # Filter by time and status
-                            if incident.detected_at > cutoff_time and incident.status == IncidentStatus.OPEN:
-                                incidents.append(incident)
-                        except Exception as e:
-                            logger.debug(f"Node {node.id} is not an incident: {e}")
-
-            return incidents
-
+            # Parse the incidents log file
+            with open(incidents_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("==="):
+                        continue
+                    
+                    # Parse log line: "2025-07-09 15:24:43.200 - WARNING  - component - file.py:line - message"
+                    parts = line.split(" - ", 4)
+                    if len(parts) >= 5:
+                        timestamp_str = parts[0]
+                        level = parts[1].strip()
+                        component = parts[2].strip()
+                        location = parts[3].strip()
+                        message = parts[4].strip()
+                        
+                        # Parse timestamp
+                        from datetime import datetime
+                        timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S.%f")
+                        
+                        # Skip if before cutoff
+                        if timestamp.replace(tzinfo=cutoff_time.tzinfo) < cutoff_time:
+                            continue
+                        
+                        # Create incident node
+                        incident = IncidentNode(
+                            id=f"incident_{timestamp.strftime('%Y%m%d_%H%M%S')}_{hash(message) % 10000}",
+                            type=NodeType.AUDIT_ENTRY,
+                            scope=GraphScope.LOCAL,
+                            attributes={},
+                            incident_type=level,
+                            severity="HIGH" if level == "ERROR" else "MEDIUM",
+                            status=IncidentStatus.OPEN,
+                            description=message,
+                            source_component=component,
+                            detected_at=timestamp,
+                            impact="TBD",
+                            urgency="MEDIUM",
+                            updated_by="incident_service",
+                            updated_at=timestamp
+                        )
+                        incidents.append(incident)
+                        
         except Exception as e:
-            logger.error(f"Failed to search for incidents: {e}")
-            return []
+            logger.error(f"Failed to parse incidents log: {e}")
+        
+        logger.info(f"Found {len(incidents)} incidents since {cutoff_time}")
+        return incidents
 
     def _detect_patterns(self, incidents: List[IncidentNode]) -> Dict[str, List[IncidentNode]]:
         """Detect patterns in incidents."""

@@ -13,7 +13,7 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 from typing import List
 
-from ciris_engine.logic.services.graph.tsdb_consolidation_service import TSDBConsolidationService
+from ciris_engine.logic.services.graph.tsdb_consolidation import TSDBConsolidationService
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType

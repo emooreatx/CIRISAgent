@@ -1,0 +1,238 @@
+"""
+CIRIS SDK Client for Wyoming Voice Bridge.
+
+Uses the official CIRIS SDK for improved reliability and features.
+Configured for 58-second timeout to work with Home Assistant's 60-second pipeline.
+"""
+import asyncio
+import logging
+from typing import Optional, Dict, Any
+from datetime import datetime
+
+# Note: Requires `pip install ciris-sdk`
+try:
+    from ciris_sdk import CIRISClient
+    from ciris_sdk.exceptions import CIRISError, CIRISTimeoutError
+except ImportError:
+    # Fallback for development without SDK installed
+    CIRISClient = None
+    CIRISError = Exception
+    CIRISTimeoutError = asyncio.TimeoutError
+
+logger = logging.getLogger(__name__)
+
+
+class CIRISVoiceClient:
+    """CIRIS client optimized for voice interactions with extended timeout."""
+    
+    def __init__(self, config):
+        """
+        Initialize the CIRIS voice client.
+        
+        Args:
+            config: Configuration object with api_url, api_key, channel_id, etc.
+        """
+        if CIRISClient is None:
+            raise ImportError(
+                "CIRIS SDK not installed. Please run: pip install ciris-sdk"
+            )
+            
+        # Initialize SDK client with extended timeout
+        self.client = CIRISClient(
+            base_url=config.api_url,
+            api_key=config.api_key,
+            timeout=58.0,  # 58 seconds - just under HA's 60s timeout
+            max_retries=0  # No retries for voice - we have one shot
+        )
+        
+        # Voice-specific configuration
+        self.channel_id = f"voice_{config.channel_id}"
+        self.profile = getattr(config, 'profile', 'default')
+        self.language = getattr(config, 'language', 'en-US')
+        
+        # Track session for context
+        self.session_id = None
+        self.conversation_start = None
+        
+        logger.info(f"CIRIS Voice Client initialized for channel: {self.channel_id}")
+    
+    async def initialize(self):
+        """
+        Initialize the client and authenticate if needed.
+        
+        For API key auth, this is a no-op. For username/password,
+        this would handle login.
+        """
+        try:
+            # Test connection and auth
+            status = await self.client.agent.get_status()
+            logger.info(f"Connected to CIRIS agent: {status.name} (state: {status.cognitive_state})")
+            
+            # Start new session
+            self.session_id = f"voice_session_{datetime.now().timestamp()}"
+            self.conversation_start = datetime.now()
+            
+        except CIRISError as e:
+            logger.error(f"Failed to initialize CIRIS client: {e}")
+            raise
+    
+    async def send_message(self, content: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Send a voice message to CIRIS and wait for response.
+        
+        Args:
+            content: The transcribed user speech
+            context: Optional additional context
+            
+        Returns:
+            Dict with 'content' key containing the response text
+        """
+        try:
+            # Build voice-specific context
+            voice_context = {
+                "source": "wyoming_voice",
+                "profile": self.profile,
+                "language": self.language,
+                "session_id": self.session_id,
+                "input_method": "voice",
+                "timestamp": datetime.now().isoformat()
+            }
+            
+            # Merge with provided context
+            if context:
+                voice_context.update(context)
+            
+            logger.info(f"Sending to CIRIS: '{content[:50]}...' on channel {self.channel_id}")
+            
+            # Use the SDK's agent interact method with extended timeout
+            response = await self.client.agent.interact(
+                message=content,
+                channel_id=self.channel_id,
+                context=voice_context
+            )
+            
+            # Log response time for monitoring
+            processing_time = response.processing_time_ms / 1000.0
+            logger.info(f"CIRIS responded in {processing_time:.1f}s: '{response.response[:50]}...'")
+            
+            # Return in expected format
+            return {
+                "content": response.response,
+                "message_id": response.message_id,
+                "state": response.state,
+                "processing_time": response.processing_time_ms
+            }
+            
+        except CIRISTimeoutError:
+            # Timeout after 58 seconds
+            logger.warning("CIRIS timeout after 58 seconds")
+            return {
+                "content": "That took too long to process. Please try again.",
+                "message_id": None,
+                "state": "timeout",
+                "processing_time": 58000
+            }
+            
+        except CIRISError as e:
+            # API errors (auth, validation, etc)
+            logger.error(f"CIRIS API error: {e}")
+            return {
+                "content": "I'm having trouble understanding that request.",
+                "message_id": None,
+                "state": "error",
+                "processing_time": 0
+            }
+            
+        except Exception as e:
+            # Unexpected errors
+            logger.exception(f"Unexpected error: {e}")
+            return {
+                "content": "I'm experiencing technical difficulties.",
+                "message_id": None,
+                "state": "error", 
+                "processing_time": 0
+            }
+    
+    async def get_conversation_history(self, limit: int = 10) -> Optional[list]:
+        """
+        Get recent conversation history for context.
+        
+        Args:
+            limit: Maximum number of messages to retrieve
+            
+        Returns:
+            List of recent messages or None if unavailable
+        """
+        try:
+            history = await self.client.agent.get_history(
+                channel_id=self.channel_id,
+                limit=limit
+            )
+            
+            return [
+                {
+                    "role": "assistant" if msg.is_agent else "user",
+                    "content": msg.content,
+                    "timestamp": msg.timestamp.isoformat()
+                }
+                for msg in history.messages
+            ]
+            
+        except CIRISError as e:
+            logger.warning(f"Could not retrieve history: {e}")
+            return None
+    
+    async def end_session(self):
+        """
+        End the current voice session and clean up.
+        """
+        if self.session_id:
+            logger.info(f"Ending voice session: {self.session_id}")
+            
+            # Log session duration
+            if self.conversation_start:
+                duration = (datetime.now() - self.conversation_start).total_seconds()
+                logger.info(f"Session duration: {duration:.1f} seconds")
+            
+            # Reset session
+            self.session_id = None
+            self.conversation_start = None
+    
+    async def close(self):
+        """
+        Close the client and clean up resources.
+        """
+        await self.end_session()
+        await self.client.close()
+        logger.info("CIRIS Voice Client closed")
+
+
+# Backward compatibility wrapper
+class CIRISClient:
+    """
+    Backward compatibility wrapper to match original interface.
+    
+    This allows dropping in the SDK-based client without changing
+    the existing bridge code.
+    """
+    
+    def __init__(self, config):
+        self.voice_client = CIRISVoiceClient(config)
+        self._initialized = False
+    
+    async def send_message(self, content: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Send message using the new SDK client."""
+        # Auto-initialize on first use
+        if not self._initialized:
+            await self.voice_client.initialize()
+            self._initialized = True
+            
+        return await self.voice_client.send_message(content, context)
+    
+    async def get_response(self, message_id: str) -> Optional[str]:
+        """
+        Legacy method - not needed with SDK as responses are synchronous.
+        
+        Kept for compatibility but returns None.
+        """
+        return None

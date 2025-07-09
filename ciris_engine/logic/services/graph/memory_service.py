@@ -86,11 +86,11 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
             from ciris_engine.logic.persistence.models import graph as persistence
             from ciris_engine.logic.persistence import get_all_graph_nodes, get_nodes_by_type
             
-            logger.info(f"[DEBUG] Memory recall called with node_id='{recall_query.node_id}', scope={recall_query.scope}, type={recall_query.type}")
+            logger.debug(f"Memory recall called with node_id='{recall_query.node_id}', scope={recall_query.scope}, type={recall_query.type}")
             
             # Check if this is a wildcard query
             if recall_query.node_id in ["*", "%", "all"]:
-                logger.info(f"[DEBUG DB TIMING] Memory recall: wildcard query with scope {recall_query.scope}, type {recall_query.type}")
+                logger.debug(f"Memory recall: wildcard query with scope {recall_query.scope}, type {recall_query.type}")
                 
                 # Use the new get_all_graph_nodes function
                 nodes = get_all_graph_nodes(
@@ -99,7 +99,7 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
                     limit=100,  # Reasonable default limit for wildcard queries
                     db_path=self.db_path
                 )
-                logger.info(f"[DEBUG] Wildcard query returned {len(nodes)} nodes")
+                logger.debug(f"Wildcard query returned {len(nodes)} nodes")
                 
                 # Process secrets for all nodes
                 processed_nodes = []
@@ -148,7 +148,7 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
             
             else:
                 # Regular single node query
-                logger.info(f"[DEBUG DB TIMING] Memory recall: getting node {recall_query.node_id} scope {recall_query.scope}")
+                logger.debug(f"Memory recall: getting node {recall_query.node_id} scope {recall_query.scope}")
                 stored = persistence.get_graph_node(recall_query.node_id, recall_query.scope, db_path=self.db_path)
                 if not stored:
                     return []
@@ -763,7 +763,7 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
 
     async def search(self, query: str, filters: Optional[MemorySearchFilter] = None) -> List[GraphNode]:
         """Search memories in the graph."""
-        logger.info(f"[DEBUG DB TIMING] Memory search START: query='{query}', filters={filters}")
+        logger.debug(f"Memory search START: query='{query}', filters={filters}")
         try:
             from ciris_engine.logic.persistence import get_all_graph_nodes, get_nodes_by_type
             

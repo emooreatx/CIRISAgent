@@ -749,68 +749,151 @@ async def visualize_memory_graph(
                         cursor = conn.cursor()
                         
                         # For timeline, we need to sample across time buckets
-                        days_in_range = int((now - since).total_seconds() / 86400) + 1
-                        nodes_per_day = max(1, limit // days_in_range)
-                        logger.info(f"Timeline: {days_in_range} days, {nodes_per_day} nodes per day")
-                        
-                        # Sample nodes from each day
-                        all_db_nodes = []
-                        for day_offset in range(days_in_range):
-                            day_start = (now - timedelta(days=day_offset)).replace(hour=0, minute=0, second=0, microsecond=0)
-                            day_end = day_start + timedelta(days=1)
+                        # For proper time windows, use hour buckets instead of day buckets for smaller ranges
+                        if hours <= 48:
+                            # Use hour buckets for better precision
+                            bucket_hours = 3  # 3-hour buckets
+                            num_buckets = (hours + bucket_hours - 1) // bucket_hours
+                            nodes_per_bucket = max(1, limit // num_buckets)
+                            logger.info(f"Timeline: {num_buckets} buckets ({bucket_hours}h each), {nodes_per_bucket} nodes per bucket")
                             
-                            # Build query for this day
-                            query_parts = [
-                                "SELECT node_id, scope, node_type, attributes_json, version, updated_by, updated_at, created_at",
-                                "FROM graph_nodes",
-                                "WHERE updated_at >= ? AND updated_at < ?",
-                            ]
-                            params = [day_start.isoformat(), day_end.isoformat()]
+                            # Sample nodes from each time bucket
+                            all_db_nodes = []
+                            for bucket_idx in range(num_buckets):
+                                bucket_start = now - timedelta(hours=(bucket_idx + 1) * bucket_hours)
+                                bucket_end = now - timedelta(hours=bucket_idx * bucket_hours)
+                                
+                                # Ensure we don't go before the window start
+                                if bucket_start < since:
+                                    bucket_start = since
+                                
+                                # Build query for this bucket
+                                query_parts = [
+                                    "SELECT node_id, scope, node_type, attributes_json, version, updated_by, updated_at, created_at",
+                                    "FROM graph_nodes",
+                                    "WHERE updated_at >= ? AND updated_at < ?",
+                                ]
+                                params = [bucket_start.isoformat(), bucket_end.isoformat()]
+                                
+                                # Add metric filter
+                                if not include_metrics:
+                                    query_parts.append("AND NOT (node_type = 'tsdb_data' AND node_id LIKE 'metric_%')")
+                                
+                                # Add scope filter
+                                if scope:
+                                    query_parts.append("AND scope = ?")
+                                    params.append(scope.value)
+                                
+                                # Add type filter
+                                if node_type:
+                                    query_parts.append("AND node_type = ?")
+                                    params.append(node_type.value)
+                                
+                                # Random sampling for better distribution
+                                query_parts.extend([
+                                    "ORDER BY RANDOM()",
+                                    "LIMIT ?"
+                                ])
+                                params.append(nodes_per_bucket * 2)  # Get extra to allow for filtering
                             
-                            # Add metric filter
-                            if not include_metrics:
-                                query_parts.append("AND NOT (node_type = 'tsdb_data' AND node_id LIKE 'metric_%')")
+                                query = " ".join(query_parts)
+                                cursor.execute(query, params)
+                                
+                                # Convert rows to GraphNode objects for this bucket
+                                for row in cursor.fetchall():
+                                    try:
+                                        # Parse attributes
+                                        attributes = json.loads(row['attributes_json']) if row['attributes_json'] else {}
+                                        
+                                        # Create GraphNode
+                                        node = GraphNode(
+                                            id=row['node_id'],
+                                            type=NodeType(row['node_type']),
+                                            scope=GraphScope(row['scope']),
+                                            attributes=attributes,
+                                            version=row['version'],
+                                            updated_by=row['updated_by'],
+                                            updated_at=datetime.fromisoformat(row['updated_at'].replace('Z', '+00:00'))
+                                        )
+                                        all_db_nodes.append(node)
+                                    except Exception as e:
+                                        logger.warning(f"Failed to parse node {row['node_id']}: {e}")
+                                        continue
+                        else:
+                            # Use day buckets for longer ranges
+                            days_in_range = int((now - since).total_seconds() / 86400) + 1
+                            nodes_per_day = max(1, limit // days_in_range)
+                            logger.info(f"Timeline: {days_in_range} days, {nodes_per_day} nodes per day")
                             
-                            # Add scope filter
-                            if scope:
-                                query_parts.append("AND scope = ?")
-                                params.append(scope.value)
-                            
-                            # Add type filter
-                            if node_type:
-                                query_parts.append("AND node_type = ?")
-                                params.append(node_type.value)
-                            
-                            # Random sampling for better distribution
-                            query_parts.extend([
-                                "ORDER BY RANDOM()",
-                                "LIMIT ?"
-                            ])
-                            params.append(nodes_per_day * 2)  # Get extra to allow for filtering
-                        
-                            query = " ".join(query_parts)
-                            cursor.execute(query, params)
-                            
-                            # Convert rows to GraphNode objects for this day
-                            for row in cursor.fetchall():
-                                try:
-                                    # Parse attributes
-                                    attributes = json.loads(row['attributes_json']) if row['attributes_json'] else {}
-                                    
-                                    # Create GraphNode
-                                    node = GraphNode(
-                                        id=row['node_id'],
-                                        type=NodeType(row['node_type']),
-                                        scope=GraphScope(row['scope']),
-                                        attributes=attributes,
-                                        version=row['version'],
-                                        updated_by=row['updated_by'],
-                                        updated_at=datetime.fromisoformat(row['updated_at'].replace('Z', '+00:00'))
-                                    )
-                                    all_db_nodes.append(node)
-                                except Exception as e:
-                                    logger.warning(f"Failed to parse node {row['node_id']}: {e}")
+                            # Sample nodes from each day
+                            all_db_nodes = []
+                            for day_offset in range(days_in_range):
+                                # Use precise time boundaries based on the actual time window
+                                day_start = now - timedelta(days=day_offset + 1)
+                                day_end = now - timedelta(days=day_offset)
+                                
+                                # Ensure we stay within the requested window
+                                if day_start < since:
+                                    day_start = since
+                                if day_end > now:
+                                    day_end = now
+                                
+                                # Skip if invalid range
+                                if day_start >= day_end:
                                     continue
+                                
+                                # Build query for this day
+                                query_parts = [
+                                    "SELECT node_id, scope, node_type, attributes_json, version, updated_by, updated_at, created_at",
+                                    "FROM graph_nodes",
+                                    "WHERE updated_at >= ? AND updated_at < ?",
+                                ]
+                                params = [day_start.isoformat(), day_end.isoformat()]
+                                
+                                # Add metric filter
+                                if not include_metrics:
+                                    query_parts.append("AND NOT (node_type = 'tsdb_data' AND node_id LIKE 'metric_%')")
+                                
+                                # Add scope filter
+                                if scope:
+                                    query_parts.append("AND scope = ?")
+                                    params.append(scope.value)
+                                
+                                # Add type filter
+                                if node_type:
+                                    query_parts.append("AND node_type = ?")
+                                    params.append(node_type.value)
+                                
+                                # Random sampling for better distribution
+                                query_parts.extend([
+                                    "ORDER BY RANDOM()",
+                                    "LIMIT ?"
+                                ])
+                                params.append(nodes_per_day * 2)  # Get extra to allow for filtering
+                                
+                                query = " ".join(query_parts)
+                                cursor.execute(query, params)
+                                
+                                # Convert rows to GraphNode objects for this day
+                                for row in cursor.fetchall():
+                                    try:
+                                        # Parse attributes
+                                        attributes = json.loads(row['attributes_json']) if row['attributes_json'] else {}
+                                        
+                                        # Create GraphNode
+                                        node = GraphNode(
+                                            id=row['node_id'],
+                                            type=NodeType(row['node_type']),
+                                            scope=GraphScope(row['scope']),
+                                            attributes=attributes,
+                                            version=row['version'],
+                                            updated_by=row['updated_by'],
+                                            updated_at=datetime.fromisoformat(row['updated_at'].replace('Z', '+00:00'))
+                                        )
+                                        all_db_nodes.append(node)
+                                    except Exception as e:
+                                        logger.warning(f"Failed to parse node {row['node_id']}: {e}")
+                                        continue
                         
                         # Set nodes from database query
                         nodes = all_db_nodes[:limit] if len(all_db_nodes) > limit else all_db_nodes
@@ -1092,7 +1175,7 @@ async def visualize_memory_graph(
         
         # Calculate layout based on selected algorithm
         if layout == "timeline" and hours:
-            pos = _calculate_timeline_layout(G, nodes, width, height)
+            pos = _calculate_timeline_layout(G, nodes, width, height, hours)
         elif layout == "hierarchical":
             # Try to use hierarchical layout if the graph has a tree-like structure
             try:
@@ -1259,9 +1342,19 @@ def _hierarchy_pos(G: "nx.DiGraph", root: str, width: float = 1., vert_gap: floa
     return _hierarchy_pos_recursive(G, root, width, vert_gap, vert_loc, xcenter)
 
 
-def _calculate_timeline_layout(G: "nx.DiGraph", nodes: List[GraphNode], width: int, height: int) -> Dict[str, Tuple[float, float]]:
+def _calculate_timeline_layout(G: "nx.DiGraph", nodes: List[GraphNode], width: int, height: int, hours: Optional[int] = None) -> Dict[str, Tuple[float, float]]:
     """Calculate timeline layout with nodes arranged chronologically."""
     pos = {}
+    
+    # Determine the time window
+    now = datetime.now(timezone.utc)
+    if hours:
+        window_start = now - timedelta(hours=hours)
+        window_end = now
+    else:
+        # Default to 24 hours if not specified
+        window_start = now - timedelta(hours=24)
+        window_end = now
     
     # Collect nodes with timestamps
     nodes_with_time: List[Tuple[datetime, str]] = []
@@ -1317,17 +1410,23 @@ def _calculate_timeline_layout(G: "nx.DiGraph", nodes: List[GraphNode], width: i
         # Convert to proper type
         return {node: (float(x), float(y)) for node, (x, y) in layout_result.items()}
     
-    # Get time range
-    min_time = nodes_with_time[0][0]
-    max_time = nodes_with_time[-1][0]
-    time_range = (max_time - min_time).total_seconds()
+    # Get time range - use the window range, not the data range
+    window_range = (window_end - window_start).total_seconds()
     
-    logger.info(f"Time range: {min_time.isoformat()} to {max_time.isoformat()} ({time_range/3600:.1f} hours)")
+    # Get actual data range for logging
+    data_min_time = nodes_with_time[0][0]
+    data_max_time = nodes_with_time[-1][0]
+    data_range = (data_max_time - data_min_time).total_seconds()
+    
+    logger.info(f"Window range: {window_start.isoformat()} to {window_end.isoformat()} ({window_range/3600:.1f} hours)")
+    logger.info(f"Data range: {data_min_time.isoformat()} to {data_max_time.isoformat()} ({data_range/3600:.1f} hours)")
     
     # If all nodes are at the same time or very close, use vertical distribution
-    if time_range < 3600:  # Less than 1 hour range
-        logger.info("All nodes within 1 hour - using vertical distribution")
-        x = width / 2
+    if data_range < 3600:  # Less than 1 hour range
+        logger.info("All nodes within 1 hour - using vertical distribution at appropriate x position")
+        # Place the group at the correct position within the window
+        time_offset = (data_min_time - window_start).total_seconds()
+        x = 100 + (time_offset / window_range) * (width - 200)
         y_spacing = (height - 100) / max(len(nodes_with_time), 1)
         for i, (_, node_id) in enumerate(nodes_with_time):
             y = 50 + i * y_spacing + (y_spacing / 2)
@@ -1354,11 +1453,21 @@ def _calculate_timeline_layout(G: "nx.DiGraph", nodes: List[GraphNode], width: i
         
         # Position each group
         for group in node_groups:
-            # Calculate x position based on the group's average time
+            # Calculate x position based on the group's average time within the window
             avg_time = sum((t.timestamp() for t, _ in group), 0.0) / len(group)
             avg_datetime = datetime.fromtimestamp(avg_time, tz=timezone.utc)
-            time_offset = (avg_datetime - min_time).total_seconds()
-            x = x_margin + (time_offset / time_range) * available_width
+            time_offset = (avg_datetime - window_start).total_seconds()
+            
+            # Ensure nodes stay within bounds
+            if time_offset < 0:
+                # Node is before window start - place at left edge
+                x = x_margin
+            elif time_offset > window_range:
+                # Node is after window end - place at right edge
+                x = width - x_margin
+            else:
+                # Normal case - position proportionally
+                x = x_margin + (time_offset / window_range) * available_width
             
             # Distribute nodes in the group vertically with slight x variation
             if len(group) == 1:
