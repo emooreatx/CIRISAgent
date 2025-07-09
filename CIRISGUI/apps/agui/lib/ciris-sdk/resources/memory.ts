@@ -32,18 +32,31 @@ export class MemoryResource extends BaseResource {
   ): Promise<GraphNode[]> {
     // If query looks like a node ID, search by ID
     const isNodeId = query && (
-      // Known node type prefixes
-      query.startsWith('metric_') || 
-      query.startsWith('audit_') || 
-      query.startsWith('log_') ||
-      query.startsWith('dream_schedule_') ||
-      query.startsWith('thought_') ||
-      query.startsWith('task_') ||
-      query.startsWith('observation_') ||
-      query.startsWith('concept_') ||
-      query.startsWith('identity_') ||
-      query.startsWith('config_') ||
-      query.startsWith('tsdb_data_') ||
+      // Known node type prefixes (case-insensitive)
+      query.toLowerCase().startsWith('metric_') || 
+      query.toLowerCase().startsWith('audit_') || 
+      query.toLowerCase().startsWith('log_') ||
+      query.toLowerCase().startsWith('dream_schedule_') ||
+      query.toLowerCase().startsWith('thought_') ||
+      query.toLowerCase().startsWith('thought/') ||  // Alternative thought format
+      query.toLowerCase().startsWith('task_') ||
+      query.toLowerCase().startsWith('observation_') ||
+      query.toLowerCase().startsWith('concept_') ||
+      query.toLowerCase().startsWith('identity_') ||
+      query.toLowerCase().startsWith('config_') ||
+      query.toLowerCase().startsWith('config:') ||  // Config nodes with colon format
+      query.toLowerCase().startsWith('tsdb_data_') ||
+      query.toLowerCase().startsWith('conversation_summary_') ||
+      query.toLowerCase().startsWith('trace_summary_') ||
+      query.toLowerCase().startsWith('audit_summary_') ||
+      query.toLowerCase().startsWith('tsdb_summary_') ||
+      query.toLowerCase().startsWith('user_') ||
+      query.toLowerCase().startsWith('user/') ||  // User nodes with slash format
+      query.toLowerCase().startsWith('shutdown_') ||
+      query.toLowerCase().startsWith('edge_') ||
+      query.toLowerCase().startsWith('datum-') ||  // Datum nodes
+      // ISO timestamp patterns (with + or Z)
+      /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(query) ||
       // Generic pattern: contains underscore (not at start) and 10-digit timestamp
       (query.includes('_') && !query.startsWith('_') && /\d{10}/.test(query))
     );
@@ -53,21 +66,28 @@ export class MemoryResource extends BaseResource {
       ...options
     };
     
-    return this.transport.post<GraphNode[]>('/v1/memory/query', body);
+    // Debug logging
+    console.log('Memory query:', { query, isNodeId, body });
+    
+    const response = await this.transport.post<any>('/v1/memory/query', body);
+    console.log('Memory query response:', response);
+    
+    // Handle both direct array response and data wrapper
+    return Array.isArray(response) ? response : (response.data || response);
   }
 
   /**
    * Get a specific memory node
    */
   async getNode(nodeId: string): Promise<GraphNode> {
-    return this.transport.get<GraphNode>(`/v1/memory/${nodeId}`);
+    return this.transport.get<GraphNode>(`/v1/memory/${encodeURIComponent(nodeId)}`);
   }
 
   /**
    * Recall specific memory by ID (alternative to getNode)
    */
   async recall(nodeId: string): Promise<GraphNode> {
-    return this.transport.get<GraphNode>(`/v1/memory/recall/${nodeId}`);
+    return this.transport.get<GraphNode>(`/v1/memory/recall/${encodeURIComponent(nodeId)}`);
   }
 
   /**
@@ -84,14 +104,14 @@ export class MemoryResource extends BaseResource {
     nodeId: string,
     updates: Partial<GraphNode>
   ): Promise<MemoryOpResult> {
-    return this.transport.patch<MemoryOpResult>(`/v1/memory/${nodeId}`, updates);
+    return this.transport.patch<MemoryOpResult>(`/v1/memory/${encodeURIComponent(nodeId)}`, updates);
   }
 
   /**
    * Delete a memory node
    */
   async deleteNode(nodeId: string): Promise<MemoryOpResult> {
-    return this.transport.delete<MemoryOpResult>(`/v1/memory/${nodeId}`);
+    return this.transport.delete<MemoryOpResult>(`/v1/memory/${encodeURIComponent(nodeId)}`);
   }
 
   /**
@@ -149,7 +169,7 @@ export class MemoryResource extends BaseResource {
       relationship_type?: string;
     } = {}
   ): Promise<GraphNode[]> {
-    return this.transport.get<GraphNode[]>(`/v1/memory/${nodeId}/related`, {
+    return this.transport.get<GraphNode[]>(`/v1/memory/${encodeURIComponent(nodeId)}/related`, {
       params: options
     });
   }
@@ -186,7 +206,7 @@ export class MemoryResource extends BaseResource {
    * Get all edges for a specific node
    */
   async getNodeEdges(nodeId: string, scope: string = 'local'): Promise<GraphEdge[]> {
-    return this.transport.get<GraphEdge[]>(`/v1/memory/${nodeId}/edges`, {
+    return this.transport.get<GraphEdge[]>(`/v1/memory/${encodeURIComponent(nodeId)}/edges`, {
       params: { scope }
     });
   }

@@ -633,8 +633,9 @@ async def shutdown_system(
         # Log shutdown request with sanitized reason
         logger.warning(f"SHUTDOWN requested: {safe_reason}")
 
-        # Execute shutdown
-        await shutdown_service.request_shutdown(reason)
+        # Execute shutdown through runtime to ensure proper state transition
+        # The runtime's request_shutdown will call the shutdown service AND set global flags
+        runtime.request_shutdown(reason)
 
         response = ShutdownResponse(
             status="initiated",

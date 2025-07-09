@@ -8,9 +8,9 @@ import { StatusDot } from '../../components/Icons';
 
 export default function CommsPage() {
   const [message, setMessage] = useState('');
-  const [wsConnected, setWsConnected] = useState(false);
+  const [showShutdownDialog, setShowShutdownDialog] = useState(false);
+  const [shutdownReason, setShutdownReason] = useState('User requested graceful shutdown');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
   const queryClient = useQueryClient();
 
   // Fetch conversation history - limit to 20 most recent
@@ -27,7 +27,7 @@ export default function CommsPage() {
   });
 
   // Fetch agent status
-  const { data: status } = useQuery({
+  const { data: status, isError: statusError } = useQuery({
     queryKey: ['agent-status'],
     queryFn: () => cirisClient.agent.getStatus(),
     refetchInterval: 5000, // Refresh every 5 seconds
@@ -57,11 +57,23 @@ export default function CommsPage() {
     },
   });
 
-  // WebSocket connection (currently disabled as it's not working with the SDK yet)
-  useEffect(() => {
-    // TODO: Implement WebSocket support in the SDK
-    setWsConnected(false);
-  }, []);
+  // Shutdown mutation
+  const shutdownMutation = useMutation({
+    mutationFn: async () => {
+      return await cirisClient.system.shutdown(shutdownReason, true, false);
+    },
+    onSuccess: (response) => {
+      toast.success(`Shutdown initiated: ${response.message}`, { duration: 10000 });
+      setShowShutdownDialog(false);
+      // Refresh status to show shutdown state
+      queryClient.invalidateQueries({ queryKey: ['agent-status'] });
+    },
+    onError: (error: any) => {
+      console.error('Shutdown error:', error);
+      toast.error(error.message || 'Failed to initiate shutdown');
+    },
+  });
+
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -94,15 +106,21 @@ export default function CommsPage() {
               Agent Communications
             </h3>
             <div className="flex items-center space-x-4 text-sm">
-              <span className={`flex items-center ${wsConnected ? 'text-green-600' : 'text-red-600'}`}>
-                <StatusDot status={wsConnected ? 'green' : 'red'} className="mr-2" />
-                {wsConnected ? 'Connected' : 'Disconnected'}
+              <span className={`flex items-center ${!statusError && status ? 'text-green-600' : 'text-red-600'}`}>
+                <StatusDot status={!statusError && status ? 'green' : 'red'} className="mr-2" />
+                {!statusError && status ? 'Connected' : 'Disconnected'}
               </span>
               {status && (
                 <span className="text-gray-600">
                   State: <span className="font-medium">{status.cognitive_state}</span>
                 </span>
               )}
+              <button
+                onClick={() => setShowShutdownDialog(true)}
+                className="ml-4 px-3 py-1 text-xs font-medium text-red-600 border border-red-600 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
+                Shutdown
+              </button>
             </div>
           </div>
 
@@ -180,6 +198,54 @@ export default function CommsPage() {
           <p>Total messages in history: {history?.total_count || 0}</p>
           <p>Showing: {messages.length} messages</p>
           <p>Channel: api_0.0.0.0_8080</p>
+        </div>
+      )}
+
+      {/* Shutdown Confirmation Dialog */}
+      {showShutdownDialog && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">
+              Initiate Graceful Shutdown
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              This will initiate a graceful shutdown of the CIRIS agent. The agent will:
+            </p>
+            <ul className="list-disc list-inside text-sm text-gray-600 mb-4 space-y-1">
+              <li>Transition to SHUTDOWN cognitive state</li>
+              <li>Complete any critical tasks</li>
+              <li>May send final messages to channels</li>
+              <li>Perform clean shutdown procedures</li>
+            </ul>
+            <div className="mb-4">
+              <label htmlFor="shutdown-reason" className="block text-sm font-medium text-gray-700 mb-2">
+                Shutdown Reason
+              </label>
+              <textarea
+                id="shutdown-reason"
+                rows={3}
+                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                value={shutdownReason}
+                onChange={(e) => setShutdownReason(e.target.value)}
+                placeholder="Enter reason for shutdown..."
+              />
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowShutdownDialog(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => shutdownMutation.mutate()}
+                disabled={shutdownMutation.isPending || !shutdownReason.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {shutdownMutation.isPending ? 'Initiating...' : 'Confirm Shutdown'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -34,16 +34,17 @@ export default function MemoryPage() {
   const [isLoadingNode, setIsLoadingNode] = useState(false);
   const [activeScope, setActiveScope] = useState<string>('local');
   const [activeNodeType, setActiveNodeType] = useState<string | null>(null);
-  const [graphLayout, setGraphLayout] = useState<'force' | 'timeline' | 'hierarchical'>('force');
-  const [timeRange, setTimeRange] = useState<number>(24);
+  const [graphLayout, setGraphLayout] = useState<'force' | 'timeline' | 'hierarchical'>('timeline');
+  const [timeRange, setTimeRange] = useState<number>(168);
   const [showVisualization, setShowVisualization] = useState(true);
   const [includeMetrics, setIncludeMetrics] = useState(false);
+  const [maxNodes, setMaxNodes] = useState<number>(1000);
   const svgContainerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
   // Fetch visualization
   const { data: svgContent, isLoading: vizLoading, refetch: refetchViz } = useQuery<string>({
-    queryKey: ['memory-visualization', activeScope, activeNodeType, graphLayout, timeRange, includeMetrics],
+    queryKey: ['memory-visualization', activeScope, activeNodeType, graphLayout, timeRange, includeMetrics, maxNodes],
     queryFn: async () => {
       return await cirisClient.memory.getVisualization({
         scope: activeScope as 'local' | 'identity' | 'environment' | 'community',
@@ -52,7 +53,7 @@ export default function MemoryPage() {
         hours: graphLayout === 'timeline' ? timeRange : undefined,
         width: 1200,
         height: 600,
-        limit: 100,
+        limit: maxNodes,
         include_metrics: includeMetrics
       });
     },
@@ -64,7 +65,7 @@ export default function MemoryPage() {
     queryKey: ['memory-search', searchQuery, activeScope, activeNodeType],
     queryFn: async () => {
       const result = await cirisClient.memory.query(searchQuery, { 
-        limit: 50,
+        limit: 1000,
         scope: activeScope,
         type: activeNodeType || undefined
       });
@@ -195,12 +196,24 @@ export default function MemoryPage() {
   const loadNodeDetails = async (nodeId: string) => {
     setIsLoadingNode(true);
     try {
-      const node = await cirisClient.memory.getNode(nodeId);
-      setSelectedNode(node);
-      toast.success('Node details loaded');
-    } catch (error) {
-      toast.error('Failed to load node details');
+      console.log('Loading node details for:', nodeId);
+      // Use query endpoint with node_id for nodes with special characters
+      const results = await cirisClient.memory.query(nodeId, { limit: 1 });
+      console.log('Query results:', results);
+      if (results && results.length > 0) {
+        setSelectedNode(results[0]);
+        toast.success('Node details loaded');
+      } else {
+        toast.error('Node not found');
+      }
+    } catch (error: any) {
+      const errorMessage = error?.response?.data?.detail || error?.message || 'Failed to load node details';
+      toast.error(errorMessage);
       console.error('Error loading node:', error);
+      console.error('Error details:', {
+        nodeId,
+        error: error?.response?.data || error
+      });
     } finally {
       setIsLoadingNode(false);
     }
@@ -319,6 +332,25 @@ export default function MemoryPage() {
                 </select>
               </div>
             )}
+
+            {/* Max Nodes Selection */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Max Nodes</label>
+              <select
+                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                value={maxNodes}
+                onChange={(e) => {
+                  setMaxNodes(Number(e.target.value));
+                  refetchViz();
+                }}
+              >
+                <option value={100}>100 nodes</option>
+                <option value={250}>250 nodes</option>
+                <option value={500}>500 nodes</option>
+                <option value={750}>750 nodes</option>
+                <option value={1000}>1000 nodes (max)</option>
+              </select>
+            </div>
           </div>
 
           {/* Include Metrics Checkbox */}
@@ -504,11 +536,11 @@ export default function MemoryPage() {
                   </div>
                   <div className="py-3 flex justify-between text-sm">
                     <dt className="text-gray-500">Created</dt>
-                    <dd className="text-gray-900">{formatDate(selectedNode.attributes.created_at || '')}</dd>
+                    <dd className="text-gray-900">{selectedNode.attributes?.created_at ? formatDate(selectedNode.attributes.created_at) : 'N/A'}</dd>
                   </div>
                   <div className="py-3 flex justify-between text-sm">
                     <dt className="text-gray-500">Updated</dt>
-                    <dd className="text-gray-900">{formatDate(selectedNode.updated_at || '')}</dd>
+                    <dd className="text-gray-900">{selectedNode.updated_at ? formatDate(selectedNode.updated_at) : 'N/A'}</dd>
                   </div>
                 </dl>
               </div>

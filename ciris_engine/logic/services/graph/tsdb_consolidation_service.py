@@ -1,5 +1,23 @@
 """
-TSDB Consolidation Service for CIRIS Agent.
+LEGACY: TSDB Consolidation Service for CIRIS Agent.
+
+This file is deprecated. Please use the refactored module at:
+ciris_engine.logic.services.graph.tsdb_consolidation
+
+The new module provides:
+- Proper edge creation in graph_edges table
+- Consolidation of both graph nodes AND correlations
+- Task summaries with outcomes
+- Memory node tracking and linking
+"""
+
+# Import from new module for backwards compatibility
+from .tsdb_consolidation import TSDBConsolidationService
+
+__all__ = ['TSDBConsolidationService']
+
+"""
+OLD IMPLEMENTATION BELOW - DO NOT USE
 
 This service runs every 6 hours to consolidate TSDB telemetry nodes into
 permanent summary records. It implements the agent's long-term memory system,

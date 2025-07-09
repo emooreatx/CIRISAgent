@@ -4,7 +4,7 @@ from typing import Any, List, Optional
 from datetime import datetime
 
 from ciris_engine.logic.persistence import get_db_connection
-from ciris_engine.schemas.services.graph_core import GraphNode, GraphEdge, GraphScope
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphEdge, GraphScope, GraphEdgeAttributes
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
@@ -177,6 +177,13 @@ def get_edges_for_node(node_id: str, scope: GraphScope, db_path: Optional[str] =
             rows = cursor.fetchall()
             for row in rows:
                 attrs = json.loads(row["attributes_json"]) if row["attributes_json"] else {}
+                # Extract only valid GraphEdgeAttributes fields
+                valid_attrs = {}
+                if "created_at" in attrs:
+                    valid_attrs["created_at"] = attrs["created_at"]
+                if "context" in attrs:
+                    valid_attrs["context"] = attrs["context"]
+                
                 edges.append(
                     GraphEdge(
                         source=row["source_node_id"],
@@ -184,7 +191,7 @@ def get_edges_for_node(node_id: str, scope: GraphScope, db_path: Optional[str] =
                         relationship=row["relationship"],
                         scope=scope,
                         weight=row["weight"],
-                        attributes=attrs,
+                        attributes=GraphEdgeAttributes(**valid_attrs) if valid_attrs else GraphEdgeAttributes(),
                     )
                 )
     except Exception as e:
