@@ -215,6 +215,9 @@ class UserProfile(BaseModel):
     is_wa: bool = Field(False, description="Whether user is Wise Authority")
     permissions: List[str] = Field(default_factory=list, description="Granted permissions")
     restrictions: List[str] = Field(default_factory=list, description="Applied restrictions")
+    
+    # Additional context
+    notes: Optional[str] = Field(None, description="Additional notes or context about the user")
 
     model_config = ConfigDict(extra = "forbid")
 

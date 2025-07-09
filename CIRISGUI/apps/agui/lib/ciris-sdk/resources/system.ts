@@ -296,12 +296,12 @@ export class SystemResource extends BaseResource {
   /**
    * Initiate system shutdown
    */
-  async shutdown(reason?: string): Promise<{
+  async shutdown(reason: string, confirm: boolean = false, force: boolean = false): Promise<{
     status: string;
     message: string;
     shutdown_initiated: boolean;
   }> {
-    return this.transport.post('/v1/system/shutdown', { reason });
+    return this.transport.post('/v1/system/shutdown', { reason, confirm, force });
   }
 
   /**

@@ -12,7 +12,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_serializer, model_validator
 
 from ciris_engine.schemas.api.responses import SuccessResponse
-from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope, GraphEdge
+from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope, GraphEdge, GraphEdgeAttributes
 from ciris_engine.schemas.services.operations import MemoryQuery, MemoryOpResult
 from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
 from ..dependencies.auth import require_observer, require_admin, AuthContext
@@ -64,7 +64,7 @@ class QueryRequest(BaseModel):
     tags: Optional[List[str]] = Field(None, description="Filter by tags")
 
     # Pagination
-    limit: int = Field(20, ge=1, le=100, description="Maximum results")
+    limit: int = Field(20, ge=1, le=1000, description="Maximum results")
     offset: int = Field(0, ge=0, description="Pagination offset")
 
     # Options
@@ -87,6 +87,7 @@ class QueryRequest(BaseModel):
 class TimelineResponse(BaseModel):
     """Temporal view of memories."""
     memories: List[GraphNode] = Field(..., description="Memories in chronological order")
+    edges: Optional[List[GraphEdge]] = Field(None, description="Edges between memories")
     buckets: Dict[str, int] = Field(..., description="Memory counts by time bucket (hour/day)")
     start_time: datetime = Field(..., description="Start of timeline range")
     end_time: datetime = Field(..., description="End of timeline range")
@@ -295,7 +296,8 @@ async def get_timeline(
     bucket_size: str = Query("hour", description="Time bucket size: hour, day"),
     scope: Optional[GraphScope] = Query(None, description="Memory scope filter"),
     type: Optional[NodeType] = Query(None, description="Node type filter"),
-    limit: Optional[int] = Query(100, ge=1, le=1000, description="Maximum number of memories to return"),
+    limit: Optional[int] = Query(1000, ge=1, le=1000, description="Maximum number of memories to return"),
+    include_edges: bool = Query(False, description="Include edges between memories"),
     auth: AuthContext = Depends(require_observer)
 ) -> SuccessResponse[TimelineResponse]:
     """
@@ -314,6 +316,7 @@ async def get_timeline(
 
         # Query memories in time range
         # Note: This is just for validation/documentation purposes, not actually used
+        # Cap at 100 for QueryRequest validation, but use actual limit for queries below
         _query_body = QueryRequest(
             node_id=None,
             query=None,
@@ -323,7 +326,7 @@ async def get_timeline(
             scope=scope,
             type=type,
             tags=None,
-            limit=limit or 100,  # Use the provided limit parameter with default
+            limit=min(limit or 100, 100),  # Cap at 100 for validation
             offset=0,
             include_edges=False,
             depth=1
@@ -507,8 +510,61 @@ async def get_timeline(
                 if bucket_key in buckets:
                     buckets[bucket_key] += 1
 
+        # Limit nodes to return
+        returned_nodes = nodes[:limit]
+        
+        # Fetch edges if requested
+        edges = None
+        if include_edges and returned_nodes:
+            # Get edges for the nodes we're actually returning
+            node_ids = [n.id for n in returned_nodes]
+            edges = []
+            
+            try:
+                with get_db_connection() as conn:
+                    cursor = conn.cursor()
+                    
+                    # Query edges where either source or target is in our node list
+                    placeholders = ','.join('?' * len(node_ids))
+                    query = f"""
+                    SELECT edge_id, source_node_id, target_node_id, scope, relationship, weight, attributes_json, created_at
+                    FROM graph_edges
+                    WHERE source_node_id IN ({placeholders}) OR target_node_id IN ({placeholders})
+                    """
+                    
+                    cursor.execute(query, node_ids + node_ids)
+                    
+                    for row in cursor.fetchall():
+                        try:
+                            # Create GraphEdge from row
+                            # row: edge_id, source_node_id, target_node_id, scope, relationship, weight, attributes_json, created_at
+                            attributes_json = json.loads(row[6]) if row[6] else {}
+                            
+                            # Create GraphEdgeAttributes
+                            edge_attrs = GraphEdgeAttributes(
+                                created_at=attributes_json.get('created_at', row[7]),
+                                context=attributes_json.get('context')
+                            )
+                            
+                            edge = GraphEdge(
+                                source=row[1],  # source_node_id
+                                target=row[2],  # target_node_id
+                                relationship=row[4],  # relationship type
+                                scope=row[3],  # scope
+                                weight=row[5] if row[5] is not None else 1.0,
+                                attributes=edge_attrs
+                            )
+                            edges.append(edge)
+                        except Exception as e:
+                            logger.warning(f"Failed to parse edge {row[0]}: {e}")
+                            
+            except Exception as e:
+                logger.error(f"Failed to fetch edges: {e}")
+                edges = []
+
         response = TimelineResponse(
-            memories=nodes[:limit],  # Limit actual nodes returned
+            memories=returned_nodes,
+            edges=edges,
             buckets=buckets,
             start_time=start_time,
             end_time=now,
@@ -831,6 +887,9 @@ async def visualize_memory_graph(
                         if isinstance(time_val, str):
                             return datetime.fromisoformat(time_val.replace('Z', '+00:00'))
                         elif isinstance(time_val, datetime):
+                            # Ensure datetime is timezone-aware
+                            if time_val.tzinfo is None:
+                                return time_val.replace(tzinfo=timezone.utc)
                             return time_val
                 except Exception as e:
                     logger.warning(f"Failed to parse time for node {n.id}: {e}")
@@ -1204,8 +1263,8 @@ def _calculate_timeline_layout(G: "nx.DiGraph", nodes: List[GraphNode], width: i
     """Calculate timeline layout with nodes arranged chronologically."""
     pos = {}
     
-    # Group nodes by time buckets (hourly)
-    time_buckets: Dict[datetime, List[str]] = {}
+    # Collect nodes with timestamps
+    nodes_with_time: List[Tuple[datetime, str]] = []
     nodes_without_time = []
     
     for node in nodes:
@@ -1230,18 +1289,14 @@ def _calculate_timeline_layout(G: "nx.DiGraph", nodes: List[GraphNode], width: i
                     # Handle ISO format with Z suffix
                     node_time = datetime.fromisoformat(node_time.replace('Z', '+00:00'))
                 
-                # Ensure we have a datetime object before rounding
+                # Ensure we have a datetime object
                 if isinstance(node_time, datetime):
                     # Ensure timezone info
                     if node_time.tzinfo is None:
                         node_time = node_time.replace(tzinfo=timezone.utc)
                     
-                    # Round to hour
-                    bucket = node_time.replace(minute=0, second=0, microsecond=0)
-                    if bucket not in time_buckets:
-                        time_buckets[bucket] = []
-                    time_buckets[bucket].append(node.id)
-                    logger.debug(f"Node {node.id} bucketed to: {bucket.isoformat()}")
+                    nodes_with_time.append((node_time, node.id))
+                    logger.debug(f"Node {node.id} timestamp: {node_time.isoformat()}")
                 else:
                     logger.warning(f"Node {node.id} has non-datetime timestamp after parsing: {node_time}")
                     nodes_without_time.append(node.id)
@@ -1251,46 +1306,79 @@ def _calculate_timeline_layout(G: "nx.DiGraph", nodes: List[GraphNode], width: i
             logger.warning(f"Failed to parse timestamp for node {node.id}: {e}")
             nodes_without_time.append(node.id)
     
-    # Sort buckets by time
-    sorted_buckets = sorted(time_buckets.items())
+    # Sort nodes by time
+    nodes_with_time.sort()
     
-    # Enhanced debug logging for timeline bucketing
-    if sorted_buckets:
-        logger.info(f"Timeline layout: {len(sorted_buckets)} time buckets found")
-        logger.info(f"First bucket: {sorted_buckets[0][0].isoformat()} with {len(sorted_buckets[0][1])} nodes")
-        logger.info(f"Last bucket: {sorted_buckets[-1][0].isoformat()} with {len(sorted_buckets[-1][1])} nodes")
-        logger.info(f"Total nodes in timeline: {sum(len(nodes) for _, nodes in sorted_buckets)}")
-        
-        # Log all buckets for debugging
-        for i, (bucket_time, bucket_nodes) in enumerate(sorted_buckets[:5]):  # First 5 buckets
-            logger.info(f"Bucket {i}: {bucket_time.isoformat()} has {len(bucket_nodes)} nodes")
+    logger.info(f"Timeline layout: {len(nodes_with_time)} nodes with timestamps, {len(nodes_without_time)} without")
     
-    if nodes_without_time:
-        logger.info(f"Nodes without timestamps: {len(nodes_without_time)} nodes")
-    
-    if not sorted_buckets:
+    if not nodes_with_time:
         # Fallback to force layout if no timestamps
         layout_result = nx.spring_layout(G)
         # Convert to proper type
         return {node: (float(x), float(y)) for node, (x, y) in layout_result.items()}
     
-    # Calculate x positions for each time bucket
-    x_spacing = (width - 100) / max(len(sorted_buckets) - 1, 1)
+    # Get time range
+    min_time = nodes_with_time[0][0]
+    max_time = nodes_with_time[-1][0]
+    time_range = (max_time - min_time).total_seconds()
     
-    logger.info(f"Timeline layout calculation: width={width}, buckets={len(sorted_buckets)}, x_spacing={x_spacing}")
+    logger.info(f"Time range: {min_time.isoformat()} to {max_time.isoformat()} ({time_range/3600:.1f} hours)")
     
-    for i, (bucket_time, node_ids) in enumerate(sorted_buckets):
-        x = 50 + i * x_spacing
-        
-        # Log position calculation for first few buckets
-        if i < 3:
-            logger.info(f"Bucket {i} at {bucket_time.isoformat()}: x={x}, nodes={len(node_ids)}")
-        
-        # Distribute nodes vertically within each time bucket
-        y_spacing = (height - 100) / max(len(node_ids), 1)
-        for j, node_id in enumerate(node_ids):
-            y = 50 + j * y_spacing + (y_spacing / 2)
+    # If all nodes are at the same time or very close, use vertical distribution
+    if time_range < 3600:  # Less than 1 hour range
+        logger.info("All nodes within 1 hour - using vertical distribution")
+        x = width / 2
+        y_spacing = (height - 100) / max(len(nodes_with_time), 1)
+        for i, (_, node_id) in enumerate(nodes_with_time):
+            y = 50 + i * y_spacing + (y_spacing / 2)
             pos[node_id] = (x, y)
+    else:
+        # Distribute nodes across the timeline proportionally
+        x_margin = 100
+        available_width = width - 2 * x_margin
+        
+        # Group nodes that are very close in time (within 5 minutes)
+        node_groups: List[List[Tuple[datetime, str]]] = []
+        current_group: List[Tuple[datetime, str]] = [nodes_with_time[0]]
+        
+        for i in range(1, len(nodes_with_time)):
+            time_diff = (nodes_with_time[i][0] - current_group[-1][0]).total_seconds()
+            if time_diff < 300:  # Within 5 minutes
+                current_group.append(nodes_with_time[i])
+            else:
+                node_groups.append(current_group)
+                current_group = [nodes_with_time[i]]
+        node_groups.append(current_group)
+        
+        logger.info(f"Grouped nodes into {len(node_groups)} time groups")
+        
+        # Position each group
+        for group in node_groups:
+            # Calculate x position based on the group's average time
+            avg_time = sum((t.timestamp() for t, _ in group), 0.0) / len(group)
+            avg_datetime = datetime.fromtimestamp(avg_time, tz=timezone.utc)
+            time_offset = (avg_datetime - min_time).total_seconds()
+            x = x_margin + (time_offset / time_range) * available_width
+            
+            # Distribute nodes in the group vertically with slight x variation
+            if len(group) == 1:
+                pos[group[0][1]] = (x, height / 2)
+            else:
+                y_spacing = (height - 100) / len(group)
+                for j, (_, node_id) in enumerate(group):
+                    # Add small x offset to avoid perfect vertical lines
+                    x_offset = (hash(node_id) % 30) - 15
+                    y = 50 + j * y_spacing + (y_spacing / 2)
+                    pos[node_id] = (x + x_offset, y)
+    
+    # Place nodes without timestamps at the beginning
+    if nodes_without_time:
+        # Place them in a vertical column at x=25 (before the timeline)
+        y_spacing = (height - 100) / max(len(nodes_without_time), 1)
+        for j, node_id in enumerate(nodes_without_time):
+            y = 50 + j * y_spacing + (y_spacing / 2)
+            pos[node_id] = (25, y)
+        logger.info(f"Placed {len(nodes_without_time)} nodes without timestamps at x=25")
     
     # Log final position summary
     if pos:

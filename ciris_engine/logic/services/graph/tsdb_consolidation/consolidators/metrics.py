@@ -1,0 +1,265 @@
+"""
+Metrics consolidation for TSDB data.
+
+Consolidates both service correlations AND graph nodes of type TSDB_DATA.
+"""
+
+import logging
+from datetime import datetime
+from typing import List, Dict, Any, Optional, Tuple
+from collections import defaultdict
+
+from ciris_engine.schemas.services.nodes import TSDBSummary
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope
+from ciris_engine.schemas.services.operations import MemoryOpStatus
+from ciris_engine.logic.buses.memory_bus import MemoryBus
+
+logger = logging.getLogger(__name__)
+
+
+class MetricsConsolidator:
+    """Consolidates metrics from multiple sources."""
+    
+    def __init__(self, memory_bus: Optional[MemoryBus] = None):
+        """
+        Initialize metrics consolidator.
+        
+        Args:
+            memory_bus: Memory bus for storing results
+        """
+        self._memory_bus = memory_bus
+    
+    async def consolidate(
+        self,
+        period_start: datetime,
+        period_end: datetime,
+        period_label: str,
+        tsdb_nodes: List[GraphNode],
+        metric_correlations: List[Dict[str, Any]]
+    ) -> Optional[TSDBSummary]:
+        """
+        Consolidate metrics from both graph nodes and correlations.
+        
+        Args:
+            period_start: Start of consolidation period
+            period_end: End of consolidation period
+            period_label: Human-readable period label
+            tsdb_nodes: TSDB_DATA nodes from graph
+            metric_correlations: metric_datapoint correlations
+            
+        Returns:
+            TSDBSummary node if successful, None otherwise
+        """
+        # Combine data from both sources
+        all_metrics = []
+        
+        # Process TSDB nodes
+        for node in tsdb_nodes:
+            attrs = node.attributes
+            if isinstance(attrs, dict):
+                metric_data = {
+                    'metric_name': attrs.get('metric_name', 'unknown'),
+                    'value': float(attrs.get('value', 0)),
+                    'timestamp': attrs.get('timestamp'),
+                    'tags': attrs.get('tags', {}),
+                    'source': 'graph_node'
+                }
+            else:
+                # Handle GraphNodeAttributes
+                attrs_dict = attrs.model_dump() if hasattr(attrs, 'model_dump') else {}
+                metric_data = {
+                    'metric_name': attrs_dict.get('metric_name', 'unknown'),
+                    'value': float(attrs_dict.get('value', 0)),
+                    'timestamp': attrs_dict.get('timestamp'),
+                    'tags': attrs_dict.get('tags', {}),
+                    'source': 'graph_node'
+                }
+            all_metrics.append(metric_data)
+        
+        # Process correlations
+        for corr in metric_correlations:
+            if corr.get('request_data'):
+                try:
+                    import json
+                    req_data = json.loads(corr['request_data']) if isinstance(corr['request_data'], str) else corr['request_data']
+                    
+                    metric_data = {
+                        'metric_name': req_data.get('metric_name', 'unknown'),
+                        'value': float(req_data.get('value', 0)),
+                        'timestamp': corr['timestamp'].isoformat() if isinstance(corr['timestamp'], datetime) else corr['timestamp'],
+                        'tags': req_data.get('tags', {}),
+                        'source': 'correlation'
+                    }
+                    all_metrics.append(metric_data)
+                except Exception as e:
+                    logger.warning(f"Failed to parse correlation data: {e}")
+        
+        if not all_metrics:
+            logger.info(f"No metrics found for period {period_start} to {period_end} - creating empty summary")
+        
+        logger.info(f"Consolidating {len(all_metrics)} metrics ({len(tsdb_nodes)} nodes, {len(metric_correlations)} correlations)")
+        
+        # Aggregate metrics
+        metrics_by_name = defaultdict(list)
+        resource_totals = {
+            "tokens": 0,
+            "cost": 0.0,
+            "carbon": 0.0,
+            "energy": 0.0
+        }
+        action_counts: Dict[str, int] = defaultdict(int)
+        error_count = 0
+        success_count = 0
+        total_operations = 0
+        
+        for metric in all_metrics:
+            metric_name = metric['metric_name']
+            value = metric['value']
+            
+            # Collect values by metric name
+            metrics_by_name[metric_name].append(value)
+            
+            # Extract resource usage
+            if "tokens_used" in metric_name or "tokens.total" in metric_name:
+                resource_totals["tokens"] += int(value)
+            elif "cost_cents" in metric_name or "cost.cents" in metric_name:
+                resource_totals["cost"] += value
+            elif "carbon_grams" in metric_name or "carbon.grams" in metric_name:
+                resource_totals["carbon"] += value
+            elif "energy_kwh" in metric_name or "energy.kwh" in metric_name:
+                resource_totals["energy"] += value
+            
+            # Count actions
+            if metric_name.startswith("action.") and metric_name.endswith(".count"):
+                action_type = metric_name.split(".")[1].upper()
+                action_counts[action_type] += int(value)
+                total_operations += int(value)
+            elif metric_name.startswith("action_selected_"):
+                action_type = metric_name.replace("action_selected_", "").upper()
+                action_counts[action_type] += 1
+                total_operations += 1
+            
+            # Count errors and successes
+            if "error" in metric_name and value > 0:
+                error_count += int(value)
+            elif "success" in metric_name:
+                success_count += int(value)
+                if "action" not in metric_name:  # Avoid double counting
+                    total_operations += int(value)
+        
+        # Calculate aggregates for each metric
+        metric_summaries = {}
+        for name, values in metrics_by_name.items():
+            if values:
+                metric_summaries[name] = {
+                    "count": float(len(values)),
+                    "sum": float(sum(values)),
+                    "min": float(min(values)),
+                    "max": float(max(values)),
+                    "avg": float(sum(values) / len(values))
+                }
+        
+        # Calculate success rate
+        if total_operations > 0:
+            success_rate = (total_operations - error_count) / total_operations
+        else:
+            success_rate = 1.0
+        
+        # Create summary node with period timestamps
+        summary = TSDBSummary(
+            id=f"tsdb_summary_{period_start.strftime('%Y%m%d_%H')}",
+            period_start=period_start,
+            period_end=period_end,
+            period_label=period_label,
+            created_at=period_end,  # Use period end as creation time
+            updated_at=period_end,  # Use period end as update time
+            metrics=metric_summaries,
+            # metrics_count=len(all_metrics),  # Not in schema - store in attributes
+            total_tokens=int(resource_totals["tokens"]),
+            total_cost_cents=resource_totals["cost"],
+            total_carbon_grams=resource_totals["carbon"],
+            total_energy_kwh=resource_totals["energy"],
+            action_counts=dict(action_counts),
+            error_count=error_count,
+            success_rate=success_rate,
+            source_node_count=len(tsdb_nodes),  # Actual graph nodes
+            raw_data_expired=False,
+            scope=GraphScope.LOCAL,
+            attributes={
+                "correlation_count": len(metric_correlations),
+                "unique_metrics": len(metrics_by_name),
+                "metrics_count": len(all_metrics),
+                "service_correlations_count": len(metric_correlations),
+                "total_data_points": len(all_metrics)
+            }
+        )
+        
+        # Convert to GraphNode
+        summary_node = summary.to_graph_node()
+        
+        # Store summary
+        if self._memory_bus:
+            result = await self._memory_bus.memorize(node=summary_node)
+            if result.status != MemoryOpStatus.OK:
+                logger.error(f"Failed to store TSDB summary: {result.error}")
+                return None
+        else:
+            logger.warning("Memory bus not available - summary not stored")
+        
+        return summary_node
+    
+    def get_edges(
+        self,
+        summary_node: GraphNode,
+        tsdb_nodes: List[GraphNode],
+        metric_correlations: List[Dict[str, Any]]
+    ) -> List[Tuple[GraphNode, GraphNode, str, Dict[str, Any]]]:
+        """
+        Get edges to create for metrics summary.
+        
+        Returns edges from summary to:
+        - High-value TSDB nodes (cost > threshold)
+        - Error-generating nodes
+        - Anomalous metric patterns
+        """
+        edges = []
+        
+        # Link to high-cost metrics
+        for node in tsdb_nodes:
+            attrs = node.attributes
+            if isinstance(attrs, dict):
+                cost = attrs.get('cost_cents', 0)
+                if cost > 1.0:  # Metrics costing more than 1 cent
+                    edges.append((
+                        summary_node,
+                        node,
+                        'HIGH_COST_METRIC',
+                        {
+                            'cost_cents': cost,
+                            'metric_name': attrs.get('metric_name', 'unknown')
+                        }
+                    ))
+        
+        # Link to error metrics from correlations
+        error_count = 0
+        for corr in metric_correlations:
+            # Skip if not a dict
+            if not isinstance(corr, dict):
+                continue
+                
+            if corr.get('tags', {}).get('has_error', False):
+                error_count += 1
+                if error_count <= 10:  # Limit to first 10 errors
+                    # Create a reference edge using correlation ID
+                    edges.append((
+                        summary_node,
+                        summary_node,  # Self-reference with correlation data
+                        'ERROR_METRIC',
+                        {
+                            'correlation_id': corr.get('correlation_id'),
+                            'error_type': corr.get('tags', {}).get('error_type', 'unknown'),
+                            'component': corr.get('component_id', 'unknown')
+                        }
+                    ))
+        
+        return edges

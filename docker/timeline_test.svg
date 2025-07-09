@@ -1,0 +1,187 @@
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg">
+<rect width="1200" height="800" fill="#f8f9fa"/>
+<defs>
+<marker id="arrowhead-default" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+<polygon points="0 0, 10 3.5, 0 7" fill="#999" />
+</marker>
+<marker id="arrowhead-strong" markerWidth="12" markerHeight="8" refX="11" refY="4" orient="auto">
+<polygon points="0 0, 12 4, 0 8" fill="#666" />
+</marker>
+<marker id="arrowhead-weak" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+<polygon points="0 0, 8 3, 0 6" fill="#ccc" />
+</marker>
+<style>
+.edge-line { cursor: pointer; }
+.edge-line:hover { stroke-width: 4; opacity: 1.0; }
+.edge-label { pointer-events: none; font-family: Arial; font-size: 10px; fill: #666; }
+</style>
+</defs>
+<text x="600" y="30" text-anchor="middle" font-family="Arial" font-size="20" font-weight="bold" fill="#333">Memory Timeline - Last 24 hours</text>
+<circle cx="50.0" cy="85.0" r="50" fill="#9E9E9E" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="conversation_summary_20250708_18"/>
+<text x="50.0" y="150.0" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">conversation_summary_20250708_...</text>
+<text x="50.0" y="90.0" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">conversation_summary</text>
+<circle cx="50.0" cy="155.0" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_1d85f22f-1b07-4e0f-9b40-44b3a479c345"/>
+<text x="50.0" y="218.0" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_1d85f22f-1b07-4e0f-9b40-...</text>
+<text x="50.0" y="160.0" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="50.0" cy="225.0" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_7b4676fd-19a6-40eb-b9eb-ebed50e23f5a"/>
+<text x="50.0" y="288.0" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_7b4676fd-19a6-40eb-b9eb-...</text>
+<text x="50.0" y="230.0" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="50.0" cy="295.0" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_ab3a8fe3-ce9f-4cda-b5bb-b7581b013256"/>
+<text x="50.0" y="358.0" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_ab3a8fe3-ce9f-4cda-b5bb-...</text>
+<text x="50.0" y="300.0" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="50.0" cy="365.0" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_81aed05a-ebde-4aa1-8539-1f8f8121277f"/>
+<text x="50.0" y="428.0" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_81aed05a-ebde-4aa1-8539-...</text>
+<text x="50.0" y="370.0" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="50.0" cy="435.0" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_6ff0b609-ad0f-4de2-8d38-88f2023522a9"/>
+<text x="50.0" y="498.0" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_6ff0b609-ad0f-4de2-8d38-...</text>
+<text x="50.0" y="440.0" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="50.0" cy="505.0" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_b3cff319-1fc3-4bf3-9b90-911636ca73fe"/>
+<text x="50.0" y="568.0" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_b3cff319-1fc3-4bf3-9b90-...</text>
+<text x="50.0" y="510.0" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="50.0" cy="575.0" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_78818b85-50cf-40c1-ba23-c9d4933e1558"/>
+<text x="50.0" y="638.0" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_78818b85-50cf-40c1-ba23-...</text>
+<text x="50.0" y="580.0" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="50.0" cy="645.0" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_55cd6a11-5eec-4999-9163-c7e957753f6a"/>
+<text x="50.0" y="708.0" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_55cd6a11-5eec-4999-9163-...</text>
+<text x="50.0" y="650.0" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="50.0" cy="715.0" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_a6d2d050-382b-4bbe-8aac-cb07fcadefdd"/>
+<text x="50.0" y="778.0" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_a6d2d050-382b-4bbe-8aac-...</text>
+<text x="50.0" y="720.0" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="59.45945945945946" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_76d96a7c-4e22-4ecc-b326-e3b137acfcc0"/>
+<text x="600.0" y="122.45945945945945" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_76d96a7c-4e22-4ecc-b326-...</text>
+<text x="600.0" y="64.45945945945945" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="78.37837837837839" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_c32c21bc-e2e5-4363-a622-2ffde0005274"/>
+<text x="600.0" y="141.3783783783784" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_c32c21bc-e2e5-4363-a622-...</text>
+<text x="600.0" y="83.37837837837839" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="97.29729729729729" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_2ef4afd3-05df-40da-bf02-c5aeab96fb92"/>
+<text x="600.0" y="160.2972972972973" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_2ef4afd3-05df-40da-bf02-...</text>
+<text x="600.0" y="102.29729729729729" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="116.21621621621622" r="46" fill="#FF9800" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="dream_schedule_1752045131"/>
+<text x="600.0" y="177.21621621621622" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">dream_schedule_1752045131</text>
+<text x="600.0" y="121.21621621621622" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">concept</text>
+<circle cx="600.0" cy="135.13513513513513" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_00e08cc1-1918-4c14-a2e3-452aba2808cc"/>
+<text x="600.0" y="198.13513513513513" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_00e08cc1-1918-4c14-a2e3-...</text>
+<text x="600.0" y="140.13513513513513" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="154.05405405405403" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_0dd850f9-9068-4d5d-9fde-b5b23dbbc5b4"/>
+<text x="600.0" y="217.05405405405403" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_0dd850f9-9068-4d5d-9fde-...</text>
+<text x="600.0" y="159.05405405405403" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="172.97297297297297" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_a9a64ed1-1388-445e-a4f1-fc7896a0a70b"/>
+<text x="600.0" y="235.97297297297297" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_a9a64ed1-1388-445e-a4f1-...</text>
+<text x="600.0" y="177.97297297297297" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="191.8918918918919" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_3c9c78c5-5241-486c-8b64-54a98ce02bdc"/>
+<text x="600.0" y="254.8918918918919" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_3c9c78c5-5241-486c-8b64-...</text>
+<text x="600.0" y="196.8918918918919" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="210.8108108108108" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_d7d4413d-a5ee-44e2-91aa-68ba69ce3cd4"/>
+<text x="600.0" y="273.81081081081084" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_d7d4413d-a5ee-44e2-91aa-...</text>
+<text x="600.0" y="215.8108108108108" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="229.7297297297297" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_552fdc78-cb2e-4f83-93b6-92b9358cdbec"/>
+<text x="600.0" y="292.7297297297297" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_552fdc78-cb2e-4f83-93b6-...</text>
+<text x="600.0" y="234.7297297297297" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="248.64864864864865" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_788181fe-82d4-472b-87d7-64b18c21a7d7"/>
+<text x="600.0" y="311.64864864864865" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_788181fe-82d4-472b-87d7-...</text>
+<text x="600.0" y="253.64864864864865" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="267.5675675675676" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_0f3fe588-7535-441b-91b9-6a9a337ccf47"/>
+<text x="600.0" y="330.5675675675676" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_0f3fe588-7535-441b-91b9-...</text>
+<text x="600.0" y="272.5675675675676" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="286.4864864864865" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_4079f2db-143a-4c6e-bafd-84cb39b01cf9"/>
+<text x="600.0" y="349.4864864864865" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_4079f2db-143a-4c6e-bafd-...</text>
+<text x="600.0" y="291.4864864864865" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="305.4054054054054" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_d53cbff0-13ed-46a2-88b4-3bef06645520"/>
+<text x="600.0" y="368.4054054054054" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_d53cbff0-13ed-46a2-88b4-...</text>
+<text x="600.0" y="310.4054054054054" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="324.3243243243244" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_84e18709-fe71-4781-9a38-793ee057eadb"/>
+<text x="600.0" y="387.3243243243244" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_84e18709-fe71-4781-9a38-...</text>
+<text x="600.0" y="329.3243243243244" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="343.2432432432433" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_79c32ee4-568d-4c55-b6a6-c0ea95da5a4b"/>
+<text x="600.0" y="406.2432432432433" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_79c32ee4-568d-4c55-b6a6-...</text>
+<text x="600.0" y="348.2432432432433" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="362.1621621621622" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_d971f05d-3e4d-42b2-93c6-af961cbe7cdc"/>
+<text x="600.0" y="425.1621621621622" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_d971f05d-3e4d-42b2-93c6-...</text>
+<text x="600.0" y="367.1621621621622" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="381.0810810810811" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_bc73ed6a-69f6-417e-90da-854288f412ca"/>
+<text x="600.0" y="444.0810810810811" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_bc73ed6a-69f6-417e-90da-...</text>
+<text x="600.0" y="386.0810810810811" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="400.0" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_3386d806-1027-4ba4-91e0-13b693a607d1"/>
+<text x="600.0" y="463.0" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_3386d806-1027-4ba4-91e0-...</text>
+<text x="600.0" y="405.0" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="418.91891891891896" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_9597871c-d8b5-49f4-a58c-db4189687a8a"/>
+<text x="600.0" y="481.91891891891896" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_9597871c-d8b5-49f4-a58c-...</text>
+<text x="600.0" y="423.91891891891896" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="437.83783783783787" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_d9d45a20-96c5-4e2f-a842-92ef56dce8a0"/>
+<text x="600.0" y="500.83783783783787" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_d9d45a20-96c5-4e2f-a842-...</text>
+<text x="600.0" y="442.83783783783787" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="456.7567567567568" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_59c6e19b-8246-44e5-9904-8d4de2307d50"/>
+<text x="600.0" y="519.7567567567568" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_59c6e19b-8246-44e5-9904-...</text>
+<text x="600.0" y="461.7567567567568" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="475.67567567567573" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_8cdabe05-7c15-4578-80d2-30ad5427f440"/>
+<text x="600.0" y="538.6756756756757" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_8cdabe05-7c15-4578-80d2-...</text>
+<text x="600.0" y="480.67567567567573" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="494.59459459459464" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_470e3346-dc7e-44f6-b4f1-03c7f8336b39"/>
+<text x="600.0" y="557.5945945945946" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_470e3346-dc7e-44f6-b4f1-...</text>
+<text x="600.0" y="499.59459459459464" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="513.5135135135135" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_c1c6f18d-15a1-4cac-abe6-22bff23284a3"/>
+<text x="600.0" y="576.5135135135135" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_c1c6f18d-15a1-4cac-abe6-...</text>
+<text x="600.0" y="518.5135135135135" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="532.4324324324324" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_eb5eb592-1158-4c2a-b7f7-170f72c98b79"/>
+<text x="600.0" y="595.4324324324324" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_eb5eb592-1158-4c2a-b7f7-...</text>
+<text x="600.0" y="537.4324324324324" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="551.3513513513514" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_dc88b52d-f0bf-4aac-b3fe-f9f4cd2ee8e1"/>
+<text x="600.0" y="614.3513513513514" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_dc88b52d-f0bf-4aac-b3fe-...</text>
+<text x="600.0" y="556.3513513513514" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="570.2702702702703" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_c75d3a00-bdde-412d-a84b-344e907386e5"/>
+<text x="600.0" y="633.2702702702703" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_c75d3a00-bdde-412d-a84b-...</text>
+<text x="600.0" y="575.2702702702703" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="589.1891891891893" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_0b634a9c-90ae-4ac8-977b-52ad2a2f2fc9"/>
+<text x="600.0" y="652.1891891891893" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_0b634a9c-90ae-4ac8-977b-...</text>
+<text x="600.0" y="594.1891891891893" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="608.1081081081081" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_e5f71f07-02b0-49fd-b1cf-7f5208be8628"/>
+<text x="600.0" y="671.1081081081081" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_e5f71f07-02b0-49fd-b1cf-...</text>
+<text x="600.0" y="613.1081081081081" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="627.0270270270271" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_f56791cf-1b17-4566-bb60-5a81ac76f1bc"/>
+<text x="600.0" y="690.0270270270271" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_f56791cf-1b17-4566-bb60-...</text>
+<text x="600.0" y="632.0270270270271" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="645.9459459459459" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_15f38411-d01b-490d-af40-2db8a15e8e25"/>
+<text x="600.0" y="708.9459459459459" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_15f38411-d01b-490d-af40-...</text>
+<text x="600.0" y="650.9459459459459" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="664.8648648648649" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_60ec6fc2-02fa-489f-82e8-7751caca9336"/>
+<text x="600.0" y="727.8648648648649" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_60ec6fc2-02fa-489f-82e8-...</text>
+<text x="600.0" y="669.8648648648649" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="683.7837837837839" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_46141a37-209e-49c1-81b8-d857babeabec"/>
+<text x="600.0" y="746.7837837837839" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_46141a37-209e-49c1-81b8-...</text>
+<text x="600.0" y="688.7837837837839" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="702.7027027027027" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_8751a7ca-765e-43d1-8e27-1c00142a9985"/>
+<text x="600.0" y="765.7027027027027" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_8751a7ca-765e-43d1-8e27-...</text>
+<text x="600.0" y="707.7027027027027" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="721.6216216216217" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_34cbb227-f9c1-443a-974d-11e368e008d3"/>
+<text x="600.0" y="784.6216216216217" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_34cbb227-f9c1-443a-974d-...</text>
+<text x="600.0" y="726.6216216216217" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="600.0" cy="740.5405405405405" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_1c2507d7-b55c-4895-a9ee-86a6647f9d3c"/>
+<text x="600.0" y="803.5405405405405" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_1c2507d7-b55c-4895-a9ee-...</text>
+<text x="600.0" y="745.5405405405405" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="1150.0" cy="166.66666666666669" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_3be83039-6cd5-47b9-90d4-eb90091480a2"/>
+<text x="1150.0" y="229.66666666666669" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_3be83039-6cd5-47b9-90d4-...</text>
+<text x="1150.0" y="171.66666666666669" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="1150.0" cy="400.00000000000006" r="48" fill="#607D8B" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="audit_d98a178b-4b7c-412d-8fc8-b7a2692ff9f8"/>
+<text x="1150.0" y="463.00000000000006" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">audit_d98a178b-4b7c-412d-8fc8-...</text>
+<text x="1150.0" y="405.00000000000006" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">audit_entry</text>
+<circle cx="1150.0" cy="633.3333333333334" r="46" fill="#FF9800" stroke="#333" stroke-width="2" opacity="0.8" data-node-id="dream_schedule_1752049126"/>
+<text x="1150.0" y="694.3333333333334" text-anchor="middle" font-family="Arial" font-size="12" fill="#333">dream_schedule_1752049126</text>
+<text x="1150.0" y="638.3333333333334" text-anchor="middle" font-family="Arial" font-size="10" fill="white" font-weight="bold">concept</text>
+<line x1="50" y1="760" x2="1150" y2="760" stroke="#666" stroke-width="2"/>
+<text x="50.0" y="780" text-anchor="middle" font-family="Arial" font-size="10" fill="#666">07/08 02:18</text>
+<text x="233.33333333333331" y="780" text-anchor="middle" font-family="Arial" font-size="10" fill="#666">07/08 06:18</text>
+<text x="416.66666666666663" y="780" text-anchor="middle" font-family="Arial" font-size="10" fill="#666">07/08 10:18</text>
+<text x="600.0" y="780" text-anchor="middle" font-family="Arial" font-size="10" fill="#666">07/08 14:18</text>
+<text x="783.3333333333333" y="780" text-anchor="middle" font-family="Arial" font-size="10" fill="#666">07/08 18:18</text>
+<text x="966.6666666666667" y="780" text-anchor="middle" font-family="Arial" font-size="10" fill="#666">07/08 22:18</text>
+<text x="1150.0" y="780" text-anchor="middle" font-family="Arial" font-size="10" fill="#666">07/09 02:18</text>
+<text x="20" y="600" font-family="Arial" font-size="14" font-weight="bold" fill="#333">Node Types:</text>
+<circle cx="30" cy="620" r="8" fill="#FF9800" stroke="#333" stroke-width="1"/>
+<text x="45" y="625" font-family="Arial" font-size="12" fill="#333">Concept</text>
+<circle cx="30" cy="640" r="8" fill="#E91E63" stroke="#333" stroke-width="1"/>
+<text x="45" y="645" font-family="Arial" font-size="12" fill="#333">Observation</text>
+<circle cx="30" cy="660" r="8" fill="#3F51B5" stroke="#333" stroke-width="1"/>
+<text x="45" y="665" font-family="Arial" font-size="12" fill="#333">Identity</text>
+<circle cx="30" cy="680" r="8" fill="#795548" stroke="#333" stroke-width="1"/>
+<text x="45" y="685" font-family="Arial" font-size="12" fill="#333">Config</text>
+</svg>
