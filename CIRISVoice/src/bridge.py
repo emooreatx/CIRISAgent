@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import sys
+import os
+import json
 from typing import Optional
 from wyoming.audio import AudioChunk, AudioStart, AudioStop
 from wyoming.asr import Transcript, Transcribe
@@ -41,7 +43,15 @@ class CIRISWyomingHandler(AsyncEventHandler):
     
     async def disconnect(self):
         """Handle disconnection cleanup."""
+        logger.info(f"=== DISCONNECT ===")
         logger.info(f"Connection closed from {self._connection_info}")
+        logger.info(f"Total events received: {getattr(self, '_event_count', 0)}")
+        logger.info(f"Handler initialized: {self._initialized}")
+        
+        # Log if connection was closed by remote
+        if hasattr(self.writer, 'is_closing'):
+            logger.info(f"Writer is_closing: {self.writer.is_closing()}")
+        
         if self._initialized and hasattr(self.ciris_client, 'voice_client'):
             try:
                 await self.ciris_client.voice_client.close()
@@ -63,17 +73,46 @@ class CIRISWyomingHandler(AsyncEventHandler):
         import time
         start_time = time.time()
         
-        # Log event details
-        logger.debug(f"Received event type: {type(event).__name__}")
+        # Comprehensive event logging
+        logger.info(f"=== EVENT #{getattr(self, '_event_count', 0) + 1} ===")
+        self._event_count = getattr(self, '_event_count', 0) + 1
+        
+        # Log all event attributes
+        event_attrs = {}
+        for attr in dir(event):
+            if not attr.startswith('_'):
+                try:
+                    value = getattr(event, attr)
+                    if not callable(value):
+                        event_attrs[attr] = str(value)
+                except:
+                    pass
+        
+        logger.info(f"Event type: {type(event).__name__}")
+        logger.info(f"Event attributes: {event_attrs}")
+        
+        # Check if we have raw event data
+        if hasattr(event, '__dict__'):
+            logger.info(f"Event dict: {event.__dict__}")
+        
+        # Log event type in detail
         if hasattr(event, 'type'):
-            logger.debug(f"Event.type: {event.type}")
+            logger.info(f"Event.type field: {event.type}")
         if hasattr(event, 'data'):
-            logger.debug(f"Event.data: {event.data}")
+            logger.info(f"Event.data field: {event.data}")
         
         # For Describe events, return info immediately without initialization
         if Describe.is_type(event.type):
+            logger.info("Describe event detected, sending info response")
+            logger.info(f"Info event being sent: {self.wyoming_info_event}")
+            
+            # Log the actual JSON that will be sent
+            import json
+            if hasattr(self.wyoming_info_event, 'data'):
+                logger.info(f"Info JSON: {json.dumps(self.wyoming_info_event.data, indent=2)}")
+            
             await self.write_event(self.wyoming_info_event)
-            logger.debug("Sent info")
+            logger.info("Info sent successfully, waiting for next event...")
             return True
         
         # Handle Ping events for health checks
@@ -191,16 +230,74 @@ class CIRISWyomingHandler(AsyncEventHandler):
 
 async def main():
     logging.basicConfig(
-        level=logging.DEBUG,  # Use DEBUG to see all events
+        level=logging.INFO,  # Changed to INFO for clearer output
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
+    logger.info("=== CIRIS WYOMING BRIDGE STARTING ===")
+    
+    # Pre-flight checks
+    logger.info("Running pre-flight diagnostics...")
+    
+    # Check if we're in Home Assistant addon environment
+    import os
+    is_addon = os.path.exists('/data/options.json')
+    logger.info(f"Running as Home Assistant addon: {is_addon}")
+    
+    if is_addon:
+        try:
+            import json
+            with open('/data/options.json', 'r') as f:
+                options = json.load(f)
+                logger.info(f"Addon options: {json.dumps(options, indent=2)}")
+        except Exception as e:
+            logger.warning(f"Could not read addon options: {e}")
+    
+    # Check environment
+    logger.info(f"Python version: {sys.version}")
+    logger.info(f"Working directory: {os.getcwd()}")
+    logger.info(f"Process ID: {os.getpid()}")
+    
     # Load configuration
     config = Config.from_yaml("config.yaml")
+    logger.info(f"Configuration loaded successfully")
     
-    # Create handler factory
+    # Test Wyoming info generation
+    try:
+        # Create a minimal test to verify info generation
+        test_info = Info(
+            asr=[AsrProgram(
+                name="ciris-stt",
+                description=f"CIRIS STT using {config.stt.provider}",
+                attribution=Attribution(
+                    name="CIRIS AI",
+                    url="https://ciris.ai"
+                ),
+                installed=True,
+                models=[AsrModel(
+                    name="ciris-stt-v1",
+                    description=f"{config.stt.provider} speech recognition",
+                    languages=["en_US", "en"],
+                    attribution=Attribution(
+                        name="CIRIS AI",
+                        url="https://ciris.ai"
+                    ),
+                    installed=True
+                )]
+            )]
+        )
+        logger.info(f"Wyoming info test successful")
+        logger.info(f"Info event type: {test_info.event().type}")
+        logger.info(f"Info event data keys: {list(test_info.event().data.keys())}")
+    except Exception as e:
+        logger.error(f"Failed to generate Wyoming info: {e}")
+    
+    # Create handler factory with debugging
     def handler_factory(reader, writer):
-        logger.info(f"New connection from {writer.get_extra_info('peername')}")
+        peer = writer.get_extra_info('peername')
+        logger.info(f"=== NEW CONNECTION ===")
+        logger.info(f"Connection from: {peer}")
+        logger.info(f"Socket info: {writer.get_extra_info('socket')}")
         return CIRISWyomingHandler(reader, writer, config)
     
     # Create and run server
@@ -208,6 +305,7 @@ async def main():
     logger.info(f"Starting CIRIS Wyoming bridge on {config.wyoming.host}:{config.wyoming.port}")
     logger.info(f"Using {config.ciris.timeout}s timeout for CIRIS interactions")
     logger.info(f"STT: {config.stt.provider}, TTS: {config.tts.provider}")
+    logger.info("=== READY FOR CONNECTIONS ===")
     
     try:
         await server.run(handler_factory)
