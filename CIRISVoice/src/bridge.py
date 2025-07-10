@@ -136,7 +136,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 voices=[TtsVoice(
                     name=self.config.tts.voice,
                     description=f"{self.config.tts.provider} voice",
-                    languages=["en-US"]
+                    languages=["en-US"],
+                    attribution="CIRIS AI",
+                    installed=True
                 )]
             )]
         )
