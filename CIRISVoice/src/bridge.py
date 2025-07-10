@@ -15,12 +15,12 @@ from .ciris_sdk_client import CIRISClient
 logger = logging.getLogger(__name__)
 
 class CIRISWyomingHandler(AsyncEventHandler):
-    def __init__(self, config: Config):
-        super().__init__()
-        self.config = config
-        self.stt_service = create_stt_service(config.stt)
-        self.tts_service = create_tts_service(config.tts)
-        self.ciris_client = CIRISClient(config.ciris)
+    def __init__(self, reader, writer, config: Config = None):
+        super().__init__(reader, writer)
+        self.config = config or Config.from_yaml("config.yaml")
+        self.stt_service = create_stt_service(self.config.stt)
+        self.tts_service = create_tts_service(self.config.tts)
+        self.ciris_client = CIRISClient(self.config.ciris)
         self.audio_buffer = bytearray()
         self.is_recording = False
 
@@ -115,29 +115,22 @@ async def main():
     # Load configuration
     config = Config.from_yaml("config.yaml")
     
-    # Initialize handler
-    handler = CIRISWyomingHandler(config)
-    
-    # Initialize CIRIS SDK client
-    try:
-        await handler.ciris_client.voice_client.initialize()
-        logger.info("CIRIS SDK client initialized successfully")
-    except Exception as e:
-        logger.error(f"Failed to initialize CIRIS SDK client: {e}")
-        raise
+    # Create handler factory
+    def handler_factory(reader, writer):
+        return CIRISWyomingHandler(reader, writer, config)
     
     # Create and run server
     server = AsyncServer.from_uri(f"tcp://{config.wyoming.host}:{config.wyoming.port}")
     logger.info(f"Starting CIRIS Wyoming bridge on {config.wyoming.host}:{config.wyoming.port}")
     logger.info(f"Using {config.ciris.timeout}s timeout for CIRIS interactions")
+    logger.info(f"STT: {config.stt.provider}, TTS: {config.tts.provider}")
     
     try:
-        await server.run(handler)
+        await server.run(handler_factory)
     except KeyboardInterrupt:
         logger.info("Shutting down...")
     finally:
-        # Cleanup
-        await handler.ciris_client.voice_client.close()
+        logger.info("Server stopped")
 
 if __name__ == "__main__":
     asyncio.run(main())
