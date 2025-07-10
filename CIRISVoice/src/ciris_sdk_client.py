@@ -12,10 +12,43 @@ from datetime import datetime
 # Import SDK - it's installed locally in the container
 try:
     import sys
-    sys.path.insert(0, '/app/sdk')
-    from ciris_sdk.client import CIRISClient as SDKCIRISClient
-    from ciris_sdk.exceptions import CIRISError, CIRISTimeoutError
-except ImportError:
+    import os
+    
+    # Debug: Check if SDK directory exists
+    sdk_paths = ['/app/sdk', '/app/sdk/ciris_sdk', '/app/ciris_sdk']
+    for path in sdk_paths:
+        if os.path.exists(path):
+            print(f"DEBUG: Found SDK at {path}")
+            if os.path.isdir(path):
+                print(f"DEBUG: Contents: {os.listdir(path)}")
+    
+    # Try multiple import methods
+    imported = False
+    
+    # Method 1: Try as installed package (from pip install -e)
+    try:
+        from ciris_sdk.client import CIRISClient as SDKCIRISClient
+        from ciris_sdk.exceptions import CIRISError, CIRISTimeoutError
+        print("DEBUG: Successfully imported CIRIS SDK as installed package")
+        imported = True
+    except ImportError:
+        pass
+    
+    # Method 2: Try from /app/sdk path
+    if not imported:
+        sys.path.insert(0, '/app/sdk')
+        try:
+            from ciris_sdk.client import CIRISClient as SDKCIRISClient
+            from ciris_sdk.exceptions import CIRISError, CIRISTimeoutError
+            print("DEBUG: Successfully imported CIRIS SDK from /app/sdk")
+            imported = True
+        except ImportError:
+            pass
+    
+    if not imported:
+        raise ImportError("Could not import CIRIS SDK from any location")
+except ImportError as e:
+    print(f"DEBUG: Failed to import SDK: {e}")
     # Fallback for development without SDK installed
     SDKCIRISClient = None
     CIRISError = Exception
