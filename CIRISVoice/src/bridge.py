@@ -345,7 +345,6 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     url="https://ciris.ai"
                 ),
                 installed=True,
-                version="1.0.0",
                 models=[AsrModel(
                     name="ciris",
                     description="CIRIS AI Voice Assistant Model",
