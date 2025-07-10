@@ -31,6 +31,11 @@ class CIRISWyomingHandler(AsyncEventHandler):
         self._connection_info = writer.get_extra_info('peername')
         logger.info(f"Handler created for connection from {self._connection_info}")
     
+    @property
+    def closed(self):
+        """Check if connection is closed."""
+        return self.writer.is_closing() if hasattr(self.writer, 'is_closing') else False
+    
     async def disconnect(self):
         """Handle disconnection cleanup."""
         logger.info(f"Connection closed from {self._connection_info}")
@@ -68,6 +73,8 @@ class CIRISWyomingHandler(AsyncEventHandler):
             info = self._get_info()
             logger.debug(f"Info response took {time.time() - start_time:.3f}s")
             logger.debug(f"Info content: {info}")
+            # Log if connection is still open after creating info
+            logger.debug(f"Connection closed status: {self.closed}")
             # Wyoming expects a list of events in response
             return [info]
         
@@ -156,9 +163,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 ),
                 installed=True,
                 models=[AsrModel(
-                    name=self.config.stt.model,
+                    name="google" if self.config.stt.provider == "google" else self.config.stt.model,
                     description=f"{self.config.stt.provider} speech recognition",
-                    languages=[self.config.stt.language],
+                    languages=["en"],  # Use simple language code
                     attribution=Attribution(
                         name="CIRIS AI",
                         url="https://ciris.ai"
@@ -177,7 +184,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 voices=[TtsVoice(
                     name=self.config.tts.voice,
                     description=f"{self.config.tts.provider} voice",
-                    languages=["en-US"],
+                    languages=["en"],  # Use simple language code
                     attribution=Attribution(
                         name="CIRIS AI",
                         url="https://ciris.ai"
