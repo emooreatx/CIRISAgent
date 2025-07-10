@@ -354,8 +354,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
                         name="CIRIS AI",
                         url="https://ciris.ai"
                     ),
-                    installed=True,
-                    version="1.0.0"
+                    installed=True
                 )]
             )]
         )
