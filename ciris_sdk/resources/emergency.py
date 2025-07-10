@@ -5,7 +5,7 @@ This resource handles the critical emergency shutdown endpoint that bypasses
 normal authentication to ensure remote ROOT/AUTHORITY can always execute
 emergency shutdown even if the main API auth is compromised or unavailable.
 """
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel, Field
 from enum import Enum
@@ -15,12 +15,16 @@ import uuid
 from ..transport import Transport
 from ..exceptions import CIRISError
 
+if TYPE_CHECKING:
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
 try:
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
     from cryptography.hazmat.primitives import serialization
     CRYPTO_AVAILABLE = True
 except ImportError:
     CRYPTO_AVAILABLE = False
+    Ed25519PrivateKey = None  # Define for type annotations
 
 
 class EmergencyCommandType(str, Enum):
@@ -88,7 +92,7 @@ class EmergencyResource:
     async def shutdown(
         self, 
         reason: str, 
-        private_key: Ed25519PrivateKey,
+        private_key: "Ed25519PrivateKey",
         wa_id: str,
         wa_public_key: str,
         target_agent_id: Optional[str] = None,
