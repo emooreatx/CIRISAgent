@@ -34,7 +34,20 @@ if [[ "${STT_PROVIDER}" == "openai" ]] || [[ "${TTS_PROVIDER}" == "openai" ]]; t
 fi
 
 if [[ "${STT_PROVIDER}" == "google" ]] || [[ "${TTS_PROVIDER}" == "google" ]]; then
-    export GOOGLE_APPLICATION_CREDENTIALS="/config/google_cloud_key.json"
+    # Check multiple possible locations for the Google Cloud key
+    if [ -f "/config/google_cloud_key.json" ]; then
+        export GOOGLE_APPLICATION_CREDENTIALS="/config/google_cloud_key.json"
+        bashio::log.info "Found Google Cloud key at /config/google_cloud_key.json"
+    elif [ -f "/data/google_cloud_key.json" ]; then
+        export GOOGLE_APPLICATION_CREDENTIALS="/data/google_cloud_key.json"
+        bashio::log.info "Found Google Cloud key at /data/google_cloud_key.json"
+    elif [ -f "/ssl/google_cloud_key.json" ]; then
+        export GOOGLE_APPLICATION_CREDENTIALS="/ssl/google_cloud_key.json"
+        bashio::log.info "Found Google Cloud key at /ssl/google_cloud_key.json"
+    else
+        bashio::log.warning "Google Cloud key not found! Checked /config, /data, and /ssl"
+        bashio::log.warning "Please place google_cloud_key.json in one of these locations"
+    fi
 fi
 
 # Create configuration file
@@ -58,7 +71,7 @@ stt:
   provider: "${STT_PROVIDER}"
   model: "whisper-1"
   language: "en"
-  google_credentials_path: "/config/google_cloud_key.json"
+  google_credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS:-/config/google_cloud_key.json}"
   google_language_code: "en-US"
 
 tts:
@@ -66,7 +79,7 @@ tts:
   model: "tts-1"
   voice: "${TTS_VOICE}"
   speed: 1.0
-  google_credentials_path: "/config/google_cloud_key.json"
+  google_credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS:-/config/google_cloud_key.json}"
   google_voice_name: "${TTS_VOICE}"
 
 logging:

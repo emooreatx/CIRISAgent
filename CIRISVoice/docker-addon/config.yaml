@@ -44,3 +44,4 @@ discovery:
   - wyoming
 map:
   - config:rw
+  - ssl:rw
