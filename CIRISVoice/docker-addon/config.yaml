@@ -40,3 +40,7 @@ panel_icon: mdi:microphone-message
 homeassistant_api: false
 host_network: false
 audio: false
+discovery:
+  - wyoming
+map:
+  - config:rw
