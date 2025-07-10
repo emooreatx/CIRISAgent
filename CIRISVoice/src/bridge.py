@@ -121,7 +121,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 models=[AsrModel(
                     name=self.config.stt.model,
                     description=f"{self.config.stt.provider} speech recognition",
-                    languages=[self.config.stt.language]
+                    languages=[self.config.stt.language],
+                    attribution="CIRIS AI",
+                    installed=True
                 )]
             )],
             tts=[TtsProgram(
