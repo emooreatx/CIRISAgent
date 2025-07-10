@@ -36,7 +36,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
         logger.info(f"Handler created for connection from {self._connection_info}")
         
         # Pre-create wyoming info event like faster-whisper does
-        self.wyoming_info_event = self._get_info().event()
+        self.wyoming_info_event = self._get_info()
     
     @property
     def closed(self):
@@ -343,8 +343,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
         return True  # Keep connection alive even for unknown events
 
     def _get_info(self):
-        # Advertise STT-only capability
-        return Info(
+        # Create minimal info with only ASR
+        # First create the info normally
+        info = Info(
             asr=[AsrProgram(
                 name="ciris",
                 description="CIRIS AI Voice Assistant",
@@ -365,6 +366,21 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 )]
             )]
         )
+        
+        # Try to remove empty arrays if possible
+        info_event = info.event()
+        if hasattr(info_event, 'data') and isinstance(info_event.data, dict):
+            # Remove empty arrays from the data
+            cleaned_data = {}
+            for key, value in info_event.data.items():
+                if not (isinstance(value, list) and len(value) == 0):
+                    cleaned_data[key] = value
+            
+            # Create a new event with cleaned data
+            from wyoming.event import Event
+            return Event(type="info", data=cleaned_data)
+        
+        return info
 
 async def main():
     logging.basicConfig(
