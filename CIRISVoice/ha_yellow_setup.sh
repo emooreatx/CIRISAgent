@@ -72,7 +72,7 @@ if [ -d "/addons/$ADDON_NAME" ]; then
         cp temp/CIRISVoice/config.example.yaml $ADDON_NAME/ 2>/dev/null || print_warning "No config.example.yaml found"
         cp temp/CIRISVoice/docker-addon/* $ADDON_NAME/ 2>/dev/null || print_warning "No docker-addon files found"
         # Copy SDK for local installation
-        cp -r temp/sdk $ADDON_NAME/ 2>/dev/null || print_warning "No SDK directory found"
+        cp -r temp/ciris_sdk $ADDON_NAME/sdk/ 2>/dev/null || print_warning "No SDK directory found"
     else
         print_error "CIRISVoice directory not found in repository!"
         print_warning "Repository structure:"
@@ -104,7 +104,7 @@ else
         cp temp/CIRISVoice/docker-addon/* $ADDON_NAME/ 2>/dev/null || print_warning "No docker-addon files found"
         
         # Copy SDK for local installation
-        cp -r temp/sdk $ADDON_NAME/ 2>/dev/null || print_warning "No SDK directory found"
+        cp -r temp/ciris_sdk $ADDON_NAME/sdk/ 2>/dev/null || print_warning "No SDK directory found"
         
         print_status "Files copied successfully"
     else
