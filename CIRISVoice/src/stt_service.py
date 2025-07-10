@@ -3,6 +3,9 @@ from abc import ABC, abstractmethod
 from typing import Optional
 import aiohttp
 import base64
+import logging
+
+logger = logging.getLogger(__name__)
 
 class STTService(ABC):
     @abstractmethod
