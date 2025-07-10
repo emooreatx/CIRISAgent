@@ -31,19 +31,19 @@ try:
         from ciris_sdk.exceptions import CIRISError, CIRISTimeoutError
         print("DEBUG: Successfully imported CIRIS SDK as installed package")
         imported = True
-    except ImportError:
-        pass
+    except ImportError as e:
+        print(f"DEBUG: Method 1 failed: {e}")
     
-    # Method 2: Try from /app/sdk path
+    # Method 2: Try direct import from /app/sdk (files are directly there)
     if not imported:
         sys.path.insert(0, '/app/sdk')
         try:
-            from ciris_sdk.client import CIRISClient as SDKCIRISClient
-            from ciris_sdk.exceptions import CIRISError, CIRISTimeoutError
-            print("DEBUG: Successfully imported CIRIS SDK from /app/sdk")
+            from client import CIRISClient as SDKCIRISClient
+            from exceptions import CIRISError, CIRISTimeoutError
+            print("DEBUG: Successfully imported CIRIS SDK from /app/sdk directly")
             imported = True
-        except ImportError:
-            pass
+        except ImportError as e:
+            print(f"DEBUG: Method 2 failed: {e}")
     
     if not imported:
         raise ImportError("Could not import CIRIS SDK from any location")
