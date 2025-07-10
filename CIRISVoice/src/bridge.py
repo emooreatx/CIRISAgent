@@ -347,20 +347,20 @@ class CIRISWyomingHandler(AsyncEventHandler):
         # First create the info normally
         info = Info(
             asr=[AsrProgram(
-                name="ciris",
-                description="CIRIS AI Voice Assistant",
+                name="ciris-whisper",
+                description="CIRIS AI Voice Assistant with Whisper",
                 attribution=Attribution(
                     name="CIRIS AI",
-                    url="https://ciris.ai"
+                    url="https://github.com/CIRISAI/ciris-voice"
                 ),
                 installed=True,
                 models=[AsrModel(
-                    name="ciris",
-                    description="CIRIS AI Voice Assistant Model",
-                    languages=["en-US"],
+                    name="ciris-v1",
+                    description="CIRIS Voice Model",
+                    languages=["en"],
                     attribution=Attribution(
                         name="CIRIS AI",
-                        url="https://ciris.ai"
+                        url="https://github.com/CIRISAI/ciris-voice"
                     ),
                     installed=True
                 )]
