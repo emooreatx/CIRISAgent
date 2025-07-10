@@ -180,9 +180,27 @@ class CIRISWyomingHandler(AsyncEventHandler):
                         
                         logger.info(f"CIRIS responded in {elapsed:.1f}s: {response_text[:50]}...")
                         
-                        # Send transcript and synthesis events
+                        # Send transcript event
                         await self.write_event(Transcript(text=text).event())
-                        await self.write_event(Synthesize(text=response_text).event())
+                        
+                        # Synthesize the response audio ourselves
+                        try:
+                            logger.info(f"Synthesizing TTS response: {response_text[:50]}...")
+                            audio_data = await self.tts_service.synthesize(response_text)
+                            
+                            # Send audio events with the synthesized speech
+                            await self.write_event(AudioStart(
+                                rate=24000,
+                                width=2,
+                                channels=1
+                            ).event())
+                            await self.write_event(AudioChunk(audio=audio_data).event())
+                            await self.write_event(AudioStop().event())
+                            logger.info("TTS audio sent successfully")
+                        except Exception as tts_error:
+                            logger.error(f"TTS synthesis failed: {tts_error}")
+                            # Fall back to error message
+                            await self.write_event(Synthesize(text="I'm having trouble with speech synthesis.").event())
                 except Exception as e:
                     logger.error(f"Processing error: {e}")
                     await self.write_event(Synthesize(text="I encountered an error processing your request.").event())

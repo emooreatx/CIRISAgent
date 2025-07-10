@@ -56,6 +56,8 @@ class GoogleTTSService(TTSService):
         import logging
         logger = logging.getLogger(__name__)
         
+        logger.info(f"Google TTS synthesize called with text: '{text[:50]}...' using voice: {self.voice}")
+        
         # Refresh token if needed or if we don't have one yet
         if not self.credentials.token or (self.credentials.expired is not None and self.credentials.expired):
             logger.info("Refreshing Google TTS credentials token...")
@@ -72,15 +74,18 @@ class GoogleTTSService(TTSService):
                     "languageCode": self.voice[:5] if len(self.voice) >= 5 else "en-US",
                     "name": self.voice
                 },
-                "audioConfig": {"audioEncoding": "OGG_OPUS"}
+                "audioConfig": {"audioEncoding": "LINEAR16"}
             }
             async with session.post(self.api_url, headers=headers, json=payload) as response:
                 if response.status == 200:
                     result = await response.json()
                     audio_content = result.get("audioContent", "")
-                    return base64.b64decode(audio_content)
+                    audio_data = base64.b64decode(audio_content)
+                    logger.info(f"Google TTS success: received {len(audio_data)} bytes of LINEAR16 audio")
+                    return audio_data
                 else:
                     error = await response.text()
+                    logger.error(f"Google TTS API error (status {response.status}): {error}")
                     raise Exception(f"Google TTS error: {error}")
 
 def create_tts_service(config) -> TTSService:
