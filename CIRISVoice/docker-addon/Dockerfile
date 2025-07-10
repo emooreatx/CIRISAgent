@@ -19,9 +19,8 @@ WORKDIR /app
 COPY requirements.txt /app/
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-# Copy and install CIRIS SDK
-COPY sdk /app/sdk
-RUN cd /app/sdk && pip3 install --no-cache-dir -e .
+# Install CIRIS SDK from git if not available locally
+RUN pip3 install --no-cache-dir git+https://github.com/CIRISAI/CIRISAgent.git#subdirectory=ciris_sdk
 
 # Copy the application
 COPY src /app/src
