@@ -8,7 +8,7 @@ from wyoming.audio import AudioChunk, AudioStart, AudioStop
 from wyoming.asr import Transcript, Transcribe
 from wyoming.tts import Synthesize
 from wyoming.server import AsyncServer, AsyncEventHandler
-from wyoming.info import Describe, Info, AsrModel, AsrProgram, TtsProgram, TtsVoice, Attribution
+from wyoming.info import Describe, Info, AsrModel, AsrProgram, TtsProgram, TtsVoice, TtsVoiceSpeaker, Attribution
 from wyoming.event import Event
 from wyoming.ping import Ping, Pong
 from wyoming.error import Error
@@ -216,9 +216,6 @@ class CIRISWyomingHandler(AsyncEventHandler):
         return True  # Keep connection alive even for unknown events
 
     def _get_info(self):
-        # Import TTS types
-        from wyoming.tts import TtsProgram, TtsVoice, TtsVoiceSpeaker
-        
         # Advertise both STT and TTS capabilities
         return Info(
             asr=[AsrProgram(
