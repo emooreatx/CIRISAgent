@@ -111,11 +111,36 @@ class CIRISWyomingHandler(AsyncEventHandler):
         if hasattr(event, 'data'):
             logger.info(f"Event.data field: {event.data}")
         
+        # Handle None event
+        if event is None:
+            logger.warning("Received None event")
+            return True
+            
         # Check for Describe event using string comparison as backup
         if event.type == "describe" or (hasattr(event, 'is_type') and Describe.is_type(event.type)):
             logger.info("Describe event detected, sending info response")
-            await self.write_event(self.wyoming_info_event)
-            logger.info("Info sent successfully")
+            
+            # Debug what we're sending
+            import json
+            logger.info(f"Info event type: {self.wyoming_info_event.type}")
+            if hasattr(self.wyoming_info_event, 'data'):
+                logger.info(f"Info data: {json.dumps(self.wyoming_info_event.data, indent=2)}")
+            
+            # Check if connection is still open
+            if self.closed:
+                logger.error("Connection already closed before sending info!")
+                return False
+                
+            try:
+                await self.write_event(self.wyoming_info_event)
+                logger.info("Info sent successfully")
+            except ConnectionResetError:
+                logger.error("Connection reset by peer while sending info")
+                return False
+            except Exception as e:
+                logger.error(f"Error sending info: {type(e).__name__}: {e}")
+                return False
+                
             return True
         
         # Handle Ping events for health checks
