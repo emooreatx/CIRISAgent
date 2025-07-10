@@ -56,7 +56,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 logger.error(f"Failed to initialize CIRIS client: {e}")
                 raise
 
-    async def handle_event(self, event):
+    async def handle_event(self, event) -> bool:
         import time
         start_time = time.time()
         
@@ -73,15 +73,16 @@ class CIRISWyomingHandler(AsyncEventHandler):
             info = self._get_info()
             logger.debug(f"Info response took {time.time() - start_time:.3f}s")
             logger.debug(f"Info content: {info}")
-            # Log if connection is still open after creating info
-            logger.debug(f"Connection closed status: {self.closed}")
-            # Wyoming expects a list of events in response
-            return [info]
+            # Write the info event and keep connection alive
+            await self.write_event(info.event())
+            logger.debug("Sent info event, keeping connection alive")
+            return True  # Keep connection alive
         
         # Handle Ping events for health checks
         if isinstance(event, Ping):
             logger.debug("Received ping, sending pong")
-            return [Pong()]
+            await self.write_event(Pong().event())
+            return True
         
         # Initialize on first non-describe event if needed
         if not self._initialized:
@@ -90,14 +91,19 @@ class CIRISWyomingHandler(AsyncEventHandler):
             except Exception as e:
                 logger.error(f"Initialization failed: {e}", exc_info=True)
                 # Continue anyway - Wyoming might just be probing
-        elif isinstance(event, AudioStart):
+        
+        if isinstance(event, AudioStart):
             logger.debug("Audio recording started")
             self.is_recording = True
             self.audio_buffer = bytearray()
-        elif isinstance(event, AudioChunk):
+            return True
+        
+        if isinstance(event, AudioChunk):
             if self.is_recording:
                 self.audio_buffer.extend(event.audio)
-        elif isinstance(event, AudioStop):
+            return True
+        
+        if isinstance(event, AudioStop):
             logger.debug("Audio recording stopped")
             self.is_recording = False
             if len(self.audio_buffer) > 0:
@@ -118,39 +124,38 @@ class CIRISWyomingHandler(AsyncEventHandler):
                         
                         logger.info(f"CIRIS responded in {elapsed:.1f}s: {response_text[:50]}...")
                         
-                        return [
-                            Transcript(text=text),
-                            Synthesize(text=response_text)
-                        ]
+                        # Send transcript and synthesis events
+                        await self.write_event(Transcript(text=text).event())
+                        await self.write_event(Synthesize(text=response_text).event())
                 except Exception as e:
                     logger.error(f"Processing error: {e}")
-                    return [Synthesize(text="I encountered an error processing your request.")]
+                    await self.write_event(Synthesize(text="I encountered an error processing your request.").event())
             self.audio_buffer = bytearray()
-        elif isinstance(event, Synthesize):
+            return True
+        
+        if isinstance(event, Synthesize):
             try:
                 audio_data = await self.tts_service.synthesize(event.text)
-                # Return audio chunks directly for Wyoming
-                return [
-                    AudioStart(
-                        rate=24000,
-                        width=2,
-                        channels=1
-                    ),
-                    AudioChunk(audio=audio_data),
-                    AudioStop()
-                ]
+                # Send audio events for Wyoming
+                await self.write_event(AudioStart(
+                    rate=24000,
+                    width=2,
+                    channels=1
+                ).event())
+                await self.write_event(AudioChunk(audio=audio_data).event())
+                await self.write_event(AudioStop().event())
             except Exception as e:
                 logger.error(f"TTS error: {e}")
-                return []
-        elif isinstance(event, Transcript):
-            response = await self.ciris_client.send_message(event.text)
-            return [Synthesize(text=response.get("content", "Processing error"))]
-        else:
-            # Log unknown event types
-            logger.warning(f"Unhandled event type: {type(event).__name__}")
+            return True
         
-        # Return empty list for unhandled events (Wyoming protocol expects a list)
-        return []
+        if isinstance(event, Transcript):
+            response = await self.ciris_client.send_message(event.text)
+            await self.write_event(Synthesize(text=response.get("content", "Processing error")).event())
+            return True
+        
+        # Log unknown event types
+        logger.warning(f"Unhandled event type: {type(event).__name__}")
+        return True  # Keep connection alive even for unknown events
 
     def _get_info(self):
         return Info(
