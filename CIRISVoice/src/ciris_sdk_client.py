@@ -9,13 +9,15 @@ import logging
 from typing import Optional, Dict, Any
 from datetime import datetime
 
-# Note: Requires `pip install ciris-sdk`
+# Import SDK - it's installed locally in the container
 try:
-    from ciris_sdk import CIRISClient
+    import sys
+    sys.path.insert(0, '/app/sdk')
+    from ciris_sdk.client import CIRISClient as SDKCIRISClient
     from ciris_sdk.exceptions import CIRISError, CIRISTimeoutError
 except ImportError:
     # Fallback for development without SDK installed
-    CIRISClient = None
+    SDKCIRISClient = None
     CIRISError = Exception
     CIRISTimeoutError = asyncio.TimeoutError
 
@@ -32,13 +34,13 @@ class CIRISVoiceClient:
         Args:
             config: Configuration object with api_url, api_key, channel_id, etc.
         """
-        if CIRISClient is None:
+        if SDKCIRISClient is None:
             raise ImportError(
                 "CIRIS SDK not installed. Please run: pip install ciris-sdk"
             )
             
         # Initialize SDK client with extended timeout
-        self.client = CIRISClient(
+        self.client = SDKCIRISClient(
             base_url=config.api_url,
             api_key=config.api_key,
             timeout=58.0,  # 58 seconds - just under HA's 60s timeout
