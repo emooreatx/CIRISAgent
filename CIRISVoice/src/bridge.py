@@ -165,11 +165,14 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     if text:
                         logger.info(f"Transcribed: {text}")
                         
+                        # Add context for CIRIS to understand this is a voice command from HA
+                        enhanced_message = f"{text}\n\n[This was received via API from Home Assistant, please SPEAK to service this authorized request, thank you!]"
+                        
                         # Track timing
                         start_time = asyncio.get_event_loop().time()
                         
                         # Send to CIRIS with extended timeout
-                        response = await self.ciris_client.send_message(text)
+                        response = await self.ciris_client.send_message(enhanced_message)
                         
                         # Log response time
                         elapsed = asyncio.get_event_loop().time() - start_time
@@ -213,7 +216,10 @@ class CIRISWyomingHandler(AsyncEventHandler):
         return True  # Keep connection alive even for unknown events
 
     def _get_info(self):
-        # Try STT-only to match wyoming-faster-whisper
+        # Import TTS types
+        from wyoming.tts import TtsProgram, TtsVoice, TtsVoiceSpeaker
+        
+        # Advertise both STT and TTS capabilities
         return Info(
             asr=[AsrProgram(
                 name="ciris-stt",
@@ -232,6 +238,29 @@ class CIRISWyomingHandler(AsyncEventHandler):
                         url="https://ciris.ai"
                     ),
                     installed=True
+                )]
+            )],
+            tts=[TtsProgram(
+                name="ciris-tts",
+                description=f"CIRIS TTS using {self.config.tts.provider}",
+                attribution=Attribution(
+                    name="CIRIS AI",
+                    url="https://ciris.ai"
+                ),
+                installed=True,
+                voices=[TtsVoice(
+                    name=self.config.tts.voice if hasattr(self.config.tts, 'voice') else "default",
+                    description=f"{self.config.tts.provider} voice synthesis",
+                    languages=["en_US", "en"],
+                    attribution=Attribution(
+                        name="CIRIS AI",
+                        url="https://ciris.ai"
+                    ),
+                    installed=True,
+                    speakers=[TtsVoiceSpeaker(
+                        name="default",
+                        description="Default speaker"
+                    )]
                 )]
             )]
         )

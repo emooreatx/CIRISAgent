@@ -51,8 +51,14 @@ class GoogleTTSService(TTSService):
         self.api_url = "https://texttospeech.googleapis.com/v1/text:synthesize"
 
     async def synthesize(self, text: str) -> bytes:
-        # Refresh token if needed
-        if self.credentials.expired:
+        # Import here to avoid dependency at module level
+        from google.auth.transport.requests import Request
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Refresh token if needed or if we don't have one yet
+        if not self.credentials.token or (self.credentials.expired is not None and self.credentials.expired):
+            logger.info("Refreshing Google TTS credentials token...")
             self.credentials.refresh(Request())
             
         async with aiohttp.ClientSession() as session:
