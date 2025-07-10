@@ -33,6 +33,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
         self._connection_info = writer.get_extra_info('peername')
         self.last_transcript = None  # Store last transcript for Synthesize event
         self._expecting_synthesize = False  # Track if we're waiting for Synthesize
+        self._ciris_response = None  # Store CIRIS response for TTS
         logger.info(f"Handler created for connection from {self._connection_info}")
         
         # Pre-create wyoming info event like faster-whisper does
@@ -210,10 +211,15 @@ class CIRISWyomingHandler(AsyncEventHandler):
                         response_text = response.get("content", "I didn't understand that.")
                         logger.info(f"CIRIS responded in {ciris_time:.1f}s: {response_text[:50]}...")
                         
-                        # Send CIRIS response as the transcript
-                        # Home Assistant will pass this to its configured TTS
-                        await self.write_event(Transcript(text=response_text).event())
-                        logger.info(f"Sent CIRIS response as transcript for TTS")
+                        # Send both the transcript AND store for TTS
+                        await self.write_event(Transcript(text=text).event())
+                        logger.info(f"Sent original transcript: {text}")
+                        
+                        # Store the CIRIS response for when Synthesize is called
+                        self.last_transcript = text
+                        self._ciris_response = response_text
+                        self._expecting_synthesize = True
+                        logger.info(f"Stored CIRIS response for TTS: {response_text[:50]}...")
                 except Exception as e:
                     logger.error(f"Processing error: {e}")
                     # Don't try to send error messages if connection is broken
@@ -230,9 +236,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
             logger.info(f"Received Synthesize event with text: {synthesize.text[:50]}...")
             
             try:
-                # If we have a transcript, send it to CIRIS first
-                if self.last_transcript and synthesize.text == self.last_transcript:
-                    logger.info("Synthesize text matches transcript - sending to CIRIS for processing")
+                # Check if this is from our transcript and we have CIRIS response ready
+                if self._expecting_synthesize and self._ciris_response and synthesize.text == self.last_transcript:
+                    logger.info("Using stored CIRIS response for TTS")
                     
                     # Start audio stream immediately
                     await self.write_event(AudioStart(
@@ -261,18 +267,11 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     silence_task = asyncio.create_task(stream_silence())
                     
                     try:
-                        # Add context for CIRIS
-                        enhanced_message = f"{synthesize.text}\n\n[This was received via API from Home Assistant, please SPEAK to service this authorized request, thank you!]"
+                        # Use the pre-calculated CIRIS response
+                        response_text = self._ciris_response
+                        logger.info(f"Synthesizing pre-calculated CIRIS response: {response_text[:50]}...")
                         
-                        # Send to CIRIS
-                        start_time = asyncio.get_event_loop().time()
-                        response = await self.ciris_client.send_message(enhanced_message)
-                        ciris_time = asyncio.get_event_loop().time() - start_time
-                        
-                        response_text = response.get("content", "I didn't understand that.")
-                        logger.info(f"CIRIS responded in {ciris_time:.1f}s: {response_text[:50]}...")
-                        
-                        # Stop silence
+                        # Stop silence immediately
                         stop_silence.set()
                         await silence_task
                         
@@ -333,8 +332,10 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 await self.write_event(AudioStart(rate=24000, width=2, channels=1).event())
                 await self.write_event(AudioStop().event())
             
-            # Clear transcript after use
+            # Clear transcript and response after use
             self.last_transcript = None
+            self._ciris_response = None
+            self._expecting_synthesize = False
             return True
         
         
@@ -343,43 +344,56 @@ class CIRISWyomingHandler(AsyncEventHandler):
         return True  # Keep connection alive even for unknown events
 
     def _get_info(self):
-        # Create minimal info with only ASR
-        # First create the info normally
+        # Import TTS types
+        from wyoming.tts import TtsModel, TtsProgram, TtsVoice
+        
+        # Create info with both ASR and TTS like it was working before
         info = Info(
             asr=[AsrProgram(
-                name="ciris-whisper",
-                description="CIRIS AI Voice Assistant with Whisper",
+                name="ciris",
+                description=f"CIRIS STT using {self.config.stt.provider}",
                 attribution=Attribution(
                     name="CIRIS AI",
-                    url="https://github.com/CIRISAI/ciris-voice"
+                    url="https://ciris.ai"
                 ),
                 installed=True,
                 models=[AsrModel(
-                    name="ciris-v1",
-                    description="CIRIS Voice Model",
-                    languages=["en"],
+                    name="ciris-stt-v1",
+                    description=f"{self.config.stt.provider} speech recognition",
+                    languages=["en_US", "en"],
                     attribution=Attribution(
                         name="CIRIS AI",
-                        url="https://github.com/CIRISAI/ciris-voice"
+                        url="https://ciris.ai"
                     ),
                     installed=True
                 )]
+            )],
+            tts=[TtsProgram(
+                name="ciris",
+                description=f"CIRIS TTS using {self.config.tts.provider}",
+                attribution=Attribution(
+                    name="CIRIS AI",
+                    url="https://ciris.ai"
+                ),
+                installed=True,
+                models=[TtsModel(
+                    name="ciris-tts-v1",
+                    description=f"{self.config.tts.provider} text to speech",
+                    languages=["en_US", "en"],
+                    attribution=Attribution(
+                        name="CIRIS AI",
+                        url="https://ciris.ai"
+                    ),
+                    installed=True,
+                    voices=[TtsVoice(
+                        name=self.config.tts.voice,
+                        description="CIRIS Voice",
+                        languages=["en_US", "en"],
+                        speaker=None
+                    )]
+                )]
             )]
         )
-        
-        # Try to remove empty arrays if possible
-        info_event = info.event()
-        if hasattr(info_event, 'data') and isinstance(info_event.data, dict):
-            # Remove empty arrays from the data
-            cleaned_data = {}
-            for key, value in info_event.data.items():
-                if not (isinstance(value, list) and len(value) == 0):
-                    cleaned_data[key] = value
-            
-            # Create a new event with cleaned data
-            from wyoming.event import Event
-            return Event(type="info", data=cleaned_data)
-        
         return info
 
 async def main():
