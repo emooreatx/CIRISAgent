@@ -1,6 +1,6 @@
 name: "CIRIS Wyoming Bridge"
 description: "Connect CIRIS AI to Home Assistant Voice with 60-second timeout support"
-version: "1.0.0"
+version: "1.0.1"
 slug: "ciris_wyoming"
 init: false
 arch:
