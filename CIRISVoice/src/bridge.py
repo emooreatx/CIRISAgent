@@ -47,7 +47,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
             logger.info("Returning Wyoming info for discovery")
             info = self._get_info()
             logger.debug(f"Info response took {time.time() - start_time:.3f}s")
-            return info
+            logger.debug(f"Info content: {info}")
+            # Wyoming expects a list of events in response
+            return [info]
         
         # Initialize on first non-describe event if needed
         if not self._initialized:

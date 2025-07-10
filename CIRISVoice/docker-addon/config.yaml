@@ -39,7 +39,7 @@ auth_api: false
 ingress: false
 panel_icon: mdi:microphone-message
 homeassistant_api: false
-host_network: false
+host_network: true
 audio: false
 discovery:
   - wyoming
