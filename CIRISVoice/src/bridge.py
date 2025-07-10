@@ -36,8 +36,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
         self._ciris_response = None  # Store CIRIS response for TTS
         logger.info(f"Handler created for connection from {self._connection_info}")
         
-        # Pre-create wyoming info event like faster-whisper does
-        self.wyoming_info_event = self._get_info()
+        # Pre-create wyoming info like faster-whisper does
+        self.wyoming_info = self._get_info()
+        self.wyoming_info_event = self.wyoming_info.event()
     
     @property
     def closed(self):
@@ -113,28 +114,8 @@ class CIRISWyomingHandler(AsyncEventHandler):
         # Check for Describe event using string comparison as backup
         if event.type == "describe" or (hasattr(event, 'is_type') and Describe.is_type(event.type)):
             logger.info("Describe event detected, sending info response")
-            
-            # Log the actual JSON that will be sent
-            import json
-            if hasattr(self.wyoming_info_event, 'data'):
-                logger.info(f"Info JSON: {json.dumps(self.wyoming_info_event.data, indent=2)}")
-                logger.info(f"Info fields present: {list(self.wyoming_info_event.data.keys())}")
-            
-            try:
-                await self.write_event(self.wyoming_info_event)
-                logger.info("Info sent successfully, waiting for next event...")
-            except ConnectionResetError:
-                logger.warning("Connection reset by Home Assistant during info send")
-                logger.warning("This usually means HA rejected our service registration")
-                return False
-            except BrokenPipeError:
-                logger.warning("Broken pipe when sending info - HA closed connection")
-                return False
-            except Exception as e:
-                logger.error(f"Error sending info: {e}")
-                logger.error(f"Exception type: {type(e).__name__}")
-                return False
-            # CRITICAL: Must return True to keep connection open!
+            await self.write_event(self.wyoming_info_event)
+            logger.info("Info sent successfully")
             return True
         
         # Handle Ping events for health checks
@@ -331,8 +312,8 @@ class CIRISWyomingHandler(AsyncEventHandler):
         return True  # Keep connection alive even for unknown events
 
     def _get_info(self):
-        # Create info with only ASR for now since Wyoming doesn't have TTS types
-        info = Info(
+        # Create info with only ASR, matching faster-whisper structure
+        return Info(
             asr=[AsrProgram(
                 name="ciris",
                 description=f"CIRIS STT using {self.config.stt.provider}",
@@ -353,21 +334,6 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 )]
             )]
         )
-        
-        # Get the event and remove empty arrays
-        info_event = info.event()
-        if hasattr(info_event, 'data') and isinstance(info_event.data, dict):
-            # Create new data without empty arrays
-            cleaned_data = {}
-            for key, value in info_event.data.items():
-                if not (isinstance(value, list) and len(value) == 0):
-                    cleaned_data[key] = value
-            
-            # Create a new event with cleaned data
-            from wyoming.event import Event
-            return Event(type="info", data=cleaned_data)
-        
-        return info_event
 
 async def main():
     logging.basicConfig(
