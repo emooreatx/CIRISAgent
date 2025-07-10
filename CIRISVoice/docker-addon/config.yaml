@@ -17,9 +17,9 @@ options:
   ciris_api_key: ""
   ciris_timeout: 58
   ciris_channel: "ha_yellow"
-  stt_provider: "openai"
-  tts_provider: "openai"
-  tts_voice: "nova"
+  stt_provider: "google"
+  tts_provider: "google"
+  tts_voice: "en-US-Chirp3-HD-Achernar"
   log_level: "INFO"
 schema:
   ciris_url: str

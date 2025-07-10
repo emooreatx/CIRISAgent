@@ -5,6 +5,7 @@ pyyaml==6.0.1
 openai==1.6.0
 google-cloud-speech==2.22.0
 google-cloud-texttospeech==2.15.0
+google-auth==2.26.2
 python-dotenv==1.0.0
 
 # CIRIS SDK - installed separately from local source

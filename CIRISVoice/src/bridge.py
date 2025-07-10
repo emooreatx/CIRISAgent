@@ -3,7 +3,7 @@ import logging
 from typing import Optional
 from wyoming.audio import AudioChunk, AudioStart, AudioStop
 from wyoming.asr import Transcript
-from wyoming.tts import Synthesize, SynthesisResult
+from wyoming.tts import Synthesize
 from wyoming.server import AsyncServer, AsyncEventHandler
 from wyoming.info import Describe, Info, AsrModel, AsrProgram, TtsProgram, TtsVoice
 
@@ -66,12 +66,16 @@ class CIRISWyomingHandler(AsyncEventHandler):
         elif isinstance(event, Synthesize):
             try:
                 audio_data = await self.tts_service.synthesize(event.text)
-                return SynthesisResult(
-                    audio=audio_data,
-                    sample_rate=24000,
-                    channels=1,
-                    format="opus"
-                )
+                # Return audio chunks directly for Wyoming
+                return [
+                    AudioStart(
+                        rate=24000,
+                        width=2,
+                        channels=1
+                    ),
+                    AudioChunk(audio=audio_data),
+                    AudioStop()
+                ]
             except Exception as e:
                 logger.error(f"TTS error: {e}")
                 return None

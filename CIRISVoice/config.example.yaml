@@ -44,7 +44,7 @@ stt:
   language: "en"
   
   # Google Cloud settings (if using google provider)
-  # google_credentials_path: "path/to/google-cloud-key.json"
+  # google_credentials_path: "/config/google_cloud_key.json"
   # google_language_code: "en-US"
   # google_model: "latest_long"
 
@@ -59,8 +59,9 @@ tts:
   speed: 1.0
   
   # Google Cloud settings (if using google provider)
+  # google_credentials_path: "/config/google_cloud_key.json"
   # google_language_code: "en-US"
-  # google_voice_name: "en-US-Wavenet-F"
+  # google_voice_name: "en-US-Chirp3-HD-Achernar"  # High-quality Chirp3 voice
   # google_speaking_rate: 1.0
   # google_pitch: 0.0
 

@@ -58,12 +58,16 @@ stt:
   provider: "${STT_PROVIDER}"
   model: "whisper-1"
   language: "en"
+  google_credentials_path: "/config/google_cloud_key.json"
+  google_language_code: "en-US"
 
 tts:
   provider: "${TTS_PROVIDER}"
   model: "tts-1"
   voice: "${TTS_VOICE}"
   speed: 1.0
+  google_credentials_path: "/config/google_cloud_key.json"
+  google_voice_name: "${TTS_VOICE}"
 
 logging:
   level: "${LOG_LEVEL}"
