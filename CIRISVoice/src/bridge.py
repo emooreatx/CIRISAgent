@@ -211,15 +211,10 @@ class CIRISWyomingHandler(AsyncEventHandler):
                         response_text = response.get("content", "I didn't understand that.")
                         logger.info(f"CIRIS responded in {ciris_time:.1f}s: {response_text[:50]}...")
                         
-                        # Send both the transcript AND store for TTS
-                        await self.write_event(Transcript(text=text).event())
-                        logger.info(f"Sent original transcript: {text}")
-                        
-                        # Store the CIRIS response for when Synthesize is called
-                        self.last_transcript = text
-                        self._ciris_response = response_text
-                        self._expecting_synthesize = True
-                        logger.info(f"Stored CIRIS response for TTS: {response_text[:50]}...")
+                        # Send CIRIS response as the transcript
+                        # This way Home Assistant's configured TTS will speak the CIRIS response
+                        await self.write_event(Transcript(text=response_text).event())
+                        logger.info(f"Sent CIRIS response as transcript: {response_text[:50]}...")
                 except Exception as e:
                     logger.error(f"Processing error: {e}")
                     # Don't try to send error messages if connection is broken
@@ -344,10 +339,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
         return True  # Keep connection alive even for unknown events
 
     def _get_info(self):
-        # Import TTS types
-        from wyoming.tts import TtsModel, TtsProgram, TtsVoice
-        
-        # Create info with both ASR and TTS like it was working before
+        # Create info with only ASR for now since Wyoming doesn't have TTS types
         info = Info(
             asr=[AsrProgram(
                 name="ciris",
@@ -360,37 +352,12 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 models=[AsrModel(
                     name="ciris-stt-v1",
                     description=f"{self.config.stt.provider} speech recognition",
-                    languages=["en_US", "en"],
+                    languages=["en"],
                     attribution=Attribution(
                         name="CIRIS AI",
                         url="https://ciris.ai"
                     ),
                     installed=True
-                )]
-            )],
-            tts=[TtsProgram(
-                name="ciris",
-                description=f"CIRIS TTS using {self.config.tts.provider}",
-                attribution=Attribution(
-                    name="CIRIS AI",
-                    url="https://ciris.ai"
-                ),
-                installed=True,
-                models=[TtsModel(
-                    name="ciris-tts-v1",
-                    description=f"{self.config.tts.provider} text to speech",
-                    languages=["en_US", "en"],
-                    attribution=Attribution(
-                        name="CIRIS AI",
-                        url="https://ciris.ai"
-                    ),
-                    installed=True,
-                    voices=[TtsVoice(
-                        name=self.config.tts.voice,
-                        description="CIRIS Voice",
-                        languages=["en_US", "en"],
-                        speaker=None
-                    )]
                 )]
             )]
         )
