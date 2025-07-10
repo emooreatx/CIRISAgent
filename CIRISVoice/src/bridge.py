@@ -38,18 +38,24 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 raise
 
     async def handle_event(self, event):
+        import time
+        start_time = time.time()
         logger.debug(f"Received event: {type(event).__name__}, {event}")
         
-        # Initialize on first event if needed
+        # For Describe events, return info immediately without initialization
+        if isinstance(event, Describe) or (hasattr(event, 'type') and event.type == 'describe'):
+            logger.info("Returning Wyoming info for discovery")
+            info = self._get_info()
+            logger.debug(f"Info response took {time.time() - start_time:.3f}s")
+            return info
+        
+        # Initialize on first non-describe event if needed
         if not self._initialized:
             try:
                 await self._ensure_initialized()
             except Exception as e:
                 logger.error(f"Initialization failed: {e}")
                 # Continue anyway - Wyoming might just be probing
-        
-        if isinstance(event, Describe):
-            return self._get_info()
         elif isinstance(event, AudioStart):
             logger.debug("Audio recording started")
             self.is_recording = True
