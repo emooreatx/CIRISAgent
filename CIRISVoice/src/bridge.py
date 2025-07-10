@@ -36,8 +36,8 @@ class CIRISWyomingHandler(AsyncEventHandler):
         self._ciris_response = None  # Store CIRIS response for TTS
         logger.info(f"Handler created for connection from {self._connection_info}")
         
-        # Pre-create wyoming info event like faster-whisper does
-        self.wyoming_info_event = self._get_info()
+        # Pre-create wyoming info like faster-whisper does
+        self.wyoming_info = self._get_info()
     
     @property
     def closed(self):
@@ -113,13 +113,14 @@ class CIRISWyomingHandler(AsyncEventHandler):
         # Check for Describe event using string comparison as backup
         if event.type == "describe" or (hasattr(event, 'is_type') and Describe.is_type(event.type)):
             logger.info("Describe event detected, sending info response")
-            logger.info(f"Info event being sent: {self.wyoming_info_event}")
+            logger.info(f"Info object: {self.wyoming_info}")
             
             # Log the actual JSON that will be sent
             import json
-            if hasattr(self.wyoming_info_event, 'data'):
+            info_event = self.wyoming_info.event()
+            if hasattr(info_event, 'data'):
                 # Check if we're sending empty arrays that might cause issues
-                info_data = self.wyoming_info_event.data
+                info_data = info_event.data
                 logger.info(f"Info JSON: {json.dumps(info_data, indent=2)}")
                 
                 # Log which fields are present
@@ -129,7 +130,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
                         logger.warning(f"Info contains empty array for '{key}' - this might cause issues")
             
             try:
-                await self.write_event(self.wyoming_info_event)
+                await self.write_event(info_event)
                 logger.info("Info sent successfully, waiting for next event...")
             except ConnectionResetError:
                 logger.warning("Connection reset by Home Assistant during info send")
