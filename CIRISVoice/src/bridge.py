@@ -124,9 +124,14 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 logger.info("Info sent successfully, waiting for next event...")
             except ConnectionResetError:
                 logger.warning("Connection reset by Home Assistant during info send")
+                logger.warning("This usually means HA rejected our service registration")
+                return False
+            except BrokenPipeError:
+                logger.warning("Broken pipe when sending info - HA closed connection")
                 return False
             except Exception as e:
                 logger.error(f"Error sending info: {e}")
+                logger.error(f"Exception type: {type(e).__name__}")
                 return False
             # CRITICAL: Must return True to keep connection open!
             return True
@@ -333,22 +338,24 @@ class CIRISWyomingHandler(AsyncEventHandler):
         # Advertise STT-only capability
         return Info(
             asr=[AsrProgram(
-                name="ciris-stt",
-                description=f"CIRIS AI Assistant using {self.config.stt.provider} STT",
+                name="ciris",
+                description="CIRIS AI Voice Assistant",
                 attribution=Attribution(
                     name="CIRIS AI",
                     url="https://ciris.ai"
                 ),
                 installed=True,
+                version="1.0.0",
                 models=[AsrModel(
-                    name="ciris-stt-v1",
-                    description=f"CIRIS AI with {self.config.stt.provider} speech recognition",
-                    languages=["en_US", "en"],
+                    name="ciris",
+                    description="CIRIS AI Voice Assistant Model",
+                    languages=["en-US"],
                     attribution=Attribution(
                         name="CIRIS AI",
                         url="https://ciris.ai"
                     ),
-                    installed=True
+                    installed=True,
+                    version="1.0.0"
                 )]
             )]
         )
