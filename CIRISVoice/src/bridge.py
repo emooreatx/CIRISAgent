@@ -8,6 +8,8 @@ from wyoming.tts import Synthesize
 from wyoming.server import AsyncServer, AsyncEventHandler
 from wyoming.info import Describe, Info, AsrModel, AsrProgram, TtsProgram, TtsVoice
 from wyoming.event import Event
+from wyoming.ping import Ping, Pong
+from wyoming.error import Error
 
 from .config import Config
 from .stt_service import create_stt_service
@@ -26,6 +28,17 @@ class CIRISWyomingHandler(AsyncEventHandler):
         self.audio_buffer = bytearray()
         self.is_recording = False
         self._initialized = False
+        self._connection_info = writer.get_extra_info('peername')
+        logger.info(f"Handler created for connection from {self._connection_info}")
+    
+    async def disconnect(self):
+        """Handle disconnection cleanup."""
+        logger.info(f"Connection closed from {self._connection_info}")
+        if self._initialized and hasattr(self.ciris_client, 'voice_client'):
+            try:
+                await self.ciris_client.voice_client.close()
+            except Exception as e:
+                logger.error(f"Error closing CIRIS client: {e}")
 
     async def _ensure_initialized(self):
         """Initialize CIRIS client on first use."""
@@ -41,7 +54,13 @@ class CIRISWyomingHandler(AsyncEventHandler):
     async def handle_event(self, event):
         import time
         start_time = time.time()
-        logger.debug(f"Received event: {type(event).__name__}, {event}")
+        
+        # Log event details
+        logger.debug(f"Received event type: {type(event).__name__}")
+        if hasattr(event, 'type'):
+            logger.debug(f"Event.type: {event.type}")
+        if hasattr(event, 'data'):
+            logger.debug(f"Event.data: {event.data}")
         
         # For Describe events, return info immediately without initialization
         if isinstance(event, Describe) or (hasattr(event, 'type') and event.type == 'describe'):
@@ -51,6 +70,11 @@ class CIRISWyomingHandler(AsyncEventHandler):
             logger.debug(f"Info content: {info}")
             # Wyoming expects a list of events in response
             return [info]
+        
+        # Handle Ping events for health checks
+        if isinstance(event, Ping):
+            logger.debug("Received ping, sending pong")
+            return [Pong()]
         
         # Initialize on first non-describe event if needed
         if not self._initialized:
