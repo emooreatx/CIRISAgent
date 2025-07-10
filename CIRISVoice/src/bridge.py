@@ -161,64 +161,133 @@ class CIRISWyomingHandler(AsyncEventHandler):
             self.is_recording = False
             if len(self.audio_buffer) > 0:
                 try:
-                    text = await self.stt_service.transcribe(bytes(self.audio_buffer))
-                    if text:
-                        logger.info(f"Transcribed: {text}")
-                        
-                        # Add context for CIRIS to understand this is a voice command from HA
-                        enhanced_message = f"{text}\n\n[This was received via API from Home Assistant, please SPEAK to service this authorized request, thank you!]"
-                        
-                        # Track timing
-                        start_time = asyncio.get_event_loop().time()
-                        
-                        # Send to CIRIS with extended timeout
-                        response = await self.ciris_client.send_message(enhanced_message)
-                        
-                        # Log response time
-                        elapsed = asyncio.get_event_loop().time() - start_time
-                        response_text = response.get("content", "I didn't understand that.")
-                        
-                        logger.info(f"CIRIS responded in {elapsed:.1f}s: {response_text[:50]}...")
-                        
-                        # Send transcript event
-                        await self.write_event(Transcript(text=text).event())
-                        
-                        # Only synthesize if we have a real response (not timeout message)
-                        if "Still processing" not in response_text:
-                            # Synthesize the response audio ourselves
+                    # Send transcript first (we'll update it later)
+                    await self.write_event(Transcript(text="Processing...").event())
+                    
+                    # Start audio stream immediately to prevent HA timeout
+                    await self.write_event(AudioStart(
+                        rate=24000,
+                        width=2,
+                        channels=1
+                    ).event())
+                    
+                    # Create a task to stream silence while we process
+                    silence_chunk = bytes(4800)  # 100ms of silence at 24kHz, 16-bit mono
+                    silence_task = None
+                    stop_silence = asyncio.Event()
+                    
+                    async def stream_silence():
+                        """Stream silence to keep connection alive"""
+                        while not stop_silence.is_set():
+                            if self.closed:
+                                break
                             try:
-                                logger.info(f"Synthesizing TTS response: {response_text[:50]}...")
-                                audio_data = await self.tts_service.synthesize(response_text)
-                                
-                                # Check if connection is still alive before sending
-                                if not self.closed:
-                                    # Send audio events with the synthesized speech
-                                    await self.write_event(AudioStart(
-                                        rate=24000,
-                                        width=2,
-                                        channels=1
-                                    ).event())
-                                    await self.write_event(AudioChunk(audio=audio_data).event())
-                                    await self.write_event(AudioStop().event())
-                                    logger.info("TTS audio sent successfully")
-                                else:
-                                    logger.warning("Connection closed before TTS could be sent")
-                            except (ConnectionResetError, BrokenPipeError) as e:
-                                logger.warning(f"Connection lost during TTS: {e}")
-                            except Exception as tts_error:
-                                logger.error(f"TTS synthesis failed: {tts_error}")
-                        else:
-                            # For timeout messages, send a shorter response
-                            logger.info("CIRIS timed out, sending brief error response")
-                            try:
-                                brief_response = "I need more time to process that request."
-                                audio_data = await self.tts_service.synthesize(brief_response)
-                                if not self.closed:
-                                    await self.write_event(AudioStart(rate=24000, width=2, channels=1).event())
-                                    await self.write_event(AudioChunk(audio=audio_data).event())
-                                    await self.write_event(AudioStop().event())
+                                await self.write_event(AudioChunk(audio=silence_chunk).event())
+                                await asyncio.sleep(0.1)  # Send silence every 100ms
                             except (ConnectionResetError, BrokenPipeError):
-                                logger.warning("Connection lost while sending timeout response")
+                                break
+                    
+                    # Start streaming silence
+                    silence_task = asyncio.create_task(stream_silence())
+                    
+                    try:
+                        # Track total processing time
+                        total_start = asyncio.get_event_loop().time()
+                        
+                        # Transcribe audio
+                        stt_start = asyncio.get_event_loop().time()
+                        text = await self.stt_service.transcribe(bytes(self.audio_buffer))
+                        stt_time = asyncio.get_event_loop().time() - stt_start
+                        
+                        if text:
+                            logger.info(f"Transcribed in {stt_time:.1f}s: {text}")
+                            
+                            # Update transcript with actual text
+                            await self.write_event(Transcript(text=text).event())
+                            
+                            # Add context for CIRIS to understand this is a voice command from HA
+                            enhanced_message = f"{text}\n\n[This was received via API from Home Assistant, please SPEAK to service this authorized request, thank you!]"
+                            
+                            # Send to CIRIS
+                            ciris_start = asyncio.get_event_loop().time()
+                            response = await self.ciris_client.send_message(enhanced_message)
+                            ciris_time = asyncio.get_event_loop().time() - ciris_start
+                            
+                            response_text = response.get("content", "I didn't understand that.")
+                            logger.info(f"CIRIS responded in {ciris_time:.1f}s: {response_text[:50]}...")
+                            
+                            # Check total elapsed time
+                            total_elapsed = asyncio.get_event_loop().time() - total_start
+                            logger.info(f"Total elapsed before TTS: {total_elapsed:.1f}s (STT: {stt_time:.1f}s, CIRIS: {ciris_time:.1f}s)")
+                        
+                            # Only synthesize if we have a real response (not timeout message)
+                            if "Still processing" not in response_text:
+                                # Synthesize the response audio
+                                try:
+                                    if self.closed:
+                                        logger.warning("Connection already closed, skipping TTS")
+                                        return True
+                                    
+                                    logger.info(f"Synthesizing TTS response: {response_text[:50]}...")
+                                    
+                                    # Synthesize audio while silence is still streaming
+                                    tts_start = asyncio.get_event_loop().time()
+                                    audio_data = await self.tts_service.synthesize(response_text)
+                                    tts_time = asyncio.get_event_loop().time() - tts_start
+                                    logger.info(f"TTS synthesis completed in {tts_time:.1f}s")
+                                    
+                                    # Stop silence streaming
+                                    stop_silence.set()
+                                    if silence_task:
+                                        await silence_task
+                                    
+                                    # Send the real audio data if connection still alive
+                                    if not self.closed:
+                                        # Split large audio into smaller chunks
+                                        chunk_size = 32768  # 32KB chunks
+                                        for i in range(0, len(audio_data), chunk_size):
+                                            if self.closed:
+                                                logger.warning("Connection closed during audio streaming")
+                                                break
+                                            chunk = audio_data[i:i+chunk_size]
+                                            await self.write_event(AudioChunk(audio=chunk).event())
+                                        
+                                        if not self.closed:
+                                            await self.write_event(AudioStop().event())
+                                            total_time = asyncio.get_event_loop().time() - total_start
+                                            logger.info(f"TTS audio sent successfully. Total time: {total_time:.1f}s")
+                                    else:
+                                        logger.warning("Connection closed before audio data could be sent")
+                                except (ConnectionResetError, BrokenPipeError) as e:
+                                    logger.warning(f"Connection lost during TTS: {e}")
+                                except Exception as tts_error:
+                                    logger.error(f"TTS synthesis failed: {tts_error}")
+                            else:
+                                # For timeout messages, send a shorter response
+                                logger.info("CIRIS timed out, sending brief error response")
+                                try:
+                                    brief_response = "I need more time to process that request."
+                                    audio_data = await self.tts_service.synthesize(brief_response)
+                                    
+                                    # Stop silence streaming
+                                    stop_silence.set()
+                                    if silence_task:
+                                        await silence_task
+                                    
+                                    if not self.closed:
+                                        await self.write_event(AudioChunk(audio=audio_data).event())
+                                        await self.write_event(AudioStop().event())
+                                except (ConnectionResetError, BrokenPipeError):
+                                    logger.warning("Connection lost while sending timeout response")
+                    finally:
+                        # Ensure silence task is cleaned up
+                        stop_silence.set()
+                        if silence_task and not silence_task.done():
+                            silence_task.cancel()
+                            try:
+                                await silence_task
+                            except asyncio.CancelledError:
+                                pass
                 except Exception as e:
                     logger.error(f"Processing error: {e}")
                     # Don't try to send error messages if connection is broken
