@@ -8,7 +8,7 @@ from wyoming.audio import AudioChunk, AudioStart, AudioStop
 from wyoming.asr import Transcript, Transcribe
 from wyoming.tts import Synthesize
 from wyoming.server import AsyncServer, AsyncEventHandler
-from wyoming.info import Describe, Info, AsrModel, AsrProgram, TtsProgram, TtsVoice, TtsVoiceSpeaker, Attribution
+from wyoming.info import Describe, Info, AsrModel, AsrProgram, Attribution
 from wyoming.event import Event
 from wyoming.ping import Ping, Pong
 from wyoming.error import Error
@@ -109,15 +109,23 @@ class CIRISWyomingHandler(AsyncEventHandler):
         if hasattr(event, 'data'):
             logger.info(f"Event.data field: {event.data}")
         
-        # For Describe events, return info immediately without initialization
-        if Describe.is_type(event.type):
+        # Check for Describe event using string comparison as backup
+        if event.type == "describe" or (hasattr(event, 'is_type') and Describe.is_type(event.type)):
             logger.info("Describe event detected, sending info response")
             logger.info(f"Info event being sent: {self.wyoming_info_event}")
             
             # Log the actual JSON that will be sent
             import json
             if hasattr(self.wyoming_info_event, 'data'):
-                logger.info(f"Info JSON: {json.dumps(self.wyoming_info_event.data, indent=2)}")
+                # Check if we're sending empty arrays that might cause issues
+                info_data = self.wyoming_info_event.data
+                logger.info(f"Info JSON: {json.dumps(info_data, indent=2)}")
+                
+                # Log which fields are present
+                logger.debug(f"Info fields present: {list(info_data.keys())}")
+                for key, value in info_data.items():
+                    if isinstance(value, list) and len(value) == 0:
+                        logger.warning(f"Info contains empty array for '{key}' - this might cause issues")
             
             try:
                 await self.write_event(self.wyoming_info_event)
