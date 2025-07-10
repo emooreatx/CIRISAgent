@@ -255,8 +255,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     ),
                     installed=True,
                     speakers=[TtsVoiceSpeaker(
-                        name="default",
-                        description="Default speaker"
+                        name="default"
                     )]
                 )]
             )]
