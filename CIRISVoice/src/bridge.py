@@ -111,8 +111,16 @@ class CIRISWyomingHandler(AsyncEventHandler):
             if hasattr(self.wyoming_info_event, 'data'):
                 logger.info(f"Info JSON: {json.dumps(self.wyoming_info_event.data, indent=2)}")
             
-            await self.write_event(self.wyoming_info_event)
-            logger.info("Info sent successfully, waiting for next event...")
+            try:
+                await self.write_event(self.wyoming_info_event)
+                logger.info("Info sent successfully, waiting for next event...")
+            except ConnectionResetError:
+                logger.warning("Connection reset by Home Assistant during info send")
+                return False
+            except Exception as e:
+                logger.error(f"Error sending info: {e}")
+                return False
+            # CRITICAL: Must return True to keep connection open!
             return True
         
         # Handle Ping events for health checks
