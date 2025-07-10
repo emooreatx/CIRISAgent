@@ -74,7 +74,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
             logger.debug(f"Info response took {time.time() - start_time:.3f}s")
             logger.debug(f"Info content: {info}")
             # Write the info event and keep connection alive
-            await self.write_event(info.event())
+            info_event = info.event()
+            logger.debug(f"Sending info event: {info_event}")
+            await self.write_event(info_event)
             logger.debug("Sent info event, keeping connection alive")
             return True  # Keep connection alive
         
@@ -168,9 +170,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 ),
                 installed=True,
                 models=[AsrModel(
-                    name="google" if self.config.stt.provider == "google" else self.config.stt.model,
+                    name="ciris-stt-v1",  # Use simple model name
                     description=f"{self.config.stt.provider} speech recognition",
-                    languages=["en"],  # Use simple language code
+                    languages=["en_US", "en"],  # Include both language formats
                     attribution=Attribution(
                         name="CIRIS AI",
                         url="https://ciris.ai"
@@ -187,9 +189,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 ),
                 installed=True,
                 voices=[TtsVoice(
-                    name=self.config.tts.voice,
+                    name="en_US-ciris-medium",  # Use simpler voice name format
                     description=f"{self.config.tts.provider} voice",
-                    languages=["en"],  # Use simple language code
+                    languages=["en_US", "en"],  # Include both formats
                     attribution=Attribution(
                         name="CIRIS AI",
                         url="https://ciris.ai"
