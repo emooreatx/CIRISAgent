@@ -73,6 +73,7 @@ class CIRISVoiceClient:
             )
             
         # Initialize SDK client with extended timeout
+        logger.debug(f"Initializing SDK with base_url={config.api_url}, api_key={'***' if config.api_key else 'None'}")
         self.client = SDKCIRISClient(
             base_url=config.api_url,
             api_key=config.api_key,
@@ -100,7 +101,23 @@ class CIRISVoiceClient:
         """
         try:
             logger.info(f"Attempting to connect to CIRIS at {self.client._transport.base_url}")
-            logger.info(f"Using auth: {'API key' if self.client._transport.api_key else 'None'}")
+            
+            # Check if we have username:password format
+            if self.client._transport.api_key and ':' in self.client._transport.api_key:
+                username, password = self.client._transport.api_key.split(':', 1)
+                logger.info(f"Using username/password auth for user: {username}")
+                
+                # Login to get token
+                try:
+                    token = await self.client.auth.login(username, password)
+                    logger.info("Successfully logged in, got access token")
+                    # Update the transport with the new token
+                    self.client._transport.set_api_key(token.access_token)
+                except Exception as e:
+                    logger.error(f"Failed to login: {e}")
+                    raise
+            else:
+                logger.info(f"Using auth: {'API key' if self.client._transport.api_key else 'None'}")
             
             # Test connection and auth
             status = await self.client.agent.get_status()

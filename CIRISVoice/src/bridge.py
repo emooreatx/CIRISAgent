@@ -6,6 +6,7 @@ from wyoming.asr import Transcript
 from wyoming.tts import Synthesize
 from wyoming.server import AsyncServer, AsyncEventHandler
 from wyoming.info import Describe, Info, AsrModel, AsrProgram, TtsProgram, TtsVoice
+from wyoming.event import Event
 
 from .config import Config
 from .stt_service import create_stt_service
@@ -37,15 +38,17 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 raise
 
     async def handle_event(self, event):
-        logger.debug(f"Received event: {type(event).__name__}")
+        logger.debug(f"Received event: {type(event).__name__}, {event}")
         
-        if isinstance(event, Describe):
-            # Initialize on describe (discovery)
+        # Initialize on first event if needed
+        if not self._initialized:
             try:
                 await self._ensure_initialized()
             except Exception as e:
-                logger.error(f"Initialization failed during discovery: {e}")
-                # Still return info even if init fails
+                logger.error(f"Initialization failed: {e}")
+                # Continue anyway - Wyoming might just be probing
+        
+        if isinstance(event, Describe):
             return self._get_info()
         elif isinstance(event, AudioStart):
             logger.debug("Audio recording started")
