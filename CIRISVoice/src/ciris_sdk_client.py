@@ -150,9 +150,10 @@ class CIRISVoiceClient:
             Dict with 'content' key containing the response text
         """
         try:
-            # Build voice-specific context
+            # Build voice-specific context with channel_id
             voice_context = {
                 "source": "wyoming_voice",
+                "channel_id": self.channel_id,  # Pass channel_id in context
                 "profile": self.profile,
                 "language": self.language,
                 "session_id": self.session_id,
@@ -166,10 +167,9 @@ class CIRISVoiceClient:
             
             logger.info(f"Sending to CIRIS: '{content[:50]}...' on channel {self.channel_id}")
             
-            # Use the SDK's agent interact method with extended timeout
+            # Use the SDK's agent interact method (without channel_id parameter)
             response = await self.client.agent.interact(
                 message=content,
-                channel_id=self.channel_id,
                 context=voice_context
             )
             
