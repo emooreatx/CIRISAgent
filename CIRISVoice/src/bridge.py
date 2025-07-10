@@ -161,50 +161,55 @@ class CIRISWyomingHandler(AsyncEventHandler):
             self.is_recording = False
             if len(self.audio_buffer) > 0:
                 try:
-                    # Send transcript first (we'll update it later)
-                    await self.write_event(Transcript(text="Processing...").event())
+                    # Don't send any events until we have actual content
+                    # Home Assistant might close connection on early Transcript
                     
-                    # Start audio stream immediately to prevent HA timeout
-                    await self.write_event(AudioStart(
-                        rate=24000,
-                        width=2,
-                        channels=1
-                    ).event())
+                    # Track total processing time
+                    total_start = asyncio.get_event_loop().time()
                     
-                    # Create a task to stream silence while we process
-                    silence_chunk = bytes(4800)  # 100ms of silence at 24kHz, 16-bit mono
-                    silence_task = None
-                    stop_silence = asyncio.Event()
+                    # Transcribe audio
+                    stt_start = asyncio.get_event_loop().time()
+                    text = await self.stt_service.transcribe(bytes(self.audio_buffer))
+                    stt_time = asyncio.get_event_loop().time() - stt_start
                     
-                    async def stream_silence():
-                        """Stream silence to keep connection alive"""
-                        while not stop_silence.is_set():
-                            if self.closed:
-                                break
-                            try:
-                                await self.write_event(AudioChunk(audio=silence_chunk).event())
-                                await asyncio.sleep(0.1)  # Send silence every 100ms
-                            except (ConnectionResetError, BrokenPipeError):
-                                break
-                    
-                    # Start streaming silence
-                    silence_task = asyncio.create_task(stream_silence())
-                    
-                    try:
-                        # Track total processing time
-                        total_start = asyncio.get_event_loop().time()
+                    if text:
+                        logger.info(f"Transcribed in {stt_time:.1f}s: {text}")
                         
-                        # Transcribe audio
-                        stt_start = asyncio.get_event_loop().time()
-                        text = await self.stt_service.transcribe(bytes(self.audio_buffer))
-                        stt_time = asyncio.get_event_loop().time() - stt_start
+                        # Send transcript event
+                        await self.write_event(Transcript(text=text).event())
                         
-                        if text:
-                            logger.info(f"Transcribed in {stt_time:.1f}s: {text}")
-                            
-                            # Update transcript with actual text
-                            await self.write_event(Transcript(text=text).event())
-                            
+                        # Immediately start audio stream to signal we're generating TTS
+                        await self.write_event(AudioStart(
+                            rate=24000,
+                            width=2,
+                            channels=1
+                        ).event())
+                        
+                        # Start streaming silence while we process
+                        silence_chunk = bytes(4800)  # 100ms of silence at 24kHz, 16-bit mono
+                        silence_task = None
+                        stop_silence = asyncio.Event()
+                        
+                        async def stream_silence():
+                            """Stream silence to keep connection alive"""
+                            while not stop_silence.is_set():
+                                if self.closed:
+                                    break
+                                try:
+                                    await self.write_event(AudioChunk(
+                                        audio=silence_chunk,
+                                        rate=24000,
+                                        width=2,
+                                        channels=1
+                                    ).event())
+                                    await asyncio.sleep(0.05)  # Send silence every 50ms
+                                except (ConnectionResetError, BrokenPipeError):
+                                    break
+                        
+                        # Start streaming silence
+                        silence_task = asyncio.create_task(stream_silence())
+                        
+                        try:
                             # Add context for CIRIS to understand this is a voice command from HA
                             enhanced_message = f"{text}\n\n[This was received via API from Home Assistant, please SPEAK to service this authorized request, thank you!]"
                             
@@ -219,75 +224,84 @@ class CIRISWyomingHandler(AsyncEventHandler):
                             # Check total elapsed time
                             total_elapsed = asyncio.get_event_loop().time() - total_start
                             logger.info(f"Total elapsed before TTS: {total_elapsed:.1f}s (STT: {stt_time:.1f}s, CIRIS: {ciris_time:.1f}s)")
-                        
+                            
                             # Only synthesize if we have a real response (not timeout message)
                             if "Still processing" not in response_text:
                                 # Synthesize the response audio
-                                try:
-                                    if self.closed:
-                                        logger.warning("Connection already closed, skipping TTS")
-                                        return True
-                                    
-                                    logger.info(f"Synthesizing TTS response: {response_text[:50]}...")
-                                    
-                                    # Synthesize audio while silence is still streaming
-                                    tts_start = asyncio.get_event_loop().time()
-                                    audio_data = await self.tts_service.synthesize(response_text)
-                                    tts_time = asyncio.get_event_loop().time() - tts_start
-                                    logger.info(f"TTS synthesis completed in {tts_time:.1f}s")
-                                    
-                                    # Stop silence streaming
-                                    stop_silence.set()
-                                    if silence_task:
-                                        await silence_task
-                                    
-                                    # Send the real audio data if connection still alive
-                                    if not self.closed:
-                                        # Split large audio into smaller chunks
-                                        chunk_size = 32768  # 32KB chunks
-                                        for i in range(0, len(audio_data), chunk_size):
-                                            if self.closed:
-                                                logger.warning("Connection closed during audio streaming")
-                                                break
-                                            chunk = audio_data[i:i+chunk_size]
-                                            await self.write_event(AudioChunk(audio=chunk).event())
-                                        
-                                        if not self.closed:
-                                            await self.write_event(AudioStop().event())
-                                            total_time = asyncio.get_event_loop().time() - total_start
-                                            logger.info(f"TTS audio sent successfully. Total time: {total_time:.1f}s")
-                                    else:
-                                        logger.warning("Connection closed before audio data could be sent")
-                                except (ConnectionResetError, BrokenPipeError) as e:
-                                    logger.warning(f"Connection lost during TTS: {e}")
-                                except Exception as tts_error:
-                                    logger.error(f"TTS synthesis failed: {tts_error}")
-                            else:
-                                # For timeout messages, send a shorter response
-                                logger.info("CIRIS timed out, sending brief error response")
-                                try:
-                                    brief_response = "I need more time to process that request."
-                                    audio_data = await self.tts_service.synthesize(brief_response)
-                                    
-                                    # Stop silence streaming
-                                    stop_silence.set()
-                                    if silence_task:
-                                        await silence_task
+                                if self.closed:
+                                    logger.warning("Connection already closed, skipping TTS")
+                                    return True
+                                
+                                logger.info(f"Synthesizing TTS response: {response_text[:50]}...")
+                                
+                                # Synthesize audio while silence is still streaming
+                                tts_start = asyncio.get_event_loop().time()
+                                audio_data = await self.tts_service.synthesize(response_text)
+                                tts_time = asyncio.get_event_loop().time() - tts_start
+                                logger.info(f"TTS synthesis completed in {tts_time:.1f}s")
+                                
+                                # Stop silence streaming
+                                stop_silence.set()
+                                if silence_task:
+                                    await silence_task
+                                
+                                # Send the real audio data if connection still alive
+                                if not self.closed:
+                                    # Send audio in chunks
+                                    chunk_size = 4800  # 100ms chunks at 24kHz
+                                    for i in range(0, len(audio_data), chunk_size):
+                                        if self.closed:
+                                            logger.warning("Connection closed during audio streaming")
+                                            break
+                                        chunk = audio_data[i:i+chunk_size]
+                                        await self.write_event(AudioChunk(
+                                            audio=chunk,
+                                            rate=24000,
+                                            width=2,
+                                            channels=1
+                                        ).event())
                                     
                                     if not self.closed:
-                                        await self.write_event(AudioChunk(audio=audio_data).event())
                                         await self.write_event(AudioStop().event())
-                                except (ConnectionResetError, BrokenPipeError):
-                                    logger.warning("Connection lost while sending timeout response")
-                    finally:
-                        # Ensure silence task is cleaned up
-                        stop_silence.set()
-                        if silence_task and not silence_task.done():
-                            silence_task.cancel()
-                            try:
-                                await silence_task
-                            except asyncio.CancelledError:
-                                pass
+                                        total_time = asyncio.get_event_loop().time() - total_start
+                                        logger.info(f"TTS audio sent successfully. Total time: {total_time:.1f}s")
+                                else:
+                                    logger.warning("Connection closed before audio data could be sent")
+                            else:
+                                # For timeout messages, send a brief response
+                                logger.info("CIRIS timed out, sending brief error response")
+                                brief_response = "I need more time to process that request."
+                                audio_data = await self.tts_service.synthesize(brief_response)
+                                
+                                # Stop silence streaming
+                                stop_silence.set()
+                                if silence_task:
+                                    await silence_task
+                                
+                                if not self.closed:
+                                    # Send audio in chunks
+                                    chunk_size = 4800
+                                    for i in range(0, len(audio_data), chunk_size):
+                                        if self.closed:
+                                            break
+                                        chunk = audio_data[i:i+chunk_size]
+                                        await self.write_event(AudioChunk(
+                                            audio=chunk,
+                                            rate=24000,
+                                            width=2,
+                                            channels=1
+                                        ).event())
+                                    await self.write_event(AudioStop().event())
+                                    
+                        finally:
+                            # Ensure silence task is cleaned up
+                            stop_silence.set()
+                            if silence_task and not silence_task.done():
+                                silence_task.cancel()
+                                try:
+                                    await silence_task
+                                except asyncio.CancelledError:
+                                    pass
                 except Exception as e:
                     logger.error(f"Processing error: {e}")
                     # Don't try to send error messages if connection is broken
