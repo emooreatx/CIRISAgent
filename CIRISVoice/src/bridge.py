@@ -183,83 +183,24 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     if text:
                         logger.info(f"Transcribed in {stt_time:.1f}s: {text}")
                         
-                        # Send transcript event
-                        await self.write_event(Transcript(text=text).event())
+                        # Process through CIRIS before sending transcript
+                        logger.info("Processing transcript through CIRIS...")
                         
-                        # Don't wait for Synthesize - process immediately
-                        # This handles the case where HA doesn't send Synthesize back
-                        logger.info("Processing transcript through CIRIS immediately...")
+                        # Add context for CIRIS
+                        enhanced_message = f"{text}\n\n[This was received via API from Home Assistant, please SPEAK to service this authorized request, thank you!]"
                         
-                        # Start audio stream
-                        await self.write_event(AudioStart(
-                            rate=24000,
-                            width=2,
-                            channels=1
-                        ).event())
+                        # Send to CIRIS
+                        ciris_start = asyncio.get_event_loop().time()
+                        response = await self.ciris_client.send_message(enhanced_message)
+                        ciris_time = asyncio.get_event_loop().time() - ciris_start
                         
-                        # Stream silence while processing
-                        silence_chunk = bytes(4800)  # 100ms of silence at 24kHz
-                        stop_silence = asyncio.Event()
+                        response_text = response.get("content", "I didn't understand that.")
+                        logger.info(f"CIRIS responded in {ciris_time:.1f}s: {response_text[:50]}...")
                         
-                        async def stream_silence():
-                            while not stop_silence.is_set() and not self.closed:
-                                try:
-                                    await self.write_event(AudioChunk(
-                                        audio=silence_chunk,
-                                        rate=24000,
-                                        width=2,
-                                        channels=1
-                                    ).event())
-                                    await asyncio.sleep(0.05)
-                                except (ConnectionResetError, BrokenPipeError):
-                                    break
-                        
-                        silence_task = asyncio.create_task(stream_silence())
-                        
-                        try:
-                            # Add context for CIRIS
-                            enhanced_message = f"{text}\n\n[This was received via API from Home Assistant, please SPEAK to service this authorized request, thank you!]"
-                            
-                            # Send to CIRIS
-                            ciris_start = asyncio.get_event_loop().time()
-                            response = await self.ciris_client.send_message(enhanced_message)
-                            ciris_time = asyncio.get_event_loop().time() - ciris_start
-                            
-                            response_text = response.get("content", "I didn't understand that.")
-                            logger.info(f"CIRIS responded in {ciris_time:.1f}s: {response_text[:50]}...")
-                            
-                            # Stop silence
-                            stop_silence.set()
-                            await silence_task
-                            
-                            # Synthesize CIRIS response
-                            if not self.closed:
-                                audio_data = await self.tts_service.synthesize(response_text)
-                                
-                                # Send audio chunks
-                                chunk_size = 4800
-                                for i in range(0, len(audio_data), chunk_size):
-                                    if self.closed:
-                                        break
-                                    chunk = audio_data[i:i+chunk_size]
-                                    await self.write_event(AudioChunk(
-                                        audio=chunk,
-                                        rate=24000,
-                                        width=2,
-                                        channels=1
-                                    ).event())
-                                
-                                await self.write_event(AudioStop().event())
-                                logger.info("Successfully sent CIRIS response as audio")
-                                
-                        finally:
-                            stop_silence.set()
-                            if not silence_task.done():
-                                silence_task.cancel()
-                                try:
-                                    await silence_task
-                                except asyncio.CancelledError:
-                                    pass
+                        # Send CIRIS response as the transcript
+                        # Home Assistant will pass this to its configured TTS
+                        await self.write_event(Transcript(text=response_text).event())
+                        logger.info(f"Sent CIRIS response as transcript for TTS")
                 except Exception as e:
                     logger.error(f"Processing error: {e}")
                     # Don't try to send error messages if connection is broken
@@ -389,11 +330,11 @@ class CIRISWyomingHandler(AsyncEventHandler):
         return True  # Keep connection alive even for unknown events
 
     def _get_info(self):
-        # Advertise both STT and TTS capabilities
+        # Advertise STT-only capability
         return Info(
             asr=[AsrProgram(
                 name="ciris-stt",
-                description=f"CIRIS STT using {self.config.stt.provider}",
+                description=f"CIRIS AI Assistant using {self.config.stt.provider} STT",
                 attribution=Attribution(
                     name="CIRIS AI",
                     url="https://ciris.ai"
@@ -401,35 +342,13 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 installed=True,
                 models=[AsrModel(
                     name="ciris-stt-v1",
-                    description=f"{self.config.stt.provider} speech recognition",
+                    description=f"CIRIS AI with {self.config.stt.provider} speech recognition",
                     languages=["en_US", "en"],
                     attribution=Attribution(
                         name="CIRIS AI",
                         url="https://ciris.ai"
                     ),
                     installed=True
-                )]
-            )],
-            tts=[TtsProgram(
-                name="ciris-tts",
-                description=f"CIRIS TTS using {self.config.tts.provider}",
-                attribution=Attribution(
-                    name="CIRIS AI",
-                    url="https://ciris.ai"
-                ),
-                installed=True,
-                voices=[TtsVoice(
-                    name=self.config.tts.voice if hasattr(self.config.tts, 'voice') else "default",
-                    description=f"{self.config.tts.provider} voice synthesis",
-                    languages=["en_US", "en"],
-                    attribution=Attribution(
-                        name="CIRIS AI",
-                        url="https://ciris.ai"
-                    ),
-                    installed=True,
-                    speakers=[TtsVoiceSpeaker(
-                        name="default"
-                    )]
                 )]
             )]
         )
