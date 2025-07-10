@@ -3,7 +3,7 @@ import logging
 import sys
 from typing import Optional
 from wyoming.audio import AudioChunk, AudioStart, AudioStop
-from wyoming.asr import Transcript
+from wyoming.asr import Transcript, Transcribe
 from wyoming.tts import Synthesize
 from wyoming.server import AsyncServer, AsyncEventHandler
 from wyoming.info import Describe, Info, AsrModel, AsrProgram, TtsProgram, TtsVoice, Attribution
@@ -30,6 +30,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
         self._initialized = False
         self._connection_info = writer.get_extra_info('peername')
         logger.info(f"Handler created for connection from {self._connection_info}")
+        
+        # Pre-create wyoming info event like faster-whisper does
+        self.wyoming_info_event = self._get_info().event()
     
     @property
     def closed(self):
@@ -68,20 +71,13 @@ class CIRISWyomingHandler(AsyncEventHandler):
             logger.debug(f"Event.data: {event.data}")
         
         # For Describe events, return info immediately without initialization
-        if isinstance(event, Describe) or (hasattr(event, 'type') and event.type == 'describe'):
-            logger.info("Returning Wyoming info for discovery")
-            info = self._get_info()
-            logger.debug(f"Info response took {time.time() - start_time:.3f}s")
-            logger.debug(f"Info content: {info}")
-            # Write the info event and keep connection alive
-            info_event = info.event()
-            logger.debug(f"Sending info event: {info_event}")
-            await self.write_event(info_event)
-            logger.debug("Sent info event, keeping connection alive")
-            return True  # Keep connection alive
+        if Describe.is_type(event.type):
+            await self.write_event(self.wyoming_info_event)
+            logger.debug("Sent info")
+            return True
         
         # Handle Ping events for health checks
-        if isinstance(event, Ping):
+        if Ping.is_type(event.type):
             logger.debug("Received ping, sending pong")
             await self.write_event(Pong().event())
             return True
@@ -94,18 +90,26 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 logger.error(f"Initialization failed: {e}", exc_info=True)
                 # Continue anyway - Wyoming might just be probing
         
-        if isinstance(event, AudioStart):
+        if Transcribe.is_type(event.type):
+            # Wyoming might send language preference
+            transcribe = Transcribe.from_event(event)
+            if transcribe.language:
+                logger.debug(f"Language set to {transcribe.language}")
+            return True
+        
+        if AudioStart.is_type(event.type):
             logger.debug("Audio recording started")
             self.is_recording = True
             self.audio_buffer = bytearray()
             return True
         
-        if isinstance(event, AudioChunk):
+        if AudioChunk.is_type(event.type):
+            chunk = AudioChunk.from_event(event)
             if self.is_recording:
-                self.audio_buffer.extend(event.audio)
+                self.audio_buffer.extend(chunk.audio)
             return True
         
-        if isinstance(event, AudioStop):
+        if AudioStop.is_type(event.type):
             logger.debug("Audio recording stopped")
             self.is_recording = False
             if len(self.audio_buffer) > 0:
@@ -135,9 +139,10 @@ class CIRISWyomingHandler(AsyncEventHandler):
             self.audio_buffer = bytearray()
             return True
         
-        if isinstance(event, Synthesize):
+        if Synthesize.is_type(event.type):
+            synthesize = Synthesize.from_event(event)
             try:
-                audio_data = await self.tts_service.synthesize(event.text)
+                audio_data = await self.tts_service.synthesize(synthesize.text)
                 # Send audio events for Wyoming
                 await self.write_event(AudioStart(
                     rate=24000,
@@ -150,8 +155,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 logger.error(f"TTS error: {e}")
             return True
         
-        if isinstance(event, Transcript):
-            response = await self.ciris_client.send_message(event.text)
+        if Transcript.is_type(event.type):
+            transcript = Transcript.from_event(event)
+            response = await self.ciris_client.send_message(transcript.text)
             await self.write_event(Synthesize(text=response.get("content", "Processing error")).event())
             return True
         
