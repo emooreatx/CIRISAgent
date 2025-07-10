@@ -66,8 +66,15 @@ else
     # Copy only what we need
     print_status "Setting up addon structure..."
     mkdir -p $ADDON_NAME
-    cp -r temp/CIRISVoice $ADDON_NAME/
-    cp -r temp/CIRISVoice/docker-addon/* $ADDON_NAME/
+    
+    # Copy the Python application files
+    cp -r temp/CIRISVoice/src $ADDON_NAME/
+    cp temp/CIRISVoice/requirements.txt $ADDON_NAME/
+    cp temp/CIRISVoice/config.example.yaml $ADDON_NAME/
+    
+    # Copy the addon Docker files
+    cp temp/CIRISVoice/docker-addon/* $ADDON_NAME/
+    
     rm -rf temp
 fi
 
