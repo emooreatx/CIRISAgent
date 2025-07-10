@@ -160,6 +160,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
         return True  # Keep connection alive even for unknown events
 
     def _get_info(self):
+        # Try STT-only to match wyoming-faster-whisper
         return Info(
             asr=[AsrProgram(
                 name="ciris-stt",
@@ -170,28 +171,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 ),
                 installed=True,
                 models=[AsrModel(
-                    name="ciris-stt-v1",  # Use simple model name
+                    name="ciris-stt-v1",
                     description=f"{self.config.stt.provider} speech recognition",
-                    languages=["en_US", "en"],  # Include both language formats
-                    attribution=Attribution(
-                        name="CIRIS AI",
-                        url="https://ciris.ai"
-                    ),
-                    installed=True
-                )]
-            )],
-            tts=[TtsProgram(
-                name="ciris-tts",
-                description=f"CIRIS TTS using {self.config.tts.provider}",
-                attribution=Attribution(
-                    name="CIRIS AI",
-                    url="https://ciris.ai"
-                ),
-                installed=True,
-                voices=[TtsVoice(
-                    name="en_US-ciris-medium",  # Use simpler voice name format
-                    description=f"{self.config.tts.provider} voice",
-                    languages=["en_US", "en"],  # Include both formats
+                    languages=["en_US", "en"],
                     attribution=Attribution(
                         name="CIRIS AI",
                         url="https://ciris.ai"
