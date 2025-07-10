@@ -37,7 +37,15 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 raise
 
     async def handle_event(self, event):
+        logger.debug(f"Received event: {type(event).__name__}")
+        
         if isinstance(event, Describe):
+            # Initialize on describe (discovery)
+            try:
+                await self._ensure_initialized()
+            except Exception as e:
+                logger.error(f"Initialization failed during discovery: {e}")
+                # Still return info even if init fails
             return self._get_info()
         elif isinstance(event, AudioStart):
             logger.debug("Audio recording started")
@@ -120,7 +128,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
 
 async def main():
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,  # Use DEBUG to see all events
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
