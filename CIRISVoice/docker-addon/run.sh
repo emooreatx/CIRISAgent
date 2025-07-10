@@ -34,19 +34,30 @@ if [[ "${STT_PROVIDER}" == "openai" ]] || [[ "${TTS_PROVIDER}" == "openai" ]]; t
 fi
 
 if [[ "${STT_PROVIDER}" == "google" ]] || [[ "${TTS_PROVIDER}" == "google" ]]; then
-    # Check multiple possible locations for the Google Cloud key
-    if [ -f "/config/google_cloud_key.json" ]; then
-        export GOOGLE_APPLICATION_CREDENTIALS="/config/google_cloud_key.json"
-        bashio::log.info "Found Google Cloud key at /config/google_cloud_key.json"
-    elif [ -f "/data/google_cloud_key.json" ]; then
+    # Check if Google Cloud key is provided in config
+    GOOGLE_KEY_JSON=$(bashio::config 'google_cloud_key' || echo "")
+    
+    if [ -n "${GOOGLE_KEY_JSON}" ]; then
+        # Save the key to a file
+        echo "${GOOGLE_KEY_JSON}" > /data/google_cloud_key.json
         export GOOGLE_APPLICATION_CREDENTIALS="/data/google_cloud_key.json"
-        bashio::log.info "Found Google Cloud key at /data/google_cloud_key.json"
-    elif [ -f "/ssl/google_cloud_key.json" ]; then
-        export GOOGLE_APPLICATION_CREDENTIALS="/ssl/google_cloud_key.json"
-        bashio::log.info "Found Google Cloud key at /ssl/google_cloud_key.json"
+        bashio::log.info "Using Google Cloud key from addon configuration"
     else
-        bashio::log.warning "Google Cloud key not found! Checked /config, /data, and /ssl"
-        bashio::log.warning "Please place google_cloud_key.json in one of these locations"
+        # Check multiple possible locations for the Google Cloud key file
+        if [ -f "/config/google_cloud_key.json" ]; then
+            export GOOGLE_APPLICATION_CREDENTIALS="/config/google_cloud_key.json"
+            bashio::log.info "Found Google Cloud key at /config/google_cloud_key.json"
+        elif [ -f "/data/google_cloud_key.json" ]; then
+            export GOOGLE_APPLICATION_CREDENTIALS="/data/google_cloud_key.json"
+            bashio::log.info "Found Google Cloud key at /data/google_cloud_key.json"
+        elif [ -f "/ssl/google_cloud_key.json" ]; then
+            export GOOGLE_APPLICATION_CREDENTIALS="/ssl/google_cloud_key.json"
+            bashio::log.info "Found Google Cloud key at /ssl/google_cloud_key.json"
+        else
+            bashio::log.warning "Google Cloud key not found! Checked /config, /data, and /ssl"
+            bashio::log.warning "Please place google_cloud_key.json in one of these locations"
+            bashio::log.warning "OR paste the JSON content in the addon configuration"
+        fi
     fi
 fi
 

@@ -30,6 +30,7 @@ schema:
   tts_provider: list(openai|google|local)  
   tts_voice: str
   log_level: list(DEBUG|INFO|WARNING|ERROR)
+  google_cloud_key: str?
 environment:
   PYTHONUNBUFFERED: "1"
 hassio_api: true
