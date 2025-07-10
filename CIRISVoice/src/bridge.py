@@ -183,27 +183,50 @@ class CIRISWyomingHandler(AsyncEventHandler):
                         # Send transcript event
                         await self.write_event(Transcript(text=text).event())
                         
-                        # Synthesize the response audio ourselves
-                        try:
-                            logger.info(f"Synthesizing TTS response: {response_text[:50]}...")
-                            audio_data = await self.tts_service.synthesize(response_text)
-                            
-                            # Send audio events with the synthesized speech
-                            await self.write_event(AudioStart(
-                                rate=24000,
-                                width=2,
-                                channels=1
-                            ).event())
-                            await self.write_event(AudioChunk(audio=audio_data).event())
-                            await self.write_event(AudioStop().event())
-                            logger.info("TTS audio sent successfully")
-                        except Exception as tts_error:
-                            logger.error(f"TTS synthesis failed: {tts_error}")
-                            # Fall back to error message
-                            await self.write_event(Synthesize(text="I'm having trouble with speech synthesis.").event())
+                        # Only synthesize if we have a real response (not timeout message)
+                        if "Still processing" not in response_text:
+                            # Synthesize the response audio ourselves
+                            try:
+                                logger.info(f"Synthesizing TTS response: {response_text[:50]}...")
+                                audio_data = await self.tts_service.synthesize(response_text)
+                                
+                                # Check if connection is still alive before sending
+                                if not self.closed:
+                                    # Send audio events with the synthesized speech
+                                    await self.write_event(AudioStart(
+                                        rate=24000,
+                                        width=2,
+                                        channels=1
+                                    ).event())
+                                    await self.write_event(AudioChunk(audio=audio_data).event())
+                                    await self.write_event(AudioStop().event())
+                                    logger.info("TTS audio sent successfully")
+                                else:
+                                    logger.warning("Connection closed before TTS could be sent")
+                            except (ConnectionResetError, BrokenPipeError) as e:
+                                logger.warning(f"Connection lost during TTS: {e}")
+                            except Exception as tts_error:
+                                logger.error(f"TTS synthesis failed: {tts_error}")
+                        else:
+                            # For timeout messages, send a shorter response
+                            logger.info("CIRIS timed out, sending brief error response")
+                            try:
+                                brief_response = "I need more time to process that request."
+                                audio_data = await self.tts_service.synthesize(brief_response)
+                                if not self.closed:
+                                    await self.write_event(AudioStart(rate=24000, width=2, channels=1).event())
+                                    await self.write_event(AudioChunk(audio=audio_data).event())
+                                    await self.write_event(AudioStop().event())
+                            except (ConnectionResetError, BrokenPipeError):
+                                logger.warning("Connection lost while sending timeout response")
                 except Exception as e:
                     logger.error(f"Processing error: {e}")
-                    await self.write_event(Synthesize(text="I encountered an error processing your request.").event())
+                    # Don't try to send error messages if connection is broken
+                    if not isinstance(e, (ConnectionResetError, BrokenPipeError)):
+                        try:
+                            await self.write_event(Synthesize(text="I encountered an error processing your request.").event())
+                        except (ConnectionResetError, BrokenPipeError):
+                            logger.warning("Connection lost while sending error message")
             self.audio_buffer = bytearray()
             return True
         

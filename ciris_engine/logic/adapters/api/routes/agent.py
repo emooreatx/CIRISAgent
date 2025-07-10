@@ -155,7 +155,7 @@ async def interact(
         raise HTTPException(status_code=503, detail="Message handler not configured")
 
     # Get timeout from config or use default
-    timeout = 5.0  # default reduced from 30s
+    timeout = 55.0  # default timeout for longer processing
     if hasattr(request.app.state, 'api_config'):
         timeout = request.app.state.api_config.interaction_timeout
     
