@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import sys
 from typing import Optional
 from wyoming.audio import AudioChunk, AudioStart, AudioStop
 from wyoming.asr import Transcript
@@ -56,7 +57,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
             try:
                 await self._ensure_initialized()
             except Exception as e:
-                logger.error(f"Initialization failed: {e}")
+                logger.error(f"Initialization failed: {e}", exc_info=True)
                 # Continue anyway - Wyoming might just be probing
         elif isinstance(event, AudioStart):
             logger.debug("Audio recording started")
@@ -92,7 +93,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
                         ]
                 except Exception as e:
                     logger.error(f"Processing error: {e}")
-                    return Synthesize(text="I encountered an error processing your request.")
+                    return [Synthesize(text="I encountered an error processing your request.")]
             self.audio_buffer = bytearray()
         elif isinstance(event, Synthesize):
             try:
@@ -109,11 +110,16 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 ]
             except Exception as e:
                 logger.error(f"TTS error: {e}")
-                return None
+                return []
         elif isinstance(event, Transcript):
             response = await self.ciris_client.send_message(event.text)
-            return Synthesize(text=response.get("content", "Processing error"))
-        return None
+            return [Synthesize(text=response.get("content", "Processing error"))]
+        else:
+            # Log unknown event types
+            logger.warning(f"Unhandled event type: {type(event).__name__}")
+        
+        # Return empty list for unhandled events (Wyoming protocol expects a list)
+        return []
 
     def _get_info(self):
         return Info(
@@ -156,6 +162,7 @@ async def main():
     
     # Create handler factory
     def handler_factory(reader, writer):
+        logger.info(f"New connection from {writer.get_extra_info('peername')}")
         return CIRISWyomingHandler(reader, writer, config)
     
     # Create and run server
@@ -167,9 +174,21 @@ async def main():
     try:
         await server.run(handler_factory)
     except KeyboardInterrupt:
-        logger.info("Shutting down...")
+        logger.info("Shutting down due to keyboard interrupt")
+    except Exception as e:
+        logger.error(f"Server error: {e}", exc_info=True)
     finally:
         logger.info("Server stopped")
 
 if __name__ == "__main__":
+    import signal
+    
+    # Handle SIGTERM gracefully
+    def signal_handler(sig, frame):
+        logger.info(f"Received signal {sig}, shutting down gracefully...")
+        sys.exit(0)
+    
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    
     asyncio.run(main())
