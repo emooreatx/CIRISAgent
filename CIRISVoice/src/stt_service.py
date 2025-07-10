@@ -82,9 +82,14 @@ class GoogleSTTService(STTService):
         self.api_url = "https://speech.googleapis.com/v1/speech:recognize"
 
     async def transcribe(self, audio_data: bytes, format: str = "wav") -> Optional[str]:
-        # Refresh token if needed
-        if self.credentials.expired:
+        # Import here to avoid dependency at module level
+        from google.auth.transport.requests import Request
+        
+        # Refresh token if needed or if we don't have one yet
+        if not self.credentials.token or (self.credentials.expired is not None and self.credentials.expired):
+            logger.info("Refreshing Google credentials token...")
             self.credentials.refresh(Request())
+            logger.info(f"Token refreshed, expires at: {self.credentials.expiry}")
             
         async with aiohttp.ClientSession() as session:
             headers = {
