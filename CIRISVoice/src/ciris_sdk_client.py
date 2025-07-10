@@ -99,6 +99,9 @@ class CIRISVoiceClient:
         this would handle login.
         """
         try:
+            logger.info(f"Attempting to connect to CIRIS at {self.client._transport.base_url}")
+            logger.info(f"Using auth: {'API key' if self.client._transport.api_key else 'None'}")
+            
             # Test connection and auth
             status = await self.client.agent.get_status()
             logger.info(f"Connected to CIRIS agent: {status.name} (state: {status.cognitive_state})")
@@ -109,6 +112,10 @@ class CIRISVoiceClient:
             
         except CIRISError as e:
             logger.error(f"Failed to initialize CIRIS client: {e}")
+            logger.error(f"Error details: {type(e).__name__}: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error initializing CIRIS: {type(e).__name__}: {str(e)}")
             raise
     
     async def send_message(self, content: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

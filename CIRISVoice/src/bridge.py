@@ -23,6 +23,18 @@ class CIRISWyomingHandler(AsyncEventHandler):
         self.ciris_client = CIRISClient(self.config.ciris)
         self.audio_buffer = bytearray()
         self.is_recording = False
+        self._initialized = False
+
+    async def _ensure_initialized(self):
+        """Initialize CIRIS client on first use."""
+        if not self._initialized:
+            try:
+                await self.ciris_client.voice_client.initialize()
+                self._initialized = True
+                logger.info("CIRIS client initialized successfully")
+            except Exception as e:
+                logger.error(f"Failed to initialize CIRIS client: {e}")
+                raise
 
     async def handle_event(self, event):
         if isinstance(event, Describe):
