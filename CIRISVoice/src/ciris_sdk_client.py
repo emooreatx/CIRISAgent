@@ -100,6 +100,9 @@ class CIRISVoiceClient:
         this would handle login.
         """
         try:
+            # Start the transport
+            await self.client.__aenter__()
+            
             logger.info(f"Attempting to connect to CIRIS at {self.client._transport.base_url}")
             
             # Check if we have username:password format
@@ -261,8 +264,11 @@ class CIRISVoiceClient:
         """
         Close the client and clean up resources.
         """
-        await self.end_session()
-        await self.client.close()
+        try:
+            await self.client.__aexit__(None, None, None)
+            logger.info("CIRIS client closed successfully")
+        except Exception as e:
+            logger.error(f"Error closing CIRIS client: {e}")
         logger.info("CIRIS Voice Client closed")
 
 
