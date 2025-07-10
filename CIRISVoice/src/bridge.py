@@ -32,6 +32,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
         self._initialized = False
         self._connection_info = writer.get_extra_info('peername')
         self.last_transcript = None  # Store last transcript for Synthesize event
+        self._expecting_synthesize = False  # Track if we're waiting for Synthesize
         logger.info(f"Handler created for connection from {self._connection_info}")
         
         # Pre-create wyoming info event like faster-whisper does
@@ -48,6 +49,12 @@ class CIRISWyomingHandler(AsyncEventHandler):
         logger.info(f"Connection closed from {self._connection_info}")
         logger.info(f"Total events received: {getattr(self, '_event_count', 0)}")
         logger.info(f"Handler initialized: {self._initialized}")
+        
+        # Log if we were expecting a Synthesize event
+        if self._expecting_synthesize:
+            logger.warning("Connection closed while waiting for Synthesize event!")
+            logger.warning("This suggests Home Assistant is not sending TTS to this bridge.")
+            logger.warning("Check Home Assistant voice pipeline configuration.")
         
         # Log if connection was closed by remote
         if hasattr(self.writer, 'is_closing'):
@@ -176,12 +183,83 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     if text:
                         logger.info(f"Transcribed in {stt_time:.1f}s: {text}")
                         
-                        # Store the transcribed text for later use
-                        self.last_transcript = text
-                        
-                        # Send transcript event - Home Assistant will process it and send back Synthesize
+                        # Send transcript event
                         await self.write_event(Transcript(text=text).event())
-                        logger.info("Sent transcript to Home Assistant, waiting for Synthesize event...")
+                        
+                        # Don't wait for Synthesize - process immediately
+                        # This handles the case where HA doesn't send Synthesize back
+                        logger.info("Processing transcript through CIRIS immediately...")
+                        
+                        # Start audio stream
+                        await self.write_event(AudioStart(
+                            rate=24000,
+                            width=2,
+                            channels=1
+                        ).event())
+                        
+                        # Stream silence while processing
+                        silence_chunk = bytes(4800)  # 100ms of silence at 24kHz
+                        stop_silence = asyncio.Event()
+                        
+                        async def stream_silence():
+                            while not stop_silence.is_set() and not self.closed:
+                                try:
+                                    await self.write_event(AudioChunk(
+                                        audio=silence_chunk,
+                                        rate=24000,
+                                        width=2,
+                                        channels=1
+                                    ).event())
+                                    await asyncio.sleep(0.05)
+                                except (ConnectionResetError, BrokenPipeError):
+                                    break
+                        
+                        silence_task = asyncio.create_task(stream_silence())
+                        
+                        try:
+                            # Add context for CIRIS
+                            enhanced_message = f"{text}\n\n[This was received via API from Home Assistant, please SPEAK to service this authorized request, thank you!]"
+                            
+                            # Send to CIRIS
+                            ciris_start = asyncio.get_event_loop().time()
+                            response = await self.ciris_client.send_message(enhanced_message)
+                            ciris_time = asyncio.get_event_loop().time() - ciris_start
+                            
+                            response_text = response.get("content", "I didn't understand that.")
+                            logger.info(f"CIRIS responded in {ciris_time:.1f}s: {response_text[:50]}...")
+                            
+                            # Stop silence
+                            stop_silence.set()
+                            await silence_task
+                            
+                            # Synthesize CIRIS response
+                            if not self.closed:
+                                audio_data = await self.tts_service.synthesize(response_text)
+                                
+                                # Send audio chunks
+                                chunk_size = 4800
+                                for i in range(0, len(audio_data), chunk_size):
+                                    if self.closed:
+                                        break
+                                    chunk = audio_data[i:i+chunk_size]
+                                    await self.write_event(AudioChunk(
+                                        audio=chunk,
+                                        rate=24000,
+                                        width=2,
+                                        channels=1
+                                    ).event())
+                                
+                                await self.write_event(AudioStop().event())
+                                logger.info("Successfully sent CIRIS response as audio")
+                                
+                        finally:
+                            stop_silence.set()
+                            if not silence_task.done():
+                                silence_task.cancel()
+                                try:
+                                    await silence_task
+                                except asyncio.CancelledError:
+                                    pass
                 except Exception as e:
                     logger.error(f"Processing error: {e}")
                     # Don't try to send error messages if connection is broken
