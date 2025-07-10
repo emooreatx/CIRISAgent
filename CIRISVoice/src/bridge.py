@@ -6,7 +6,7 @@ from wyoming.audio import AudioChunk, AudioStart, AudioStop
 from wyoming.asr import Transcript
 from wyoming.tts import Synthesize
 from wyoming.server import AsyncServer, AsyncEventHandler
-from wyoming.info import Describe, Info, AsrModel, AsrProgram, TtsProgram, TtsVoice
+from wyoming.info import Describe, Info, AsrModel, AsrProgram, TtsProgram, TtsVoice, Attribution
 from wyoming.event import Event
 from wyoming.ping import Ping, Pong
 from wyoming.error import Error
@@ -150,26 +150,38 @@ class CIRISWyomingHandler(AsyncEventHandler):
             asr=[AsrProgram(
                 name="ciris-stt",
                 description=f"CIRIS STT using {self.config.stt.provider}",
-                attribution="CIRIS AI",
+                attribution=Attribution(
+                    name="CIRIS AI",
+                    url="https://ciris.ai"
+                ),
                 installed=True,
                 models=[AsrModel(
                     name=self.config.stt.model,
                     description=f"{self.config.stt.provider} speech recognition",
                     languages=[self.config.stt.language],
-                    attribution="CIRIS AI",
+                    attribution=Attribution(
+                        name="CIRIS AI",
+                        url="https://ciris.ai"
+                    ),
                     installed=True
                 )]
             )],
             tts=[TtsProgram(
                 name="ciris-tts",
                 description=f"CIRIS TTS using {self.config.tts.provider}",
-                attribution="CIRIS AI",
+                attribution=Attribution(
+                    name="CIRIS AI",
+                    url="https://ciris.ai"
+                ),
                 installed=True,
                 voices=[TtsVoice(
                     name=self.config.tts.voice,
                     description=f"{self.config.tts.provider} voice",
                     languages=["en-US"],
-                    attribution="CIRIS AI",
+                    attribution=Attribution(
+                        name="CIRIS AI",
+                        url="https://ciris.ai"
+                    ),
                     installed=True
                 )]
             )]
