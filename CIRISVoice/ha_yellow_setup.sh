@@ -56,24 +56,58 @@ if [ -d "/addons/$ADDON_NAME" ]; then
         print_status "Backed up existing config to config.yaml.backup"
     fi
     
-    # Pull latest changes
-    git pull origin $BRANCH
-else
-    print_status "Cloning CIRIS repository..."
+    # Re-clone to get latest
     cd /addons
-    git clone $REPO_URL temp
+    rm -rf temp 2>/dev/null || true
+    print_status "Cloning latest CIRIS repository..."
+    git clone --depth 1 $REPO_URL temp || {
+        print_error "Failed to clone repository"
+        exit 1
+    }
     
-    # Copy only what we need
+    # Copy updated files
+    if [ -d "temp/CIRISVoice" ]; then
+        cp -r temp/CIRISVoice/src $ADDON_NAME/ 2>/dev/null || print_warning "No src directory found"
+        cp temp/CIRISVoice/requirements.txt $ADDON_NAME/ 2>/dev/null || print_warning "No requirements.txt found"
+        cp temp/CIRISVoice/config.example.yaml $ADDON_NAME/ 2>/dev/null || print_warning "No config.example.yaml found"
+        cp temp/CIRISVoice/docker-addon/* $ADDON_NAME/ 2>/dev/null || print_warning "No docker-addon files found"
+    else
+        print_error "CIRISVoice directory not found in repository!"
+        print_warning "Repository structure:"
+        ls -la temp/
+    fi
+    
+    rm -rf temp
+else
+    print_status "Creating addon directory..."
+    mkdir -p /addons/$ADDON_NAME
+    cd /addons
+    
+    print_status "Cloning CIRIS repository..."
+    git clone --depth 1 $REPO_URL temp || {
+        print_error "Failed to clone repository"
+        exit 1
+    }
+    
+    # Copy what we need
     print_status "Setting up addon structure..."
-    mkdir -p $ADDON_NAME
     
-    # Copy the Python application files
-    cp -r temp/CIRISVoice/src $ADDON_NAME/
-    cp temp/CIRISVoice/requirements.txt $ADDON_NAME/
-    cp temp/CIRISVoice/config.example.yaml $ADDON_NAME/
-    
-    # Copy the addon Docker files
-    cp temp/CIRISVoice/docker-addon/* $ADDON_NAME/
+    if [ -d "temp/CIRISVoice" ]; then
+        # Copy the Python application files
+        cp -r temp/CIRISVoice/src $ADDON_NAME/ 2>/dev/null || print_warning "No src directory found"
+        cp temp/CIRISVoice/requirements.txt $ADDON_NAME/ 2>/dev/null || print_warning "No requirements.txt found"
+        cp temp/CIRISVoice/config.example.yaml $ADDON_NAME/ 2>/dev/null || print_warning "No config.example.yaml found"
+        
+        # Copy the addon Docker files
+        cp temp/CIRISVoice/docker-addon/* $ADDON_NAME/ 2>/dev/null || print_warning "No docker-addon files found"
+        print_status "Files copied successfully"
+    else
+        print_error "CIRISVoice directory not found in repository!"
+        print_warning "Repository structure:"
+        ls -la temp/
+        rm -rf temp
+        exit 1
+    fi
     
     rm -rf temp
 fi
@@ -82,25 +116,44 @@ fi
 cd /addons/$ADDON_NAME
 print_status "Verifying addon structure..."
 
-# Check required files
-REQUIRED_FILES="config.yaml Dockerfile run.sh build.yaml"
-MISSING_FILES=""
+# Check required addon files
+REQUIRED_ADDON_FILES="config.yaml Dockerfile run.sh build.yaml"
+MISSING_ADDON_FILES=""
 
-for file in $REQUIRED_FILES; do
+for file in $REQUIRED_ADDON_FILES; do
     if [ ! -f "$file" ]; then
-        MISSING_FILES="$MISSING_FILES $file"
+        MISSING_ADDON_FILES="$MISSING_ADDON_FILES $file"
     fi
 done
 
-if [ -n "$MISSING_FILES" ]; then
-    print_error "Missing required files:$MISSING_FILES"
-    print_warning "Attempting to fix..."
-    
-    # If docker-addon files are in subdirectory, move them up
-    if [ -d "docker-addon" ]; then
-        cp docker-addon/* . 2>/dev/null || true
-    fi
+if [ -n "$MISSING_ADDON_FILES" ]; then
+    print_error "Missing required addon files:$MISSING_ADDON_FILES"
 fi
+
+# Check required app files
+REQUIRED_APP_FILES="requirements.txt config.example.yaml"
+MISSING_APP_FILES=""
+
+for file in $REQUIRED_APP_FILES; do
+    if [ ! -f "$file" ]; then
+        MISSING_APP_FILES="$MISSING_APP_FILES $file"
+    fi
+done
+
+if [ -n "$MISSING_APP_FILES" ]; then
+    print_error "Missing required app files:$MISSING_APP_FILES"
+fi
+
+# Check src directory
+if [ ! -d "src" ]; then
+    print_error "Missing src directory!"
+else
+    print_status "Found src directory with $(find src -name "*.py" | wc -l) Python files"
+fi
+
+# Show current structure
+print_status "Current addon structure:"
+ls -la
 
 # Step 5: Update config with user settings
 print_status "Configuring addon..."
