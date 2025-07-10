@@ -53,6 +53,28 @@ class GoogleSTTService(STTService):
                 logger.info(f"/data contents: {os.listdir('/data')}")
             raise FileNotFoundError(f"Google credentials file not found: {self.credentials_path}")
         
+        # Log file size for debugging
+        file_size = os.path.getsize(self.credentials_path)
+        logger.info(f"Credentials file size: {file_size} bytes")
+        
+        # Try to load and validate the JSON
+        try:
+            import json
+            with open(self.credentials_path, 'r') as f:
+                creds_data = json.load(f)
+                logger.info(f"Credentials loaded successfully, project_id: {creds_data.get('project_id', 'MISSING')}")
+                # Check for required fields
+                required_fields = ['type', 'project_id', 'private_key_id', 'private_key', 'client_email']
+                missing_fields = [field for field in required_fields if field not in creds_data]
+                if missing_fields:
+                    logger.error(f"Missing required fields in credentials: {missing_fields}")
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in credentials file: {e}")
+            # Log first 200 chars of file for debugging
+            with open(self.credentials_path, 'r') as f:
+                content = f.read(200)
+                logger.error(f"First 200 chars of file: {content}")
+        
         self.credentials = service_account.Credentials.from_service_account_file(
             self.credentials_path,
             scopes=['https://www.googleapis.com/auth/cloud-platform']
