@@ -146,8 +146,11 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 return False
                 
             try:
+                logger.info("About to write event...")
                 await self.write_event(self.wyoming_info_event)
                 logger.info("Info sent successfully")
+                await asyncio.sleep(0.1)  # Give HA time to process
+                logger.info("After sleep, connection still open")
             except ConnectionResetError:
                 logger.error("Connection reset by peer while sending info")
                 return False
