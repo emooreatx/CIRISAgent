@@ -31,6 +31,16 @@ except ImportError:
         attribution: Attribution
         installed: bool
         version: str
+        
+        def to_dict(self):
+            return {
+                "name": self.name,
+                "description": self.description,
+                "languages": self.languages,
+                "attribution": self.attribution.to_dict(),
+                "installed": self.installed,
+                "version": self.version
+            }
     
     @dataclass
     class TtsProgram:
@@ -40,6 +50,16 @@ except ImportError:
         installed: bool
         version: str
         models: List[TtsModel]
+        
+        def to_dict(self):
+            return {
+                "name": self.name,
+                "description": self.description,
+                "attribution": self.attribution.to_dict(),
+                "installed": self.installed,
+                "version": self.version,
+                "models": [m.to_dict() for m in self.models]
+            }
         
 from wyoming.event import Event
 from wyoming.ping import Ping, Pong
