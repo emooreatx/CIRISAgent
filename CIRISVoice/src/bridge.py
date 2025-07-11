@@ -18,6 +18,8 @@ from .stt_service import create_stt_service
 from .tts_service import create_tts_service
 from .ciris_sdk_client import CIRISClient
 
+__version__ = "1.0.11"
+
 logger = logging.getLogger(__name__)
 
 class CIRISWyomingHandler(AsyncEventHandler):
@@ -364,6 +366,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     url="https://ciris.ai"
                 ),
                 installed=True,
+                version=__version__,
                 models=[AsrModel(
                     name="ciris-stt-v1",
                     description=f"{self.config.stt.provider} speech recognition",

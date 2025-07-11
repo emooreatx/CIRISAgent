@@ -1,4 +1,4 @@
-wyoming==1.5.0
+wyoming>=1.5.3
 aiohttp==3.9.1
 pydantic==2.5.0
 pyyaml==6.0.1
