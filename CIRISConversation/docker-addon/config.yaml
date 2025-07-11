@@ -1,0 +1,33 @@
+name: "CIRIS Conversation Agent"
+description: "CIRIS AI conversation agent for Home Assistant - handles voice conversations and commands"
+version: "1.0.0"
+slug: "ciris_conversation"
+init: false
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: auto
+ports:
+  8123/tcp: null
+ports_description:
+  8123/tcp: "Web interface (optional)"
+options:
+  ciris_url: "http://192.168.50.8:8080"
+  ciris_api_key: ""
+  ciris_timeout: 30
+  ciris_channel: "homeassistant"
+  log_level: "INFO"
+schema:
+  ciris_url: str
+  ciris_api_key: str?
+  ciris_timeout: int(5,300)
+  ciris_channel: str
+  log_level: list(DEBUG|INFO|WARNING|ERROR)
+homeassistant_api: true
+auth_api: true
+ingress: true
+ingress_port: 8123
+panel_icon: mdi:robot-happy
+services:
+  - conversation
