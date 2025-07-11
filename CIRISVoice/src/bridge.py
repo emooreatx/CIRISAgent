@@ -487,8 +487,7 @@ async def main():
                         name="CIRIS AI",
                         url="https://ciris.ai"
                     ),
-                    installed=True,
-                    version=__version__
+                    installed=True
                 )]
             )]
         )
