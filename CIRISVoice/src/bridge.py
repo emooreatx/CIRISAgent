@@ -361,7 +361,6 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     url="https://ciris.ai"
                 ),
                 installed=True,
-                version="1.0.6",  # Add version like Vosk
                 models=[AsrModel(
                     name="ciris-stt-v1",
                     description=f"{self.config.stt.provider} speech recognition",
