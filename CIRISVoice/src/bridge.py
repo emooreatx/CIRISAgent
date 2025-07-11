@@ -4,10 +4,6 @@ import sys
 import os
 import json
 from typing import Optional
-
-# Set up logger first
-logger = logging.getLogger(__name__)
-
 from wyoming.audio import AudioChunk, AudioStart, AudioStop
 from wyoming.asr import Transcript, Transcribe
 from wyoming.tts import Synthesize
@@ -28,7 +24,9 @@ from .stt_service import create_stt_service
 from .tts_service import create_tts_service
 from .ciris_sdk_client import CIRISClient
 
-__version__ = "1.2.0"
+__version__ = "1.0.11"
+
+logger = logging.getLogger(__name__)
 
 class CIRISWyomingHandler(AsyncEventHandler):
     def __init__(self, reader, writer, config: Config = None):
