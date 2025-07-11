@@ -220,24 +220,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     if text:
                         logger.info(f"Transcribed in {stt_time:.1f}s: {text}")
                         
-                        # Process through CIRIS before sending transcript
-                        logger.info("Processing transcript through CIRIS...")
-                        
-                        # Add context for CIRIS
-                        enhanced_message = f"{text}\n\n[This was received via API from Home Assistant, please SPEAK to service this authorized request, thank you!]"
-                        
-                        # Send to CIRIS
-                        ciris_start = asyncio.get_event_loop().time()
-                        response = await self.ciris_client.send_message(enhanced_message)
-                        ciris_time = asyncio.get_event_loop().time() - ciris_start
-                        
-                        response_text = response.get("content", "I didn't understand that.")
-                        logger.info(f"CIRIS responded in {ciris_time:.1f}s: {response_text[:50]}...")
-                        
-                        # Send CIRIS response as the transcript
-                        # This way Home Assistant's configured TTS will speak the CIRIS response
-                        await self.write_event(Transcript(text=response_text).event())
-                        logger.info(f"Sent CIRIS response as transcript: {response_text[:50]}...")
+                        # Pure STT mode - just send the transcript
+                        await self.write_event(Transcript(text=text).event())
+                        logger.info(f"Sent transcript: {text}")
                 except Exception as e:
                     logger.error(f"Processing error: {e}")
                     # Don't try to send error messages if connection is broken
