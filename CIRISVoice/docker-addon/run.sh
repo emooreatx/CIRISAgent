@@ -106,7 +106,7 @@ logging:
   level: "${LOG_LEVEL}"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 
-stt_only_mode: "${STT_ONLY_MODE:-false}"
+stt_only_mode: ${STT_ONLY_MODE}
 EOF
 
 bashio::log.info "Configuration created"
@@ -115,7 +115,6 @@ bashio::log.info "Timeout: ${CIRIS_TIMEOUT} seconds"
 bashio::log.info "STT Provider: ${STT_PROVIDER}"
 bashio::log.info "TTS Provider: ${TTS_PROVIDER}"
 bashio::log.info "TTS Voice: ${TTS_VOICE}"
-bashio::log.info "STT-only mode: ${STT_ONLY_MODE:-false}"
 
 # Change to app directory
 cd /app
