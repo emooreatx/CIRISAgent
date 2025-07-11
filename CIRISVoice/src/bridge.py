@@ -14,14 +14,31 @@ from wyoming.tts import Synthesize
 from wyoming.server import AsyncServer, AsyncEventHandler
 from wyoming.info import Describe, Info, AsrModel, AsrProgram, Attribution
 try:
-    from wyoming.info import TtsModel, TtsProgram
+    from wyoming.info import TtsModel, TtsProgram, TtsVoice
     HAS_TTS_TYPES = True
 except ImportError:
     HAS_TTS_TYPES = True  # We'll use our mock types
     logger.warning("Wyoming TTS types not available in this version - using compatibility layer")
     # Create mock TTS types for compatibility
-    from dataclasses import dataclass
-    from typing import List
+    from dataclasses import dataclass, field
+    from typing import List, Optional
+    
+    @dataclass
+    class TtsVoice:
+        name: str
+        description: str
+        attribution: Attribution
+        installed: bool
+        languages: List[str]
+        
+        def to_dict(self):
+            return {
+                "name": self.name,
+                "description": self.description,
+                "attribution": self.attribution.to_dict(),
+                "installed": self.installed,
+                "languages": self.languages
+            }
     
     @dataclass
     class TtsModel:
@@ -50,11 +67,7 @@ except ImportError:
         installed: bool
         version: str
         models: List[TtsModel]
-        voices: List[str] = None  # Add voices field
-        
-        def __post_init__(self):
-            if self.voices is None:
-                self.voices = []
+        voices: List[TtsVoice] = field(default_factory=list)
         
         def to_dict(self):
             return {
@@ -64,7 +77,7 @@ except ImportError:
                 "installed": self.installed,
                 "version": self.version,
                 "models": [m.to_dict() for m in self.models],
-                "voices": self.voices
+                "voices": [v.to_dict() for v in self.voices]
             }
         
 from wyoming.event import Event
@@ -458,6 +471,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
         # Always add TTS info for discovery to work
         # (Home Assistant expects both ASR and TTS)
         if True:  # Always include for discovery
+            # Get the configured voice or use a default
+            voice_name = getattr(self.config.tts, 'voice', 'en-US-Standard-A')
+            
             info_dict["tts"] = [TtsProgram(
                 name="ciris",
                 description=f"CIRIS TTS using {self.config.tts.provider}",
@@ -477,6 +493,16 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     ),
                     installed=True,
                     version=__version__
+                )],
+                voices=[TtsVoice(
+                    name=voice_name,
+                    description=f"{self.config.tts.provider} voice",
+                    attribution=Attribution(
+                        name="CIRIS AI",
+                        url="https://ciris.ai"
+                    ),
+                    installed=True,
+                    languages=["en"]
                 )]
             )]
         

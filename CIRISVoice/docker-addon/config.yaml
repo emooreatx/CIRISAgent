@@ -1,6 +1,6 @@
 name: "CIRIS Wyoming Bridge"
 description: "CIRIS AI Voice Assistant - STT, TTS, and intelligent conversation handling"
-version: "1.2.0"
+version: "1.2.1"
 slug: "ciris_wyoming"
 init: false
 arch:
