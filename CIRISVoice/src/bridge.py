@@ -38,7 +38,21 @@ class CIRISWyomingHandler(AsyncEventHandler):
         
         # Pre-create wyoming info like faster-whisper does
         self.wyoming_info = self._get_info()
-        self.wyoming_info_event = self.wyoming_info.event()
+        
+        # Create event and try to remove empty arrays
+        info_event = self.wyoming_info.event()
+        
+        # Manually create event without empty arrays if possible
+        if hasattr(info_event, 'data') and isinstance(info_event.data, dict):
+            # Only include non-empty arrays
+            cleaned_data = {k: v for k, v in info_event.data.items() 
+                           if not (isinstance(v, list) and len(v) == 0)}
+            
+            # Create custom event with only ASR data
+            from wyoming.event import Event
+            self.wyoming_info_event = Event(type="info", data=cleaned_data)
+        else:
+            self.wyoming_info_event = info_event
     
     @property
     def closed(self):
@@ -337,7 +351,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
         return True  # Keep connection alive even for unknown events
 
     def _get_info(self):
-        # Create info with only ASR, matching faster-whisper structure
+        # Create info with only ASR, matching Vosk structure with version fields
         return Info(
             asr=[AsrProgram(
                 name="ciris",
@@ -347,6 +361,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     url="https://ciris.ai"
                 ),
                 installed=True,
+                version="1.0.6",  # Add version like Vosk
                 models=[AsrModel(
                     name="ciris-stt-v1",
                     description=f"{self.config.stt.provider} speech recognition",
@@ -355,7 +370,8 @@ class CIRISWyomingHandler(AsyncEventHandler):
                         name="CIRIS AI",
                         url="https://ciris.ai"
                     ),
-                    installed=True
+                    installed=True,
+                    version=None  # Add version field like Vosk
                 )]
             )]
         )

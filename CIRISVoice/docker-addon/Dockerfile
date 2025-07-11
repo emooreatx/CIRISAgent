@@ -39,7 +39,7 @@ LABEL \
     io.hass.name="CIRIS Wyoming Bridge" \
     io.hass.description="Connect CIRIS AI to Home Assistant Voice" \
     io.hass.type="addon" \
-    io.hass.version="1.0.6" \
+    io.hass.version="1.0.7" \
     io.hass.arch="aarch64|amd64"
 
 # Run
