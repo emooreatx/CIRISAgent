@@ -406,7 +406,8 @@ class CIRISWyomingHandler(AsyncEventHandler):
                         url="https://ciris.ai"
                     ),
                     installed=True,
-                    languages=["en"]
+                    languages=["en"],
+                    version=__version__
                 )]
             )]
         
