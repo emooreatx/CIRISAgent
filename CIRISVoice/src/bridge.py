@@ -429,8 +429,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
             )]
         }
         
-        # Add TTS info (even in STT-only mode for discovery)
-        if not self.config.stt_only_mode:
+        # Always add TTS info for discovery to work
+        # (Home Assistant expects both ASR and TTS)
+        if True:  # Always include for discovery
             info_dict["tts"] = [TtsProgram(
                 name="ciris",
                 description=f"CIRIS TTS using {self.config.tts.provider}",
