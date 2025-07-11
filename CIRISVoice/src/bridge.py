@@ -8,7 +8,13 @@ from wyoming.audio import AudioChunk, AudioStart, AudioStop
 from wyoming.asr import Transcript, Transcribe
 from wyoming.tts import Synthesize
 from wyoming.server import AsyncServer, AsyncEventHandler
-from wyoming.info import Describe, Info, AsrModel, AsrProgram, Attribution, TtsModel, TtsProgram, TtsVoice
+from wyoming.info import Describe, Info, AsrModel, AsrProgram, Attribution
+try:
+    from wyoming.info import TtsProgram, TtsVoice
+except ImportError:
+    # Older wyoming versions don't have TTS types
+    TtsProgram = None
+    TtsVoice = None
 from wyoming.event import Event
 from wyoming.ping import Ping, Pong
 from wyoming.error import Error
@@ -356,9 +362,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
         return True  # Keep connection alive even for unknown events
 
     def _get_info(self):
-        # Create info with both ASR and TTS for discovery
-        return Info(
-            asr=[AsrProgram(
+        # Create info with ASR always
+        info_dict = {
+            "asr": [AsrProgram(
                 name="ciris",
                 description=f"CIRIS STT using {self.config.stt.provider}",
                 attribution=Attribution(
@@ -378,8 +384,12 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     installed=True,
                     version=__version__
                 )]
-            )],
-            tts=[TtsProgram(
+            )]
+        }
+        
+        # Add TTS info if types are available
+        if TtsProgram is not None and TtsVoice is not None:
+            info_dict["tts"] = [TtsProgram(
                 name="ciris",
                 description=f"CIRIS TTS using {self.config.tts.provider}",
                 attribution=Attribution(
@@ -399,7 +409,8 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     languages=["en"]
                 )]
             )]
-        )
+        
+        return Info(**info_dict)
 
 async def main():
     logging.basicConfig(
