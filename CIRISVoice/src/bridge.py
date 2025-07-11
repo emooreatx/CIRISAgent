@@ -370,8 +370,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
                         name="CIRIS AI",
                         url="https://ciris.ai"
                     ),
-                    installed=True,
-                    version=None  # Add version field like Vosk
+                    installed=True
                 )]
             )]
         )
