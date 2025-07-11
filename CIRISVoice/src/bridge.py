@@ -174,13 +174,13 @@ class CIRISWyomingHandler(AsyncEventHandler):
             await self.write_event(Pong().event())
             return True
         
-        # Initialize on first non-describe event if needed
-        if not self._initialized:
-            try:
-                await self._ensure_initialized()
-            except Exception as e:
-                logger.error(f"Initialization failed: {e}", exc_info=True)
-                # Continue anyway - Wyoming might just be probing
+        # Skip CIRIS initialization for pure STT mode
+        # if not self._initialized:
+        #     try:
+        #         await self._ensure_initialized()
+        #     except Exception as e:
+        #         logger.error(f"Initialization failed: {e}", exc_info=True)
+        #         # Continue anyway - Wyoming might just be probing
         
         if Transcribe.is_type(event.type):
             # Wyoming might send language preference
