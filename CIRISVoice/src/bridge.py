@@ -17,8 +17,30 @@ try:
     from wyoming.info import TtsModel, TtsProgram
     HAS_TTS_TYPES = True
 except ImportError:
-    HAS_TTS_TYPES = False
-    logger.warning("Wyoming TTS types not available in this version")
+    HAS_TTS_TYPES = True  # We'll use our mock types
+    logger.warning("Wyoming TTS types not available in this version - using compatibility layer")
+    # Create mock TTS types for compatibility
+    from dataclasses import dataclass
+    from typing import List
+    
+    @dataclass
+    class TtsModel:
+        name: str
+        description: str
+        languages: List[str]
+        attribution: Attribution
+        installed: bool
+        version: str
+    
+    @dataclass
+    class TtsProgram:
+        name: str
+        description: str
+        attribution: Attribution
+        installed: bool
+        version: str
+        models: List[TtsModel]
+        
 from wyoming.event import Event
 from wyoming.ping import Ping, Pong
 from wyoming.error import Error
@@ -407,8 +429,8 @@ class CIRISWyomingHandler(AsyncEventHandler):
             )]
         }
         
-        # Add TTS if types are available
-        if HAS_TTS_TYPES:
+        # Add TTS info (even in STT-only mode for discovery)
+        if not self.config.stt_only_mode:
             info_dict["tts"] = [TtsProgram(
                 name="ciris",
                 description=f"CIRIS TTS using {self.config.tts.provider}",
