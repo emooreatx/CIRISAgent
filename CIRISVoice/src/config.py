@@ -41,7 +41,6 @@ class Config(BaseModel):
     ciris: CIRISConfig = CIRISConfig()
     wyoming: WyomingConfig = WyomingConfig()
     debug: bool = Field(default_factory=lambda: os.getenv("DEBUG", "false").lower() == "true")
-    stt_only_mode: bool = False
 
     @classmethod
     def from_yaml(cls, path: str) -> "Config":

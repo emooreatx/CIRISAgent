@@ -13,7 +13,6 @@ STT_PROVIDER=$(bashio::config 'stt_provider')
 TTS_PROVIDER=$(bashio::config 'tts_provider')
 TTS_VOICE=$(bashio::config 'tts_voice')
 LOG_LEVEL=$(bashio::config 'log_level')
-STT_ONLY_MODE=$(bashio::config 'stt_only_mode')
 
 # Export for Python
 export CIRIS_API_URL="${CIRIS_URL}"
@@ -105,8 +104,6 @@ tts:
 logging:
   level: "${LOG_LEVEL}"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-
-stt_only_mode: ${STT_ONLY_MODE}
 EOF
 
 bashio::log.info "Configuration created"

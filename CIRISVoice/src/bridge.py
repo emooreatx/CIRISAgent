@@ -9,12 +9,6 @@ from wyoming.asr import Transcript, Transcribe
 from wyoming.tts import Synthesize
 from wyoming.server import AsyncServer, AsyncEventHandler
 from wyoming.info import Describe, Info, AsrModel, AsrProgram, Attribution
-try:
-    from wyoming.info import TtsModel, TtsProgram
-    HAS_TTS_TYPES = True
-except ImportError:
-    HAS_TTS_TYPES = False
-    logger.warning("Wyoming TTS types not available in this version")
 from wyoming.event import Event
 from wyoming.ping import Ping, Pong
 from wyoming.error import Error
@@ -220,19 +214,6 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     if text:
                         logger.info(f"Transcribed in {stt_time:.1f}s: {text}")
                         
-                        # If in STT-only mode, skip CIRIS processing
-                        if self.config.stt_only_mode:
-                            logger.info("STT-only mode - skipping CIRIS interaction")
-                            # Send transcript immediately
-                            await self.write_event(Transcript(text=text).event())
-                            
-                            # Store transcript for potential TTS
-                            self.last_transcript = text
-                            self._expecting_synthesize = True
-                            
-                            self.audio_buffer = bytearray()
-                            return True
-                        
                         # Process through CIRIS before sending transcript
                         logger.info("Processing transcript through CIRIS...")
                         
@@ -247,15 +228,10 @@ class CIRISWyomingHandler(AsyncEventHandler):
                         response_text = response.get("content", "I didn't understand that.")
                         logger.info(f"CIRIS responded in {ciris_time:.1f}s: {response_text[:50]}...")
                         
-                        # Send the original transcript
-                        await self.write_event(Transcript(text=text).event())
-                        logger.info(f"Sent original transcript: {text}")
-                        
-                        # Store CIRIS response for potential TTS
-                        self.last_transcript = text
-                        self._ciris_response = response_text
-                        self._expecting_synthesize = True
-                        logger.info(f"Stored CIRIS response for TTS: {response_text[:50]}...")
+                        # Send CIRIS response as the transcript
+                        # This way Home Assistant's configured TTS will speak the CIRIS response
+                        await self.write_event(Transcript(text=response_text).event())
+                        logger.info(f"Sent CIRIS response as transcript: {response_text[:50]}...")
                 except Exception as e:
                     logger.error(f"Processing error: {e}")
                     # Don't try to send error messages if connection is broken
@@ -380,9 +356,9 @@ class CIRISWyomingHandler(AsyncEventHandler):
         return True  # Keep connection alive even for unknown events
 
     def _get_info(self):
-        # Create info with ASR and optionally TTS
-        info_dict = {
-            "asr": [AsrProgram(
+        # Create info with only ASR, matching Vosk structure with version fields
+        return Info(
+            asr=[AsrProgram(
                 name="ciris",
                 description=f"CIRIS STT using {self.config.stt.provider}",
                 attribution=Attribution(
@@ -403,33 +379,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     version=__version__
                 )]
             )]
-        }
-        
-        # Add TTS if types are available
-        if HAS_TTS_TYPES:
-            info_dict["tts"] = [TtsProgram(
-                name="ciris",
-                description=f"CIRIS TTS using {self.config.tts.provider}",
-                attribution=Attribution(
-                    name="CIRIS AI",
-                    url="https://ciris.ai"
-                ),
-                installed=True,
-                version=__version__,
-                models=[TtsModel(
-                    name="ciris-tts-v1",
-                    description=f"{self.config.tts.provider} text to speech",
-                    languages=["en"],
-                    attribution=Attribution(
-                        name="CIRIS AI",
-                        url="https://ciris.ai"
-                    ),
-                    installed=True,
-                    version=__version__
-                )]
-            )]
-        
-        return Info(**info_dict)
+        )
 
 async def main():
     logging.basicConfig(

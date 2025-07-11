@@ -2,6 +2,7 @@
 import logging
 from typing import Any
 
+import httpx
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_NAME
@@ -18,10 +19,6 @@ from .const import (
     DEFAULT_TIMEOUT,
     DOMAIN,
 )
-
-# Import the CIRIS SDK with HA wrapper
-from .ciris_ha_client import CIRISClient
-from .ciris_sdk.exceptions import CIRISError, CIRISTimeoutError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,13 +42,10 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     user_input.get(CONF_API_KEY),
                     user_input.get(CONF_TIMEOUT, DEFAULT_TIMEOUT),
                 )
-            except CIRISTimeoutError:
+            except httpx.ConnectError:
+                errors["base"] = "cannot_connect"
+            except httpx.TimeoutException:
                 errors["base"] = "timeout"
-            except CIRISError as e:
-                if "401" in str(e) or "unauthorized" in str(e).lower():
-                    errors["base"] = "invalid_auth"
-                else:
-                    errors["base"] = "cannot_connect"
             except Exception:  # pylint: disable=broad-except
                 _LOGGER.exception("Unexpected exception")
                 errors["base"] = "unknown"
@@ -83,37 +77,14 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self, api_url: str, api_key: str | None, timeout: int
     ) -> None:
         """Test the API connection."""
-        # Use default credentials if no API key provided
-        if not api_key:
-            api_key = "admin:ciris_admin_password"
-        
-        client = CIRISClient(
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["X-API-Key"] = api_key
+
+        async with httpx.AsyncClient(
             base_url=api_url,
-            api_key=api_key,
-            timeout=float(timeout),
-            max_retries=0
-        )
-        
-        try:
-            async with client:
-                # Handle username:password auth
-                if client._transport.api_key and ':' in client._transport.api_key:
-                    username, password = client._transport.api_key.split(':', 1)
-                    _LOGGER.info(f"Testing connection with username: {username}")
-                    
-                    try:
-                        token = await client.auth.login(username, password)
-                        _LOGGER.info("Successfully authenticated with CIRIS")
-                        # Don't persist the token in HA context
-                        client._transport.set_api_key(token.access_token, persist=False)
-                    except Exception as e:
-                        _LOGGER.error(f"Failed to authenticate: {e}")
-                        raise
-                
-                # Test connection
-                status = await client.agent.get_status()
-                _LOGGER.info(f"Connected to CIRIS: {status.name} (state: {status.cognitive_state})")
-                
-        except Exception as e:
-            _LOGGER.error(f"Connection test failed: {e}")
-            raise
+            timeout=httpx.Timeout(timeout),
+            headers=headers,
+        ) as client:
+            response = await client.get("/v1/agent/status")
+            response.raise_for_status()

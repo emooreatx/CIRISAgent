@@ -1,6 +1,6 @@
 name: "CIRIS Wyoming Bridge"
-description: "CIRIS AI Voice Assistant - STT, TTS, and intelligent conversation handling"
-version: "1.2.0"
+description: "Connect CIRIS AI to Home Assistant Voice with 60-second timeout support"
+version: "1.0.12"
 slug: "ciris_wyoming"
 init: false
 arch:
@@ -21,7 +21,6 @@ options:
   tts_provider: "google"
   tts_voice: "en-US-Chirp3-HD-Achernar"
   log_level: "INFO"
-  stt_only_mode: false
 schema:
   ciris_url: str
   ciris_api_key: str?
@@ -32,7 +31,6 @@ schema:
   tts_voice: str
   log_level: list(DEBUG|INFO|WARNING|ERROR)
   google_cloud_key: str?
-  stt_only_mode: bool
 environment:
   PYTHONUNBUFFERED: "1"
 hassio_api: true
@@ -40,7 +38,7 @@ hassio_role: default
 auth_api: false
 ingress: false
 panel_icon: mdi:microphone-message
-homeassistant_api: true
+homeassistant_api: false
 host_network: true
 audio: false
 discovery:
