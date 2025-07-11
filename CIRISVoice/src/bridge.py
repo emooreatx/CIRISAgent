@@ -50,6 +50,11 @@ except ImportError:
         installed: bool
         version: str
         models: List[TtsModel]
+        voices: List[str] = None  # Add voices field
+        
+        def __post_init__(self):
+            if self.voices is None:
+                self.voices = []
         
         def to_dict(self):
             return {
@@ -58,7 +63,8 @@ except ImportError:
                 "attribution": self.attribution.to_dict(),
                 "installed": self.installed,
                 "version": self.version,
-                "models": [m.to_dict() for m in self.models]
+                "models": [m.to_dict() for m in self.models],
+                "voices": self.voices
             }
         
 from wyoming.event import Event
