@@ -10,6 +10,7 @@ from fastapi import APIRouter, Request, HTTPException, Depends, Body
 from pydantic import BaseModel, Field, field_serializer
 import logging
 import asyncio
+from ciris_engine.utils.serialization import serialize_timestamp
 
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ..dependencies.auth import require_observer, require_admin, AuthContext
@@ -39,8 +40,8 @@ class SystemHealthResponse(BaseModel):
     timestamp: datetime = Field(..., description="Current server time")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
-        return timestamp.isoformat() if timestamp else None
+    def serialize_ts(self, timestamp: datetime, _info: Any) -> Optional[str]:
+        return serialize_timestamp(timestamp, _info)
 
 
 class SystemTimeResponse(BaseModel):
@@ -52,7 +53,7 @@ class SystemTimeResponse(BaseModel):
 
     @field_serializer('system_time', 'agent_time')
     def serialize_times(self, dt: datetime, _info: Any) -> Optional[str]:
-        return dt.isoformat() if dt else None
+        return serialize_timestamp(dt, _info)
 
 
 class ResourceUsageResponse(BaseModel):
@@ -103,8 +104,8 @@ class ServicesStatusResponse(BaseModel):
     timestamp: datetime = Field(..., description="When status was collected")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
-        return timestamp.isoformat() if timestamp else None
+    def serialize_ts(self, timestamp: datetime, _info: Any) -> Optional[str]:
+        return serialize_timestamp(timestamp, _info)
 
 
 class ShutdownRequest(BaseModel):
@@ -122,8 +123,8 @@ class ShutdownResponse(BaseModel):
     timestamp: datetime = Field(..., description="When shutdown was initiated")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
-        return timestamp.isoformat() if timestamp else None
+    def serialize_ts(self, timestamp: datetime, _info: Any) -> Optional[str]:
+        return serialize_timestamp(timestamp, _info)
 
 
 class AdapterActionRequest(BaseModel):

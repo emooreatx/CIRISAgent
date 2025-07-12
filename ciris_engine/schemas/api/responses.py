@@ -6,6 +6,7 @@ All API responses follow these patterns - NO Dict[str, Any]!
 from typing import Generic, TypeVar, Optional, Any
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field, field_serializer
+from ciris_engine.utils.serialization import serialize_timestamp
 
 T = TypeVar('T')
 
@@ -16,8 +17,8 @@ class ResponseMetadata(BaseModel):
     duration_ms: Optional[int] = Field(None, description="Request processing duration")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
-        return timestamp.isoformat() if timestamp else None
+    def serialize_ts(self, timestamp: datetime, _info: Any) -> Optional[str]:
+        return serialize_timestamp(timestamp, _info)
 
 class SuccessResponse(BaseModel, Generic[T]):
     """Standard success response wrapper."""
