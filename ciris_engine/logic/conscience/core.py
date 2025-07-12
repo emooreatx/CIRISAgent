@@ -173,7 +173,7 @@ class EntropyConscience(_BaseConscience):
         correlation = self._create_trace_correlation("entropy", context, start_time)
         
         ts_datetime = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
-        ts = ts_datetime.isoformat()
+        ts_datetime.isoformat()
         if action.selected_action != HandlerActionType.SPEAK:
             self._update_trace_correlation(correlation, True, "Non-speak action, no entropy check needed", start_time)
             return ConscienceCheckResult(
@@ -268,7 +268,7 @@ class CoherenceConscience(_BaseConscience):
         correlation = self._create_trace_correlation("coherence", context, start_time)
         
         ts_datetime = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
-        ts = ts_datetime.isoformat()
+        ts_datetime.isoformat()
         if action.selected_action != HandlerActionType.SPEAK:
             self._update_trace_correlation(correlation, True, "Non-speak action, no coherence check needed", start_time)
             return ConscienceCheckResult(status=ConscienceStatus.PASSED, passed=True, check_timestamp=ts_datetime)
@@ -373,7 +373,7 @@ class OptimizationVetoConscience(_BaseConscience):
         correlation = self._create_trace_correlation("optimization_veto", context, start_time)
         
         ts_datetime = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
-        ts = ts_datetime.isoformat()
+        ts_datetime.isoformat()
         sink = await self._get_sink()
         if not sink:
             self._update_trace_correlation(correlation, True, "Sink service unavailable, allowing action", start_time)
@@ -461,7 +461,7 @@ class EpistemicHumilityConscience(_BaseConscience):
         correlation = self._create_trace_correlation("epistemic_humility", context, start_time)
         
         ts_datetime = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
-        ts = ts_datetime.isoformat()
+        ts_datetime.isoformat()
         sink = await self._get_sink()
         if not sink:
             self._update_trace_correlation(correlation, True, "Sink service unavailable, allowing action", start_time)

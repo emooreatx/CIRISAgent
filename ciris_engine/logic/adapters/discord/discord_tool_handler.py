@@ -149,7 +149,7 @@ class DiscordToolHandler:
             
             # Create properly typed response data
             response_now = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
-            response_data = ServiceResponseData(
+            ServiceResponseData(
                 success=result_dict.get("success", True),
                 result_summary=str(result_dict.get("data", {}))[:100] if result_dict.get("data") else None,
                 result_type="dict",

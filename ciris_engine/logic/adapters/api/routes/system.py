@@ -956,7 +956,7 @@ async def get_available_tools(
         if service_registry:
             # Get provider info for TOOL services
             provider_info = service_registry.get_provider_info(service_type=ServiceType.TOOL.value)
-            tool_services = provider_info.get('services', {}).get(ServiceType.TOOL.value, [])
+            provider_info.get('services', {}).get(ServiceType.TOOL.value, [])
             
             # Get the actual provider instances from the registry
             if hasattr(service_registry, '_services') and ServiceType.TOOL in service_registry._services:

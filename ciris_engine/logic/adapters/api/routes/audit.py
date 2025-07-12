@@ -234,7 +234,7 @@ async def get_audit_entry(
         # Add verification info if requested
         if verify:
             # Get verification report for this entry
-            _verification_report = await audit_service.get_verification_report()
+            await audit_service.get_verification_report()
 
             # Extract verification for this specific entry
             response.verification = EntryVerification(

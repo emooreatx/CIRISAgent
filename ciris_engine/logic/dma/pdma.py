@@ -105,7 +105,6 @@ class EthicalPDMAEvaluator(BaseDMA, PDMAProtocol):
                 temperature=0.0
             )
             response_obj: EthicalDMAResult = result_tuple[0]
-            _resource_usage = result_tuple[1]
             logger.info(f"Evaluation successful for thought ID {input_data.thought_id}")
             return response_obj
         except Exception as e:

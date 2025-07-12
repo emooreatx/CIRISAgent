@@ -321,7 +321,7 @@ async def build_system_snapshot(
     available_tools: Dict[str, List[Dict[str, Any]]] = {}
     if runtime and hasattr(runtime, 'bus_manager') and hasattr(runtime, 'service_registry'):
         try:
-            bus_manager = runtime.bus_manager
+            runtime.bus_manager
             service_registry = runtime.service_registry
             
             # Get all tool services from registry

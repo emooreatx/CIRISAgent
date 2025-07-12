@@ -132,7 +132,6 @@ class DeferHandler(BaseActionHandler):
             except Exception as e:
                 self.logger.error(f"WiseAuthorityService deferral failed for thought {thought_id}: {e}")
                 # Deferral still considered processed even if WA fails
-                action_performed_successfully = True
 
         except Exception as param_parse_error:
             self.logger.error(f"DEFER action params parsing error or unexpected structure. Type: {type(raw_params)}, Error: {param_parse_error}. Thought ID: {thought_id}")

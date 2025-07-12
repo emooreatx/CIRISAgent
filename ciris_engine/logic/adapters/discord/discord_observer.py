@@ -239,7 +239,6 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
             from ciris_engine.logic import persistence
 
             # Check if this is a reply to a deferral report
-            _thought_id_match = None
             referenced_thought_id = None
 
             # First check if this message is replying to another message

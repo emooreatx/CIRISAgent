@@ -53,7 +53,7 @@ async def login(
     Currently supports system admin user only. In production, this would
     integrate with a proper user database.
     """
-    config_service = getattr(req.app.state, 'config_service', None)
+    getattr(req.app.state, 'config_service', None)
 
     # Try to find user by username in auth service
     users = await auth_service.list_users(search=request.username)

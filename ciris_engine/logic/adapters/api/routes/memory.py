@@ -245,7 +245,7 @@ async def query_memory(
             nodes = filtered_nodes
 
         # Apply pagination
-        _total = len(nodes)
+        len(nodes)
         if body.offset:
             nodes = nodes[body.offset:]
         if body.limit:
@@ -339,7 +339,7 @@ async def get_timeline(
         # Query memories in time range
         # Note: This is just for validation/documentation purposes, not actually used
         # Cap at 100 for QueryRequest validation, but use actual limit for queries below
-        _query_body = QueryRequest(
+        QueryRequest(
             node_id=None,
             query=None,
             related_to=None,

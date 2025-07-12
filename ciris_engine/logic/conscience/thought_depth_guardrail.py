@@ -173,7 +173,7 @@ class ThoughtDepthGuardrail(ConscienceInterface):
             )
 
             # Create the defer action that will replace the original
-            _defer_action = ActionSelectionDMAResult(
+            ActionSelectionDMAResult(
                 selected_action=HandlerActionType.DEFER.value,
                 action_parameters=_defer_params,
                 rationale=f"Automatically deferred: Maximum thought depth of {self.max_depth} reached"

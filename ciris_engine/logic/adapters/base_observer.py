@@ -284,7 +284,7 @@ class BaseObserver(Generic[MessageT], ABC):
                 moderation_level="standard"
             )
 
-            _minimal_snapshot = SystemSnapshot(
+            SystemSnapshot(
                 channel_context=channel_context,
                 channel_id=getattr(msg, "channel_id", "system"),
                 agent_identity={
@@ -323,7 +323,7 @@ class BaseObserver(Generic[MessageT], ABC):
                 author = hist_msg.get("author", "Unknown")
                 author_id = hist_msg.get("author_id", "unknown")
                 content = hist_msg.get("content", "")
-                _timestamp = hist_msg.get("timestamp", "")
+                hist_msg.get("timestamp", "")
                 thought_lines.append(f"{i}. @{author} (ID: {author_id}): {content}")
 
             thought_lines.append("\n=== EVALUATE THIS MESSAGE AGAINST YOUR IDENTITY/JOB AND ETHICS AND DECIDE IF AND HOW TO ACT ON IT ===")

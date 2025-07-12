@@ -173,7 +173,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         start_time = time_service.now()
 
         try:
-            _result = await self._retry_discord_operation(
+            await self._retry_discord_operation(
                 self._message_handler.send_message_to_channel,
                 channel_id, content,
                 operation_name="send_message",
@@ -975,7 +975,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                 defer_until=context.defer_until or (self._time_service.now() if self._time_service else datetime.now()) + timedelta(hours=1),
                 context=context.metadata
             )
-            _deferral_id = await self.send_deferral(request)
+            await self.send_deferral(request)
             return True
         except Exception:
             return False
@@ -1029,7 +1029,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
 
     async def _send_output(self, channel_id: str, content: str) -> None:
         """Send output to a Discord channel with retry logic"""
-        _result = await self._retry_discord_operation(
+        await self._retry_discord_operation(
             self._message_handler.send_message_to_channel,
             channel_id, content,
             operation_name="send_output",

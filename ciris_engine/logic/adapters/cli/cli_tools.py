@@ -76,7 +76,7 @@ class CLIToolService(ToolService):
                 success = False
                 error_msg = str(e)
 
-        _execution_time = (self._time_service.timestamp() - start_time) * 1000  # milliseconds
+        (self._time_service.timestamp() - start_time) * 1000  # milliseconds
 
         tool_result = ToolExecutionResult(
             tool_name=tool_name,

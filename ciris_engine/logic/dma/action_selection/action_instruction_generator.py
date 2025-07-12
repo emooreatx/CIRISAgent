@@ -316,7 +316,7 @@ Available tools (check with tool service for current list):
             prop_type = self._extract_type(prop_schema)
 
             # Add description if available
-            _description = prop_schema.get("description", "")
+            prop_schema.get("description", "")
 
             if prop_name in required:
                 params.append(f'"{prop_name}": {prop_type} (required)')

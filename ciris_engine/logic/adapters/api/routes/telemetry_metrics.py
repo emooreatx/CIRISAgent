@@ -27,7 +27,7 @@ async def get_metric_detail(
     try:
         # Get current value and recent history
         now = datetime.now(timezone.utc)
-        hour_ago = now - timedelta(hours=1)
+        now - timedelta(hours=1)
         
         # Mock data for common metrics
         metric_data = {
