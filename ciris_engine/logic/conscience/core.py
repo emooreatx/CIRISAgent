@@ -21,9 +21,7 @@ from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationT
 from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
 
 from .interface import ConscienceInterface
-
-# Default constants
-DEFAULT_OPENAI_MODEL_NAME = "gpt-4o-mini"
+from ciris_engine.constants import DEFAULT_OPENAI_MODEL_NAME
 
 # Simple conscience config
 class ConscienceConfig(BaseModel):

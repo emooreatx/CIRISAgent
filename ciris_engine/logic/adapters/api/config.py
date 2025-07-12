@@ -1,12 +1,13 @@
 """Configuration schema for API adapter."""
 
 from pydantic import BaseModel, Field
+from ciris_engine.constants import DEFAULT_API_HOST, DEFAULT_API_PORT, DEFAULT_API_INTERACTION_TIMEOUT
 
 class APIAdapterConfig(BaseModel):
     """Configuration for the API adapter."""
     
-    host: str = Field(default="0.0.0.0", description="API server host")
-    port: int = Field(default=8080, description="API server port")
+    host: str = Field(default=DEFAULT_API_HOST, description="API server host")
+    port: int = Field(default=DEFAULT_API_PORT, description="API server port")
     
     cors_enabled: bool = Field(default=True, description="Enable CORS support")
     cors_origins: list[str] = Field(default_factory=lambda: ["*"], description="Allowed CORS origins")

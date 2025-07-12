@@ -20,9 +20,7 @@ from .action_selection import (
     ActionSelectionSpecialCases,
 )
 from .action_selection.faculty_integration import FacultyIntegration
-
-# Default model name constant
-DEFAULT_OPENAI_MODEL_NAME = "gpt-4o-mini"
+from ciris_engine.constants import DEFAULT_OPENAI_MODEL_NAME
 
 logger = logging.getLogger(__name__)
 

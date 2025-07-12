@@ -10,8 +10,7 @@ from ciris_engine.logic.formatters import format_user_profiles, format_system_sn
 from ciris_engine.logic.utils import COVENANT_TEXT
 from ciris_engine.schemas.runtime.system_context import ThoughtState
 from .prompt_loader import get_prompt_loader
-
-DEFAULT_OPENAI_MODEL_NAME = "gpt-4o"
+from ciris_engine.constants import DEFAULT_OPENAI_MODEL_NAME
 
 logger = logging.getLogger(__name__)
 
