@@ -18,24 +18,26 @@ except ImportError:
     PSUTIL_AVAILABLE = False
 
 from ciris_engine.protocols.services.graph.config import GraphConfigServiceProtocol
-from ciris_engine.protocols.runtime.base import ServiceProtocol
 from ciris_engine.schemas.services.nodes import ConfigNode, ConfigValue
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.services.graph_core import GraphNode
 from ciris_engine.schemas.services.operations import MemoryQuery
+from ciris_engine.logic.services.base_graph_service import BaseGraphService
 from ciris_engine.logic.services.graph.memory_service import LocalGraphMemoryService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
 
-class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
+class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
     """Configuration service that stores all config as graph memories."""
 
     def __init__(self, graph_memory_service: LocalGraphMemoryService, time_service: TimeServiceProtocol):
         """Initialize with graph memory service."""
+        # Initialize BaseGraphService without memory_bus (we'll use graph_memory_service directly)
+        super().__init__(memory_bus=None, time_service=time_service)
+        
         self.graph = graph_memory_service
         self._running = False
-        self._time_service = time_service
         self._start_time: Optional[datetime] = None
         self._process = psutil.Process() if PSUTIL_AVAILABLE else None  # For memory tracking
         self._config_cache: Dict[str, ConfigNode] = {}  # Cache for config nodes
@@ -43,6 +45,7 @@ class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
 
     async def start(self) -> None:
         """Start the service."""
+        await super().start()
         self._running = True
         self._start_time = self._time_service.now()
 
@@ -50,45 +53,19 @@ class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
         """Stop the service."""
         self._running = False
         # Nothing to clean up
+        await super().stop()
 
-    def get_capabilities(self) -> ServiceCapabilities:
-        """Get service capabilities."""
-        return ServiceCapabilities(
-            service_name="GraphConfigService",
-            actions=[
-                "get_config",
-                "set_config",
-                "list_configs"
-            ],
-            version="1.0.0",
-            dependencies=["GraphMemoryService", "TimeService"]
-        )
-
-    def get_status(self) -> ServiceStatus:
-        """Get service status."""
-        uptime = 0.0
-        if self._start_time:
-            uptime = (self._time_service.now() - self._start_time).total_seconds()
+    def _collect_custom_metrics(self) -> Dict[str, float]:
+        """Collect config-specific metrics."""
+        metrics = super()._collect_custom_metrics()
         
-        # Calculate memory usage
-        memory_mb = 0.0
-        try:
-            if self._process:
-                memory_info = self._process.memory_info()
-                memory_mb = memory_info.rss / 1024 / 1024  # Convert bytes to MB
-        except Exception as e:
-            logger.debug(f"Could not get memory info: {e}")
-            
-        return ServiceStatus(
-            service_name="GraphConfigService",
-            service_type="graph_service",
-            is_healthy=self._running,
-            uptime_seconds=uptime,
-            metrics={
-                "total_configs": float(len(self._config_cache)),
-                "memory_mb": memory_mb
-            }
-        )
+        # Add config-specific metrics
+        metrics.update({
+            "total_configs": float(len(self._config_cache)),
+            "config_listeners": float(len(self._config_listeners))
+        })
+        
+        return metrics
 
     async def store_in_graph(self, node: GraphNode) -> str:
         """Store config node in graph."""
@@ -249,10 +226,6 @@ class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
         # Return key->ConfigValue mapping
         return {key: node.value for key, node in config_map.items()}
 
-    async def is_healthy(self) -> bool:
-        """Check if service is healthy."""
-        return self._running
-    
     def register_config_listener(self, key_pattern: str, callback: callable) -> None:
         """Register a callback for config changes matching the key pattern.
         
@@ -288,3 +261,25 @@ class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
                             callback(key, old_value, new_value)
                     except Exception as e:
                         logger.error(f"Error notifying config listener for {key}: {e}")
+    
+    # Required methods for BaseGraphService
+    
+    def get_service_type(self) -> ServiceType:
+        """Get the service type."""
+        return ServiceType.CONFIG
+    
+    def _get_actions(self) -> List[str]:
+        """Get the list of actions this service supports."""
+        return [
+            "get_config",
+            "set_config",
+            "list_configs",
+            "delete_config",
+            "register_config_listener",
+            "unregister_config_listener"
+        ]
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all dependencies are satisfied."""
+        # Config service uses LocalGraphMemoryService directly instead of memory bus
+        return self.graph is not None

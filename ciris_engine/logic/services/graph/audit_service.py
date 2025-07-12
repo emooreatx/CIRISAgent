@@ -34,10 +34,10 @@ except ImportError:
 if TYPE_CHECKING:
     from ciris_engine.logic.registries.base import ServiceRegistry
 
-from ciris_engine.protocols.services import AuditService as AuditServiceProtocol, GraphServiceProtocol
-from ciris_engine.protocols.runtime.base import ServiceProtocol
-from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.protocols.services import AuditService as AuditServiceProtocol
+from ciris_engine.schemas.runtime.enums import HandlerActionType, ServiceType
 from ciris_engine.schemas.runtime.audit import AuditActionContext, AuditConscienceResult, AuditRequest
+from ciris_engine.schemas.services.core import ServiceCapabilities
 from ciris_engine.schemas.runtime.memory import TimeSeriesDataPoint
 # TSDB functionality integrated into graph nodes
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
@@ -48,7 +48,7 @@ from ciris_engine.schemas.services.operations import MemoryOpStatus, MemoryQuery
 from ciris_engine.schemas.services.graph.audit import (
     AuditEventData, VerificationReport, AuditQuery
 )
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.logic.services.base_graph_service import BaseGraphService
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.audit.hash_chain import AuditHashChain
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
@@ -63,7 +63,7 @@ except ImportError as e:
     logger.error(f"Failed to import AuditSignatureManager: {e}")
     raise
 
-class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProtocol):
+class GraphAuditService(BaseGraphService, AuditServiceProtocol):
     """
     Consolidated audit service that stores all audit entries in the graph.
 
@@ -104,11 +104,12 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
             retention_days: How long to retain audit data
             cache_size: Size of in-memory cache
         """
-        super().__init__()
         if not time_service:
             raise RuntimeError("CRITICAL: TimeService is required for GraphAuditService")
-        self._memory_bus = memory_bus
-        self._time_service = time_service
+        
+        # Initialize BaseGraphService
+        super().__init__(memory_bus=memory_bus, time_service=time_service)
+        
         self._service_registry: Optional['ServiceRegistry'] = None
 
         # Export configuration
@@ -161,6 +162,9 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
 
     async def start(self) -> None:
         """Start the audit service."""
+        # Call parent start method
+        await super().start()
+        
         logger.info("Starting consolidated GraphAuditService")
         
         # Set start time
@@ -219,6 +223,9 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
             self._db_connection.close()
 
         logger.info("GraphAuditService stopped")
+        
+        # Call parent stop method
+        await super().stop()
 
     async def log_action(
         self,
@@ -714,55 +721,15 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
 
     # ========== GraphServiceProtocol Implementation ==========
 
-    async def store_in_graph(self, node: GraphNode) -> str:
-        """Store a node in the graph."""
-        if not self._memory_bus:
-            raise RuntimeError("Memory bus not available")
-        result = await self._memory_bus.memorize(node)
-        return node.id if result.status == MemoryOpStatus.OK else ""
-
-    async def query_graph(self, query: MemoryQuery) -> List[GraphNode]:
-        """Query the graph."""
-        if not self._memory_bus:
-            return []
-        # Use memory bus to recall nodes
-        nodes = await self._memory_bus.recall(query)
-        return nodes
-
     def get_node_type(self) -> str:
         """Get the type of nodes this service manages."""
         return "AUDIT"
 
     # ========== ServiceProtocol Implementation ==========
-
-    def get_capabilities(self) -> ServiceCapabilities:
-        """Get service capabilities."""
-        return ServiceCapabilities(
-            service_name="GraphAuditService",
-            actions=[
-                "log_action", "log_event", "log_conscience_event",
-                "get_audit_trail", "query_audit_trail",
-                "verify_audit_integrity", "get_verification_report",
-                "export_audit_data", "store_in_graph", "query_graph"
-            ],
-            version="2.0.0",
-            dependencies=["MemoryService"]
-        )
-
-    def get_status(self) -> ServiceStatus:
-        """Get service status."""
-        uptime = 0.0
-        if self._start_time:
-            uptime = (self._time_service.now() - self._start_time).total_seconds()
-        
-        # Calculate memory usage
-        memory_mb = 0.0
-        try:
-            if self._process:
-                memory_info = self._process.memory_info()
-                memory_mb = memory_info.rss / 1024 / 1024  # Convert bytes to MB
-        except Exception as e:
-            logger.debug(f"Could not get memory info: {e}")
+    
+    def _collect_custom_metrics(self) -> Dict[str, float]:
+        """Collect audit-specific metrics."""
+        metrics = super()._collect_custom_metrics()
         
         # Calculate cache size
         cache_size_mb = 0.0
@@ -771,24 +738,16 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
             cache_size_mb = cache_size / 1024 / 1024
         except Exception:
             pass
-            
-        return ServiceStatus(
-            service_name="GraphAuditService",
-            service_type="audit",
-            is_healthy=self._memory_bus is not None,
-            uptime_seconds=uptime,
-            metrics={
-                "cached_entries": float(len(self._recent_entries)),
-                "pending_exports": float(len(self._export_buffer)),
-                "hash_chain_enabled": float(self.enable_hash_chain),
-                "memory_mb": memory_mb,
-                "cache_size_mb": cache_size_mb
-            }
-        )
-
-    async def is_healthy(self) -> bool:
-        """Check if service is healthy."""
-        return self._memory_bus is not None
+        
+        # Add audit-specific metrics
+        metrics.update({
+            "cached_entries": float(len(self._recent_entries)),
+            "pending_exports": float(len(self._export_buffer)),
+            "hash_chain_enabled": float(self.enable_hash_chain),
+            "cache_size_mb": cache_size_mb
+        })
+        
+        return metrics
 
     # ========== Private Helper Methods ==========
 
@@ -1340,3 +1299,38 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
             scope=GraphScope.LOCAL,
             attributes={}
         )
+    
+    # Required methods for BaseGraphService
+    
+    def get_service_type(self) -> ServiceType:
+        """Get the service type."""
+        return ServiceType.AUDIT
+    
+    def _get_actions(self) -> List[str]:
+        """Get the list of actions this service supports."""
+        return [
+            "log_action",
+            "log_event", 
+            "log_request",
+            "query_audit_trail",
+            "query_by_actor",
+            "query_by_time_range",
+            "export_audit_log",
+            "verify_integrity",
+            "verify_signatures",
+            "get_complete_verification_report",
+            "query_events",
+            "get_event_by_id"
+        ]
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all dependencies are satisfied."""
+        # Check parent dependencies (memory bus)
+        if not super()._check_dependencies():
+            return False
+        
+        # Check audit-specific dependencies
+        if self.enable_hash_chain and not self.hash_chain:
+            return False
+            
+        return True

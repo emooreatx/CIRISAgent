@@ -30,9 +30,11 @@ from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatu
 from ciris_engine.schemas.services.operations import MemoryOpStatus, MemoryOpResult, MemoryQuery
 from ciris_engine.protocols.services import MemoryService, GraphMemoryServiceProtocol
 from ciris_engine.schemas.runtime.memory import TimeSeriesDataPoint
+from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.schemas.secrets.service import DecapsulationContext
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.logic.services.base_graph_service import BaseGraphService
 from ciris_engine.schemas.services.graph.memory import (
     MemorySearchFilter
 )
@@ -47,14 +49,15 @@ class DateTimeEncoder(json.JSONEncoder):
             return obj.isoformat()
         return super().default(obj)
 
-class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
+class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServiceProtocol):
     """Graph memory backed by the persistence database."""
 
     def __init__(self, db_path: Optional[str] = None, secrets_service: Optional[SecretsService] = None, time_service: Optional[TimeServiceProtocol] = None) -> None:
-        super().__init__()
+        # Initialize BaseGraphService - LocalGraphMemoryService doesn't use memory_bus
+        super().__init__(memory_bus=None, time_service=time_service)
+        
         self.db_path = db_path or get_sqlite_db_full_path()
         initialize_database(db_path=self.db_path)
-        self._time_service = time_service
         self.secrets_service = secrets_service  # Must be provided, not created here
         self._start_time: Optional[datetime] = None
         self._process: Optional["Process"] = None
@@ -777,6 +780,7 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
 
     async def start(self) -> None:
         """Start the memory service."""
+        await super().start()
         if self._time_service:
             self._start_time = self._time_service.now()
         logger.info("LocalGraphMemoryService started")
@@ -784,44 +788,11 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
     async def stop(self) -> None:
         """Stop the memory service."""
         logger.info("LocalGraphMemoryService stopped")
+        await super().stop()
 
-    def get_capabilities(self) -> ServiceCapabilities:
-        """Get service capabilities."""
-        return ServiceCapabilities(
-            service_name="MemoryService",
-            actions=[
-                "memorize",
-                "recall",
-                "forget",
-                "memorize_metric",
-                "memorize_log",
-                "recall_timeseries",
-                "export_identity_context",
-                "search"
-            ],
-            version="1.0.0",
-            dependencies=["SecretsService", "TimeService"],
-            metadata={
-                "storage_backend": "sqlite",
-                "supports_graph_traversal": True
-            }
-        )
-
-    def get_status(self) -> ServiceStatus:
-        """Get service status."""
-        # Calculate uptime
-        uptime_seconds = 0.0
-        if self._time_service and self._start_time:
-            uptime_seconds = (self._time_service.now() - self._start_time).total_seconds()
-
-        # Calculate memory usage
-        memory_mb = 0.0
-        try:
-            if self._process:
-                memory_info = self._process.memory_info()
-                memory_mb = memory_info.rss / 1024 / 1024  # Convert bytes to MB
-        except Exception as e:
-            logger.debug(f"Could not get memory info: {e}")
+    def _collect_custom_metrics(self) -> Dict[str, float]:
+        """Collect memory-specific metrics."""
+        metrics = super()._collect_custom_metrics()
         
         # Count graph nodes for metrics
         node_count = 0
@@ -834,23 +805,21 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
         except Exception:
             pass
         
-        return ServiceStatus(
-            service_name="MemoryService",
-            service_type="graph_service",
-            is_healthy=True,
-            uptime_seconds=uptime_seconds,
-            metrics={
-                "secrets_enabled": 1.0 if self.secrets_service else 0.0,
-                "memory_mb": memory_mb,
-                "graph_node_count": float(node_count)
-            },
-            last_error=None,
-            last_health_check=self._time_service.now() if self._time_service else None,
-            custom_metrics={}
-        )
-
+        # Add memory-specific metrics
+        metrics.update({
+            "secrets_enabled": 1.0 if self.secrets_service else 0.0,
+            "graph_node_count": float(node_count),
+            "storage_backend": 1.0  # 1.0 = sqlite
+        })
+        
+        return metrics
+    
     async def is_healthy(self) -> bool:
         """Check if service is healthy."""
+        # First check parent health
+        if not await super().is_healthy():
+            return False
+            
         try:
             # Try a simple database operation
             with get_db_connection(db_path=self.db_path) as conn:
@@ -873,3 +842,30 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
     def get_node_type(self) -> str:
         """Get the type of nodes this service manages."""
         return "ALL"  # Memory service manages all node types
+    
+    # Required methods for BaseGraphService
+    
+    def get_service_type(self) -> ServiceType:
+        """Get the service type."""
+        return ServiceType.MEMORY
+    
+    def _get_actions(self) -> List[str]:
+        """Get the list of actions this service supports."""
+        return [
+            "memorize",
+            "recall",
+            "forget",
+            "memorize_metric",
+            "memorize_log",
+            "recall_timeseries",
+            "export_identity_context",
+            "search",
+            "create_edge",
+            "get_node_edges"
+        ]
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all dependencies are satisfied."""
+        # Memory service doesn't use memory bus (it IS what memory bus uses)
+        # Check for optional dependencies
+        return True  # Base memory service has no hard dependencies
