@@ -10,7 +10,7 @@ CIRIS is a moral reasoning platform designed for progressive deployment:
 - **Target Deployments**: Rural clinics, educational settings, community centers
 - **Design Philosophy**: Start simple (Discord bot), scale to critical (healthcare triage)
 
-The sophisticated architecture (19 services, 6 buses) is intentional - it's a platform that starts as a Discord bot but is designed to scale to mission-critical applications in resource-constrained environments.
+The sophisticated architecture (23 services, 6 buses) is intentional - it's a platform that starts as a Discord bot but is designed to scale to mission-critical applications in resource-constrained environments.
 
 ## Core Philosophy: No Dicts, No Strings, No Kings
 
@@ -32,13 +32,14 @@ This ensures type safety, validation, and clear contracts throughout the system.
    - All data structures use Pydantic schemas
    - Full type validation throughout the system
 
-2. **Service Architecture**: Exactly 19 services ✅
-   - Graph Services (6): memory, audit, config, telemetry, incident_management, tsdb_consolidation
-   - Core Services (2): llm, secrets
-   - Infrastructure Services (7): time, shutdown, initialization, visibility, authentication, resource_monitor, runtime_control
-   - Governance Services (1): wise_authority
-   - Special Services (3): self_observation, adaptive_filter, task_scheduler
-   - **All 19 services healthy and operational**
+2. **Service Architecture**: Exactly 23 services ✅
+   - Graph Services (6): memory, config, telemetry, audit, incident_management, tsdb_consolidation
+   - Infrastructure Services (7): time, shutdown, initialization, authentication, resource_monitor, database_maintenance, secrets
+   - Governance Services (4): wise_authority, adaptive_filter, visibility, self_observation
+   - Runtime Services (4): llm, runtime_control, task_scheduler, pattern_analysis_loop
+   - Tool Services (1): secrets_tool
+   - Special Services (1): identity_variance_monitor
+   - **All 23 services identified and being migrated to base classes**
 
 3. **API v1.0**: Fully Operational
    - All 56 endpoints implemented and tested across 11 modules
@@ -201,7 +202,7 @@ response = requests.post(
 
 ## Key Principles
 
-1. **Service Count is Sacred**: Exactly 19 services
+1. **Service Count is Complete**: Exactly 23 services
 2. **No Service Creates Services**: Only ServiceInitializer creates services
 3. **Type Safety First**: All data uses Pydantic schemas
 4. **Protocol-Driven**: All services implement clear protocols
@@ -210,7 +211,7 @@ response = requests.post(
 ## Why This Architecture?
 
 - **SQLite + Threading**: Offline-first for remote deployments
-- **19 Services**: Modular for selective deployment
+- **23 Services**: Modular for selective deployment
 - **Graph Memory**: Builds local knowledge base
 - **Mock LLM**: Critical for offline operation
 - **Resource Constraints**: Designed for 4GB RAM environments
