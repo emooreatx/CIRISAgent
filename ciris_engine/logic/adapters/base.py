@@ -18,6 +18,7 @@ class Service(ABC):
         Args:
             config: Optional configuration dictionary specific to the service.
         """
+        super().__init__()  # Properly initialize the ABC for Python 3.12 compatibility
         self.config = config or {}
         self.service_name = self.__class__.__name__ # Default name
         logger.info(f"Initializing service: {self.service_name}")

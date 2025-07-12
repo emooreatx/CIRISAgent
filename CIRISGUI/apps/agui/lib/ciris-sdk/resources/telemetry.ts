@@ -42,26 +42,31 @@ export interface MetricDetail {
 }
 
 export interface TelemetryOverview {
-  total_logs: number;
+  uptime_seconds: number;
+  cognitive_state: string;
+  messages_processed_24h: number;
+  thoughts_processed_24h: number;
+  tasks_completed_24h: number;
+  errors_24h: number;
+  tokens_last_hour: number;
+  cost_last_hour_cents: number;
+  carbon_last_hour_grams: number;
+  energy_last_hour_kwh: number;
+  tokens_24h: number;
+  cost_24h_cents: number;
+  carbon_24h_grams: number;
+  energy_24h_kwh: number;
+  memory_mb: number;
+  cpu_percent: number;
+  healthy_services: number;
+  degraded_services: number;
+  error_rate_percent: number;
+  current_task: string | null;
+  reasoning_depth: number;
+  active_deferrals: number;
+  recent_incidents: number;
   total_metrics: number;
-  total_traces: number;
-  error_rate: number;
-  average_response_time_ms: number;
   active_services: number;
-  time_range: {
-    start: string;
-    end: string;
-  };
-  top_errors: Array<{
-    message: string;
-    count: number;
-    last_seen: string;
-  }>;
-  service_health: Record<string, {
-    status: 'healthy' | 'degraded' | 'unhealthy';
-    error_count: number;
-    response_time_ms: number;
-  }>;
 }
 
 export interface TelemetryQuery {

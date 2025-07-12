@@ -31,6 +31,9 @@ RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
 # Install pytest and coverage tools
 RUN pip install pytest pytest-cov
 
+# Cache bust arg to force rebuild
+ARG CACHEBUST=1
+
 # Copy the entire application
 COPY . .
 

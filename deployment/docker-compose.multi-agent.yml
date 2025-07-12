@@ -1,0 +1,191 @@
+version: '3.8'
+
+services:
+  # Agent 0 - Alpha (Primary decision-making)
+  agent-0:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: ciris-agent-0
+    ports:
+      - "8080:8080"
+    environment:
+      - CIRIS_AGENT_NAME=Agent Alpha
+      - CIRIS_AGENT_ID=agent-0
+      - CIRIS_PORT=8080
+      - CIRIS_ADAPTER=api
+      - MOCK_LLM=false
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - agent0_data:/app/data
+      - agent0_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Agent 1 - Beta (Secondary analysis)
+  agent-1:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: ciris-agent-1
+    ports:
+      - "8081:8080"
+    environment:
+      - CIRIS_AGENT_NAME=Agent Beta
+      - CIRIS_AGENT_ID=agent-1
+      - CIRIS_PORT=8080
+      - CIRIS_ADAPTER=api
+      - MOCK_LLM=false
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - agent1_data:/app/data
+      - agent1_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Agent 2 - Gamma (Pattern recognition)
+  agent-2:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: ciris-agent-2
+    ports:
+      - "8082:8080"
+    environment:
+      - CIRIS_AGENT_NAME=Agent Gamma
+      - CIRIS_AGENT_ID=agent-2
+      - CIRIS_PORT=8080
+      - CIRIS_ADAPTER=api
+      - MOCK_LLM=false
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - agent2_data:/app/data
+      - agent2_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Agent 3 - Delta (Ethical reasoning)
+  agent-3:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: ciris-agent-3
+    ports:
+      - "8083:8080"
+    environment:
+      - CIRIS_AGENT_NAME=Agent Delta
+      - CIRIS_AGENT_ID=agent-3
+      - CIRIS_PORT=8080
+      - CIRIS_ADAPTER=api
+      - MOCK_LLM=false
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - agent3_data:/app/data
+      - agent3_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Agent 4 - Epsilon (Creative solutions)
+  agent-4:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: ciris-agent-4
+    ports:
+      - "8084:8080"
+    environment:
+      - CIRIS_AGENT_NAME=Agent Epsilon
+      - CIRIS_AGENT_ID=agent-4
+      - CIRIS_PORT=8080
+      - CIRIS_ADAPTER=api
+      - MOCK_LLM=false
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - agent4_data:/app/data
+      - agent4_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Agent 5 - Zeta (Verification and validation)
+  agent-5:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: ciris-agent-5
+    ports:
+      - "8085:8080"
+    environment:
+      - CIRIS_AGENT_NAME=Agent Zeta
+      - CIRIS_AGENT_ID=agent-5
+      - CIRIS_PORT=8080
+      - CIRIS_ADAPTER=api
+      - MOCK_LLM=false
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - agent5_data:/app/data
+      - agent5_logs:/app/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # GUI Application
+  ciris-gui:
+    build:
+      context: ../CIRISGUI
+      dockerfile: Dockerfile
+    container_name: ciris-gui
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_CIRIS_API_URL=https://agents.ciris.ai
+    restart: unless-stopped
+
+volumes:
+  agent0_data:
+  agent0_logs:
+  agent1_data:
+  agent1_logs:
+  agent2_data:
+  agent2_logs:
+  agent3_data:
+  agent3_logs:
+  agent4_data:
+  agent4_logs:
+  agent5_data:
+  agent5_logs:

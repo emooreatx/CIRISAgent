@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { cirisClient } from '../../lib/ciris-sdk';
 import type { UserDetail, WARole } from '../../lib/ciris-sdk';
@@ -19,6 +19,34 @@ export function WAMintModal({ user, onClose, onSuccess }: WAMintModalProps) {
   const [minting, setMinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [keyExists, setKeyExists] = useState<boolean | null>(null);
+  const [checkingKey, setCheckingKey] = useState(false);
+  const [useAutoSign, setUseAutoSign] = useState(false);
+
+  // Check if private key exists when path changes
+  useEffect(() => {
+    const checkKey = async () => {
+      if (!privateKeyPath) return;
+      
+      setCheckingKey(true);
+      try {
+        const response = await cirisClient.users.checkWAKeyExists(privateKeyPath);
+        setKeyExists(response.exists && response.valid_size);
+        if (response.exists && response.valid_size) {
+          setUseAutoSign(true);
+        }
+      } catch (err) {
+        console.error('Failed to check key:', err);
+        setKeyExists(false);
+      } finally {
+        setCheckingKey(false);
+      }
+    };
+    
+    // Debounce the key check
+    const timer = setTimeout(checkKey, 500);
+    return () => clearTimeout(timer);
+  }, [privateKeyPath]);
 
   const handleMint = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,18 +55,23 @@ export function WAMintModal({ user, onClose, onSuccess }: WAMintModalProps) {
       setMinting(true);
       setError(null);
 
-      // Sign the message with the ROOT private key
-      const message = `MINT_WA:${user.user_id}:${waRole}`;
+      // Prepare the mint request
+      const mintRequest: any = {
+        wa_role: waRole
+      };
       
-      // In a real implementation, we would use the Web Crypto API or a library
-      // to sign with Ed25519. For now, we'll use the provided key as the signature
-      // This is just for demonstration - real signing would happen client-side
-      const signature = rootKey;
+      if (useAutoSign && keyExists) {
+        // Use auto-signing with the private key path
+        mintRequest.private_key_path = privateKeyPath;
+      } else {
+        // Use the provided signature
+        if (!rootKey) {
+          throw new Error('Please provide a signature or enable auto-signing');
+        }
+        mintRequest.signature = rootKey;
+      }
 
-      await cirisClient.users.mintWiseAuthority(user.user_id, {
-        wa_role: waRole,
-        signature: signature
-      });
+      await cirisClient.users.mintWiseAuthority(user.user_id, mintRequest);
 
       onSuccess();
       onClose();
@@ -144,34 +177,59 @@ export function WAMintModal({ user, onClose, onSuccess }: WAMintModalProps) {
                     <p className="mt-1 text-xs text-gray-500">
                       Path to your ROOT private key file (e.g., ~/.ciris/wa_keys/root_wa.key)
                     </p>
+                    {checkingKey && (
+                      <p className="mt-1 text-xs text-gray-400">Checking key...</p>
+                    )}
+                    {!checkingKey && keyExists !== null && (
+                      <p className={`mt-1 text-xs ${keyExists ? 'text-green-600' : 'text-red-600'}`}>
+                        {keyExists ? '✓ Key found - auto-signing available' : '✗ Key not found at this path'}
+                      </p>
+                    )}
                   </div>
 
-                  <div>
-                    <div className="flex items-center justify-between">
-                      <label htmlFor="root-key" className="block text-sm font-medium text-gray-700">
-                        ROOT Signature
+                  {keyExists && (
+                    <div className="flex items-center">
+                      <input
+                        type="checkbox"
+                        id="use-auto-sign"
+                        checked={useAutoSign}
+                        onChange={(e) => setUseAutoSign(e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <label htmlFor="use-auto-sign" className="ml-2 block text-sm text-gray-700">
+                        Use auto-signing (sign on server with private key)
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => setShowInstructions(!showInstructions)}
-                        className="text-xs text-indigo-600 hover:text-indigo-500"
-                      >
-                        How to sign?
-                      </button>
                     </div>
-                    <textarea
-                      id="root-key"
-                      value={rootKey}
-                      onChange={(e) => setRootKey(e.target.value)}
-                      required
-                      rows={3}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono text-xs"
-                      placeholder="Paste the Ed25519 signature here..."
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      This action requires a valid signature from the ROOT private key
-                    </p>
-                  </div>
+                  )}
+
+                  {(!useAutoSign || !keyExists) && (
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label htmlFor="root-key" className="block text-sm font-medium text-gray-700">
+                          ROOT Signature
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowInstructions(!showInstructions)}
+                          className="text-xs text-indigo-600 hover:text-indigo-500"
+                        >
+                          How to sign?
+                        </button>
+                      </div>
+                      <textarea
+                        id="root-key"
+                        value={rootKey}
+                        onChange={(e) => setRootKey(e.target.value)}
+                        required={!useAutoSign || !keyExists}
+                        rows={3}
+                        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm font-mono text-xs"
+                        placeholder="Paste the Ed25519 signature here..."
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        This action requires a valid signature from the ROOT private key
+                      </p>
+                    </div>
+                  )}
 
                   {showInstructions && (
                     <div className="bg-gray-50 rounded-md p-4 text-xs">

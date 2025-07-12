@@ -41,6 +41,7 @@ class Permission(str, Enum):
     VIEW_AUDIT = "view_audit"
     VIEW_TOOLS = "view_tools"
     VIEW_LOGS = "view_logs"
+    SEND_MESSAGES = "send_messages"  # Permission to send messages via API
 
     # Admin permissions
     MANAGE_CONFIG = "manage_config"
@@ -54,6 +55,7 @@ class Permission(str, Enum):
     RESOLVE_DEFERRALS = "resolve_deferrals"
     PROVIDE_GUIDANCE = "provide_guidance"
     GRANT_PERMISSIONS = "grant_permissions"
+    MANAGE_USER_PERMISSIONS = "manage_user_permissions"
 
     # System Admin permissions
     FULL_ACCESS = "full_access"
@@ -71,6 +73,7 @@ ROLE_PERMISSIONS: Dict[UserRole, Set[Permission]] = {
         Permission.VIEW_AUDIT,
         Permission.VIEW_TOOLS,
         Permission.VIEW_LOGS,
+        # Note: SEND_MESSAGES not included by default for OBSERVER
     },
     UserRole.ADMIN: {
         # Includes all OBSERVER permissions
@@ -82,6 +85,7 @@ ROLE_PERMISSIONS: Dict[UserRole, Set[Permission]] = {
         Permission.VIEW_AUDIT,
         Permission.VIEW_TOOLS,
         Permission.VIEW_LOGS,
+        Permission.SEND_MESSAGES,  # ADMIN can send messages
         # Plus admin permissions
         Permission.MANAGE_CONFIG,
         Permission.RUNTIME_CONTROL,
@@ -100,6 +104,7 @@ ROLE_PERMISSIONS: Dict[UserRole, Set[Permission]] = {
         Permission.VIEW_AUDIT,
         Permission.VIEW_TOOLS,
         Permission.VIEW_LOGS,
+        Permission.SEND_MESSAGES,  # AUTHORITY can send messages
         Permission.MANAGE_CONFIG,
         Permission.RUNTIME_CONTROL,
         Permission.MANAGE_INCIDENTS,
@@ -110,6 +115,7 @@ ROLE_PERMISSIONS: Dict[UserRole, Set[Permission]] = {
         Permission.RESOLVE_DEFERRALS,
         Permission.PROVIDE_GUIDANCE,
         Permission.GRANT_PERMISSIONS,
+        Permission.MANAGE_USER_PERMISSIONS,
     },
     UserRole.SYSTEM_ADMIN: {
         Permission.FULL_ACCESS,

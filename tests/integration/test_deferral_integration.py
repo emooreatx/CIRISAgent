@@ -136,11 +136,66 @@ class IntegrationTestBase:
 
         # Mock WA service with correct parameters
         # Cast to avoid mypy errors - our mock implements the protocol
+        # Create temporary database with thoughts table
+        import sqlite3
+        import tempfile
+        
+        # Create temporary file for database
+        db_file = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+        db_path = db_file.name
+        db_file.close()
+        
+        # Create the database schema
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        # Create tasks table for new deferral system
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                task_id TEXT PRIMARY KEY,
+                channel_id TEXT NOT NULL,
+                description TEXT NOT NULL,
+                status TEXT NOT NULL,
+                priority INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                parent_task_id TEXT,
+                context_json TEXT,
+                outcome_json TEXT,
+                retry_count INTEGER DEFAULT 0,
+                signed_by TEXT,
+                signature TEXT,
+                signed_at TEXT
+            )
+        """)
+        # Also create thoughts table for compatibility
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS thoughts (
+                thought_id TEXT PRIMARY KEY,
+                task_id TEXT,
+                thought_content TEXT,
+                thought_context TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status TEXT DEFAULT 'pending',
+                channel_id TEXT,
+                user_id TEXT,
+                priority TEXT DEFAULT 'medium',
+                resolution_json TEXT,
+                defer_until TIMESTAMP,
+                metadata TEXT
+            )
+        """)
+        conn.commit()
+        conn.close()
+        
         wa_service = WiseAuthorityService(
             time_service=cast(Any, mock_time_service),
             auth_service=mock_auth_service,
-            db_path=":memory:"  # Use in-memory SQLite for tests
+            db_path=db_path
         )
+        
+        # Store the db_path so we can clean it up later
+        self._temp_db_path = db_path
         # Initialize the service to ensure database is set up
         asyncio.run(wa_service.start())
 
@@ -232,7 +287,19 @@ class TestDeferralIntegration(IntegrationTestBase):
         mock_service_registry: Mock
     ) -> None:
         """Test complete flow: defer -> store -> list -> resolve."""
-        # Step 1: Create and handle deferral
+        # Step 1: Create task in database first
+        import sqlite3
+        conn = sqlite3.connect(self._temp_db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO tasks (task_id, channel_id, description, status, priority, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, ("task_medical_001", "medical_channel", "Medical consultation task", "active", 0,
+              datetime.now(timezone.utc).isoformat(), datetime.now(timezone.utc).isoformat()))
+        conn.commit()
+        conn.close()
+        
+        # Step 2: Create and handle deferral
         thought = Thought(
             thought_id="thought_medical_001",
             source_task_id="task_medical_001",
@@ -314,7 +381,7 @@ class TestDeferralIntegration(IntegrationTestBase):
         )
         assert medical_deferral is not None
         assert medical_deferral.reason == params.reason
-        assert medical_deferral.priority == "normal"  # Default from WA service
+        assert medical_deferral.priority == "low"  # Priority 0 converts to "low"
 
         # Step 3: WA resolves deferral
         wa_cert = WACertificate(
@@ -358,6 +425,11 @@ class TestDeferralIntegration(IntegrationTestBase):
         mock_service_registry: Mock
     ) -> None:
         """Test handling multiple deferrals with different priorities."""
+        # First create tasks in the database
+        import sqlite3
+        conn = sqlite3.connect(self._temp_db_path)
+        cursor = conn.cursor()
+        
         # Create deferrals with different priorities
         deferrals = [
             {
@@ -379,6 +451,24 @@ class TestDeferralIntegration(IntegrationTestBase):
                 "context": {"priority": "high", "amount": "50000"}
             }
         ]
+
+        # Create all tasks in database before deferrals
+        from datetime import datetime, timezone
+        for deferral_data in deferrals:
+            cursor.execute("""
+                INSERT INTO tasks (task_id, channel_id, description, status, priority, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                deferral_data["task_id"], 
+                "test_channel", 
+                deferral_data["reason"], 
+                "active", 
+                0,
+                datetime.now(timezone.utc).isoformat(), 
+                datetime.now(timezone.utc).isoformat()
+            ))
+        conn.commit()
+        conn.close()
 
         # Handle all deferrals
         tasks = []
@@ -466,11 +556,11 @@ class TestDeferralIntegration(IntegrationTestBase):
         assert high is not None
         assert low is not None
 
-        # All should have default "normal" priority from WA service
-        # (The context priority is stored but not used for WA priority)
-        assert critical.priority == "normal"
-        assert high.priority == "normal"
-        assert low.priority == "normal"
+        # All should have "low" priority since tasks were created with priority 0
+        # (Priority 0 converts to "low" in WiseAuthority)
+        assert critical.priority == "low"
+        assert high.priority == "low"
+        assert low.priority == "low"
 
     @pytest.mark.asyncio
     async def test_time_based_deferral_with_scheduler(
@@ -481,6 +571,18 @@ class TestDeferralIntegration(IntegrationTestBase):
         mock_time_service: MockTimeService
     ) -> None:
         """Test time-based deferral with task scheduler integration."""
+        # First create task in database
+        import sqlite3
+        conn = sqlite3.connect(self._temp_db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO tasks (task_id, channel_id, description, status, priority, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, ("task_scheduled_001", "payment_channel", "Payment processing task", "active", 0,
+              datetime.now(timezone.utc).isoformat(), datetime.now(timezone.utc).isoformat()))
+        conn.commit()
+        conn.close()
+
         # Set current time
         current_time = datetime.now(timezone.utc)
         mock_time_service._now = current_time
@@ -587,6 +689,18 @@ class TestDeferralIntegration(IntegrationTestBase):
         mock_time_service: MockTimeService
     ) -> None:
         """Test WA modifying a deferral during resolution."""
+        # First create task in database
+        import sqlite3
+        conn = sqlite3.connect(self._temp_db_path)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO tasks (task_id, channel_id, description, status, priority, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, ("task_modify_001", "finance_channel", "Financial transaction task", "active", 0,
+              datetime.now(timezone.utc).isoformat(), datetime.now(timezone.utc).isoformat()))
+        conn.commit()
+        conn.close()
+
         # Create initial deferral
         thought = Thought(
             thought_id="thought_modify_001",

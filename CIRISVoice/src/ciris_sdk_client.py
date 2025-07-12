@@ -9,13 +9,48 @@ import logging
 from typing import Optional, Dict, Any
 from datetime import datetime
 
-# Note: Requires `pip install ciris-sdk`
+# Import SDK - it's installed locally in the container
 try:
-    from ciris_sdk import CIRISClient
-    from ciris_sdk.exceptions import CIRISError, CIRISTimeoutError
-except ImportError:
+    import sys
+    import os
+    
+    # Debug: Check if SDK directory exists
+    sdk_paths = ['/app/sdk', '/app/sdk/ciris_sdk', '/app/ciris_sdk']
+    for path in sdk_paths:
+        if os.path.exists(path):
+            print(f"DEBUG: Found SDK at {path}")
+            if os.path.isdir(path):
+                print(f"DEBUG: Contents: {os.listdir(path)}")
+    
+    # Try multiple import methods
+    imported = False
+    
+    # Method 1: Try as installed package (from pip install -e)
+    try:
+        from ciris_sdk.client import CIRISClient as SDKCIRISClient
+        from ciris_sdk.exceptions import CIRISError, CIRISTimeoutError
+        print("DEBUG: Successfully imported CIRIS SDK as installed package")
+        imported = True
+    except ImportError as e:
+        print(f"DEBUG: Method 1 failed: {e}")
+    
+    # Method 2: Try direct import from /app/sdk (files are directly there)
+    if not imported:
+        sys.path.insert(0, '/app/sdk')
+        try:
+            from client import CIRISClient as SDKCIRISClient
+            from exceptions import CIRISError, CIRISTimeoutError
+            print("DEBUG: Successfully imported CIRIS SDK from /app/sdk directly")
+            imported = True
+        except ImportError as e:
+            print(f"DEBUG: Method 2 failed: {e}")
+    
+    if not imported:
+        raise ImportError("Could not import CIRIS SDK from any location")
+except ImportError as e:
+    print(f"DEBUG: Failed to import SDK: {e}")
     # Fallback for development without SDK installed
-    CIRISClient = None
+    SDKCIRISClient = None
     CIRISError = Exception
     CIRISTimeoutError = asyncio.TimeoutError
 
@@ -32,13 +67,14 @@ class CIRISVoiceClient:
         Args:
             config: Configuration object with api_url, api_key, channel_id, etc.
         """
-        if CIRISClient is None:
+        if SDKCIRISClient is None:
             raise ImportError(
                 "CIRIS SDK not installed. Please run: pip install ciris-sdk"
             )
             
         # Initialize SDK client with extended timeout
-        self.client = CIRISClient(
+        logger.debug(f"Initializing SDK with base_url={config.api_url}, api_key={'***' if config.api_key else 'None'}")
+        self.client = SDKCIRISClient(
             base_url=config.api_url,
             api_key=config.api_key,
             timeout=58.0,  # 58 seconds - just under HA's 60s timeout
@@ -64,6 +100,28 @@ class CIRISVoiceClient:
         this would handle login.
         """
         try:
+            # Start the transport
+            await self.client.__aenter__()
+            
+            logger.info(f"Attempting to connect to CIRIS at {self.client._transport.base_url}")
+            
+            # Check if we have username:password format
+            if self.client._transport.api_key and ':' in self.client._transport.api_key:
+                username, password = self.client._transport.api_key.split(':', 1)
+                logger.info(f"Using username/password auth for user: {username}")
+                
+                # Login to get token
+                try:
+                    token = await self.client.auth.login(username, password)
+                    logger.info("Successfully logged in, got access token")
+                    # Update the transport with the new token
+                    self.client._transport.set_api_key(token.access_token)
+                except Exception as e:
+                    logger.error(f"Failed to login: {e}")
+                    raise
+            else:
+                logger.info(f"Using auth: {'API key' if self.client._transport.api_key else 'None'}")
+            
             # Test connection and auth
             status = await self.client.agent.get_status()
             logger.info(f"Connected to CIRIS agent: {status.name} (state: {status.cognitive_state})")
@@ -74,6 +132,10 @@ class CIRISVoiceClient:
             
         except CIRISError as e:
             logger.error(f"Failed to initialize CIRIS client: {e}")
+            logger.error(f"Error details: {type(e).__name__}: {str(e)}")
+            raise
+        except Exception as e:
+            logger.error(f"Unexpected error initializing CIRIS: {type(e).__name__}: {str(e)}")
             raise
     
     async def send_message(self, content: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -88,9 +150,10 @@ class CIRISVoiceClient:
             Dict with 'content' key containing the response text
         """
         try:
-            # Build voice-specific context
+            # Build voice-specific context with channel_id
             voice_context = {
                 "source": "wyoming_voice",
+                "channel_id": self.channel_id,  # Pass channel_id in context
                 "profile": self.profile,
                 "language": self.language,
                 "session_id": self.session_id,
@@ -104,10 +167,9 @@ class CIRISVoiceClient:
             
             logger.info(f"Sending to CIRIS: '{content[:50]}...' on channel {self.channel_id}")
             
-            # Use the SDK's agent interact method with extended timeout
+            # Use the SDK's agent interact method (without channel_id parameter)
             response = await self.client.agent.interact(
                 message=content,
-                channel_id=self.channel_id,
                 context=voice_context
             )
             
@@ -202,8 +264,11 @@ class CIRISVoiceClient:
         """
         Close the client and clean up resources.
         """
-        await self.end_session()
-        await self.client.close()
+        try:
+            await self.client.__aexit__(None, None, None)
+            logger.info("CIRIS client closed successfully")
+        except Exception as e:
+            logger.error(f"Error closing CIRIS client: {e}")
         logger.info("CIRIS Voice Client closed")
 
 

@@ -22,6 +22,7 @@ from .api_runtime_control import APIRuntimeControlService
 from .api_observer import APIObserver
 from .api_communication import APICommunicationService
 from .api_tools import APIToolService
+from .services.auth_service import APIAuthService
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +158,10 @@ class ApiPlatform(Service):
         if hasattr(runtime, 'authentication_service') and runtime.authentication_service is not None:
             self.app.state.authentication_service = runtime.authentication_service
             logger.info("Injected authentication_service")
+            
+            # Re-initialize APIAuthService with the authentication service for persistence
+            self.app.state.auth_service = APIAuthService(runtime.authentication_service)
+            logger.info("Re-initialized APIAuthService with authentication service for persistence")
         if hasattr(runtime, 'incident_management_service') and runtime.incident_management_service is not None:
             self.app.state.incident_management_service = runtime.incident_management_service
             logger.info("Injected incident_management_service")

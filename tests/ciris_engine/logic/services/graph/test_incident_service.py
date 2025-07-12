@@ -80,6 +80,7 @@ def mock_memory_bus() -> Mock:
     mock_registry = Mock()
     mock_memory_service = Mock()
     mock_memory_service.search = AsyncMock(return_value=[])
+    # Make get_service return the same mock regardless of arguments
     mock_registry.get_service = Mock(return_value=mock_memory_service)
     mock.service_registry = mock_registry
 
@@ -167,7 +168,8 @@ async def test_incident_service_process_recent_incidents(incident_service: Incid
     ]
 
     # Mock the memory service search to return incidents
-    mock_memory_service = mock_memory_bus.service_registry.get_service()
+    # The code calls get_service("MemoryService")
+    mock_memory_service = mock_memory_bus.service_registry.get_service("MemoryService")
     mock_memory_service.search = AsyncMock(return_value=mock_incident_nodes)
 
     # Process incidents

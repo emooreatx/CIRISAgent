@@ -24,7 +24,7 @@ class APIAdapterConfig(BaseModel):
     auth_enabled: bool = Field(default=True, description="Enable authentication")
     
     # Timeout configuration
-    interaction_timeout: float = Field(default=5.0, description="Timeout for agent interactions in seconds")
+    interaction_timeout: float = Field(default=55.0, description="Timeout for agent interactions in seconds")
     
     def get_home_channel_id(self, host: str, port: int) -> str:
         """Get the home channel ID for this API adapter instance."""

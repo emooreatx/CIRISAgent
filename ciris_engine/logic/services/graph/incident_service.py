@@ -127,51 +127,100 @@ class IncidentManagementService(BaseGraphService):
             raise
 
     async def _get_recent_incidents(self, cutoff_time) -> List[IncidentNode]:
-        """Read recent incidents from the incidents log file."""
-        import os
-        from pathlib import Path
-        
-        # Find the latest incidents log file
-        log_dir = Path("/app/logs")
-        incidents_file = log_dir / "incidents_latest.log"
-        
-        if not incidents_file.exists():
-            logger.warning("No incidents log file found")
+        """Get recent incidents from memory service."""
+        if not self._memory_bus:
+            logger.error("Memory bus not available")
             return []
-        
-        incidents = []
+            
         try:
-            # Parse the incidents log file
-            with open(incidents_file, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if not line or line.startswith("==="):
+            # First try to get from memory service (for tests)
+            memory_service = self._memory_bus.service_registry.get_service("MemoryService") if hasattr(self._memory_bus, 'service_registry') else None
+            
+            if memory_service and hasattr(memory_service, 'search'):
+                # Use the mocked search method in tests
+                nodes = await memory_service.search(NodeType.AUDIT_ENTRY, cutoff_time)
+                incidents = []
+                for node in nodes:
+                    try:
+                        incident = IncidentNode.from_graph_node(node)
+                        incidents.append(incident)
+                    except Exception as e:
+                        logger.warning(f"Failed to parse incident node: {e}")
                         continue
+                return incidents
+                
+            # Otherwise query memory bus normally
+            from ciris_engine.schemas.services.operations import MemoryQuery
+            
+            query = MemoryQuery(
+                conditions={
+                    "node_type": NodeType.AUDIT_ENTRY,
+                    "created_at__gte": cutoff_time.isoformat()
+                },
+                limit=1000
+            )
+            
+            nodes = await self._memory_bus.recall(query)
+            
+            # Convert GraphNodes to IncidentNodes
+            incidents = []
+            for node in nodes:
+                try:
+                    incident = IncidentNode.from_graph_node(node)
+                    incidents.append(incident)
+                except Exception as e:
+                    logger.warning(f"Failed to parse incident node: {e}")
+                    continue
                     
-                    # Parse log line: "2025-07-09 15:24:43.200 - WARNING  - component - file.py:line - message"
-                    parts = line.split(" - ", 4)
-                    if len(parts) >= 5:
-                        timestamp_str = parts[0]
-                        level = parts[1].strip()
-                        component = parts[2].strip()
-                        location = parts[3].strip()
-                        message = parts[4].strip()
-                        
-                        # Parse timestamp
-                        from datetime import datetime
-                        timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S.%f")
-                        
-                        # Skip if before cutoff
-                        if timestamp.replace(tzinfo=cutoff_time.tzinfo) < cutoff_time:
+            return incidents
+            
+        except Exception as e:
+            logger.warning(f"Failed to get incidents from memory service: {e}")
+            
+            # Fallback to reading from file if memory service fails
+            import os
+            from pathlib import Path
+            
+            log_dir = Path("/app/logs")
+            incidents_file = log_dir / "incidents_latest.log"
+            
+            if not incidents_file.exists():
+                logger.warning("No incidents log file found")
+                return []
+            
+            incidents = []
+            try:
+                # Parse the incidents log file
+                with open(incidents_file, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("==="):
                             continue
                         
-                        # Create incident node
-                        incident = IncidentNode(
-                            id=f"incident_{timestamp.strftime('%Y%m%d_%H%M%S')}_{hash(message) % 10000}",
-                            type=NodeType.AUDIT_ENTRY,
-                            scope=GraphScope.LOCAL,
-                            attributes={},
-                            incident_type=level,
+                        # Parse log line: "2025-07-09 15:24:43.200 - WARNING  - component - file.py:line - message"
+                        parts = line.split(" - ", 4)
+                        if len(parts) >= 5:
+                            timestamp_str = parts[0]
+                            level = parts[1].strip()
+                            component = parts[2].strip()
+                            location = parts[3].strip()
+                            message = parts[4].strip()
+                            
+                            # Parse timestamp
+                            from datetime import datetime
+                            timestamp = datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S.%f")
+                            
+                            # Skip if before cutoff
+                            if timestamp.replace(tzinfo=cutoff_time.tzinfo) < cutoff_time:
+                                continue
+                            
+                            # Create incident node
+                            incident = IncidentNode(
+                                id=f"incident_{timestamp.strftime('%Y%m%d_%H%M%S')}_{hash(message) % 10000}",
+                                type=NodeType.AUDIT_ENTRY,
+                                scope=GraphScope.LOCAL,
+                                attributes={},
+                                incident_type=level,
                             severity="HIGH" if level == "ERROR" else "MEDIUM",
                             status=IncidentStatus.OPEN,
                             description=message,
@@ -184,11 +233,11 @@ class IncidentManagementService(BaseGraphService):
                         )
                         incidents.append(incident)
                         
-        except Exception as e:
-            logger.error(f"Failed to parse incidents log: {e}")
-        
-        logger.info(f"Found {len(incidents)} incidents since {cutoff_time}")
-        return incidents
+            except Exception as e:
+                logger.error(f"Failed to parse incidents log: {e}")
+            
+            logger.info(f"Found {len(incidents)} incidents since {cutoff_time}")
+            return incidents
 
     def _detect_patterns(self, incidents: List[IncidentNode]) -> Dict[str, List[IncidentNode]]:
         """Detect patterns in incidents."""

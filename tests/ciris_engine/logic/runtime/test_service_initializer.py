@@ -168,6 +168,11 @@ class TestServiceInitializer:
         service_initializer.service_registry = Mock()
         service_initializer.bus_manager = Mock()
         service_initializer.bus_manager.memory = Mock()
+        
+        # Mock config_service for AdaptiveFilterService
+        mock_config_service = AsyncMock()
+        mock_config_service.get_config = AsyncMock(return_value=None)
+        service_initializer.config_service = mock_config_service
 
         # Initialize services (part of initialize_all_services)
         with patch.object(service_initializer, '_initialize_llm_services'):
@@ -216,6 +221,8 @@ class TestServiceInitializer:
         mock_essential_config.services.llm_timeout = 30
         mock_essential_config.services.llm_max_retries = 3
         os.environ["OPENAI_API_KEY"] = "test-key"
+        # Clear secondary LLM keys to ensure only primary is initialized in this test
+        os.environ.pop("CIRIS_OPENAI_API_KEY_2", None)
 
         with patch('ciris_engine.logic.runtime.service_initializer.OpenAICompatibleClient') as mock_llm_class:
             mock_llm = AsyncMock()
@@ -225,7 +232,13 @@ class TestServiceInitializer:
             await service_initializer._initialize_llm_services(mock_essential_config)
 
             assert service_initializer.llm_service is not None
-            mock_llm_class.assert_called_once()
+            # Check if secondary LLM is configured
+            if os.environ.get("CIRIS_OPENAI_API_KEY_2"):
+                # Both primary and secondary LLM services initialized
+                assert mock_llm_class.call_count == 2
+            else:
+                # Only primary LLM service initialized
+                assert mock_llm_class.call_count == 1
 
     @pytest.mark.asyncio
     async def test_service_cleanup(self, service_initializer):

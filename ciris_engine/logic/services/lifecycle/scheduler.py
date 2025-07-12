@@ -11,7 +11,7 @@ their own future actions with human approval.
 import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 
 from ciris_engine.logic.adapters.base import Service
@@ -247,33 +247,48 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
             return False
 
     async def _trigger_task(self, task: ScheduledTask) -> None:
-        """Trigger a scheduled task by creating a new thought."""
+        """Trigger a scheduled task by creating a new thought or reactivating a deferred task."""
         try:
             logger.info(f"Triggering scheduled task: {task.name} ({task.task_id})")
-
-            # Create a new thought for this task
-            thought = Thought(
-                thought_id=f"thought_{self.time_service.now().timestamp()}",
-                content=task.trigger_prompt,
-                status=ThoughtStatus.PENDING,
-                thought_type=ThoughtType.SCHEDULED,
-                source_task_id=task.task_id,
-                created_at=self.time_service.now().isoformat(),
-                updated_at=self.time_service.now().isoformat(),
-                final_action=FinalAction(
-                    action_type="SCHEDULED_TASK",
-                    action_params={
-                        "scheduled_task_id": task.task_id,
-                        "scheduled_task_name": task.name,
-                        "goal_description": task.goal_description,
-                        "trigger_type": "scheduled"
-                    },
-                    reasoning=f"Scheduled task '{task.name}' triggered"
+            
+            # Check if this is a deferred task reactivation
+            if hasattr(task, 'metadata') and task.metadata and 'deferred_task_id' in task.metadata:
+                # Reactivate the deferred task
+                deferred_task_id = task.metadata['deferred_task_id']
+                logger.info(f"Reactivating deferred task {deferred_task_id}")
+                
+                # Update the task status from 'deferred' to 'pending'
+                from ciris_engine.logic.persistence import update_task_status
+                from ciris_engine.schemas.runtime.enums import TaskStatus
+                
+                update_task_status(deferred_task_id, TaskStatus.PENDING, self.time_service)
+                
+                logger.info(f"Task {deferred_task_id} reactivated and marked as pending")
+                
+            else:
+                # Create a new thought for regular scheduled tasks
+                thought = Thought(
+                    thought_id=f"thought_{self.time_service.now().timestamp()}",
+                    content=task.trigger_prompt,
+                    status=ThoughtStatus.PENDING,
+                    thought_type=ThoughtType.SCHEDULED,
+                    source_task_id=task.task_id,
+                    created_at=self.time_service.now().isoformat(),
+                    updated_at=self.time_service.now().isoformat(),
+                    final_action=FinalAction(
+                        action_type="SCHEDULED_TASK",
+                        action_params={
+                            "scheduled_task_id": task.task_id,
+                            "scheduled_task_name": task.name,
+                            "goal_description": task.goal_description,
+                            "trigger_type": "scheduled"
+                        },
+                        reasoning=f"Scheduled task '{task.name}' triggered"
+                    )
                 )
-            )
 
-            # Add thought to database
-            add_thought(thought, db_path=self.db_path)
+                # Add thought to database
+                add_thought(thought, db_path=self.db_path)
 
             # Update scheduled task status
             await self._update_task_triggered(task)
@@ -368,6 +383,55 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
             logger.info(f"Scheduled task: {name} ({task_id})")
 
         return task
+
+    async def schedule_deferred_task(
+        self,
+        thought_id: str,
+        task_id: str,
+        defer_until: str,
+        reason: str,
+        context: Optional[Dict[str, Any]] = None
+    ) -> ScheduledTask:
+        """
+        Schedule a deferred task for future reactivation.
+        
+        This is specifically for the DEFER handler to schedule tasks
+        that should be reactivated at a specific time.
+        
+        Args:
+            thought_id: ID of the thought that deferred
+            task_id: ID of the task being deferred
+            defer_until: ISO timestamp when to reactivate
+            reason: Reason for deferral
+            context: Additional context for the deferral
+            
+        Returns:
+            The created ScheduledTask
+        """
+        name = f"Reactivate task {task_id}"
+        goal_description = f"Reactivate deferred task: {reason}"
+        trigger_prompt = f"Task {task_id} scheduled for reactivation"
+        
+        # Create the scheduled task
+        scheduled_task = await self.schedule_task(
+            name=name,
+            goal_description=goal_description,
+            trigger_prompt=trigger_prompt,
+            origin_thought_id=thought_id,
+            defer_until=defer_until,
+            schedule_cron=None  # One-time execution
+        )
+        
+        # Store the task_id in the scheduled task for reactivation
+        scheduled_task.metadata = {
+            "deferred_task_id": task_id,
+            "deferral_reason": reason,
+            "deferral_context": context or {}
+        }
+        
+        logger.info(f"Scheduled deferred task {task_id} for reactivation at {defer_until}")
+        
+        return scheduled_task
 
     async def cancel_task(self, task_id: str) -> bool:
         """

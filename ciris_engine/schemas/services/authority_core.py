@@ -55,6 +55,7 @@ class WACertificate(BaseModel):
 
     # Scopes and permissions
     scopes_json: str = Field(..., description="JSON array of scope strings")
+    custom_permissions_json: Optional[str] = Field(None, description="JSON array of custom permission strings")
 
     # Adapter-based observers
     adapter_id: Optional[str] = None
@@ -75,11 +76,34 @@ class WACertificate(BaseModel):
             raise ValueError("scopes_json must be valid JSON")
         return v
 
+    @field_validator("custom_permissions_json")
+    def validate_custom_permissions_json(cls, v: Optional[str]) -> Optional[str]:
+        """Ensure custom_permissions_json is valid JSON if provided."""
+        if v is None:
+            return v
+        import json
+        try:
+            json.loads(v)
+        except json.JSONDecodeError:
+            raise ValueError("custom_permissions_json must be valid JSON")
+        return v
+
     @property
     def scopes(self) -> List[str]:
         """Get scopes as a list."""
         import json
         return json.loads(self.scopes_json) if self.scopes_json else []
+
+    @property
+    def custom_permissions(self) -> List[str]:
+        """Get custom permissions as a list."""
+        import json
+        if not self.custom_permissions_json:
+            return []
+        try:
+            return json.loads(self.custom_permissions_json)
+        except json.JSONDecodeError:
+            return []
 
     def has_scope(self, scope: str) -> bool:
         """Check if certificate has a specific scope."""

@@ -37,13 +37,25 @@ async def test_full_thought_cycle():
 
     # Mock adapter loading to avoid real adapter initialization
     with patch('ciris_engine.logic.runtime.ciris_runtime.load_adapter') as mock_load:
-        mock_adapter_class = MagicMock()
-        mock_adapter_instance = MagicMock()
-        mock_adapter_instance.stop = AsyncMock()
-        mock_adapter_instance.start = AsyncMock()
-        mock_adapter_instance.run_lifecycle = AsyncMock()
-        mock_adapter_class.return_value = mock_adapter_instance
-        mock_load.return_value = mock_adapter_class
+        # Create a concrete mock adapter class that doesn't inherit from ABC
+        class MockAdapter:
+            def __init__(self, runtime, **kwargs):
+                self.runtime = runtime
+                self.config = kwargs.get('adapter_config', {})
+            
+            async def start(self):
+                pass
+            
+            async def stop(self):
+                pass
+            
+            async def run_lifecycle(self):
+                pass
+            
+            def get_services_to_register(self):
+                return []
+        
+        mock_load.return_value = MockAdapter
         
         # Mock initialization manager to avoid core services verification
         with patch('ciris_engine.logic.runtime.ciris_runtime.get_initialization_manager') as mock_get_init:
@@ -54,13 +66,19 @@ async def test_full_thought_cycle():
 
             # Create and initialize runtime
             runtime = CIRISRuntime(adapter_types=["cli"])
+            
+            with patch.object(runtime, '_perform_startup_maintenance'):
+                await runtime.initialize()
 
-        with patch.object(runtime, '_perform_startup_maintenance'):
-            await runtime.initialize()
-
-        # Now the runtime should be initialized
-        assert runtime.service_initializer is not None
-        assert runtime._initialized is True
+            # Now the runtime should be initialized
+            assert runtime.service_initializer is not None
+            assert runtime._initialized is True
+            
+            # Properly stop the runtime to avoid cleanup issues
+            try:
+                await runtime.stop()
+            except Exception:
+                pass  # Ignore cleanup errors in test
 
         # TODO: Implement actual test steps
         # 1. Create task

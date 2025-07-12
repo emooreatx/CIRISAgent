@@ -2,6 +2,7 @@
 
 import pytest
 import pytest_asyncio
+import asyncio
 import tempfile
 import os
 from unittest.mock import MagicMock, AsyncMock
@@ -195,10 +196,12 @@ async def test_memory_service_timeseries(memory_service):
         result = await memory_service.memorize_metric(
             metric_name="test_metric",
             value=i * 10.0,
-            tags={"test": "data"},
+            tags={"test": "data", "index": str(i)},  # Add unique tag
             scope="local"
         )
         assert result.status == MemoryOpStatus.OK
+        # Add small delay to ensure different timestamps
+        await asyncio.sleep(0.01)
 
     # Recall timeseries data
     retrieved = await memory_service.recall_timeseries(

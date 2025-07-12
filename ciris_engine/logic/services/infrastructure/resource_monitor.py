@@ -59,15 +59,22 @@ class ResourceMonitorService(ResourceMonitorServiceProtocol, ServiceProtocol):
         self._monitoring = False
         self._process = psutil.Process()
         self._start_time: Optional[datetime] = None
+        self._monitor_task: Optional[asyncio.Task] = None
 
     async def start(self) -> None:
         self._monitoring = True
         self._start_time = self.time_service.now()
-        asyncio.create_task(self._monitor_loop())
+        self._monitor_task = asyncio.create_task(self._monitor_loop())
         logger.info("Resource monitor started")
 
     async def stop(self) -> None:
         self._monitoring = False
+        if self._monitor_task and not self._monitor_task.done():
+            self._monitor_task.cancel()
+            try:
+                await self._monitor_task
+            except asyncio.CancelledError:
+                pass
         logger.info("Resource monitor stopped")
 
     async def _monitor_loop(self) -> None:

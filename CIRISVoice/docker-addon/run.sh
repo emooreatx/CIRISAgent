@@ -34,7 +34,39 @@ if [[ "${STT_PROVIDER}" == "openai" ]] || [[ "${TTS_PROVIDER}" == "openai" ]]; t
 fi
 
 if [[ "${STT_PROVIDER}" == "google" ]] || [[ "${TTS_PROVIDER}" == "google" ]]; then
-    export GOOGLE_APPLICATION_CREDENTIALS="/config/google_cloud_key.json"
+    # Check if Google Cloud key is provided in config
+    GOOGLE_KEY_JSON=$(bashio::config 'google_cloud_key' || echo "")
+    
+    if [ -n "${GOOGLE_KEY_JSON}" ]; then
+        # Save the key to a file - use printf to handle escape sequences properly
+        printf '%s' "${GOOGLE_KEY_JSON}" > /data/google_cloud_key.json
+        export GOOGLE_APPLICATION_CREDENTIALS="/data/google_cloud_key.json"
+        bashio::log.info "Using Google Cloud key from addon configuration"
+        
+        # Verify the JSON is valid
+        if python3 -m json.tool /data/google_cloud_key.json > /dev/null 2>&1; then
+            bashio::log.info "Google Cloud key JSON is valid"
+        else
+            bashio::log.error "Google Cloud key JSON is invalid!"
+            bashio::log.error "First 100 chars: ${GOOGLE_KEY_JSON:0:100}..."
+        fi
+    else
+        # Check multiple possible locations for the Google Cloud key file
+        if [ -f "/config/google_cloud_key.json" ]; then
+            export GOOGLE_APPLICATION_CREDENTIALS="/config/google_cloud_key.json"
+            bashio::log.info "Found Google Cloud key at /config/google_cloud_key.json"
+        elif [ -f "/data/google_cloud_key.json" ]; then
+            export GOOGLE_APPLICATION_CREDENTIALS="/data/google_cloud_key.json"
+            bashio::log.info "Found Google Cloud key at /data/google_cloud_key.json"
+        elif [ -f "/ssl/google_cloud_key.json" ]; then
+            export GOOGLE_APPLICATION_CREDENTIALS="/ssl/google_cloud_key.json"
+            bashio::log.info "Found Google Cloud key at /ssl/google_cloud_key.json"
+        else
+            bashio::log.warning "Google Cloud key not found! Checked /config, /data, and /ssl"
+            bashio::log.warning "Please place google_cloud_key.json in one of these locations"
+            bashio::log.warning "OR paste the JSON content in the addon configuration"
+        fi
+    fi
 fi
 
 # Create configuration file
@@ -58,12 +90,16 @@ stt:
   provider: "${STT_PROVIDER}"
   model: "whisper-1"
   language: "en"
+  google_credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS:-/config/google_cloud_key.json}"
+  google_language_code: "en-US"
 
 tts:
   provider: "${TTS_PROVIDER}"
   model: "tts-1"
   voice: "${TTS_VOICE}"
   speed: 1.0
+  google_credentials_path: "${GOOGLE_APPLICATION_CREDENTIALS:-/config/google_cloud_key.json}"
+  google_voice_name: "${TTS_VOICE}"
 
 logging:
   level: "${LOG_LEVEL}"

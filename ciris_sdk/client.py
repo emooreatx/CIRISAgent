@@ -45,7 +45,7 @@ class CIRISClient:
         self,
         base_url: str = "http://localhost:8080",
         api_key: Optional[str] = None,
-        timeout: float = 10.0,  # Reduced to account for 5s API timeout
+        timeout: float = 50.0,  # Increased to support longer processing times
         max_retries: int = 3,
         use_auth_store: bool = True,
         rate_limit: bool = True,
@@ -55,7 +55,7 @@ class CIRISClient:
         Args:
             base_url: Base URL of CIRIS API (default: http://localhost:8080)
             api_key: Optional API key for authentication
-            timeout: Request timeout in seconds (default: 30.0)
+            timeout: Request timeout in seconds (default: 50.0)
             max_retries: Number of retries for failed requests (default: 3)
             use_auth_store: Whether to use persistent auth storage (default: True)
             rate_limit: Whether to enable client-side rate limiting (default: True)
