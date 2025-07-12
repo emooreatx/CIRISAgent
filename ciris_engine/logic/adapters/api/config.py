@@ -1,7 +1,6 @@
 """Configuration schema for API adapter."""
 
 from pydantic import BaseModel, Field
-from typing import Optional
 
 class APIAdapterConfig(BaseModel):
     """Configuration for the API adapter."""

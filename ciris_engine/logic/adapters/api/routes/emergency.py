@@ -26,7 +26,6 @@ from ciris_engine.schemas.services.shutdown import (
     EmergencyCommandType
 )
 from ciris_engine.schemas.api.responses import SuccessResponse
-from ciris_engine.logic.registries.base import ServiceRegistry
 
 logger = logging.getLogger(__name__)
 

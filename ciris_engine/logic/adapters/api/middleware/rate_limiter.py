@@ -8,7 +8,6 @@ from fastapi.responses import JSONResponse
 from typing import Dict, Tuple, Callable
 from datetime import datetime, timedelta
 import asyncio
-from collections import defaultdict
 
 
 class RateLimiter:

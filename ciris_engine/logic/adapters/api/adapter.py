@@ -6,11 +6,8 @@ Provides RESTful API and WebSocket interfaces to the CIRIS agent.
 import asyncio
 import logging
 from typing import Any, Dict, List, Optional
-from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 from ciris_engine.logic.adapters.base import Service
 from ciris_engine.logic.registries.base import Priority

@@ -11,7 +11,6 @@ from ciris_engine.schemas.runtime.models import Task
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot, UserProfile
 from ciris_engine.schemas.services.graph_core import GraphScope, NodeType
 from ciris_engine.schemas.services.operations import MemoryQuery
-from ciris_engine.schemas.runtime.enums import TaskStatus
 from ciris_engine.logic import persistence
 from .secrets_snapshot import build_secrets_snapshot
 

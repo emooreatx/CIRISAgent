@@ -12,7 +12,6 @@ from ciris_engine.schemas.telemetry.core import (
     ServiceCorrelation, ServiceCorrelationStatus,
     ServiceRequestData, ServiceResponseData
 )
-from ciris_engine.schemas.runtime.messages import FetchedMessage
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)

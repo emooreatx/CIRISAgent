@@ -209,7 +209,6 @@ class APICommunicationService(CommunicationServiceProtocol):
     ) -> List[Dict[str, Any]]:
         """Retrieve messages from a channel using the correlations database."""
         from ciris_engine.logic.persistence import get_correlations_by_channel
-        from ciris_engine.schemas.runtime.messages import FetchedMessage
         
         try:
             # Get correlations for this channel

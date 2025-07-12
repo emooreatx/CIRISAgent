@@ -7,7 +7,6 @@ overrides the action to DEFER, ensuring proper escalation to humans.
 
 import logging
 from typing import Optional
-from datetime import datetime, timezone
 
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.conscience.core import ConscienceCheckResult, ConscienceStatus, EpistemicData

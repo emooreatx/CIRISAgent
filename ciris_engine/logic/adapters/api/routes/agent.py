@@ -780,7 +780,6 @@ async def notify_interact_response(message_id: str, content: str) -> None:
 
 # WebSocket endpoint for streaming
 from fastapi import WebSocket, WebSocketDisconnect
-import json
 
 @router.websocket("/stream")
 async def websocket_stream(

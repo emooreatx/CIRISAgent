@@ -4,7 +4,6 @@ Separates per-batch vs per-thought operations for performance.
 """
 import logging
 from typing import Any, Dict, List, Optional, Tuple
-from datetime import datetime
 
 from ciris_engine.schemas.runtime.models import Task
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot, TaskSummary

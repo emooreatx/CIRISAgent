@@ -1,7 +1,7 @@
 """
 Additional telemetry metrics endpoints.
 """
-from typing import List, Dict, Any
+from typing import Dict, Any
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Path
 from ciris_engine.schemas.api.responses import SuccessResponse

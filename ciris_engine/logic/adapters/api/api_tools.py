@@ -4,7 +4,7 @@ Tool service for API adapter - provides curl functionality.
 import asyncio
 import logging
 import uuid
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 import aiohttp
 import json
 

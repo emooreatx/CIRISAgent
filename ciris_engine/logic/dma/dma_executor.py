@@ -1,7 +1,6 @@
 import logging
 import asyncio
 from typing import Any, Dict, Optional, Callable, Awaitable, TYPE_CHECKING, Union
-from datetime import datetime, timezone
 
 from ciris_engine.logic.processors.support.thought_escalation import escalate_dma_failure
 from ciris_engine.schemas.runtime.models import Thought
