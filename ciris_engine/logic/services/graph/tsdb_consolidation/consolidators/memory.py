@@ -65,7 +65,7 @@ class MemoryConsolidator:
         Returns:
             List of (source_node, target_node, edge_type, attributes) tuples
         """
-        edges = []
+        edges: List[Tuple[GraphNode, GraphNode, str, Dict[str, Any]]] = []
         
         # Filter for memory node types
         memory_nodes = {}

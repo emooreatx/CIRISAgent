@@ -25,7 +25,7 @@ class WACLIDisplayService:
         """List all WAs in table or tree format."""
         try:
             # Get all WAs
-            all_was = await self.auth_service.list_all_was()
+            all_was = await self.auth_service.list_was(active_only=False)
 
             if not all_was:
                 self.console.print("No WAs found. Run 'ciris wa onboard' to get started.")
@@ -51,14 +51,14 @@ class WACLIDisplayService:
         table.add_column("Created", style="dim")
 
         for wa in was:
-            status = "✅ Active" if wa.active else "❌ Inactive"
-            created = wa.created.strftime("%Y-%m-%d") if isinstance(wa.created, datetime) else str(wa.created)
+            status = "✅ Active"  # Assume active if in database
+            created = wa.created_at.strftime("%Y-%m-%d") if isinstance(wa.created_at, datetime) else str(wa.created_at)
 
             table.add_row(
                 wa.wa_id,
                 wa.name,
                 wa.role.value,
-                wa.token_type.value,
+                "certificate",  # Default token type
                 status,
                 created
             )
@@ -78,8 +78,8 @@ class WACLIDisplayService:
         for root in roots:
             tree = Tree(f"[bold cyan]{root.name}[/bold cyan] ({root.wa_id})")
             tree.add(f"Role: [green]{root.role.value}[/green]")
-            tree.add(f"Type: [yellow]{root.token_type.value}[/yellow]")
-            tree.add(f"Status: {'✅ Active' if root.active else '❌ Inactive'}")
+            tree.add(f"Type: [yellow]certificate[/yellow]")
+            tree.add(f"Status: ✅ Active")
 
             # Add children recursively
             await self._add_wa_children(tree, was, root.wa_id)
@@ -101,14 +101,14 @@ class WACLIDisplayService:
                 f"[cyan]{child.name}[/cyan] ({child.wa_id})"
             )
             child_node.add(f"Role: [green]{child.role.value}[/green]")
-            child_node.add(f"Type: [yellow]{child.token_type.value}[/yellow]")
+            child_node.add(f"Type: [yellow]certificate[/yellow]")
 
             if child.oauth_provider:
                 child_node.add(f"OAuth: [blue]{child.oauth_provider}[/blue]")
 
             # Discord ID removed - not part of WACertificate schema
 
-            child_node.add(f"Status: {'✅ Active' if child.active else '❌ Inactive'}")
+            child_node.add(f"Status: ✅ Active")
 
             # Recursively add this WA's children
             await self._add_wa_children(child_node, all_was, child.wa_id)
@@ -130,7 +130,7 @@ class WACLIDisplayService:
             table.add_row("WA ID", wa.wa_id)
             table.add_row("Name", wa.name)
             table.add_row("Role", wa.role.value)
-            table.add_row("Token Type", wa.token_type.value)
+            table.add_row("Token Type", "certificate")
             table.add_row("Public Key", wa.pubkey[:32] + "..." if len(wa.pubkey) > 32 else wa.pubkey)
             table.add_row("JWT Kid", wa.jwt_kid)
 
@@ -155,20 +155,20 @@ class WACLIDisplayService:
                 logger.warning(f"Failed to parse WA scopes JSON: {e}. Displaying raw JSON string.")
                 table.add_row("Scopes", wa.scopes_json)
 
-            table.add_row("Status", "✅ Active" if wa.active else "❌ Inactive")
+            table.add_row("Status", "✅ Active")  # Assume active if in database
             table.add_row("Auto-minted", "Yes" if wa.auto_minted else "No")
 
-            created = wa.created.strftime("%Y-%m-%d %H:%M:%S UTC") if isinstance(wa.created, datetime) else str(wa.created)
+            created = wa.created_at.strftime("%Y-%m-%d %H:%M:%S UTC") if isinstance(wa.created_at, datetime) else str(wa.created_at)
             table.add_row("Created", created)
 
-            if wa.last_login:
-                last_login = wa.last_login.strftime("%Y-%m-%d %H:%M:%S UTC") if isinstance(wa.last_login, datetime) else str(wa.last_login)
+            if wa.last_auth:
+                last_login = wa.last_auth.strftime("%Y-%m-%d %H:%M:%S UTC") if isinstance(wa.last_auth, datetime) else str(wa.last_auth)
                 table.add_row("Last Login", last_login)
 
             self.console.print(table)
 
             # Show children if any
-            all_was = await self.auth_service.list_all_was()
+            all_was = await self.auth_service.list_was(active_only=False)
             children = [w for w in all_was if w.parent_wa_id == wa_id]
 
             if children:

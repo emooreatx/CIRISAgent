@@ -191,6 +191,10 @@ This directory contains critical cryptographic keys for the CIRIS system.
 
         db_path = get_sqlite_db_full_path()
         secrets_db_path = db_path.replace('.db', '_secrets.db')
+        
+        if self.time_service is None:
+            raise RuntimeError("TimeService must be initialized before SecretsService")
+            
         self.secrets_service = SecretsService(
             db_path=secrets_db_path,
             time_service=self.time_service,
@@ -219,6 +223,8 @@ This directory contains critical cryptographic keys for the CIRIS system.
 
         # Initialize GraphConfigService now that memory service is ready
         from ciris_engine.logic.services.graph.config_service import GraphConfigService
+        if self.time_service is None:
+            raise RuntimeError("TimeService must be initialized before GraphConfigService")
         self.config_service = GraphConfigService(self.memory_service, self.time_service)
         await self.config_service.start()
         logger.info("GraphConfigService initialized")
@@ -287,6 +293,12 @@ This directory contains critical cryptographic keys for the CIRIS system.
 
         # Initialize AuthenticationService first
         from ciris_engine.logic.services.infrastructure.authentication import AuthenticationService
+        
+        if self.time_service is None:
+            raise RuntimeError("TimeService must be initialized before AuthenticationService")
+            
+        if self.config_accessor is None:
+            raise RuntimeError("ConfigAccessor must be initialized before AuthenticationService")
         auth_db_path = await self.config_accessor.get_path("database.auth_db", Path("data/ciris_auth.db"))
         self.auth_service = AuthenticationService(
             db_path=str(auth_db_path),

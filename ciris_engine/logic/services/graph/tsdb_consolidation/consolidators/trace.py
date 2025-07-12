@@ -289,10 +289,6 @@ class TraceConsolidator:
         high_latency_tasks = set()
         
         for span in trace_spans:
-            # Skip if not a dict
-            if not isinstance(span, dict):
-                continue
-                
             task_id = span.get('trace_id')
             if task_id:
                 # Check for errors in tags

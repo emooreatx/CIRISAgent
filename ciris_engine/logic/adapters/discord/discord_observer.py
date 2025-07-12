@@ -296,8 +296,8 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
 
                         # Extract deferral reason from the original thought's final_action
                         deferral_reason = "Unknown deferral reason"
-                        if original_thought.final_action and isinstance(original_thought.final_action, dict):
-                            action_params = original_thought.final_action.get('action_parameters', {})
+                        if original_thought.final_action:
+                            action_params = original_thought.final_action.action_params
                             if isinstance(action_params, dict) and 'reason' in action_params:
                                 deferral_reason = action_params['reason']
 

@@ -56,8 +56,8 @@ class ActionHandlerDependencies:
         logger.critical(f"GRACEFUL SHUTDOWN REQUESTED: {reason}")
 
         # Use the shutdown service if available
-        if self.dependencies and self.dependencies.shutdown_service:
-            asyncio.create_task(self.dependencies.shutdown_service.request_shutdown(reason))
+        if self.bus_manager and hasattr(self.bus_manager, 'shutdown_service'):
+            asyncio.create_task(self.bus_manager.shutdown_service.request_shutdown(reason))
         else:
             # Fallback to global function if service not available
             request_global_shutdown(reason)
@@ -423,10 +423,6 @@ class BaseActionHandler(ABC):
         content: str
     ) -> bool:
         """Send a notification using the communication bus."""
-        if not isinstance(content, str):
-            self.logger.error(f"Content must be a string, got {type(content)}")
-            return False
-
         if not channel_id or not content:
             self.logger.error("Missing channel_id or content")
             return False

@@ -193,12 +193,9 @@ class ContextBuilder:
         elif channel_context_str:
             identity_context_str = channel_context_str
         initial_task_context = None
-        if task and hasattr(task, 'context'):
-            ctx = task.context
-            if isinstance(ctx, ProcessingThoughtContext):
-                initial_task_context = ctx.initial_task_context
-            elif isinstance(ctx, TaskContext):
-                pass
+        if task and hasattr(task, 'context') and isinstance(task.context, TaskContext):
+            # task.context is typed as Optional[TaskContext], so we use it directly
+            initial_task_context = task.context
         return ProcessingThoughtContext(
             system_snapshot=system_snapshot_data,
             user_profiles=user_profiles_data,
@@ -227,4 +224,11 @@ class ContextBuilder:
 
     async def _build_secrets_snapshot(self) -> dict:
         """Build secrets information for SystemSnapshot."""
+        if self.secrets_service is None:
+            # Return empty snapshot if no secrets service
+            return {
+                'detected_secrets': [],
+                'secrets_filter_version': 0,
+                'total_secrets_stored': 0
+            }
         return await _secrets_snapshot(self.secrets_service)

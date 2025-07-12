@@ -113,3 +113,5 @@ class ToolHandler(BaseActionHandler):
         
         if not follow_up_id:
             raise FollowUpCreationError("Failed to create follow-up thought")
+        
+        return follow_up_id

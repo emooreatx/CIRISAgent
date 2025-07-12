@@ -6,7 +6,7 @@ import asyncio
 import traceback
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
 from ciris_engine.protocols.services import TimeServiceProtocol
 from ciris_engine.schemas.services.graph.incident import IncidentNode, IncidentSeverity, IncidentStatus
 from ciris_engine.schemas.services.graph_core import NodeType, GraphScope
@@ -17,7 +17,7 @@ class IncidentCaptureHandler(logging.Handler):
     These incidents are stored in the graph for analysis, pattern detection, and self-improvement.
     """
 
-    def __init__(self, log_dir: str = "logs", filename_prefix: str = "incidents", time_service: TimeServiceProtocol = None, graph_audit_service=None) -> None:
+    def __init__(self, log_dir: str = "logs", filename_prefix: str = "incidents", time_service: Optional[TimeServiceProtocol] = None, graph_audit_service: Any = None) -> None:
         super().__init__()
         if not time_service:
             raise RuntimeError("CRITICAL: TimeService is required for IncidentCaptureHandler")
@@ -138,7 +138,7 @@ class IncidentCaptureHandler(logging.Handler):
                 function_name=record.funcName,
 
                 # Exception data if present
-                exception_type=record.exc_info[0].__name__ if record.exc_info else None,
+                exception_type=record.exc_info[0].__name__ if record.exc_info and record.exc_info[0] else None,
                 stack_trace=''.join(traceback.format_exception(*record.exc_info)) if record.exc_info else None,
 
                 # Impact assessment (to be enhanced by analysis)
@@ -193,7 +193,7 @@ class IncidentCaptureHandler(logging.Handler):
         }
         return urgency_map.get(severity, "MEDIUM")
     
-    def set_graph_audit_service(self, graph_audit_service) -> None:
+    def set_graph_audit_service(self, graph_audit_service: Any) -> None:
         """Set the graph audit service for storing incidents in the graph.
         
         This is called after service initialization when the GraphAuditService
@@ -218,8 +218,8 @@ class IncidentCaptureHandler(logging.Handler):
 def add_incident_capture_handler(logger_instance: Optional[logging.Logger] = None,
                                log_dir: str = "logs",
                                filename_prefix: str = "incidents",
-                               time_service: TimeServiceProtocol = None,
-                               graph_audit_service=None) -> IncidentCaptureHandler:
+                               time_service: Optional[TimeServiceProtocol] = None,
+                               graph_audit_service: Any = None) -> IncidentCaptureHandler:
     """
     Add an incident capture handler to the specified logger or root logger.
 
@@ -247,7 +247,7 @@ def add_incident_capture_handler(logger_instance: Optional[logging.Logger] = Non
     return handler
 
 
-def inject_graph_audit_service_to_handlers(graph_audit_service, logger_instance: Optional[logging.Logger] = None) -> int:
+def inject_graph_audit_service_to_handlers(graph_audit_service: Any, logger_instance: Optional[logging.Logger] = None) -> int:
     """
     Inject the graph audit service into all existing IncidentCaptureHandler instances.
     

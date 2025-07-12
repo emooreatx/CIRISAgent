@@ -386,7 +386,7 @@ async def get_timeline(
                         "WHERE updated_at >= ? AND updated_at < ?",
                         "AND NOT (node_type = 'tsdb_data' AND node_id LIKE 'metric_%')"
                     ]
-                    params = [day_start.isoformat(), day_end.isoformat()]
+                    params: List[Any] = [day_start.isoformat(), day_end.isoformat()]
                     
                     # Add scope filter
                     if scope:
@@ -432,8 +432,10 @@ async def get_timeline(
                 # For timeline layout, sample nodes evenly across time range
                 if len(all_db_nodes) > (limit or 100):
                     # Group by hour buckets
-                    hour_buckets = {}
+                    hour_buckets: Dict[datetime, List[Any]] = {}
                     for node in all_db_nodes:
+                        if node.updated_at is None:
+                            continue
                         hour = node.updated_at.replace(minute=0, second=0, microsecond=0)
                         if hour not in hour_buckets:
                             hour_buckets[hour] = []
@@ -823,7 +825,7 @@ async def visualize_memory_graph(
                                     "FROM graph_nodes",
                                     "WHERE updated_at >= ? AND updated_at < ?",
                                 ]
-                                params = [bucket_start.isoformat(), bucket_end.isoformat()]
+                                params: List[Any] = [bucket_start.isoformat(), bucket_end.isoformat()]
                                 
                                 # Add metric filter
                                 if not include_metrics:
@@ -898,7 +900,7 @@ async def visualize_memory_graph(
                                     "FROM graph_nodes",
                                     "WHERE updated_at >= ? AND updated_at < ?",
                                 ]
-                                params = [day_start.isoformat(), day_end.isoformat()]
+                                params: List[Any] = [day_start.isoformat(), day_end.isoformat()]
                                 
                                 # Add metric filter
                                 if not include_metrics:
@@ -1062,7 +1064,7 @@ async def visualize_memory_graph(
                                 "FROM graph_nodes",
                                 "WHERE updated_at >= ? AND updated_at < ?",
                             ]
-                            params = [day_start.isoformat(), day_end.isoformat()]
+                            params: List[Any] = [day_start.isoformat(), day_end.isoformat()]
                             
                             # Add metric filter
                             if not include_metrics:
@@ -1362,8 +1364,11 @@ def _hierarchy_pos(G: "nx.DiGraph", root: str, width: float = 1., vert_gap: floa
     If the graph is not a tree, this will still produce a hierarchical layout
     by doing a breadth-first traversal.
     """
-    def _hierarchy_pos_recursive(G, root, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5, 
-                                pos=None, parent=None, parsed=None):
+    def _hierarchy_pos_recursive(G: "nx.DiGraph", root: str, width: float = 1., vert_gap: float = 0.2, 
+                                vert_loc: float = 0, xcenter: float = 0.5, 
+                                pos: Optional[Dict[str, Tuple[float, float]]] = None, 
+                                parent: Optional[str] = None, 
+                                parsed: Optional[set[str]] = None) -> Dict[str, Tuple[float, float]]:
         if pos is None:
             pos = {root: (xcenter, vert_loc)}
         else:

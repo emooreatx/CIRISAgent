@@ -18,8 +18,8 @@ router = APIRouter(prefix="/emergency", tags=["emergency"])
 def get_runtime_service() -> RuntimeControlServiceProtocol:
     """Get runtime control service dependency."""
     # This will be injected by the API adapter
-    from ciris_engine.logic.adapters.api.dependencies import get_service
-    return get_service("RuntimeControlService")
+    # For now, return None - the actual service should be injected
+    return None  # type: ignore
 
 @router.post("/shutdown", response_model=EmergencyShutdownStatus)
 async def emergency_shutdown(

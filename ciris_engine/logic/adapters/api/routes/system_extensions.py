@@ -3,7 +3,7 @@ System management endpoint extensions for CIRIS API v1.
 
 Adds runtime queue, service management, and processor state endpoints.
 """
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from fastapi import APIRouter, Request, HTTPException, Depends, Body
 from pydantic import BaseModel, Field
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 async def get_processing_queue_status(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[ProcessorQueueStatus]:
     """
     Get processing queue status.
     
@@ -60,7 +60,7 @@ async def single_step_processor(
     request: Request,
     auth: AuthContext = Depends(require_admin),
     body: dict = Body(default={})
-):
+) -> SuccessResponse[RuntimeControlResponse]:
     """
     Execute a single processing step.
     
@@ -105,7 +105,7 @@ class ServicePriorityUpdateRequest(BaseModel):
 async def get_service_health_details(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[ServiceHealthStatus]:
     """
     Get detailed service health status.
     
@@ -127,13 +127,13 @@ async def get_service_health_details(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/services/{provider_name}/priority", response_model=SuccessResponse[Dict])
+@router.put("/services/{provider_name}/priority", response_model=SuccessResponse[Dict[str, Any]])
 async def update_service_priority(
     provider_name: str,
     body: ServicePriorityUpdateRequest,
     request: Request,
     auth: AuthContext = Depends(require_admin)
-):
+) -> SuccessResponse[Dict[str, Any]]:
     """
     Update service provider priority.
     
@@ -165,12 +165,12 @@ class CircuitBreakerResetRequest(BaseModel):
     service_type: Optional[str] = Field(None, description="Specific service type to reset, or all if not specified")
 
 
-@router.post("/services/circuit-breakers/reset", response_model=SuccessResponse[Dict])
+@router.post("/services/circuit-breakers/reset", response_model=SuccessResponse[Dict[str, Any]])
 async def reset_service_circuit_breakers(
     body: CircuitBreakerResetRequest,
     request: Request,
     auth: AuthContext = Depends(require_admin)
-):
+) -> SuccessResponse[Dict[str, Any]]:
     """
     Reset circuit breakers.
     
@@ -197,7 +197,7 @@ async def reset_service_circuit_breakers(
 async def get_service_selection_explanation(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[ServiceSelectionExplanation]:
     """
     Get service selection logic explanation.
     
@@ -233,7 +233,7 @@ class ProcessorStateInfo(BaseModel):
 async def get_processor_states(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[List[ProcessorStateInfo]]:
     """
     Get information about all processor states.
     

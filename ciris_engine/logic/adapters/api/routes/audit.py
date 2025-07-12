@@ -4,7 +4,7 @@ Audit service endpoints for CIRIS API v3 (Simplified).
 Provides access to the immutable audit trail for system observability.
 Simplified to 3 core endpoints: query, get specific entry, and export.
 """
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Depends, Query, Path
 from pydantic import BaseModel, Field, field_serializer
@@ -33,7 +33,7 @@ class AuditEntryResponse(BaseModel):
     hash_chain: Optional[str] = Field(None, description="Previous hash for chain")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info) -> Optional[str]:
+    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None
 
 class AuditEntryDetailResponse(BaseModel):

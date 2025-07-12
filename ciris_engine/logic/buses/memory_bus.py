@@ -4,7 +4,7 @@ Memory message bus - handles all memory service operations
 
 import logging
 from typing import Dict, List, Optional, TYPE_CHECKING
-from datetime import datetime
+from datetime import datetime, timezone
 
 if TYPE_CHECKING:
     from ciris_engine.logic.registries.base import ServiceRegistry
@@ -188,7 +188,54 @@ class MemoryBus(BaseBus[MemoryService]):
             return []
 
         try:
-            return await service.search_memories(query, scope, limit)
+            # Use recall to search for memories
+            from ciris_engine.schemas.services.operations import MemoryQuery
+            from ciris_engine.schemas.services.graph_core import GraphScope
+            
+            # Convert scope string to GraphScope enum
+            try:
+                graph_scope = GraphScope(scope) if scope != "default" else GraphScope.PERSONAL
+            except ValueError:
+                graph_scope = GraphScope.PERSONAL
+            
+            memory_query = MemoryQuery(
+                query_text=query,
+                scope=graph_scope,
+                limit=limit
+            )
+            
+            nodes = await service.recall(memory_query)
+            
+            # Convert GraphNodes to MemorySearchResults
+            results = []
+            for node in nodes:
+                # Extract content from attributes
+                content = ""
+                if isinstance(node.attributes, dict):
+                    content = node.attributes.get("content", "") or node.attributes.get("message", "") or str(node.attributes)
+                else:
+                    content = getattr(node.attributes, "content", "") or getattr(node.attributes, "message", "") or str(node.attributes)
+                
+                # Extract created_at
+                created_at = datetime.now(timezone.utc)
+                if isinstance(node.attributes, dict):
+                    if "created_at" in node.attributes:
+                        created_at = node.attributes["created_at"]
+                        if isinstance(created_at, str):
+                            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                elif hasattr(node.attributes, "created_at"):
+                    created_at = node.attributes.created_at
+                
+                results.append(MemorySearchResult(
+                    node_id=node.id,
+                    content=content,
+                    node_type=node.type.value if hasattr(node.type, 'value') else str(node.type),
+                    relevance_score=0.8,  # Default score since we don't have actual relevance
+                    created_at=created_at,
+                    metadata={}
+                ))
+            
+            return results
         except Exception as e:
             logger.error(f"Failed to search memories: {e}", exc_info=True)
             return []
@@ -235,7 +282,7 @@ class MemoryBus(BaseBus[MemoryService]):
             return []
 
         try:
-            return await service.recall_timeseries(scope, hours, correlation_types, start_time, end_time)
+            return await service.recall_timeseries(scope, hours, correlation_types)
         except Exception as e:
             logger.error(f"Failed to recall timeseries: {e}", exc_info=True)
             return []
@@ -340,7 +387,8 @@ class MemoryBus(BaseBus[MemoryService]):
         if not service:
             return []
         try:
-            return await service.get_capabilities()
+            capabilities = service.get_capabilities()
+            return capabilities.supports_operation_list if hasattr(capabilities, 'supports_operation_list') else []
         except Exception as e:
             logger.error(f"Failed to get capabilities: {e}")
             return []

@@ -108,7 +108,7 @@ class ObserveHandler(BaseActionHandler):
                 status=ThoughtStatus.COMPLETED,
                 final_action=result,
             )
-            return
+            return None
 
         # Get channel context from params or dispatch
         channel_context: Optional[ChannelContext] = params.channel_context or dispatch_context.channel_context
@@ -170,3 +170,5 @@ class ObserveHandler(BaseActionHandler):
                 outcome="failed_followup",
             )
             raise FollowUpCreationError("Failed to create follow-up thought")
+        
+        return follow_up_id

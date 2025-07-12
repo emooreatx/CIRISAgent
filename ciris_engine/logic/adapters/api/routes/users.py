@@ -346,7 +346,7 @@ async def mint_wise_authority(
         )
     
     # Validate that request.wa_role is not ROOT
-    if request.wa_role == WARole.ROOT:
+    if request.wa_role == WARole.ROOT:  # type: ignore[unreachable]
         raise HTTPException(
             status_code=400,
             detail="Cannot mint new ROOT authorities. ROOT is singular."

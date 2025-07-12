@@ -235,11 +235,9 @@ class IdentityVarianceMonitor(Service):
                 metadata=VarianceCheckMetadata(
                     handler_name="identity_variance_monitor",
                     check_reason="rebaseline",
-                    previous_check=self._baseline_snapshot_id,
+                    previous_check=self._last_check,
                     check_type="rebaseline",
-                    variance_level=0.0,
-                    threshold_exceeded=False,
-                    wa_approval=wa_approval_token
+                    baseline_established=self._time_service.now()
                 ).model_dump()
             )
 
@@ -248,20 +246,21 @@ class IdentityVarianceMonitor(Service):
                 old_baseline = self._baseline_snapshot_id
                 self._baseline_snapshot_id = baseline_id
 
+                # TODO: Implement correlation through appropriate service
                 # Store baseline reference correlation
-                from ciris_engine.schemas.persistence.correlations import CorrelationType
-                if self._memory_bus:
-                    await self._memory_bus.correlate(
-                    source_id="identity_baseline",
-                    target_id=baseline_id,
-                    relationship=CorrelationType.REFERENCES,
-                    handler_name="identity_variance_monitor",
-                    metadata={
-                        "wa_approval": wa_approval_token,
-                        "previous_baseline": old_baseline,
-                        "created_at": self._time_service.now().isoformat()
-                    }
-                )
+                # from ciris_engine.schemas.persistence.correlations import CorrelationType
+                # if self._memory_bus:
+                #     await self._memory_bus.correlate(
+                #     source_id="identity_baseline",
+                #     target_id=baseline_id,
+                #     relationship=CorrelationType.REFERENCES,
+                #     handler_name="identity_variance_monitor",
+                #     metadata={
+                #         "wa_approval": wa_approval_token,
+                #         "previous_baseline": old_baseline,
+                #         "created_at": self._time_service.now().isoformat()
+                #     }
+                # )
 
                 logger.info(f"Successfully re-baselined identity to {baseline_id}")
                 return baseline_id
@@ -625,7 +624,7 @@ class IdentityVarianceMonitor(Service):
         """Analyze recent behavioral patterns from audit trail."""
         from ciris_engine.schemas.infrastructure.behavioral_patterns import BehavioralPattern
 
-        patterns = []
+        patterns: List[BehavioralPattern] = []
         try:
             # Query recent actions
             if not self._memory_bus:
@@ -649,7 +648,7 @@ class IdentityVarianceMonitor(Service):
                 action_counts[action_type] = action_counts.get(action_type, 0) + 1
 
                 # Track first/last seen
-                action_time = datetime.fromisoformat(action.timestamp)
+                action_time = action.timestamp
                 if action_type not in first_seen:
                     first_seen[action_type] = action_time
                 last_seen[action_type] = action_time

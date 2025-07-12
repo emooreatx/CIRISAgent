@@ -13,6 +13,7 @@ from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.adapters.tools import (
     ToolExecutionResult, ToolExecutionStatus, ToolInfo, ToolParameterSchema
 )
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 
 logger = logging.getLogger(__name__)
 
@@ -235,22 +236,39 @@ class APIToolService(ToolService):
         """Check if the service is healthy."""
         return True
 
-    def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""
-        return [
-            "execute_tool",
-            "get_available_tools", 
-            "get_tool_result",
-            "validate_parameters",
-            "get_tool_info",
-            "get_all_tool_info"
-        ]
+        return ServiceCapabilities(
+            service_name="APIToolService",
+            actions=[
+                "execute_tool",
+                "get_available_tools", 
+                "get_tool_result",
+                "validate_parameters",
+                "get_tool_info",
+                "get_all_tool_info"
+            ],
+            version="1.0.0",
+            dependencies=[],
+            metadata={
+                "max_batch_size": 1,
+                "supports_versioning": False,
+                "supported_formats": ["json"]
+            }
+        )
     
-    def get_status(self) -> Dict[str, Any]:
+    def get_status(self) -> ServiceStatus:
         """Get service status."""
-        return {
-            "service": "APIToolService",
-            "healthy": True,
-            "tools_available": len(self._tools),
-            "tools": list(self._tools.keys())
-        }
+        return ServiceStatus(
+            service_name="APIToolService",
+            service_type="tool",
+            is_healthy=True,
+            uptime_seconds=0,  # Not tracked
+            last_error=None,
+            metrics={
+                "tools_count": len(self._tools)
+            },
+            custom_metrics={
+                "tools": list(self._tools.keys())
+            }
+        )

@@ -4,7 +4,7 @@ import json
 import re
 import logging
 import psutil
-from typing import List, Optional, Tuple, Type, cast, Dict, Any
+from typing import List, Optional, Tuple, Type, cast, Dict, Any, Callable, Awaitable
 
 from pydantic import BaseModel, Field
 from openai import AsyncOpenAI, APIConnectionError, RateLimitError, APIStatusError, InternalServerError
@@ -37,7 +37,8 @@ class OpenAICompatibleClient(LLMServiceProtocol):
     def __init__(self, config: Optional[OpenAIConfig] = None, telemetry_service: Optional[TelemetryServiceProtocol] = None) -> None:
         # CRITICAL: Check if we're in mock LLM mode
         import os
-        if os.environ.get('MOCK_LLM') or '--mock-llm' in ' '.join(os.sys.argv):
+        import sys
+        if os.environ.get('MOCK_LLM') or '--mock-llm' in ' '.join(sys.argv):
             raise RuntimeError(
                 "CRITICAL BUG: OpenAICompatibleClient is being initialized while mock LLM is enabled!\n"
                 "This should never happen - the mock LLM module should prevent this initialization.\n"
@@ -406,9 +407,9 @@ class OpenAICompatibleClient(LLMServiceProtocol):
 
     async def _retry_with_backoff(
         self,
-        func,
-        *args,
-        **kwargs
+        func: Callable[..., Awaitable[Tuple[BaseModel, ResourceUsage]]],
+        *args: Any,
+        **kwargs: Any
     ) -> Tuple[BaseModel, ResourceUsage]:
         """Retry with exponential backoff (private method)."""
         last_exception = None

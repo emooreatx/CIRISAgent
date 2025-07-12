@@ -3,7 +3,7 @@ Wise Authority Service endpoints for CIRIS API v3 (Simplified).
 
 Manages human-in-the-loop deferrals and permissions.
 """
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 import logging
@@ -32,7 +32,7 @@ async def get_deferrals(
     request: Request,
     wa_id: Optional[str] = Query(None, description="Filter by WA ID"),
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[List[DeferralResponse]]:
     """
     Get list of pending deferrals.
 
@@ -105,7 +105,7 @@ async def resolve_deferral(
     deferral_id: str,
     resolve_request: ResolveDeferralRequest,
     auth: AuthContext = Depends(require_authority)
-):
+) -> SuccessResponse[ResolveDeferralResponse]:
     """
     Resolve a pending deferral with guidance.
 
@@ -195,7 +195,7 @@ async def get_permissions(
     request: Request,
     wa_id: Optional[str] = Query(None, description="WA ID to get permissions for (defaults to current user)"),
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[PermissionsListResponse]:
     """
     Get WA permission status.
 
@@ -257,7 +257,7 @@ async def get_permissions(
 async def get_wa_status(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[WAStatusResponse]:
     """
     Get current WA service status.
 
@@ -331,7 +331,7 @@ async def request_guidance(
     request: Request,
     guidance_request: WAGuidanceRequest,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[WAGuidanceResponse]:
     """
     Request guidance from WA on a specific topic.
 

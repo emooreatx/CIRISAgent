@@ -13,6 +13,7 @@ from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.adapters.tools import (
     ToolExecutionResult, ToolExecutionStatus, ToolInfo, ToolParameterSchema
 )
+from ciris_engine.schemas.services.core import ServiceCapabilities
 
 logger = logging.getLogger(__name__)
 
@@ -127,10 +128,11 @@ class DiscordToolService(ToolService):
             if not channel:
                 channel = await self._client.fetch_channel(int(channel_id))
             
-            if not hasattr(channel, 'send'):
-                return {"success": False, "error": "Channel does not support sending messages"}
-                
-            message = await channel.send(content)  # type: ignore[attr-defined]
+            # Type narrowing for channels that support sending
+            if isinstance(channel, (discord.TextChannel, discord.DMChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel)):
+                message = await channel.send(content)
+            else:
+                return {"success": False, "error": f"Channel type {type(channel).__name__} does not support sending messages"}
             return {
                 "success": True,
                 "data": {
@@ -167,10 +169,11 @@ class DiscordToolService(ToolService):
                     inline=field.get("inline", False)
                 )
             
-            if not hasattr(channel, 'send'):
-                return {"success": False, "error": "Channel does not support sending messages"}
-                
-            message = await channel.send(embed=embed)  # type: ignore[attr-defined]
+            # Type narrowing for channels that support sending
+            if isinstance(channel, (discord.TextChannel, discord.DMChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel)):
+                message = await channel.send(embed=embed)
+            else:
+                return {"success": False, "error": f"Channel type {type(channel).__name__} does not support sending messages"}
             return {
                 "success": True,
                 "data": {
@@ -196,10 +199,11 @@ class DiscordToolService(ToolService):
             if not channel:
                 channel = await self._client.fetch_channel(int(channel_id))
             
-            if not hasattr(channel, 'fetch_message'):
-                return {"success": False, "error": "Channel does not support fetching messages"}
-                
-            message = await channel.fetch_message(int(message_id))  # type: ignore[attr-defined]
+            # Type narrowing for channels that support fetching messages
+            if isinstance(channel, (discord.TextChannel, discord.DMChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel)):
+                message = await channel.fetch_message(int(message_id))
+            else:
+                return {"success": False, "error": f"Channel type {type(channel).__name__} does not support fetching messages"}
             await message.delete()
             
             return {
@@ -401,7 +405,7 @@ class DiscordToolService(ToolService):
                 return {"success": False, "error": "Discord client not initialized"}
             user = await self._client.fetch_user(int(user_id))
             
-            data = {
+            data: Dict[str, Any] = {
                 "user_id": str(user.id),
                 "username": user.name,
                 "discriminator": user.discriminator,
@@ -442,9 +446,9 @@ class DiscordToolService(ToolService):
             
             data = {
                 "channel_id": str(channel.id),
-                "name": channel.name,
-                "type": str(channel.type),
-                "created_at": channel.created_at.isoformat() if hasattr(channel, 'created_at') and channel.created_at else None  # type: ignore[attr-defined]
+                "name": getattr(channel, 'name', 'Unknown'),
+                "type": str(getattr(channel, 'type', 'Unknown')),
+                "created_at": channel.created_at.isoformat() if hasattr(channel, 'created_at') and channel.created_at else None
             }
             
             # Add guild info if it's a guild channel
@@ -629,16 +633,26 @@ class DiscordToolService(ToolService):
         """Check if the Discord tool service is healthy."""
         return self._client is not None and not self._client.is_closed()
 
-    async def get_capabilities(self) -> List[str]:
+    def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""
-        return [
-            "execute_tool",
-            "get_available_tools",
-            "get_tool_result",
-            "validate_parameters",
-            "get_tool_info",
-            "get_all_tool_info"
-        ]
+        return ServiceCapabilities(
+            service_name="DiscordToolService",
+            actions=[
+                "execute_tool",
+                "get_available_tools",
+                "get_tool_result",
+                "validate_parameters",
+                "get_tool_info",
+                "get_all_tool_info"
+            ],
+            version="1.0.0",
+            dependencies=[],
+            metadata={
+                "max_batch_size": 1,
+                "supports_versioning": False,
+                "supported_formats": ["json"]
+            }
+        )
 
     def get_status(self) -> Any:
         """Get service status."""

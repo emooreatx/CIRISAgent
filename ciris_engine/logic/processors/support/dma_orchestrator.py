@@ -251,7 +251,7 @@ class DMAOrchestrator:
         profile_name: str
     ) -> ActionSelectionDMAResult:
         """Run ActionSelectionPDMAEvaluator sequentially after DMAs."""
-        triaged = {}
+        triaged: Dict[str, Any] = {}
 
         triaged["original_thought"] = actual_thought
         triaged["processing_context"] = processing_context

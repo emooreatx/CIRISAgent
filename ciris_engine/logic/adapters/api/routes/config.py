@@ -26,7 +26,7 @@ class ConfigItemResponse(BaseModel):
     is_sensitive: bool = Field(False, description="Whether value contains sensitive data")
 
     @field_serializer('updated_at')
-    def serialize_updated_at(self, updated_at: datetime, _info) -> Optional[str]:
+    def serialize_updated_at(self, updated_at: datetime, _info: Any) -> Optional[str]:
         return updated_at.isoformat() if updated_at else None
 
 class ConfigListResponse(BaseModel):
@@ -166,8 +166,8 @@ async def update_config(
 
     try:
         # Validate the configuration value
-        _errors = []
-        _warnings = []
+        _errors: List[str] = []
+        _warnings: List[str] = []
 
         # Check for system configs
         if key.startswith("system.") and auth.role != UserRole.SYSTEM_ADMIN:

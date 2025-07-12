@@ -91,7 +91,7 @@ class CIRISRuntime:
                     adapter_kwargs['adapter_config'] = self.adapter_configs[adapter_name]
 
                 # Adapters expect runtime as first positional argument
-                self.adapters.append(adapter_class(self, **adapter_kwargs))
+                self.adapters.append(adapter_class(self, **adapter_kwargs))  # type: ignore[call-arg]
                 logger.info(f"Successfully loaded and initialized adapter: {adapter_name}")
             except Exception as e:
                 logger.error(f"Failed to load or initialize adapter '{adapter_name}': {e}", exc_info=True)
@@ -1024,7 +1024,7 @@ class CIRISRuntime:
                         if hasattr(self.agent_processor, 'shutdown_processor') and self.agent_processor.shutdown_processor:
                             if self.agent_processor.shutdown_processor.shutdown_complete:
                                 result = self.agent_processor.shutdown_processor.shutdown_result
-                                if result and isinstance(result, dict) and result.get("status") == "rejected":
+                                if result and hasattr(result, 'get') and result.get("status") == "rejected":
                                     logger.warning(f"Shutdown rejected by agent: {result.get('reason')}")
                                     # Proceed with shutdown - emergency shutdown API provides override mechanism
                                 break

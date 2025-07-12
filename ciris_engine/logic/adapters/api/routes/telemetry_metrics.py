@@ -14,7 +14,7 @@ async def get_metric_detail(
     request: Request,
     metric_name: str = Path(..., description="Name of the metric"),
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[Dict[str, Any]]:
     """
     Get detailed information about a specific metric.
     

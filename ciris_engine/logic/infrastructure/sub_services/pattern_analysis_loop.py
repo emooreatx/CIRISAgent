@@ -537,7 +537,7 @@ class PatternAnalysisLoop(Service):
             action_data_raw[action_type]["count"] += 1
 
             # Track last seen
-            action_time = datetime.fromisoformat(action.timestamp)
+            action_time = action.timestamp
             if action_data_raw[action_type]["last_seen"] is None or action_time > action_data_raw[action_type]["last_seen"]:
                 action_data_raw[action_type]["last_seen"] = action_time
 

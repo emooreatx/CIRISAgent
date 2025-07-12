@@ -184,7 +184,7 @@ class BaseObserver(Generic[MessageT], ABC):
             if hist_msg.get("author_id"):
                 recall_ids.add(f"user/{hist_msg['author_id']}")
         
-        from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
+        from ciris_engine.schemas.services.graph_core import GraphNode, GraphNodeAttributes, GraphScope, NodeType
         for rid in recall_ids:
             for scope in (
                 GraphScope.IDENTITY,
@@ -203,6 +203,12 @@ class BaseObserver(Generic[MessageT], ABC):
                         id=rid, 
                         type=node_type, 
                         scope=scope,
+                        attributes=GraphNodeAttributes(
+                            created_by="base_observer",
+                            created_at=self.time_service.now() if self.time_service else datetime.now(timezone.utc),
+                            updated_at=self.time_service.now() if self.time_service else datetime.now(timezone.utc),
+                            tags=[]
+                        ),
                         updated_by="base_observer",
                         updated_at=self.time_service.now() if self.time_service else datetime.now(timezone.utc)
                     )

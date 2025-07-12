@@ -11,8 +11,9 @@ from ciris_engine.logic.services.graph.memory_service import LocalGraphMemorySer
 from ciris_engine.logic.services.lifecycle.time import TimeService
 from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.logic.services.governance.filter import AdaptiveFilterService
-from ciris_engine.schemas.services.nodes import ConfigNode
-from ciris_engine.schemas.services.graph_core import NodeType
+from ciris_engine.schemas.services.nodes import ConfigNode, ConfigValue
+from ciris_engine.schemas.services.graph_core import NodeType, GraphScope
+from ciris_engine.schemas.services.operations import MemoryQuery
 
 
 @pytest.fixture
@@ -120,10 +121,11 @@ async def test_no_malformed_config_nodes(services):
     assert len(all_configs) >= 1, "Should have at least the filter config"
 
     # Verify each config has proper structure
-    for key, value in all_configs.items():
-        # The value should be a ConfigValue
-        assert hasattr(value, 'value'), f"Config {key} should have ConfigValue wrapper"
-        actual_value = value.value
+    for key, config_value in all_configs.items():
+        # list_configs returns a dict mapping keys to ConfigValue instances
+        assert isinstance(config_value, ConfigValue), f"Config {key} should be a ConfigValue instance"
+        # The ConfigValue has typed fields for different value types
+        actual_value = config_value.value
         assert actual_value is not None, f"Config {key} should have a value"
 
 
@@ -196,7 +198,9 @@ async def test_config_node_error_handling(services):
     configs = await config_service.list_configs()
 
     # The malformed node should not appear in the results
-    assert "malformed" not in str(configs.keys())
+    # Since the node doesn't have a valid 'key' attribute, it won't be processed
+    all_keys = list(configs.keys())
+    assert not any("malformed" in key for key in all_keys), "Malformed node should not appear in results"
 
     # Try to get it directly - should return None
     result = await config_service.get_config("malformed")

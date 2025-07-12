@@ -21,7 +21,14 @@ class ForgetHandler(BaseActionHandler):
         params = raw_params
         if not isinstance(params, ForgetParams):
             try:
-                params = ForgetParams(**params) if isinstance(params, dict) else params
+                if isinstance(params, dict):
+                    params = ForgetParams(**params)
+                elif hasattr(params, 'model_dump'):
+                    # Convert Pydantic model to dict
+                    params = ForgetParams(**params.model_dump())
+                else:
+                    # Already the right type or can't convert
+                    params = params
             except ValidationError as e:
                 logger.error(f"ForgetHandler: Invalid params dict: {e}")
                 follow_up_content = f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters. {e}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."

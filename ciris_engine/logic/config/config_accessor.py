@@ -97,10 +97,11 @@ class ConfigAccessor:
         try:
             for part in parts:
                 if hasattr(value, part):
-                    value = getattr(value, part)  # type: ignore[no-any-return]
-                elif isinstance(value, dict):
-                    value = value.get(part)  # type: ignore[assignment, no-any-return]
-                    if value is None:
+                    value = getattr(value, part)
+                elif hasattr(value, '__getitem__'):
+                    try:
+                        value = value[part]
+                    except (KeyError, TypeError):
                         return default
                 else:
                     return default
@@ -188,7 +189,7 @@ class ConfigAccessor:
         try:
             for part in parts:
                 if hasattr(value, part):
-                    value = getattr(value, part)  # type: ignore[no-any-return]
+                    value = getattr(value, part)
                 else:
                     return {}
 
@@ -197,8 +198,8 @@ class ConfigAccessor:
                 return value.model_dump()
             elif hasattr(value, 'dict'):
                 return value.dict()
-            elif isinstance(value, dict):
-                return value  # type: ignore[no-any-return]
+            elif hasattr(value, '__getitem__') and hasattr(value, 'keys'):
+                return dict(value)
             else:
                 return {}
         except Exception as e:

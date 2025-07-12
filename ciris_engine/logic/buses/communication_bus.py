@@ -151,7 +151,17 @@ class CommunicationBus(BaseBus[CommunicationService]):
 
         try:
             messages = await service.fetch_messages(channel_id, limit=limit)
-            return list(messages) if messages else []
+            if not messages:
+                return []
+            
+            # Convert dict messages to FetchedMessage objects
+            fetched_messages = []
+            for msg in messages:
+                if isinstance(msg, dict):
+                    fetched_messages.append(FetchedMessage(**msg))
+                else:
+                    fetched_messages.append(msg)
+            return fetched_messages
         except Exception as e:
             logger.error(f"Failed to fetch messages: {e}", exc_info=True)
             return []

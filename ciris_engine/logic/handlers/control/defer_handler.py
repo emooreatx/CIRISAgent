@@ -47,8 +47,11 @@ class DeferHandler(BaseActionHandler):
         try:
             if isinstance(raw_params, dict):
                 defer_params_obj = DeferParams(**raw_params)
-            elif isinstance(raw_params, DeferParams): # Should not happen if ActionSelectionDMAResult.action_parameters is always dict
+            elif isinstance(raw_params, DeferParams):
                 defer_params_obj = raw_params
+            elif hasattr(raw_params, 'model_dump'):
+                # Convert Pydantic model to dict
+                defer_params_obj = DeferParams(**raw_params.model_dump())
             else:
                 raise ValueError(f"Unexpected type for deferral parameters: {type(raw_params)}")
 
@@ -171,3 +174,5 @@ class DeferHandler(BaseActionHandler):
         # Update task status to deferred - "no kings" principle
         persistence.update_task_status(parent_task_id, TaskStatus.DEFERRED, self.time_service)
         self.logger.info(f"Marked parent task {parent_task_id} as DEFERRED due to child thought deferral.")
+        
+        return None

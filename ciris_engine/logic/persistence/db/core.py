@@ -21,12 +21,12 @@ logger = logging.getLogger(__name__)
 
 
 # Custom datetime adapter and converter for SQLite
-def adapt_datetime(ts):
+def adapt_datetime(ts: datetime) -> str:
     """Convert datetime to ISO 8601 string."""
     return ts.isoformat()
 
 
-def convert_datetime(val):
+def convert_datetime(val: bytes) -> datetime:
     """Convert ISO 8601 string back to datetime."""
     return datetime.fromisoformat(val.decode())
 
@@ -35,7 +35,7 @@ def convert_datetime(val):
 _adapters_registered = False
 
 
-def _ensure_adapters_registered():
+def _ensure_adapters_registered() -> None:
     """Register SQLite adapters if not already done."""
     global _adapters_registered
     if not _adapters_registered:

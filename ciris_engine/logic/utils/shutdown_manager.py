@@ -65,7 +65,7 @@ class ShutdownManagerWrapper:
     def __init__(self, service: ShutdownService) -> None:
         self._service = service
 
-    def __getattr__(self, name) -> Any:
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._service, name)
 
     async def execute_async_handlers(self) -> None:

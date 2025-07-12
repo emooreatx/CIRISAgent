@@ -680,12 +680,14 @@ Tools available:
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""
         return ServiceCapabilities(
-            service_type=ServiceType.COMMUNICATION,
+            service_name="CLIAdapter",
+            actions=["send_message", "receive_message", "execute_tool", "list_tools"],
             version="1.0.0",
-            supported_actions=["send_message", "receive_message", "execute_tool", "list_tools"],
-            max_concurrent_operations=1,
-            supports_streaming=False,
-            custom_capabilities={
+            dependencies=[],
+            metadata={
+                "service_type": ServiceType.COMMUNICATION,
+                "max_concurrent_operations": 1,
+                "supports_streaming": False,
                 "interactive": self._interactive,
                 "available_tools": list(self._available_tools.keys())
             }

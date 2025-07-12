@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class DateTimeEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles datetime objects and Pydantic models."""
 
-    def default(self, obj: Any):
+    def default(self, obj: Any) -> Any:
         if isinstance(obj, datetime):
             return obj.isoformat()
         # Handle Pydantic models
@@ -220,7 +220,7 @@ def get_all_graph_nodes(
         List of GraphNode objects
     """
     sql = "SELECT * FROM graph_nodes WHERE 1=1"
-    params = []
+    params: List[Any] = []
     
     if scope is not None:
         sql += " AND scope = ?"

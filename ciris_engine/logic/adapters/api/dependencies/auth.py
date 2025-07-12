@@ -17,7 +17,13 @@ async def get_auth_service(request: Request) -> APIAuthService:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Auth service not initialized"
         )
-    return request.app.state.auth_service
+    auth_service = request.app.state.auth_service
+    if not isinstance(auth_service, APIAuthService):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Invalid auth service type"
+        )
+    return auth_service
 
 async def get_auth_context(
     request: Request,

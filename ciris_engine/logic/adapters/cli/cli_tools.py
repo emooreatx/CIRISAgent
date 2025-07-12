@@ -2,6 +2,7 @@ import os
 import asyncio
 import uuid
 from typing import Dict, List, Optional
+from datetime import datetime, timezone
 
 from ciris_engine.schemas.adapters.cli_tools import (
     ListFilesParams, ListFilesResult, ReadFileParams,
@@ -46,15 +47,16 @@ class CLIToolService(ToolService):
 
     async def execute_tool(self, tool_name: str, parameters: dict) -> ToolExecutionResult:
         correlation_id = parameters.get("correlation_id", str(uuid.uuid4()))
+        now = datetime.now(timezone.utc)
         corr = ServiceCorrelation(
             correlation_id=correlation_id,
             service_type="cli",
             handler_name="CLIToolService",
             action_type=tool_name,
-            request_data=parameters,
-            status=ServiceCorrelationStatus.PENDING,
-            created_at=self._time_service.now_iso(),
-            updated_at=self._time_service.now_iso(),
+            created_at=now,
+            updated_at=now,
+            timestamp=now,
+            status=ServiceCorrelationStatus.PENDING
         )
         persistence.add_correlation(corr)
 
@@ -87,14 +89,13 @@ class CLIToolService(ToolService):
 
         if correlation_id:
             self._results[correlation_id] = tool_result
+            # Update the correlation we created earlier
+            corr.status = ServiceCorrelationStatus.COMPLETED
+            corr.updated_at = datetime.now(timezone.utc)
             persistence.update_correlation(
-                CorrelationUpdateRequest(
-                    correlation_id=correlation_id,
-                    response_data=result,
-                    status=ServiceCorrelationStatus.COMPLETED,
-                    metric_value=None,
-                    tags=None
-                )
+                correlation_id,
+                corr,
+                self._time_service
             )
         return tool_result
 

@@ -187,7 +187,7 @@ class ApiPlatform(Service):
         self.app.state.message_channel_map = {}
         
         # Set up message handler to use the message observer and create correlations
-        async def handle_message_via_observer(msg):
+        async def handle_message_via_observer(msg: Any) -> None:
             """Handle incoming messages by creating passive observations."""
             try:
                 logger.info(f"handle_message_via_observer called for message {msg.message_id}")

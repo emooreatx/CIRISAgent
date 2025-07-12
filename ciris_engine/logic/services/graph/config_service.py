@@ -6,6 +6,7 @@ This replaces the old config_manager_service and agent_config_service.
 """
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 # Optional import for psutil
@@ -18,8 +19,10 @@ except ImportError:
 
 from ciris_engine.protocols.services.graph.config import GraphConfigServiceProtocol
 from ciris_engine.protocols.runtime.base import ServiceProtocol
-from ciris_engine.schemas.services.nodes import ConfigNode
+from ciris_engine.schemas.services.nodes import ConfigNode, ConfigValue
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.services.graph_core import GraphNode
+from ciris_engine.schemas.services.operations import MemoryQuery
 from ciris_engine.logic.services.graph.memory_service import LocalGraphMemoryService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
@@ -87,45 +90,49 @@ class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
             }
         )
 
-    async def store_in_graph(self, node: ConfigNode) -> str:
+    async def store_in_graph(self, node: GraphNode) -> str:
         """Store config node in graph."""
-        # Convert typed node to GraphNode for storage
-        graph_node = node.to_graph_node()
+        # If it's a ConfigNode, use it directly, otherwise convert
+        if isinstance(node, ConfigNode):
+            graph_node = node.to_graph_node()
+        else:
+            graph_node = node
         result = await self.graph.memorize(graph_node)
         # MemoryOpResult has data field, not node_id
         if result.status == "ok" and result.data:
             return result.data if isinstance(result.data, str) else str(result.data)
         return ""
 
-    async def query_graph(self, query: dict) -> List[ConfigNode]:
-        """Query config nodes from graph."""
-        # Get all config nodes (use lowercase enum value)
+    async def query_graph(self, query: MemoryQuery) -> List[GraphNode]:
+        """Query config nodes from graph.
+        
+        This method is required by BaseGraphService but not used in ConfigService.
+        Config queries should use query_config_by_key() instead.
+        """
+        # For config service, we always query all config nodes
+        # The MemoryQuery parameter is ignored as it's not applicable to config queries
         nodes = await self.graph.search("type:config")
-
-        # Convert GraphNodes to ConfigNodes
-        config_nodes = []
+        return nodes
+    
+    async def query_config_by_key(self, key: str) -> List[GraphNode]:
+        """Query config nodes by key."""
+        # Get all config nodes
+        nodes = await self.graph.search("type:config")
+        
+        # Filter by key
+        filtered_nodes = []
         for node in nodes:
             try:
+                # Convert to ConfigNode to check key
                 config_node = ConfigNode.from_graph_node(node)
-
-                # Apply query filters
-                matches = True
-                for k, v in query.items():
-                    if k == "key" and config_node.key != v:
-                        matches = False
-                        break
-                    elif k == "version" and config_node.version != v:
-                        matches = False
-                        break
-
-                if matches:
-                    config_nodes.append(config_node)
+                if config_node.key == key:
+                    filtered_nodes.append(node)
             except Exception as e:
                 # Skip nodes that can't be converted (might be old format)
                 logger.warning(f"Failed to convert node {node.id} to ConfigNode: {e}")
                 continue
-
-        return config_nodes
+        
+        return filtered_nodes
 
     def get_node_type(self) -> str:
         """Get the node type this service manages."""
@@ -133,16 +140,29 @@ class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
 
     async def get_config(self, key: str) -> Optional[ConfigNode]:
         """Get current configuration value."""
-        # Find latest version
-        nodes = await self.query_graph({"key": key})
-        if not nodes:
+        # Query config nodes by key
+        graph_nodes = await self.query_config_by_key(key)
+        if not graph_nodes:
             return None
 
+        # Convert GraphNodes to ConfigNodes and sort by version
+        config_nodes = []
+        for node in graph_nodes:
+            try:
+                config_node = ConfigNode.from_graph_node(node)
+                config_nodes.append(config_node)
+            except Exception as e:
+                logger.warning(f"Failed to convert node to ConfigNode: {e}")
+                continue
+        
+        if not config_nodes:
+            return None
+            
         # Sort by version, get latest
-        nodes.sort(key=lambda n: n.version, reverse=True)
-        return nodes[0]
+        config_nodes.sort(key=lambda n: n.version, reverse=True)
+        return config_nodes[0]
 
-    async def set_config(self, key: str, value: Union[str, int, float, bool, List, Dict], updated_by: str) -> None:
+    async def set_config(self, key: str, value: Union[str, int, float, bool, List, Dict, Path], updated_by: str) -> None:
         """Set configuration value with history."""
         import uuid
         from ciris_engine.schemas.services.graph_core import GraphScope
@@ -152,11 +172,9 @@ class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
         current = await self.get_config(key)
 
         # Wrap value in ConfigValue
-        from pathlib import Path
         config_value = ConfigValue()
-        if isinstance(value, str):
-            config_value.string_value = value
-        elif isinstance(value, Path):
+        # Check Path first before other types
+        if isinstance(value, Path):
             config_value.string_value = str(value)  # Convert Path to string
         elif isinstance(value, bool):  # Check bool before int (bool is subclass of int)
             config_value.bool_value = value
@@ -164,6 +182,8 @@ class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
             config_value.int_value = value
         elif isinstance(value, float):
             config_value.float_value = value
+        elif isinstance(value, str):
+            config_value.string_value = value
         elif isinstance(value, list):
             config_value.list_value = value
         elif isinstance(value, dict):
@@ -178,9 +198,8 @@ class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
         if current:
             current_value = current.value.value  # Use the @property method
             # Convert Path objects for comparison
-            if isinstance(value, Path):
-                value = str(value)
-            if current_value == value:
+            compare_value = str(value) if isinstance(value, Path) else value
+            if current_value == compare_value:
                 # No change needed
                 logger.debug(f"Config {key} unchanged, skipping update")
                 return
@@ -209,20 +228,25 @@ class GraphConfigService(GraphConfigServiceProtocol, ServiceProtocol):
         await self._notify_listeners(key, old_value, value)
 
 
-    async def list_configs(self, prefix: Optional[str] = None) -> Dict[str, Union[str, int, float, bool, List, Dict]]:
+    async def list_configs(self, prefix: Optional[str] = None) -> Dict[str, ConfigValue]:
         """List all configurations with optional prefix filter."""
         # Get all config nodes
-        all_configs = await self.query_graph({})
-
-        # Group by key to get latest version of each
+        all_nodes = await self.graph.search("type:config")
+        
+        # Convert to ConfigNodes and group by key to get latest version of each
         config_map: Dict[str, ConfigNode] = {}
-        for config in all_configs:
-            if prefix and not config.key.startswith(prefix):
+        for node in all_nodes:
+            try:
+                config_node = ConfigNode.from_graph_node(node)
+                if prefix and not config_node.key.startswith(prefix):
+                    continue
+                if config_node.key not in config_map or config_node.version > config_map[config_node.key].version:
+                    config_map[config_node.key] = config_node
+            except Exception as e:
+                logger.warning(f"Failed to convert node to ConfigNode: {e}")
                 continue
-            if config.key not in config_map or config.version > config_map[config.key].version:
-                config_map[config.key] = config
 
-        # Return key->value mapping
+        # Return key->ConfigValue mapping
         return {key: node.value for key, node in config_map.items()}
 
     async def is_healthy(self) -> bool:

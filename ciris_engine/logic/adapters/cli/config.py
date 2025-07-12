@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel, Field
 from typing import Optional
+import os
+import uuid
 
 class CLIAdapterConfig(BaseModel):
     """Configuration for the CLI adapter."""
@@ -18,7 +20,10 @@ class CLIAdapterConfig(BaseModel):
     max_output_lines: int = Field(default=100, description="Maximum lines to display per response")
     word_wrap: bool = Field(default=True, description="Enable word wrapping for long lines")
 
-    default_channel_id: Optional[str] = Field(default=None, description="Default channel ID for CLI messages")
+    default_channel_id: Optional[str] = Field(
+        default_factory=lambda: f"cli_{os.getpid()}_{uuid.uuid4().hex[:8]}", 
+        description="Default channel ID for CLI messages"
+    )
 
     enable_cli_tools: bool = Field(default=True, description="Enable CLI-specific tools")
 

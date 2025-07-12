@@ -2,6 +2,7 @@ import asyncio
 import logging
 import uuid
 from typing import List, Optional
+from datetime import datetime, timezone
 
 from ciris_engine.protocols.services import WiseAuthorityService
 from ciris_engine.schemas.telemetry.core import (
@@ -80,16 +81,16 @@ class CLIWiseAuthorityService(WiseAuthorityService):
 
         print(f"{'='*60}")
 
+        now = datetime.now(timezone.utc)
         corr = ServiceCorrelation(
             correlation_id=str(uuid.uuid4()),
             service_type="cli",
             handler_name="CLIWiseAuthorityService",
             action_type="send_deferral",
-            request_data=context.model_dump(),
-            response_data={"status": "logged"},
-            status=ServiceCorrelationStatus.COMPLETED,
-            created_at=self.time_service.now().isoformat(),
-            updated_at=self.time_service.now().isoformat(),
+            created_at=now,
+            updated_at=now,
+            timestamp=now,
+            status=ServiceCorrelationStatus.COMPLETED
         )
         persistence.add_correlation(corr)
         return True

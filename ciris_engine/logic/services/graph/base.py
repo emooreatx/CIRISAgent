@@ -63,7 +63,7 @@ class BaseGraphService(ABC, GraphServiceProtocol):
         """Get service capabilities."""
         return ServiceCapabilities(
             service_name=self.service_name,
-            capabilities=[
+            actions=[
                 "store_in_graph",
                 "query_graph",
                 self.get_node_type()
@@ -74,12 +74,13 @@ class BaseGraphService(ABC, GraphServiceProtocol):
     def get_status(self) -> ServiceStatus:
         """Get current service status."""
         return ServiceStatus(
-            healthy=self._started and self._memory_bus is not None,
             service_name=self.service_name,
-            status="running" if self._started else "stopped",
-            details={
-                "memory_bus_available": self._memory_bus is not None,
-                "time_service_available": self._time_service is not None
+            service_type=self.get_node_type(),
+            is_healthy=self._started and self._memory_bus is not None,
+            uptime_seconds=0.0,  # Would need to track start time for real uptime
+            metrics={
+                "memory_bus_available": 1.0 if self._memory_bus is not None else 0.0,
+                "time_service_available": 1.0 if self._time_service is not None else 0.0
             }
         )
 

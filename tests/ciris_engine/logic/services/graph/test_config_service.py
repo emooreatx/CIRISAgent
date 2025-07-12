@@ -13,6 +13,7 @@ from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatu
 from ciris_engine.schemas.services.nodes import ConfigNode, ConfigValue
 from ciris_engine.schemas.services.graph_core import GraphScope
 from ciris_engine.logic.services.graph.memory_service import LocalGraphMemoryService
+from ciris_engine.schemas.services.operations import MemoryQuery
 import sqlite3
 
 

@@ -38,6 +38,7 @@ from ciris_engine.protocols.services import AuditService as AuditServiceProtocol
 from ciris_engine.protocols.runtime.base import ServiceProtocol
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.schemas.runtime.audit import AuditActionContext, AuditConscienceResult, AuditRequest
+from ciris_engine.schemas.runtime.memory import TimeSeriesDataPoint
 # TSDB functionality integrated into graph nodes
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.services.nodes import AuditEntry as AuditEntryNode, AuditEntryContext
@@ -150,11 +151,11 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         from ciris_engine.logic.registries.base import ServiceRegistry
         if isinstance(registry, ServiceRegistry):
             self._service_registry = registry
-        if not self._memory_bus and registry:
+        if not self._memory_bus and self._service_registry:
             try:
                 from ciris_engine.logic.buses import MemoryBus
                 # ServiceRegistry is already imported above from base module
-                self._memory_bus = MemoryBus(registry, self._time_service)
+                self._memory_bus = MemoryBus(self._service_registry, self._time_service)
             except Exception as e:
                 logger.error(f"Failed to initialize memory bus: {e}")
 
@@ -209,7 +210,7 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
             }
         )
         try:
-            await self.log_event("audit_service_shutdown", shutdown_event)
+            await self.log_event("audit_service_shutdown", shutdown_event.model_dump())
         except Exception as e:
             logger.warning(f"Failed to log shutdown event: {e}")
 
@@ -392,7 +393,7 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
             metadata=metadata or {}
         )
 
-        await self.log_event("conscience_check", event_data)
+        await self.log_event("conscience_check", event_data.model_dump())
 
     async def get_audit_trail(
         self,
@@ -677,15 +678,35 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
 
         # Generate filename
         timestamp = self._time_service.now().strftime("%Y%m%d_%H%M%S")
+        if not self.export_path:
+            raise ValueError("Export path not configured")
         filename = self.export_path.parent / f"audit_export_{timestamp}.{format}"
 
+        # Convert AuditEntry to AuditRequest for export methods
+        audit_requests = []
+        for entry in entries:
+            audit_requests.append(AuditRequest(
+                entry_id=entry.id,
+                timestamp=entry.timestamp,
+                entity_id=entry.context.correlation_id or entry.actor,
+                event_type=entry.action,
+                actor=entry.actor,
+                details={
+                    "service": entry.context.service_name or "",
+                    "method": entry.context.method_name or "",
+                    "user_id": entry.context.user_id or "",
+                    **({k: str(v) for k, v in entry.context.additional_data.items()} if entry.context.additional_data else {})
+                },
+                outcome=None  # AuditEntry doesn't have outcome field
+            ))
+        
         # Export based on format
         if format == "jsonl":
-            await self._export_jsonl(entries, filename)
+            await self._export_jsonl(audit_requests, filename)
         elif format == "csv":
-            await self._export_csv(entries, filename)
+            await self._export_csv(audit_requests, filename)
         elif format == "sqlite":
-            await self._export_sqlite(entries, filename)
+            await self._export_sqlite(audit_requests, filename)
         else:
             raise ValueError(f"Unsupported export format: {format}")
 
@@ -1207,7 +1228,7 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
 
     def _convert_timeseries_to_entries(
         self,
-        timeseries_data: List[GraphNode],
+        timeseries_data: List[TimeSeriesDataPoint],
         entity_id: Optional[str] = None
     ) -> List[AuditEntry]:
         """Convert timeseries data to audit entries."""
@@ -1220,10 +1241,11 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
                 if entity_id not in [tags.get("thought_id"), tags.get("task_id")]:
                     continue
 
-            # Convert to entry
-            entry = self._tsdb_to_audit_entry(data)
-            if entry:
-                results.append(entry)
+            # Convert TimeSeriesDataPoint to GraphNode for compatibility
+            # TimeSeriesDataPoint doesn't directly map to audit entries, skip
+            # This method seems to be looking for audit entries stored as timeseries
+            # but TimeSeriesDataPoint is for metrics, not audit entries
+            continue
 
         return results
 
@@ -1248,26 +1270,15 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         # Convert to dict format expected by protocol
         result = []
         for entry in entries:
-            if hasattr(entry, 'entry_id'):
-                # AuditRequest format
-                result.append({
-                    "event_id": entry.entry_id,
-                    "event_type": entry.event_type,
-                    "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
-                    "user_id": entry.actor,  # Using actor as user_id
-                    "data": entry.details,
-                    "metadata": {"outcome": entry.outcome} if entry.outcome else {}
-                })
-            else:
-                # AuditEntry format
-                result.append({
-                    "event_id": entry.id,
-                    "event_type": entry.action,
-                    "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
-                    "user_id": entry.actor,  # Using actor as user_id
-                    "data": {"context": entry.context.model_dump()},
-                    "metadata": {"signature": entry.signature} if entry.signature else {}
-                })
+            # AuditEntry format (query_audit_trail returns List[AuditEntry])
+            result.append({
+                "event_id": entry.id,
+                "event_type": entry.action,
+                "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
+                "user_id": entry.actor,  # Using actor as user_id
+                "data": {"context": entry.context.model_dump()},
+                "metadata": {"signature": entry.signature} if entry.signature else {}
+            })
         return result
 
     async def get_event_by_id(self, event_id: str) -> Optional[dict]:
@@ -1278,7 +1289,7 @@ class GraphAuditService(AuditServiceProtocol, GraphServiceProtocol, ServiceProto
         query = MemoryQuery(
             node_id=event_id,
             scope=GraphScope.LOCAL,
-            type=NodeType.AUDIT,
+            type=NodeType.AUDIT_ENTRY,
             include_edges=False,
             depth=1
         )

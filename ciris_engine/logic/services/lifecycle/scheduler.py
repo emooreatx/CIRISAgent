@@ -10,7 +10,7 @@ their own future actions with human approval.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 
@@ -306,7 +306,7 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
         now_iso = now.isoformat()
 
         # Update in-memory task
-        task.last_triggered_at = now_iso
+        task.last_triggered_at = now
         if task.schedule_cron:
             task.status = "ACTIVE"
             # Calculate and log next trigger time for recurring tasks
@@ -422,12 +422,13 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
             schedule_cron=None  # One-time execution
         )
         
-        # Store the task_id in the scheduled task for reactivation
-        scheduled_task.metadata = {
+        # Store the deferral information in the deferral_history
+        scheduled_task.deferral_count += 1
+        scheduled_task.deferral_history.append({
             "deferred_task_id": task_id,
             "deferral_reason": reason,
-            "deferral_context": context or {}
-        }
+            "deferred_at": datetime.now(timezone.utc).isoformat()
+        })
         
         logger.info(f"Scheduled deferred task {task_id} for reactivation at {defer_until}")
         
@@ -488,7 +489,9 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
         """
         if task_id in self._active_tasks:
             task = self._active_tasks[task_id]
-            task.defer_until = defer_until
+            # Convert ISO string to datetime
+            from datetime import datetime
+            task.defer_until = datetime.fromisoformat(defer_until.replace('Z', '+00:00'))
             task.deferral_count += 1
             task.deferral_history.append({
                 "deferred_at": self.time_service.now().isoformat(),

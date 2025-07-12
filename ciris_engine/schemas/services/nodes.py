@@ -132,9 +132,19 @@ class ConfigValue(BaseModel):
     @property
     def value(self) -> Optional[Union[str, int, float, bool, List[Union[str, int, float, bool]], Dict[str, Union[str, int, float, bool, list, dict, None]]]]:
         """Get the actual value."""
-        for field_name, field_value in self.model_dump().items():
-            if field_value is not None:
-                return field_value
+        # Check each field in order
+        if self.string_value is not None:
+            return self.string_value
+        elif self.int_value is not None:
+            return self.int_value
+        elif self.float_value is not None:
+            return self.float_value
+        elif self.bool_value is not None:
+            return self.bool_value
+        elif self.list_value is not None:
+            return self.list_value
+        elif self.dict_value is not None:
+            return self.dict_value
         return None
 
 @register_node_type("config")
@@ -492,7 +502,7 @@ class IdentityNode(TypedGraphNode):
 
     # Base GraphNode fields (required by TypedGraphNode)
     id: str = Field(default="agent/identity", description="Node ID")
-    attributes: Optional[Union[GraphNodeAttributes, Dict[str, Any]]] = Field(default=None, description="Raw attributes")
+    attributes: Union[GraphNodeAttributes, Dict[str, Any]] = Field(default_factory=dict, description="Raw attributes")
     version: int = Field(default=1, description="Version number")
 
     def to_graph_node(self) -> GraphNode:

@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from ciris_engine.schemas.api.auth import UserRole, APIKeyInfo
 from ciris_engine.schemas.services.authority_core import WARole
 from ciris_engine.schemas.runtime.api import APIRole
+from ciris_engine.protocols.services.infrastructure.authentication import AuthenticationServiceProtocol
 
 @dataclass
 class StoredAPIKey:
@@ -51,7 +52,7 @@ class User:
     oauth_provider: Optional[str] = None
     oauth_email: Optional[str] = None
     oauth_external_id: Optional[str] = None
-    created_at: datetime = None
+    created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
     is_active: bool = True
     wa_parent_id: Optional[str] = None
@@ -62,7 +63,7 @@ class User:
 class APIAuthService:
     """Simple in-memory authentication service with database persistence."""
 
-    def __init__(self, auth_service=None) -> None:
+    def __init__(self, auth_service: Optional[AuthenticationServiceProtocol] = None) -> None:
         # In-memory caches for performance
         self._api_keys: Dict[str, StoredAPIKey] = {}
         self._oauth_users: Dict[str, OAuthUser] = {}
@@ -92,6 +93,10 @@ class APIAuthService:
     def _load_users_from_db(self) -> None:
         """Load existing users from the database."""
         import asyncio
+        
+        if not self._auth_service:
+            return
+            
         try:
             # Get all WA certificates from the database
             was = asyncio.run(self._auth_service.list_was(active_only=False))
@@ -105,8 +110,8 @@ class APIAuthService:
                     api_role=self._wa_role_to_api_role(wa.role),
                     wa_role=wa.role,
                     created_at=wa.created_at,
-                    last_login=wa.last_login,
-                    is_active=wa.active,
+                    last_login=wa.last_auth,
+                    is_active=True,  # Assume active if in database
                     wa_parent_id=wa.parent_wa_id,
                     wa_auto_minted=wa.auto_minted,
                     password_hash=wa.password_hash,
@@ -136,6 +141,9 @@ class APIAuthService:
     
     async def _create_default_admin(self) -> None:
         """Create the default admin user in the database."""
+        if not self._auth_service:
+            return
+            
         try:
             # Create admin WA certificate
             wa_cert = await self._auth_service.create_wa(
@@ -485,7 +493,7 @@ class APIAuthService:
             
             users.append(user)
         
-        return sorted(users, key=lambda u: u.created_at, reverse=True)
+        return sorted(users, key=lambda u: u.created_at or datetime.min, reverse=True)
     
     def _user_role_to_api_role(self, role: UserRole) -> APIRole:
         """Convert UserRole to APIRole."""
@@ -559,10 +567,10 @@ class APIAuthService:
                 if is_active is not None:
                     if is_active:
                         # Reactivate - note: this may not work if cert was revoked
-                        await self._auth_service.update_wa(user_id, active=True)
+                        await self._auth_service.update_wa(user_id, is_active=True)
                     else:
                         # Deactivate
-                        await self._auth_service.revoke_wa(user_id)
+                        await self._auth_service.revoke_wa(user_id, reason="User deactivated via API")
             except Exception as e:
                 print(f"Error updating user in database: {e}")
         

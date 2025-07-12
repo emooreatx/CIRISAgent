@@ -28,7 +28,13 @@ class PonderHandler(BaseActionHandler):
     ) -> Optional[str]:
         """Process ponder action and update thought."""
         params = result.action_parameters
-        ponder_params = PonderParams(**params) if isinstance(params, dict) else params
+        if isinstance(params, dict):
+            ponder_params = PonderParams(**params)
+        elif isinstance(params, PonderParams):
+            ponder_params = params
+        else:
+            # Convert other param types to dict if needed
+            ponder_params = PonderParams(**params.model_dump()) if hasattr(params, 'model_dump') else PonderParams(questions=[])
 
         questions_list = ponder_params.questions if hasattr(ponder_params, 'questions') else []
 

@@ -341,7 +341,7 @@ Available tools (check with tool service for current list):
                 if isinstance(add_props, dict) and add_props.get("type") == "string":
                     return "Dict[str, str]"
 
-            return base_type
+            return str(base_type)
 
         # Handle anyOf (nullable types)
         if "anyOf" in prop_schema:

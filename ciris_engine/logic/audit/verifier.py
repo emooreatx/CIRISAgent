@@ -10,7 +10,7 @@ import logging
 from typing import List, Optional
 from .hash_chain import AuditHashChain
 from .signature_manager import AuditSignatureManager
-from ciris_engine.logic.services.lifecycle.time import TimeService
+from ciris_engine.protocols.services.lifecycle import TimeServiceProtocol
 from ciris_engine.schemas.audit.verification import (
     SignatureVerificationResult, CompleteVerificationResult,
     EntryVerificationResult, RangeVerificationResult,
@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class AuditVerifier:
     """Verifies audit log integrity and detects tampering"""
 
-    def __init__(self, db_path: str, key_path: str, time_service: TimeService) -> None:
+    def __init__(self, db_path: str, key_path: str, time_service: TimeServiceProtocol) -> None:
         self.db_path = db_path
         self.hash_chain = AuditHashChain(db_path)
         self.signature_manager = AuditSignatureManager(key_path, db_path, time_service)
@@ -154,19 +154,19 @@ class AuditVerifier:
         # Verify signatures for range
         signature_result = self._verify_signatures_in_range(start_seq, end_seq)
 
-        # Determine if chain_result is a model or dict
-        chain_valid = chain_result.valid if hasattr(chain_result, 'valid') else chain_result["valid"]
-        entries_checked = chain_result.entries_checked if hasattr(chain_result, 'entries_checked') else chain_result["entries_checked"]
-        chain_errors = chain_result.errors if hasattr(chain_result, 'errors') else chain_result.get("errors", [])
+        # Extract values from result objects
+        chain_valid = chain_result.valid
+        entries_checked = chain_result.entries_checked
+        chain_errors = chain_result.errors if hasattr(chain_result, 'errors') else []
 
         return RangeVerificationResult(
-            valid=chain_valid and signature_result["valid"],
+            valid=chain_valid and signature_result.valid,
             start_id=start_seq,
             end_id=end_seq,
             entries_verified=entries_checked,
             hash_chain_valid=chain_valid,
-            signatures_valid=signature_result["valid"],
-            errors=chain_errors + signature_result.get("errors", []),
+            signatures_valid=signature_result.valid,
+            errors=chain_errors + (signature_result.errors if hasattr(signature_result, 'errors') else []),
             verification_time_ms=0
         )
 
@@ -289,21 +289,23 @@ class AuditVerifier:
                 else:
                     errors.append(f"Invalid signature for entry {entry['entry_id']} (seq {start_seq}-{end_seq})")
 
-            return {
-                "valid": len(errors) == 0,
-                "verified_count": verified_count,
-                "total_count": len(entries),
-                "errors": errors
-            }
+            return SignatureVerificationResult(
+                valid=len(errors) == 0,
+                entries_signed=len(entries),
+                entries_verified=verified_count,
+                errors=errors,
+                untrusted_keys=[]
+            )
 
         except sqlite3.Error as e:
             logger.error(f"Database error verifying range signatures: {e}")
-            return {
-                "valid": False,
-                "verified_count": 0,
-                "total_count": 0,
-                "errors": [f"Database error: {e}"]
-            }
+            return SignatureVerificationResult(
+                valid=False,
+                entries_signed=0,
+                entries_verified=0,
+                errors=[f"Database error: {e}"],
+                untrusted_keys=[]
+            )
 
     def get_verification_report(self) -> VerificationReport:
         """Generate a comprehensive verification report"""

@@ -46,7 +46,7 @@ async def login(
     request: LoginRequest,
     req: Request,
     auth_service: APIAuthService = Depends(get_auth_service)
-):
+) -> LoginResponse:
     """
     Authenticate with username/password.
 

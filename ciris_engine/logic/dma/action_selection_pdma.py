@@ -1,7 +1,7 @@
 """Refactored Action Selection PDMA - Modular and Clean."""
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, cast
 from pathlib import Path
 
 from ciris_engine.schemas.runtime.models import Thought
@@ -180,12 +180,15 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAProtocol):
             {"role": "user", "content": main_user_content},
         ]
 
-        final_result, _ = await self.call_llm_structured(
+        result_tuple = await self.call_llm_structured(
             messages=messages,
             response_model=ActionSelectionDMAResult,
             max_tokens=1500,
             temperature=0.0
         )
+        
+        # Extract the result from the tuple and cast to the correct type
+        final_result = cast(ActionSelectionDMAResult, result_tuple[0])
 
         if final_result.selected_action == HandlerActionType.OBSERVE:
             logger.warning(f"OBSERVE ACTION: Successfully created for thought {input_data['original_thought'].thought_id}")

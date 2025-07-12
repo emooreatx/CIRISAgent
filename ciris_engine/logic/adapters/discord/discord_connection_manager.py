@@ -2,6 +2,7 @@
 import discord
 import logging
 import asyncio
+from datetime import datetime
 from typing import Optional, Callable, Awaitable, TYPE_CHECKING, Any
 from enum import Enum
 
@@ -40,7 +41,6 @@ class DiscordConnectionManager:
         """
         self.token = token
         self.client = client
-        self._time_service = time_service
         self.max_reconnect_attempts = max_reconnect_attempts
         self.base_reconnect_delay = base_reconnect_delay
         self.max_reconnect_delay = max_reconnect_delay
@@ -48,8 +48,8 @@ class DiscordConnectionManager:
         # State tracking
         self.state = ConnectionState.DISCONNECTED
         self.reconnect_attempts = 0
-        self.last_connected = None
-        self.last_disconnected = None
+        self.last_connected: Optional[datetime] = None
+        self.last_disconnected: Optional[datetime] = None
         self.connection_task: Optional[asyncio.Task] = None
 
         # Callbacks
@@ -59,9 +59,11 @@ class DiscordConnectionManager:
         self.on_failed: Optional[Callable[[str], Awaitable[None]]] = None
 
         # Ensure we have a time service
-        if self._time_service is None:
+        if time_service is None:
             from ciris_engine.logic.services.lifecycle.time import TimeService
-            self._time_service = TimeService()
+            self._time_service: "TimeServiceProtocol" = TimeService()
+        else:
+            self._time_service: "TimeServiceProtocol" = time_service
 
     def set_client(self, client: discord.Client) -> None:
         """Set the Discord client after initialization.

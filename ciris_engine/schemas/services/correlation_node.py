@@ -29,12 +29,12 @@ class CorrelationNode(TypedGraphNode, ServiceCorrelation):
     
     # Required TypedGraphNode fields
     id: str = Field(..., description="Unique node ID (uses correlation_id)")
-    type: NodeType = Field(default=NodeType.CORRELATION, description="Node type")
+    type: NodeType = Field(default=NodeType.AUDIT_ENTRY, description="Node type")
     scope: GraphScope = Field(default=GraphScope.LOCAL, description="Correlation scope")
     version: int = Field(default=1, description="Schema version")
     
     # Override to use correlation_id as node ID
-    def __init__(self, **data) -> None:
+    def __init__(self, **data: Any) -> None:
         # Use correlation_id as the node ID
         if "correlation_id" in data and "id" not in data:
             data["id"] = f"correlation_{data['correlation_id']}"

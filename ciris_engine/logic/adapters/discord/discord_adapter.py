@@ -488,7 +488,14 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             # Store approval request in memory
             if approval_result and self.bus_manager and self.bus_manager.memory:
                 try:
+                    from ciris_engine.schemas.services.graph_core import GraphScope, GraphNodeAttributes
                     approval_node = DiscordApprovalNode(
+                        id=f"discord_approval/{approval_request.message_id}",
+                        scope=GraphScope.LOCAL,
+                        attributes=GraphNodeAttributes(
+                            created_by="discord_adapter",
+                            tags=["discord", "approval"]
+                        ),
                         approval_id=str(approval_request.message_id),
                         action=action,
                         request_type="action_approval",
@@ -503,9 +510,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                         resolver_name=approval_result.resolver_name,
                         context={"channel_id": context.channel_id} if context.channel_id else {},
                         action_params=context.action_params,
-                        created_at=time_service.now(),
                         updated_at=time_service.now(),
-                        created_by="discord_adapter",
                         updated_by="discord_adapter"
                     )
 
@@ -702,7 +707,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
 
     async def get_active_channels(self) -> List[Dict[str, Any]]:
         """Get list of active Discord channels."""
-        channels = []
+        channels: List[Dict[str, Any]] = []
         
         logger.info(f"[DISCORD] get_active_channels called, client ready: {self._channel_manager.client.is_ready() if self._channel_manager.client else False}")
         
@@ -722,7 +727,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                         'channel_type': 'discord',
                         'display_name': f'#{channel.name}' if hasattr(channel, 'name') else f'Discord Channel {channel_id}',
                         'is_active': True,
-                        'created_at': channel.created_at.isoformat() if hasattr(channel, 'created_at') else None,
+                        'created_at': channel.created_at.isoformat() if hasattr(channel, 'created_at') and channel.created_at else None,
                         'last_activity': None,  # Could track this if needed
                         'message_count': 0  # Could track this if needed
                     })
@@ -736,7 +741,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                         'channel_type': 'discord',
                         'display_name': f'#{channel.name} (Deferrals)' if hasattr(channel, 'name') else f'Discord Deferral Channel',
                         'is_active': True,
-                        'created_at': channel.created_at.isoformat() if hasattr(channel, 'created_at') else None,
+                        'created_at': channel.created_at.isoformat() if hasattr(channel, 'created_at') and channel.created_at else None,
                         'last_activity': None,
                         'message_count': 0
                     })
@@ -770,7 +775,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
 
     async def list_permissions(self, wa_id: str) -> List[WAPermission]:
         """List all permissions for a Discord user."""
-        permissions = []
+        permissions: List[WAPermission] = []
 
         try:
             if not self._channel_manager.client:
@@ -783,8 +788,10 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                     for role in member.roles:
                         if role.name.upper() in ["AUTHORITY", "OBSERVER"]:
                             permissions.append(WAPermission(
+                                permission_id=f"discord_{guild.id}_{role.name.upper()}_{wa_id}",
                                 wa_id=wa_id,
-                                permission=role.name.upper(),
+                                permission_type="role",
+                                permission_name=role.name.upper(),
                                 resource=f"guild:{guild.id}",
                                 granted_at=self._time_service.now() if self._time_service else datetime.now(),
                                 granted_by="discord_adapter"
@@ -855,6 +862,10 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             if not channel:
                 raise RuntimeError(f"Deferral channel {deferral_channel_id} not found")
 
+            # Check if channel supports sending messages
+            if not isinstance(channel, (discord.TextChannel, discord.DMChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel)):
+                raise RuntimeError(f"Channel {deferral_channel_id} does not support sending messages")
+
             # Split the message if needed using the message handler's method
             chunks = self._message_handler._split_message(message_text, max_length=1900)
 
@@ -889,6 +900,12 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             if self.bus_manager and self.bus_manager.memory:
                 try:
                     deferral_node = DiscordDeferralNode(
+                        id=f"discord_deferral/{correlation_id}",
+                        scope=GraphScope.LOCAL,
+                        attributes=GraphNodeAttributes(
+                            created_by="discord_adapter",
+                            tags=["discord", "deferral"]
+                        ),
                         deferral_id=correlation_id,
                         task_id=deferral.task_id,
                         thought_id=deferral.thought_id,
@@ -897,9 +914,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                         channel_id=deferral_channel_id,
                         status="pending",
                         context=deferral.context,
-                        created_at=start_time,
                         updated_at=start_time,
-                        created_by="discord_adapter",
                         updated_by="discord_adapter"
                     )
 
@@ -1191,7 +1206,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             - is_home: bool (if is home_channel_id)
             - is_deferral: bool (if is deferral_channel_id)
         """
-        channels = []
+        channels: List[Dict[str, Any]] = []
         
         # Add configured channels from config
         if self.discord_config:

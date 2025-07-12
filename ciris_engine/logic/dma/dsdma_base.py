@@ -111,7 +111,16 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
                 raise ValueError(f"CRITICAL: System snapshot is required for DSDMA evaluation in domain '{self.domain_name}'")
             system_snapshot = current_context.system_snapshot
             user_profiles_data = system_snapshot.user_profiles
-            user_profiles_block = format_user_profiles(user_profiles_data)
+            # Convert list of UserProfile to dict format expected by format_user_profiles
+            user_profiles_dict = {}
+            for profile in user_profiles_data:
+                user_profiles_dict[profile.user_id] = {
+                    'name': profile.display_name,
+                    'nick': profile.display_name,
+                    'interests': getattr(profile, 'interests', []),
+                    'primary_channel': getattr(profile, 'primary_channel', None)
+                }
+            user_profiles_block = format_user_profiles(user_profiles_dict)
             system_snapshot_block = format_system_snapshot(system_snapshot)
 
             # Get identity from DMAInputData - CRITICAL requirement

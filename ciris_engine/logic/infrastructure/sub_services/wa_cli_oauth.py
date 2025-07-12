@@ -296,12 +296,13 @@ class WACLIOAuthService:
 
                 # Normalize profile data
                 if provider == "google":
-                    return {
-                        "id": profile.get("id"),
-                        "email": profile.get("email"),
-                        "name": profile.get("name"),
-                        "picture": profile.get("picture")
-                    }
+                    return OAuthUserInfo(
+                        id=profile.get("id"),
+                        email=profile.get("email"),
+                        name=profile.get("name"),
+                        picture=profile.get("picture"),
+                        provider_data=profile
+                    )
                 elif provider == "discord":
                     return OAuthUserInfo(
                         id=profile.get("id", ""),
@@ -347,14 +348,14 @@ class WACLIOAuthService:
         )
 
         if existing_wa:
-            # Update last login
-            existing_wa.last_login = self.time_service.now()
-            await self.auth_service.update_wa(existing_wa.wa_id, last_login=self.time_service.now())
+            # Update last auth
+            existing_wa.last_auth = self.time_service.now()
+            await self.auth_service.update_wa(existing_wa.wa_id, last_auth=self.time_service.now())
             return existing_wa
 
         # Generate IDs for new WA
         timestamp = self.time_service.now()
-        wa_id = self.auth_service.generate_wa_id(timestamp)
+        wa_id = self.auth_service._generate_wa_id(timestamp)
         jwt_kid = f"wa-jwt-oauth-{wa_id[-6:].lower()}"
 
         # Determine display name
@@ -373,17 +374,15 @@ class WACLIOAuthService:
             oauth_external_id=user_profile.id,
             auto_minted=True,
             scopes_json='["read:any", "write:message"]',
-            token_type=TokenType.OAUTH,
-            created=timestamp,
-            last_login=timestamp,
-            active=True
+            created_at=timestamp,
+            last_auth=timestamp
         )
 
         # Note: Discord ID is stored in oauth_external_id for OAuth users
         # Discord-specific data can be stored in metadata if needed
 
         # Store WA
-        await self.auth_service.create_wa(oauth_wa)
+        await self.auth_service._store_wa_certificate(oauth_wa)
 
         return oauth_wa
 

@@ -12,7 +12,7 @@ from collections import defaultdict
 
 from ciris_engine.schemas.services.graph.incident import (
     IncidentNode, ProblemNode, IncidentInsightNode,
-    IncidentStatus
+    IncidentStatus, IncidentSeverity
 )
 from ciris_engine.schemas.services.graph_core import (
     NodeType, GraphScope
@@ -134,7 +134,8 @@ class IncidentManagementService(BaseGraphService):
             
         try:
             # First try to get from memory service (for tests)
-            memory_service = self._memory_bus.service_registry.get_service("MemoryService") if hasattr(self._memory_bus, 'service_registry') else None
+            memory_services = self._memory_bus.service_registry.get_services_by_type("memory") if hasattr(self._memory_bus, 'service_registry') else []
+            memory_service = memory_services[0] if memory_services else None
             
             if memory_service and hasattr(memory_service, 'search'):
                 # Use the mocked search method in tests
@@ -221,15 +222,17 @@ class IncidentManagementService(BaseGraphService):
                                 scope=GraphScope.LOCAL,
                                 attributes={},
                                 incident_type=level,
-                            severity="HIGH" if level == "ERROR" else "MEDIUM",
-                            status=IncidentStatus.OPEN,
-                            description=message,
-                            source_component=component,
-                            detected_at=timestamp,
-                            impact="TBD",
-                            urgency="MEDIUM",
-                            updated_by="incident_service",
-                            updated_at=timestamp
+                                severity=IncidentSeverity.HIGH if level == "ERROR" else IncidentSeverity.MEDIUM,
+                                status=IncidentStatus.OPEN,
+                                description=message,
+                                source_component=component,
+                                detected_at=timestamp,
+                                filename=filename,
+                                line_number=0,  # Line number not available from log parsing
+                                impact="TBD",
+                                urgency="MEDIUM",
+                                updated_by="incident_service",
+                                updated_at=timestamp
                         )
                         incidents.append(incident)
                         
@@ -271,7 +274,7 @@ class IncidentManagementService(BaseGraphService):
 
     async def _identify_problems(self, patterns: Dict[str, List[IncidentNode]]) -> List[ProblemNode]:
         """Identify root cause problems from patterns."""
-        problems = []
+        problems: List[ProblemNode] = []
 
         # Get current time for timestamps
         if not self._time_service:
@@ -324,7 +327,7 @@ class IncidentManagementService(BaseGraphService):
     def _generate_recommendations(self, patterns: Dict[str, List[IncidentNode]],
                                 problems: List[ProblemNode]) -> Dict[str, List[str]]:
         """Generate actionable recommendations."""
-        recommendations = {
+        recommendations: Dict[str, List[str]] = {
             "behavioral": [],
             "configuration": []
         }
@@ -392,8 +395,8 @@ class IncidentManagementService(BaseGraphService):
         # Sort by time
         sorted_incidents = sorted(incidents, key=lambda i: i.detected_at)
 
-        clusters = []
-        current_cluster = []
+        clusters: List[List[IncidentNode]] = []
+        current_cluster: List[IncidentNode] = []
         cluster_threshold = timedelta(minutes=5)  # Incidents within 5 minutes
 
         for incident in sorted_incidents:
@@ -415,7 +418,7 @@ class IncidentManagementService(BaseGraphService):
 
     def _analyze_root_causes(self, incidents: List[IncidentNode]) -> List[str]:
         """Analyze potential root causes."""
-        root_causes = []
+        root_causes: List[str] = []
 
         # Check for common patterns
         descriptions = [i.description.lower() for i in incidents]
@@ -484,27 +487,27 @@ class IncidentManagementService(BaseGraphService):
 
     def _get_severity_breakdown(self, incidents: List[IncidentNode]) -> Dict[str, int]:
         """Get breakdown by severity."""
-        breakdown = defaultdict(int)
+        breakdown: defaultdict[str, int] = defaultdict(int)
         for incident in incidents:
             breakdown[incident.severity.value] += 1
         return dict(breakdown)
 
     def _get_component_breakdown(self, incidents: List[IncidentNode]) -> Dict[str, int]:
         """Get breakdown by component."""
-        breakdown = defaultdict(int)
+        breakdown: defaultdict[str, int] = defaultdict(int)
         for incident in incidents:
             breakdown[incident.source_component] += 1
         return dict(breakdown)
 
     def _get_time_distribution(self, incidents: List[IncidentNode]) -> Dict[str, int]:
         """Get distribution over time (hourly buckets)."""
-        distribution = defaultdict(int)
+        distribution: defaultdict[str, int] = defaultdict(int)
         for incident in incidents:
             hour_key = incident.detected_at.strftime("%Y-%m-%d %H:00")
             distribution[hour_key] += 1
         return dict(distribution)
 
-    async def _create_no_incidents_insight(self, current_time) -> IncidentInsightNode:
+    async def _create_no_incidents_insight(self, current_time: datetime) -> IncidentInsightNode:
         """Create insight when no incidents found."""
         return IncidentInsightNode(
             id=f"incident_insight_{current_time.strftime('%Y%m%d_%H%M%S')}",

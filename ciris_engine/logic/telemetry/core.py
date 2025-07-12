@@ -9,7 +9,7 @@ from uuid import uuid4
 
 from ciris_engine.logic.adapters.base import Service
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
-from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, CorrelationType
+from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, CorrelationType, MetricData
 from ciris_engine.logic.persistence.models.correlations import add_correlation
 from .security import SecurityFilter
 from ciris_engine.logic.services.lifecycle.time import TimeService
@@ -98,11 +98,17 @@ class BasicTelemetryCollector(Service):
                 action_type="record_metric",
                 correlation_type=CorrelationType.METRIC_DATAPOINT,
                 timestamp=timestamp,
-                metric_name=name,
-                metric_value=float(val),
+                metric_data=MetricData(
+                    metric_name=name,
+                    metric_value=float(val),
+                    metric_unit="count",  # Default unit
+                    metric_type="gauge"
+                ),
                 tags=combined_tags,
                 status=ServiceCorrelationStatus.COMPLETED,
-                retention_policy=self._get_retention_policy(path_type)
+                retention_policy=self._get_retention_policy(path_type),
+                created_at=timestamp,
+                updated_at=timestamp
             )
 
             # Store asynchronously without blocking metric recording

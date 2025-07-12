@@ -33,23 +33,25 @@ def get_initialization_manager() -> InitializationService:
 
 def register_initialization_callback(callback: Callable[[], None]) -> None:
     """Register an initialization callback."""
-    service = get_initialization_manager()
-    service.register_callback(callback)
+    # Legacy method - no longer supported
+    logger.warning("register_initialization_callback is deprecated - use register_step instead")
 
-def initialize_components() -> None:
+async def initialize_components() -> None:
     """Initialize all registered components."""
     service = get_initialization_manager()
-    service.initialize_all()
+    await service.initialize()
 
 def is_initialized() -> bool:
     """Check if the system has been initialized."""
     service = get_initialization_manager()
-    return service.is_initialized()
+    return service._initialization_complete
 
 def reset_initialization() -> None:
     """Reset initialization state (for testing)."""
     service = get_initialization_manager()
-    service.reset()
+    service._initialization_complete = False
+    service._completed_steps = []
+    service._error = None
 
 # Export for compatibility
 __all__ = [

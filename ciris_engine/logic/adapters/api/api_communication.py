@@ -226,7 +226,7 @@ class APICommunicationService(CommunicationServiceProtocol):
                     # This is an outgoing message from the agent
                     content = ""
                     # Handle both dict and Pydantic model cases
-                    if isinstance(corr.request_data, dict):
+                    if hasattr(corr.request_data, 'get'):
                         params = corr.request_data.get("parameters", {})
                         content = params.get("content", "")
                     elif hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
@@ -248,7 +248,7 @@ class APICommunicationService(CommunicationServiceProtocol):
                     author_name = "User"
                     
                     # Handle both dict and Pydantic model cases
-                    if isinstance(corr.request_data, dict):
+                    if hasattr(corr.request_data, 'get'):
                         params = corr.request_data.get("parameters", {})
                         content = params.get("content", "")
                         author_id = params.get("author_id", "unknown")

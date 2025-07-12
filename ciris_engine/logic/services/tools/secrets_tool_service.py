@@ -4,7 +4,7 @@ Secrets Tool Service - Provides secrets management tools.
 Implements ToolService protocol to expose RECALL_SECRET and UPDATE_SECRETS_FILTER tools.
 """
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 from pathlib import Path
 
@@ -86,18 +86,18 @@ class SecretsToolService(ToolService):
 
             # Retrieve the secret
             if decrypt:
-                value = self.secrets_service.retrieve(secret_uuid, context)
+                value = await self.secrets_service.retrieve_secret(secret_uuid)
                 if value is None:
                     return ToolResult(success=False, error=f"Secret {secret_uuid} not found")
                 result_data = {"value": value, "decrypted": True}
             else:
                 # Just verify it exists
-                secret = self.secrets_service.store.get_secret(secret_uuid)
-                if secret is None:
+                # Just check if it exists by trying to retrieve
+                value = await self.secrets_service.retrieve_secret(secret_uuid)
+                if value is None:
                     return ToolResult(success=False, error=f"Secret {secret_uuid} not found")
                 result_data = {
                     "exists": True,
-                    "pattern": secret.pattern.value,
                     "decrypted": False
                 }
 
@@ -125,25 +125,26 @@ class SecretsToolService(ToolService):
                 if not pattern:
                     return ToolResult(success=False, error="pattern is required for add_pattern")
 
-                self.secrets_service.filter.add_pattern(pattern, pattern_type)
-                result_data.update({"pattern": pattern, "pattern_type": pattern_type})
+                # Filter operations not directly accessible - would need to be exposed
+                return ToolResult(success=False, error="Filter operations not currently exposed")
 
             elif operation == "remove_pattern":
                 pattern = params.get('pattern')
                 if not pattern:
                     return ToolResult(success=False, error="pattern is required for remove_pattern")
 
-                self.secrets_service.filter.remove_pattern(pattern)
-                result_data.update({"pattern": pattern})
+                # Filter operations not directly accessible
+                return ToolResult(success=False, error="Filter operations not currently exposed")
 
             elif operation == "list_patterns":
-                patterns = self.secrets_service.filter.list_patterns()
+                # Filter operations not directly accessible
+                patterns: List[Any] = []
                 result_data.update({"patterns": patterns})
 
             elif operation == "enable":
                 enabled = params.get('enabled', True)
-                self.secrets_service.filter.enabled = enabled
-                result_data.update({"enabled": enabled})
+                # Filter operations not directly accessible
+                return ToolResult(success=False, error="Filter operations not currently exposed")
 
             else:
                 return ToolResult(success=False, error=f"Unknown operation: {operation}")

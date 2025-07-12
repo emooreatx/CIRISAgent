@@ -164,7 +164,7 @@ class DatabaseMaintenanceService:
 
         # Skip task archival - handled by TSDB consolidator
         logger.info("Task archival skipped - tasks are now managed by TSDB consolidator")
-        task_ids_actually_archived_and_deleted = set()
+        task_ids_actually_archived_and_deleted: set[str] = set()
 
         thoughts_to_archive = get_thoughts_older_than(older_than_timestamp)
         if thoughts_to_archive:
