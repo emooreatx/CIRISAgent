@@ -92,7 +92,7 @@ class WACertificate(BaseModel):
     def scopes(self) -> List[str]:
         """Get scopes as a list."""
         import json
-        return json.loads(self.scopes_json) if self.scopes_json else []
+        return json.loads(self.scopes_json) if self.scopes_json else []  # type: ignore[no-any-return]
 
     @property
     def custom_permissions(self) -> List[str]:
@@ -101,7 +101,12 @@ class WACertificate(BaseModel):
         if not self.custom_permissions_json:
             return []
         try:
-            return json.loads(self.custom_permissions_json)
+            permissions = json.loads(self.custom_permissions_json)
+            # Ensure we return a list of strings
+            if isinstance(permissions, list):
+                assert isinstance(permissions, list)  # Help type checker
+                return [str(p) for p in permissions]
+            return []
         except json.JSONDecodeError:
             return []
 

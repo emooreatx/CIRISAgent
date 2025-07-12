@@ -81,7 +81,7 @@ def discord_adapter(mock_time_service, mock_bus_manager, mock_discord_client, di
 class TestDiscordAdapterCore:
     """Test core Discord adapter functionality."""
 
-    @pytest.fixture(autouse=True)
+    @pytest.fixture
     def setup_test_db(self):
         """Set up a temporary test database for each test."""
         # Create a temporary database file
@@ -467,7 +467,7 @@ class TestDiscordErrorHandling:
 class TestDiscordAuditLogging:
     """Test audit logging functionality."""
 
-    @pytest.fixture(autouse=True)
+    @pytest.fixture
     def setup_test_db(self):
         """Set up a temporary test database for each test."""
         # Create a temporary database file

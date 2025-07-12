@@ -18,10 +18,10 @@ if 'pytest' in os.environ.get('_', '') or 'PYTEST_CURRENT_TEST' in os.environ:
     logger.info("Detected pytest environment, setting CIRIS_MOCK_LLM=true")
     os.environ['CIRIS_MOCK_LLM'] = 'true'
 
-def allow_runtime_creation():
+def allow_runtime_creation() -> None:
     """Allow runtime creation after imports are complete."""
     os.environ.pop('CIRIS_IMPORT_MODE', None)
     
-def is_import_mode():
+def is_import_mode() -> bool:
     """Check if we're in import mode (preventing side effects)."""
     return os.environ.get('CIRIS_IMPORT_MODE', '').lower() == 'true'

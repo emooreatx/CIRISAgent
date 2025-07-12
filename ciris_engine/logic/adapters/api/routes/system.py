@@ -1004,12 +1004,8 @@ async def get_available_tools(
                 if existing['provider'] != tool['provider']:
                     existing['provider'] = f"{existing['provider']}, {tool['provider']}"
         
-        return SuccessResponse(
-            data=unique_tools,
-            metadata={
-                "total_tools": len(unique_tools),
-                "tool_providers": tool_providers
-            }
+        return SuccessResponse[List[dict]](
+            data=unique_tools
         )
         
     except Exception as e:

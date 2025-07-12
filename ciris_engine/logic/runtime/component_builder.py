@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 class ComponentBuilder:
     """Builds all processing components for the runtime."""
 
-    def __init__(self, runtime: Any):
+    def __init__(self, runtime: Any) -> None:
         """
         Initialize component builder.
 

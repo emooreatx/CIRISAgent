@@ -310,7 +310,7 @@ class IdentitySnapshot(TypedGraphNode):
             id=node.id,
             type=node.type,
             scope=node.scope,
-            attributes=node.attributes,
+            attributes=attrs,  # Use the dict version we already extracted
             version=node.version,
             updated_by=node.updated_by or "identity_variance_monitor",
             updated_at=node.updated_at or datetime.now(timezone.utc),

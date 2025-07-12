@@ -34,7 +34,7 @@ class InitializationStep:
 class InitializationService(InitializationServiceProtocol, ServiceProtocol):
     """Service for coordinating system initialization."""
 
-    def __init__(self, time_service: TimeServiceProtocol):
+    def __init__(self, time_service: TimeServiceProtocol) -> None:
         """Initialize the initialization service."""
         self.time_service = time_service
         self._steps: List[InitializationStep] = []

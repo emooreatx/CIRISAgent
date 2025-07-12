@@ -35,7 +35,7 @@ from ciris_engine.logic.persistence import (
 class VisibilityService(VisibilityServiceProtocol, ServiceProtocol):
     """Service providing agent reasoning transparency."""
 
-    def __init__(self, bus_manager: BusManager, time_service: TimeServiceProtocol, db_path: str):
+    def __init__(self, bus_manager: BusManager, time_service: TimeServiceProtocol, db_path: str) -> None:
         """Initialize with bus manager for querying other services."""
         self.bus = bus_manager
         self._running = False

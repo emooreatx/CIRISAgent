@@ -334,7 +334,6 @@ class ServiceRegistry:
             List of all service instances of that type
         """
         # Convert string to ServiceType enum if needed
-        service_type_enum: ServiceType
         if isinstance(service_type, str):
             try:
                 service_type_enum = ServiceType(service_type)

@@ -122,7 +122,7 @@ async def interact(
     request: Request,
     body: InteractRequest,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[InteractResponse]:
     """
     Send message and get response.
 
@@ -218,7 +218,7 @@ async def get_history(
     limit: int = Query(50, ge=1, le=200, description="Maximum messages to return"),
     before: Optional[datetime] = Query(None, description="Get messages before this time"),
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[ConversationHistory]:
     """
     Conversation history.
 
@@ -378,7 +378,7 @@ async def get_history(
 async def get_status(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[AgentStatus]:
     """
     Agent status and cognitive state.
 
@@ -505,7 +505,7 @@ async def get_status(
 async def get_identity(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[AgentIdentity]:
     """
     Agent identity and capabilities.
 
@@ -629,7 +629,7 @@ async def get_identity(
 async def get_channels(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[ChannelList]:
     """
     List active communication channels.
     
@@ -765,7 +765,7 @@ async def get_channels(
         raise HTTPException(status_code=500, detail=str(e))
 
 # Helper function to notify interact responses
-async def notify_interact_response(message_id: str, content: str):
+async def notify_interact_response(message_id: str, content: str) -> None:
     """Notify waiting interact requests of responses."""
     if message_id in _response_events:
         _message_responses[message_id] = content
@@ -779,7 +779,7 @@ import json
 @router.websocket("/stream")
 async def websocket_stream(
     websocket: WebSocket,
-):
+) -> None:
     """
     WebSocket endpoint for real-time updates.
     

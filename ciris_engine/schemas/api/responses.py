@@ -22,7 +22,13 @@ class ResponseMetadata(BaseModel):
 class SuccessResponse(BaseModel, Generic[T]):
     """Standard success response wrapper."""
     data: T = Field(..., description="Response data")
-    metadata: ResponseMetadata = Field(default_factory=lambda: ResponseMetadata())
+    metadata: ResponseMetadata = Field(
+        default_factory=lambda: ResponseMetadata(
+            timestamp=datetime.now(timezone.utc),
+            request_id=None,
+            duration_ms=None
+        )
+    )
 
 class ErrorDetail(BaseModel):
     """Detailed error information."""
@@ -33,7 +39,13 @@ class ErrorDetail(BaseModel):
 class ErrorResponse(BaseModel):
     """Standard error response."""
     error: ErrorDetail = Field(..., description="Error information")
-    metadata: ResponseMetadata = Field(default_factory=lambda: ResponseMetadata())
+    metadata: ResponseMetadata = Field(
+        default_factory=lambda: ResponseMetadata(
+            timestamp=datetime.now(timezone.utc),
+            request_id=None,
+            duration_ms=None
+        )
+    )
 
 # Common error codes
 class ErrorCode:

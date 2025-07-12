@@ -21,6 +21,7 @@ from .identity_manager import IdentityManager
 from .service_initializer import ServiceInitializer
 from .component_builder import ComponentBuilder
 from ciris_engine.logic.infrastructure.handlers.handler_registry import build_action_dispatcher
+from ciris_engine.logic.infrastructure.handlers.action_dispatcher import ActionDispatcher
 
 from ciris_engine.logic.utils.shutdown_manager import (
     get_shutdown_manager,
@@ -89,6 +90,7 @@ class CIRISRuntime:
                 if adapter_name in self.adapter_configs:
                     adapter_kwargs['adapter_config'] = self.adapter_configs[adapter_name]
 
+                # Adapters expect runtime as first positional argument
                 self.adapters.append(adapter_class(self, **adapter_kwargs))
                 logger.info(f"Successfully loaded and initialized adapter: {adapter_name}")
             except Exception as e:
@@ -793,7 +795,7 @@ class CIRISRuntime:
         """Register core services in the service registry."""
         self.service_initializer.register_core_services()
 
-    async def _build_action_dispatcher(self, dependencies: Any):
+    async def _build_action_dispatcher(self, dependencies: Any) -> ActionDispatcher:
         """Build action dispatcher. Override in subclasses for custom sinks."""
         config = self._ensure_config()
         # Create BusManager for action handlers
@@ -806,6 +808,11 @@ class CIRISRuntime:
         logger.info(f"[AUDIT DEBUG] Creating BusManager with audit_service={self.audit_service}")
         logger.info(f"[AUDIT DEBUG] self.audit_service type: {type(self.audit_service)}")
         logger.info(f"[AUDIT DEBUG] self.audit_service is None: {self.audit_service is None}")
+        
+        assert self.service_registry is not None
+        # BusManager requires TimeServiceProtocol, not Optional[TimeService]
+        if self.time_service is None:
+            raise RuntimeError("TimeService must be initialized before creating BusManager")
         
         bus_manager = BusManager(
             self.service_registry,
@@ -845,11 +852,14 @@ class CIRISRuntime:
             while (asyncio.get_event_loop().time() - start_time) < max_wait:
                 # Check if any communication service is available
                 from ciris_engine.schemas.runtime.enums import ServiceType
-                comm_service = await self.service_registry.get_service(
-                    handler="SpeakHandler",
-                    service_type=ServiceType.COMMUNICATION,
-                    required_capabilities=["send_message"]
-                )
+                if self.service_registry is not None:
+                    comm_service = await self.service_registry.get_service(
+                        handler="SpeakHandler",
+                        service_type=ServiceType.COMMUNICATION,
+                        required_capabilities=["send_message"]
+                    )
+                else:
+                    comm_service = None
                 if comm_service:
                     logger.info("Communication service available, starting agent processor")
                     break
@@ -1013,8 +1023,8 @@ class CIRISRuntime:
                     while (asyncio.get_event_loop().time() - start_time) < max_wait:
                         if hasattr(self.agent_processor, 'shutdown_processor') and self.agent_processor.shutdown_processor:
                             if self.agent_processor.shutdown_processor.shutdown_complete:
-                                result = self.agent_processor.shutdown_processor.shutdown_result or {}
-                                if result and result.get("status") == "rejected":
+                                result = self.agent_processor.shutdown_processor.shutdown_result
+                                if result and isinstance(result, dict) and result.get("status") == "rejected":
                                     logger.warning(f"Shutdown rejected by agent: {result.get('reason')}")
                                     # Proceed with shutdown - emergency shutdown API provides override mechanism
                                 break
@@ -1167,7 +1177,7 @@ class CIRISRuntime:
         """Preserve agent state for future reactivation."""
         try:
             from ciris_engine.schemas.runtime.extended import ShutdownContext
-            from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
+            from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType, GraphNodeAttributes
 
             # Create shutdown context
             final_state = {
@@ -1193,12 +1203,10 @@ class CIRISRuntime:
                 id=f"shutdown_{self.time_service.now().isoformat() if self.time_service else datetime.now(timezone.utc).isoformat()}",
                 type=NodeType.AGENT,
                 scope=GraphScope.IDENTITY,
-                attributes={
-                    "shutdown_context": shutdown_context.model_dump(),
-                    "final_state": final_state,
-                    "identity_hash": self.agent_identity.identity_hash if self.agent_identity and hasattr(self.agent_identity, 'identity_hash') else "",
-                    "reactivation_count": self.agent_identity.core_profile.reactivation_count if self.agent_identity and hasattr(self.agent_identity, 'core_profile') and hasattr(self.agent_identity.core_profile, 'reactivation_count') else 0
-                }
+                attributes=GraphNodeAttributes(
+                    created_by="runtime_shutdown",
+                    tags=["shutdown", "consciousness_preservation"]
+                )
             )
 
             # Store in memory service

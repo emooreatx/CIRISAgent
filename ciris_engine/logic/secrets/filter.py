@@ -202,15 +202,14 @@ class SecretsFilter:
                 custom_patterns.append(pattern_dict)
 
         return ConfigExport(
-            builtin_patterns=True,
+            filter_id="config_based",
+            version=1,
+            builtin_patterns_enabled=self.detection_config.enabled,
             custom_patterns=custom_patterns,
             disabled_patterns=[],  # No disabled patterns in current schema
-            default_patterns=default_patterns,
-            additional_config={
-                'enabled': self.detection_config.enabled,
-                'auto_redact': self.detection_config.auto_redact,
-                'audit_detections': self.detection_config.audit_detections
-            }
+            sensitivity_overrides={},
+            require_confirmation_for=["CRITICAL"],
+            auto_decrypt_for_actions=["speak", "tool"]
         )
 
     def import_config(self, config: ConfigExport) -> None:
@@ -218,21 +217,19 @@ class SecretsFilter:
         # Convert from ConfigExport back to SecretsDetectionConfig
         patterns = []
 
-        # Add default patterns
-        for pattern_dict in config.default_patterns:
-            patterns.append(ConfigSecretPattern(**pattern_dict))
+        # Add custom patterns from config
+        # Note: ConfigExport doesn't have default_patterns, only custom_patterns
+        # The builtin patterns are controlled by builtin_patterns_enabled flag
 
         # Add custom patterns
         for pattern_dict in config.custom_patterns:
             patterns.append(ConfigSecretPattern(**pattern_dict))
 
         # Create new config
-        additional = config.additional_config
+        # Note: SecretsDetectionConfig only has 'enabled' and 'patterns' attributes
         self.detection_config = SecretsDetectionConfig(
-            enabled=additional.get('enabled', True),
-            patterns=patterns,
-            auto_redact=additional.get('auto_redact', True),
-            audit_detections=additional.get('audit_detections', True)
+            enabled=config.builtin_patterns_enabled,
+            patterns=patterns
         )
         self._compile_patterns()
         logger.info(f"Imported secrets detection config with {len(patterns)} patterns")

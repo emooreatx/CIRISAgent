@@ -17,7 +17,7 @@ class IncidentCaptureHandler(logging.Handler):
     These incidents are stored in the graph for analysis, pattern detection, and self-improvement.
     """
 
-    def __init__(self, log_dir: str = "logs", filename_prefix: str = "incidents", time_service: TimeServiceProtocol = None, graph_audit_service=None):
+    def __init__(self, log_dir: str = "logs", filename_prefix: str = "incidents", time_service: TimeServiceProtocol = None, graph_audit_service=None) -> None:
         super().__init__()
         if not time_service:
             raise RuntimeError("CRITICAL: TimeService is required for IncidentCaptureHandler")

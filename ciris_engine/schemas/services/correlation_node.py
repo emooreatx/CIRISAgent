@@ -34,7 +34,7 @@ class CorrelationNode(TypedGraphNode, ServiceCorrelation):
     version: int = Field(default=1, description="Schema version")
     
     # Override to use correlation_id as node ID
-    def __init__(self, **data):
+    def __init__(self, **data) -> None:
         # Use correlation_id as the node ID
         if "correlation_id" in data and "id" not in data:
             data["id"] = f"correlation_{data['correlation_id']}"

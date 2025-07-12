@@ -47,7 +47,7 @@ class WAStatusResponse(BaseModel):
     timestamp: datetime = Field(..., description="Status timestamp")
     
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info):
+    def serialize_timestamp(self, timestamp: datetime, _info) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None
 
 
@@ -75,5 +75,5 @@ class WAGuidanceResponse(BaseModel):
     timestamp: datetime = Field(..., description="When guidance was provided")
     
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info):
+    def serialize_timestamp(self, timestamp: datetime, _info) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None

@@ -97,9 +97,9 @@ class ConfigAccessor:
         try:
             for part in parts:
                 if hasattr(value, part):
-                    value = getattr(value, part)
+                    value = getattr(value, part)  # type: ignore[no-any-return]
                 elif isinstance(value, dict):
-                    value = value.get(part)
+                    value = value.get(part)  # type: ignore[assignment, no-any-return]
                     if value is None:
                         return default
                 else:
@@ -188,7 +188,7 @@ class ConfigAccessor:
         try:
             for part in parts:
                 if hasattr(value, part):
-                    value = getattr(value, part)
+                    value = getattr(value, part)  # type: ignore[no-any-return]
                 else:
                     return {}
 
@@ -198,7 +198,7 @@ class ConfigAccessor:
             elif hasattr(value, 'dict'):
                 return value.dict()
             elif isinstance(value, dict):
-                return value
+                return value  # type: ignore[no-any-return]
             else:
                 return {}
         except Exception as e:

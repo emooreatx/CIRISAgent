@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class ModularServiceLoader:
     """Loads modular services from external packages."""
 
-    def __init__(self, services_dir: Path = None):
+    def __init__(self, services_dir: Path = None) -> None:
         self.services_dir = services_dir or Path("ciris_modular_services")
         self.loaded_services: Dict[str, ServiceMetadata] = {}
 

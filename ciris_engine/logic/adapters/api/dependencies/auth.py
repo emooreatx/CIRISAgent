@@ -4,7 +4,7 @@ Authentication dependencies for FastAPI routes.
 Provides role-based access control through dependency injection.
 """
 from fastapi import Depends, HTTPException, status, Request, Header
-from typing import Optional
+from typing import Optional, Callable
 from datetime import datetime, timezone
 
 from ciris_engine.schemas.api.auth import AuthContext, UserRole, ROLE_PERMISSIONS
@@ -57,7 +57,7 @@ async def get_auth_context(
     permissions = set(ROLE_PERMISSIONS.get(key_info.role, set()))
     
     # Add any custom permissions if user exists and has them
-    if user and user.custom_permissions:
+    if user and hasattr(user, 'custom_permissions') and user.custom_permissions:
         for perm in user.custom_permissions:
             # Add custom permission string to the set
             permissions.add(perm)
@@ -90,7 +90,7 @@ async def optional_auth(
     except HTTPException:
         return None
 
-def require_role(minimum_role: UserRole):
+def require_role(minimum_role: UserRole) -> Callable:
     """
     Factory for role-based access control dependencies.
 
@@ -122,7 +122,7 @@ require_admin = require_role(UserRole.ADMIN)
 require_authority = require_role(UserRole.AUTHORITY)
 require_system_admin = require_role(UserRole.SYSTEM_ADMIN)
 
-def check_permissions(permissions: list[str]):
+def check_permissions(permissions: list[str]) -> Callable:
     """
     Factory for permission-based access control dependencies.
     
@@ -150,7 +150,7 @@ def check_permissions(permissions: list[str]):
         user_permissions = set(auth_service.get_permissions_for_role(user.api_role))
         
         # Add any custom permissions
-        if user.custom_permissions:
+        if hasattr(user, 'custom_permissions') and user.custom_permissions:
             for perm in user.custom_permissions:
                 user_permissions.add(perm)
         

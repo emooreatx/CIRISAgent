@@ -49,7 +49,7 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
         db_path: str,
         time_service: TimeServiceProtocol,
         check_interval_seconds: int = 60
-    ):
+    ) -> None:
         super().__init__()
         self.db_path = db_path
         self.time_service = time_service

@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class SecretsToolService(ToolService):
     """Service providing secrets management tools."""
 
-    def __init__(self, secrets_service: SecretsService, time_service: TimeServiceProtocol):
+    def __init__(self, secrets_service: SecretsService, time_service: TimeServiceProtocol) -> None:
         """Initialize with secrets service and time service."""
         self.secrets_service = secrets_service
         self.time_service = time_service

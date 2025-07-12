@@ -4,7 +4,7 @@ WA certificate update schemas for CIRIS.
 Provides type-safe structures for updating WA certificates with partial updates.
 """
 from pydantic import BaseModel, Field, ConfigDict, field_validator
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from datetime import datetime
 
 from ciris_engine.schemas.services.authority_core import WARole
@@ -67,7 +67,7 @@ class WACertificateUpdate(BaseModel):
                 return True
         return False
     
-    def get_update_fields(self) -> Dict[str, any]:
+    def get_update_fields(self) -> Dict[str, Any]:
         """Get only the fields that are being updated."""
         updates = {}
         exclude_fields = {"wa_id", "add_scopes", "remove_scopes"}

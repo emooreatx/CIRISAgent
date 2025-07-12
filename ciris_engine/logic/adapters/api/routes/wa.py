@@ -7,8 +7,9 @@ from typing import Optional
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 import logging
+import uuid
 
-from ciris_engine.schemas.api.responses import SuccessResponse, ErrorResponse, ErrorCode, ErrorDetail
+from ciris_engine.schemas.api.responses import SuccessResponse, ErrorResponse, ErrorCode, ErrorDetail, ResponseMetadata
 from ciris_engine.schemas.api.wa import (
     ResolveDeferralRequest,
     ResolveDeferralResponse,
@@ -74,7 +75,14 @@ async def get_deferrals(
             "total": len(transformed_deferrals)
         }
 
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except Exception as e:
         logger.error(f"Failed to get deferrals: {e}")
@@ -156,7 +164,14 @@ async def resolve_deferral(
         safe_deferral_id = ''.join(c if c.isprintable() and c not in '\n\r\t' else ' ' for c in deferral_id)
         logger.info(f"Deferral {safe_deferral_id} resolved by {auth.user_id} with resolution: {safe_resolution}")
 
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except HTTPException:
         raise
@@ -216,7 +231,14 @@ async def get_permissions(
             wa_id=target_wa_id
         )
 
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except Exception as e:
         logger.error(f"Failed to get permissions for {target_wa_id}: {e}")
@@ -282,7 +304,14 @@ async def get_wa_status(
             timestamp=datetime.now(timezone.utc)
         )
 
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except Exception as e:
         logger.error(f"Failed to get WA status: {e}")
@@ -359,7 +388,14 @@ async def request_guidance(
             timestamp=datetime.now(timezone.utc)
         )
 
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except Exception as e:
         logger.error(f"Failed to get guidance: {e}")

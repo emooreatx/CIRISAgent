@@ -41,7 +41,7 @@ class IncidentManagementService(BaseGraphService):
     5. Tracks effectiveness of applied changes
     """
 
-    def __init__(self, memory_bus=None, time_service=None):
+    def __init__(self, memory_bus=None, time_service=None) -> None:
         super().__init__(memory_bus=memory_bus, time_service=time_service)
         self.service_name = "IncidentManagementService"
         self._started = False

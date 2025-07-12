@@ -26,7 +26,7 @@ class ConfigItemResponse(BaseModel):
     is_sensitive: bool = Field(False, description="Whether value contains sensitive data")
 
     @field_serializer('updated_at')
-    def serialize_updated_at(self, updated_at: datetime, _info):
+    def serialize_updated_at(self, updated_at: datetime, _info) -> Optional[str]:
         return updated_at.isoformat() if updated_at else None
 
 class ConfigListResponse(BaseModel):
@@ -46,7 +46,7 @@ async def list_configs(
     request: Request,
     prefix: Optional[str] = None,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[ConfigListResponse]:
     """
     List all configurations.
 
@@ -96,7 +96,7 @@ async def get_config(
     request: Request,
     key: str = Path(..., description="Configuration key"),
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[ConfigItemResponse]:
     """
     Get specific config.
 
@@ -141,7 +141,7 @@ async def update_config(
     body: ConfigUpdate,
     key: str = Path(..., description="Configuration key"),
     auth: AuthContext = Depends(get_auth_context)
-):
+) -> SuccessResponse[ConfigItemResponse]:
     """
     Update config.
 
@@ -204,7 +204,7 @@ async def delete_config(
     request: Request,
     key: str = Path(..., description="Configuration key"),
     auth: AuthContext = Depends(require_admin)
-):
+) -> SuccessResponse[Dict[str, str]]:
     """
     Delete config.
 

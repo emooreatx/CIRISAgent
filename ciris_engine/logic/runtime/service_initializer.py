@@ -239,6 +239,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
         try:
             from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
             # Use a different node type for test - don't pollute CONFIG namespace
+            assert self.time_service is not None
             test_node = GraphNode(
                 id="_verification_test",
                 type=NodeType.AUDIT_ENTRY,  # Use AUDIT_ENTRY for test
@@ -317,6 +318,9 @@ This directory contains critical cryptographic keys for the CIRIS system.
             return False
 
         # Verify WA service is healthy
+        if self.wa_auth_system is None:
+            logger.error("WA auth service is None")
+            return False
         if not await self.wa_auth_system.is_healthy():
             logger.error("WA auth service not healthy")
             return False
@@ -347,6 +351,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
 
             # Check modules for MOCK status WITHOUT loading them yet
             for module_name in modules_to_load:
+                assert self.module_loader is not None
                 module_path = self.module_loader.modules_dir / module_name
                 manifest_path = module_path / "manifest.json"
                 logger.info(f"Checking for manifest at: {manifest_path}")
@@ -397,6 +402,8 @@ This directory contains critical cryptographic keys for the CIRIS system.
             logger.info("WiseAuthority service registered in ServiceRegistry")
 
         # Create BusManager first (without telemetry service)
+        assert self.service_registry is not None
+        assert self.time_service is not None
         self.bus_manager = BusManager(
             self.service_registry,
             self.time_service,
@@ -408,6 +415,8 @@ This directory contains critical cryptographic keys for the CIRIS system.
         # This implements the "Graph Memory as Identity Architecture" patent
         # where telemetry IS memory stored in the agent's identity graph
         from ciris_engine.logic.services.graph.telemetry_service import GraphTelemetryService
+        assert self.bus_manager is not None
+        assert self.time_service is not None
         self.telemetry_service = GraphTelemetryService(
             memory_bus=self.bus_manager.memory,  # Now we have the memory bus
             time_service=self.time_service
@@ -428,6 +437,9 @@ This directory contains critical cryptographic keys for the CIRIS system.
         await self._initialize_audit_services(config, agent_id)
 
         # Initialize adaptive filter service
+        assert self.memory_service is not None
+        assert self.time_service is not None
+        assert self.config_service is not None
         self.adaptive_filter_service = AdaptiveFilterService(
             memory_service=self.memory_service,
             time_service=self.time_service,
@@ -457,6 +469,8 @@ This directory contains critical cryptographic keys for the CIRIS system.
         # Initialize maintenance service
         archive_dir = getattr(config, "data_archive_dir", "data_archive")
         archive_hours = getattr(config, "archive_older_than_hours", 24)
+        assert self.time_service is not None
+        assert self.config_service is not None
         self.maintenance_service = DatabaseMaintenanceService(
             time_service=self.time_service,
             archive_dir_path=archive_dir,
@@ -466,6 +480,8 @@ This directory contains critical cryptographic keys for the CIRIS system.
 
         # Initialize TSDB consolidation service
         from ciris_engine.logic.services.graph.tsdb_consolidation import TSDBConsolidationService
+        assert self.bus_manager is not None
+        assert self.time_service is not None
         self.tsdb_consolidation_service = TSDBConsolidationService(
             memory_bus=self.bus_manager.memory,  # Use memory bus, not direct service
             time_service=self.time_service   # Pass time service
@@ -475,6 +491,8 @@ This directory contains critical cryptographic keys for the CIRIS system.
         
         # Initialize self observation service
         from ciris_engine.logic.services.adaptation.self_observation import SelfObservationService
+        assert self.time_service is not None
+        assert self.bus_manager is not None
         self.self_observation_service = SelfObservationService(
             time_service=self.time_service,
             memory_bus=self.bus_manager.memory,
@@ -491,6 +509,8 @@ This directory contains critical cryptographic keys for the CIRIS system.
         # Initialize visibility service
         from ciris_engine.logic.services.governance.visibility import VisibilityService
         from ciris_engine.logic.persistence import get_sqlite_db_full_path
+        assert self.bus_manager is not None
+        assert self.time_service is not None
         self.visibility_service = VisibilityService(
             bus_manager=self.bus_manager,
             time_service=self.time_service,
@@ -501,6 +521,8 @@ This directory contains critical cryptographic keys for the CIRIS system.
         
         # Initialize runtime control service
         from ciris_engine.logic.services.runtime.control_service import RuntimeControlService
+        assert self.config_service is not None
+        assert self.time_service is not None
         self.runtime_control_service = RuntimeControlService(
             runtime=None,  # Will be set by runtime after initialization
             adapter_manager=None,  # Will be created on demand
@@ -536,11 +558,11 @@ This directory contains critical cryptographic keys for the CIRIS system.
         from ciris_engine.logic.services.runtime.llm_service import OpenAIConfig
         
         llm_config = OpenAIConfig(
-            base_url=config.services.llm_endpoint,
-            model_name=config.services.llm_model,
+            base_url=config.services.llm_endpoint if config and hasattr(config, 'services') and config.services else "http://localhost:11434/v1",
+            model_name=config.services.llm_model if config and hasattr(config, 'services') and config.services else "llama3.2",
             api_key=api_key,
-            timeout_seconds=config.services.llm_timeout,
-            max_retries=config.services.llm_max_retries
+            timeout_seconds=config.services.llm_timeout if config and hasattr(config, 'services') and config.services else 60,
+            max_retries=config.services.llm_max_retries if config and hasattr(config, 'services') and config.services else 3
         )
 
         # Create and start service
@@ -556,7 +578,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
                 service_type=ServiceType.LLM,
                 provider=openai_service,
                 priority=Priority.HIGH,
-                capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED.value],
+                capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED],
                 metadata={"provider": "openai", "model": llm_config.model_name}
             )
 
@@ -576,16 +598,18 @@ This directory contains critical cryptographic keys for the CIRIS system.
         from ciris_engine.logic.services.runtime.llm_service import OpenAIConfig
         
         # Get configuration from environment
-        base_url = os.environ.get("CIRIS_OPENAI_API_BASE_2", config.services.llm_endpoint)
-        model_name = os.environ.get("CIRIS_OPENAI_MODEL_NAME_2", config.services.llm_model)
+        base_url = os.environ.get("CIRIS_OPENAI_API_BASE_2", 
+                                 config.services.llm_endpoint if config and hasattr(config, 'services') and config.services else "http://localhost:11434/v1")
+        model_name = os.environ.get("CIRIS_OPENAI_MODEL_NAME_2", 
+                                   config.services.llm_model if config and hasattr(config, 'services') and config.services else "llama3.2")
 
         # Create config
         llm_config = OpenAIConfig(
             base_url=base_url,
             model_name=model_name,
             api_key=api_key,
-            timeout_seconds=config.services.llm_timeout,
-            max_retries=config.services.llm_max_retries
+            timeout_seconds=config.services.llm_timeout if config and hasattr(config, 'services') and config.services else 60,
+            max_retries=config.services.llm_max_retries if config and hasattr(config, 'services') and config.services else 3
         )
 
         # Create and start service
@@ -601,7 +625,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
                 service_type=ServiceType.LLM,
                 provider=service,
                 priority=Priority.NORMAL,
-                capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED.value],
+                capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED],
                 metadata={
                     "provider": "openai_secondary",
                     "model": model_name,
@@ -624,6 +648,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
         # - Cryptographic hash chain for integrity
         # - Time-series capabilities built-in
         # Use config accessor for audit configuration
+        assert self.config_accessor is not None
         audit_db_path = await self.config_accessor.get_path("database.audit_db", Path("data/ciris_audit.db"))
         audit_key_path = await self.config_accessor.get_path("security.audit_key_path", Path(".ciris_keys"))
         retention_days = await self.config_accessor.get_int("security.audit_retention_days", 90)
@@ -663,6 +688,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
 
         # Initialize incident management service (processes audit events as incidents)
         from ciris_engine.logic.services.graph.incident_service import IncidentManagementService
+        assert self.bus_manager is not None
         self.incident_management_service = IncidentManagementService(
             memory_bus=self.bus_manager.memory,
             time_service=self.time_service
@@ -750,9 +776,10 @@ This directory contains critical cryptographic keys for the CIRIS system.
                 raise
 
         # Display MOCK warnings if any
-        warnings = self.module_loader.get_mock_warnings()
-        for warning in warnings:
-            logger.warning(warning)
+        if self.module_loader is not None:
+            warnings = self.module_loader.get_mock_warnings()
+            for warning in warnings:
+                logger.warning(warning)
 
     def register_core_services(self) -> None:
         """Register core services in the service registry."""

@@ -29,7 +29,7 @@ class BaseGraphService(ABC, GraphServiceProtocol):
     - Typed schema validation
     """
 
-    def __init__(self, memory_bus: Optional['MemoryBus'] = None, time_service: Optional[TimeServiceProtocol] = None):
+    def __init__(self, memory_bus: Optional['MemoryBus'] = None, time_service: Optional[TimeServiceProtocol] = None) -> None:
         """Initialize base graph service.
 
         Args:

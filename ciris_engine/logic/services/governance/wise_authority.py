@@ -45,7 +45,7 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
     - Permission management
     """
 
-    def __init__(self, time_service: TimeService, auth_service: AuthenticationService, db_path: Optional[str] = None):
+    def __init__(self, time_service: TimeService, auth_service: AuthenticationService, db_path: Optional[str] = None) -> None:
         """Initialize the WA authorization service."""
         # Use configured database if not specified
         self.db_path = db_path or get_sqlite_db_full_path()

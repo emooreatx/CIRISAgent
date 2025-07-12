@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class IdentityManager:
     """Manages agent identity lifecycle."""
 
-    def __init__(self, config: EssentialConfig, time_service: TimeServiceProtocol):
+    def __init__(self, config: EssentialConfig, time_service: TimeServiceProtocol) -> None:
         self.config = config
         self.time_service = time_service
         self.agent_identity: Optional[AgentIdentityRoot] = None

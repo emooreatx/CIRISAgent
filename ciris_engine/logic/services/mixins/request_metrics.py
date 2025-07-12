@@ -43,7 +43,7 @@ class RequestMetricsMixin:
                     raise
     """
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, **kwargs) -> None:
         """Initialize request metrics tracking."""
         super().__init__(*args, **kwargs)
         self._requests_handled: int = 0

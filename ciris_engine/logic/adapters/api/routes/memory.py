@@ -5,13 +5,14 @@ The memory service implements the three universal verbs: MEMORIZE, RECALL, FORGE
 All operations work through the graph memory system.
 """
 import logging
+import uuid
 from typing import List, Optional, Dict, Literal, TYPE_CHECKING, Any, Tuple
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Query, Path
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_serializer, model_validator
 
-from ciris_engine.schemas.api.responses import SuccessResponse
+from ciris_engine.schemas.api.responses import SuccessResponse, ResponseMetadata
 from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope, GraphEdge, GraphEdgeAttributes
 from ciris_engine.schemas.services.operations import MemoryQuery, MemoryOpResult
 from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
@@ -130,7 +131,14 @@ async def store_memory(
 
     try:
         result = await memory_service.memorize(body.node)
-        return SuccessResponse(data=result)
+        return SuccessResponse(
+            data=result,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -243,7 +251,14 @@ async def query_memory(
         if body.limit:
             nodes = nodes[:body.limit]
 
-        return SuccessResponse(data=nodes)
+        return SuccessResponse(
+            data=nodes,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -282,7 +297,14 @@ async def forget_memory(
 
         # Forget the node
         result = await memory_service.forget(nodes[0])
-        return SuccessResponse(data=result)
+        return SuccessResponse(
+            data=result,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except HTTPException:
         raise
@@ -571,7 +593,14 @@ async def get_timeline(
             total=len(nodes)
         )
 
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -651,12 +680,26 @@ async def get_memory_stats(
             if row and row['newest']:
                 stats.newest_node_date = datetime.fromisoformat(row['newest'].replace('Z', '+00:00'))
         
-        return SuccessResponse(data=stats)
+        return SuccessResponse(
+            data=stats,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
         
     except Exception as e:
         logger.error(f"Failed to get memory stats: {e}")
         # Return empty stats on error
-        return SuccessResponse(data=MemoryStats())
+        return SuccessResponse(
+            data=MemoryStats(),
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
 @router.get("/{node_id}", response_model=SuccessResponse[GraphNode])
 async def get_memory(
@@ -692,7 +735,14 @@ async def get_memory(
                 detail=f"Node {node_id} not found"
             )
 
-        return SuccessResponse(data=nodes[0])
+        return SuccessResponse(
+            data=nodes[0],
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except HTTPException:
         raise
@@ -1707,7 +1757,14 @@ async def create_edge(
     
     try:
         result = await memory_service.create_edge(body.edge)
-        return SuccessResponse(data=result)
+        return SuccessResponse(
+            data=result,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1729,6 +1786,13 @@ async def get_node_edges(
     
     try:
         edges = await memory_service.get_node_edges(node_id, scope)
-        return SuccessResponse(data=edges)
+        return SuccessResponse(
+            data=edges,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

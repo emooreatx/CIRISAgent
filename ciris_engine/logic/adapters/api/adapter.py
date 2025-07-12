@@ -326,6 +326,7 @@ class ApiPlatform(Service):
         
         # Create and start server
         self._server = uvicorn.Server(config)
+        assert self._server is not None
         self._server_task = asyncio.create_task(self._server.serve())
         
         logger.info(
@@ -450,6 +451,7 @@ class ApiPlatform(Service):
                 # Check if server is still running
                 if self._server_task and self._server_task.done():
                     # Server stopped unexpectedly
+                    assert self._server_task is not None
                     exc = self._server_task.exception()
                     if exc:
                         logger.error(f"API server stopped with error: {exc}")

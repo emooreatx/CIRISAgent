@@ -17,7 +17,15 @@ class HealthDetails(BaseModel):
 class HealthStatus(BaseModel):
     """Overall system health status."""
     overall: str = Field("unknown", description="Overall health: healthy, degraded, critical, error, unknown")
-    details: HealthDetails = Field(default_factory=lambda: HealthDetails(), description="Health details")
+    details: HealthDetails = Field(
+        default_factory=lambda: HealthDetails(
+            adapters="unknown",
+            services="unknown", 
+            processor="unknown",
+            error=None
+        ),
+        description="Health details"
+    )
 
 class MetricEntry(BaseModel):
     """A single metric history entry."""

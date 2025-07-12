@@ -44,7 +44,7 @@ F = TypeVar('F', bound=Callable)
 class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceProtocol):
     """Infrastructure service for WA authentication and identity management."""
 
-    def __init__(self, db_path: str, time_service: TimeService, key_dir: Optional[str] = None):
+    def __init__(self, db_path: str, time_service: TimeService, key_dir: Optional[str] = None) -> None:
         """Initialize the WA Authentication Service.
 
         Args:
