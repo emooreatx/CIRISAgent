@@ -403,6 +403,11 @@ def get_correlations_by_type_and_time(
                     if row["parent_span_id"]:
                         trace_context.parent_span_id = row["parent_span_id"]
 
+                # Map 'success' to 'completed' for backwards compatibility
+                status_value = row["status"]
+                if status_value == "success":
+                    status_value = "completed"
+                
                 correlations.append(ServiceCorrelation(
                     correlation_id=row["correlation_id"],
                     service_type=row["service_type"],
@@ -410,10 +415,6 @@ def get_correlations_by_type_and_time(
                     action_type=row["action_type"],
                     request_data=json.loads(row["request_data"]) if row["request_data"] else None,
                     response_data=_parse_response_data(json.loads(row["response_data"]) if row["response_data"] else None, timestamp),
-                    # Map 'success' to 'completed' for backwards compatibility
-                    status_value = row["status"]
-                    if status_value == "success":
-                        status_value = "completed"
                     status=ServiceCorrelationStatus(status_value),
                     created_at=row["created_at"],
                     updated_at=row["updated_at"],
@@ -589,6 +590,11 @@ def get_metrics_timeseries(
                     if row["parent_span_id"]:
                         trace_context.parent_span_id = row["parent_span_id"]
 
+                # Map 'success' to 'completed' for backwards compatibility
+                status_value = row["status"]
+                if status_value == "success":
+                    status_value = "completed"
+                
                 correlations.append(ServiceCorrelation(
                     correlation_id=row["correlation_id"],
                     service_type=row["service_type"],
@@ -596,10 +602,6 @@ def get_metrics_timeseries(
                     action_type=row["action_type"],
                     request_data=json.loads(row["request_data"]) if row["request_data"] else None,
                     response_data=_parse_response_data(json.loads(row["response_data"]) if row["response_data"] else None, timestamp),
-                    # Map 'success' to 'completed' for backwards compatibility
-                    status_value = row["status"]
-                    if status_value == "success":
-                        status_value = "completed"
                     status=ServiceCorrelationStatus(status_value),
                     created_at=row["created_at"],
                     updated_at=row["updated_at"],

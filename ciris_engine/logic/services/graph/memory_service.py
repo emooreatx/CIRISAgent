@@ -543,7 +543,8 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
             if not self._time_service:
                 raise RuntimeError("TimeService is required for memorize_metric")
             now = self._time_service.now()
-            node_id = f"metric_{metric_name}_{int(now.timestamp())}"
+            # Use microsecond precision to ensure unique IDs
+            node_id = f"metric_{metric_name}_{int(now.timestamp() * 1000000)}"
 
             # Create typed attributes with metric-specific data
             attrs_dict = {
