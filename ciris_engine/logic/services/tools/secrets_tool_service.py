@@ -17,35 +17,49 @@ from ciris_engine.schemas.adapters.tools import (
 from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.schemas.services.core.secrets import SecretContext
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.logic.services.base_service import BaseService
+from ciris_engine.schemas.runtime.enums import ServiceType
 
 logger = logging.getLogger(__name__)
 
 
-class SecretsToolService(ToolService):
+class SecretsToolService(BaseService, ToolService):
     """Service providing secrets management tools."""
 
     def __init__(self, secrets_service: SecretsService, time_service: TimeServiceProtocol) -> None:
         """Initialize with secrets service and time service."""
+        super().__init__(time_service=time_service)
         self.secrets_service = secrets_service
-        self.time_service = time_service
         self.adapter_name = "secrets"
-        self._start_time: Optional[datetime] = None
-
-    async def start(self) -> None:
-        """Start the service."""
-        self._start_time = self.time_service.now()
-        logger.info("SecretsToolService started")
-
-    async def stop(self) -> None:
-        """Stop the service."""
-        logger.info("SecretsToolService stopped")
-
+        
+    def get_service_type(self) -> ServiceType:
+        """Get service type."""
+        return ServiceType.TOOL
+    
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return ["recall_secret", "update_secrets_filter", "self_help"]
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all dependencies are available."""
+        return self.secrets_service is not None
+    
+    def _register_dependencies(self) -> None:
+        """Register service dependencies."""
+        super()._register_dependencies()
+        self._dependencies.add("SecretsService")
+    
     async def is_healthy(self) -> bool:
-        """Check if service is healthy."""
+        """Check if service is healthy.
+        
+        SecretsToolService is stateless and always healthy if instantiated.
+        """
         return True
 
     async def execute_tool(self, tool_name: str, parameters: dict) -> ToolExecutionResult:
         """Execute a tool and return the result."""
+        self._track_request()  # Track the tool execution
+        
         if tool_name == "recall_secret":
             result = await self._recall_secret(parameters)
         elif tool_name == "update_secrets_filter":
@@ -57,6 +71,9 @@ class SecretsToolService(ToolService):
                 success=False,
                 error=f"Unknown tool: {tool_name}"
             )
+            
+        if not result.success:
+            self._track_error(Exception(result.error or "Tool execution failed"))
 
         return ToolExecutionResult(
             tool_name=tool_name,
@@ -64,7 +81,7 @@ class SecretsToolService(ToolService):
             success=result.success,
             data=result.data,
             error=result.error,
-            correlation_id=f"secrets_{tool_name}_{datetime.now().timestamp()}"
+            correlation_id=f"secrets_{tool_name}_{self._now().timestamp()}"
         )
 
     async def _recall_secret(self, params: dict) -> ToolResult:
@@ -80,7 +97,7 @@ class SecretsToolService(ToolService):
             # Create context for audit
             context = SecretContext(
                 operation="recall",
-                request_id=f"recall_{secret_uuid}_{self.time_service.now().timestamp()}",
+                request_id=f"recall_{secret_uuid}_{self._now().timestamp()}",
                 metadata={"purpose": purpose}
             )
 
@@ -278,37 +295,17 @@ class SecretsToolService(ToolService):
             return tool_info.parameters
         return None
 
-    def get_capabilities(self) -> ServiceCapabilities:
-        """Get service capabilities."""
-        return ServiceCapabilities(
-            service_name="SecretsToolService",
-            version="1.0.0",
-            actions=[
-                "recall_secret",
-                "update_secrets_filter",
-                "self_help"
-            ],
-            dependencies=["SecretsService", "TimeService"],
-            metadata={
-                "adapter": self.adapter_name,
-                "tool_count": 3
-            }
-        )
-
-    def get_status(self) -> ServiceStatus:
-        """Get current service status."""
-        uptime_seconds = 0.0
-        if self._start_time:
-            uptime_seconds = (self.time_service.now() - self._start_time).total_seconds()
-        
-        return ServiceStatus(
-            service_name="SecretsToolService",
-            service_type="tool_service",
-            is_healthy=True,
-            uptime_seconds=uptime_seconds,
-            last_error=None,
-            metrics={
-                "available_tools": 3
-            },
-            last_health_check=self.time_service.now()
-        )
+    def _get_metadata(self) -> Dict[str, Any]:
+        """Get service-specific metadata."""
+        metadata = super()._get_metadata()
+        metadata.update({
+            "adapter": self.adapter_name,
+            "tool_count": 3
+        })
+        return metadata
+    
+    def _collect_custom_metrics(self) -> Dict[str, float]:
+        """Collect service-specific metrics."""
+        return {
+            "available_tools": 3.0
+        }
