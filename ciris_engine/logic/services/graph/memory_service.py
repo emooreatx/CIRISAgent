@@ -433,23 +433,19 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
     async def recall_timeseries(self, scope: str = "default", hours: int = 24, correlation_types: Optional[List[str]] = None,
                               start_time: Optional[datetime] = None, end_time: Optional[datetime] = None) -> List[TimeSeriesDataPoint]:
         """
-        Recall time-series data from TSDB correlations.
+        Recall time-series data from TSDB graph nodes.
 
         Args:
             scope: The memory scope to search (mapped to TSDB tags)
             hours: Number of hours to look back (ignored if start_time/end_time provided)
-            correlation_types: Optional filter by correlation types
+            correlation_types: Optional filter by correlation types (for compatibility)
             start_time: Specific start time for the query (overrides hours)
             end_time: Specific end time for the query (defaults to now if not provided)
 
         Returns:
-            List of time-series data points from correlations
+            List of time-series data points from graph nodes
         """
         try:
-            # Import correlation models here to avoid circular imports
-            from ciris_engine.logic.persistence.models.correlations import get_correlations_by_type_and_time
-            from ciris_engine.schemas.telemetry.core import CorrelationType
-
             # Calculate time window
             if not self._time_service:
                 raise RuntimeError("TimeService is required for recall_timeseries")
@@ -466,114 +462,69 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
                 end_time = end_time or self._time_service.now()
                 start_time = end_time - timedelta(hours=hours)
 
-            # Convert to ISO format strings for database query
-            start_time_str = start_time.isoformat()
-            end_time_str = end_time.isoformat()
-
-            # Default correlation types if not specified
-            enum_correlation_types: List[CorrelationType]
-            if correlation_types is None:
-                enum_correlation_types = [CorrelationType.METRIC_DATAPOINT, CorrelationType.LOG_ENTRY, CorrelationType.AUDIT_EVENT]
-            else:
-                # Convert string types to enum
-                enum_correlation_types = []
-                for corr_type in correlation_types:
-                    try:
-                        enum_correlation_types.append(CorrelationType(corr_type))
-                    except ValueError:
-                        # Try enum name lookup - skip if not valid
-                        if hasattr(CorrelationType, corr_type):
-                            enum_correlation_types.append(getattr(CorrelationType, corr_type))
-                        else:
-                            logger.warning(f"Skipping invalid correlation type: {corr_type}")
-                            continue
-
-            # Query correlations for each type
-            all_correlations = []
-            for corr_type in enum_correlation_types:
-                correlations = get_correlations_by_type_and_time(
-                    correlation_type=corr_type,
-                    start_time=start_time_str,
-                    end_time=end_time_str,
-                    limit=1000,  # Large limit for time series data
-                    db_path=self.db_path
-                )
-
-                # Filter by scope if it's in tags
-                for correlation in correlations:
-                    # Access Pydantic model attributes directly
-                    tags = correlation.tags if hasattr(correlation, 'tags') and correlation.tags else {}
-
-                    # Include if scope matches or if no scope filtering requested
-                    if scope == "default" or tags.get('scope') == scope:
-                        # Extract metric data if available
-                        metric_name = None
-                        metric_value = None
-                        if hasattr(correlation, 'metric_data') and correlation.metric_data:
-                            metric_name = correlation.metric_data.metric_name
-                            metric_value = correlation.metric_data.metric_value
-
-                        # Extract log level if available
-                        log_level = None
-                        if hasattr(correlation, 'log_data') and correlation.log_data:
-                            log_level = correlation.log_data.log_level
-
-                        all_correlations.append({
-                            'timestamp': correlation.timestamp,
-                            'correlation_type': correlation.correlation_type,
-                            'metric_name': metric_name,
-                            'metric_value': metric_value,
-                            'log_level': log_level,
-                            'action_type': getattr(correlation, 'action_type', None),
-                            'tags': tags,
-                            'request_data': getattr(correlation, 'request_data', None),
-                            'response_data': getattr(correlation, 'response_data', None),
-                            'content': getattr(correlation, 'content', None),
-                            'data_type': corr_type.value if hasattr(corr_type, 'value') else str(corr_type)
-                        })
-
-            # Convert to TimeSeriesDataPoint objects
+            # Query TSDB_DATA nodes directly from graph_nodes table
             data_points: List[TimeSeriesDataPoint] = []
-            for corr in all_correlations:
-                # Ensure we have the required fields
-                timestamp = corr.get('timestamp')
-                if not isinstance(timestamp, datetime):
-                    continue  # Skip invalid entries
-
-                metric_name_raw = corr.get('metric_name')
-                if not metric_name_raw or not isinstance(metric_name_raw, str):
-                    continue  # Skip entries without valid metric name
-                metric_name = metric_name_raw
-
-                metric_value_raw = corr.get('metric_value')
-                if metric_value_raw is None or not isinstance(metric_value_raw, (int, float)):
-                    continue  # Skip entries without valid value
-                metric_value = metric_value_raw
-
-                tags_raw = corr.get('tags')
-                point_tags: Optional[Dict[str, str]] = None
-                if isinstance(tags_raw, dict):
-                    # Ensure all tag values are strings
-                    point_tags = {str(k): str(v) for k, v in tags_raw.items()}
-
-                # Get correlation type and source as strings
-                correlation_type = str(corr.get('data_type', 'METRIC_DATAPOINT'))
-                source_raw = corr.get('source')
-                source: Optional[str] = str(source_raw) if source_raw is not None else None
-
-                data_point = TimeSeriesDataPoint(
-                    timestamp=timestamp,
-                    metric_name=metric_name,
-                    value=float(metric_value),
-                    correlation_type=correlation_type,
-                    tags=point_tags or {},
-                    source=source
-                )
-                data_points.append(data_point)
-
+            
+            with get_db_connection(db_path=self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Query for TSDB_DATA nodes in the time range
+                cursor.execute("""
+                    SELECT node_id, attributes_json, created_at
+                    FROM graph_nodes
+                    WHERE node_type = 'tsdb_data'
+                      AND scope = ?
+                      AND datetime(created_at) >= datetime(?)
+                      AND datetime(created_at) <= datetime(?)
+                    ORDER BY created_at
+                    LIMIT 1000
+                """, (scope, start_time.isoformat(), end_time.isoformat()))
+                
+                rows = cursor.fetchall()
+                
+                for row in rows:
+                    try:
+                        # Parse attributes
+                        attrs = json.loads(row['attributes_json']) if row['attributes_json'] else {}
+                        
+                        # Extract metric data
+                        metric_name = attrs.get('metric_name')
+                        metric_value = attrs.get('value')
+                        
+                        if not metric_name or metric_value is None:
+                            continue
+                        
+                        # Get timestamp from created_at or attributes
+                        timestamp_str = attrs.get('created_at', row['created_at'])
+                        if isinstance(timestamp_str, str):
+                            timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                        else:
+                            timestamp = timestamp_str
+                        
+                        # Get tags
+                        metric_tags = attrs.get('metric_tags', {})
+                        if not isinstance(metric_tags, dict):
+                            metric_tags = {}
+                        
+                        # Create data point
+                        data_point = TimeSeriesDataPoint(
+                            timestamp=timestamp,
+                            metric_name=metric_name,
+                            value=float(metric_value),
+                            correlation_type="METRIC_DATAPOINT",  # Default for metrics
+                            tags=metric_tags,
+                            source=attrs.get('created_by', 'memory_service')
+                        )
+                        data_points.append(data_point)
+                        
+                    except Exception as e:
+                        logger.warning(f"Error parsing TSDB node {row['node_id']}: {e}")
+                        continue
+            
             # Sort by timestamp
             data_points.sort(key=lambda x: x.timestamp)
-
+            
+            logger.debug(f"Recalled {len(data_points)} time series data points from graph nodes")
             return data_points
 
         except Exception as e:
@@ -582,13 +533,12 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
 
     async def memorize_metric(self, metric_name: str, value: float, tags: Optional[Dict[str, str]] = None, scope: str = "local") -> MemoryOpResult:
         """
-        Convenience method to memorize a metric as both a graph node and TSDB correlation.
+        Convenience method to memorize a metric as a graph node.
+        
+        Metrics are stored only as TSDB_DATA nodes in the graph, not as correlations,
+        to prevent double storage and aggregation issues.
         """
         try:
-            # Import correlation models here to avoid circular imports
-            from ciris_engine.logic.persistence.models.correlations import add_correlation
-            from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, ServiceCorrelationStatus
-
             # Create a graph node for the metric
             if not self._time_service:
                 raise RuntimeError("TimeService is required for memorize_metric")
@@ -618,43 +568,10 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
 
             # Store in graph memory
             memory_result = await self.memorize(node)
-
-            # Also store as TSDB correlation
-            from ciris_engine.schemas.telemetry.core import MetricData
-
-            correlation = ServiceCorrelation(
-                correlation_id=str(uuid4()),
-                service_type="memory",
-                handler_name="memory_service",
-                action_type="memorize_metric",
-                correlation_type=CorrelationType.METRIC_DATAPOINT,
-                timestamp=now,
-                created_at=now,
-                updated_at=now,
-                metric_data=MetricData(
-                    metric_name=metric_name,
-                    metric_value=value,
-                    metric_unit="count",  # Default unit
-                    metric_type="gauge",
-                    labels=tags or {},
-                    min_value=value,
-                    max_value=value,
-                    mean_value=value
-                ),
-                status=ServiceCorrelationStatus.COMPLETED,
-                request_data=None,
-                response_data=None,
-                log_data=None,
-                trace_context=None,
-                tags={**tags, "scope": scope} if tags else {"scope": scope},
-                retention_policy="raw"
-            )
-
-            if self._time_service:
-                add_correlation(correlation, db_path=self.db_path, time_service=self._time_service)
-            else:
-                raise RuntimeError("TimeService is required for add_correlation")
-
+            
+            # No longer storing metrics as correlations - only as graph nodes
+            # This prevents double storage and inflated aggregation issues
+            
             return memory_result
 
         except Exception as e:

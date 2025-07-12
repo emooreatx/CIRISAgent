@@ -462,13 +462,13 @@ class TestDeferHandler:
         assert deferral_context.metadata["max_rounds_reached"] == "False"  # Default value since DispatchContext doesn't have this field
 
     @pytest.mark.asyncio
-    async def test_system_task_not_deferred(
+    async def test_system_task_deferred_no_special_treatment(
         self,
         defer_handler: DeferHandler,
         mock_persistence: Mock,
         mock_wise_bus: AsyncMock
     ) -> None:
-        """Test that system tasks are not marked as deferred."""
+        """Test that system tasks are deferred like any other task (no kings principle)."""
         # Arrange
         thought = create_test_thought(
             thought_id="system_thought",
@@ -496,8 +496,12 @@ class TestDeferHandler:
         # Thought status should be updated
         mock_persistence.update_thought_status.assert_called_once()
 
-        # Task status should NOT be updated for system tasks
-        mock_persistence.update_task_status.assert_not_called()
+        # Task status SHOULD be updated for system tasks too (no kings principle)
+        mock_persistence.update_task_status.assert_called_once_with(
+            "SYSTEM_TASK",
+            TaskStatus.DEFERRED,
+            defer_handler.time_service
+        )
 
     @pytest.mark.asyncio
     async def test_concurrent_deferrals(

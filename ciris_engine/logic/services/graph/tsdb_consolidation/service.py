@@ -462,10 +462,128 @@ class TSDBConsolidationService(BaseGraphService):
         return None
     
     async def _cleanup_old_data(self) -> None:
-        """Clean up old consolidated data."""
-        # TODO: Implement cleanup logic
-        # This should mark nodes as consolidated and delete old data
-        pass
+        """Clean up old consolidated data that has been successfully summarized."""
+        try:
+            import sqlite3
+            import json
+            
+            logger.info("Starting cleanup of consolidated data")
+            
+            # Connect to database
+            from ciris_engine.logic.config import get_sqlite_db_full_path
+            db_path = get_sqlite_db_full_path()
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            # Find all summaries older than the retention period
+            retention_cutoff = self._time_service.get_current_time() - self._raw_retention
+            
+            cursor.execute("""
+                SELECT node_id, node_type, attributes_json
+                FROM graph_nodes
+                WHERE node_type LIKE '%_summary'
+                  AND datetime(created_at) < datetime(?)
+                ORDER BY created_at
+            """, (retention_cutoff.isoformat(),))
+            
+            summaries = cursor.fetchall()
+            total_deleted = 0
+            
+            for node_id, node_type, attrs_json in summaries:
+                attrs = json.loads(attrs_json) if attrs_json else {}
+                period_start = attrs.get('period_start')
+                period_end = attrs.get('period_end')
+                
+                if not period_start or not period_end:
+                    continue
+                
+                # Validate and delete based on node type
+                if node_type == 'tsdb_summary':
+                    claimed_count = attrs.get('source_node_count', 0)
+                    
+                    # Count actual nodes
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM graph_nodes
+                        WHERE node_type = 'tsdb_data'
+                          AND datetime(created_at) >= datetime(?)
+                          AND datetime(created_at) < datetime(?)
+                    """, (period_start, period_end))
+                    actual_count = cursor.fetchone()[0]
+                    
+                    if claimed_count == actual_count and actual_count > 0:
+                        # Delete the nodes
+                        cursor.execute("""
+                            DELETE FROM graph_nodes
+                            WHERE node_type = 'tsdb_data'
+                              AND datetime(created_at) >= datetime(?)
+                              AND datetime(created_at) < datetime(?)
+                        """, (period_start, period_end))
+                        deleted = cursor.rowcount
+                        if deleted > 0:
+                            logger.info(f"Deleted {deleted} tsdb_data nodes for period {node_id}")
+                            total_deleted += deleted
+                
+                elif node_type == 'audit_summary':
+                    claimed_count = attrs.get('source_node_count', 0)
+                    
+                    # Count actual nodes
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM graph_nodes
+                        WHERE node_type = 'audit_entry'
+                          AND datetime(created_at) >= datetime(?)
+                          AND datetime(created_at) < datetime(?)
+                    """, (period_start, period_end))
+                    actual_count = cursor.fetchone()[0]
+                    
+                    if claimed_count == actual_count and actual_count > 0:
+                        # Delete the nodes
+                        cursor.execute("""
+                            DELETE FROM graph_nodes
+                            WHERE node_type = 'audit_entry'
+                              AND datetime(created_at) >= datetime(?)
+                              AND datetime(created_at) < datetime(?)
+                        """, (period_start, period_end))
+                        deleted = cursor.rowcount
+                        if deleted > 0:
+                            logger.info(f"Deleted {deleted} audit_entry nodes for period {node_id}")
+                            total_deleted += deleted
+                
+                elif node_type == 'trace_summary':
+                    claimed_count = attrs.get('source_correlation_count', 0)
+                    
+                    # Count actual correlations
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM service_correlations
+                        WHERE datetime(created_at) >= datetime(?)
+                          AND datetime(created_at) < datetime(?)
+                    """, (period_start, period_end))
+                    actual_count = cursor.fetchone()[0]
+                    
+                    # Only delete if counts match exactly
+                    if claimed_count == actual_count and actual_count > 0:
+                        cursor.execute("""
+                            DELETE FROM service_correlations
+                            WHERE datetime(created_at) >= datetime(?)
+                              AND datetime(created_at) < datetime(?)
+                        """, (period_start, period_end))
+                        deleted = cursor.rowcount
+                        if deleted > 0:
+                            logger.info(f"Deleted {deleted} correlations for period {node_id}")
+                            total_deleted += deleted
+            
+            # Commit changes
+            if total_deleted > 0:
+                conn.commit()
+                logger.info(f"Cleanup complete: deleted {total_deleted} total records")
+            else:
+                logger.info("No data to cleanup")
+            
+            conn.close()
+            return total_deleted
+            
+        except Exception as e:
+            logger.error(f"Error during cleanup: {e}", exc_info=True)
+            return 0
     
     async def is_healthy(self) -> bool:
         """Check if the service is healthy."""
@@ -480,10 +598,12 @@ class TSDBConsolidationService(BaseGraphService):
         return ServiceCapabilities(
             service_name="TSDBConsolidationService",
             actions=[
+                "consolidate_tsdb_nodes",
                 "consolidate_all_data",
                 "create_proper_edges",
                 "track_memory_events",
-                "summarize_tasks"
+                "summarize_tasks",
+                "create_6hour_summaries"
             ],
             version="2.0.0",
             dependencies=["MemoryService", "TimeService"],
@@ -517,3 +637,93 @@ class TSDBConsolidationService(BaseGraphService):
     def get_node_type(self) -> NodeType:
         """Get the node type this service manages."""
         return NodeType.TSDB_SUMMARY
+    
+    async def _is_period_consolidated(self, period_start: datetime, period_end: datetime) -> bool:
+        """Check if a period has already been consolidated."""
+        try:
+            # Query for existing TSDB summary for this exact period
+            # Use direct DB query since MemoryQuery doesn't support field conditions
+            from ciris_engine.logic.persistence.db.core import get_db_connection
+            
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Query for TSDB summaries with matching period
+            cursor.execute("""
+                SELECT COUNT(*) FROM graph_nodes 
+                WHERE node_type = ? 
+                AND json_extract(attributes_json, '$.period_start') = ?
+                AND json_extract(attributes_json, '$.period_end') = ?
+            """, (NodeType.TSDB_SUMMARY.value, period_start.isoformat(), period_end.isoformat()))
+            
+            count = cursor.fetchone()[0]
+            conn.close()
+            
+            return count > 0
+        except Exception as e:
+            logger.error(f"Error checking if period consolidated: {e}")
+            return False
+    
+    def _calculate_next_run_time(self) -> datetime:
+        """Calculate when the next consolidation should run."""
+        # Run at the start of the next 6-hour period
+        current_time = self._now()
+        hours_since_epoch = current_time.timestamp() / 3600
+        periods_since_epoch = int(hours_since_epoch / 6)
+        next_period = periods_since_epoch + 1
+        next_run_timestamp = next_period * 6 * 3600
+        return datetime.fromtimestamp(next_run_timestamp, tz=timezone.utc)
+    
+    async def _cleanup_old_nodes(self) -> int:
+        """Legacy method name - calls _cleanup_old_data."""
+        result = await self._cleanup_old_data()
+        return result if result is not None else 0
+    
+    async def get_summary_for_period(self, period_start: datetime, period_end: datetime) -> Optional[Dict[str, Any]]:
+        """Get the summary for a specific period."""
+        try:
+            # Use direct DB query since MemoryQuery doesn't support field conditions
+            from ciris_engine.logic.persistence.db.core import get_db_connection
+            
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Query for TSDB summaries with matching period
+            cursor.execute("""
+                SELECT attributes_json FROM graph_nodes 
+                WHERE node_type = ? 
+                AND json_extract(attributes_json, '$.period_start') = ?
+                AND json_extract(attributes_json, '$.period_end') = ?
+                LIMIT 1
+            """, (NodeType.TSDB_SUMMARY.value, period_start.isoformat(), period_end.isoformat()))
+            
+            row = cursor.fetchone()
+            conn.close()
+            
+            if row:
+                # Parse the node data
+                import json
+                node_data = json.loads(row[0])
+                attrs = node_data.get('attributes', {})
+                # Return the summary data
+                return {
+                    "metrics": attrs.get("metrics", {}),
+                    "total_tokens": attrs.get("total_tokens", 0),
+                    "total_cost_cents": attrs.get("total_cost_cents", 0),
+                    "total_carbon_grams": attrs.get("total_carbon_grams", 0),
+                    "total_energy_kwh": attrs.get("total_energy_kwh", 0),
+                    "action_counts": attrs.get("action_counts", {}),
+                    "source_node_count": attrs.get("source_node_count", 0),
+                    "period_start": attrs.get("period_start"),
+                    "period_end": attrs.get("period_end"),
+                    "period_label": attrs.get("period_label"),
+                    "conversations": attrs.get("conversations", []),
+                    "traces": attrs.get("traces", []),
+                    "audits": attrs.get("audits", []),
+                    "tasks": attrs.get("tasks", []),
+                    "memories": attrs.get("memories", [])
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Error getting summary for period: {e}")
+            return None

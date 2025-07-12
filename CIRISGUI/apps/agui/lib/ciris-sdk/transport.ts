@@ -305,4 +305,29 @@ export class Transport {
   async delete<T = any>(path: string, options?: any): Promise<T> {
     return this.request<T>('DELETE', path, options);
   }
+
+  /**
+   * Update the base URL (for switching between agents)
+   */
+  setBaseURL(baseURL: string): void {
+    this.baseURL = baseURL.replace(/\/$/, ''); // Remove trailing slash
+  }
+
+  /**
+   * Get the current base URL
+   */
+  getBaseURL(): string {
+    return this.baseURL;
+  }
+
+  /**
+   * Update the auth token
+   */
+  setAuthToken(token: string | null): void {
+    AuthStore.setToken(token ? {
+      access_token: token,
+      token_type: 'Bearer',
+      expires_in: 86400
+    } : null);
+  }
 }

@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ciris_engine.schemas.runtime.messages import IncomingMessage
 from ..dependencies.auth import require_observer, AuthContext
-from ciris_engine.schemas.api.auth import UserRole, ROLE_PERMISSIONS
+from ciris_engine.schemas.api.auth import UserRole, ROLE_PERMISSIONS, Permission
 from ciris_engine.schemas.api.agent import (
     MessageContext, AgentLineage, ServiceAvailability
 )
@@ -128,7 +128,15 @@ async def interact(
 
     This endpoint combines the old send/ask functionality into a single interaction.
     It sends the message and waits for the agent's response (with a reasonable timeout).
+    
+    Requires: SEND_MESSAGES permission (ADMIN+ by default, or OBSERVER with explicit grant)
     """
+    # Check if user has permission to send messages
+    if not auth.has_permission(Permission.SEND_MESSAGES):
+        raise HTTPException(
+            status_code=403, 
+            detail="You do not have permission to send messages. Contact an administrator to grant SEND_MESSAGES permission."
+        )
     # Create unique IDs
     message_id = str(uuid.uuid4())
     channel_id = f"api_{auth.user_id}"  # User-specific channel

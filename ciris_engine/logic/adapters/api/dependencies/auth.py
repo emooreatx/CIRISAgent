@@ -50,11 +50,23 @@ async def get_auth_context(
             detail="Invalid API key"
         )
 
+    # Get user to check for custom permissions
+    user = await auth_service.get_user(key_info.user_id)
+    
+    # Start with role-based permissions
+    permissions = set(ROLE_PERMISSIONS.get(key_info.role, set()))
+    
+    # Add any custom permissions if user exists and has them
+    if user and user.custom_permissions:
+        for perm in user.custom_permissions:
+            # Add custom permission string to the set
+            permissions.add(perm)
+
     # Create auth context with request reference
     context = AuthContext(
         user_id=key_info.user_id,
         role=key_info.role,
-        permissions=ROLE_PERMISSIONS.get(key_info.role, set()),
+        permissions=permissions,
         api_key_id=auth_service._get_key_id(api_key),
         authenticated_at=datetime.now(timezone.utc)
     )
@@ -136,6 +148,11 @@ def check_permissions(permissions: list[str]):
         
         # Get permissions for user's API role
         user_permissions = set(auth_service.get_permissions_for_role(user.api_role))
+        
+        # Add any custom permissions
+        if user.custom_permissions:
+            for perm in user.custom_permissions:
+                user_permissions.add(perm)
         
         # Check if user has all required permissions
         missing = set(permissions) - user_permissions

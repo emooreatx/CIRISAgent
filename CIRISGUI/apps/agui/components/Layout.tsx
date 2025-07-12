@@ -2,7 +2,9 @@
 import LogoIcon from "../components/ui/floating/LogoIcon";
 import Link from "next/link";
 import { useAuth } from "../contexts/AuthContext";
+import { useAgent } from "../contexts/AgentContext";
 import { useRouter } from "next/navigation";
+import AgentSelector from "./AgentSelector";
 import React, { useState } from "react";
 import {
   HoveredLink,
@@ -117,6 +119,7 @@ function Navbar({ className }: { className?: string }) {
 }
 export function Layout({ children }: LayoutProps) {
   const { user, logout, hasRole } = useAuth();
+  const { currentAgent, currentAgentRole } = useAgent();
   const router = useRouter();
 
   const navigation = [
@@ -144,11 +147,17 @@ export function Layout({ children }: LayoutProps) {
         <div className=" pt-20 sm:px-6 lg:px-8">
           {user && (
             <div className="flex  items-start border border-gray-200 bg-gray-800 rounded-xl justify-between lg:shadow-lg p-6 mb-6">
-              <div>
-                <p className="textmd text-gray-200">
-                  {user.username || user.user_id}
-                </p>
-                <p className="text-xs font-bold text-gray-100">({user.role})</p>
+              <div className="flex items-center space-x-6">
+                <div>
+                  <p className="textmd text-gray-200">
+                    {user.username || user.user_id}
+                  </p>
+                  <p className="text-xs font-bold text-gray-100">({user.role})</p>
+                </div>
+                <div className="min-w-[250px]">
+                  <p className="text-xs text-gray-400 mb-1">Current Agent:</p>
+                  <AgentSelector />
+                </div>
               </div>
 
               <div className="flex items-center space-x-4">

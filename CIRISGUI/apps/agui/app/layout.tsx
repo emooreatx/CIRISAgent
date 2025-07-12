@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "../contexts/AuthContext";
+import { AgentProvider } from "../contexts/AgentContext";
 import { Layout } from "../components/Layout";
 import { Toaster } from "react-hot-toast";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -55,8 +56,10 @@ export default function RootLayout({
         className={` ${fontBrandRegular.className} ${geistMono.variable} antialiased`}>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            {isLoginPage ? children : <Layout>{children}</Layout>}
-            <Toaster position="top-right" />
+            <AgentProvider>
+              {isLoginPage ? children : <Layout>{children}</Layout>}
+              <Toaster position="top-right" />
+            </AgentProvider>
           </AuthProvider>
         </QueryClientProvider>
       </body>

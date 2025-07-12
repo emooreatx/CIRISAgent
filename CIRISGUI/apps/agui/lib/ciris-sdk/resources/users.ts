@@ -61,7 +61,8 @@ export interface CreateUserRequest {
 
 export interface MintWARequest {
   wa_role: WARole;
-  signature: string;
+  signature?: string;
+  private_key_path?: string;
 }
 
 export interface UserAPIKey {
@@ -136,5 +137,21 @@ export class UsersResource extends BaseResource {
    */
   async listAPIKeys(userId: string): Promise<UserAPIKey[]> {
     return this.transport.get<UserAPIKey[]>(`/v1/users/${userId}/api-keys`);
+  }
+
+  /**
+   * Check if a WA private key exists at the given path
+   * Requires: wa.mint permission (SYSTEM_ADMIN only)
+   */
+  async checkWAKeyExists(path: string): Promise<{
+    exists: boolean;
+    valid_size?: boolean;
+    size?: number;
+    error?: string;
+    path: string;
+  }> {
+    return this.transport.get('/v1/users/wa/key-check', { 
+      params: { path } 
+    });
   }
 }

@@ -203,8 +203,7 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
                     trace_context = TraceContext(
                         trace_id=row["trace_id"],
                         span_id=row["span_id"] or "",
-                        span_name="",
-                        attributes={}
+                        span_name=""
                     )
                     if row["parent_span_id"]:
                         trace_context.parent_span_id = row["parent_span_id"]
@@ -299,8 +298,7 @@ def get_correlations_by_task_and_action(task_id: str, action_type: str, status: 
                     trace_context = TraceContext(
                         trace_id=row["trace_id"],
                         span_id=row["span_id"] or "",
-                        span_name="",
-                        attributes={}
+                        span_name=""
                     )
                     if row["parent_span_id"]:
                         trace_context.parent_span_id = row["parent_span_id"]
@@ -400,8 +398,7 @@ def get_correlations_by_type_and_time(
                     trace_context = TraceContext(
                         trace_id=row["trace_id"],
                         span_id=row["span_id"] or "",
-                        span_name="",
-                        attributes={}
+                        span_name=""
                     )
                     if row["parent_span_id"]:
                         trace_context.parent_span_id = row["parent_span_id"]
@@ -413,7 +410,11 @@ def get_correlations_by_type_and_time(
                     action_type=row["action_type"],
                     request_data=json.loads(row["request_data"]) if row["request_data"] else None,
                     response_data=_parse_response_data(json.loads(row["response_data"]) if row["response_data"] else None, timestamp),
-                    status=ServiceCorrelationStatus(row["status"]),
+                    # Map 'success' to 'completed' for backwards compatibility
+                    status_value = row["status"]
+                    if status_value == "success":
+                        status_value = "completed"
+                    status=ServiceCorrelationStatus(status_value),
                     created_at=row["created_at"],
                     updated_at=row["updated_at"],
                     correlation_type=CorrelationType(row["correlation_type"] or "service_interaction"),
@@ -583,8 +584,7 @@ def get_metrics_timeseries(
                     trace_context = TraceContext(
                         trace_id=row["trace_id"],
                         span_id=row["span_id"] or "",
-                        span_name="",
-                        attributes={}
+                        span_name=""
                     )
                     if row["parent_span_id"]:
                         trace_context.parent_span_id = row["parent_span_id"]
@@ -596,7 +596,11 @@ def get_metrics_timeseries(
                     action_type=row["action_type"],
                     request_data=json.loads(row["request_data"]) if row["request_data"] else None,
                     response_data=_parse_response_data(json.loads(row["response_data"]) if row["response_data"] else None, timestamp),
-                    status=ServiceCorrelationStatus(row["status"]),
+                    # Map 'success' to 'completed' for backwards compatibility
+                    status_value = row["status"]
+                    if status_value == "success":
+                        status_value = "completed"
+                    status=ServiceCorrelationStatus(status_value),
                     created_at=row["created_at"],
                     updated_at=row["updated_at"],
                     correlation_type=CorrelationType(row["correlation_type"] or "service_interaction"),

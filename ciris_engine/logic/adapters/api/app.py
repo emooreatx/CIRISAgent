@@ -66,7 +66,7 @@ def create_app(runtime: Any = None, adapter_config: Any = None) -> FastAPI:
     if runtime:
         app.state.runtime = runtime
         
-        # Initialize auth service
+        # Initialize auth service - will be properly initialized later with authentication service
         app.state.auth_service = APIAuthService()
         
         # Services will be injected later in ApiPlatform.start() after they're initialized

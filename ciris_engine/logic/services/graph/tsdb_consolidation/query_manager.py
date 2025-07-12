@@ -301,13 +301,14 @@ class QueryManager:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
                 
-                # Query tasks
+                # Query tasks (excluding deferred ones)
                 cursor.execute("""
                     SELECT task_id, channel_id, description, status, priority,
                            created_at, updated_at, parent_task_id, 
                            context_json, outcome_json, retry_count
                     FROM tasks
                     WHERE datetime(updated_at) >= datetime(?) AND datetime(updated_at) < datetime(?)
+                      AND status != 'deferred'
                     ORDER BY updated_at
                 """, (period_start.isoformat(), period_end.isoformat()))
                 

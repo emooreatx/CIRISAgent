@@ -842,7 +842,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
     async def get_metric_count(self) -> int:
         """Get the total count of metrics stored in the system.
         
-        This counts metrics from the tsdb_correlations table which stores
+        This counts metrics from TSDB_DATA nodes in the graph which stores
         all telemetry data points.
         """
         try:
@@ -850,9 +850,8 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 logger.debug("Memory bus not available, returning 0 metric count")
                 return 0
             
-            # Query the database directly to count metric correlations
+            # Query the database directly to count TSDB_DATA nodes
             from ciris_engine.logic.persistence import get_db_connection
-            from ciris_engine.schemas.telemetry.core import CorrelationType
             
             # Get the memory service to access its db_path
             memory_service = await self._memory_bus.get_service(handler_name="telemetry_service")
@@ -863,15 +862,14 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
             db_path = getattr(memory_service, 'db_path', None)
             with get_db_connection(db_path=db_path) as conn:
                 cursor = conn.cursor()
-                # Count all METRIC_DATAPOINT correlations
+                # Count all TSDB_DATA nodes
                 cursor.execute(
-                    "SELECT COUNT(*) FROM service_correlations WHERE correlation_type = ?",
-                    (CorrelationType.METRIC_DATAPOINT.value,)
+                    "SELECT COUNT(*) FROM graph_nodes WHERE node_type = 'tsdb_data'"
                 )
                 result = cursor.fetchone()
                 count = result[0] if result else 0
                 
-                logger.debug(f"Total metric count from database: {count}")
+                logger.debug(f"Total metric count from graph nodes: {count}")
                 return count
                 
         except Exception as e:

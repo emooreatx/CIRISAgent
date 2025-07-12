@@ -94,6 +94,38 @@ export class CIRISClient {
   }
 
   /**
+   * Update client configuration (e.g., to switch agents)
+   */
+  setConfig(options: Partial<CIRISClientOptions> & { authToken?: string }): void {
+    if (options.baseURL) {
+      this.transport.setBaseURL(options.baseURL);
+    }
+    if (options.authToken !== undefined) {
+      this.transport.setAuthToken(options.authToken);
+    }
+  }
+
+  /**
+   * Create a new client instance with different configuration
+   */
+  withConfig(options: Partial<CIRISClientOptions> & { authToken?: string }): CIRISClient {
+    const newOptions = {
+      baseURL: options.baseURL || this.transport.getBaseURL(),
+      timeout: options.timeout,
+      maxRetries: options.maxRetries,
+      enableRateLimiting: options.enableRateLimiting,
+      onAuthError: options.onAuthError
+    };
+    
+    const newClient = new CIRISClient(newOptions);
+    if (options.authToken) {
+      newClient.transport.setAuthToken(options.authToken);
+    }
+    
+    return newClient;
+  }
+
+  /**
    * Send a message to the agent (convenience method)
    */
   async interact(message: string, options?: { channel_id?: string; context?: Record<string, any> }) {

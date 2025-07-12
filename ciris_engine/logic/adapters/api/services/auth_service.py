@@ -57,29 +57,127 @@ class User:
     wa_parent_id: Optional[str] = None
     wa_auto_minted: bool = False
     password_hash: Optional[str] = None
+    custom_permissions: Optional[List[str]] = None  # Additional permissions beyond role defaults
 
 class APIAuthService:
-    """Simple in-memory authentication service."""
+    """Simple in-memory authentication service with database persistence."""
 
-    def __init__(self) -> None:
-        # In production, these would be backed by a database
+    def __init__(self, auth_service=None) -> None:
+        # In-memory caches for performance
         self._api_keys: Dict[str, StoredAPIKey] = {}
         self._oauth_users: Dict[str, OAuthUser] = {}
         self._users: Dict[str, User] = {}
         
-        # Initialize with system admin user
-        now = datetime.now(timezone.utc)
-        admin_user = User(
-            wa_id="wa-system-admin",
-            name="admin",
-            auth_type="password",
-            api_role=APIRole.SYSTEM_ADMIN,
-            wa_role=None,  # System admin is not a WA by default
-            created_at=now,
-            is_active=True,
-            password_hash=self._hash_password("ciris_admin_password")
-        )
-        self._users[admin_user.wa_id] = admin_user
+        # Store reference to the actual authentication service
+        self._auth_service = auth_service
+        
+        # Load existing users from database on startup
+        if self._auth_service:
+            self._load_users_from_db()
+        else:
+            # Fallback: Initialize with system admin user if no auth service
+            now = datetime.now(timezone.utc)
+            admin_user = User(
+                wa_id="wa-system-admin",
+                name="admin",
+                auth_type="password",
+                api_role=APIRole.SYSTEM_ADMIN,
+                wa_role=None,  # System admin is not a WA by default
+                created_at=now,
+                is_active=True,
+                password_hash=self._hash_password("ciris_admin_password")
+            )
+            self._users[admin_user.wa_id] = admin_user
+    
+    def _load_users_from_db(self) -> None:
+        """Load existing users from the database."""
+        import asyncio
+        try:
+            # Get all WA certificates from the database
+            was = asyncio.run(self._auth_service.list_was(active_only=False))
+            
+            for wa in was:
+                # Convert WA certificate to User
+                user = User(
+                    wa_id=wa.wa_id,
+                    name=wa.name,
+                    auth_type="password" if wa.password_hash else "certificate",
+                    api_role=self._wa_role_to_api_role(wa.role),
+                    wa_role=wa.role,
+                    created_at=wa.created_at,
+                    last_login=wa.last_login,
+                    is_active=wa.active,
+                    wa_parent_id=wa.parent_wa_id,
+                    wa_auto_minted=wa.auto_minted,
+                    password_hash=wa.password_hash,
+                    custom_permissions=wa.custom_permissions if hasattr(wa, 'custom_permissions') else None
+                )
+                self._users[user.wa_id] = user
+            
+            # If no admin user exists, create the default one
+            if not any(u.name == "admin" for u in self._users.values()):
+                asyncio.run(self._create_default_admin())
+                
+        except Exception as e:
+            print(f"Error loading users from database: {e}")
+            # Fall back to in-memory admin
+            now = datetime.now(timezone.utc)
+            admin_user = User(
+                wa_id="wa-system-admin",
+                name="admin",
+                auth_type="password",
+                api_role=APIRole.SYSTEM_ADMIN,
+                wa_role=None,
+                created_at=now,
+                is_active=True,
+                password_hash=self._hash_password("ciris_admin_password")
+            )
+            self._users[admin_user.wa_id] = admin_user
+    
+    async def _create_default_admin(self) -> None:
+        """Create the default admin user in the database."""
+        try:
+            # Create admin WA certificate
+            wa_cert = await self._auth_service.create_wa(
+                name="admin",
+                email="admin@ciris.local",
+                scopes=["*"],  # All permissions
+                role=WARole.ROOT  # System admin gets ROOT role
+            )
+            
+            # Update with password hash
+            await self._auth_service.update_wa(
+                wa_cert.wa_id,
+                password_hash=self._hash_password("ciris_admin_password")
+            )
+            
+            # Add to cache
+            admin_user = User(
+                wa_id=wa_cert.wa_id,
+                name="admin",
+                auth_type="password",
+                api_role=APIRole.SYSTEM_ADMIN,
+                wa_role=WARole.ROOT,
+                created_at=wa_cert.created_at,
+                is_active=True,
+                password_hash=self._hash_password("ciris_admin_password")
+            )
+            self._users[admin_user.wa_id] = admin_user
+            
+        except Exception as e:
+            print(f"Error creating default admin: {e}")
+    
+    def _wa_role_to_api_role(self, wa_role: Optional[WARole]) -> APIRole:
+        """Convert WA role to API role."""
+        if not wa_role:
+            return APIRole.OBSERVER
+        
+        role_map = {
+            WARole.ROOT: APIRole.SYSTEM_ADMIN,
+            WARole.AUTHORITY: APIRole.AUTHORITY,
+            WARole.OBSERVER: APIRole.OBSERVER
+        }
+        return role_map.get(wa_role, APIRole.OBSERVER)
 
     def _hash_key(self, api_key: str) -> str:
         """Hash an API key for storage."""
@@ -262,10 +360,54 @@ class APIAuthService:
         if existing:
             return None
         
-        # Generate user ID
-        user_id = f"wa-user-{secrets.token_hex(8)}"
+        # Map API role to WA role
+        wa_role_map = {
+            APIRole.SYSTEM_ADMIN: WARole.ROOT,
+            APIRole.AUTHORITY: WARole.AUTHORITY,
+            APIRole.ADMIN: WARole.AUTHORITY,  # Admin also gets AUTHORITY
+            APIRole.OBSERVER: WARole.OBSERVER
+        }
+        wa_role = wa_role_map.get(api_role, WARole.OBSERVER)
         
-        # Create user
+        # If we have an auth service, create in database
+        if self._auth_service:
+            try:
+                # Create WA certificate
+                wa_cert = await self._auth_service.create_wa(
+                    name=username,
+                    email=f"{username}@ciris.local",
+                    scopes=self.get_permissions_for_role(api_role),
+                    role=wa_role
+                )
+                
+                # Update with password hash
+                await self._auth_service.update_wa(
+                    wa_cert.wa_id,
+                    password_hash=self._hash_password(password)
+                )
+                
+                # Create user object
+                user = User(
+                    wa_id=wa_cert.wa_id,
+                    name=username,
+                    auth_type="password",
+                    api_role=api_role,
+                    wa_role=wa_role,
+                    created_at=wa_cert.created_at,
+                    is_active=True,
+                    password_hash=self._hash_password(password)
+                )
+                
+                # Store in cache
+                self._users[wa_cert.wa_id] = user
+                return user
+                
+            except Exception as e:
+                print(f"Error creating user in database: {e}")
+                # Fall through to in-memory creation
+        
+        # Fallback: in-memory only
+        user_id = f"wa-user-{secrets.token_hex(8)}"
         now = datetime.now(timezone.utc)
         user = User(
             wa_id=user_id,
@@ -392,11 +534,37 @@ class APIAuthService:
         # Update fields
         if api_role is not None:
             user.api_role = api_role
+            # Also update WA role to match
+            wa_role_map = {
+                APIRole.SYSTEM_ADMIN: WARole.ROOT,
+                APIRole.AUTHORITY: WARole.AUTHORITY,
+                APIRole.ADMIN: WARole.AUTHORITY,  # Admin also gets AUTHORITY
+                APIRole.OBSERVER: WARole.OBSERVER
+            }
+            user.wa_role = wa_role_map.get(api_role, WARole.OBSERVER)
         if is_active is not None:
             user.is_active = is_active
         
         # Store updated user
         self._users[user_id] = user
+        
+        # Also update in database if we have auth service
+        if self._auth_service:
+            try:
+                # Update role in database
+                if api_role is not None and user.wa_role:
+                    await self._auth_service.update_wa(user_id, role=user.wa_role)
+                
+                # Update active status in database
+                if is_active is not None:
+                    if is_active:
+                        # Reactivate - note: this may not work if cert was revoked
+                        await self._auth_service.update_wa(user_id, active=True)
+                    else:
+                        # Deactivate
+                        await self._auth_service.revoke_wa(user_id)
+            except Exception as e:
+                print(f"Error updating user in database: {e}")
         
         # Also update OAuth user if applicable
         if user_id in self._oauth_users:
@@ -435,6 +603,17 @@ class APIAuthService:
         user.password_hash = self._hash_password(new_password)
         self._users[user_id] = user
         
+        # Also update in database if we have auth service
+        if self._auth_service:
+            try:
+                import asyncio
+                asyncio.run(self._auth_service.update_wa(
+                    user_id,
+                    password_hash=self._hash_password(new_password)
+                ))
+            except Exception as e:
+                print(f"Error updating password in database: {e}")
+        
         return True
     
     async def deactivate_user(self, user_id: str) -> bool:
@@ -445,6 +624,13 @@ class APIAuthService:
         
         user.is_active = False
         self._users[user_id] = user
+        
+        # Also update in database if we have auth service
+        if self._auth_service:
+            try:
+                await self._auth_service.revoke_wa(user_id)
+            except Exception as e:
+                print(f"Error deactivating user in database: {e}")
         
         # Also deactivate OAuth user if applicable
         if user_id in self._oauth_users:
@@ -511,6 +697,30 @@ class APIAuthService:
         }
         
         return permissions.get(role, [])
+    
+    async def update_user_permissions(self, user_id: str, permissions: List[str]) -> Optional[User]:
+        """Update a user's custom permissions."""
+        user = await self.get_user(user_id)
+        if not user:
+            return None
+        
+        # Update custom permissions
+        user.custom_permissions = permissions
+        self._users[user_id] = user
+        
+        # Also update in database if we have auth service
+        if self._auth_service:
+            try:
+                import json
+                # Update the WA certificate with custom permissions
+                await self._auth_service.update_wa(
+                    user_id,
+                    custom_permissions_json=json.dumps(permissions) if permissions else None
+                )
+            except Exception as e:
+                print(f"Error updating permissions in database: {e}")
+        
+        return user
     
     async def list_user_api_keys(self, user_id: str) -> List[StoredAPIKey]:
         """List all API keys for a specific user."""
@@ -628,5 +838,18 @@ class APIAuthService:
         
         # Store updated user
         self._users[user_id] = user
+        
+        # Also update in database if we have auth service
+        if self._auth_service:
+            try:
+                # Update WA role and parent in database
+                await self._auth_service.update_wa(
+                    user_id,
+                    role=wa_role,
+                    parent_wa_id=minted_by,
+                    auto_minted=False
+                )
+            except Exception as e:
+                print(f"Error updating WA role in database: {e}")
         
         return user
