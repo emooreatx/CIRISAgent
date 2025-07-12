@@ -1,3 +1,4 @@
+ciris_engine/logic/adapters/api/config.py:4: unused import 'DEFAULT_API_INTERACTION_TIMEOUT' (90% confidence)
 ciris_engine/logic/registries/base.py:148: unused variable 'fallback_to_global' (100% confidence)
 ciris_engine/protocols/adapters/base.py:53: unused variable 'input_text' (100% confidence)
 ciris_engine/protocols/adapters/base.py:86: unused variable 'reaction' (100% confidence)
