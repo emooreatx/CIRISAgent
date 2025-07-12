@@ -13,12 +13,15 @@ import instructor
 from ciris_engine.protocols.services import LLMService as LLMServiceProtocol
 from ciris_engine.protocols.services.runtime.llm import MessageDict
 from ciris_engine.protocols.services.graph.telemetry import TelemetryServiceProtocol
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.runtime.resources import ResourceUsage
 from ciris_engine.schemas.runtime.protocols_core import LLMStatus
+from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.services.llm import JSONExtractionResult
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.schemas.services.capabilities import LLMCapabilities
 from ciris_engine.logic.registries.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerError
+from ciris_engine.logic.services.base_service import BaseService
 
 # Configuration class for OpenAI-compatible LLM services
 class OpenAIConfig(BaseModel):
@@ -31,10 +34,29 @@ class OpenAIConfig(BaseModel):
 
 logger = logging.getLogger(__name__)
 
-class OpenAICompatibleClient(LLMServiceProtocol):
+class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
     """Client for interacting with OpenAI-compatible APIs with circuit breaker protection."""
 
-    def __init__(self, config: Optional[OpenAIConfig] = None, telemetry_service: Optional[TelemetryServiceProtocol] = None) -> None:
+    def __init__(
+        self, 
+        *,  # Force keyword-only arguments
+        config: Optional[OpenAIConfig] = None, 
+        telemetry_service: Optional[TelemetryServiceProtocol] = None,
+        time_service: Optional[TimeServiceProtocol] = None,
+        service_name: Optional[str] = None,
+        version: str = "1.0.0"
+    ) -> None:
+        # Set telemetry_service before calling super().__init__
+        # because _register_dependencies is called in the base constructor
+        self.telemetry_service = telemetry_service
+        
+        # Initialize base service
+        super().__init__(
+            time_service=time_service,
+            service_name=service_name or "llm_service",
+            version=version
+        )
+        
         # CRITICAL: Check if we're in mock LLM mode
         import os
         import sys
@@ -50,8 +72,6 @@ class OpenAICompatibleClient(LLMServiceProtocol):
             self.openai_config = OpenAIConfig()
         else:
             self.openai_config = config
-
-        self.telemetry_service = telemetry_service
 
         # Initialize retry configuration
         self.max_retries = min(getattr(self.openai_config, 'max_retries', 3), 3)
@@ -96,24 +116,43 @@ class OpenAICompatibleClient(LLMServiceProtocol):
             )
         except Exception as e:
             raise RuntimeError(f"Failed to initialize OpenAI client: {e}")
-
-        # Track start time for uptime calculation
-        self._start_time: Optional[float] = None
         
-        # Memory tracking
-        self._process = psutil.Process()
+        # Memory tracking (process is inherited from BaseService)
         self._response_cache: Dict[str, Any] = {}  # Simple response cache
         self._max_cache_size = 100  # Maximum cache entries
+        
+    # Required BaseService abstract methods
+    
+    def get_service_type(self) -> ServiceType:
+        """Get the service type enum value."""
+        return ServiceType.LLM
+    
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return [LLMCapabilities.CALL_LLM_STRUCTURED.value]
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all required dependencies are available."""
+        # LLM service requires API key and circuit breaker to be functional
+        has_api_key = bool(self.openai_config.api_key)
+        circuit_breaker_ready = self.circuit_breaker is not None
+        return has_api_key and circuit_breaker_ready
+    
+    # Override optional BaseService methods
+    
+    def _register_dependencies(self) -> None:
+        """Register service dependencies."""
+        super()._register_dependencies()
+        if self.telemetry_service:
+            self._dependencies.add("TelemetryService")
 
-    async def _start(self) -> None:
-        """Start the LLM service (private method)."""
-        import time
-        self._start_time = time.time()
+    async def _on_start(self) -> None:
+        """Custom startup logic for LLM service."""
         logger.info(f"OpenAI Compatible LLM Service started with model: {self.model_name}")
         logger.info(f"Circuit breaker initialized: {self.circuit_breaker.get_stats()}")
 
-    async def _stop(self) -> None:
-        """Stop the LLM service (private method)."""
+    async def _on_stop(self) -> None:
+        """Custom cleanup logic for LLM service."""
         await self.client.close()
         logger.info("OpenAI Compatible LLM Service stopped")
 
@@ -123,40 +162,26 @@ class OpenAICompatibleClient(LLMServiceProtocol):
 
     async def is_healthy(self) -> bool:
         """Check if service is healthy - used by buses and registries."""
-        return self.circuit_breaker.is_available()
+        # Call parent class health check first
+        base_healthy = await super().is_healthy()
+        # Also check circuit breaker status
+        return base_healthy and self.circuit_breaker.is_available()
 
-    async def start(self) -> None:
-        """Start the service."""
-        await self._start()
+    def _get_metadata(self) -> Dict[str, Any]:
+        """Get service-specific metadata."""
+        return {
+            "model": self.model_name,
+            "instructor_mode": getattr(self.openai_config, 'instructor_mode', 'JSON'),
+            "timeout_seconds": getattr(self.openai_config, 'timeout_seconds', 30),
+            "max_retries": self.max_retries,
+            "circuit_breaker_state": self.circuit_breaker.get_stats().get("state", "unknown")
+        }
 
-    async def stop(self) -> None:
-        """Stop the service."""
-        await self._stop()
-
-    def get_capabilities(self) -> ServiceCapabilities:
-        """Get service capabilities."""
-        return ServiceCapabilities(
-            service_name="llm_service",
-            actions=[LLMCapabilities.CALL_LLM_STRUCTURED.value],
-            version="1.0.0"
-        )
-
-    def get_status(self) -> ServiceStatus:
-        """Get current service status."""
-        import time
+    def _collect_custom_metrics(self) -> Dict[str, float]:
+        """Collect service-specific metrics."""
         import sys
-        cb_stats = self.circuit_breaker.get_stats()
-        uptime = 0.0
-        if self._start_time is not None:
-            uptime = time.time() - self._start_time
         
-        # Calculate memory usage
-        memory_mb = 0.0
-        try:
-            memory_info = self._process.memory_info()
-            memory_mb = memory_info.rss / 1024 / 1024  # Convert bytes to MB
-        except Exception as e:
-            logger.debug(f"Could not get memory info: {e}")
+        cb_stats = self.circuit_breaker.get_stats()
         
         # Calculate cache size
         cache_size_mb = 0.0
@@ -166,49 +191,36 @@ class OpenAICompatibleClient(LLMServiceProtocol):
         except Exception:
             pass
         
-        # Extract model pricing info
-        model_info = {
-            "model": self.model_name,
-            "instructor_mode": getattr(self.openai_config, 'instructor_mode', 'JSON'),
-            "timeout_seconds": float(getattr(self.openai_config, 'timeout_seconds', 30)),
-            "max_retries": float(self.max_retries)
-        }
-        
         # Build custom metrics
-        custom_metrics = {
+        metrics = {
+            # Circuit breaker metrics
             "circuit_breaker_state": 1.0 if cb_stats.get("state") == "open" else (0.5 if cb_stats.get("state") == "half_open" else 0.0),
             "consecutive_failures": float(cb_stats.get("consecutive_failures", 0)),
             "recovery_attempts": float(cb_stats.get("recovery_attempts", 0)),
             "last_failure_age_seconds": float(cb_stats.get("last_failure_age", 0)),
+            "success_rate": cb_stats.get("success_rate", 1.0),
+            "call_count": float(cb_stats.get("call_count", 0)),
+            "failure_count": float(cb_stats.get("failure_count", 0)),
+            
+            # Cache metrics
+            "cache_size_mb": cache_size_mb,
+            "cache_entries": float(len(self._response_cache)),
             "response_cache_hit_rate": 0.0,  # TODO: Track cache hits
+            
+            # Performance metrics
             "avg_response_time_ms": 0.0,  # TODO: Track response times
+            
+            # Model pricing info
             "model_cost_per_1k_tokens": 0.15 if "gpt-4o-mini" in self.model_name else 2.5,  # Cents
             "retry_delay_base": self.base_delay,
-            "retry_delay_max": self.max_delay
+            "retry_delay_max": self.max_delay,
+            
+            # Model configuration
+            "model_timeout_seconds": float(getattr(self.openai_config, 'timeout_seconds', 30)),
+            "model_max_retries": float(self.max_retries)
         }
         
-        # Add model-specific info
-        for key, value in model_info.items():
-            if isinstance(value, (int, float)):
-                custom_metrics[f"model_{key}"] = float(value)
-
-        return ServiceStatus(
-            service_name="llm_service",
-            service_type="core_service",
-            is_healthy=self.circuit_breaker.is_available(),
-            uptime_seconds=uptime,
-            last_error=None,
-            metrics={
-                "success_rate": cb_stats.get("success_rate", 1.0),
-                "call_count": float(cb_stats.get("call_count", 0)),
-                "failure_count": float(cb_stats.get("failure_count", 0)),
-                "circuit_breaker_open": 1.0 if cb_stats.get("state") == "open" else 0.0,
-                "memory_mb": memory_mb,
-                "cache_size_mb": cache_size_mb,
-                "cache_entries": float(len(self._response_cache))
-            },
-            custom_metrics=custom_metrics
-        )
+        return metrics
 
     def _extract_json_from_response(self, raw: str) -> JSONExtractionResult:
         """Extract and parse JSON from LLM response (private method)."""
@@ -255,6 +267,9 @@ class OpenAICompatibleClient(LLMServiceProtocol):
         temperature: float = 0.0,
     ) -> Tuple[BaseModel, ResourceUsage]:
         """Make a structured LLM call with circuit breaker protection."""
+        # Track the request
+        self._track_request()
+        
         # No mock service integration - LLMService and MockLLMService are separate
         logger.debug(f"Structured LLM call for {response_model.__name__}")
 
@@ -356,6 +371,8 @@ class OpenAICompatibleClient(LLMServiceProtocol):
             except (APIConnectionError, RateLimitError, InternalServerError, instructor.exceptions.InstructorRetryException) as e:  # type: ignore[attr-defined]
                 # Record failure with circuit breaker
                 self.circuit_breaker.record_failure()
+                # Track error in base service
+                self._track_error(e)
 
                 # Special handling for timeout cascades
                 if isinstance(e, instructor.exceptions.InstructorRetryException) and "timed out" in str(e):  # type: ignore[attr-defined]

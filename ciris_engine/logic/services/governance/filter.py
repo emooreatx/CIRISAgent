@@ -9,11 +9,12 @@ import re
 import secrets
 import asyncio
 import logging
-from typing import Dict, Optional, List, Tuple
+from typing import Dict, Optional, List, Tuple, Any
 from datetime import datetime, timedelta
 
-from ciris_engine.logic.adapters.base import Service
+from ciris_engine.logic.services.base_service import BaseService
 from ciris_engine.protocols.services import ServiceProtocol as AdaptiveFilterServiceProtocol
+from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.services.filters_core import (
     FilterPriority, TriggerType, FilterTrigger,
     UserTrustProfile, FilterResult, AdaptiveFilterConfig,
@@ -24,13 +25,12 @@ from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
 
-class AdaptiveFilterService(Service, AdaptiveFilterServiceProtocol):
+class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
     """Service for adaptive message filtering with graph memory persistence"""
 
     def __init__(self, memory_service: object, time_service: TimeServiceProtocol, llm_service: Optional[object] = None, config_service: Optional[object] = None) -> None:
-        super().__init__()
+        super().__init__(time_service=time_service)
         self.memory = memory_service
-        self.time_service = time_service
         self.llm = llm_service
         self.config_service = config_service  # GraphConfigService for proper config storage
         self._config: Optional[AdaptiveFilterConfig] = None
@@ -38,24 +38,20 @@ class AdaptiveFilterService(Service, AdaptiveFilterServiceProtocol):
         self._message_buffer: Dict[str, List[Tuple[datetime, object]]] = {}
         self._stats = FilterStats()
         self._init_task: Optional[asyncio.Task[None]] = None
-        self._start_time: Optional[datetime] = None
 
-    async def start(self) -> None:
-        """Start the service and load configuration"""
-        await super().start()
-        self._start_time = self.time_service.now()
+    async def _on_start(self) -> None:
+        """Custom startup logic for filter service."""
         self._init_task = asyncio.create_task(self._initialize())
         logger.info("Adaptive Filter Service starting...")
 
-    async def stop(self) -> None:
-        """Stop the service and save final state"""
+    async def _on_stop(self) -> None:
+        """Custom cleanup logic for filter service."""
         if self._init_task and not self._init_task.done():
             self._init_task.cancel()
 
         if self._config:
             await self._save_config("Service shutdown")
 
-        await super().stop()
         logger.info("Adaptive Filter Service stopped")
 
     async def _initialize(self) -> None:
@@ -228,7 +224,7 @@ class AdaptiveFilterService(Service, AdaptiveFilterServiceProtocol):
                     if self._priority_value(filter_trigger.priority) < self._priority_value(priority):
                         priority = filter_trigger.priority
 
-                    filter_trigger.last_triggered = self.time_service.now()
+                    filter_trigger.last_triggered = self._now()
                     filter_trigger.true_positive_count += 1
 
             except Exception as e:
@@ -320,7 +316,7 @@ class AdaptiveFilterService(Service, AdaptiveFilterServiceProtocol):
 
     async def _check_frequency(self, user_id: str, count_threshold: int, time_window: int) -> bool:
         """Check if user has exceeded message frequency threshold"""
-        now = self.time_service.now()
+        now = self._now()
         cutoff = now - timedelta(seconds=time_window)
 
         if user_id not in self._message_buffer:
@@ -349,13 +345,13 @@ class AdaptiveFilterService(Service, AdaptiveFilterServiceProtocol):
         if user_id not in self._config.user_profiles:
             self._config.user_profiles[user_id] = UserTrustProfile(
                 user_id=user_id,
-                first_seen=self.time_service.now(),
-                last_seen=self.time_service.now()
+                first_seen=self._now(),
+                last_seen=self._now()
             )
 
         profile = self._config.user_profiles[user_id]
         profile.message_count += 1
-        profile.last_seen = self.time_service.now()
+        profile.last_seen = self._now()
 
         if priority == FilterPriority.CRITICAL and triggered:
             profile.violation_count += 1
@@ -403,7 +399,7 @@ class AdaptiveFilterService(Service, AdaptiveFilterServiceProtocol):
             return str(message.id)
         elif isinstance(message, dict):
             return str(message.get('message_id') or message.get('id', 'unknown'))
-        return f"msg_{self.time_service.timestamp()}"
+        return f"msg_{int(self._now().timestamp() * 1000)}"
 
     def _is_direct_message(self, message: object, adapter_type: str) -> bool:
         """Check if message is a direct message"""
@@ -497,7 +493,7 @@ class AdaptiveFilterService(Service, AdaptiveFilterServiceProtocol):
             errors=errors,
             stats=self._stats,
             config_version=self._config.version if self._config else 0,
-            last_updated=self.time_service.now()
+            last_updated=self._now()
         )
 
     async def add_filter_trigger(self, trigger: FilterTrigger, trigger_list: str = "review") -> bool:
@@ -544,45 +540,68 @@ class AdaptiveFilterService(Service, AdaptiveFilterServiceProtocol):
             logger.error(f"Error removing filter trigger: {e}")
             return False
 
-    def get_capabilities(self) -> 'ServiceCapabilities':
-        """Get service capabilities."""
-        from ciris_engine.schemas.services.core import ServiceCapabilities
-        return ServiceCapabilities(
-            service_name="AdaptiveFilterService",
-            actions=["filter", "update_trust", "add_filter", "remove_filter", "get_health"],
-            version="1.0.0",
-            dependencies=["memory_service"],
-            metadata={
-                "description": "Adaptive message filtering with graph memory persistence",
-                "features": ["spam_detection", "trust_tracking", "self_configuration", "llm_filtering"],
-                "filter_types": ["regex", "keyword", "llm_based"],
-                "max_buffer_size": 1000
-            }
-        )
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return ["filter", "update_trust", "add_filter", "remove_filter", "get_health"]
+    
+    def _get_metadata(self) -> Dict[str, Any]:
+        """Get service-specific metadata."""
+        return {
+            "description": "Adaptive message filtering with graph memory persistence",
+            "features": ["spam_detection", "trust_tracking", "self_configuration", "llm_filtering"],
+            "filter_types": ["regex", "keyword", "llm_based"],
+            "max_buffer_size": 1000
+        }
 
-    def get_status(self) -> 'ServiceStatus':
+    def get_status(self) -> ServiceStatus:
         """Get current service status."""
-        from ciris_engine.schemas.services.core import ServiceStatus
-        
-        uptime_seconds = 0.0
-        if self._start_time:
-            uptime_seconds = (self.time_service.now() - self._start_time).total_seconds()
-        
         return ServiceStatus(
             service_name="AdaptiveFilterService",
             service_type="INFRASTRUCTURE",
             is_healthy=self._config is not None,
-            uptime_seconds=uptime_seconds,
-            last_error=None,
+            uptime_seconds=self._calculate_uptime(),
+            last_error=self._last_error,
             metrics={
                 "total_filtered": float(self._stats.total_filtered),
                 "total_messages_processed": float(self._stats.total_messages_processed),
                 "false_positive_reports": float(self._stats.false_positive_reports),
                 "filter_count": float(len(self._config.attention_triggers + self._config.review_triggers + self._config.llm_filters) if self._config else 0)
             },
-            last_health_check=self.time_service.now()
+            last_health_check=self._last_health_check
         )
 
-    async def is_healthy(self) -> bool:
-        """Check if service is healthy."""
-        return self._config is not None
+    def get_service_type(self) -> ServiceType:
+        """Get the service type enum value."""
+        return ServiceType.INFRASTRUCTURE_SERVICE
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all required dependencies are available."""
+        return self.memory is not None and self.config_service is not None
+    
+    def _register_dependencies(self) -> None:
+        """Register service dependencies."""
+        super()._register_dependencies()
+        self._dependencies.add("MemoryService")
+        self._dependencies.add("GraphConfigService")
+        if self.llm:
+            self._dependencies.add("LLMService")
+    
+    def _collect_custom_metrics(self) -> Dict[str, float]:
+        """Collect service-specific metrics."""
+        metrics = {
+            "total_filtered": float(self._stats.total_filtered),
+            "total_messages_processed": float(self._stats.total_messages_processed),
+            "false_positive_reports": float(self._stats.false_positive_reports),
+        }
+        
+        if self._config:
+            metrics["filter_count"] = float(
+                len(self._config.attention_triggers + 
+                    self._config.review_triggers + 
+                    self._config.llm_filters)
+            )
+            metrics["attention_triggers"] = float(len(self._config.attention_triggers))
+            metrics["review_triggers"] = float(len(self._config.review_triggers))
+            metrics["llm_filters"] = float(len(self._config.llm_filters))
+        
+        return metrics

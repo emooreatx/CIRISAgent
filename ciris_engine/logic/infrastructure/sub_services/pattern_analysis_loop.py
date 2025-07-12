@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Any, TYPE_CHECKING
 from datetime import datetime
 from collections import defaultdict
 
-from ciris_engine.protocols.services import Service
+from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
 
 if TYPE_CHECKING:
     from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 # ConfigurationUpdate now imported from schemas
 
-class PatternAnalysisLoop(Service):
+class PatternAnalysisLoop(BaseScheduledService):
     """
     Service that analyzes behavioral patterns and generates insights for agent learning.
 
@@ -45,7 +45,11 @@ class PatternAnalysisLoop(Service):
         memory_bus: Optional[MemoryBus] = None,
         analysis_interval_hours: int = 6
     ) -> None:
-        super().__init__()
+        # Initialize BaseScheduledService with analysis interval
+        super().__init__(
+            time_service=time_service,
+            run_interval_seconds=analysis_interval_hours * 3600
+        )
         self._time_service = time_service
         self._memory_bus = memory_bus
         self._analysis_interval_hours = analysis_interval_hours
@@ -640,11 +644,22 @@ class PatternAnalysisLoop(Service):
                 metadata={"detected_pattern": True}
             )
 
-    async def start(self) -> None:
-        """Start the configuration feedback loop."""
-        logger.info("ConfigurationFeedbackLoop started - enabling autonomous adaptation")
+    async def _run_scheduled_task(self) -> None:
+        """
+        Execute scheduled pattern analysis.
+        
+        This is called periodically by BaseScheduledService.
+        """
+        try:
+            await self.analyze_and_adapt(force=True)
+        except Exception as e:
+            logger.error(f"Scheduled pattern analysis failed: {e}")
 
-    async def stop(self) -> None:
+    async def _on_start(self) -> None:
+        """Start the configuration feedback loop."""
+        logger.info("PatternAnalysisLoop started - enabling autonomous adaptation")
+
+    async def _on_stop(self) -> None:
         """Stop the feedback loop."""
         # Run final analysis
         try:
@@ -652,7 +667,7 @@ class PatternAnalysisLoop(Service):
         except Exception as e:
             logger.error(f"Failed final analysis: {e}")
 
-        logger.info("ConfigurationFeedbackLoop stopped")
+        logger.info("PatternAnalysisLoop stopped")
 
     async def is_healthy(self) -> bool:
         """Check if the service is healthy."""
@@ -662,7 +677,7 @@ class PatternAnalysisLoop(Service):
         """Get service capabilities."""
         from ciris_engine.schemas.services.core import ServiceCapabilities
         return ServiceCapabilities(
-            service_name="ConfigurationFeedbackLoop",
+            service_name="PatternAnalysisLoop",
             actions=[
                 "analyze_and_adapt",
                 "detect_patterns",
@@ -681,15 +696,17 @@ class PatternAnalysisLoop(Service):
 
     def get_status(self) -> "ServiceStatus":
         """Get current service status."""
-        from ciris_engine.schemas.services.core import ServiceStatus
-        return ServiceStatus(
-            service_name="ConfigurationFeedbackLoop",
-            service_type="infrastructure_sub_service",
-            is_healthy=self._memory_bus is not None,
-            uptime_seconds=0.0,  # Not tracking uptime for sub-services
-            metrics={
-                "patterns_detected": float(len(self._detected_patterns))
-            },
-            last_error=None,
-            last_health_check=self._time_service.now() if self._time_service else None
-        )
+        # Let BaseScheduledService handle the base status
+        status = super().get_status()
+        
+        # Update service name
+        status.service_name = "PatternAnalysisLoop"
+        
+        # Add our custom metrics
+        status.custom_metrics.update({
+            "patterns_detected": float(len(self._detected_patterns)),
+            "pattern_history_size": float(len(self._pattern_history)),
+            "last_analysis": self._last_analysis.isoformat() if self._last_analysis else None
+        })
+        
+        return status

@@ -9,7 +9,7 @@ import logging
 from typing import Any, Dict, List, Optional
 from datetime import datetime
 
-from ciris_engine.protocols.services import Service
+from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.infrastructure.identity_variance import (
     VarianceImpact, IdentityDiff, VarianceReport,
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 # VarianceReport now imported from schemas
 
-class IdentityVarianceMonitor(Service):
+class IdentityVarianceMonitor(BaseScheduledService):
     """
     Monitors identity drift from baseline and enforces the 20% variance threshold.
 
@@ -50,7 +50,11 @@ class IdentityVarianceMonitor(Service):
         variance_threshold: float = 0.20,
         check_interval_hours: int = 24
     ) -> None:
-        super().__init__()
+        # Initialize BaseScheduledService with check interval
+        super().__init__(
+            time_service=time_service,
+            run_interval_seconds=check_interval_hours * 3600
+        )
         self._time_service = time_service
         self._memory_bus = memory_bus
         self._wa_bus = wa_bus
@@ -840,11 +844,22 @@ class IdentityVarianceMonitor(Service):
                 metadata={"variance_report": True}
             )
 
-    async def start(self) -> None:
+    async def _run_scheduled_task(self) -> None:
+        """
+        Execute scheduled variance check.
+        
+        This is called periodically by BaseScheduledService.
+        """
+        try:
+            await self.check_variance(force=True)
+        except Exception as e:
+            logger.error(f"Scheduled variance check failed: {e}")
+
+    async def _on_start(self) -> None:
         """Start the identity variance monitor."""
         logger.info("IdentityVarianceMonitor started - protecting identity within 20% variance")
 
-    async def stop(self) -> None:
+    async def _on_stop(self) -> None:
         """Stop the monitor."""
         # Run final variance check
         try:
@@ -916,16 +931,28 @@ class IdentityVarianceMonitor(Service):
     
     def get_status(self) -> Any:
         """Get service status for Service base class."""
-        from ciris_engine.schemas.services.core import ServiceStatus
-        return ServiceStatus(
+        # Let BaseScheduledService handle the base status
+        status = super().get_status()
+        
+        # Add our custom metrics
+        status.custom_metrics.update({
+            "has_baseline": float(self._baseline_snapshot_id is not None),
+            "last_variance_check": self._last_check.isoformat() if self._last_check else None,
+            "variance_threshold": self._variance_threshold
+        })
+        
+        return status
+    
+    def get_capabilities(self) -> Any:
+        """Get service capabilities."""
+        from ciris_engine.schemas.services.core import ServiceCapabilities
+        return ServiceCapabilities(
             service_name="IdentityVarianceMonitor",
-            service_type="INFRASTRUCTURE",
-            is_healthy=self._memory_bus is not None,
-            uptime_seconds=0.0,  # Would need to track start time
-            last_error=None,
-            metrics={
-                "has_baseline": float(self._baseline_snapshot_id is not None),
-                "last_check": self._last_check.isoformat() if self._last_check else None
-            },
-            last_health_check=self._time_service.now()
+            actions=["initialize_baseline", "check_variance", "monitor_identity_drift", "trigger_wa_review"],
+            version="1.0.0",
+            dependencies=["TimeService", "MemoryBus", "WiseBus"],
+            metadata={
+                "variance_threshold": self._variance_threshold,
+                "check_interval_hours": self._check_interval_hours
+            }
         )

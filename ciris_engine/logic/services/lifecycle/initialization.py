@@ -6,14 +6,14 @@ This replaces the initialization_manager.py utility with a proper service.
 """
 import asyncio
 import logging
-from typing import Dict, List, Optional, Callable, Awaitable
+from typing import Dict, List, Optional, Callable, Awaitable, Any
 from datetime import datetime
 from dataclasses import dataclass
 
 from ciris_engine.protocols.services import InitializationServiceProtocol
-from ciris_engine.protocols.runtime.base import ServiceProtocol
+from ciris_engine.logic.services.base_infrastructure_service import BaseInfrastructureService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.services.lifecycle.initialization import (
     InitializationStatus, InitializationVerification
 )
@@ -31,71 +31,81 @@ class InitializationStep:
     critical: bool = True
     timeout: float = 30.0
 
-class InitializationService(InitializationServiceProtocol, ServiceProtocol):
+class InitializationService(BaseInfrastructureService, InitializationServiceProtocol):
     """Service for coordinating system initialization."""
 
     def __init__(self, time_service: TimeServiceProtocol) -> None:
         """Initialize the initialization service."""
+        # Initialize base class with time_service
+        super().__init__(service_name="InitializationService", version="1.0.0", time_service=time_service)
+        
+        # Store time_service reference
         self.time_service = time_service
+        
+        # Initialization-specific attributes
         self._steps: List[InitializationStep] = []
         self._completed_steps: List[str] = []
         self._phase_status: Dict[InitializationPhase, str] = {}
         self._start_time: Optional[datetime] = None
         self._initialization_complete = False
         self._error: Optional[Exception] = None
-        self._running = False
 
-    async def start(self) -> None:
-        """Start the service."""
-        self._running = True
-        logger.info("InitializationService started")
 
-    async def stop(self) -> None:
-        """Stop the service."""
-        self._running = False
-        logger.info("InitializationService stopped")
+    # Required abstract methods from BaseService
 
-    def get_capabilities(self) -> ServiceCapabilities:
-        """Get service capabilities."""
-        return ServiceCapabilities(
-            service_name="InitializationService",
-            actions=[
-                "register_step",
-                "initialize",
-                "is_initialized",
-                "get_initialization_status"
-            ],
-            version="1.0.0",
-            dependencies=["TimeService"],
-            metadata=None
-        )
+    def get_service_type(self) -> ServiceType:
+        """Get the service type enum value."""
+        return ServiceType.INITIALIZATION
 
-    def get_status(self) -> ServiceStatus:
-        """Get service status."""
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return [
+            "register_step",
+            "initialize",
+            "is_initialized",
+            "get_initialization_status",
+            "verify_initialization"
+        ]
+
+    def _check_dependencies(self) -> bool:
+        """Check if all required dependencies are available."""
+        # Check if time service is available
+        return self.time_service is not None
+
+    def _get_metadata(self) -> Dict[str, Any]:
+        """Get service-specific metadata."""
+        metadata = super()._get_metadata()
+        metadata.update({
+            "description": "Manages system initialization coordination",
+            "phases": [phase.value for phase in InitializationPhase],
+            "supports_verification": True
+        })
+        return metadata
+
+    def _collect_custom_metrics(self) -> Dict[str, float]:
+        """Collect initialization-specific metrics."""
+        metrics = super()._collect_custom_metrics()
+        
         duration = None
         if self._start_time:
             duration = (self.time_service.now() - self._start_time).total_seconds()
-
-        return ServiceStatus(
-            service_name="InitializationService",
-            service_type="core_service",
-            is_healthy=self._running and (self._initialization_complete or self._error is None),
-            uptime_seconds=duration or 0.0,
-            metrics={
-                "initialization_complete": float(self._initialization_complete),
-                "has_error": float(self._error is not None)
-            },
-            custom_metrics={
-                "completed_steps": float(len(self._completed_steps)),
-                "total_steps": float(len(self._steps))
-            },
-            last_error=str(self._error) if self._error else None,
-            last_health_check=self.time_service.now()
-        )
+        
+        metrics.update({
+            "initialization_complete": float(self._initialization_complete),
+            "has_error": float(self._error is not None),
+            "completed_steps": float(len(self._completed_steps)),
+            "total_steps": float(len(self._steps)),
+            "initialization_duration": duration or 0.0
+        })
+        
+        return metrics
 
     async def is_healthy(self) -> bool:
         """Check if service is healthy."""
-        return self._running and (self._initialization_complete or self._error is None)
+        # Call parent is_healthy first
+        base_healthy = await super().is_healthy()
+        # Service is healthy if base is healthy AND (init complete OR no error)
+        return base_healthy and (self._initialization_complete or self._error is None)
 
     def register_step(
         self,

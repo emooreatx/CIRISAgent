@@ -579,8 +579,9 @@ This directory contains critical cryptographic keys for the CIRIS system.
 
         # Create and start service
         openai_service = OpenAICompatibleClient(
-            llm_config,
-            telemetry_service=self.telemetry_service
+            config=llm_config,
+            telemetry_service=self.telemetry_service,
+            time_service=self.time_service
         )
         await openai_service.start()
 
@@ -626,8 +627,9 @@ This directory contains critical cryptographic keys for the CIRIS system.
 
         # Create and start service
         service = OpenAICompatibleClient(
-            llm_config,
-            telemetry_service=self.telemetry_service
+            config=llm_config,
+            telemetry_service=self.telemetry_service,
+            time_service=self.time_service
         )
         await service.start()
 

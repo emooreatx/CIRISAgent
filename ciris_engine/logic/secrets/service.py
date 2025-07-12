@@ -18,14 +18,15 @@ from ciris_engine.schemas.secrets.service import (
 )
 from ciris_engine.schemas.services.core.secrets import SecretsServiceStats
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
-from ciris_engine.logic.adapters.base import Service
+from ciris_engine.logic.services.base_service import BaseService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.protocols.services.runtime.secrets import SecretsServiceProtocol
 from ciris_engine.protocols.runtime.base import ServiceProtocol
 
 logger = logging.getLogger(__name__)
 
-class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
+class SecretsService(BaseService, SecretsServiceProtocol):
     """
     Central service for secrets management in CIRIS Agent.
 
@@ -41,7 +42,7 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
         detection_config: Optional[SecretsDetectionConfig] = None,
         db_path: str = "secrets.db",
         master_key: Optional[bytes] = None
-    ):
+    ) -> None:
         """
         Initialize secrets service.
 
@@ -53,12 +54,11 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
             db_path: Database path for storage
             master_key: Master encryption key
         """
-        self._time_service = time_service
+        super().__init__(time_service=time_service)
         self.store = store or SecretsStore(time_service=time_service, db_path=db_path, master_key=master_key)
         self.filter = filter_obj or SecretsFilter(detection_config)
         self._auto_forget_enabled = True
         self._current_task_secrets: Dict[str, str] = {}  # UUID -> original_value
-        self._start_time: Optional[object] = None  # Will be a datetime when started
 
     async def process_incoming_text(
         self,
@@ -94,7 +94,7 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
                 sensitivity_level=detected_secret.sensitivity,
                 detected_pattern=detected_secret.pattern_name,
                 context_hint=detected_secret.context_hint,
-                created_at=self._time_service.now(),
+                created_at=self._now(),
                 last_accessed=None,
                 access_count=0,
                 source_message_id=source_message_id,
@@ -508,29 +508,30 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
                 encryption_enabled=True
             )
 
-    async def start(self) -> None:
-        """Start the secrets service."""  # pragma: no cover - trivial
-        self._start_time = self._time_service.now()
+    async def _on_start(self) -> None:
+        """Custom startup logic for secrets service."""
         logger.info("SecretsService started")
 
-    async def stop(self) -> None:
-        """Stop the secrets service and clean up resources."""  # pragma: no cover - trivial
+    async def _on_stop(self) -> None:
+        """Custom cleanup logic for secrets service."""
         # Auto-forget any remaining task secrets
         if self._auto_forget_enabled and self._current_task_secrets:
             logger.info(f"Auto-forgetting {len(self._current_task_secrets)} task secrets on shutdown")
             await self._auto_forget_task_secrets()
         logger.info("SecretsService stopped")
 
-    async def is_healthy(self) -> bool:
-        """Check if the secrets service is healthy."""
-        try:
-            # Check if filter and store are accessible
-            if not self.filter or not self.store:
-                return False
-            # Could add more health checks here
-            return True
-        except Exception:
-            return False
+    def get_service_type(self) -> ServiceType:
+        """Get the service type enum value."""
+        return ServiceType.CORE_SERVICE
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all required dependencies are available."""
+        return self.filter is not None and self.store is not None
+    
+    def _register_dependencies(self) -> None:
+        """Register service dependencies."""
+        super()._register_dependencies()
+        # No external service dependencies, just internal components
 
     async def reencrypt_all(self, new_master_key: bytes) -> bool:
         """
@@ -563,40 +564,27 @@ class SecretsService(Service, SecretsServiceProtocol, ServiceProtocol):
             logger.error(f"Re-encryption failed with error: {e}")
             return False
 
-    def get_capabilities(self) -> ServiceCapabilities:
-        """Return capabilities this service supports."""
-        from ciris_engine.schemas.services.core import ServiceCapabilities
-        return ServiceCapabilities(
-            service_name="SecretsService",
-            actions=[
-                "process_incoming_text", "decapsulate_secrets_in_parameters",
-                "list_stored_secrets", "recall_secret", "update_filter_config",
-                "forget_secret", "get_service_stats", "get_filter_config",
-                "encrypt", "decrypt", "store_secret", "retrieve_secret", "reencrypt_all"
-            ],
-            version="1.0.0",
-            dependencies=["TimeService"],
-            metadata=None
-        )
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return [
+            "process_incoming_text", "decapsulate_secrets_in_parameters",
+            "list_stored_secrets", "recall_secret", "update_filter_config",
+            "forget_secret", "get_service_stats", "get_filter_config",
+            "encrypt", "decrypt", "store_secret", "retrieve_secret", "reencrypt_all"
+        ]
 
     def get_status(self) -> ServiceStatus:
         """Get service status."""
-        from ciris_engine.schemas.services.core import ServiceStatus
-        
-        uptime_seconds = 0.0
-        if self._start_time:
-            uptime_seconds = (self._time_service.now() - self._start_time).total_seconds()
-        
         return ServiceStatus(
             service_name="SecretsService",
             service_type="core_service",
-            is_healthy=True,  # We'll use sync check here
-            uptime_seconds=uptime_seconds,
+            is_healthy=self._check_dependencies(),
+            uptime_seconds=self._calculate_uptime(),
             metrics={
                 "secrets_stored": float(len(self._current_task_secrets)),
                 "filter_enabled": 1.0 if self.filter else 0.0,
                 "auto_forget_enabled": 1.0 if self._auto_forget_enabled else 0.0
             },
-            last_error=None,
-            last_health_check=self._time_service.now()
+            last_error=self._last_error,
+            last_health_check=self._last_health_check
         )

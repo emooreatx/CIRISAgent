@@ -11,13 +11,15 @@ This is one of three observability pillars:
 VisibilityService focuses exclusively on reasoning traces and decision history.
 It does NOT provide service health, metrics, or general system status.
 """
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 from ciris_engine.protocols.services import VisibilityServiceProtocol
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.protocols.runtime.base import ServiceProtocol
+from ciris_engine.logic.services.base_service import BaseService
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.services.visibility import (
     VisibilitySnapshot, ReasoningTrace, TaskDecisionHistory
 )
@@ -32,60 +34,56 @@ from ciris_engine.logic.persistence import (
     get_thought_by_id
 )
 
-class VisibilityService(VisibilityServiceProtocol, ServiceProtocol):
+class VisibilityService(BaseService, VisibilityServiceProtocol):
     """Service providing agent reasoning transparency."""
 
     def __init__(self, bus_manager: BusManager, time_service: TimeServiceProtocol, db_path: str) -> None:
         """Initialize with bus manager for querying other services."""
+        super().__init__(time_service=time_service)
         self.bus = bus_manager
-        self._running = False
-        self._time_service = time_service
-        self._start_time: Optional[datetime] = None
         self._db_path = db_path
 
-    async def start(self) -> None:
-        """Start the service."""
-        self._running = True
-        # Set start time using injected TimeService
-        self._start_time = self._time_service.now()
+    async def _on_start(self) -> None:
+        """Custom startup logic for visibility service."""
+        pass
 
-    async def stop(self) -> None:
-        """Stop the service."""
-        self._running = False
+    async def _on_stop(self) -> None:
+        """Custom cleanup logic for visibility service."""
+        pass
 
-    def get_capabilities(self) -> ServiceCapabilities:
-        """Get service capabilities."""
-        return ServiceCapabilities(
-            service_name="VisibilityService",
-            actions=[
-                "get_current_state",
-                "get_reasoning_trace",
-                "get_decision_history"
-            ],
-            version="1.0.0",
-            dependencies=["BusManager"],
-            metadata=None
-        )
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return [
+            "get_current_state",
+            "get_reasoning_trace",
+            "get_decision_history",
+            "explain_action"
+        ]
 
     def get_status(self) -> ServiceStatus:
         """Get service status."""
-        uptime = 0.0
-        if self._start_time:
-            current_time = self._time_service.now()
-            uptime = (current_time - self._start_time).total_seconds()
         return ServiceStatus(
             service_name="VisibilityService",
             service_type="visibility_service",
-            is_healthy=self._running,
-            uptime_seconds=uptime,
+            is_healthy=self._started,
+            uptime_seconds=self._calculate_uptime(),
             metrics={},
-            last_error=None,
-            last_health_check=self._time_service.now()
+            last_error=self._last_error,
+            last_health_check=self._last_health_check
         )
 
-    async def is_healthy(self) -> bool:
-        """Check if service is healthy."""
-        return self._running
+    def get_service_type(self) -> ServiceType:
+        """Get the service type enum value."""
+        return ServiceType.INFRASTRUCTURE_SERVICE
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all required dependencies are available."""
+        return self.bus is not None and self._db_path is not None
+    
+    def _register_dependencies(self) -> None:
+        """Register service dependencies."""
+        super()._register_dependencies()
+        self._dependencies.add("BusManager")
 
 
     async def get_current_state(self) -> VisibilitySnapshot:
@@ -141,7 +139,7 @@ class VisibilityService(VisibilityServiceProtocol, ServiceProtocol):
             reasoning_depth = max_depth
 
         return VisibilitySnapshot(
-            timestamp=self._time_service.now(),
+            timestamp=self._now(),
             current_task=current_task,
             active_thoughts=active_thoughts,
             recent_decisions=recent_decisions,
@@ -161,8 +159,8 @@ class VisibilityService(VisibilityServiceProtocol, ServiceProtocol):
                     task_id=task_id,
                     channel_id="system",
                     description="Task not found",
-                    created_at=self._time_service.now().isoformat(),
-                    updated_at=self._time_service.now().isoformat(),
+                    created_at=self._now().isoformat(),
+                    updated_at=self._now().isoformat(),
                     parent_task_id=None,
                     context=None,
                     outcome=None
@@ -248,7 +246,7 @@ class VisibilityService(VisibilityServiceProtocol, ServiceProtocol):
         # Get the task from persistence
         task = get_task_by_id(task_id, db_path=self._db_path)
         task_description = "Unknown task"
-        created_at = self._time_service.now()
+        created_at = self._now()
 
         if task:
             task_description = task.description

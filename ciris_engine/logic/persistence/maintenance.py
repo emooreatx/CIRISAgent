@@ -2,8 +2,9 @@ import logging
 from datetime import timedelta
 from pathlib import Path
 import asyncio
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 
+from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
 from ciris_engine.logic.persistence import (
     get_all_tasks,
     update_task_status,
@@ -22,61 +23,38 @@ from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
 
-class DatabaseMaintenanceService:
+class DatabaseMaintenanceService(BaseScheduledService):
     """
     Service for performing database maintenance tasks like cleanup and archiving.
     """
     def __init__(self, time_service: TimeServiceProtocol, archive_dir_path: str = "data_archive", archive_older_than_hours: int = 24, config_service: Optional[Any] = None) -> None:
+        # Initialize BaseScheduledService with hourly maintenance interval
+        super().__init__(
+            time_service=time_service,
+            run_interval_seconds=3600  # Run every hour
+        )
         self.time_service = time_service
         self.archive_dir = Path(archive_dir_path)
         self.archive_older_than_hours = archive_older_than_hours
-        # No special treatment - "no kings"
-        self._maintenance_task: Optional[asyncio.Task] = None
-        self._shutdown_event: Optional[asyncio.Event] = None
         self.config_service = config_service
 
-    def _ensure_shutdown_event(self) -> None:
-        """Ensure shutdown event is created when needed in async context."""
-        if self._shutdown_event is None:
-            try:
-                self._shutdown_event = asyncio.Event()
-            except RuntimeError:
-                logger.warning("Cannot create shutdown event outside of async context")
-
-    async def start(self) -> None:
-        """Start the maintenance service with periodic tasks."""
-        self._ensure_shutdown_event()
-        self._maintenance_task = asyncio.create_task(self._maintenance_loop())
-
-    async def stop(self) -> None:
-        """Properly stop the maintenance service."""
-        if self._shutdown_event:
-            self._shutdown_event.set()
-        if self._maintenance_task:
-            try:
-                await asyncio.wait_for(self._maintenance_task, timeout=5.0)
-            except asyncio.TimeoutError:
-                logger.warning("Maintenance task did not finish in time")
-                self._maintenance_task.cancel()
-        await self._final_cleanup()
-
-    async def _maintenance_loop(self) -> None:
-        """Periodic maintenance loop."""
-        while not (self._shutdown_event and self._shutdown_event.is_set()):
-            try:
-                if self._shutdown_event:
-                    await asyncio.wait_for(
-                        self._shutdown_event.wait(),
-                        timeout=3600  # Run every hour
-                    )
-                else:
-                    await asyncio.sleep(3600)  # Run every hour
-            except asyncio.TimeoutError:
-                await self._perform_periodic_maintenance()
+    async def _run_scheduled_task(self) -> None:
+        """
+        Execute scheduled maintenance tasks.
+        
+        This is called periodically by BaseScheduledService.
+        """
+        await self._perform_periodic_maintenance()
 
     async def _perform_periodic_maintenance(self) -> None:
         """Run periodic maintenance tasks."""
         logger.info("Periodic maintenance tasks executed.")
+        # The actual maintenance logic would go here
+        # For now, this is a placeholder
+
+    async def _on_stop(self) -> None:
+        """Stop hook for cleanup."""
+        await self._final_cleanup()
 
     async def _final_cleanup(self) -> None:
         """Final cleanup before shutdown."""
@@ -275,3 +253,17 @@ class DatabaseMaintenanceService:
                 
         except Exception as e:
             logger.error(f"Failed to clean up runtime config: {e}", exc_info=True)
+    
+    def get_capabilities(self) -> Dict[str, Any]:
+        """Get service capabilities."""
+        from ciris_engine.schemas.services.core import ServiceCapabilities
+        return ServiceCapabilities(
+            service_name="DatabaseMaintenanceService",
+            actions=["cleanup", "archive", "maintenance"],
+            version="1.0.0",
+            dependencies=["TimeService"],
+            metadata={
+                "archive_older_than_hours": self.archive_older_than_hours,
+                "maintenance_interval": "hourly"
+            }
+        )

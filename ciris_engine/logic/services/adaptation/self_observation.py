@@ -34,7 +34,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 from enum import Enum
 
-from ciris_engine.logic.adapters.base import Service
+from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
 from ciris_engine.protocols.services import SelfObservationServiceProtocol
 from ciris_engine.protocols.runtime.base import ServiceProtocol
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
@@ -69,7 +69,7 @@ class ObservationCycle:
     variance_after: Optional[float]
     completed_at: Optional[datetime]
 
-class SelfObservationService(Service, SelfObservationServiceProtocol, ServiceProtocol):
+class SelfObservationService(BaseScheduledService, SelfObservationServiceProtocol, ServiceProtocol):
     """
     Service that enables self-observation, pattern detection, and insight generation.
 
@@ -91,7 +91,11 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
         observation_interval_hours: int = 6,
         stabilization_period_hours: int = 24
     ) -> None:
-        super().__init__()
+        # Convert observation interval to seconds for BaseScheduledService
+        super().__init__(
+            time_service=time_service,
+            run_interval_seconds=observation_interval_hours * 3600
+        )
         self._time_service = time_service
         self._memory_bus = memory_bus
         self._variance_threshold = variance_threshold
@@ -114,7 +118,6 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
         self._emergency_stop = False
         self._consecutive_failures = 0
         self._max_failures = 3
-        self._start_time: Optional[datetime] = None
         self._pattern_history: List[DetectedPattern] = []  # Add missing attribute for tracking pattern history
         self._last_variance_report = 0.0  # Store last variance for status reporting
 
@@ -199,6 +202,19 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
         return baseline_id
 
 
+    async def _run_scheduled_task(self) -> None:
+        """
+        Execute the scheduled observation cycle.
+        
+        This is called periodically by BaseScheduledService.
+        """
+        # Check if we should actually run
+        if not await self._should_run_observation_cycle():
+            return
+            
+        # Run the observation cycle
+        await self._run_observation_cycle()
+
     async def _should_run_observation_cycle(self) -> bool:
         """Check if it's time to run an adaptation cycle."""
         # Don't run if in emergency stop
@@ -220,9 +236,8 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
             if time_since_last < self._stabilization_period:
                 return False
 
-        # Check interval
-        time_since_last = self._time_service.now() - self._last_adaptation
-        return time_since_last >= self._observation_interval
+        # We're already scheduled by BaseScheduledService, so just check state
+        return True
 
     async def _run_observation_cycle(self) -> ObservationCycleResult:
         """
@@ -445,7 +460,7 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
         if self._memory_bus:
             await self._memory_bus.memorize(stop_node, handler_name="self_observation")
 
-    async def start(self) -> None:
+    async def _on_start(self) -> None:
         """Start the self-configuration service."""
         # Start component services
         if self._variance_monitor:
@@ -455,10 +470,9 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
         if self._telemetry_service:
             await self._telemetry_service.start()
         
-        self._start_time: Optional[datetime] = self._time_service.now()
         logger.info("SelfObservationService started - enabling autonomous observation and learning")
 
-    async def stop(self) -> None:
+    async def _on_stop(self) -> None:
         """Stop the service."""
         # Complete current cycle if any
         if self._current_cycle and not self._current_cycle.completed_at:
@@ -509,25 +523,19 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
 
     def get_status(self) -> ServiceStatus:
         """Get current service status."""
-        current_time = self._time_service.now()
-        uptime_seconds = 0.0
-        if self._start_time is not None:
-            uptime_seconds = (current_time - self._start_time).total_seconds()
-            
-        return ServiceStatus(
-            service_name="SelfObservationService",
-            service_type="SPECIAL",
-            is_healthy=not self._emergency_stop and self._consecutive_failures < self._max_failures,
-            uptime_seconds=uptime_seconds,
-            last_error=None,
-            custom_metrics={
-                "adaptation_count": float(len(self._adaptation_history)),
-                "consecutive_failures": float(self._consecutive_failures),
-                "emergency_stop": float(self._emergency_stop),
-                "changes_since_last_adaptation": float(sum(c.changes_applied for c in self._adaptation_history[-1:]) if self._adaptation_history else 0)
-            },
-            last_health_check=current_time
-        )
+        # Let BaseScheduledService handle the status
+        status = super().get_status()
+        
+        # Add our custom metrics
+        status.custom_metrics.update({
+            "adaptation_count": float(len(self._adaptation_history)),
+            "consecutive_failures": float(self._consecutive_failures),
+            "emergency_stop": float(self._emergency_stop),
+            "changes_since_last_adaptation": float(sum(c.changes_applied for c in self._adaptation_history[-1:]) if self._adaptation_history else 0),
+            "current_variance": self._last_variance_report
+        })
+        
+        return status
 
     # ========== New Protocol Methods for 1000-Year Operation ==========
 

@@ -15,16 +15,16 @@ async def test_time_service_lifecycle():
     service = TimeService()
 
     # Before start
-    assert service._running is False
+    assert service._started is False
 
     # Start
     await service.start()
-    assert service._running is True
+    assert service._started is True
     assert service._start_time is not None
 
     # Stop
     await service.stop()
-    assert service._running is False
+    assert service._started is False
 
 
 def test_time_service_now():
@@ -91,12 +91,15 @@ async def test_time_service_status():
     status = service.get_status()
     assert isinstance(status, ServiceStatus)
     assert status.service_name == "TimeService"
-    assert status.service_type == "infrastructure"
+    assert status.service_type == "time"
     assert status.is_healthy is False  # Not running yet
 
     # After start
     await service.start()
     await asyncio.sleep(0.1)  # Let some time pass
+
+    # Check health to set last_health_check
+    await service.is_healthy()
 
     status = service.get_status()
     assert status.is_healthy is True
