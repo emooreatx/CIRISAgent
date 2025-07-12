@@ -2,7 +2,7 @@ from __future__ import annotations
 import logging
 from typing import Optional, Dict, List, Union, Any, TYPE_CHECKING
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 # Optional import for psutil
@@ -469,6 +469,7 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
                 cursor = conn.cursor()
                 
                 # Query for TSDB_DATA nodes in the time range
+                # ORDER BY DESC to get most recent metrics first
                 cursor.execute("""
                     SELECT node_id, attributes_json, created_at
                     FROM graph_nodes
@@ -476,7 +477,7 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
                       AND scope = ?
                       AND datetime(created_at) >= datetime(?)
                       AND datetime(created_at) <= datetime(?)
-                    ORDER BY created_at
+                    ORDER BY created_at DESC
                     LIMIT 1000
                 """, (scope, start_time.isoformat(), end_time.isoformat()))
                 
@@ -497,9 +498,21 @@ class LocalGraphMemoryService(MemoryService, GraphMemoryServiceProtocol):
                         # Get timestamp from created_at or attributes
                         timestamp_str = attrs.get('created_at', row['created_at'])
                         if isinstance(timestamp_str, str):
-                            timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                            # Handle both timezone-aware and naive timestamps
+                            if 'Z' in timestamp_str:
+                                timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                            elif '+' in timestamp_str or '-' in timestamp_str[-6:]:
+                                timestamp = datetime.fromisoformat(timestamp_str)
+                            else:
+                                # Naive timestamp - assume UTC
+                                timestamp = datetime.fromisoformat(timestamp_str)
+                                if timestamp.tzinfo is None:
+                                    timestamp = timestamp.replace(tzinfo=timezone.utc)
                         else:
                             timestamp = timestamp_str
+                            # Ensure timezone awareness
+                            if hasattr(timestamp, 'tzinfo') and timestamp.tzinfo is None:
+                                timestamp = timestamp.replace(tzinfo=timezone.utc)
                         
                         # Get tags
                         metric_tags = attrs.get('metric_tags', {})

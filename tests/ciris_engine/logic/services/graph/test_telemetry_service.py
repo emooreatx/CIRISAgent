@@ -175,7 +175,8 @@ async def test_telemetry_service_query_metrics(telemetry_service, memory_bus):
     memory_bus.recall_timeseries.assert_called_with(
         scope="local",
         hours=24,  # Default
-        correlation_types=["METRIC_DATAPOINT"],
+        start_time=None,
+        end_time=None,
         handler_name="telemetry_service"
     )
 

@@ -287,12 +287,15 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 hours = int((self._now() - start_time).total_seconds() / 3600)
 
             # Recall time series data from memory
+            # Pass actual start/end times for precise filtering
             timeseries_data = await self._memory_bus.recall_timeseries(
                 scope="local",  # Operational metrics are in local scope
                 hours=hours,
-                correlation_types=["METRIC_DATAPOINT"],
+                start_time=start_time,
+                end_time=end_time,
                 handler_name="telemetry_service"
             )
+            
 
             # Convert to dict format
             results: List[Dict[str, Union[str, float, datetime, Dict[str, str]]]] = []
@@ -321,6 +324,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                         ts = timestamp_value  # type: ignore[assignment]
                     
                     if ts is not None:
+                        
                         if start_time and ts < start_time:
                             continue
                         if end_time and ts > end_time:
@@ -334,6 +338,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                         "timestamp": data.timestamp,
                         "tags": data.tags or {}
                     })
+            
 
             return results
 
@@ -805,7 +810,6 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         data_points = await self._memory_bus.recall_timeseries(
             scope="local",
             hours=hours,
-            correlation_types=["METRIC_DATAPOINT"],
             handler_name="telemetry_service"
         )
         
@@ -925,6 +929,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         window_end = now
         window_start_24h = now - timedelta(hours=24)
         window_start_1h = now - timedelta(hours=1)
+        
 
         # Initialize counters
         tokens_24h = 0
@@ -969,6 +974,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                     start_time=window_start_24h,
                     end_time=window_end
                 )
+                
 
                 for metric in day_metrics:
                     raw_value = metric.get("value", 0)
@@ -980,16 +986,23 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                     timestamp = metric.get("timestamp")
                     tags_raw = metric.get("tags", {})
                     tags: Dict[str, str] = tags_raw if isinstance(tags_raw, dict) else {}
+                    
 
                     # Convert timestamp to datetime if needed
                     dt_timestamp: Optional[datetime] = None
-                    if isinstance(timestamp, str):
+                    if isinstance(timestamp, datetime):
+                        dt_timestamp = timestamp
+                        # Ensure timezone awareness
+                        if dt_timestamp.tzinfo is None:
+                            dt_timestamp = dt_timestamp.replace(tzinfo=timezone.utc)
+                    elif isinstance(timestamp, str):
                         try:
                             dt_timestamp = datetime.fromisoformat(timestamp)
+                            # Ensure timezone awareness
+                            if dt_timestamp.tzinfo is None:
+                                dt_timestamp = dt_timestamp.replace(tzinfo=timezone.utc)
                         except Exception:
                             continue
-                    elif isinstance(timestamp, datetime):
-                        dt_timestamp = timestamp
                     else:
                         continue  # Skip if timestamp is invalid
 
@@ -1092,6 +1105,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
 
             # Cache the result
             self._summary_cache[cache_key] = (now, summary)
+            
 
             return summary
 

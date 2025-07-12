@@ -400,30 +400,48 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
             cursor = conn.cursor()
             
             # Extract task_id from deferral_id
-            # Format is defer_{task_id}_{timestamp}
+            # Format can be either defer_{task_id} or defer_{task_id}_{timestamp}
             if deferral_id.startswith("defer_"):
-                parts = deferral_id.split('_')
-                if len(parts) >= 3:
-                    # Rejoin all parts except 'defer' and the timestamp
-                    task_id = '_'.join(parts[1:-1])
-                else:
-                    # Try to find by deferral_id in context
-                    cursor.execute("""
-                        SELECT task_id, context_json 
-                        FROM tasks 
-                        WHERE status = 'deferred' 
-                        AND context_json LIKE ?
-                    """, (f'%"deferral_id":"{deferral_id}"%',))
-                    
-                    row = cursor.fetchone()
-                    if row:
-                        task_id = row[0]
+                parts = deferral_id.split('_', 2)  # Split into at most 3 parts
+                if len(parts) == 2:
+                    # Simple format: defer_{task_id}
+                    task_id = parts[1]
+                elif len(parts) >= 3:
+                    # Timestamp format: defer_{task_id}_{timestamp}
+                    # The task_id might contain underscores, so we need to handle that
+                    # Remove 'defer_' prefix and find the last underscore for timestamp
+                    without_prefix = deferral_id[6:]  # Remove 'defer_'
+                    last_underscore = without_prefix.rfind('_')
+                    if last_underscore > 0:
+                        # Check if the part after last underscore looks like a timestamp
+                        potential_timestamp = without_prefix[last_underscore + 1:]
+                        try:
+                            float(potential_timestamp)  # Timestamps are floats
+                            task_id = without_prefix[:last_underscore]
+                        except ValueError:
+                            # Not a timestamp, so the whole thing is the task_id
+                            task_id = without_prefix
                     else:
-                        logger.error(f"Deferral {deferral_id} not found")
-                        conn.close()
-                        return False
+                        task_id = without_prefix
+                else:
+                    # Shouldn't happen, but handle it
+                    task_id = deferral_id[6:]  # Remove 'defer_' prefix
             else:
-                task_id = deferral_id  # Assume it's a task_id directly
+                # Try to find by deferral_id in context
+                cursor.execute("""
+                    SELECT task_id, context_json 
+                    FROM tasks 
+                    WHERE status = 'deferred' 
+                    AND context_json LIKE ?
+                """, (f'%"deferral_id":"{deferral_id}"%',))
+                
+                row = cursor.fetchone()
+                if row:
+                    task_id = row[0]
+                else:
+                    logger.error(f"Deferral {deferral_id} not found")
+                    conn.close()
+                    return False
             
             # Get existing context
             cursor.execute("""
