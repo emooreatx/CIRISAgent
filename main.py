@@ -123,6 +123,7 @@ async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds
                     try:
                         await runtime_task
                     except asyncio.CancelledError:
+                        # Expected when we cancel the task
                         pass
                     
                     # Ensure shutdown is called if the task was cancelled

@@ -45,6 +45,7 @@ class ActionHandlerDependencies:
         self.secrets_service = secrets_service
         self.shutdown_callback = shutdown_callback
         self._shutdown_requested = False
+        self._shutdown_task: Optional[asyncio.Task] = None
 
     def request_graceful_shutdown(self, reason: str = "Handler requested shutdown") -> None:
         """Request a graceful shutdown of the agent runtime."""
@@ -57,7 +58,7 @@ class ActionHandlerDependencies:
 
         # Use the shutdown service if available
         if self.bus_manager and hasattr(self.bus_manager, 'shutdown_service'):
-            asyncio.create_task(self.bus_manager.shutdown_service.request_shutdown(reason))
+            self._shutdown_task = asyncio.create_task(self.bus_manager.shutdown_service.request_shutdown(reason))
         else:
             # Fallback to global function if service not available
             request_global_shutdown(reason)

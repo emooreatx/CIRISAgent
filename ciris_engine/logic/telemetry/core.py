@@ -28,6 +28,7 @@ class BasicTelemetryCollector(Service):
         self._filter = security_filter or SecurityFilter()
         self._time_service = time_service or TimeService()
         self.start_time = self._time_service.now()
+        self._store_task: Optional[asyncio.Task] = None
 
     async def start(self) -> None:
         await super().start()
@@ -112,7 +113,7 @@ class BasicTelemetryCollector(Service):
             )
 
             # Store asynchronously without blocking metric recording
-            asyncio.create_task(self._store_metric_correlation(metric_correlation))
+            self._store_task = asyncio.create_task(self._store_metric_correlation(metric_correlation))
         except Exception as e:
             logger.error(f"Failed to create metric correlation: {e}")
 

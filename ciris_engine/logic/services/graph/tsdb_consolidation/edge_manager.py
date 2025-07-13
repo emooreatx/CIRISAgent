@@ -6,7 +6,7 @@ Handles proper creation of edges in the graph_edges table instead of storing as 
 
 import logging
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional, Set, Tuple
 from uuid import uuid4
 
@@ -61,7 +61,7 @@ class EdgeManager:
                         relationship,
                         attrs.get('weight', 1.0),
                         json.dumps(attrs),
-                        datetime.utcnow().isoformat()
+                        datetime.now(timezone.utc).isoformat()
                     ))
                     edges_created += 1
                 
@@ -113,7 +113,7 @@ class EdgeManager:
                         relationship,
                         1.0,  # Default weight
                         f'{{"context": "{context or "Summary edge"}"}}',
-                        datetime.utcnow().isoformat()
+                        datetime.now(timezone.utc).isoformat()
                     ))
                 
                 # Insert edges
@@ -180,7 +180,7 @@ class EdgeManager:
                             relationship,
                             1.0,
                             f'{{"context": "Same period correlation for {period_start.isoformat()}"}}',
-                            datetime.utcnow().isoformat()
+                            datetime.now(timezone.utc).isoformat()
                         ))
                 
                 if edge_data:
@@ -241,7 +241,7 @@ class EdgeManager:
                     "TEMPORAL_NEXT",
                     1.0,
                     json.dumps({"is_latest": True, "context": "Current latest summary"}),
-                    datetime.utcnow().isoformat()
+                    datetime.now(timezone.utc).isoformat()
                 ))
                 edges_created += 1
                 
@@ -270,7 +270,7 @@ class EdgeManager:
                         "TEMPORAL_NEXT",
                         1.0,
                         json.dumps({"is_latest": False, "context": "Points to next period"}),
-                        datetime.utcnow().isoformat()
+                        datetime.now(timezone.utc).isoformat()
                     ))
                     edges_created += 1
                     
@@ -289,7 +289,7 @@ class EdgeManager:
                         "TEMPORAL_PREV",
                         1.0,
                         json.dumps({"context": "Points to previous period"}),
-                        datetime.utcnow().isoformat()
+                        datetime.now(timezone.utc).isoformat()
                     ))
                     edges_created += 1
                 
@@ -342,7 +342,7 @@ class EdgeManager:
                             "PERIOD_CONCEPT",
                             0.8,  # Slightly lower weight for indirect relationships
                             f'{{"context": "Concept created during {period_label}"}}',
-                            datetime.utcnow().isoformat()
+                            datetime.now(timezone.utc).isoformat()
                         ))
                 
                 if edge_data:
@@ -482,7 +482,7 @@ class EdgeManager:
                         user_attributes = {
                             'user_id': user_id,
                             'display_name': metrics['author_name'],
-                            'first_seen': datetime.utcnow().isoformat(),
+                            'first_seen': datetime.now(timezone.utc).isoformat(),
                             'created_by': 'tsdb_consolidation',
                             'channels': metrics['channels']
                         }
@@ -499,8 +499,8 @@ class EdgeManager:
                             json.dumps(user_attributes),
                             1,
                             'tsdb_consolidation',
-                            datetime.utcnow().isoformat(),
-                            datetime.utcnow().isoformat()
+                            datetime.now(timezone.utc).isoformat(),
+                            datetime.now(timezone.utc).isoformat()
                         ))
                         user_exists = True
                     
@@ -528,7 +528,7 @@ class EdgeManager:
                             "INVOLVED_USER",
                             weight,
                             json.dumps(attributes),
-                            datetime.utcnow().isoformat()
+                            datetime.now(timezone.utc).isoformat()
                         ))
                     else:
                         logger.debug(f"User node not found for user_id: {user_id}")
@@ -623,7 +623,7 @@ class EdgeManager:
                             relationship,
                             1.0,  # Default weight
                             json.dumps(edge_attrs),
-                            datetime.utcnow().isoformat()
+                            datetime.now(timezone.utc).isoformat()
                         ))
                     else:
                         # Normal edge between different nodes
@@ -636,7 +636,7 @@ class EdgeManager:
                             relationship,
                             1.0,  # Default weight
                             json.dumps(attrs) if attrs else '{}',
-                            datetime.utcnow().isoformat()
+                            datetime.now(timezone.utc).isoformat()
                         ))
                 
                 if edge_data:
@@ -716,7 +716,7 @@ class EdgeManager:
                                 "TEMPORAL_NEXT",
                                 1.0,
                                 json.dumps({"direction": "forward", "context": "Next period in sequence"}),
-                                datetime.utcnow().isoformat()
+                                datetime.now(timezone.utc).isoformat()
                             ))
                             
                             if cursor.rowcount > 0:
@@ -737,7 +737,7 @@ class EdgeManager:
                                     "TEMPORAL_PREV",
                                     1.0,
                                     json.dumps({"direction": "backward", "context": "Previous period in sequence"}),
-                                    datetime.utcnow().isoformat()
+                                    datetime.now(timezone.utc).isoformat()
                                 ))
                                 
                                 if cursor.rowcount > 0:

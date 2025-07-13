@@ -8,6 +8,7 @@ import asyncio
 import sys
 from typing import Awaitable, Callable, Dict, List, Optional, Any
 from datetime import datetime
+import aiofiles
 
 from ciris_engine.schemas.adapters.cli import (
     ListFilesToolParams, ListFilesToolResult, ReadFileToolParams,
@@ -554,8 +555,8 @@ Tools available:
         try:
             # Validate parameters using schema
             read_params = ReadFileToolParams.model_validate(params)
-            with open(read_params.path, 'r') as f:
-                content = f.read()
+            async with aiofiles.open(read_params.path, 'r') as f:
+                content = await f.read()
             result = ReadFileToolResult(success=True, content=content, size=len(content), error=None)
             return result.model_dump()
         except ValueError:

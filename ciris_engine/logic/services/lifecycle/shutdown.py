@@ -31,6 +31,7 @@ class ShutdownService(BaseInfrastructureService, ShutdownServiceProtocol):
         self._lock = Lock()
         self._shutdown_event: Optional[asyncio.Event] = None
         self._emergency_mode = False
+        self._force_kill_task: Optional[asyncio.Task] = None
 
     async def start(self) -> None:
         """Start the service."""
@@ -256,7 +257,7 @@ class ShutdownService(BaseInfrastructureService, ShutdownServiceProtocol):
             os.kill(os.getpid(), signal.SIGKILL)
 
         # Start force kill timer
-        asyncio.create_task(force_kill())
+        self._force_kill_task = asyncio.create_task(force_kill())
 
         # Try graceful exit first
         logger.info("Attempting graceful exit...")

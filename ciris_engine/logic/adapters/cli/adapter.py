@@ -182,6 +182,7 @@ class CliPlatform(Service):
 
         except asyncio.CancelledError:
             logger.info("CliPlatform: Lifecycle was cancelled.")
+            raise
         except Exception as e:
             logger.error(f"CliPlatform: Lifecycle error: {e}", exc_info=True)
         finally:

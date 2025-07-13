@@ -8,6 +8,7 @@ from typing import Any, List, Optional
 from pathlib import Path
 import os
 import json
+import aiofiles
 
 from ciris_engine.logic.services.graph.memory_service import LocalGraphMemoryService
 from ciris_engine.logic.services.runtime.llm_service import OpenAICompatibleClient
@@ -132,15 +133,15 @@ class ServiceInitializer:
 
         if master_key_path.exists():
             # Load existing master key
-            with open(master_key_path, 'rb') as f:
-                master_key = f.read()
+            async with aiofiles.open(master_key_path, 'rb') as f:
+                master_key = await f.read()
             logger.info("Loaded existing secrets master key")
         else:
             # Generate new master key and save it
             import secrets
             master_key = secrets.token_bytes(32)
-            with open(master_key_path, 'wb') as f:
-                f.write(master_key)
+            async with aiofiles.open(master_key_path, 'wb') as f:
+                await f.write(master_key)
             # Set restrictive permissions (owner read/write only)
             os.chmod(master_key_path, 0o600)
             logger.info("Generated and saved new secrets master key")
@@ -185,8 +186,8 @@ This directory contains critical cryptographic keys for the CIRIS system.
 - Share the private keys or master key
 - Store copies in insecure locations
 """
-            with open(readme_path, 'w') as f:
-                f.write(readme_content)
+            async with aiofiles.open(readme_path, 'w') as f:
+                await f.write(readme_content)
             logger.info("Created .ciris_keys/README.md")
 
         db_path = get_sqlite_db_full_path()
@@ -367,8 +368,9 @@ This directory contains critical cryptographic keys for the CIRIS system.
 
                 if manifest_path.exists():
                     try:
-                        with open(manifest_path) as f:
-                            manifest_data = json.load(f)
+                        async with aiofiles.open(manifest_path) as f:
+                            content = await f.read()
+                            manifest_data = json.loads(content)
                         
                         # Parse into typed manifest
                         manifest = ServiceManifest.model_validate(manifest_data)

@@ -7,9 +7,12 @@ Consolidates AUDIT_ENTRY nodes into AuditSummaryNode with hash chain verificatio
 import logging
 import json
 import hashlib
-from datetime import datetime
-from typing import List, Dict, Any, Optional, Tuple
+from datetime import datetime, timezone
+from typing import List, Dict, Any, Optional, Tuple, TYPE_CHECKING
 from collections import defaultdict
+
+if TYPE_CHECKING:
+    from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.services.operations import MemoryOpStatus
@@ -21,14 +24,20 @@ logger = logging.getLogger(__name__)
 class AuditConsolidator:
     """Consolidates audit entries into summaries with cryptographic hashing."""
     
-    def __init__(self, memory_bus: Optional[MemoryBus] = None):
+    def __init__(
+        self, 
+        memory_bus: Optional[MemoryBus] = None,
+        time_service: Optional["TimeServiceProtocol"] = None
+    ):
         """
         Initialize audit consolidator.
         
         Args:
             memory_bus: Memory bus for storing results
+            time_service: Time service for consistent timestamps
         """
         self._memory_bus = memory_bus
+        self._time_service = time_service
     
     async def consolidate(
         self,
@@ -70,7 +79,8 @@ class AuditConsolidator:
         high_severity_events = []
         
         # Sort nodes by timestamp for chronological ordering
-        sorted_nodes = sorted(audit_nodes, key=lambda n: n.updated_at or datetime.utcnow())
+        current_time = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
+        sorted_nodes = sorted(audit_nodes, key=lambda n: n.updated_at or current_time)
         
         first_event_id = None
         last_event_id = None
@@ -230,7 +240,8 @@ class AuditConsolidator:
         edges = []
         
         # Sort nodes by timestamp
-        sorted_nodes = sorted(audit_nodes, key=lambda n: n.updated_at or datetime.utcnow())
+        current_time = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
+        sorted_nodes = sorted(audit_nodes, key=lambda n: n.updated_at or current_time)
         
         # Link to first and last events (self-reference with data in attributes)
         if sorted_nodes:

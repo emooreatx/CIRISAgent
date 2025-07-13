@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from datetime import datetime
 import logging
+import aiofiles
 
 from ..services.auth_service import APIAuthService
 from ciris_engine.schemas.runtime.api import (
@@ -362,21 +363,36 @@ async def mint_wise_authority(
         import base64
         
         try:
-            # Expand path
-            key_path = os.path.expanduser(request.private_key_path)
+            # Security: Validate the private key path
+            # Only allow alphanumeric characters, dots, dashes, and underscores in filename
+            import re
+            if not request.private_key_path:
+                raise HTTPException(status_code=400, detail="Private key path is required")
             
-            # Security check: only allow access to ~/.ciris/wa_keys/ directory
+            # Extract just the filename, no path components allowed
+            filename = os.path.basename(request.private_key_path)
+            if not re.match(r'^[a-zA-Z0-9._-]+$', filename):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid key filename. Only alphanumeric characters, dots, dashes, and underscores are allowed"
+                )
+            
+            # Construct the safe path - no user input in directory path
             allowed_base = os.path.expanduser("~/.ciris/wa_keys/")
-            resolved_path = os.path.realpath(key_path)
-            if not resolved_path.startswith(allowed_base):
+            safe_path = os.path.join(allowed_base, filename)
+            
+            # Double-check with realpath to prevent any symlink attacks
+            resolved_path = os.path.realpath(safe_path)
+            allowed_base_resolved = os.path.realpath(allowed_base)
+            if not resolved_path.startswith(allowed_base_resolved):
                 raise HTTPException(
                     status_code=403,
-                    detail="Private key must be in ~/.ciris/wa_keys/ directory"
+                    detail="Access denied: path traversal detected"
                 )
             
             # Read the private key
-            with open(resolved_path, 'rb') as f:
-                private_key_bytes = f.read()
+            async with aiofiles.open(resolved_path, 'rb') as f:
+                private_key_bytes = await f.read()
             
             # Create Ed25519 private key object
             private_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key_bytes)
@@ -388,12 +404,12 @@ async def mint_wise_authority(
             # Encode to base64
             signature = base64.b64encode(signature_bytes).decode()
             
-            logger.info(f"Auto-signed WA mint request for {user_id} using key at {key_path}")
+            logger.info(f"Auto-signed WA mint request for {user_id} using key file: {filename}")
             
         except FileNotFoundError:
             raise HTTPException(
                 status_code=404,
-                detail=f"Private key not found at {request.private_key_path}"
+                detail=f"Private key file not found: {filename}"
             )
         except Exception as e:
             logger.error(f"Failed to auto-sign: {e}")
@@ -437,31 +453,42 @@ async def mint_wise_authority(
 
 @router.get("/wa/key-check")
 async def check_wa_key_exists(
-    path: str = Query(..., description="Path to check for private key"),
+    path: str = Query(..., description="Filename of private key to check"),
     auth: AuthContext = Depends(get_auth_context),
     _: None = Depends(check_permissions(["wa.mint"]))  # SYSTEM_ADMIN only
 ) -> Dict[str, Any]:
     """
-    Check if a WA private key exists at the given path.
+    Check if a WA private key exists at the given filename.
     
     Requires: wa.mint permission (SYSTEM_ADMIN only)
     
     This is used by the UI to determine if auto-signing is available.
-    Only checks paths within ~/.ciris/wa_keys/ for security.
+    Only checks files within ~/.ciris/wa_keys/ for security.
     """
     import os
+    import re
     
     try:
-        # Expand path
-        key_path = os.path.expanduser(path)
-        
-        # Security check: only allow access to ~/.ciris/wa_keys/ directory
-        allowed_base = os.path.expanduser("~/.ciris/wa_keys/")
-        resolved_path = os.path.realpath(key_path)
-        if not resolved_path.startswith(allowed_base):
+        # Security: Validate the filename
+        # Extract just the filename, no path components allowed
+        filename = os.path.basename(path)
+        if not re.match(r'^[a-zA-Z0-9._-]+$', filename):
             return {
                 "exists": False,
-                "error": "Path must be within ~/.ciris/wa_keys/ directory"
+                "error": "Invalid filename. Only alphanumeric characters, dots, dashes, and underscores are allowed"
+            }
+        
+        # Construct the safe path - no user input in directory path
+        allowed_base = os.path.expanduser("~/.ciris/wa_keys/")
+        safe_path = os.path.join(allowed_base, filename)
+        
+        # Double-check with realpath to prevent any symlink attacks
+        resolved_path = os.path.realpath(safe_path)
+        allowed_base_resolved = os.path.realpath(allowed_base)
+        if not resolved_path.startswith(allowed_base_resolved):
+            return {
+                "exists": False,
+                "error": "Access denied: path traversal detected"
             }
         
         # Check if file exists and is readable
@@ -476,20 +503,20 @@ async def check_wa_key_exists(
                 "exists": True,
                 "valid_size": valid_size,
                 "size": file_size,
-                "path": path
+                "filename": filename
             }
         else:
             return {
                 "exists": False,
-                "path": path
+                "filename": filename
             }
             
     except Exception as e:
-        logger.error(f"Error checking key at {path}: {e}")
+        logger.error(f"Error checking key file {filename}: {e}")
         return {
             "exists": False,
-            "error": str(e),
-            "path": path
+            "error": "Failed to check key file",
+            "filename": filename
         }
 
 

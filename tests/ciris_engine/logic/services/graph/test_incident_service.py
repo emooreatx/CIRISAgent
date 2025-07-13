@@ -293,11 +293,15 @@ def test_incident_service_status(incident_service: IncidentManagementService) ->
 
 
 @pytest.mark.asyncio
-async def test_incident_service_error_handling(incident_service: IncidentManagementService, mock_memory_bus: Mock) -> None:
+async def test_incident_service_error_handling(incident_service: IncidentManagementService, mock_memory_bus: Mock, monkeypatch) -> None:
     """Test error handling when memory service fails."""
     # Make search raise an error
     mock_memory_service = mock_memory_bus.service_registry.get_services_by_type("memory")[0]
     mock_memory_service.search.side_effect = Exception("Database error")
+
+    # Mock Path.exists to return False so it doesn't try to read the log file
+    from pathlib import Path
+    monkeypatch.setattr(Path, "exists", lambda self: False)
 
     # Should handle error gracefully
     insight = await incident_service.process_recent_incidents(hours=24)

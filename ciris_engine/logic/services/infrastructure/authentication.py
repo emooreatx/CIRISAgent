@@ -13,6 +13,7 @@ import logging
 from typing import Optional, List, Dict, Tuple, Callable, TypeVar, Union, TYPE_CHECKING, Any
 from datetime import datetime, timezone
 from pathlib import Path
+import aiofiles
 
 import jwt
 from cryptography.hazmat.primitives import hashes, serialization
@@ -543,15 +544,39 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             if not decoded:
                 return None
             
-            # Validate sub_type after verification
+            # Validate sub_type and algorithm after verification
+            # IMPORTANT: We must validate that the token was verified with the expected algorithm
+            # to prevent algorithm confusion attacks
             sub_type = decoded.get('sub_type')
+            
+            # Determine which verification succeeded based on the algorithm
+            verified_with_gateway = False
+            verified_with_wa_key = False
+            
+            # Re-verify to determine which key actually verified the token
+            try:
+                jwt.decode(token, self.gateway_secret, algorithms=['HS256'])
+                verified_with_gateway = True
+            except jwt.InvalidTokenError:
+                pass
+                
+            if not verified_with_gateway:
+                try:
+                    public_key_bytes = self._decode_public_key(wa.pubkey)
+                    public_key = ed25519.Ed25519PublicKey.from_public_bytes(public_key_bytes)
+                    jwt.decode(token, public_key, algorithms=['EdDSA'])
+                    verified_with_wa_key = True
+                except jwt.InvalidTokenError:
+                    pass
+            
+            # Validate that the token type matches the verification method
             if sub_type == JWTSubType.AUTHORITY.value:
-                # Authority tokens must be EdDSA signed
-                if header.get('alg') != 'EdDSA':
+                # Authority tokens must be verified with WA key (EdDSA)
+                if not verified_with_wa_key:
                     return None
             elif sub_type in [JWTSubType.ANON.value, JWTSubType.OAUTH.value, JWTSubType.USER.value]:
-                # Gateway tokens must be HS256 signed
-                if header.get('alg') != 'HS256':
+                # Gateway tokens must be verified with gateway secret (HS256)
+                if not verified_with_gateway:
                     return None
             else:
                 return None
@@ -1132,8 +1157,9 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             # Load and insert root certificate
             seed_path = Path(__file__).parent.parent.parent / "seed" / "root_pub.json"
             if seed_path.exists():
-                with open(seed_path) as f:
-                    root_data = json.load(f)
+                async with aiofiles.open(seed_path) as f:
+                    content = await f.read()
+                    root_data = json.loads(content)
 
                 # Convert created timestamp - handle both 'Z' and '+00:00' formats
                 created_str = root_data['created']
@@ -1199,34 +1225,32 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
     def verify_token_sync(self, token: str) -> Optional[dict]:
         """Synchronously verify a token (for non-async contexts)."""
         try:
-            # Decode header to get kid
-            header = jwt.get_unverified_header(token)
-            kid = header.get('kid')
-
-            if not kid:
-                return None
-
             # For sync verification, we can only verify gateway-signed tokens
             # since authority tokens require async DB lookups for public keys
             
             # Try gateway-signed token verification
             try:
+                # Verify the token with gateway secret first
                 decoded = jwt.decode(token, self.gateway_secret, algorithms=['HS256'])
-                # Validate that this is indeed a gateway-signed token
+                
+                # Now that the token is verified, we can trust its contents
+                # Validate that this is indeed a gateway-signed token type
                 sub_type = decoded.get('sub_type')
                 if sub_type in [JWTSubType.ANON.value, JWTSubType.OAUTH.value, JWTSubType.USER.value]:
-                    # Also verify the algorithm matches
-                    if header.get('alg') == 'HS256':
-                        return decoded
+                    # Valid gateway token
+                    return decoded
+                else:
+                    # Invalid sub_type for gateway token
+                    return None
+                    
             except jwt.InvalidTokenError:
+                # Token failed verification with gateway secret
                 pass
             
             # Authority tokens require async DB access for public key retrieval
             # So we cannot verify them in sync mode
             return None
 
-        except jwt.InvalidTokenError:
-            return None
         except Exception:
             return None
 

@@ -74,9 +74,9 @@ class TSDBConsolidationService(BaseGraphService):
         self._metrics_consolidator = MetricsConsolidator(memory_bus)
         self._memory_consolidator = MemoryConsolidator(memory_bus)
         self._task_consolidator = TaskConsolidator(memory_bus)
-        self._conversation_consolidator = ConversationConsolidator(memory_bus)
+        self._conversation_consolidator = ConversationConsolidator(memory_bus, time_service)
         self._trace_consolidator = TraceConsolidator(memory_bus)
-        self._audit_consolidator = AuditConsolidator(memory_bus)
+        self._audit_consolidator = AuditConsolidator(memory_bus, time_service)
         
         self._consolidation_interval = timedelta(hours=consolidation_interval_hours)
         self._raw_retention = timedelta(hours=raw_retention_hours)
@@ -135,7 +135,7 @@ class TSDBConsolidationService(BaseGraphService):
             try:
                 await self._consolidation_task
             except asyncio.CancelledError:
-                pass
+                pass  # Expected when stopping the service
         
         await super().stop()
         logger.info("TSDBConsolidationService stopped")
@@ -156,7 +156,8 @@ class TSDBConsolidationService(BaseGraphService):
                     await self._run_consolidation()
                 
             except asyncio.CancelledError:
-                break
+                logger.debug("Consolidation loop cancelled")
+                raise  # Re-raise to properly exit the task
             except Exception as e:
                 logger.error(f"Consolidation loop error: {e}", exc_info=True)
                 await asyncio.sleep(300)  # 5 minutes

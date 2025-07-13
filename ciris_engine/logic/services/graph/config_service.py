@@ -255,7 +255,11 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
                         else:
                             callback(key, old_value, new_value)
                     except Exception as e:
-                        logger.error(f"Error notifying config listener for {key}: {e}")
+                        # Sanitize key for logging to prevent log injection
+                        safe_key = key.replace('\n', '\\n').replace('\r', '\\r')
+                        if len(safe_key) > 100:
+                            safe_key = safe_key[:100] + '...'
+                        logger.error(f"Error notifying config listener for config key: {safe_key}, pattern: {pattern}, error: {str(e)[:200]}")
     
     # Required methods for BaseGraphService
     

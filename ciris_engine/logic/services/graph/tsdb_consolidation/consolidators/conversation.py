@@ -7,12 +7,15 @@ Consolidates SERVICE_INTERACTION correlations into ConversationSummaryNode.
 import logging
 import json
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, TYPE_CHECKING
 from collections import defaultdict
 
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.services.operations import MemoryOpStatus
 from ciris_engine.logic.buses.memory_bus import MemoryBus
+
+if TYPE_CHECKING:
+    from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -20,14 +23,16 @@ logger = logging.getLogger(__name__)
 class ConversationConsolidator:
     """Consolidates conversation and interaction data."""
     
-    def __init__(self, memory_bus: Optional[MemoryBus] = None):
+    def __init__(self, memory_bus: Optional[MemoryBus] = None, time_service: Optional['TimeServiceProtocol'] = None):
         """
         Initialize conversation consolidator.
         
         Args:
             memory_bus: Memory bus for storing results
+            time_service: Time service for consistent timestamps
         """
         self._memory_bus = memory_bus
+        self._time_service = time_service
     
     async def consolidate(
         self,
@@ -212,7 +217,7 @@ class ConversationConsolidator:
                         "username": data.get('author_name', user_id)
                     },
                     updated_by="tsdb_consolidation",
-                    updated_at=datetime.utcnow()
+                    updated_at=period_end if not self._time_service else self._time_service.now()
                 )
                 
                 edges.append((
@@ -241,7 +246,7 @@ class ConversationConsolidator:
                     "channel_id": channel_id
                 },
                 updated_by="tsdb_consolidation",
-                updated_at=datetime.utcnow()
+                updated_at=period_end if not self._time_service else self._time_service.now()
             )
             
             edges.append((

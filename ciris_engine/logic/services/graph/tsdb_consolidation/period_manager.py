@@ -62,11 +62,7 @@ class PeriodManager:
         # Get current period
         period_start, period_end = self.get_period_boundaries(current_time)
         
-        # If we're already at a boundary, return the next one
-        if current_time == period_start:
-            return period_end
-        
-        # Otherwise return the end of current period
+        # Always return the end of current period as the next period start
         return period_end
     
     def get_period_label(self, period_start: datetime) -> str:

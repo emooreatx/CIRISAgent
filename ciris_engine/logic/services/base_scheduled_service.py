@@ -58,7 +58,7 @@ class BaseScheduledService(BaseService):
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # Expected when stopping the service
             self._task = None
             self._logger.info(f"{self.service_name}: Stopped scheduled task")
         
@@ -84,7 +84,8 @@ class BaseScheduledService(BaseService):
                 
             except asyncio.CancelledError:
                 # Task was cancelled, exit cleanly
-                break
+                self._logger.debug(f"{self.service_name}: Scheduled task cancelled")
+                raise  # Re-raise to properly exit the task
             except Exception as e:
                 # Track errors but continue running
                 self._task_error_count += 1
@@ -98,7 +99,8 @@ class BaseScheduledService(BaseService):
             try:
                 await asyncio.sleep(self._run_interval)
             except asyncio.CancelledError:
-                break
+                self._logger.debug(f"{self.service_name}: Sleep cancelled, exiting loop")
+                raise  # Re-raise to properly exit the task
     
     @abstractmethod
     async def _run_scheduled_task(self) -> None:
