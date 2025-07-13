@@ -31,6 +31,9 @@ logs/
 
 # Data files
 data/
+data_old/
+data_archive/
+ciris_engine/logic/data/
 *.db
 *.sqlite
 *.sqlite3
@@ -40,6 +43,10 @@ data/
 .coverage.*
 htmlcov/
 coverage.xml
+
+# Cache directories
+.mypy_cache/
+.pytest_cache/
 
 # IDE / Editor specific
 .idea/
@@ -58,3 +65,12 @@ ciris_mvp.log
 text.log
 env*.sh
 *.env
+CIRISGUI/
+htmlcov_latest/
+audit_logs.jsonl
+homeassistant-ciris/
+wyoming-faster-whisper-example/
+wyoming-satellite-example/
+CIRISVoice/
+vulture_*.txt
+vulture_*.md
