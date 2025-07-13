@@ -7,14 +7,14 @@ This replaces the old config_manager_service and agent_config_service.
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, TYPE_CHECKING, Callable, Any
 
 # Optional import for psutil
 try:
     import psutil
     PSUTIL_AVAILABLE = True
 except ImportError:
-    psutil = None
+    psutil = None  # type: ignore
     PSUTIL_AVAILABLE = False
 
 from ciris_engine.protocols.services.graph.config import GraphConfigServiceProtocol
@@ -41,7 +41,7 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
         self._start_time: Optional[datetime] = None
         self._process = psutil.Process() if PSUTIL_AVAILABLE else None  # For memory tracking
         self._config_cache: Dict[str, ConfigNode] = {}  # Cache for config nodes
-        self._config_listeners: Dict[str, List[callable]] = {}  # key_pattern -> [callbacks]
+        self._config_listeners: Dict[str, List[Callable]] = {}  # key_pattern -> [callbacks]
 
     async def start(self) -> None:
         """Start the service."""
@@ -200,7 +200,7 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
         await self._notify_listeners(key, old_value, value)
 
 
-    async def list_configs(self, prefix: Optional[str] = None) -> Dict[str, ConfigValue]:
+    async def list_configs(self, prefix: Optional[str] = None) -> Dict[str, Union[str, int, float, bool, List, Dict]]:
         """List all configurations with optional prefix filter."""
         # Get all config nodes
         all_nodes = await self.graph.search("type:config")
@@ -218,10 +218,10 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
                 logger.warning(f"Failed to convert node to ConfigNode: {e}")
                 continue
 
-        # Return key->ConfigValue mapping
-        return {key: node.value for key, node in config_map.items()}
+        # Return key->value mapping (extract actual value from ConfigValue)
+        return {key: node.value.value for key, node in config_map.items()}
 
-    def register_config_listener(self, key_pattern: str, callback: callable) -> None:
+    def register_config_listener(self, key_pattern: str, callback: Callable) -> None:
         """Register a callback for config changes matching the key pattern.
         
         Args:
@@ -233,14 +233,14 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
         self._config_listeners[key_pattern].append(callback)
         logger.info(f"Registered config listener for pattern: {key_pattern}")
     
-    def unregister_config_listener(self, key_pattern: str, callback: callable) -> None:
+    def unregister_config_listener(self, key_pattern: str, callback: Callable) -> None:
         """Unregister a config change callback."""
         if key_pattern in self._config_listeners:
             self._config_listeners[key_pattern].remove(callback)
             if not self._config_listeners[key_pattern]:
                 del self._config_listeners[key_pattern]
     
-    async def _notify_listeners(self, key: str, old_value: any, new_value: any) -> None:
+    async def _notify_listeners(self, key: str, old_value: Any, new_value: Any) -> None:
         """Notify registered listeners of config changes."""
         import fnmatch
         

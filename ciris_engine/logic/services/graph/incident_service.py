@@ -6,7 +6,7 @@ and generates insights for agent self-improvement. It's integrated with the drea
 for continuous learning from operational issues.
 """
 import logging
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional, TYPE_CHECKING
 from datetime import timedelta
 from collections import defaultdict
 
@@ -27,6 +27,10 @@ from ciris_engine.schemas.services.core import (
 from ciris_engine.logic.services.graph.base import BaseGraphService
 from datetime import datetime
 
+if TYPE_CHECKING:
+    from ciris_engine.logic.buses import MemoryBus
+    from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+
 logger = logging.getLogger(__name__)
 
 class IncidentManagementService(BaseGraphService):
@@ -41,7 +45,7 @@ class IncidentManagementService(BaseGraphService):
     5. Tracks effectiveness of applied changes
     """
 
-    def __init__(self, memory_bus=None, time_service=None) -> None:
+    def __init__(self, memory_bus: Optional['MemoryBus'] = None, time_service: Optional['TimeServiceProtocol'] = None) -> None:
         super().__init__(memory_bus=memory_bus, time_service=time_service)
         self.service_name = "IncidentManagementService"
         self._started = False
@@ -109,13 +113,16 @@ class IncidentManagementService(BaseGraphService):
             )
 
             # Store insight in graph
-            result = await self._memory_bus.memorize(
-                node=insight.to_graph_node(),
-                handler_name=self.service_name
-            )
+            if self._memory_bus:
+                result = await self._memory_bus.memorize(
+                    node=insight.to_graph_node(),
+                    handler_name=self.service_name
+                )
 
-            if result.status != MemoryOpStatus.OK:
-                logger.error("Failed to store incident insight: %s", result.error)
+                if result.status != MemoryOpStatus.OK:
+                    logger.error("Failed to store incident insight: %s", result.error)
+            else:
+                logger.warning("Memory bus not available, cannot store incident insight")
 
             # Mark analyzed incidents
             await self._mark_incidents_analyzed(incidents)
@@ -126,7 +133,7 @@ class IncidentManagementService(BaseGraphService):
             logger.error("Failed to process incidents: %s", e, exc_info=True)
             raise
 
-    async def _get_recent_incidents(self, cutoff_time) -> List[IncidentNode]:
+    async def _get_recent_incidents(self, cutoff_time: datetime) -> List[IncidentNode]:
         """Get recent incidents from memory service."""
         if not self._memory_bus:
             logger.error("Memory bus not available")
@@ -151,17 +158,21 @@ class IncidentManagementService(BaseGraphService):
                 return incidents
                 
             # Otherwise query memory bus normally
-            from ciris_engine.schemas.services.operations import MemoryQuery
+            from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
             
-            query = MemoryQuery(
-                conditions={
-                    "node_type": NodeType.AUDIT_ENTRY,
-                    "created_at__gte": cutoff_time.isoformat()
-                },
+            # Create search filter for audit entries created after cutoff time
+            search_filter = MemorySearchFilter(
+                node_type=NodeType.AUDIT_ENTRY.value,
+                created_after=cutoff_time,
                 limit=1000
             )
             
-            nodes = await self._memory_bus.recall(query)
+            # Use search method to find audit entries
+            nodes = await self._memory_bus.search(
+                query="",  # Empty query to get all matching nodes
+                filters=search_filter,
+                handler_name="incident_service"
+            )
             
             # Convert GraphNodes to IncidentNodes
             incidents = []
@@ -227,7 +238,7 @@ class IncidentManagementService(BaseGraphService):
                                 description=message,
                                 source_component=component,
                                 detected_at=timestamp,
-                                filename=filename,
+                                filename=location,  # Use location as filename
                                 line_number=0,  # Line number not available from log parsing
                                 impact="TBD",
                                 urgency="MEDIUM",
@@ -308,19 +319,23 @@ class IncidentManagementService(BaseGraphService):
             )
 
             # Store problem in graph
-            result = await self._memory_bus.memorize(
-                node=problem.to_graph_node(),
-                handler_name=self.service_name
-            )
+            if self._memory_bus:
+                result = await self._memory_bus.memorize(
+                    node=problem.to_graph_node(),
+                    handler_name=self.service_name
+                )
 
-            if result.status == MemoryOpStatus.OK:
-                problems.append(problem)
+                if result.status == MemoryOpStatus.OK:
+                    problems.append(problem)
 
-                # Link incidents to problem
-                for incident in pattern_incidents:
-                    incident.problem_id = problem.id
-                    incident.status = IncidentStatus.RECURRING
-                    await self._update_incident(incident)
+                    # Link incidents to problem
+                    for incident in pattern_incidents:
+                        incident.problem_id = problem.id
+                        incident.status = IncidentStatus.RECURRING
+                        await self._update_incident(incident)
+            else:
+                logger.warning("Memory bus not available, cannot store problem node")
+                problems.append(problem)  # Still add to problems list for return value
 
         return problems
 
@@ -538,13 +553,16 @@ class IncidentManagementService(BaseGraphService):
 
     async def _update_incident(self, incident: IncidentNode) -> None:
         """Update an incident in the graph."""
-        result = await self._memory_bus.memorize(
-            node=incident.to_graph_node(),
-            handler_name=self.service_name
-        )
+        if self._memory_bus:
+            result = await self._memory_bus.memorize(
+                node=incident.to_graph_node(),
+                handler_name=self.service_name
+            )
 
-        if result.status != MemoryOpStatus.OK:
-            logger.error("Failed to update incident %s: %s", incident.id, result.error)
+            if result.status != MemoryOpStatus.OK:
+                logger.error("Failed to update incident %s: %s", incident.id, result.error)
+        else:
+            logger.warning("Memory bus not available, cannot update incident %s", incident.id)
 
     # Service protocol methods
 

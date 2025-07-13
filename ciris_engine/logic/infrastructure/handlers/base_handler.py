@@ -10,7 +10,7 @@ from datetime import datetime
 
 from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
-from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
 from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.schemas.audit.core import AuditEventType
 from ciris_engine.logic.utils.channel_utils import extract_channel_id

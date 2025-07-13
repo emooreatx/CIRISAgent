@@ -142,7 +142,7 @@ class WiseAuthorityService(BaseService, WiseAuthorityServiceProtocol):
             task_id=context.task_id,
             thought_id=context.thought_id,
             reason=f"Action '{action}' requires human approval",
-            defer_until=self._time_service.now() + timedelta(hours=24),
+            defer_until=self._time_service.now() + timedelta(hours=24) if self._time_service else datetime.now() + timedelta(hours=24),
             context=deferral_context
         )
 
@@ -234,7 +234,8 @@ class WiseAuthorityService(BaseService, WiseAuthorityServiceProtocol):
         """
         try:
             # Generate deferral ID
-            deferral_id = f"defer_{deferral.task_id}_{self._time_service.timestamp()}"
+            timestamp = self._time_service.timestamp() if self._time_service else datetime.now().timestamp()
+            deferral_id = f"defer_{deferral.task_id}_{timestamp}"
             
             import sqlite3
             import json
@@ -519,9 +520,10 @@ class WiseAuthorityService(BaseService, WiseAuthorityServiceProtocol):
         This wraps fetch_guidance to comply with the protocol.
         """
         # Convert GuidanceRequest to GuidanceContext for internal use
+        timestamp = self._time_service.timestamp() if self._time_service else datetime.now().timestamp()
         context = GuidanceContext(
-            thought_id=f"guidance_{self._time_service.timestamp()}",
-            task_id=f"guidance_task_{self._time_service.timestamp()}",
+            thought_id=f"guidance_{timestamp}",
+            task_id=f"guidance_task_{timestamp}",
             question=request.context,
             ethical_considerations=[],  # Could extract from options
             domain_context={

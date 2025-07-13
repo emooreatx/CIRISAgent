@@ -102,7 +102,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
     async def _should_process_message(self, msg: DiscordMessage) -> bool:
         """Check if Discord observer should process this message."""
         # Extract the raw channel ID from the formatted channel_id
-        raw_channel_id = self._extract_channel_id(msg.channel_id)
+        raw_channel_id = self._extract_channel_id(msg.channel_id) if msg.channel_id else ""
         
         # Check if message is from a monitored channel or deferral channel
         is_from_monitored = False
@@ -173,7 +173,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         monitored_channel_ids = self.monitored_channel_ids or []
         wa_discord_user = DEFAULT_WA
 
-        raw_channel_id = self._extract_channel_id(msg.channel_id)
+        raw_channel_id = self._extract_channel_id(msg.channel_id) if msg.channel_id else ""
         
         if raw_channel_id in monitored_channel_ids or msg.channel_id in monitored_channel_ids:
             await self._create_priority_observation_result(msg, filter_result)
@@ -203,7 +203,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         monitored_channel_ids = self.monitored_channel_ids or []
         wa_discord_user = DEFAULT_WA
 
-        raw_channel_id = self._extract_channel_id(msg.channel_id)
+        raw_channel_id = self._extract_channel_id(msg.channel_id) if msg.channel_id else ""
         
         if raw_channel_id in monitored_channel_ids or msg.channel_id in monitored_channel_ids:
             await self._create_passive_observation_result(msg)

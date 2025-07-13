@@ -121,12 +121,11 @@ async def test_no_malformed_config_nodes(services):
     assert len(all_configs) >= 1, "Should have at least the filter config"
 
     # Verify each config has proper structure
-    for key, config_value in all_configs.items():
-        # list_configs returns a dict mapping keys to ConfigValue instances
-        assert isinstance(config_value, ConfigValue), f"Config {key} should be a ConfigValue instance"
-        # The ConfigValue has typed fields for different value types
-        actual_value = config_value.value
-        assert actual_value is not None, f"Config {key} should have a value"
+    for key, value in all_configs.items():
+        # list_configs now returns a dict mapping keys to actual values
+        assert value is not None, f"Config {key} should have a value"
+        # The values can be dict, str, int, float, bool, list
+        assert isinstance(value, (dict, str, int, float, bool, list)), f"Config {key} has unexpected type: {type(value)}"
 
 
 @pytest.mark.asyncio

@@ -4,7 +4,7 @@ Uses v1 schemas and integrates state management.
 """
 import asyncio
 import logging
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import Any, List, Optional, TYPE_CHECKING, Dict
 from datetime import datetime, timedelta
 
 from ciris_engine.logic.config import ConfigAccessor

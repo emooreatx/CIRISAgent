@@ -12,6 +12,7 @@ from ...runtime.base import GraphServiceProtocol
 # Import forward reference since schema might not exist yet
 if TYPE_CHECKING:
     from ciris_engine.schemas.services.graph.incident import IncidentInsightNode
+    from ciris_engine.schemas.services.core import ServiceCapabilities
 
 @runtime_checkable
 class IncidentManagementServiceProtocol(GraphServiceProtocol, Protocol):
@@ -42,6 +43,6 @@ class IncidentManagementServiceProtocol(GraphServiceProtocol, Protocol):
         """Stop the incident management service."""
         ...
 
-    async def get_capabilities(self) -> List[str]:
-        """Return list of service capabilities."""
+    def get_capabilities(self) -> ServiceCapabilities:
+        """Return service capabilities."""
         ...

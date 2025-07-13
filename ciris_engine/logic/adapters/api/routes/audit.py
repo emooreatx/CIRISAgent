@@ -82,8 +82,10 @@ def _convert_audit_entry(entry: AuditEntry) -> AuditEntryResponse:
             metadata=ctx_dict.get('additional_data', {})
         )
     else:
-        # Assume it's already an AuditContext
-        context = ctx
+        # If it's not an AuditEntryContext, create a minimal AuditContext
+        context = AuditContext(
+            description=str(ctx) if ctx else None
+        )
     
     return AuditEntryResponse(
         id=getattr(entry, 'id', f"audit_{entry.timestamp.isoformat()}"),

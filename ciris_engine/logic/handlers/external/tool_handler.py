@@ -30,6 +30,7 @@ class ToolHandler(BaseActionHandler):
         action_performed_successfully = False
         new_follow_up = None
 
+        params: Optional[ToolParams] = None
         try:
             # Debug logging
             self.logger.debug(f"Raw result.action_parameters: {result.action_parameters}")
@@ -39,7 +40,7 @@ class ToolHandler(BaseActionHandler):
             
             self.logger.debug(f"After decapsulation: {processed_result.action_parameters}")
 
-            params: ToolParams = await self._validate_and_convert_params(processed_result.action_parameters, ToolParams)
+            params = await self._validate_and_convert_params(processed_result.action_parameters, ToolParams)
         except Exception as e:
             await self._handle_error(HandlerActionType.TOOL, dispatch_context, thought_id, e)
             final_thought_status = ThoughtStatus.FAILED

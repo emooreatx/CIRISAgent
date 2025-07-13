@@ -59,30 +59,33 @@ class DiscordAuditLogger:
             return
 
         try:
-            # Create audit context
-            audit_context = AuditEntryContext(
-                service_name="discord_adapter",
-                method_name=operation,
-                user_id=actor,
-                correlation_id=context.get("correlation_id"),
-                additional_data={
-                    "success": success,
-                    "channel_id": context.get("channel_id") or "",
-                    "guild_id": context.get("guild_id") or "",
-                    "error": error_message or ""
-                }
-            )
-
             # Create action description
             action = f"discord.{operation}"
             if not success:
                 action = f"discord.{operation}.failed"
 
+            # Create audit event data
+            event_data = {
+                "entity_id": context.get("channel_id", "unknown"),
+                "actor": actor,
+                "outcome": "success" if success else "failure",
+                "severity": "info" if success else "error",
+                "action": action,
+                "resource": f"discord_channel_{context.get('channel_id', 'unknown')}",
+                "reason": error_message if error_message else None,
+                "details": {
+                    "service_name": "discord_adapter",
+                    "method_name": operation,
+                    "channel_id": context.get("channel_id") or "",
+                    "guild_id": context.get("guild_id") or "",
+                    "correlation_id": context.get("correlation_id")
+                }
+            }
+
             # Log to audit service
-            await self._audit_service.log_action(
-                action=action,
-                actor=actor,
-                context=audit_context
+            await self._audit_service.log_event(
+                event_type=action,
+                event_data=event_data
             )
 
         except Exception as e:

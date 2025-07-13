@@ -3,10 +3,10 @@ FastAPI application for CIRIS API v1.
 
 This module creates and configures the FastAPI application with all routes.
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Callable
 
 # Import all route modules from adapter
 from .routes import (
@@ -65,7 +65,7 @@ def create_app(runtime: Any = None, adapter_config: Any = None) -> FastAPI:
         
         # Add middleware using a wrapper function
         @app.middleware("http")
-        async def rate_limit_wrapper(request: Request, call_next):
+        async def rate_limit_wrapper(request: Request, call_next: Callable) -> Response:
             return await rate_limit_middleware(request, call_next)
         
         print(f"Rate limiting enabled: {rate_limit} requests per minute")

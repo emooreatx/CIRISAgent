@@ -18,7 +18,7 @@ class BatchContextData:
     """Pre-fetched data that's the same for all thoughts in a batch."""
     
     def __init__(self) -> None:
-        self.agent_identity: Optional[str] = None
+        self.agent_identity: Dict[str, Any] = {}
         self.identity_purpose: Optional[str] = None
         self.identity_capabilities: List[str] = []
         self.identity_restrictions: List[str] = []
@@ -199,8 +199,8 @@ async def build_system_snapshot_with_batch(
     
     # Extract channel_id logic (simplified)
     if task and hasattr(task, 'context') and task.context:
-        if hasattr(task.context, 'system_snapshot') and task.context.system_snapshot and hasattr(task.context.system_snapshot, 'channel_id'):  # type: ignore
-            channel_id = str(task.context.system_snapshot.channel_id)  # type: ignore
+        if hasattr(task.context, 'system_snapshot') and task.context.system_snapshot and hasattr(task.context.system_snapshot, 'channel_id'):
+            channel_id = str(task.context.system_snapshot.channel_id)
     
     # Only query channel context if we have a channel_id
     if channel_id and memory_service:

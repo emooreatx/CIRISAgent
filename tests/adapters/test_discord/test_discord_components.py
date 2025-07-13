@@ -460,18 +460,16 @@ class TestDiscordAuditLogger:
         )
 
         # Verify audit service was called
-        assert mock_audit_service.log_action.called
+        assert mock_audit_service.log_event.called
 
         # Get the call arguments
-        call_args = mock_audit_service.log_action.call_args
+        call_args = mock_audit_service.log_event.call_args
 
-        # Check the arguments (can be positional or keyword)
-        if call_args[0]:  # Positional args
-            assert call_args[0][0] == "discord.send_message"
-            assert call_args[0][1] == "user123"
-        else:  # Keyword args
-            assert call_args[1]["action"] == "discord.send_message"
-            assert call_args[1]["actor"] == "user123"
+        # Check the arguments - log_event takes event_type and event_data
+        assert call_args[1]["event_type"] == "discord.send_message"
+        assert call_args[1]["event_data"]["actor"] == "user123"
+        assert call_args[1]["event_data"]["details"]["channel_id"] == "456"
+        assert call_args[1]["event_data"]["details"]["correlation_id"] == "abc123"
 
     @pytest.mark.asyncio
     async def test_log_operation_without_audit_service(self, audit_logger: DiscordAuditLogger) -> None:

@@ -64,9 +64,14 @@ async def get_auth_context(
     
     # Add any custom permissions if user exists and has them
     if user and hasattr(user, 'custom_permissions') and user.custom_permissions:
+        from ciris_engine.schemas.api.auth import Permission
         for perm in user.custom_permissions:
-            # Add custom permission string to the set
-            permissions.add(perm)
+            # Convert string to Permission enum if it's a valid permission
+            try:
+                permissions.add(Permission(perm))
+            except ValueError:
+                # Skip invalid permission strings
+                pass
 
     # Create auth context with request reference
     context = AuthContext(

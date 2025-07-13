@@ -125,7 +125,7 @@ class CliPlatform(Service):
             # Get services from runtime's service_initializer
             service_initializer = getattr(self.runtime, 'service_initializer', None)
             if service_initializer:
-                self.cli_observer = CLIObserver(  # type: ignore[assignment]
+                self.cli_observer = CLIObserver(
                     on_observe=self.on_observe,  # type: ignore[arg-type]
                     bus_manager=self.bus_manager,
                     memory_service=getattr(service_initializer, 'memory_service', None),
@@ -156,7 +156,7 @@ class CliPlatform(Service):
         # If we have an observer, monitor its stop event
         if self.cli_observer and hasattr(self.cli_observer, '_stop_event'):
             stop_event_task = asyncio.create_task(
-                self.cli_observer._stop_event.wait(),  # type: ignore[attr-defined]
+                self.cli_observer._stop_event.wait(),
                 name="CLIObserverStopEvent"
             )
             tasks.append(stop_event_task)

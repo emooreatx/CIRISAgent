@@ -54,7 +54,7 @@ class CIRISNodeClient(Service):
             # Default to localhost for testing/development
             node_cfg = CIRISNodeConfig()
             node_cfg.load_env_vars()
-            self.base_url = node_cfg.base_url
+            self.base_url = node_cfg.base_url or "http://localhost:8080"
 
         self._client = httpx.AsyncClient(base_url=self.base_url)
         self._closed = False

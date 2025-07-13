@@ -244,15 +244,6 @@ class CIRISRuntime:
         """Access to TSDB consolidation service."""
         return self.service_initializer.tsdb_consolidation_service if self.service_initializer else None
     
-    @property
-    def secrets_service(self) -> Optional[Any]:
-        """Access to secrets service."""
-        return self.service_initializer.secrets_service if self.service_initializer else None
-    
-    @property
-    def adaptive_filter_service(self) -> Optional[Any]:
-        """Access to adaptive filter service."""
-        return self.service_initializer.adaptive_filter_service if self.service_initializer else None
     
     @property
     def self_observation_service(self) -> Optional[Any]:

@@ -10,7 +10,7 @@ from ciris_engine.logic.adapters.base import Service
 from ciris_engine.logic import persistence
 from ciris_engine.schemas.telemetry.core import (
     ServiceCorrelation, ServiceCorrelationStatus,
-    ServiceRequestData, ServiceResponseData
+    ServiceRequestData, ServiceResponseData, TraceContext
 )
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
@@ -63,8 +63,6 @@ class BaseAdapter(Service):
         }
         if metadata:
             parameters.update(metadata)
-        
-        from ciris_engine.schemas.telemetry.core import TraceContext
         
         trace_id = str(uuid.uuid4())
         span_id = str(uuid.uuid4())

@@ -125,7 +125,7 @@ class RateLimitMiddleware:
         """Process request through rate limiter."""
         # Check if path is exempt
         if request.url.path in self.exempt_paths:
-            response: Response = await call_next(request)
+            response = await call_next(request)
             return response
         
         # Extract client identifier (prefer authenticated user, fallback to IP)
@@ -163,7 +163,7 @@ class RateLimitMiddleware:
             )
         
         # Process request
-        response: Response = await call_next(request)
+        response = await call_next(request)
         
         # Add rate limit headers to response
         if client_id in self.limiter.buckets:

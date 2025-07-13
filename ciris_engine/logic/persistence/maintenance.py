@@ -2,7 +2,10 @@ import logging
 from datetime import timedelta
 from pathlib import Path
 import asyncio
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ciris_engine.schemas.services.core import ServiceCapabilities
 
 from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
 from ciris_engine.logic.persistence import (
@@ -307,7 +310,7 @@ class DatabaseMaintenanceService(BaseScheduledService):
         except Exception as e:
             logger.error(f"Failed to clean up stale wakeup tasks: {e}", exc_info=True)
     
-    def get_capabilities(self) -> Dict[str, Any]:
+    def get_capabilities(self) -> "ServiceCapabilities":
         """Get service capabilities."""
         from ciris_engine.schemas.services.core import ServiceCapabilities
         return ServiceCapabilities(

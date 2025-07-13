@@ -25,6 +25,7 @@ from ciris_engine.schemas.services.discord_nodes import DiscordDeferralNode, Dis
 from ciris_engine.schemas.adapters.tools import ToolExecutionResult
 from ciris_engine.logic import persistence
 from ciris_engine.logic.adapters.base import Service
+from ciris_engine.schemas.services.graph_core import GraphScope, GraphNodeAttributes
 
 from .discord_message_handler import DiscordMessageHandler
 from .discord_guidance_handler import DiscordGuidanceHandler
@@ -488,7 +489,6 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             # Store approval request in memory
             if approval_result and self.bus_manager and self.bus_manager.memory:
                 try:
-                    from ciris_engine.schemas.services.graph_core import GraphScope, GraphNodeAttributes
                     approval_node = DiscordApprovalNode(
                         id=f"discord_approval/{approval_request.message_id}",
                         scope=GraphScope.LOCAL,

@@ -2,11 +2,14 @@
 Communication service for API adapter.
 """
 import logging
-from typing import Any, Optional, Dict, List
+from typing import Any, Optional, Dict, List, TYPE_CHECKING
 from datetime import datetime, timezone
 import asyncio
 
 from ciris_engine.protocols.services.governance.communication import CommunicationServiceProtocol
+
+if TYPE_CHECKING:
+    from ciris_engine.schemas.services.core import ServiceStatus, ServiceCapabilities
 
 logger = logging.getLogger(__name__)
 

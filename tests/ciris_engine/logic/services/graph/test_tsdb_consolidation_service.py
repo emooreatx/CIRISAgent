@@ -311,24 +311,41 @@ async def test_tsdb_service_resource_aggregation(tsdb_service, mock_memory_bus):
             break
     
     assert tsdb_summary is not None
-    attrs = tsdb_summary.attributes
     
-    # Check that required fields exist
-    assert 'period_start' in attrs, f"period_start not found in attributes: {attrs.keys()}"
-    assert 'period_end' in attrs
-    assert 'period_label' in attrs
+    # Check if it's a TSDBSummary object or a GraphNode
+    if hasattr(tsdb_summary, 'period_start'):
+        # It's a TSDBSummary object
+        assert tsdb_summary.period_start == start_time
+        assert tsdb_summary.period_end == end_time
+        attrs = tsdb_summary.attributes if hasattr(tsdb_summary, 'attributes') else tsdb_summary.model_dump()
+    else:
+        # It's a GraphNode
+        attrs = tsdb_summary.attributes
+        assert attrs['period_start'] == start_time.isoformat()
+        assert attrs['period_end'] == end_time.isoformat()
+        assert 'period_label' in attrs
     
     # The test now uses real data from the memory service
     # Check that resource aggregation fields exist and are numeric
-    if 'total_tokens' in attrs:
+    # For TSDBSummary objects, check direct attributes
+    if hasattr(tsdb_summary, 'total_tokens'):
+        assert isinstance(tsdb_summary.total_tokens, (int, float))
+        assert tsdb_summary.total_tokens >= 0
+    elif 'total_tokens' in attrs:
         assert isinstance(attrs['total_tokens'], (int, float))
         assert attrs['total_tokens'] >= 0
     
-    if 'total_cost_cents' in attrs:
+    if hasattr(tsdb_summary, 'total_cost_cents'):
+        assert isinstance(tsdb_summary.total_cost_cents, (int, float))
+        assert tsdb_summary.total_cost_cents >= 0
+    elif 'total_cost_cents' in attrs:
         assert isinstance(attrs['total_cost_cents'], (int, float))
         assert attrs['total_cost_cents'] >= 0
     
-    if 'total_carbon_grams' in attrs:
+    if hasattr(tsdb_summary, 'total_carbon_grams'):
+        assert isinstance(tsdb_summary.total_carbon_grams, (int, float))
+        assert tsdb_summary.total_carbon_grams >= 0
+    elif 'total_carbon_grams' in attrs:
         assert isinstance(attrs['total_carbon_grams'], (int, float))
         assert attrs['total_carbon_grams'] >= 0
 

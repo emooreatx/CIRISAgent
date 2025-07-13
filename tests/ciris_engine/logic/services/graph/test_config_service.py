@@ -10,7 +10,7 @@ from pathlib import Path
 from ciris_engine.logic.services.graph.config_service import GraphConfigService
 from ciris_engine.logic.services.lifecycle.time import TimeService
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
-from ciris_engine.schemas.services.nodes import ConfigNode, ConfigValue
+from ciris_engine.schemas.services.nodes import ConfigNode
 from ciris_engine.schemas.services.graph_core import GraphScope
 from ciris_engine.logic.services.graph.memory_service import LocalGraphMemoryService
 from ciris_engine.schemas.services.operations import MemoryQuery
@@ -172,10 +172,9 @@ async def test_config_service_list_configs(config_service):
     # Verify all our configs are present
     for key, expected_value in configs.items():
         assert key in all_configs
-        config_value = all_configs[key]
-        # ConfigValue wrapper is returned, get the actual value
-        assert isinstance(config_value, ConfigValue)
-        assert config_value.value == expected_value
+        # list_configs() now returns actual values, not ConfigValue instances
+        actual_value = all_configs[key]
+        assert actual_value == expected_value
 
 
 @pytest.mark.asyncio
@@ -191,14 +190,14 @@ async def test_config_service_list_by_prefix(config_service):
     db_configs = await config_service.list_configs(prefix="db.")
     assert len(db_configs) == 2
     assert all(key.startswith("db.") for key in db_configs.keys())
-    assert db_configs["db.host"].value == "localhost"
-    assert db_configs["db.port"].value == 5432
+    assert db_configs["db.host"] == "localhost"
+    assert db_configs["db.port"] == 5432
 
     api_configs = await config_service.list_configs(prefix="api.")
     assert len(api_configs) == 2
     assert all(key.startswith("api.") for key in api_configs.keys())
-    assert api_configs["api.endpoint"].value == "https://api.example.com"
-    assert api_configs["api.timeout"].value == 30
+    assert api_configs["api.endpoint"] == "https://api.example.com"
+    assert api_configs["api.timeout"] == 30
 
 
 @pytest.mark.asyncio
@@ -334,9 +333,8 @@ async def test_config_service_batch_operations(config_service):
     # Verify all values
     for key, expected_value in batch_configs.items():
         assert key in batch_results
-        # batch_results[key] is a ConfigValue object
-        assert isinstance(batch_results[key], ConfigValue)
-        assert batch_results[key].value == expected_value
+        # list_configs() now returns actual values, not ConfigValue instances
+        assert batch_results[key] == expected_value
 
 
 @pytest.mark.asyncio
@@ -355,11 +353,10 @@ async def test_config_service_sensitive_config(config_service):
     assert config_node is not None
     assert config_node.value.value == "sk-1234567890abcdef"
 
-    # List configs returns dict of key->ConfigValue
+    # List configs returns dict of key->actual values
     configs = await config_service.list_configs(prefix="secrets.")
     assert "secrets.api_key" in configs
-    assert isinstance(configs["secrets.api_key"], ConfigValue)
-    assert configs["secrets.api_key"].value == "sk-1234567890abcdef"
+    assert configs["secrets.api_key"] == "sk-1234567890abcdef"
     # SecretsService in memory layer handles encryption, not config service
 
 
@@ -438,4 +435,4 @@ async def test_config_service_path_values(config_service):
     # List should also return string value
     configs = await config_service.list_configs(prefix="paths.")
     assert "paths.test" in configs
-    assert configs["paths.test"].value == "/home/user/test.txt"
+    assert configs["paths.test"] == "/home/user/test.txt"
