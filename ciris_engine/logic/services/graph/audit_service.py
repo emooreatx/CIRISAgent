@@ -107,8 +107,8 @@ class GraphAuditService(BaseGraphService, AuditServiceProtocol):
         if not time_service:
             raise RuntimeError("CRITICAL: TimeService is required for GraphAuditService")
         
-        # Initialize BaseGraphService
-        super().__init__(memory_bus=memory_bus, time_service=time_service)
+        # Initialize BaseGraphService with version 2.0.0
+        super().__init__(memory_bus=memory_bus, time_service=time_service, version="2.0.0")
         
         self._service_registry: Optional['ServiceRegistry'] = None
 
@@ -1312,6 +1312,7 @@ class GraphAuditService(BaseGraphService, AuditServiceProtocol):
             "log_action",
             "log_event", 
             "log_request",
+            "get_audit_trail",
             "query_audit_trail",
             "query_by_actor",
             "query_by_time_range",
@@ -1320,7 +1321,8 @@ class GraphAuditService(BaseGraphService, AuditServiceProtocol):
             "verify_signatures",
             "get_complete_verification_report",
             "query_events",
-            "get_event_by_id"
+            "get_event_by_id",
+            "verify_audit_integrity"
         ]
     
     def _check_dependencies(self) -> bool:
@@ -1329,8 +1331,7 @@ class GraphAuditService(BaseGraphService, AuditServiceProtocol):
         if not super()._check_dependencies():
             return False
         
-        # Check audit-specific dependencies
-        if self.enable_hash_chain and not self.hash_chain:
-            return False
+        # No need to check hash_chain here - it's initialized during start()
+        # The hash_chain is an internal component, not an external dependency
             
         return True

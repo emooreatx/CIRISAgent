@@ -18,7 +18,7 @@ from ciris_engine.logic.persistence import (
     update_thought_status,
     get_thoughts_older_than,
 )
-from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
+from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus, ServiceType
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
@@ -267,3 +267,15 @@ class DatabaseMaintenanceService(BaseScheduledService):
                 "maintenance_interval": "hourly"
             }
         )
+    
+    def get_service_type(self) -> ServiceType:
+        """Get the service type enum value."""
+        return ServiceType.INFRASTRUCTURE_SERVICE
+    
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return ["cleanup", "archive", "maintenance"]
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all required dependencies are available."""
+        return self.time_service is not None

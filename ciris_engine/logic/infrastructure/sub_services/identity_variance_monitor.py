@@ -11,6 +11,7 @@ from datetime import datetime
 
 from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.infrastructure.identity_variance import (
     VarianceImpact, IdentityDiff, VarianceReport,
     WAReviewRequest, VarianceCheckMetadata
@@ -83,6 +84,27 @@ class IdentityVarianceMonitor(BaseScheduledService):
                 self._wa_bus = WiseBus(registry, self._time_service)
             except Exception as e:
                 logger.error(f"Failed to initialize WA bus: {e}")
+    
+    def get_service_type(self) -> ServiceType:
+        """Get service type."""
+        return ServiceType.IDENTITY_VARIANCE_MONITOR
+    
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return [
+            "initialize_baseline",
+            "check_variance",
+            "take_snapshot",
+            "calculate_variance",
+            "trigger_wa_review",
+            "generate_recommendations"
+        ]
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all dependencies are available."""
+        # TimeService is required and provided by base class
+        # MemoryBus and WiseBus are optional - we can detect patterns without them
+        return True
 
     async def initialize_baseline(self, identity: AgentIdentityRoot) -> str:
         """

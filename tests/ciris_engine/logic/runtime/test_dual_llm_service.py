@@ -37,6 +37,7 @@ def mock_service_registry():
     """Create mock service registry."""
     registry = Mock()
     registry.register_global = Mock()
+    registry.register_service = Mock()
     registry.get_service = Mock(return_value=None)
     return registry
 
@@ -145,7 +146,8 @@ class TestDualLLMService:
 
             # Check second LLM client was created with correct config
             second_call = MockLLMClient.call_args_list[1]
-            second_config = second_call[0][0]  # First positional argument
+            # OpenAICompatibleClient is called with keyword arguments
+            second_config = second_call.kwargs['config']
 
             assert second_config.api_key == "test-api-key-2"
             assert second_config.base_url == "https://custom.api.com/v1"

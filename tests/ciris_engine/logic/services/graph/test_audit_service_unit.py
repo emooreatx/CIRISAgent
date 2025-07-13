@@ -339,7 +339,8 @@ class TestGraphAuditService:
         status = audit_service.get_status()
 
         assert isinstance(status, ServiceStatus)
-        assert status.is_healthy is True
+        # Service is not started in this test, so it won't be healthy
+        assert status.is_healthy is False
         assert "cached_entries" in status.metrics
         assert "pending_exports" in status.metrics
         assert "hash_chain_enabled" in status.metrics

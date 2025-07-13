@@ -1392,9 +1392,9 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
     def _register_dependencies(self) -> None:
         """Register service dependencies."""
         super()._register_dependencies()
-        if self.config_manager:
+        if hasattr(self, 'config_manager') and self.config_manager:
             self._dependencies.add("GraphConfigService")
-        if self.adapter_manager:
+        if hasattr(self, 'adapter_manager') and self.adapter_manager:
             self._dependencies.add("RuntimeAdapterManager")
     
     def _collect_custom_metrics(self) -> Dict[str, float]:

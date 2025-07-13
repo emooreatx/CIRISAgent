@@ -11,6 +11,7 @@ from datetime import datetime
 from collections import defaultdict
 
 from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
+from ciris_engine.schemas.runtime.enums import ServiceType
 
 if TYPE_CHECKING:
     from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
@@ -70,6 +71,36 @@ class PatternAnalysisLoop(BaseScheduledService):
                 self._memory_bus = MemoryBus(registry, self._time_service)
             except Exception as e:
                 logger.error(f"Failed to initialize memory bus: {e}")
+
+    def get_service_type(self) -> ServiceType:
+        """Get the service type enum value."""
+        return ServiceType.MAINTENANCE
+
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return [
+            "analyze_and_adapt",
+            "detect_patterns",
+            "store_insights",
+            "temporal_pattern_detection",
+            "frequency_analysis",
+            "performance_monitoring",
+            "error_pattern_detection",
+            "update_learning_state"
+        ]
+
+    def _check_dependencies(self) -> bool:
+        """Check if all required dependencies are available."""
+        # Time service is required (provided by base class)
+        if not self._time_service:
+            logger.warning("PatternAnalysisLoop: TimeService dependency not available")
+            return False
+        
+        # Memory bus is optional - we can still detect patterns without storing them
+        if not self._memory_bus:
+            logger.info("PatternAnalysisLoop: MemoryBus not available - pattern storage disabled")
+        
+        return True
 
     async def analyze_and_adapt(self, force: bool = False) -> AnalysisResult:
         """

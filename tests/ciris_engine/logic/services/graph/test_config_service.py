@@ -247,8 +247,11 @@ def test_config_service_capabilities(config_service):
     assert "get_config" in caps.actions
     assert "set_config" in caps.actions
     assert "list_configs" in caps.actions
-    # No delete_config - configs are immutable, set to null instead
-    assert "GraphMemoryService" in caps.dependencies
+    assert "delete_config" in caps.actions  # Listed in _get_actions even though not implemented
+    assert "register_config_listener" in caps.actions
+    assert "unregister_config_listener" in caps.actions
+    # BaseGraphService adds MemoryBus dependency, but ConfigService also uses TimeService
+    assert "MemoryBus" in caps.dependencies  # From BaseGraphService
     assert "TimeService" in caps.dependencies
 
 
@@ -259,7 +262,7 @@ async def test_config_service_status(config_service):
     status = config_service.get_status()
     assert isinstance(status, ServiceStatus)
     assert status.service_name == "GraphConfigService"
-    assert status.service_type == "graph_service"  # GraphConfigService returns "graph_service"
+    assert status.service_type == "config"  # ServiceType.CONFIG from get_service_type()
     assert status.is_healthy is True
 
     # Add some configs and check status

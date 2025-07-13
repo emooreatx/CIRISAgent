@@ -60,21 +60,10 @@ class VisibilityService(BaseService, VisibilityServiceProtocol):
             "explain_action"
         ]
 
-    def get_status(self) -> ServiceStatus:
-        """Get service status."""
-        return ServiceStatus(
-            service_name="VisibilityService",
-            service_type="visibility_service",
-            is_healthy=self._started,
-            uptime_seconds=self._calculate_uptime(),
-            metrics={},
-            last_error=self._last_error,
-            last_health_check=self._last_health_check
-        )
 
     def get_service_type(self) -> ServiceType:
         """Get the service type enum value."""
-        return ServiceType.INFRASTRUCTURE_SERVICE
+        return ServiceType.VISIBILITY
     
     def _check_dependencies(self) -> bool:
         """Check if all required dependencies are available."""

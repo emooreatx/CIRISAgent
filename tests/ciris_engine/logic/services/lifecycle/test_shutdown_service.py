@@ -14,16 +14,16 @@ async def test_shutdown_service_lifecycle():
     service = ShutdownService()
 
     # Before start
-    assert service._running is False
+    assert service._started is False
 
     # Start
     await service.start()
-    assert service._running is True
+    assert service._started is True
     assert service._shutdown_event is not None
 
     # Stop
     await service.stop()
-    assert service._running is False
+    assert service._started is False
 
 
 @pytest.mark.asyncio
@@ -124,7 +124,7 @@ async def test_shutdown_service_status():
     status = service.get_status()
     assert isinstance(status, ServiceStatus)
     assert status.service_name == "ShutdownService"
-    assert status.service_type == "core_service"
+    assert status.service_type == "shutdown"
     assert status.is_healthy is False
 
     # After start

@@ -29,10 +29,16 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
     """Service for adaptive message filtering with graph memory persistence"""
 
     def __init__(self, memory_service: object, time_service: TimeServiceProtocol, llm_service: Optional[object] = None, config_service: Optional[object] = None) -> None:
-        super().__init__(time_service=time_service)
+        # Set instance variables BEFORE calling super().__init__()
+        # This ensures they're available when _register_dependencies() is called
         self.memory = memory_service
         self.llm = llm_service
         self.config_service = config_service  # GraphConfigService for proper config storage
+        
+        # Now call parent constructor
+        super().__init__(time_service=time_service)
+        
+        # Initialize remaining instance variables
         self._config: Optional[AdaptiveFilterConfig] = None
         self._config_key = "adaptive_filter.config"  # Use proper config key format
         self._message_buffer: Dict[str, List[Tuple[datetime, object]]] = {}

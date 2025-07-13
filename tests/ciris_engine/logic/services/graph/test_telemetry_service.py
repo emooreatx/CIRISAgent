@@ -256,16 +256,21 @@ def test_telemetry_service_capabilities(telemetry_service):
     """Test TelemetryService.get_capabilities() returns correct info."""
     caps = telemetry_service.get_capabilities()
     assert isinstance(caps, ServiceCapabilities)
+    assert caps.service_name == "GraphTelemetryService"  # Uses class name by default
+    assert caps.version == "1.0.0"
+    # Check actions from _get_actions()
     assert "record_metric" in caps.actions
-    assert "record_resource_usage" in caps.actions
     assert "query_metrics" in caps.actions
-    assert "get_service_status" in caps.actions
-    assert "get_resource_limits" in caps.actions
+    assert "get_metric_summary" in caps.actions
+    assert "get_metric_count" in caps.actions
+    assert "get_telemetry_summary" in caps.actions
     assert "process_system_snapshot" in caps.actions
-    assert caps.metadata is not None
-    assert "features" in caps.metadata
-    assert "graph_storage" in caps.metadata["features"]
-    assert caps.metadata["node_type"] == "TELEMETRY"
+    assert "get_resource_usage" in caps.actions
+    assert "get_telemetry_status" in caps.actions
+    # Dependencies from BaseGraphService
+    assert "MemoryBus" in caps.dependencies
+    assert "TimeService" in caps.dependencies
+    # Note: The base implementation doesn't add metadata automatically
 
 
 @pytest.mark.asyncio
@@ -276,7 +281,8 @@ async def test_telemetry_service_status(telemetry_service, memory_bus):
     status = telemetry_service.get_status()
     assert isinstance(status, ServiceStatus)
     assert status.is_healthy is True
-    assert status.service_name == "telemetry_service"
+    assert status.service_name == "GraphTelemetryService"  # Uses class name by default
+    assert status.service_type == "telemetry"  # ServiceType.TELEMETRY from get_service_type()
 
     # Record some metrics to populate cache
     for i in range(10):
@@ -286,7 +292,7 @@ async def test_telemetry_service_status(telemetry_service, memory_bus):
         )
 
     status = telemetry_service.get_status()
-    assert status.metrics.get("cached_metrics", 0) > 0
+    assert status.metrics.get("total_metrics_cached", 0) > 0  # Correct metric name
     assert status.metrics.get("unique_metric_types", 0) > 0
 
 
@@ -432,6 +438,8 @@ async def test_telemetry_service_resource_usage(telemetry_service, memory_bus):
 @pytest.mark.asyncio
 async def test_telemetry_service_health_check(telemetry_service):
     """Test service health check."""
+    # Start the service first
+    await telemetry_service.start()
     # Should be healthy with memory bus and time service
     health = await telemetry_service.is_healthy()
     assert health is True

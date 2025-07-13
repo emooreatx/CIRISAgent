@@ -999,3 +999,19 @@ class SelfObservationService(BaseScheduledService, SelfObservationServiceProtoco
             "current_state": self._current_state.value,
             "consecutive_failures": self._consecutive_failures
         }
+    
+    def get_service_type(self) -> "ServiceType":
+        """Get the service type enum value."""
+        from ciris_engine.schemas.runtime.enums import ServiceType
+        return ServiceType.SPECIAL_SERVICE
+    
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return [
+            "observe", "analyze_patterns", "get_insights", "get_variance",
+            "pause_adaptation", "resume_adaptation", "emergency_stop"
+        ]
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all required dependencies are available."""
+        return self._time_service is not None
