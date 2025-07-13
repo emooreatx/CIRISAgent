@@ -79,7 +79,8 @@ class DatabaseMaintenanceService(BaseScheduledService):
         # --- Clean up runtime-specific configuration from previous runs ---
         await self._cleanup_runtime_config()
 
-        # Skip WAKEUP cleanup - "no kings" principle
+        # --- Clean up stale wakeup tasks from interrupted startups ---
+        await self._cleanup_stale_wakeup_tasks()
 
         # --- 1. Remove orphaned active tasks and thoughts ---
         orphaned_tasks_deleted_count = 0
@@ -253,6 +254,58 @@ class DatabaseMaintenanceService(BaseScheduledService):
                 
         except Exception as e:
             logger.error(f"Failed to clean up runtime config: {e}", exc_info=True)
+    
+    async def _cleanup_stale_wakeup_tasks(self) -> None:
+        """Clean up stale wakeup tasks and thoughts from interrupted startups."""
+        try:
+            logger.info("Checking for stale wakeup tasks from interrupted startups")
+            
+            # Get all wakeup-related tasks
+            all_tasks = get_all_tasks()
+            wakeup_tasks = []
+            for task in all_tasks:
+                if not hasattr(task, 'task_id'):
+                    continue
+                # Check for wakeup tasks by ID pattern
+                if (task.task_id.startswith("WAKEUP_") or 
+                    task.task_id.startswith("VERIFY_IDENTITY_") or
+                    task.task_id.startswith("VALIDATE_INTEGRITY_") or
+                    task.task_id.startswith("EVALUATE_RESILIENCE_") or
+                    task.task_id.startswith("ACCEPT_INCOMPLETENESS_") or
+                    task.task_id.startswith("EXPRESS_GRATITUDE_")):
+                    wakeup_tasks.append(task)
+            
+            # Clean up any active wakeup tasks (these indicate interrupted startup)
+            stale_task_ids = []
+            stale_thought_ids = []
+            
+            for task in wakeup_tasks:
+                if task.status == TaskStatus.ACTIVE:
+                    logger.info(f"Found stale active wakeup task from interrupted startup: {task.task_id}")
+                    stale_task_ids.append(task.task_id)
+                    
+                    # Also get all thoughts for this task
+                    thoughts = get_thoughts_by_task_id(task.task_id)
+                    for thought in thoughts:
+                        if thought.status in [ThoughtStatus.PENDING, ThoughtStatus.PROCESSING]:
+                            logger.info(f"Found stale wakeup thought: {thought.thought_id} (status: {thought.status})")
+                            stale_thought_ids.append(thought.thought_id)
+            
+            # Delete stale thoughts first
+            if stale_thought_ids:
+                deleted_thoughts = delete_thoughts_by_ids(stale_thought_ids)
+                logger.info(f"Deleted {deleted_thoughts} stale wakeup thoughts from interrupted startups")
+            
+            # Then delete stale tasks
+            if stale_task_ids:
+                deleted_tasks = delete_tasks_by_ids(stale_task_ids)
+                logger.info(f"Deleted {deleted_tasks} stale wakeup tasks from interrupted startups")
+            
+            if not stale_task_ids and not stale_thought_ids:
+                logger.info("No stale wakeup tasks or thoughts found")
+                
+        except Exception as e:
+            logger.error(f"Failed to clean up stale wakeup tasks: {e}", exc_info=True)
     
     def get_capabilities(self) -> Dict[str, Any]:
         """Get service capabilities."""

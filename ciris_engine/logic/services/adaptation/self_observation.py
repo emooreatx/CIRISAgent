@@ -1003,7 +1003,7 @@ class SelfObservationService(BaseScheduledService, SelfObservationServiceProtoco
     def get_service_type(self) -> "ServiceType":
         """Get the service type enum value."""
         from ciris_engine.schemas.runtime.enums import ServiceType
-        return ServiceType.SPECIAL_SERVICE
+        return ServiceType.SPECIAL
     
     def _get_actions(self) -> List[str]:
         """Get list of actions this service provides."""

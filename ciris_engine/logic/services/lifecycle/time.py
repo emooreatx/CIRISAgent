@@ -23,6 +23,7 @@ class TimeService(BaseInfrastructureService, TimeServiceProtocol):
         """Initialize the time service."""
         # Initialize base class without time_service (we ARE the time service)
         super().__init__(service_name="TimeService", version="1.0.0")
+        self._start_time = datetime.now(timezone.utc)
 
     # Required abstract methods from BaseService
 
@@ -80,3 +81,12 @@ class TimeService(BaseInfrastructureService, TimeServiceProtocol):
             float: Seconds since Unix epoch
         """
         return self.now().timestamp()
+    
+    def get_uptime(self) -> float:
+        """
+        Get service uptime in seconds.
+        
+        Returns:
+            float: Seconds since service started
+        """
+        return (self.now() - self._start_time).total_seconds()

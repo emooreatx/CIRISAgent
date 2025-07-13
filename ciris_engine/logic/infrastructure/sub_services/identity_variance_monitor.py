@@ -883,13 +883,9 @@ class IdentityVarianceMonitor(BaseScheduledService):
 
     async def _on_stop(self) -> None:
         """Stop the monitor."""
-        # Run final variance check
-        try:
-            await self.check_variance(force=True)
-        except Exception as e:
-            logger.error(f"Failed final variance check: {e}")
-
-        logger.info("IdentityVarianceMonitor stopped")
+        # Skip final variance check during shutdown to avoid race conditions
+        # The memory service might already be stopped when we reach here
+        logger.info("IdentityVarianceMonitor stopped (final check skipped during shutdown)")
 
     async def is_healthy(self) -> bool:
         """Check if the monitor is healthy."""
