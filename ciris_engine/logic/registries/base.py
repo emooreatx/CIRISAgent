@@ -364,6 +364,21 @@ class ServiceRegistry:
             cb.reset()
         logger.info("Reset all circuit breakers")
 
+    def get_all_services(self) -> List[Any]:
+        """Get all registered services across all types."""
+        all_services = []
+        seen = set()  # Track service IDs to avoid duplicates
+        
+        for service_type, providers in self._services.items():
+            for provider in providers:
+                service_id = id(provider.instance)
+                if service_id not in seen:
+                    seen.add(service_id)
+                    all_services.append(provider.instance)
+        
+        logger.debug(f"Found {len(all_services)} total registered services")
+        return all_services
+    
     def clear_all(self) -> None:
         """Clear all registered services and circuit breakers"""
         self._services.clear()

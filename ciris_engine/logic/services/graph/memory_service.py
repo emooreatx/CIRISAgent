@@ -42,11 +42,17 @@ from ciris_engine.schemas.services.graph.memory import (
 logger = logging.getLogger(__name__)
 
 class DateTimeEncoder(json.JSONEncoder):
-    """Custom JSON encoder that handles datetime objects."""
+    """Custom JSON encoder that handles datetime objects and Pydantic models."""
 
     def default(self, obj: object) -> Any:
         if isinstance(obj, datetime):
             return obj.isoformat()
+        # Handle Pydantic models
+        if hasattr(obj, 'model_dump'):
+            return obj.model_dump()
+        # Handle any object with to_dict method
+        if hasattr(obj, 'to_dict'):
+            return obj.to_dict()
         return super().default(obj)
 
 class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServiceProtocol):

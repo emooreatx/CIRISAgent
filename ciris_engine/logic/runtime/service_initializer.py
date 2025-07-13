@@ -489,6 +489,8 @@ This directory contains critical cryptographic keys for the CIRIS system.
             archive_older_than_hours=archive_hours,
             config_service=self.config_service
         )
+        await self.maintenance_service.start()
+        logger.info("Database maintenance service initialized and started")
 
         # Initialize TSDB consolidation service
         from ciris_engine.logic.services.graph.tsdb_consolidation import TSDBConsolidationService
@@ -802,16 +804,9 @@ This directory contains critical cryptographic keys for the CIRIS system.
 
         # Infrastructure services are single-instance - NO ServiceRegistry needed
         # Direct references only per "No Kings" principle
-
-        # Register memory service globally - ONE instance for ALL handlers
-        if self.memory_service:
-            self.service_registry.register_service(
-                service_type=ServiceType.MEMORY,
-                provider=self.memory_service,
-                priority=Priority.HIGH,
-                capabilities=["memorize", "recall", "forget"],
-                metadata={"service_name": "GraphMemoryService", "graph": True}
-            )
+        
+        # Memory service already registered above with full capabilities in initialize_all_services()
+        # Don't re-register as it would overwrite the full capability list
 
         # Audit service is single-instance - NO ServiceRegistry needed
 

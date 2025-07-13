@@ -1054,57 +1054,101 @@ class CIRISRuntime:
         logger.debug("Adapters stopped.")
 
         logger.debug("Stopping core services...")
-        # Stop services in reverse dependency order
-        # Services that depend on others should be stopped first
+        
+        # Get all registered services dynamically
+        all_registered_services = []
+        if self.service_registry:
+            all_registered_services = self.service_registry.get_all_services()
+            logger.info(f"Found {len(all_registered_services)} registered services to stop")
+        
+        # Build a comprehensive list of services to stop
+        # This includes both registered services and direct references
         services_to_stop = []
-
-        # First stop services that depend on memory/telemetry
-        if hasattr(self.service_initializer, 'tsdb_consolidation_service') and self.service_initializer.tsdb_consolidation_service:
-            services_to_stop.append(self.service_initializer.tsdb_consolidation_service)
-        if hasattr(self.service_initializer, 'task_scheduler_service') and self.service_initializer.task_scheduler_service:
-            services_to_stop.append(self.service_initializer.task_scheduler_service)
-        if hasattr(self.service_initializer, 'incident_management_service') and self.service_initializer.incident_management_service:
-            services_to_stop.append(self.service_initializer.incident_management_service)
-        if hasattr(self.service_initializer, 'resource_monitor_service') and self.service_initializer.resource_monitor_service:
-            services_to_stop.append(self.service_initializer.resource_monitor_service)
-        if hasattr(self.service_initializer, 'config_service') and self.service_initializer.config_service:
-            services_to_stop.append(self.service_initializer.config_service)
-
-        # Then stop higher-level services
-        if self.maintenance_service:
-            services_to_stop.append(self.maintenance_service)
-        if self.transaction_orchestrator:
-            services_to_stop.append(self.transaction_orchestrator)
-        if self.agent_config_service:
-            services_to_stop.append(self.agent_config_service)
-        if self.adaptive_filter_service:
-            services_to_stop.append(self.adaptive_filter_service)
-
-        # Stop services that use memory service
-        if self.telemetry_service:
-            services_to_stop.append(self.telemetry_service)  # Depends on memory service
-        if self.audit_service:
-            services_to_stop.append(self.audit_service)      # May depend on memory service
-
-        # Stop other core services
-        if self.llm_service:
-            services_to_stop.append(self.llm_service)        # OpenAICompatibleClient
-        if hasattr(self.service_initializer, 'wa_auth_system') and self.service_initializer.wa_auth_system:
-            services_to_stop.append(self.service_initializer.wa_auth_system)
-
-        # Stop fundamental services last
-        if self.secrets_service:
-            services_to_stop.append(self.secrets_service)
-        if self.memory_service:
-            services_to_stop.append(self.memory_service)     # Core dependency, stop last
-
-        # Finally stop infrastructure services
-        if hasattr(self.service_initializer, 'initialization_service') and self.service_initializer.initialization_service:
-            services_to_stop.append(self.service_initializer.initialization_service)
-        if hasattr(self.service_initializer, 'shutdown_service') and self.service_initializer.shutdown_service:
-            services_to_stop.append(self.service_initializer.shutdown_service)
-        if hasattr(self.service_initializer, 'time_service') and self.service_initializer.time_service:
-            services_to_stop.append(self.service_initializer.time_service)
+        seen_ids = set()
+        
+        # Add all registered services
+        for service in all_registered_services:
+            service_id = id(service)
+            if service_id not in seen_ids and hasattr(service, 'stop'):
+                seen_ids.add(service_id)
+                services_to_stop.append(service)
+        
+        # Also add any services we have direct references to (in case they weren't registered)
+        # This ensures backward compatibility
+        direct_services = [
+            # From service_initializer
+            getattr(self.service_initializer, 'tsdb_consolidation_service', None),
+            getattr(self.service_initializer, 'task_scheduler_service', None),
+            getattr(self.service_initializer, 'incident_management_service', None),
+            getattr(self.service_initializer, 'resource_monitor_service', None),
+            getattr(self.service_initializer, 'config_service', None),
+            getattr(self.service_initializer, 'auth_service', None),
+            getattr(self.service_initializer, 'runtime_control_service', None),
+            getattr(self.service_initializer, 'self_observation_service', None),
+            getattr(self.service_initializer, 'visibility_service', None),
+            getattr(self.service_initializer, 'core_tool_service', None),
+            getattr(self.service_initializer, 'wa_auth_system', None),
+            getattr(self.service_initializer, 'initialization_service', None),
+            getattr(self.service_initializer, 'shutdown_service', None),
+            getattr(self.service_initializer, 'time_service', None),
+            # From runtime
+            self.maintenance_service,
+            self.transaction_orchestrator,
+            self.agent_config_service,
+            self.adaptive_filter_service,
+            self.telemetry_service,
+            self.audit_service,
+            self.llm_service,
+            self.secrets_service,
+            self.memory_service,
+        ]
+        
+        for service in direct_services:
+            if service:
+                service_id = id(service)
+                if service_id not in seen_ids and hasattr(service, 'stop'):
+                    seen_ids.add(service_id)
+                    services_to_stop.append(service)
+        
+        # Sort services by priority for shutdown (reverse order)
+        # Infrastructure services should be stopped last
+        def get_shutdown_priority(service):
+            service_name = service.__class__.__name__
+            # Priority 0: Services that depend on others
+            if 'TSDB' in service_name or 'Consolidation' in service_name:
+                return 0
+            elif 'Task' in service_name or 'Scheduler' in service_name:
+                return 1
+            elif 'Incident' in service_name or 'Monitor' in service_name:
+                return 2
+            # Priority 3: Application services
+            elif 'Adaptive' in service_name or 'Filter' in service_name:
+                return 3
+            elif 'Tool' in service_name or 'Control' in service_name:
+                return 4
+            elif 'Observation' in service_name or 'Visibility' in service_name:
+                return 5
+            # Priority 6: Core services
+            elif 'Telemetry' in service_name or 'Audit' in service_name:
+                return 6
+            elif 'LLM' in service_name or 'Auth' in service_name:
+                return 7
+            elif 'Config' in service_name:
+                return 8
+            # Priority 9: Fundamental services
+            elif 'Memory' in service_name or 'Secrets' in service_name:
+                return 9
+            # Priority 10: Infrastructure services (stop last)
+            elif 'Time' in service_name:
+                return 11
+            elif 'Shutdown' in service_name:
+                return 12
+            elif 'Initialization' in service_name:
+                return 10
+            else:
+                return 5  # Default priority
+        
+        services_to_stop.sort(key=get_shutdown_priority)
 
         # Stop services that have a stop method
         stop_tasks = []
@@ -1146,7 +1190,7 @@ class CIRISRuntime:
                 if pending:
                     await asyncio.gather(*pending, return_exceptions=True)
             else:
-                logger.info(f"All {len(stop_tasks)} services stopped successfully")
+                logger.info(f"All {len(stop_tasks)} services stopped successfully (Total services: {len(services_to_stop)})")
             
             # Check for any errors in completed tasks
             for task in done:
