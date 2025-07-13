@@ -14,7 +14,7 @@ class TaskSchedulerServiceProtocol(ServiceProtocol, Protocol):
     async def schedule_task(
         self,
         task_id: str,
-        run_at: datetime,
+        _: datetime,
         handler: Callable,
         **kwargs: Any
     ) -> bool:

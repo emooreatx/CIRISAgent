@@ -144,17 +144,15 @@ class ServiceRegistry:
         self,
         handler: str,
         service_type: ServiceType,
-        required_capabilities: Optional[List[str]] = None,
-        fallback_to_global: bool = True  # Kept for backward compatibility, ignored
+        required_capabilities: Optional[List[str]] = None
     ) -> Optional[Any]:
         """
         Get the best available service.
 
         Args:
-            handler: Handler requesting the service (kept for compatibility, ignored)
+            handler: Handler requesting the service
             service_type: Type of service needed
             required_capabilities: Required capabilities
-            fallback_to_global: Kept for backward compatibility, ignored
 
         Returns:
             Service instance or None if no suitable service available

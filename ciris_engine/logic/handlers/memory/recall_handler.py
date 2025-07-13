@@ -104,7 +104,7 @@ class RecallHandler(BaseActionHandler):
             enhanced_data = {}
             
             for n in nodes:
-                node_info = {
+                node_info: Dict[str, Any] = {
                     "type": n.type,
                     "scope": n.scope,
                     "attributes": n.attributes if isinstance(n.attributes, dict) else {}

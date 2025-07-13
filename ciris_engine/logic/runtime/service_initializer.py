@@ -330,9 +330,6 @@ This directory contains critical cryptographic keys for the CIRIS system.
             return False
 
         # Verify WA service is healthy
-        if self.wa_auth_system is None:
-            logger.error("WA auth service is None")
-            return False
         if not await self.wa_auth_system.is_healthy():
             logger.error("WA auth service not healthy")
             return False
@@ -691,8 +688,9 @@ This directory contains critical cryptographic keys for the CIRIS system.
         self.audit_service = self.audit_services[0]
         
         # Update BusManager with the initialized audit service
-        self.bus_manager.audit_service = self.audit_service
-        logger.info(f"Updated BusManager with audit_service: {self.audit_service}")
+        if self.bus_manager is not None:
+            self.bus_manager.audit_service = self.audit_service
+            logger.info(f"Updated BusManager with audit_service: {self.audit_service}")
 
         # Inject graph audit service into incident capture handlers
         from ciris_engine.logic.utils.incident_capture_handler import inject_graph_audit_service_to_handlers

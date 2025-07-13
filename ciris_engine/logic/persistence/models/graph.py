@@ -44,10 +44,8 @@ def add_graph_node(node: GraphNode, time_service: TimeServiceProtocol, db_path: 
                     new_attrs = node.attributes.model_dump()
                 elif hasattr(node.attributes, 'dict'):
                     new_attrs = node.attributes.dict()
-                elif isinstance(node.attributes, dict):
+                else:  # isinstance(node.attributes, dict)
                     new_attrs = node.attributes
-                else:
-                    new_attrs = {}
                 
                 # Merge attributes - new values override old ones
                 merged_attrs = {**existing_attrs, **new_attrs}

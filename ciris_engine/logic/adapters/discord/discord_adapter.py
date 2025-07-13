@@ -169,7 +169,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         time_service = self._time_service
         if time_service is None:
             logger.error("Time service not initialized")
-            return False
+            raise RuntimeError("Time service not initialized")
         start_time = time_service.now()
 
         try:
@@ -317,7 +317,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         time_service = self._time_service
         if time_service is None:
             logger.error("Time service not initialized")
-            return False
+            return None
         start_time = time_service.now()
 
         try:
@@ -820,7 +820,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         time_service = self._time_service
         if time_service is None:
             logger.error("Time service not initialized")
-            return False
+            raise RuntimeError("Time service not initialized")
         start_time = time_service.now()
 
         try:

@@ -119,7 +119,7 @@ class TaskSchedulerService(BaseScheduledService, TaskSchedulerServiceProtocol):
             schedule_cron=schedule_cron,
             trigger_prompt=trigger_prompt,
             origin_thought_id=origin_thought_id,
-            created_at=self._time_service.now().isoformat(),
+            created_at=(self._time_service.now() if self._time_service else datetime.now(timezone.utc)).isoformat(),
             last_triggered_at=None,
             deferral_count=0,
             deferral_history=[]
@@ -128,7 +128,7 @@ class TaskSchedulerService(BaseScheduledService, TaskSchedulerServiceProtocol):
     async def _run_scheduled_task(self) -> None:
         """Check for due tasks and trigger them."""
         # Check for due tasks
-        now = self._time_service.now()
+        now = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
         due_tasks = self._get_due_tasks(now)
 
         for task in due_tasks:
@@ -148,16 +148,8 @@ class TaskSchedulerService(BaseScheduledService, TaskSchedulerServiceProtocol):
         """Check if a task is due for execution."""
         # One-time deferred task
         if task.defer_until:
-            # Handle both datetime objects and strings
-            if isinstance(task.defer_until, datetime):
-                defer_time = task.defer_until
-            else:
-                # Handle both 'Z' and '+00:00' formats
-                defer_str = task.defer_until
-                if defer_str.endswith('Z'):
-                    defer_str = defer_str[:-1] + '+00:00'
-                defer_time = datetime.fromisoformat(defer_str)
-            return current_time >= defer_time
+            # defer_until is always a datetime per the type annotation
+            return current_time >= task.defer_until
 
         # Cron-style recurring task
         if task.schedule_cron:
@@ -176,25 +168,11 @@ class TaskSchedulerService(BaseScheduledService, TaskSchedulerServiceProtocol):
         try:
             # If never triggered, use creation time as base
             if not task.last_triggered_at:
-                # Handle both datetime objects and strings
-                if isinstance(task.created_at, datetime):
-                    base_time = task.created_at
-                else:
-                    # Handle both 'Z' and '+00:00' formats
-                    created_str = task.created_at
-                    if created_str.endswith('Z'):
-                        created_str = created_str[:-1] + '+00:00'
-                    base_time = datetime.fromisoformat(created_str)
+                # created_at is always a datetime per the type annotation
+                base_time = task.created_at
             else:
-                # Handle both datetime objects and strings
-                if isinstance(task.last_triggered_at, datetime):
-                    base_time = task.last_triggered_at
-                else:
-                    # Handle both 'Z' and '+00:00' formats
-                    triggered_str = task.last_triggered_at
-                    if triggered_str.endswith('Z'):
-                        triggered_str = triggered_str[:-1] + '+00:00'
-                    base_time = datetime.fromisoformat(triggered_str)
+                # last_triggered_at is always a datetime per the type annotation
+                base_time = task.last_triggered_at
 
             # Create croniter instance
             cron = croniter(task.schedule_cron, base_time)
@@ -234,13 +212,13 @@ class TaskSchedulerService(BaseScheduledService, TaskSchedulerServiceProtocol):
             else:
                 # Create a new thought for regular scheduled tasks
                 thought = Thought(
-                    thought_id=f"thought_{self._time_service.now().timestamp()}",
+                    thought_id=f"thought_{(self._time_service.now() if self._time_service else datetime.now(timezone.utc)).timestamp()}",
                     content=task.trigger_prompt,
                     status=ThoughtStatus.PENDING,
                     thought_type=ThoughtType.SCHEDULED,
                     source_task_id=task.task_id,
-                    created_at=self._time_service.now().isoformat(),
-                    updated_at=self._time_service.now().isoformat(),
+                    created_at=(self._time_service.now() if self._time_service else datetime.now(timezone.utc)).isoformat(),
+                    updated_at=(self._time_service.now() if self._time_service else datetime.now(timezone.utc)).isoformat(),
                     final_action=FinalAction(
                         action_type="SCHEDULED_TASK",
                         action_params={
@@ -268,7 +246,7 @@ class TaskSchedulerService(BaseScheduledService, TaskSchedulerServiceProtocol):
 
     async def _update_task_triggered(self, task: ScheduledTask) -> None:
         """Update task after triggering."""
-        now = self._time_service.now()
+        now = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
         now_iso = now.isoformat()
 
         # Update in-memory task
@@ -321,7 +299,7 @@ class TaskSchedulerService(BaseScheduledService, TaskSchedulerServiceProtocol):
             if not self._validate_cron_expression(schedule_cron):
                 raise ValueError(f"Invalid cron expression: {schedule_cron}")
 
-        task_id = f"task_{self._time_service.now().timestamp()}"
+        task_id = f"task_{(self._time_service.now() if self._time_service else datetime.now(timezone.utc)).timestamp()}"
 
         task = self._create_scheduled_task(
             task_id=task_id,
@@ -460,7 +438,7 @@ class TaskSchedulerService(BaseScheduledService, TaskSchedulerServiceProtocol):
             task.defer_until = datetime.fromisoformat(defer_until.replace('Z', '+00:00'))
             task.deferral_count += 1
             task.deferral_history.append({
-                "deferred_at": self._time_service.now().isoformat(),
+                "deferred_at": (self._time_service.now() if self._time_service else datetime.now(timezone.utc)).isoformat(),
                 "deferred_until": defer_until,
                 "reason": reason
             })
@@ -541,7 +519,7 @@ class TaskSchedulerService(BaseScheduledService, TaskSchedulerServiceProtocol):
             return "unknown (croniter not installed)"
 
         try:
-            now = self._time_service.now()
+            now = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
             cron = croniter(cron_expr, now)
             next_time = cron.get_next(datetime)
             return str(next_time.isoformat())
@@ -551,4 +529,4 @@ class TaskSchedulerService(BaseScheduledService, TaskSchedulerServiceProtocol):
 
     async def is_healthy(self) -> bool:
         """Check if the service is healthy."""
-        return bool(self._scheduler_task and not self._shutdown_event.is_set())
+        return bool(self._task and not self._shutdown_event.is_set())

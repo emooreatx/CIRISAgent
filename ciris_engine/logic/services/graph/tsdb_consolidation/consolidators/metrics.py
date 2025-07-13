@@ -206,7 +206,7 @@ class MetricsConsolidator:
         else:
             logger.warning("Memory bus not available - summary not stored")
         
-        return summary_node
+        return summary
     
     def get_edges(
         self,

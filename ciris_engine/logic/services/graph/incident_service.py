@@ -584,9 +584,7 @@ class IncidentManagementService(BaseGraphService):
     def get_status(self) -> ServiceStatus:
         """Get service status."""
         current_time = self._time_service.now() if self._time_service else datetime.now()
-        uptime_seconds = 0.0
-        if self._start_time:
-            uptime_seconds = (current_time - self._start_time).total_seconds()
+        uptime_seconds = (current_time - self._start_time).total_seconds() if self._start_time else 0.0
         
         return ServiceStatus(
             service_name="IncidentManagementService",

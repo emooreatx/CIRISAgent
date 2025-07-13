@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import List, Any
+from typing import List, Any, Optional
 
 from ciris_engine.logic.adapters.base import Service
 from .config import CLIAdapterConfig
@@ -14,7 +14,7 @@ from .cli_observer import CLIObserver
 logger = logging.getLogger(__name__)
 
 class CliPlatform(Service):
-    config: CLIAdapterConfig  # Type annotation to override parent's dict type
+    config: CLIAdapterConfig  # type: ignore[assignment]
     
     def __init__(self, runtime: Any, **kwargs: Any) -> None:
         # Initialize the parent Service class
@@ -65,7 +65,7 @@ class CliPlatform(Service):
         logger.info(f"CliPlatform created CLIAdapter instance: {id(self.cli_adapter)}")
 
         # CLI observer will be created in start() when services are available
-        self.cli_observer = None
+        self.cli_observer: Optional[CLIObserver] = None
         self.on_observe = self._handle_incoming_message
         self.bus_manager = getattr(runtime, 'bus_manager', None)
         self.observer_wa_id = None  # Will be set by auth service if available
@@ -79,10 +79,7 @@ class CliPlatform(Service):
             logger.warning("CliPlatform: CLIObserver not available.")
             return
 
-        if not isinstance(msg, IncomingMessage):
-            logger.warning(f"CliPlatform: Expected IncomingMessage, got {type(msg)}. Cannot process.")
-            return
-
+        # msg is already typed as IncomingMessage
         try:
             await self.cli_observer.handle_incoming_message(msg)
             logger.debug("CliPlatform: Message sent to CLIObserver")
@@ -128,8 +125,8 @@ class CliPlatform(Service):
             # Get services from runtime's service_initializer
             service_initializer = getattr(self.runtime, 'service_initializer', None)
             if service_initializer:
-                self.cli_observer = CLIObserver(
-                    on_observe=self.on_observe,
+                self.cli_observer = CLIObserver(  # type: ignore[assignment]
+                    on_observe=self.on_observe,  # type: ignore[arg-type]
                     bus_manager=self.bus_manager,
                     memory_service=getattr(service_initializer, 'memory_service', None),
                     agent_id=getattr(self.runtime, 'agent_id', None),
@@ -159,7 +156,7 @@ class CliPlatform(Service):
         # If we have an observer, monitor its stop event
         if self.cli_observer and hasattr(self.cli_observer, '_stop_event'):
             stop_event_task = asyncio.create_task(
-                self.cli_observer._stop_event.wait(),
+                self.cli_observer._stop_event.wait(),  # type: ignore[attr-defined]
                 name="CLIObserverStopEvent"
             )
             tasks.append(stop_event_task)

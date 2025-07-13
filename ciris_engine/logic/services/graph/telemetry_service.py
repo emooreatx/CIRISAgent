@@ -314,16 +314,8 @@ class GraphTelemetryService(BaseGraphService, TelemetryServiceProtocol):
 
                 # Filter by time range
                 if data.timestamp:
-                    ts: Optional[datetime] = None
-                    timestamp_value = data.timestamp
-                    if isinstance(timestamp_value, str):
-                        try:
-                            ts = datetime.fromisoformat(timestamp_value)
-                        except Exception:
-                            continue
-                    else:
-                        # Assume it's already a datetime if not a string
-                        ts = timestamp_value
+                    # timestamp is always a datetime per TimeSeriesDataPoint type
+                    ts = data.timestamp
                     
                     if ts is not None:
                         

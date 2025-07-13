@@ -8,6 +8,8 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import uvicorn
+from uvicorn import Server
+from fastapi import FastAPI
 
 from ciris_engine.logic.adapters.base import Service
 from ciris_engine.logic.registries.base import Priority
@@ -27,7 +29,7 @@ logger = logging.getLogger(__name__)
 class ApiPlatform(Service):
     """API adapter platform for CIRIS v1."""
     
-    config: APIAdapterConfig
+    config: APIAdapterConfig  # type: ignore[assignment]
     
     def __init__(self, runtime: Any, **kwargs: Any) -> None:
         """Initialize API adapter."""
@@ -49,12 +51,12 @@ class ApiPlatform(Service):
         self.config.load_env_vars()
         
         # Create FastAPI app - services will be injected later in start()
-        self.app = create_app(runtime, self.config)
-        self._server = None
-        self._server_task = None
+        self.app: FastAPI = create_app(runtime, self.config)
+        self._server: Optional[Server] = None
+        self._server_task: Optional[asyncio.Task[Any]] = None
         
         # Message observer for handling incoming messages (will be created in start())
-        self.message_observer = None
+        self.message_observer: Optional[APIObserver] = None
         
         # Communication service for API responses
         self.communication = APICommunicationService()
@@ -62,7 +64,7 @@ class ApiPlatform(Service):
         if hasattr(runtime, 'time_service'):
             self.communication._time_service = runtime.time_service
         # Pass app state reference for message tracking
-        self.communication._app_state = self.app.state
+        self.communication._app_state = self.app.state  # type: ignore[attr-defined]
         
         # Runtime control service
         self.runtime_control = APIRuntimeControlService(runtime)
@@ -448,7 +450,6 @@ class ApiPlatform(Service):
                 # Check if server is still running
                 if self._server_task and self._server_task.done():
                     # Server stopped unexpectedly
-                    assert self._server_task is not None
                     exc = self._server_task.exception()
                     if exc:
                         logger.error(f"API server stopped with error: {exc}")

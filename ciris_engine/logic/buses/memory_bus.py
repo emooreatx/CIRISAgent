@@ -188,9 +188,9 @@ class MemoryBus(BaseBus[MemoryService]):
             return []
 
         try:
-            # Use recall to search for memories
-            from ciris_engine.schemas.services.operations import MemoryQuery
+            # Use search to find memories by text
             from ciris_engine.schemas.services.graph_core import GraphScope
+            from ciris_engine.schemas.api.memory import MemorySearchFilter
             
             # Convert scope string to GraphScope enum
             try:
@@ -198,13 +198,13 @@ class MemoryBus(BaseBus[MemoryService]):
             except ValueError:
                 graph_scope = GraphScope.PERSONAL
             
-            memory_query = MemoryQuery(
-                query_text=query,
+            # Create search filter
+            search_filter = MemorySearchFilter(
                 scope=graph_scope,
                 limit=limit
             )
             
-            nodes = await service.recall(memory_query)
+            nodes = await service.search(query, search_filter)
             
             # Convert GraphNodes to MemorySearchResults
             results = []

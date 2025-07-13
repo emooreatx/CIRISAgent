@@ -375,10 +375,8 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
             attributes_dict = attributes.model_dump()
         elif hasattr(attributes, 'dict'):
             attributes_dict = attributes.dict()
-        elif isinstance(attributes, dict):
+        else:  # isinstance(attributes, dict)
             attributes_dict = attributes
-        else:
-            attributes_dict = {}
 
         secret_refs = attributes_dict.get("_secret_refs", [])
         if not secret_refs:
@@ -422,10 +420,8 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
             attributes_dict = attributes.model_dump()
         elif hasattr(attributes, 'dict'):
             attributes_dict = attributes.dict()
-        elif isinstance(attributes, dict):
+        else:  # isinstance(attributes, dict)
             attributes_dict = attributes
-        else:
-            attributes_dict = {}
 
         # Check for secret references
         secret_refs = attributes_dict.get("_secret_refs", [])

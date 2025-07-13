@@ -314,19 +314,15 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                                 "deferral_reason": deferral_reason
                             })
                         else:
-                            from ciris_engine.schemas.runtime.system_context import SystemSnapshot
-                            # Create channel context for guidance
-                            guidance_channel_context = create_channel_context(
+                            from ciris_engine.schemas.runtime.models import ThoughtContext
+                            # Create a ThoughtContext for the guidance thought
+                            guidance_context = ThoughtContext(
+                                task_id=original_task.task_id,
                                 channel_id=msg.channel_id,
-                                channel_type="discord"
-                            )
-                            # Create a minimal valid ThoughtContext
-                            guidance_context = ProcessingThoughtContext(
-                                system_snapshot=SystemSnapshot(
-                                    channel_context=guidance_channel_context
-                                ),
-                                user_profiles={},  # Dict[str, UserProfile] - empty dict is valid
-                                task_history=[]
+                                round_number=0,
+                                depth=0,
+                                parent_thought_id=referenced_thought_id,
+                                correlation_id=str(uuid.uuid4())
                             )
                             # Add extra fields after creation
                             setattr(guidance_context, 'guidance_message_id', msg.message_id)

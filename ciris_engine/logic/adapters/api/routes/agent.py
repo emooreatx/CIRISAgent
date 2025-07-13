@@ -6,7 +6,7 @@ Core endpoints for natural agent interaction.
 import asyncio
 import logging
 import uuid
-from typing import List, Optional, cast, Any, Dict
+from typing import List, Optional, Any, Dict
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
@@ -346,17 +346,19 @@ async def get_history(
                 continue
         
         # Sort messages by timestamp (newest first)
-        messages = sorted(fetched_messages, 
+        sorted_messages = sorted(fetched_messages, 
                          key=lambda m: m["timestamp"] if isinstance(m["timestamp"], datetime) else datetime.fromisoformat(str(m["timestamp"])), 
                          reverse=True)
 
         # Filter by time if specified
         if before:
-            messages = [m for m in messages if (m["timestamp"] if isinstance(m["timestamp"], datetime) else datetime.fromisoformat(str(m["timestamp"]))) < before]
+            filtered_messages = [m for m in sorted_messages if (m["timestamp"] if isinstance(m["timestamp"], datetime) else datetime.fromisoformat(str(m["timestamp"]))) < before]
+        else:
+            filtered_messages = sorted_messages
 
         # Convert to conversation messages
         conv_messages = []
-        for msg in messages[:limit]:  # Apply limit after filtering
+        for msg in filtered_messages[:limit]:  # Apply limit after filtering
             # Safely access dictionary values
             timestamp_val = msg["timestamp"]
             msg_timestamp = timestamp_val if isinstance(timestamp_val, datetime) else datetime.fromisoformat(str(timestamp_val))
@@ -372,8 +374,8 @@ async def get_history(
         # Build response
         history = ConversationHistory(
             messages=conv_messages,
-            total_count=len(messages),  # Total before limiting
-            has_more=len(messages) > limit
+            total_count=len(filtered_messages),  # Total before limiting
+            has_more=len(filtered_messages) > limit
         )
 
         return SuccessResponse(data=history)

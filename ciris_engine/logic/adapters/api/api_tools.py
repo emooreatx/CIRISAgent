@@ -33,12 +33,12 @@ class APIToolService(ToolService):
 
     async def start(self) -> None:
         """Start the API tool service."""
-        await super().start()
+        # Don't call super() on abstract method
         logger.info("API tool service started")
 
     async def stop(self) -> None:
         """Stop the API tool service."""
-        await super().stop()
+        # Don't call super() on abstract method
         logger.info("API tool service stopped")
 
     async def execute_tool(self, tool_name: str, parameters: dict) -> ToolExecutionResult:

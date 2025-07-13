@@ -62,7 +62,7 @@ class EmergencyDMAProtocol(BaseDMAProtocol):
     """Emergency Decision Making Algorithm - for critical situations."""
 
     @abstractmethod
-    async def evaluate_emergency(self, situation: Any) -> Any:
+    async def evaluate_emergency(self, _: Any) -> Any:
         """Evaluate emergency situation."""
         ...
 
@@ -80,7 +80,7 @@ class CollaborativeDMAProtocol(BaseDMAProtocol):
     """Collaborative Decision Making Algorithm - for multi-agent scenarios."""
 
     @abstractmethod
-    async def evaluate_collaborative(self, action: Any, agents: List[str]) -> Any:
+    async def evaluate_collaborative(self, action: Any, _: List[str]) -> Any:
         """Evaluate action in collaborative context."""
         ...
 
@@ -90,6 +90,6 @@ class CollaborativeDMAProtocol(BaseDMAProtocol):
         ...
 
     @abstractmethod
-    async def negotiate_action(self, proposals: List[Any]) -> Any:
+    async def negotiate_action(self, _: List[Any]) -> Any:
         """Negotiate action among multiple proposals."""
         ...

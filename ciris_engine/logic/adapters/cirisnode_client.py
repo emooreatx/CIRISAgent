@@ -71,8 +71,7 @@ class CIRISNodeClient(Service):
         self._audit_service = await self.service_registry.get_service(
             self.__class__.__name__,
             ServiceType.AUDIT,
-            required_capabilities=["log_action"],
-            fallback_to_global=True,
+            required_capabilities=["log_action"]
         )
 
         if not self._audit_service:

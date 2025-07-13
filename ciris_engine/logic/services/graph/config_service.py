@@ -5,7 +5,7 @@ All configuration is stored as memories in the graph, with full history tracking
 This replaces the old config_manager_service and agent_config_service.
 """
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
@@ -47,7 +47,7 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
         """Start the service."""
         await super().start()
         self._running = True
-        self._start_time = self._time_service.now()
+        self._start_time = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
 
     async def stop(self) -> None:
         """Stop the service."""
@@ -163,13 +163,8 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
             config_value.string_value = value
         elif isinstance(value, list):
             config_value.list_value = value
-        elif isinstance(value, dict):
+        else:  # isinstance(value, dict)
             config_value.dict_value = value
-        else:
-            # Log unexpected type with sanitized values to prevent log injection
-            safe_key = ''.join(c if c.isprintable() and c not in '\n\r\t' else ' ' for c in str(key))
-            safe_value = ''.join(c if c.isprintable() and c not in '\n\r\t' else ' ' for c in str(value)[:100])  # Limit length
-            logger.warning(f"Unexpected config value type for key {safe_key}: {type(value).__name__} = {safe_value}")
 
         # Check if value has changed
         if current:
@@ -193,7 +188,7 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
             value=config_value,
             version=(current.version + 1) if current else 1,
             updated_by=updated_by,
-            updated_at=self._time_service.now(),
+            updated_at=self._time_service.now() if self._time_service else datetime.now(timezone.utc),
             previous_version=current.id if current else None
         )
 

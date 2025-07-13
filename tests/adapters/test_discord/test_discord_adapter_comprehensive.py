@@ -75,6 +75,8 @@ def discord_adapter(mock_time_service, mock_bus_manager, mock_discord_client, di
         bus_manager=mock_bus_manager,
         config=discord_config
     )
+    # Override retry config for tests to avoid slow retries
+    adapter.config["retry"]["discord_api"]["max_retries"] = 0
     return adapter
 
 
@@ -140,7 +142,7 @@ class TestDiscordAdapterCore:
         assert discord_adapter._rate_limiter is not None
 
     @pytest.mark.asyncio
-    async def test_send_message_success(self, discord_adapter, mock_discord_client):
+    async def test_send_message_success(self, discord_adapter, mock_discord_client, setup_test_db):
         """Test successful message sending."""
         # Mock connection manager to return connected
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
@@ -507,7 +509,7 @@ class TestDiscordAuditLogging:
             pass
 
     @pytest.mark.asyncio
-    async def test_audit_log_message_operations(self, discord_adapter):
+    async def test_audit_log_message_operations(self, discord_adapter, setup_test_db):
         """Test audit logging for message operations."""
         # Mock audit service
         mock_audit_service = AsyncMock()

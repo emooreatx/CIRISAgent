@@ -25,10 +25,10 @@ def inspect_thoughts():
             content,
             status,
             thought_type,
-            action_type,
             created_at,
             updated_at,
-            metadata
+            final_action_json,
+            context_json
         FROM thoughts
         ORDER BY created_at DESC
         LIMIT 50
@@ -56,18 +56,19 @@ def inspect_thoughts():
         print(f"  Task ID: {thought['source_task_id']}")
         print(f"  Status: {thought['status']}")
         print(f"  Type: {thought['thought_type']}")
-        print(f"  Action: {thought['action_type']}")
         print(f"  Created: {thought['created_at']}")
         print(f"  Updated: {thought['updated_at']}")
         print(f"  Content: {thought['content'][:100]}..." if len(thought['content']) > 100 else f"  Content: {thought['content']}")
         
-        # Parse metadata if it exists
-        if thought['metadata']:
+        # Parse final_action_json if it exists
+        if thought['final_action_json']:
             try:
-                metadata = json.loads(thought['metadata'])
-                print(f"  Metadata: {json.dumps(metadata, indent=4)}")
+                action = json.loads(thought['final_action_json'])
+                print(f"  Final Action: {action.get('action', 'N/A')}")
+                if 'parameters' in action:
+                    print(f"  Action Params: {json.dumps(action['parameters'], indent=4)}")
             except:
-                print(f"  Metadata: {thought['metadata']}")
+                print(f"  Final Action JSON: {thought['final_action_json']}")
         print()
     
     # Look for orphaned wakeup thoughts

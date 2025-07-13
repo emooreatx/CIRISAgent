@@ -108,14 +108,9 @@ class WiseAuthorityService(BaseService, WiseAuthorityServiceProtocol):
         elif wa.role == WARole.AUTHORITY:
             # Authority can do most things except mint WAs
             return action not in ["mint_wa", "create_wa", "bootstrap_root"]
-        elif wa.role == WARole.OBSERVER:
+        else:  # wa.role == WARole.OBSERVER
             # Observer can only read and send messages
             return action in ["read", "send_message", "observe", "get_status"]
-        else:
-            # This branch exists for type safety - mypy knows it's unreachable
-            # but we keep it for runtime safety in case of enum changes
-            logger.warning(f"Unknown WA role: {wa.role}")  # type: ignore[unreachable]
-            return False  # type: ignore[unreachable]
 
     async def request_approval(self, action: str, context: DeferralApprovalContext) -> bool:
         """Request approval for an action - may defer to human.

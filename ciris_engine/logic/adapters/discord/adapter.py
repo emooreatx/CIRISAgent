@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class DiscordPlatform(Service):
     def __init__(self, runtime: Any, **kwargs: Any) -> None:
         self.runtime = runtime
-        self.config: DiscordAdapterConfig
+        self.config: DiscordAdapterConfig  # type: ignore[assignment]
 
         if "adapter_config" in kwargs and kwargs["adapter_config"] is not None:
             # Ensure adapter_config is a DiscordAdapterConfig instance
@@ -100,7 +100,7 @@ class DiscordPlatform(Service):
         self.discord_adapter = DiscordAdapter(
             token=self.token,
             bot=self.client,
-            on_message=self._handle_discord_message_event,
+            on_message=self._handle_discord_message_event,  # type: ignore[arg-type]
             time_service=time_service,
             bus_manager=bus_manager,
             config=self.config
@@ -128,7 +128,7 @@ class DiscordPlatform(Service):
             logger.info(f"DiscordPlatform: Using {len(self.config.monitored_channel_ids)} channels: {self.config.monitored_channel_ids}")
 
         # Initialize observer as None - will be created in start() when services are ready
-        self.discord_observer = None
+        self.discord_observer: Optional[DiscordObserver] = None
 
         # Tool registry removed - tools are handled through ToolBus
         # self.tool_registry = ToolRegistry()
@@ -157,9 +157,7 @@ class DiscordPlatform(Service):
         if not self.discord_observer:
             logger.warning("DiscordPlatform: DiscordObserver not available.")
             return
-        if not isinstance(msg, DiscordMessage): # Ensure it's the correct type
-            logger.warning(f"DiscordPlatform: Expected DiscordMessage, got {type(msg)}. Cannot process.")
-            return
+        # msg is already typed as DiscordMessage
         await self.discord_observer.handle_incoming_message(msg)
 
     def get_services_to_register(self) -> List[AdapterServiceRegistration]:
@@ -206,7 +204,7 @@ class DiscordPlatform(Service):
         # Get time_service from runtime
         time_service = getattr(self.runtime, 'time_service', None)
 
-        self.discord_observer = DiscordObserver(
+        self.discord_observer = DiscordObserver(  # type: ignore[assignment]
             monitored_channel_ids=self.config.monitored_channel_ids,
             deferral_channel_id=self.config.deferral_channel_id,
             wa_user_ids=self.config.admin_user_ids,
@@ -222,7 +220,8 @@ class DiscordPlatform(Service):
         # Secrets tools are now registered globally by SecretsToolService
 
         if hasattr(self.discord_observer, 'start'):
-            await self.discord_observer.start()
+            if self.discord_observer:
+                await self.discord_observer.start()
         if hasattr(self.tool_service, 'start'):
             await self.tool_service.start()
         if hasattr(self.discord_adapter, 'start'):
@@ -433,7 +432,8 @@ class DiscordPlatform(Service):
 
         # Stop observer, tool service and adapter first
         if hasattr(self.discord_observer, 'stop'):
-            await self.discord_observer.stop()
+            if self.discord_observer:
+                await self.discord_observer.stop()
         if hasattr(self.tool_service, 'stop'):
             await self.tool_service.stop()
         if hasattr(self.discord_adapter, 'stop'):

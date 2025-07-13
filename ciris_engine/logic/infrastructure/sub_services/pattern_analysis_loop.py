@@ -7,7 +7,7 @@ This enables the agent to learn from its own patterns and behaviors.
 
 import logging
 from typing import Dict, List, Optional, Any, TYPE_CHECKING
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
 
 from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
@@ -57,7 +57,7 @@ class PatternAnalysisLoop(BaseScheduledService):
 
         # Pattern detection state
         self._detected_patterns: Dict[str, DetectedPattern] = {}
-        self._last_analysis = self._time_service.now()
+        self._last_analysis = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
 
         # Learning state
         self._pattern_history: List[DetectedPattern] = []
@@ -68,7 +68,11 @@ class PatternAnalysisLoop(BaseScheduledService):
         if not self._memory_bus and registry:
             try:
                 from ciris_engine.logic.buses import MemoryBus
-                self._memory_bus = MemoryBus(registry, self._time_service)
+                time_service = self._time_service
+                if time_service is not None:
+                    self._memory_bus = MemoryBus(registry, time_service)
+                else:
+                    logger.error("Time service is None when creating MemoryBus")
             except Exception as e:
                 logger.error(f"Failed to initialize memory bus: {e}")
 
@@ -114,13 +118,13 @@ class PatternAnalysisLoop(BaseScheduledService):
         """
         try:
             # Check if analysis is due
-            time_since_last = self._time_service.now() - self._last_analysis
+            time_since_last = (self._time_service.now() if self._time_service else datetime.now(timezone.utc)) - self._last_analysis
             if not force and time_since_last.total_seconds() < self._analysis_interval_hours * 3600:
                 return AnalysisResult(
                     status="not_due",
                     patterns_detected=0,
                     insights_stored=0,
-                    timestamp=self._time_service.now(),
+                    timestamp=self._time_service.now() if self._time_service else datetime.now(timezone.utc) if self._time_service else datetime.now(timezone.utc),
                     next_analysis_in=self._analysis_interval_hours * 3600 - time_since_last.total_seconds()
                 )
 
@@ -133,13 +137,13 @@ class PatternAnalysisLoop(BaseScheduledService):
             # 3. Update learning state
             await self._update_learning_state(patterns)
 
-            self._last_analysis = self._time_service.now()
+            self._last_analysis = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
 
             return AnalysisResult(
                 status="completed",
                 patterns_detected=len(patterns),
                 insights_stored=insights_stored,
-                timestamp=self._time_service.now()
+                timestamp=self._time_service.now() if self._time_service else datetime.now(timezone.utc)
             )
 
         except Exception as e:
@@ -148,7 +152,7 @@ class PatternAnalysisLoop(BaseScheduledService):
                 status="error",
                 patterns_detected=0,
                 insights_stored=0,
-                timestamp=self._time_service.now(),
+                timestamp=self._time_service.now() if self._time_service else datetime.now(timezone.utc),
                 error=str(e)
             )
 
@@ -228,7 +232,7 @@ class PatternAnalysisLoop(BaseScheduledService):
                     pattern_id=f"freq_dominant_{action}",
                     description=f"Action '{action}' is used {percentage:.1%} of the time",
                     evidence_nodes=freq_data.evidence[:10],  # Limit evidence
-                    detected_at=self._time_service.now(),
+                    detected_at=self._time_service.now() if self._time_service else datetime.now(timezone.utc),
                     metrics=PatternMetrics(
                         occurrence_count=freq_data.count,
                         average_value=percentage,
@@ -254,7 +258,7 @@ class PatternAnalysisLoop(BaseScheduledService):
                     pattern_id=f"freq_underused_{capability}",
                     description=f"Capability '{capability}' is rarely used ({count} times)",
                     evidence_nodes=[],
-                    detected_at=self._time_service.now(),
+                    detected_at=self._time_service.now() if self._time_service else datetime.now(timezone.utc),
                     metrics=PatternMetrics(
                         occurrence_count=count,
                         data_points=count,
@@ -306,7 +310,7 @@ class PatternAnalysisLoop(BaseScheduledService):
                         pattern_id="perf_degradation_response_time",
                         description=f"Response times degraded by {(avg_recent/avg_previous - 1)*100:.1f}%",
                         evidence_nodes=[str(d.timestamp) for d in response_times[-10:]],
-                        detected_at=self._time_service.now(),
+                        detected_at=self._time_service.now() if self._time_service else datetime.now(timezone.utc),
                         metrics=PatternMetrics(
                             average_value=avg_recent,
                             peak_value=max(times[-10:]),
@@ -375,7 +379,7 @@ class PatternAnalysisLoop(BaseScheduledService):
                         pattern_id=f"error_recurring_{error_type}",
                         description=graceful_description,
                         evidence_nodes=[str(e.timestamp) for e in instances[:5]],
-                        detected_at=self._time_service.now(),
+                        detected_at=self._time_service.now() if self._time_service else datetime.now(timezone.utc),
                         metrics=PatternMetrics(
                             occurrence_count=len(instances),
                             data_points=len(instances),
@@ -404,7 +408,7 @@ class PatternAnalysisLoop(BaseScheduledService):
         for pattern in patterns:
             try:
                 insight_node = GraphNode(
-                    id=f"insight_{pattern.pattern_id}_{int(self._time_service.now().timestamp())}",
+                    id=f"insight_{pattern.pattern_id}_{int((self._time_service.now() if self._time_service else datetime.now(timezone.utc)).timestamp())}",
                     type=NodeType.CONCEPT,
                     scope=GraphScope.LOCAL,
                     attributes={
@@ -442,11 +446,11 @@ class PatternAnalysisLoop(BaseScheduledService):
 
         # Store learning summary
         learning_node = GraphNode(
-            id=f"learning_state_{int(self._time_service.now().timestamp())}",
+            id=f"learning_state_{int((self._time_service.now() if self._time_service else datetime.now(timezone.utc)).timestamp())}",
             type=NodeType.CONCEPT,
             scope=GraphScope.LOCAL,
             attributes={
-                "timestamp": self._time_service.now().isoformat(),
+                "timestamp": (self._time_service.now() if self._time_service else datetime.now(timezone.utc)).isoformat(),
                 "patterns_detected": len(patterns),
                 "pattern_types_seen": list(set(p.pattern_type.value for p in patterns)),
                 "total_patterns_learned": len(self._pattern_history)
@@ -527,7 +531,7 @@ class PatternAnalysisLoop(BaseScheduledService):
                     pattern_id="tool_usage_by_hour",
                     description="Different tools preferred at different times of day",
                     evidence_nodes=[],
-                    detected_at=self._time_service.now(),
+                    detected_at=self._time_service.now() if self._time_service else datetime.now(timezone.utc),
                     metrics=PatternMetrics(
                         metadata={
                             "morning_tools": [tool for tool, _ in top_morning],
@@ -590,7 +594,7 @@ class PatternAnalysisLoop(BaseScheduledService):
                     action=action_type,
                     count=data["count"],
                     evidence=data["evidence"],
-                    last_seen=data["last_seen"] or self._time_service.now(),
+                    last_seen=data["last_seen"] or (self._time_service.now() if self._time_service else datetime.now(timezone.utc)),
                     daily_average=data["count"] / total_days
                 )
 
@@ -734,10 +738,11 @@ class PatternAnalysisLoop(BaseScheduledService):
         status.service_name = "PatternAnalysisLoop"
         
         # Add our custom metrics
-        status.custom_metrics.update({
-            "patterns_detected": float(len(self._detected_patterns)),
-            "pattern_history_size": float(len(self._pattern_history)),
-            "last_analysis": self._last_analysis.isoformat() if self._last_analysis else None
-        })
+        if status.custom_metrics is not None:
+            status.custom_metrics.update({
+                "patterns_detected": float(len(self._detected_patterns)),
+                "pattern_history_size": float(len(self._pattern_history)),
+                "last_analysis": self._last_analysis.isoformat() if self._last_analysis else None
+            })
         
         return status

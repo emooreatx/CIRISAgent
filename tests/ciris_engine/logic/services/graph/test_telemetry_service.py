@@ -159,7 +159,7 @@ async def test_telemetry_service_query_metrics(telemetry_service, memory_bus):
         mock_metric = Mock()
         mock_metric.metric_name = "query.test"
         mock_metric.value = i * 10.0
-        mock_metric.timestamp = (base_time + timedelta(seconds=i)).isoformat()
+        mock_metric.timestamp = base_time + timedelta(seconds=i)  # Return datetime, not string
         mock_metric.tags = {"test": "true"}
         mock_metrics.append(mock_metric)
 
@@ -204,7 +204,7 @@ async def test_telemetry_service_aggregation(telemetry_service, memory_bus):
         mock_metric = Mock()
         mock_metric.metric_name = "aggregate.test"
         mock_metric.value = float(value)
-        mock_metric.timestamp = (base_time - timedelta(seconds=30-i)).isoformat()  # Within last 60 minutes
+        mock_metric.timestamp = base_time - timedelta(seconds=30-i)  # Return datetime, not string
         mock_metric.tags = {}
         mock_metrics.append(mock_metric)
 

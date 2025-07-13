@@ -39,11 +39,13 @@ class CLIToolService(ToolService):
 
     async def start(self) -> None:
         """Start the CLI tool service."""
-        await super().start()
+        # Don't call super() on abstract method
+        pass
 
     async def stop(self) -> None:
         """Stop the CLI tool service."""
-        await super().stop()
+        # Don't call super() on abstract method
+        pass
 
     async def execute_tool(self, tool_name: str, parameters: dict) -> ToolExecutionResult:
         correlation_id = parameters.get("correlation_id", str(uuid.uuid4()))

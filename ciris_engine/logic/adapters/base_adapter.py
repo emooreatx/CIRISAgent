@@ -64,15 +64,16 @@ class BaseAdapter(Service):
         if metadata:
             parameters.update(metadata)
         
+        from ciris_engine.schemas.telemetry.core import TraceContext
+        
+        trace_id = str(uuid.uuid4())
+        span_id = str(uuid.uuid4())
+        
         correlation = ServiceCorrelation(
             correlation_id=correlation_id,
-            trace_id=str(uuid.uuid4()),  # Required field
-            parent_span_id=None,  # Required field
-            span_id=str(uuid.uuid4()),  # Required field
             service_type=self.adapter_type,
             handler_name=f"{self.adapter_type.title()}Adapter",
             action_type="speak",
-            channel_id=channel_id,  # Required field
             request_data=ServiceRequestData(
                 service_type=self.adapter_type,
                 method_name="speak",
@@ -81,13 +82,22 @@ class BaseAdapter(Service):
                 request_timestamp=now
             ),
             response_data=ServiceResponseData(
-                service_type=self.adapter_type,  # Required field
-                method_name="speak",  # Required field
                 success=True,
                 result_summary="Message sent",
                 execution_time_ms=0,
                 response_timestamp=now
             ),
+            trace_context=TraceContext(
+                trace_id=trace_id,
+                span_id=span_id,
+                parent_span_id=None,
+                span_name=f"{self.adapter_type}.speak",
+                span_kind="internal"
+            ),
+            tags={
+                "channel_id": channel_id,
+                "adapter_type": self.adapter_type
+            },
             status=ServiceCorrelationStatus.COMPLETED,
             created_at=now,
             updated_at=now,
@@ -123,15 +133,14 @@ class BaseAdapter(Service):
         if metadata:
             parameters.update(metadata)
         
+        trace_id = str(uuid.uuid4())
+        span_id = str(uuid.uuid4())
+        
         correlation = ServiceCorrelation(
             correlation_id=correlation_id,
-            trace_id=str(uuid.uuid4()),  # Required field
-            parent_span_id=None,  # Required field
-            span_id=str(uuid.uuid4()),  # Required field
             service_type=self.adapter_type,
             handler_name=f"{self.adapter_type.title()}Adapter",
             action_type="observe",
-            channel_id=channel_id,  # Required field
             request_data=ServiceRequestData(
                 service_type=self.adapter_type,
                 method_name="observe",
@@ -140,13 +149,22 @@ class BaseAdapter(Service):
                 request_timestamp=now
             ),
             response_data=ServiceResponseData(
-                service_type=self.adapter_type,  # Required field
-                method_name="observe",  # Required field
                 success=True,
                 result_summary="Message observed",
                 execution_time_ms=0,
                 response_timestamp=now
             ),
+            trace_context=TraceContext(
+                trace_id=trace_id,
+                span_id=span_id,
+                parent_span_id=None,
+                span_name=f"{self.adapter_type}.observe",
+                span_kind="internal"
+            ),
+            tags={
+                "channel_id": channel_id,
+                "adapter_type": self.adapter_type
+            },
             status=ServiceCorrelationStatus.COMPLETED,
             created_at=now,
             updated_at=now,

@@ -100,7 +100,7 @@ class ToolHandler(BaseActionHandler):
                 thought_type=ThoughtType.FOLLOW_UP
             )
             persistence.add_thought(follow_up)
-            follow_up_id = follow_up.thought_id
+            follow_up_id: Optional[str] = follow_up.thought_id
         else:
             # Use centralized method for successful cases
             follow_up_id = await self.complete_thought_and_create_followup(

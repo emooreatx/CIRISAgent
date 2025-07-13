@@ -38,8 +38,6 @@ def add_correlation(corr: ServiceCorrelation, time_service: Optional[TimeService
             timestamp_str = corr.timestamp.isoformat()
         else:
             timestamp_str = str(corr.timestamp)
-    else:
-        timestamp_str = None
 
     params = (
         corr.correlation_id,

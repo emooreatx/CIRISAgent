@@ -3,7 +3,7 @@ Simple rate limiting middleware for CIRIS API.
 
 Implements a basic in-memory rate limiter using token bucket algorithm.
 """
-from fastapi import Request, Response, HTTPException
+from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from typing import Dict, Tuple, Callable
 from datetime import datetime, timedelta

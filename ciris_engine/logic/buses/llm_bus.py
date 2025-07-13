@@ -248,8 +248,7 @@ class LLMBus(BaseBus[LLMService]):
         service = await self.service_registry.get_service(
             handler=handler_name,
             service_type=ServiceType.LLM,
-            required_capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED.value],
-            fallback_to_global=True
+            required_capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED.value]
         )
 
         if service and await self._is_service_healthy(service):

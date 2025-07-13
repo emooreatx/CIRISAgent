@@ -158,7 +158,7 @@ class ShutdownProcessor(BaseProcessor):
                     logger.debug(f"Shutdown already complete, self.shutdown_complete = {self.shutdown_complete}")
                     import asyncio
                     await asyncio.sleep(1.0)
-                return self.shutdown_result
+                return self.shutdown_result or {"status": "shutdown_complete", "reason": "system shutdown"}
             elif current_task.status == TaskStatus.FAILED:
                 # Task failed - could be REJECT or error
                 self.shutdown_complete = True

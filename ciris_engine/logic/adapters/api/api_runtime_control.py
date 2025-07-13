@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from ciris_engine.logic.adapters.base import Service
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.logic.runtime.adapter_manager import RuntimeAdapterManager
-from ciris_engine.schemas.runtime.adapter_management import AdapterOperationResult, AdapterStatus as AdapterStatusSchema
 
 logger = logging.getLogger(__name__)
 

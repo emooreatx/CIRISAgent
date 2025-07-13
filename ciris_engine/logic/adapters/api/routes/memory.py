@@ -900,7 +900,7 @@ async def visualize_memory_graph(
                                     "FROM graph_nodes",
                                     "WHERE updated_at >= ? AND updated_at < ?",
                                 ]
-                                params: List[Any] = [day_start.isoformat(), day_end.isoformat()]
+                                day_params: List[Any] = [day_start.isoformat(), day_end.isoformat()]
                                 
                                 # Add metric filter
                                 if not include_metrics:
@@ -909,22 +909,22 @@ async def visualize_memory_graph(
                                 # Add scope filter
                                 if scope:
                                     query_parts.append("AND scope = ?")
-                                    params.append(scope.value)
+                                    day_params.append(scope.value)
                                 
                                 # Add type filter
                                 if node_type:
                                     query_parts.append("AND node_type = ?")
-                                    params.append(node_type.value)
+                                    day_params.append(node_type.value)
                                 
                                 # Random sampling for better distribution
                                 query_parts.extend([
                                     "ORDER BY RANDOM()",
                                     "LIMIT ?"
                                 ])
-                                params.append(nodes_per_day * 2)  # Get extra to allow for filtering
+                                day_params.append(nodes_per_day * 2)  # Get extra to allow for filtering
                                 
                                 query = " ".join(query_parts)
-                                cursor.execute(query, params)
+                                cursor.execute(query, day_params)
                                 
                                 # Convert rows to GraphNode objects for this day
                                 for row in cursor.fetchall():
@@ -954,25 +954,25 @@ async def visualize_memory_graph(
                 except Exception as e:
                     logger.error(f"Failed to query timeline data: {e}")
                     # Fall back to standard query
-                    query = MemoryQuery(
+                    memory_query = MemoryQuery(
                         node_id="*",
                         scope=scope or GraphScope.LOCAL,
                         type=node_type,
                         include_edges=False,
                         depth=1
                     )
-                    all_nodes = await memory_service.recall(query)
+                    all_nodes = await memory_service.recall(memory_query)
                     nodes = all_nodes
             else:
                 # Regular time-based query
-                query = MemoryQuery(
+                memory_query = MemoryQuery(
                     node_id="*",
                     scope=scope or GraphScope.LOCAL,
                     type=node_type,
                     include_edges=False,
                     depth=1
                 )
-                all_nodes = await memory_service.recall(query)
+                all_nodes = await memory_service.recall(memory_query)
             
             # Skip additional filtering if we already have nodes from timeline database query
             if layout != "timeline" and nodes == []:
@@ -1040,7 +1040,7 @@ async def visualize_memory_graph(
                 import json
                 
                 now = datetime.now(timezone.utc)
-                start_time = now - timedelta(hours=hours)
+                start_time = now - timedelta(hours=hours or 0)
                 
                 try:
                     logger.info(f"Timeline visualization: Querying database for {hours} hours with limit {limit}")
@@ -1064,7 +1064,7 @@ async def visualize_memory_graph(
                                 "FROM graph_nodes",
                                 "WHERE updated_at >= ? AND updated_at < ?",
                             ]
-                            params: List[Any] = [day_start.isoformat(), day_end.isoformat()]
+                            day_params2: List[Any] = [day_start.isoformat(), day_end.isoformat()]
                             
                             # Add metric filter
                             if not include_metrics:
@@ -1073,22 +1073,22 @@ async def visualize_memory_graph(
                             # Add scope filter
                             if scope:
                                 query_parts.append("AND scope = ?")
-                                params.append(scope.value)
+                                day_params2.append(scope.value)
                             
                             # Add type filter
                             if node_type:
                                 query_parts.append("AND node_type = ?")
-                                params.append(node_type.value)
+                                day_params2.append(node_type.value)
                             
                             # Random sampling for better distribution
                             query_parts.extend([
                                 "ORDER BY RANDOM()",
                                 "LIMIT ?"
                             ])
-                            params.append(nodes_per_day * 2)  # Get extra to allow for filtering
+                            day_params2.append(nodes_per_day * 2)  # Get extra to allow for filtering
                         
                             query = " ".join(query_parts)
-                            cursor.execute(query, params)
+                            cursor.execute(query, day_params2)
                             
                             # Convert rows to GraphNode objects for this day
                             for row in cursor.fetchall():
@@ -1133,14 +1133,14 @@ async def visualize_memory_graph(
                     nodes = await memory_service.search("", filters=search_filters)
             else:
                 # Regular query for non-timeline layouts
-                query = MemoryQuery(
+                memory_query = MemoryQuery(
                     node_id="*",
                     scope=scope or GraphScope.LOCAL,
                     type=node_type,
                     include_edges=False,
                     depth=1
                 )
-                nodes = await memory_service.recall(query)
+                nodes = await memory_service.recall(memory_query)
                 
                 # Filter out TSDB_DATA nodes by default unless specifically requested
                 if node_type != NodeType.TSDB_DATA:

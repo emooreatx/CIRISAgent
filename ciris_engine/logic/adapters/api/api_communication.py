@@ -269,7 +269,7 @@ class APICommunicationService(CommunicationServiceProtocol):
                     })
             
             # Sort by timestamp
-            messages.sort(key=lambda m: m["timestamp"])
+            messages.sort(key=lambda m: str(m["timestamp"]))
             
             return messages
             

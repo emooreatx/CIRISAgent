@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Deque, Dict, List, Optional, Tuple
 
 import psutil
@@ -126,7 +126,7 @@ class ResourceMonitorService(BaseScheduledService, ResourceMonitorServiceProtoco
             self.snapshot.disk_free_mb = 0
             self.snapshot.disk_used_mb = 0
 
-        now = self._time_service.now()
+        now = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
         hour_ago = now - timedelta(hours=1)
         day_ago = now - timedelta(days=1)
         self.snapshot.tokens_used_hour = sum(tokens for ts, tokens in self._token_history if ts > hour_ago)
@@ -156,7 +156,7 @@ class ResourceMonitorService(BaseScheduledService, ResourceMonitorServiceProtoco
 
     async def _take_action(self, resource: str, config: ResourceLimit, level: str) -> None:
         last_action = self._last_action_time.get(f"{resource}_{level}")
-        current_time = self._time_service.now()
+        current_time = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
         if last_action and current_time - last_action < timedelta(seconds=config.cooldown_seconds):
             return
         action = config.action
@@ -172,7 +172,7 @@ class ResourceMonitorService(BaseScheduledService, ResourceMonitorServiceProtoco
         self._last_action_time[f"{resource}_{level}"] = current_time
 
     async def record_tokens(self, tokens: int) -> None:
-        current_time = self._time_service.now()
+        current_time = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
         self._token_history.append((current_time, tokens))
 
     async def check_available(self, resource: str, amount: int = 0) -> bool:

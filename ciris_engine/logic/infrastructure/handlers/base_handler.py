@@ -4,7 +4,7 @@ Base action handler - clean architecture with BusManager
 
 import asyncio
 import logging
-from typing import Any, Callable, Optional, Type, TypeVar
+from typing import Any, Callable, Optional, Type, TypeVar, Dict
 from abc import ABC, abstractmethod
 from datetime import datetime
 
@@ -266,7 +266,7 @@ class BaseActionHandler(ABC):
             # Decapsulate secrets in action parameters
             if result.action_parameters:
                 # Convert parameters to dict if needed
-                params_dict = result.action_parameters
+                params_dict: Dict[str, Any] = result.action_parameters
                 if hasattr(params_dict, 'model_dump'):
                     params_dict = params_dict.model_dump()
 

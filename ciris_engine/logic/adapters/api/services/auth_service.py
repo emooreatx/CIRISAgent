@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from ciris_engine.schemas.api.auth import UserRole, APIKeyInfo
 from ciris_engine.schemas.services.authority_core import WARole
 from ciris_engine.schemas.runtime.api import APIRole
+from ciris_engine.schemas.services.authority.wise_authority import WAUpdate
 from ciris_engine.protocols.services.infrastructure.authentication import AuthenticationServiceProtocol
 
 @dataclass
@@ -156,6 +157,7 @@ class APIAuthService:
             # Update with password hash
             await self._auth_service.update_wa(
                 wa_cert.wa_id,
+                updates=None,
                 password_hash=self._hash_password("ciris_admin_password")
             )
             
@@ -391,6 +393,7 @@ class APIAuthService:
                 # Update with password hash
                 await self._auth_service.update_wa(
                     wa_cert.wa_id,
+                    updates=None,
                     password_hash=self._hash_password(password)
                 )
                 
@@ -561,13 +564,19 @@ class APIAuthService:
             try:
                 # Update role in database
                 if api_role is not None and user.wa_role:
-                    await self._auth_service.update_wa(user_id, role=user.wa_role)
+                    await self._auth_service.update_wa(
+                        user_id, 
+                        updates=WAUpdate(role=user.wa_role.value if hasattr(user.wa_role, 'value') else str(user.wa_role))
+                    )
                 
                 # Update active status in database
                 if is_active is not None:
                     if is_active:
                         # Reactivate - note: this may not work if cert was revoked
-                        await self._auth_service.update_wa(user_id, is_active=True)
+                        await self._auth_service.update_wa(
+                            user_id,
+                            updates=WAUpdate(is_active=True)
+                        )
                     else:
                         # Deactivate
                         await self._auth_service.revoke_wa(user_id, reason="User deactivated via API")
@@ -617,6 +626,7 @@ class APIAuthService:
                 import asyncio
                 asyncio.run(self._auth_service.update_wa(
                     user_id,
+                    updates=None,
                     password_hash=self._hash_password(new_password)
                 ))
             except Exception as e:
@@ -723,6 +733,7 @@ class APIAuthService:
                 # Update the WA certificate with custom permissions
                 await self._auth_service.update_wa(
                     user_id,
+                    updates=None,
                     custom_permissions_json=json.dumps(permissions) if permissions else None
                 )
             except Exception as e:
@@ -853,9 +864,9 @@ class APIAuthService:
                 # Update WA role and parent in database
                 await self._auth_service.update_wa(
                     user_id,
-                    role=wa_role,
+                    updates=WAUpdate(role=wa_role.value if hasattr(wa_role, 'value') else str(wa_role)),
                     parent_wa_id=minted_by,
-                    auto_minted=False
+                    auto_minted=0  # Use 0 instead of False for integer field
                 )
             except Exception as e:
                 print(f"Error updating WA role in database: {e}")

@@ -169,8 +169,8 @@ async def build_system_snapshot(
                     identity_capabilities = attrs.get("permitted_actions", [])
                     identity_restrictions = attrs.get("restricted_capabilities", [])
                 else:
-                    # Handle GraphNodeAttributes or other types
-                    attrs_dict = attrs.model_dump() if hasattr(attrs, 'model_dump') else {}
+                    # Handle GraphNodeAttributes - always has model_dump
+                    attrs_dict = attrs.model_dump()
                     identity_data = {
                         "agent_id": attrs_dict.get("agent_id", ""),
                         "description": attrs_dict.get("description", ""),

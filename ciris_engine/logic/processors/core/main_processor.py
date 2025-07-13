@@ -496,7 +496,7 @@ class AgentProcessor:
             # Use fallback-aware process_thought_item
             try:
                 logger.info(f"[DEBUG TIMING] Calling processor.process_thought_item for thought {thought.thought_id}")
-                context = {"origin": "wakeup_async"}
+                context: Dict[str, Any] = {"origin": "wakeup_async"}
                 if prefetched:
                     context["prefetched_thought"] = thought  # Pass the full thought object
                 if batch_context:

@@ -1,7 +1,7 @@
 """Configuration schema for API adapter."""
 
 from pydantic import BaseModel, Field
-from ciris_engine.constants import DEFAULT_API_HOST, DEFAULT_API_PORT, DEFAULT_API_INTERACTION_TIMEOUT
+from ciris_engine.constants import DEFAULT_API_HOST, DEFAULT_API_PORT
 
 class APIAdapterConfig(BaseModel):
     """Configuration for the API adapter."""

@@ -25,11 +25,13 @@ class CLIWiseAuthorityService(WiseAuthorityService):
 
     async def start(self) -> None:
         """Start the CLI wise authority service."""
-        await super().start()
+        # Don't call super() on abstract method
+        pass
 
     async def stop(self) -> None:
         """Stop the CLI wise authority service."""
-        await super().stop()
+        # Don't call super() on abstract method
+        pass
 
     async def fetch_guidance(self, context: GuidanceContext) -> Optional[str]:
         """Prompt user for guidance on deferred decision"""

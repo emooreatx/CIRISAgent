@@ -7,7 +7,7 @@ This implements the patent's requirement for bounded identity evolution.
 
 import logging
 from typing import Any, Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
@@ -74,20 +74,28 @@ class IdentityVarianceMonitor(BaseScheduledService):
         if not self._memory_bus and registry:
             try:
                 from ciris_engine.logic.buses import MemoryBus
-                self._memory_bus = MemoryBus(registry, self._time_service)
+                time_service = self._time_service
+                if time_service is not None:
+                    self._memory_bus = MemoryBus(registry, time_service)
+                else:
+                    logger.error("Time service is None when creating MemoryBus")
             except Exception as e:
                 logger.error(f"Failed to initialize memory bus: {e}")
 
         if not self._wa_bus and registry:
             try:
                 from ciris_engine.logic.buses import WiseBus
-                self._wa_bus = WiseBus(registry, self._time_service)
+                time_service = self._time_service
+                if time_service is not None:
+                    self._wa_bus = WiseBus(registry, time_service)
+                else:
+                    logger.error("Time service is None when creating WiseBus")
             except Exception as e:
                 logger.error(f"Failed to initialize WA bus: {e}")
     
     def get_service_type(self) -> ServiceType:
         """Get service type."""
-        return ServiceType.IDENTITY_VARIANCE_MONITOR
+        return ServiceType.MAINTENANCE  # Identity variance monitor is a maintenance sub-service
     
     def _get_actions(self) -> List[str]:
         """Get list of actions this service provides."""
@@ -117,6 +125,8 @@ class IdentityVarianceMonitor(BaseScheduledService):
                 raise RuntimeError("Memory bus not available")
 
             # Create baseline snapshot using IdentitySnapshot type
+            if self._time_service is None:
+                raise RuntimeError("Time service not available")
             baseline_id = f"identity_baseline_{int(self._time_service.now().timestamp())}"
             
             baseline_snapshot = IdentitySnapshot(
@@ -126,7 +136,7 @@ class IdentityVarianceMonitor(BaseScheduledService):
                 expires_at=None,
                 identity_root=identity,
                 snapshot_id=baseline_id,
-                timestamp=self._time_service.now(),
+                timestamp=self._time_service.now() if self._time_service else datetime.now(),
                 agent_id=identity.agent_id,
                 identity_hash=identity.identity_hash,
                 core_purpose=identity.core_profile.description,
@@ -157,7 +167,7 @@ class IdentityVarianceMonitor(BaseScheduledService):
                         check_reason="baseline",
                         previous_check=None,
                         check_type="baseline",
-                        baseline_established=self._time_service.now()
+                        baseline_established=self._time_service.now() if self._time_service else datetime.now()
                     ).model_dump()
                 )
 
@@ -172,10 +182,10 @@ class IdentityVarianceMonitor(BaseScheduledService):
                     scope=GraphScope.IDENTITY,
                     attributes={
                         "baseline_id": baseline_id,
-                        "established_at": self._time_service.now().isoformat()
+                        "established_at": self._time_service.now().isoformat() if self._time_service else datetime.now().isoformat()
                     },
                     updated_by="identity_variance_monitor",
-                    updated_at=self._time_service.now()
+                    updated_at=self._time_service.now() if self._time_service else datetime.now()
                 )
                 if self._memory_bus:
                     await self._memory_bus.memorize(reference_node, handler_name="identity_variance_monitor")
@@ -224,6 +234,8 @@ class IdentityVarianceMonitor(BaseScheduledService):
                 behavioral_patterns_dict[pattern.pattern_type] = pattern.frequency
 
             # Create new baseline snapshot
+            if self._time_service is None:
+                raise RuntimeError("Time service not available")
             baseline_id = f"identity_baseline_{int(self._time_service.now().timestamp())}"
             baseline_snapshot = IdentitySnapshot(
                 id=baseline_id,
@@ -232,7 +244,7 @@ class IdentityVarianceMonitor(BaseScheduledService):
                 expires_at=None,
                 identity_root=None,  # No identity root for re-baseline
                 snapshot_id=baseline_id,
-                timestamp=self._time_service.now(),
+                timestamp=self._time_service.now() if self._time_service else datetime.now(),
                 agent_id=current_identity.get("agent_id", "unknown"),
                 identity_hash=current_identity.get("identity_hash", "unknown"),
                 core_purpose=current_identity.get("core_purpose", "unknown"),
@@ -309,6 +321,16 @@ class IdentityVarianceMonitor(BaseScheduledService):
         """
         try:
             # Check if due for variance check
+            if self._time_service is None:
+                return VarianceReport(
+                    timestamp=datetime.now(),
+                    baseline_snapshot_id=self._baseline_snapshot_id or "unknown",
+                    current_snapshot_id="unavailable",
+                    total_variance=0.0,
+                    differences=[],
+                    requires_wa_review=False,
+                    recommendations=["Time service unavailable"]
+                )
             time_since_last = self._time_service.now() - self._last_check
             if not force and time_since_last.total_seconds() < self._check_interval_hours * 3600:
                 logger.debug("Variance check not due yet")
@@ -330,7 +352,7 @@ class IdentityVarianceMonitor(BaseScheduledService):
 
             # Create report
             report = VarianceReport(
-                timestamp=self._time_service.now(),
+                timestamp=self._time_service.now() if self._time_service else datetime.now(),
                 baseline_snapshot_id=self._baseline_snapshot_id,
                 current_snapshot_id=current_snapshot.id,
                 total_variance=total_variance,
@@ -346,7 +368,8 @@ class IdentityVarianceMonitor(BaseScheduledService):
             if report.requires_wa_review:
                 await self._trigger_wa_review(report)
 
-            self._last_check = self._time_service.now()
+            if self._time_service:
+                self._last_check = self._time_service.now()
 
             return report
 
@@ -356,6 +379,8 @@ class IdentityVarianceMonitor(BaseScheduledService):
 
     async def _take_identity_snapshot(self) -> GraphNode:
         """Take a snapshot of current identity state."""
+        if self._time_service is None:
+            raise RuntimeError("Time service not available")
         snapshot_id = f"identity_snapshot_{int(self._time_service.now().timestamp())}"
 
         # Gather current identity components
@@ -569,8 +594,8 @@ class IdentityVarianceMonitor(BaseScheduledService):
 
             # Create review request
             review_request = WAReviewRequest(
-                request_id=f"variance_review_{int(self._time_service.now().timestamp())}",
-                timestamp=self._time_service.now(),
+                request_id=f"variance_review_{int(self._time_service.now().timestamp() if self._time_service else datetime.now().timestamp())}",
+                timestamp=self._time_service.now() if self._time_service else datetime.now(),
                 current_variance=report.total_variance,
                 variance_report=report,
                 critical_changes=[
@@ -693,8 +718,8 @@ class IdentityVarianceMonitor(BaseScheduledService):
                         pattern_type=f"action_frequency_{action_type}",
                         frequency=count / total_actions if total_actions > 0 else 0.0,
                         evidence=evidence.get(action_type, []),
-                        first_seen=first_seen.get(action_type, self._time_service.now()),
-                        last_seen=last_seen.get(action_type, self._time_service.now()),
+                        first_seen=first_seen.get(action_type, self._time_service.now() if self._time_service else datetime.now()),
+                        last_seen=last_seen.get(action_type, self._time_service.now() if self._time_service else datetime.now()),
                     )
                     patterns.append(pattern)
 
@@ -794,7 +819,7 @@ class IdentityVarianceMonitor(BaseScheduledService):
             )
 
             if not self._memory_bus:
-                return None
+                return
 
             nodes = await self._memory_bus.recall(
                 recall_query=query,
@@ -856,7 +881,7 @@ class IdentityVarianceMonitor(BaseScheduledService):
                 "recommendations": report.recommendations
             },
             updated_by="identity_variance_monitor",
-            updated_at=self._time_service.now()
+            updated_at=self._time_service.now() if self._time_service else datetime.now()
         )
 
         if self._memory_bus:
@@ -885,25 +910,21 @@ class IdentityVarianceMonitor(BaseScheduledService):
         """Stop the monitor."""
         # Skip final variance check during shutdown to avoid race conditions
         # The memory service might already be stopped when we reach here
+        self._memory_bus = None  # Clear reference to avoid shutdown issues
+        self._wa_bus = None
         logger.info("IdentityVarianceMonitor stopped (final check skipped during shutdown)")
 
     async def is_healthy(self) -> bool:
         """Check if the monitor is healthy."""
         return self._memory_bus is not None
 
-    async def get_capabilities(self) -> List[str]:
-        """Return list of capabilities this service supports."""
-        return [
-            "initialize_baseline", "check_variance", "monitor_identity_drift",
-            "trigger_wa_review", "analyze_behavioral_patterns"
-        ]
-    
     async def _extract_current_identity(self, identity_nodes: List[GraphNode]) -> Dict[str, Any]:
         """Extract current identity data from identity nodes."""
         # Look for the main identity node
         for node in identity_nodes:
-            if node.id == "agent/identity" or node.attributes.get("_node_class") == "IdentityNode":
-                attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
+            node_attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump() if hasattr(node.attributes, 'model_dump') else {}
+            if node.id == "agent/identity" or node_attrs.get("_node_class") == "IdentityNode":
+                attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump() if hasattr(node.attributes, 'model_dump') else {}
                 return {
                     "agent_id": attrs.get("agent_id", "unknown"),
                     "identity_hash": attrs.get("identity_hash", "unknown"),
@@ -953,11 +974,13 @@ class IdentityVarianceMonitor(BaseScheduledService):
         status = super().get_status()
         
         # Add our custom metrics
-        status.custom_metrics.update({
+        custom_metrics: Dict[str, Any] = {
             "has_baseline": float(self._baseline_snapshot_id is not None),
             "last_variance_check": self._last_check.isoformat() if self._last_check else None,
             "variance_threshold": self._variance_threshold
-        })
+        }
+        if hasattr(status, 'custom_metrics') and isinstance(status.custom_metrics, dict):
+            status.custom_metrics.update(custom_metrics)
         
         return status
     

@@ -28,13 +28,20 @@ class PonderHandler(BaseActionHandler):
     ) -> Optional[str]:
         """Process ponder action and update thought."""
         params = result.action_parameters
-        if isinstance(params, dict):
-            ponder_params = PonderParams(**params)
-        elif isinstance(params, PonderParams):
+        # Handle the union type properly
+        if isinstance(params, PonderParams):
             ponder_params = params
+        elif hasattr(params, 'model_dump'):
+            # Try to convert from another Pydantic model
+            try:
+                ponder_params = PonderParams(**params.model_dump())
+            except Exception as e:
+                logger.warning(f"Failed to convert {type(params)} to PonderParams: {e}")
+                ponder_params = PonderParams(questions=[])
         else:
-            # Convert other param types to dict if needed
-            ponder_params = PonderParams(**params.model_dump()) if hasattr(params, 'model_dump') else PonderParams(questions=[])
+            # Should not happen if DMA is working correctly
+            logger.warning(f"Expected PonderParams but got {type(params)}")
+            ponder_params = PonderParams(questions=[])
 
         questions_list = ponder_params.questions if hasattr(ponder_params, 'questions') else []
 

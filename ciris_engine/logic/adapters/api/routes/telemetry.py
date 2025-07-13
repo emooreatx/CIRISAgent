@@ -206,7 +206,7 @@ async def _get_system_overview(request: Request) -> SystemOverview:
     # Get uptime from time service
     if time_service:
         try:
-            uptime = await time_service.get_uptime()
+            uptime = time_service.get_uptime()
             overview.uptime_seconds = uptime
         except Exception as e:
             logger.warning(f"Telemetry metric retrieval failed for uptime: {type(e).__name__}: {str(e)} - Returning default/empty value")

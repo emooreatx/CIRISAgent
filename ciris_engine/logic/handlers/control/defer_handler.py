@@ -45,15 +45,15 @@ class DeferHandler(BaseActionHandler):
 
         defer_params_obj: Optional[DeferParams] = None
         try:
-            if isinstance(raw_params, dict):
-                defer_params_obj = DeferParams(**raw_params)
-            elif isinstance(raw_params, DeferParams):
+            # Check if params are already DeferParams
+            if isinstance(raw_params, DeferParams):
                 defer_params_obj = raw_params
             elif hasattr(raw_params, 'model_dump'):
-                # Convert Pydantic model to dict
+                # Try to convert from another Pydantic model
                 defer_params_obj = DeferParams(**raw_params.model_dump())
             else:
-                raise ValueError(f"Unexpected type for deferral parameters: {type(raw_params)}")
+                # Should not happen if DMA is working correctly
+                raise ValueError(f"Expected DeferParams but got {type(raw_params)}")
 
             follow_up_content_key_info = f"Deferred thought {thought_id}. Reason: {defer_params_obj.reason}"
 
