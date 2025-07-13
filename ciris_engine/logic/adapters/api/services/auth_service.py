@@ -5,6 +5,7 @@ Manages API keys, OAuth users, and authentication state.
 import hashlib
 import secrets
 import base64
+import aiofiles
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass
@@ -728,8 +729,9 @@ class APIAuthService:
         try:
             # Load ROOT public key from seed/
             root_pub_path = Path(__file__).parent.parent.parent.parent.parent.parent / "seed" / "root_pub.json"
-            with open(root_pub_path, 'r') as f:
-                root_data = json.load(f)
+            async with aiofiles.open(root_pub_path, 'r') as f:
+                content = await f.read()
+                root_data = json.loads(content)
             
             # Get the public key (base64url encoded)
             pubkey_b64 = root_data['pubkey']

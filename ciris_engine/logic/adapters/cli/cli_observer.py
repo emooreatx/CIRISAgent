@@ -47,6 +47,7 @@ class CLIObserver(BaseObserver[IncomingMessage]):
         self.interactive = interactive
         self.config = config
         self._input_task: Optional[asyncio.Task] = None
+        self._buffered_input_task: Optional[asyncio.Task] = None
         self._stop_event = asyncio.Event()
         self._buffered_input: List[str] = []
         self._input_ready = asyncio.Event()
@@ -124,7 +125,7 @@ class CLIObserver(BaseObserver[IncomingMessage]):
         # Process any buffered input first
         if self._buffered_input:
             logger.info(f"Processing {len(self._buffered_input)} buffered input lines")
-            asyncio.create_task(self._process_buffered_input())
+            self._buffered_input_task = asyncio.create_task(self._process_buffered_input())
 
         # Start interactive input loop if needed
         if self.interactive and self._input_task is None:
@@ -176,7 +177,7 @@ class CLIObserver(BaseObserver[IncomingMessage]):
                 try:
                     await self._input_task
                 except asyncio.CancelledError:
-                    pass
+                    pass  # Expected when cancelling the task, don't re-raise here
             self._input_task = None
             self._stop_event.clear()
         logger.info("CLIObserver stopped")
@@ -193,7 +194,7 @@ class CLIObserver(BaseObserver[IncomingMessage]):
                     break
                 except asyncio.CancelledError:
                     logger.debug("Input loop cancelled")
-                    break
+                    raise
 
                 if not line:
                     continue

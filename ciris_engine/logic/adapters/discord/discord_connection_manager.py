@@ -208,7 +208,8 @@ class DiscordConnectionManager:
             try:
                 await self.connection_task
             except asyncio.CancelledError:
-                pass
+                # Re-raise CancelledError to maintain cancellation chain
+                raise
 
     def is_connected(self) -> bool:
         """Check if currently connected to Discord.

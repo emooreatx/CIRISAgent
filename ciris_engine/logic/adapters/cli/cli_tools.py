@@ -3,6 +3,7 @@ import asyncio
 import uuid
 from typing import Dict, List, Optional
 from datetime import datetime, timezone
+import aiofiles
 
 from ciris_engine.schemas.adapters.cli_tools import (
     ListFilesParams, ListFilesResult, ReadFileParams,
@@ -120,8 +121,8 @@ class CLIToolService(ToolService):
             # Parse and validate parameters
             read_params = ReadFileParams.model_validate(params)
 
-            with open(read_params.path, "r") as f:
-                content = f.read()
+            async with aiofiles.open(read_params.path, "r") as f:
+                content = await f.read()
                 result = ReadFileResult(content=content, path=read_params.path)
                 return result.model_dump()
         except ValueError:

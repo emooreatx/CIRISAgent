@@ -92,6 +92,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         self._embed_formatter = DiscordEmbedFormatter()
         self._tool_handler = DiscordToolHandler(None, bot, self._time_service)
         self._start_time: Optional[datetime] = None
+        self._approval_timeout_task: Optional[asyncio.Task] = None
 
         # Set up connection callbacks
         self._setup_connection_callbacks()
@@ -464,7 +465,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             self._reaction_handler._approval_callbacks[sent_message.id] = handle_approval
 
             # Schedule timeout
-            asyncio.create_task(self._reaction_handler._handle_timeout(approval_request))
+            self._approval_timeout_task = asyncio.create_task(self._reaction_handler._handle_timeout(approval_request))
 
             if not approval_request:
                 return False

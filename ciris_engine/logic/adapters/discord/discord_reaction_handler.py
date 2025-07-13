@@ -50,6 +50,7 @@ class DiscordReactionHandler:
         self.client = client
         self._pending_approvals: Dict[int, ApprovalRequest] = {}
         self._approval_callbacks: Dict[int, Callable[[ApprovalRequest], Awaitable[None]]] = {}
+        self._timeout_task: Optional[asyncio.Task] = None
 
         # Ensure we have a time service
         if time_service is None:
@@ -120,7 +121,7 @@ class DiscordReactionHandler:
                 self._approval_callbacks[sent_message.id] = callback
 
             # Schedule timeout
-            asyncio.create_task(self._handle_timeout(approval))
+            self._timeout_task = asyncio.create_task(self._handle_timeout(approval))
 
             return approval
 

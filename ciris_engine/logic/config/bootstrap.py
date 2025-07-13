@@ -8,6 +8,7 @@ import yaml
 import logging
 from pathlib import Path
 from typing import Any, Optional, Dict
+import aiofiles
 
 from ciris_engine.schemas.config.essential import EssentialConfig
 from .env_utils import get_env_var
@@ -114,8 +115,9 @@ class ConfigBootstrap:
         yaml_path = config_path or Path("config/essential.yaml")
         if yaml_path.exists():
             try:
-                with open(yaml_path, 'r') as f:
-                    yaml_data = yaml.safe_load(f) or {}
+                async with aiofiles.open(yaml_path, 'r') as f:
+                    yaml_content = await f.read()
+                    yaml_data = yaml.safe_load(yaml_content) or {}
                 config_data = ConfigBootstrap._deep_merge(config_data, yaml_data)
                 logger.info(f"Loaded configuration from {yaml_path}")
             except Exception as e:

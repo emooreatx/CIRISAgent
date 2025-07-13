@@ -293,6 +293,7 @@ class AgentProcessor:
             await self._processing_task
         except asyncio.CancelledError:
             logger.info("Processing task was cancelled")
+            raise
         except Exception as e:
             logger.error(f"Processing loop error: {e}", exc_info=True)
         finally:
@@ -684,6 +685,7 @@ class AgentProcessor:
                     await self._processing_task
                 except asyncio.CancelledError:
                     logger.info("Processing task cancelled")
+                    raise
         finally:
             self._processing_task = None
 

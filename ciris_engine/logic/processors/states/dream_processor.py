@@ -420,6 +420,7 @@ class DreamProcessor(BaseProcessor):
                     await self._dream_task
                 except asyncio.CancelledError:
                     logger.info("Dream task cancelled.")
+                    raise
             except Exception as e:
                 logger.error(f"Error waiting for dream task: {e}", exc_info=True)
 

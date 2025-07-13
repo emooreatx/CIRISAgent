@@ -9,6 +9,7 @@ import logging
 from typing import Dict, List, Any, Optional, TYPE_CHECKING
 from datetime import timedelta
 from collections import defaultdict
+import aiofiles
 
 from ciris_engine.schemas.services.graph.incident import (
     IncidentNode, ProblemNode, IncidentInsightNode,
@@ -203,8 +204,8 @@ class IncidentManagementService(BaseGraphService):
             incidents = []
             try:
                 # Parse the incidents log file
-                with open(incidents_file, 'r') as f:
-                    for line in f:
+                async with aiofiles.open(incidents_file, 'r') as f:
+                    async for line in f:
                         line = line.strip()
                         if not line or line.startswith("==="):
                             continue

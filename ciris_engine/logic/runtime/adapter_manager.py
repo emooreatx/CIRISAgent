@@ -8,6 +8,7 @@ extending the existing processor control capabilities with adapter lifecycle man
 import asyncio
 import logging
 from typing import Dict, List, Optional, TYPE_CHECKING, cast, Any, Union
+import aiofiles
 
 if TYPE_CHECKING:
     from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
@@ -222,6 +223,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 try:
                     await instance.lifecycle_runner
                 except asyncio.CancelledError:
+                    # This is expected when we cancel the task
                     pass
             
             if hasattr(instance, 'lifecycle_task') and instance.lifecycle_task is not None:
@@ -230,6 +232,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 try:
                     await instance.lifecycle_task
                 except asyncio.CancelledError:
+                    # This is expected when we cancel the task
                     pass
 
             if instance.is_running:
@@ -262,6 +265,10 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 details={"services_unregistered": len(instance.services_registered), "was_running": True}
             )
 
+        except asyncio.CancelledError:
+            # Re-raise CancelledError to properly propagate cancellation
+            logger.debug(f"Adapter unload for {adapter_id} was cancelled")
+            raise
         except Exception as e:
             logger.error(f"Failed to unload adapter {adapter_id}: {e}", exc_info=True)
             return AdapterOperationResult(
@@ -551,8 +558,9 @@ class RuntimeAdapterManager(AdapterManagerInterface):
 
             if template_overlay_path.exists():
                 try:
-                    with open(template_overlay_path, 'r') as f:
-                        template_data = yaml.safe_load(f) or {}
+                    async with aiofiles.open(template_overlay_path, 'r') as f:
+                        content = await f.read()
+                        template_data = yaml.safe_load(content) or {}
 
                     if 'discord_config' in template_data or template_data.get('discord_config'):
                         adapter_types.append('discord')

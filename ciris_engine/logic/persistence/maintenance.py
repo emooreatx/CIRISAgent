@@ -3,6 +3,7 @@ from datetime import timedelta
 from pathlib import Path
 import asyncio
 from typing import List, Optional, Any, Dict, TYPE_CHECKING
+import aiofiles
 
 if TYPE_CHECKING:
     from ciris_engine.schemas.services.core import ServiceCapabilities
@@ -153,10 +154,10 @@ class DatabaseMaintenanceService(BaseScheduledService):
             thought_archive_file = self.archive_dir / f"archive_thoughts_{archive_timestamp_str}.jsonl"
             thought_ids_to_delete_for_archive: List[Any] = []
 
-            with open(thought_archive_file, "w") as f:
+            async with aiofiles.open(thought_archive_file, "w") as f:
                 for thought in thoughts_to_archive:
                     # Archive all thoughts older than threshold
-                    f.write(thought.model_dump_json() + "\n")
+                    await f.write(thought.model_dump_json() + "\n")
                     thought_ids_to_delete_for_archive.append(thought.thought_id)
 
             if thought_ids_to_delete_for_archive:

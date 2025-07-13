@@ -104,7 +104,18 @@ async def test_wa_auto_mint():
             
             # Try with manual signature for comparison
             print("\n5. Trying with manual signature...")
-            os.system(f"python /home/emoore/CIRISAgent/sign_wa_mint.py {test_user['user_id']} observer")
+            import asyncio
+            proc = await asyncio.create_subprocess_exec(
+                "python", "/home/emoore/CIRISAgent/sign_wa_mint.py", 
+                test_user['user_id'], "observer",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            stdout, stderr = await proc.communicate()
+            if stdout:
+                print(stdout.decode())
+            if stderr:
+                print(f"Error: {stderr.decode()}")
 
 if __name__ == "__main__":
     asyncio.run(test_wa_auto_mint())

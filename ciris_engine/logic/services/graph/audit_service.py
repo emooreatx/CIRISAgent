@@ -200,7 +200,7 @@ class GraphAuditService(BaseGraphService, AuditServiceProtocol):
             try:
                 await self._export_task
             except asyncio.CancelledError:
-                pass
+                pass  # Expected when stopping the service
 
         # Log final shutdown event BEFORE closing database
         from ciris_engine.schemas.services.graph.audit import AuditEventData
@@ -973,7 +973,8 @@ class GraphAuditService(BaseGraphService, AuditServiceProtocol):
                 if self._export_buffer:
                     await self._flush_exports()
             except asyncio.CancelledError:
-                break
+                logger.debug("Export worker cancelled")
+                raise  # Re-raise to properly exit the task
             except Exception as e:
                 logger.error(f"Export worker error: {e}")
 

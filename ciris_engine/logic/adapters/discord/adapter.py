@@ -297,7 +297,8 @@ class DiscordPlatform(Service):
                         try:
                             await self._discord_client_task
                         except asyncio.CancelledError:
-                            pass
+                            # Re-raise CancelledError to maintain cancellation chain
+                            raise
                     break
 
                 # Check if Discord task failed
@@ -456,6 +457,8 @@ class DiscordPlatform(Service):
                 await self._discord_client_task
             except asyncio.CancelledError:
                 logger.info("DiscordPlatform: Discord client task successfully cancelled.")
+                # Re-raise CancelledError to maintain cancellation chain
+                raise
 
         logger.info("DiscordPlatform: Stopped.")
     
