@@ -18,7 +18,6 @@ from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, Node
 from ciris_engine.schemas.services.operations import MemoryQuery
 from ciris_engine.schemas.runtime.enums import HandlerActionType, TaskStatus, ThoughtStatus
 from ciris_engine.logic.services.adaptation.self_observation import SelfObservationService
-from ciris_engine.schemas.services.special.self_observation import AgentIdentityRoot as SelfObservationIdentity
 from ciris_engine.logic.services.graph.telemetry_service import GraphTelemetryService
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.buses.communication_bus import CommunicationBus
@@ -328,15 +327,9 @@ class DreamProcessor(BaseProcessor):
 
             # Initialize identity baseline if needed
             if self.identity_manager and self.identity_manager.agent_identity:
-                # Convert to the expected identity type
+                # Use the existing identity directly
                 identity = self.identity_manager.agent_identity
-                so_identity = SelfObservationIdentity(
-                    identity_id=identity.agent_id,
-                    core_values=["helpful", "harmless", "honest"],
-                    capabilities=["conversation", "reasoning", "learning"],
-                    behavioral_constraints=["no_harm", "be_truthful", "respect_privacy"]
-                )
-                await self.self_observation_service.initialize_baseline(so_identity)
+                await self.self_observation_service.initialize_baseline(identity)
 
             logger.info("Dream processor services initialized")
             return True

@@ -26,13 +26,14 @@ class DiscordGuidanceHandler:
         self.client = client
         self._memory_service = memory_service
         self._wa_cache: Dict[str, bool] = {}  # Cache WA status
+        self._time_service: TimeServiceProtocol
 
         # Ensure we have a time service
         if time_service is None:
             from ciris_engine.logic.services.lifecycle.time import TimeService
-            self._time_service: "TimeServiceProtocol" = TimeService()
+            self._time_service = TimeService()
         else:
-            self._time_service: "TimeServiceProtocol" = time_service
+            self._time_service = time_service
 
     def set_client(self, client: discord.Client) -> None:
         """Set the Discord client after initialization.

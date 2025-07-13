@@ -30,8 +30,9 @@ from ciris_engine.schemas.services.authority.wise_authority import (
 )
 from ciris_engine.protocols.services.infrastructure.authentication import AuthenticationServiceProtocol
 from ciris_engine.protocols.runtime.base import ServiceProtocol
-from ciris_engine.logic.adapters.base import Service as BaseService
+from ciris_engine.logic.services.base_infrastructure_service import BaseInfrastructureService
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.logic.services.lifecycle.time import TimeService
 
 if TYPE_CHECKING:
@@ -42,7 +43,7 @@ logger = logging.getLogger(__name__)
 # Type variable for decorators
 F = TypeVar('F', bound=Callable)
 
-class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceProtocol):
+class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProtocol):
     """Infrastructure service for WA authentication and identity management."""
 
     def __init__(self, db_path: str, time_service: TimeService, key_dir: Optional[str] = None) -> None:
@@ -74,6 +75,46 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
         # Track service state
         self._started = False
         self._start_time: Optional[datetime] = None
+
+    def get_service_type(self) -> ServiceType:
+        """Get service type - authentication is part of wise authority infrastructure."""
+        from ciris_engine.schemas.runtime.enums import ServiceType
+        return ServiceType.WISE_AUTHORITY
+
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return [
+            # Authentication operations
+            "authenticate",
+            "create_token",
+            "verify_token",
+            "verify_token_sync",
+            "create_channel_token",
+            
+            # WA management
+            "create_wa",
+            "get_wa",
+            "update_wa",
+            "revoke_wa",
+            "list_was",
+            "rotate_keys",
+            
+            # Utility operations
+            "bootstrap_if_needed",
+            "update_last_login",
+            "sign_task",
+            "verify_task_signature",
+            
+            # Key operations
+            "generate_keypair",
+            "sign_data",
+            "hash_password"
+        ]
+
+    def _check_dependencies(self) -> bool:
+        """Check if all required dependencies are available."""
+        # Only requires time service which is provided in __init__
+        return self._time_service is not None
 
     @staticmethod
     def _encode_public_key(pubkey_bytes: bytes) -> str:
@@ -1176,15 +1217,15 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
         system_wa = await self._get_system_wa()
         if not system_wa:
             # Find the root certificate
-            root_wa: Optional[WACertificate] = None
+            found_root_wa: Optional[WACertificate] = None
             for wa in await self._list_all_was():
                 if wa.role == WARole.ROOT:
-                    root_wa = wa
+                    found_root_wa = wa
                     break
 
-            if root_wa:
+            if found_root_wa:
                 # Create system WA certificate as child of root
-                await self._create_system_wa_certificate(root_wa.wa_id)
+                await self._create_system_wa_certificate(found_root_wa.wa_id)
             else:
                 logger.warning("No root WA certificate found - cannot create system WA")
 
@@ -1238,7 +1279,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 sub_type = decoded.get('sub_type')
                 if sub_type in [JWTSubType.ANON.value, JWTSubType.OAUTH.value, JWTSubType.USER.value]:
                     # Valid gateway token
-                    return decoded
+                    return dict(decoded)
                 else:
                     # Invalid sub_type for gateway token
                     return None

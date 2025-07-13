@@ -3,7 +3,8 @@ Enhanced thought manager that generates proper observation thoughts.
 This shows how we could modify generate_seed_thought to use correlations.
 """
 from typing import Optional, Any
-from ciris_engine.schemas.memory.memory import Task, Thought, ThoughtType, ThoughtStatus
+from ciris_engine.schemas.runtime.models import Task, Thought
+from ciris_engine.schemas.runtime.enums import ThoughtType, ThoughtStatus
 import uuid
 
 def generate_seed_thought_enhanced(self: Any, task: Task, round_number: int = 0) -> Optional[Thought]:

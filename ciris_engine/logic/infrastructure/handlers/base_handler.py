@@ -267,9 +267,11 @@ class BaseActionHandler(ABC):
             # Decapsulate secrets in action parameters
             if result.action_parameters:
                 # Convert parameters to dict if needed
-                params_dict: Dict[str, Any] = result.action_parameters
-                if hasattr(params_dict, 'model_dump'):
-                    params_dict = params_dict.model_dump()
+                params_dict: Dict[str, Any]
+                if hasattr(result.action_parameters, 'model_dump'):
+                    params_dict = result.action_parameters.model_dump()
+                else:
+                    params_dict = dict(result.action_parameters)
 
                 decapsulated_params = await self.dependencies.secrets_service.decapsulate_secrets_in_parameters(
                     action_type=action_name,

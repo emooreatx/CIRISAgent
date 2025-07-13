@@ -12,6 +12,7 @@ from collections import defaultdict
 from ciris_engine.schemas.services.nodes import TSDBSummary
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope
 from ciris_engine.schemas.services.operations import MemoryOpStatus
+from ciris_engine.schemas.services.graph.consolidation import MetricCorrelationData
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ class MetricsConsolidator:
         period_end: datetime,
         period_label: str,
         tsdb_nodes: List[GraphNode],
-        metric_correlations: List[Dict[str, Any]]
+        metric_correlations: List[MetricCorrelationData]
     ) -> Optional[TSDBSummary]:
         """
         Consolidate metrics from both graph nodes and correlations.
@@ -45,7 +46,7 @@ class MetricsConsolidator:
             period_end: End of consolidation period
             period_label: Human-readable period label
             tsdb_nodes: TSDB_DATA nodes from graph
-            metric_correlations: metric_datapoint correlations
+            metric_correlations: List of MetricCorrelationData objects
             
         Returns:
             TSDBSummary node if successful, None otherwise
@@ -76,23 +77,16 @@ class MetricsConsolidator:
                 }
             all_metrics.append(metric_data)
         
-        # Process correlations
+        # Process correlations using typed schema
         for corr in metric_correlations:
-            if corr.get('request_data'):
-                try:
-                    import json
-                    req_data = json.loads(corr['request_data']) if isinstance(corr['request_data'], str) else corr['request_data']
-                    
-                    metric_data = {
-                        'metric_name': req_data.get('metric_name', 'unknown'),
-                        'value': float(req_data.get('value', 0)),
-                        'timestamp': corr['timestamp'].isoformat() if isinstance(corr['timestamp'], datetime) else corr['timestamp'],
-                        'tags': req_data.get('tags', {}),
-                        'source': 'correlation'
-                    }
-                    all_metrics.append(metric_data)
-                except Exception as e:
-                    logger.warning(f"Failed to parse correlation data: {e}")
+            metric_data = {
+                'metric_name': corr.metric_name,
+                'value': corr.value,
+                'timestamp': corr.timestamp.isoformat() if isinstance(corr.timestamp, datetime) else corr.timestamp,
+                'tags': corr.tags,
+                'source': corr.source
+            }
+            all_metrics.append(metric_data)
         
         if not all_metrics:
             logger.info(f"No metrics found for period {period_start} to {period_end} - creating empty summary")
@@ -212,7 +206,7 @@ class MetricsConsolidator:
         self,
         summary_node: GraphNode,
         tsdb_nodes: List[GraphNode],
-        metric_correlations: List[Dict[str, Any]]
+        metric_correlations: List[MetricCorrelationData]
     ) -> List[Tuple[GraphNode, GraphNode, str, Dict[str, Any]]]:
         """
         Get edges to create for metrics summary.
@@ -243,7 +237,7 @@ class MetricsConsolidator:
         # Link to error metrics from correlations
         error_count = 0
         for corr in metric_correlations:
-            if corr.get('tags', {}).get('has_error', False):
+            if corr.tags.get('has_error', False):
                 error_count += 1
                 if error_count <= 10:  # Limit to first 10 errors
                     # Create a reference edge using correlation ID
@@ -252,9 +246,9 @@ class MetricsConsolidator:
                         summary_node,  # Self-reference with correlation data
                         'ERROR_METRIC',
                         {
-                            'correlation_id': corr.get('correlation_id'),
-                            'error_type': corr.get('tags', {}).get('error_type', 'unknown'),
-                            'component': corr.get('component_id', 'unknown')
+                            'correlation_id': corr.correlation_id,
+                            'error_type': corr.tags.get('error_type', 'unknown'),
+                            'component': corr.tags.get('component_id', 'unknown')
                         }
                     ))
         

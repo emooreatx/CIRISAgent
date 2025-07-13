@@ -79,7 +79,7 @@ def add_graph_node(node: GraphNode, time_service: TimeServiceProtocol, db_path: 
                     "scope": node.scope.value,
                     "node_type": node.type.value,
                     "attributes_json": json.dumps(node.attributes, cls=DateTimeEncoder),
-                    "version": node.version,
+                    "version": str(node.version),  # Convert to string for SQL params
                     "updated_by": node.updated_by,
                     "updated_at": node.updated_at or time_service.now().isoformat(),
                 }

@@ -555,8 +555,8 @@ class CIRISRuntime:
         
         # Update runtime control service with runtime reference
         if self.runtime_control_service:
-            if hasattr(self.runtime_control_service, 'set_runtime'):
-                self.runtime_control_service.set_runtime(self)
+            if hasattr(self.runtime_control_service, '_set_runtime'):
+                self.runtime_control_service._set_runtime(self)
             else:
                 self.runtime_control_service.runtime = self
             logger.info("Updated runtime control service with runtime reference")
@@ -1014,7 +1014,7 @@ class CIRISRuntime:
                     while (asyncio.get_event_loop().time() - start_time) < max_wait:
                         if hasattr(self.agent_processor, 'shutdown_processor') and self.agent_processor.shutdown_processor:
                             if self.agent_processor.shutdown_processor.shutdown_complete:
-                                result = self.agent_processor.shutdown_processor.shutdown_result
+                                result = self.agent_processor.shutdown_processor.shutdown_result  # type: ignore[assignment]
                                 if result and hasattr(result, 'get') and result.get("status") == "rejected":
                                     logger.warning(f"Shutdown rejected by agent: {result.get('reason')}")
                                     # Proceed with shutdown - emergency shutdown API provides override mechanism
@@ -1029,8 +1029,11 @@ class CIRISRuntime:
         if self.bus_manager:
             try:
                 logger.debug("Stopping multi-service sink...")
-                await self.bus_manager.stop()
+                # Add timeout to prevent hanging forever
+                await asyncio.wait_for(self.bus_manager.stop(), timeout=10.0)
                 logger.debug("Multi-service sink stopped.")
+            except asyncio.TimeoutError:
+                logger.error("Timeout stopping multi-service sink after 10 seconds")
             except Exception as e:
                 logger.error(f"Error stopping multi-service sink: {e}")
 
@@ -1103,7 +1106,7 @@ class CIRISRuntime:
         
         # Sort services by priority for shutdown (reverse order)
         # Infrastructure services should be stopped last
-        def get_shutdown_priority(service):
+        def get_shutdown_priority(service: Any) -> int:
             service_name = service.__class__.__name__
             # Priority 0: Services that depend on others
             if 'TSDB' in service_name or 'Consolidation' in service_name:

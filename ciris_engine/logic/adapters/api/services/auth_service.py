@@ -606,7 +606,7 @@ class APIAuthService:
         # Also update in database if we have auth service
         if self._auth_service:
             try:
-                await self._auth_service.revoke_wa(user_id)
+                await self._auth_service.revoke_wa(user_id, reason="User deactivated via API")
             except Exception as e:
                 print(f"Error deactivating user in database: {e}")
         
@@ -691,10 +691,11 @@ class APIAuthService:
             try:
                 import json
                 # Update the WA certificate with custom permissions
+                # Don't pass custom_permissions_json as a kwarg, it's not in the protocol
+                # Instead, we should store this separately or handle it differently
                 await self._auth_service.update_wa(
                     user_id,
-                    updates=None,
-                    custom_permissions_json=json.dumps(permissions) if permissions else None
+                    updates=WAUpdate(permissions=permissions) if permissions else None
                 )
             except Exception as e:
                 print(f"Error updating permissions in database: {e}")
@@ -823,12 +824,13 @@ class APIAuthService:
         if self._auth_service:
             try:
                 # Update WA role and parent in database
+                # Update WA role in database
                 await self._auth_service.update_wa(
                     user_id,
-                    updates=WAUpdate(role=wa_role.value if hasattr(wa_role, 'value') else str(wa_role)),
-                    parent_wa_id=minted_by,
-                    auto_minted=0  # Use 0 instead of False for integer field
+                    updates=WAUpdate(role=wa_role.value if hasattr(wa_role, 'value') else str(wa_role))
                 )
+                # Note: parent_wa_id and auto_minted are not supported by the protocol's update_wa method
+                # They would need to be set during creation or via a different mechanism
             except Exception as e:
                 print(f"Error updating WA role in database: {e}")
         

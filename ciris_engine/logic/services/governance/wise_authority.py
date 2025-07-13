@@ -601,7 +601,7 @@ class WiseAuthorityService(BaseService, WiseAuthorityServiceProtocol):
 
     def get_service_type(self) -> ServiceType:
         """Get the service type enum value."""
-        return ServiceType.GOVERNANCE_SERVICE
+        return ServiceType.WISE_AUTHORITY
     
     def _check_dependencies(self) -> bool:
         """Check if all required dependencies are available."""

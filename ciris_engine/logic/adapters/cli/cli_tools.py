@@ -22,6 +22,8 @@ from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.adapters.tools import (
     ToolExecutionResult, ToolExecutionStatus, ToolInfo, ToolParameterSchema
 )
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.runtime.enums import ServiceType
 
 class CLIToolService(ToolService):
     """Simple ToolService providing local filesystem browsing."""
@@ -267,3 +269,41 @@ class CLIToolService(ToolService):
             )
         }
         return schemas.get(tool_name)
+    
+    async def is_healthy(self) -> bool:
+        """Check if the service is healthy."""
+        return True
+    
+    def get_service_type(self) -> ServiceType:
+        """Get the type of this service."""
+        return ServiceType.ADAPTER
+    
+    def get_capabilities(self) -> ServiceCapabilities:
+        """Get service capabilities."""
+        return ServiceCapabilities(
+            service_name="CLIToolService",
+            actions=[
+                "execute_tool",
+                "get_available_tools",
+                "get_tool_schema",
+                "get_tool_result"
+            ],
+            version="1.0.0",
+            dependencies=[],
+            resource_limits={
+                "max_concurrent_tools": 10
+            }
+        )
+    
+    def get_status(self) -> ServiceStatus:
+        """Get current service status."""
+        return ServiceStatus(
+            service_name="CLIToolService",
+            service_type="adapter",
+            is_healthy=True,
+            uptime_seconds=0.0,
+            metrics={
+                "total_tools_executed": len(self._results),
+                "available_tools": len(self._tools)
+            }
+        )

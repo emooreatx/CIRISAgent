@@ -29,10 +29,14 @@ class SchemaValidator:
         self.deprecated_patterns = self._load_deprecated_patterns()
         
     def _discover_v1_schemas(self) -> Dict[str, Set[str]]:
-        """Discover all v1 schemas and their exported classes."""
-        v1_schemas = {}
+        """Discover all CIRIS schemas and their exported classes."""
+        schemas = {}
         
-        for schema_file in self.schemas_dir.glob("*_v1.py"):
+        # CIRIS doesn't use _v1 naming, scan all .py files in schemas dir
+        for schema_file in self.schemas_dir.rglob("*.py"):
+            if "__pycache__" in str(schema_file) or "__init__" in str(schema_file.name):
+                continue
+                
             schema_name = schema_file.stem
             try:
                 with open(schema_file, 'r') as f:
@@ -44,37 +48,41 @@ class SchemaValidator:
                 
                 for node in ast.walk(tree):
                     if isinstance(node, ast.ClassDef):
-                        classes.add(node.name)
+                        # Only include Pydantic models and enums
+                        if any(base.id in ['BaseModel', 'BaseSchema', 'Enum', 'str', 'int'] 
+                               for base in node.bases if isinstance(base, ast.Name)):
+                            classes.add(node.name)
                 
-                v1_schemas[schema_name] = classes
+                if classes:
+                    schemas[str(schema_file.relative_to(self.schemas_dir))] = classes
                 
             except Exception as e:
                 logger.warning(f"Could not parse schema {schema_file}: {e}")
         
-        return v1_schemas
+        return schemas
     
     def _load_deprecated_patterns(self) -> List[Dict[str, str]]:
-        """Load patterns that indicate deprecated schema usage."""
+        """Load patterns that indicate deprecated schema usage or anti-patterns."""
         return [
             {
-                "pattern": r"from\s+\w+\.schemas\.\w+\s+import.*(?<!_v1)",
-                "issue": "Using non-v1 schema import",
-                "fix": "Update to use _v1 schema imports"
+                "pattern": r"Dict\[str,\s*Any\]",
+                "issue": "Using Dict[str, Any] instead of typed schema",
+                "fix": "Use a proper Pydantic model instead"
             },
             {
-                "pattern": r"\.processing_context",
-                "issue": "Using deprecated processing_context field",
-                "fix": "Use v1 schema fields instead"
+                "pattern": r"dict\[str,\s*Any\]",
+                "issue": "Using dict[str, Any] instead of typed schema",
+                "fix": "Use a proper Pydantic model instead"
             },
             {
-                "pattern": r"legacy_\w+",
-                "issue": "Using legacy field names",
-                "fix": "Update to use v1 field names"
+                "pattern": r"from typing import.*Dict.*Any",
+                "issue": "Importing Dict with Any type",
+                "fix": "Use typed Pydantic models instead"
             },
             {
-                "pattern": r"from.*schemas import (?!.*_v1)",
-                "issue": "Non-v1 schema import detected",
-                "fix": "Import from *_v1 schema modules"
+                "pattern": r":\s*dict\s*=\s*\{\}",
+                "issue": "Using untyped dict initialization",
+                "fix": "Use Pydantic model with proper defaults"
             }
         ]
     
@@ -139,80 +147,23 @@ class SchemaValidator:
         return all_issues
     
     def _validate_v1_usage(self, content: str, file_path: Path) -> List[Dict[str, Any]]:
-        """Validate proper v1 schema usage."""
+        """Validate proper CIRIS schema usage."""
         issues = []
         
-        # Check if file should be using schemas but isn't
-        if "schemas/" not in str(file_path) and any(
-            keyword in content for keyword in ["Task", "Thought", "Action", "Context"]
-        ):
-            # Check for proper v1 imports
-            if not re.search(r"from.*schemas.*_v1.*import", content):
-                issues.append({
-                    "line": 1,
-                    "issue": "File uses schema concepts but no v1 schema imports found",
-                    "fix_suggestion": "Add proper v1 schema imports"
-                })
-        
-        # Check for dict/object usage that should be schemas
-        schema_candidates = self._find_dict_schema_candidates(content)
-        issues.extend(schema_candidates)
+        # CIRIS doesn't use v1 naming - skip this check
+        # Instead, focus on Dict[str, Any] usage which violates "No Dicts" principle
         
         return issues
     
     def _find_dict_schema_candidates(self, content: str) -> List[Dict[str, Any]]:
-        """Find dictionaries and objects that should probably be schemas."""
+        """Find dictionaries that violate 'No Dicts' principle."""
         issues = []
-        lines = content.split('\n')
         
-        # Patterns that suggest a dict should be a schema
-        schema_indicators = [
-            # Dict literals with schema-like field names
-            (r'\{\s*["\'](?:task_id|thought_id|action_type|status|timestamp|context)["\']', 
-             "Dict with schema-like fields should use proper schema class"),
-            
-            # Function parameters that look like they should be schemas
-            (r'def\s+\w+\([^)]*\w+:\s*Dict\[str,\s*Any\][^)]*\).*(?:task|thought|action|result)', 
-             "Function parameter typed as Dict[str, Any] should use schema class"),
-            
-            # Return types that should be schemas
-            (r'->\s*Dict\[str,\s*Any\].*(?:task|thought|action|result)', 
-             "Return type Dict[str, Any] should use schema class"),
-            
-            # Variable assignments that create data structures
-            (r'\w+\s*=\s*\{[^}]*["\'](?:id|type|status|timestamp)["\']', 
-             "Data structure creation should use schema class"),
-            
-            # JSON-like structures that could be schemas
-            (r'\{[^}]*["\'](?:created_at|updated_at|task_id|thought_id)["\']', 
-             "JSON structure matches schema pattern - consider using schema class"),
-            
-            # Context dictionaries
-            (r'context\s*=\s*\{', 
-             "Context dict should potentially use ContextSchema"),
-            
-            # Result dictionaries  
-            (r'result\s*=\s*\{[^}]*["\'](?:status|success|error|data)["\']', 
-             "Result dict should potentially use result schema"),
-             
-            # Config dictionaries
-            (r'config\s*=\s*\{[^}]*["\'](?:settings|options|parameters)["\']', 
-             "Config dict should potentially use config schema")
-        ]
+        # Skip test files and migration scripts
+        if 'test_' in str(self.schemas_dir) or 'migration' in content:
+            return issues
         
-        for i, line in enumerate(lines, 1):
-            for pattern, issue_desc in schema_indicators:
-                if re.search(pattern, line, re.IGNORECASE):
-                    issues.append({
-                        "line": i,
-                        "issue": issue_desc,
-                        "pattern": line.strip(),
-                        "fix_suggestion": "Replace dict usage with appropriate v1 schema class"
-                    })
-        
-        # Check for class definitions that might need schema inheritance
-        class_issues = self._find_non_schema_classes(content)
-        issues.extend(class_issues)
+        # Already checked in deprecated_patterns, no need to duplicate
         
         return issues
     

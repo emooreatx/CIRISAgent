@@ -11,8 +11,10 @@ from ciris_engine.schemas.telemetry.core import (
 )
 from ciris_engine.schemas.services.context import GuidanceContext, DeferralContext
 from ciris_engine.schemas.services.authority_core import DeferralRequest
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.logic import persistence
-from ciris_engine.logic.services.infrastructure.time import TimeService
+from ciris_engine.logic.services.lifecycle.time import TimeService
 
 logger = logging.getLogger(__name__)
 
@@ -101,3 +103,36 @@ class CLIWiseAuthorityService(WiseAuthorityService):
         )
         persistence.add_correlation(corr)
         return deferral_id
+    
+    async def is_healthy(self) -> bool:
+        """Check if the service is healthy."""
+        return True
+    
+    def get_service_type(self) -> ServiceType:
+        """Get the type of this service."""
+        return ServiceType.ADAPTER
+    
+    def get_capabilities(self) -> ServiceCapabilities:
+        """Get service capabilities."""
+        return ServiceCapabilities(
+            service_name="CLIWiseAuthorityService",
+            actions=[
+                "fetch_guidance",
+                "defer_decision"
+            ],
+            version="1.0.0",
+            dependencies=[],
+            resource_limits={}
+        )
+    
+    def get_status(self) -> ServiceStatus:
+        """Get current service status."""
+        return ServiceStatus(
+            service_name="CLIWiseAuthorityService",
+            service_type="adapter",
+            is_healthy=True,
+            uptime_seconds=0.0,
+            metrics={
+                "deferrals_logged": len(self.deferral_log)
+            }
+        )

@@ -57,13 +57,14 @@ class DiscordConnectionManager:
         self.on_disconnected: Optional[Callable[[Optional[Exception]], Awaitable[None]]] = None
         self.on_reconnecting: Optional[Callable[[int], Awaitable[None]]] = None
         self.on_failed: Optional[Callable[[str], Awaitable[None]]] = None
+        self._time_service: TimeServiceProtocol
 
         # Ensure we have a time service
         if time_service is None:
             from ciris_engine.logic.services.lifecycle.time import TimeService
-            self._time_service: "TimeServiceProtocol" = TimeService()
+            self._time_service = TimeService()
         else:
-            self._time_service: "TimeServiceProtocol" = time_service
+            self._time_service = time_service
 
     def set_client(self, client: discord.Client) -> None:
         """Set the Discord client after initialization.
@@ -240,7 +241,7 @@ class DiscordConnectionManager:
             info.update({
                 "guilds": len(self.client.guilds),
                 "users": len(self.client.users),
-                "latency_ms": self.client.latency * 1000
+                "latency_ms": int(self.client.latency * 1000) if hasattr(self.client, 'latency') else None
             })
 
         return info

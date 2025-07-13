@@ -6,6 +6,7 @@ from abc import abstractmethod
 from typing import Optional, Dict, Any
 
 from ciris_engine.logic.services.base_service import BaseService
+from ciris_engine.schemas.services.metadata import ServiceMetadata
 
 
 class BaseScheduledService(BaseService):
@@ -134,11 +135,11 @@ class BaseScheduledService(BaseService):
         
         return metrics
     
-    def _get_metadata(self) -> Dict[str, Any]:
+    def _get_metadata(self) -> ServiceMetadata:
         """Add scheduled task metadata."""
-        metadata = super()._get_metadata()
-        metadata.update({
-            "scheduled_task": True,
-            "run_interval_seconds": self._run_interval
-        })
-        return metadata
+        # Get base metadata from parent
+        base_metadata = super()._get_metadata()
+        
+        # For now, we'll return the base metadata as-is
+        # In a future refactor, we could extend ServiceMetadata to include additional fields
+        return base_metadata

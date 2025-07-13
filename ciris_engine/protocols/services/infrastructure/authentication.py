@@ -100,7 +100,7 @@ class AuthenticationServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    def generate_keypair(self) -> tuple[bytes, bytes]:
+    def generate_keypair(self) -> Tuple[bytes, bytes]:
         """Generate Ed25519 keypair (private, public)."""
         ...
 

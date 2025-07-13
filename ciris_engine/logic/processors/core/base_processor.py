@@ -40,9 +40,10 @@ class BaseProcessor(ABC):
             self.discord_service = services["discord_service"]
 
         # Get TimeService from services
-        self.time_service: TimeServiceProtocol = services.get('time_service')
-        if not self.time_service:
+        time_service = services.get('time_service')
+        if not time_service:
             raise ValueError("time_service is required for processors")
+        self.time_service: TimeServiceProtocol = time_service
 
         # Get ResourceMonitor from services - REQUIRED for system snapshots
         self.resource_monitor = services.get('resource_monitor')

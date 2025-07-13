@@ -190,13 +190,13 @@ class MemoryBus(BaseBus[MemoryService]):
         try:
             # Use search to find memories by text
             from ciris_engine.schemas.services.graph_core import GraphScope
-            from ciris_engine.schemas.api.memory import MemorySearchFilter
+            # MemorySearchFilter already imported at the top of the file
             
             # Convert scope string to GraphScope enum
             try:
-                graph_scope = GraphScope(scope) if scope != "default" else GraphScope.PERSONAL
+                graph_scope = GraphScope(scope) if scope != "default" else GraphScope.LOCAL
             except ValueError:
-                graph_scope = GraphScope.PERSONAL
+                graph_scope = GraphScope.LOCAL
             
             # Create search filter
             search_filter = MemorySearchFilter(

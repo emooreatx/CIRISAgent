@@ -62,7 +62,7 @@ class ResourceMonitorService(BaseScheduledService, ResourceMonitorServiceProtoco
         self._monitoring = False  # For backward compatibility with tests
     
     @property
-    def time_service(self) -> TimeServiceProtocol:
+    def time_service(self) -> Optional[TimeServiceProtocol]:
         """Backward compatibility property for time service access."""
         return self._time_service
     

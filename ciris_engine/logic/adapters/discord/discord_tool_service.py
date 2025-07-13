@@ -14,6 +14,7 @@ from ciris_engine.schemas.adapters.tools import (
     ToolExecutionResult, ToolExecutionStatus, ToolInfo, ToolParameterSchema
 )
 from ciris_engine.schemas.services.core import ServiceCapabilities
+from ciris_engine.schemas.runtime.enums import ServiceType
 
 logger = logging.getLogger(__name__)
 
@@ -632,6 +633,10 @@ class DiscordToolService(ToolService):
     async def is_healthy(self) -> bool:
         """Check if the Discord tool service is healthy."""
         return self._client is not None and not self._client.is_closed()
+
+    def get_service_type(self) -> ServiceType:
+        """Get the type of this service."""
+        return ServiceType.ADAPTER
 
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""

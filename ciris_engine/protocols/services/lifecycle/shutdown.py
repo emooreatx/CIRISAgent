@@ -27,3 +27,18 @@ class ShutdownServiceProtocol(ServiceProtocol, Protocol):
     def register_shutdown_handler(self, handler: Callable[[], None]) -> None:
         """Register a shutdown handler."""
         ...
+
+    @abstractmethod
+    async def emergency_shutdown(self, reason: str, timeout_seconds: int = 5) -> None:
+        """Execute emergency shutdown without negotiation."""
+        ...
+
+    @abstractmethod
+    def wait_for_shutdown(self) -> None:
+        """Wait for shutdown to be requested (blocking)."""
+        ...
+
+    @abstractmethod
+    async def wait_for_shutdown_async(self) -> None:
+        """Wait for shutdown to be requested (async)."""
+        ...

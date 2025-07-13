@@ -11,7 +11,7 @@ their own future actions with human approval.
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Callable
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 
 from ciris_engine.logic.adapters.base import Service
@@ -338,7 +338,7 @@ class TaskSchedulerService(BaseScheduledService, TaskSchedulerServiceProtocol):
         task_id: str,
         defer_until: str,
         reason: str,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[dict] = None
     ) -> ScheduledTask:
         """
         Schedule a deferred task for future reactivation.

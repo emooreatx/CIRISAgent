@@ -40,13 +40,14 @@ class DiscordThreadManager:
         # Track active threads
         self._active_threads: Dict[str, discord.Thread] = {}  # key -> thread
         self._thread_metadata: Dict[int, Dict[str, Any]] = {}  # thread_id -> metadata
+        self._time_service: TimeServiceProtocol
 
         # Ensure we have a time service
         if time_service is None:
             from ciris_engine.logic.services.lifecycle.time import TimeService
-            self._time_service: "TimeServiceProtocol" = TimeService()
+            self._time_service = TimeService()
         else:
-            self._time_service: "TimeServiceProtocol" = time_service
+            self._time_service = time_service
 
     def set_client(self, client: discord.Client) -> None:
         """Set Discord client after initialization.
@@ -95,13 +96,13 @@ class DiscordThreadManager:
                 message = await channel.send(initial_message)
                 thread = await message.create_thread(
                     name=thread_name,
-                    auto_archive_duration=self.auto_archive_duration
+                    auto_archive_duration=self.auto_archive_duration  # type: ignore[arg-type]
                 )
             else:
                 # Create thread directly
                 thread = await channel.create_thread(
                     name=thread_name,
-                    auto_archive_duration=self.auto_archive_duration,
+                    auto_archive_duration=self.auto_archive_duration,  # type: ignore[arg-type]
                     type=discord.ChannelType.public_thread
                 )
 

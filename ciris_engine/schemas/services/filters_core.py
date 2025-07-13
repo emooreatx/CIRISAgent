@@ -195,6 +195,15 @@ class FilterHealth(BaseModel):
 
     model_config = ConfigDict(extra = "forbid")
 
+
+class FilterServiceMetadata(BaseModel):
+    """Metadata for adaptive filter service capabilities."""
+    description: str = Field(..., description="Service description")
+    features: List[str] = Field(..., description="List of features supported")
+    filter_types: List[str] = Field(..., description="Types of filters supported")
+    max_buffer_size: int = Field(..., description="Maximum message buffer size")
+
+
 __all__ = [
     "FilterPriority",
     "TriggerType",
@@ -209,4 +218,5 @@ __all__ = [
     "TriggerStats",
     "FilterStats",
     "FilterHealth",
+    "FilterServiceMetadata",
 ]

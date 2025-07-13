@@ -38,6 +38,9 @@ class ServiceType(CaseInsensitiveEnum):
     SHUTDOWN = "shutdown"
     INITIALIZATION = "initialization"
     VISIBILITY = "visibility"
+    
+    # Adapter services
+    ADAPTER = "adapter"
 
 class HandlerActionType(CaseInsensitiveEnum):
     """Core 3×3×3 action model + terminal."""

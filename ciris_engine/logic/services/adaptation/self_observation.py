@@ -22,9 +22,9 @@ from ciris_engine.schemas.services.special.self_observation import (
     ObservationCycleResult, CycleEventData, ObservationStatus,
     ReviewOutcome, ObservabilityAnalysis,
     ObservationOpportunity, ObservationEffectiveness,
-    PatternLibrarySummary, ServiceImprovementReport,
-    AgentIdentityRoot
+    PatternLibrarySummary, ServiceImprovementReport
 )
+from ciris_engine.schemas.runtime.core import AgentIdentityRoot
 from ciris_engine.schemas.infrastructure.feedback_loop import (
     PatternType, DetectedPattern, AnalysisResult
 )
@@ -184,13 +184,7 @@ class SelfObservationService(BaseScheduledService, SelfObservationServiceProtoco
         if not self._variance_monitor:
             raise RuntimeError("Variance monitor not initialized")
 
-        from ciris_engine.schemas.typed_graph_nodes.agent_identity import AgentIdentityNode
-        identity_node = AgentIdentityNode(
-            ciris_instance_id=getattr(identity, 'ciris_instance_id', 'default'),
-            identity_root=identity,
-            created_at=datetime.now()
-        )
-        baseline_id = await self._variance_monitor.initialize_baseline(identity_node)
+        baseline_id = await self._variance_monitor.initialize_baseline(identity)
         logger.info(f"Identity baseline established: {baseline_id}")
 
         # Store initialization event

@@ -68,13 +68,15 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAProtocol):
         self.context_builder = ActionSelectionContextBuilder(self.prompts, service_registry, self.sink)
         self.faculty_integration = FacultyIntegration(faculties) if faculties else None
 
-    async def evaluate(
-        self,
-        input_data: Dict[str, Any],
-        enable_recursive_evaluation: bool = False,
-        **kwargs: Any
-    ) -> ActionSelectionDMAResult:
+    async def evaluate(self, *args: Any, **kwargs: Any) -> ActionSelectionDMAResult:  # type: ignore[override]
         """Evaluate triaged inputs and select optimal action."""
+        
+        # Extract arguments - maintain backward compatibility
+        input_data = args[0] if args else kwargs.get('input_data')
+        enable_recursive_evaluation = args[1] if len(args) > 1 else kwargs.get('enable_recursive_evaluation', False)
+        
+        if not input_data:
+            raise ValueError("input_data is required")
 
         original_thought: Thought = input_data["original_thought"]
         logger.debug(f"Evaluating action selection for thought ID {original_thought.thought_id}")

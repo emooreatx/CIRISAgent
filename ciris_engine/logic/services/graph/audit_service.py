@@ -147,7 +147,7 @@ class GraphAuditService(BaseGraphService, AuditServiceProtocol):
         # Lock for hash chain operations
         self._hash_chain_lock = asyncio.Lock()
 
-    def set_service_registry(self, registry: object) -> None:
+    def _set_service_registry(self, registry: object) -> None:
         """Set the service registry for accessing memory bus."""
         from ciris_engine.logic.registries.base import ServiceRegistry
         if isinstance(registry, ServiceRegistry):

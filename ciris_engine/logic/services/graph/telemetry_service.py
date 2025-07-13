@@ -118,7 +118,7 @@ class GraphTelemetryService(BaseGraphService, TelemetryServiceProtocol):
             # Try to get memory bus from registry
             try:
                 from ciris_engine.logic.buses import MemoryBus
-                from ciris_engine.logic.registries.service_registry import ServiceRegistry
+                from ciris_engine.logic.registries.base import ServiceRegistry
                 if isinstance(registry, ServiceRegistry) and self._time_service is not None:
                     self._memory_bus = MemoryBus(registry, self._time_service)
             except Exception as e:

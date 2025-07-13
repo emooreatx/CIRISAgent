@@ -23,3 +23,8 @@ class TimeServiceProtocol(ServiceProtocol, Protocol):
     def timestamp(self) -> float:
         """Get current Unix timestamp."""
         ...
+
+    @abstractmethod
+    def get_uptime(self) -> float:
+        """Get service uptime in seconds."""
+        ...

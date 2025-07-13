@@ -172,7 +172,7 @@ class BasicTelemetryCollector(Service):
             telemetry.error_rate_percent = (telemetry.errors_24h / telemetry.messages_processed_24h) * 100
 
         # Update snapshot
-        snapshot.telemetry = telemetry
+        snapshot.telemetry_summary = telemetry
 
     def _get_retention_policy(self, path_type: Optional[str]) -> str:
         """Determine retention policy based on path type."""

@@ -204,7 +204,7 @@ class DiscordPlatform(Service):
         # Get time_service from runtime
         time_service = getattr(self.runtime, 'time_service', None)
 
-        self.discord_observer = DiscordObserver(  # type: ignore[assignment]
+        self.discord_observer = DiscordObserver(
             monitored_channel_ids=self.config.monitored_channel_ids,
             deferral_channel_id=self.config.deferral_channel_id,
             wa_user_ids=self.config.admin_user_ids,

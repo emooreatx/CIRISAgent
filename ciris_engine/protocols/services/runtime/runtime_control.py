@@ -1,6 +1,6 @@
 """Runtime Control Service Protocol - Unified control plane for CIRIS runtime operations."""
 
-from typing import Protocol, Optional, List, Dict
+from typing import Protocol, Optional, List, Dict, TYPE_CHECKING
 from abc import abstractmethod
 
 from ...runtime.base import ServiceProtocol
@@ -23,6 +23,12 @@ from ciris_engine.schemas.services.shutdown import (
     WASignedCommand,
     EmergencyShutdownStatus
 )
+
+if TYPE_CHECKING:
+    from ciris_engine.schemas.services.runtime_control import (
+        ServicePriorityUpdateResponse,
+        CircuitBreakerResetResponse
+    )
 
 class RuntimeControlServiceProtocol(ServiceProtocol, Protocol):
     """
@@ -176,7 +182,7 @@ class RuntimeControlServiceProtocol(ServiceProtocol, Protocol):
         new_priority: str,
         new_priority_group: Optional[int] = None,
         new_strategy: Optional[str] = None
-    ) -> Dict:
+    ) -> "ServicePriorityUpdateResponse":
         """Update service provider priority and selection strategy."""
         ...
 
@@ -184,7 +190,7 @@ class RuntimeControlServiceProtocol(ServiceProtocol, Protocol):
     async def reset_circuit_breakers(
         self,
         service_type: Optional[str] = None
-    ) -> Dict:
+    ) -> "CircuitBreakerResetResponse":
         """Reset circuit breakers for services."""
         ...
 

@@ -22,7 +22,7 @@ class BatchContextData:
         self.identity_purpose: Optional[str] = None
         self.identity_capabilities: List[str] = []
         self.identity_restrictions: List[str] = []
-        self.recent_tasks: List[Task] = []
+        self.recent_tasks: List[TaskSummary] = []
         self.top_tasks: List[TaskSummary] = []
         self.service_health: Dict[str, Any] = {}
         self.circuit_breaker_status: Dict[str, Any] = {}

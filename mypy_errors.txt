@@ -1,379 +1,119 @@
-ciris_engine/schemas/api/wa.py:50:5: error: Function is missing a type
-ciris_engine/schemas/api/wa.py:78:5: error: Function is missing a type
+ciris_engine/logic/config/bootstrap.py:11:1: error: Library stubs not installed
 ciris_engine/logic/services/graph/tsdb_consolidation/edge_manager.py:584:5: error:
 ciris_engine/logic/dma/action_selection/faculty_integration.py:162:29: error:
-ciris_engine/protocols/services/graph/incident.py:45:5: error: Return type
-ciris_engine/logic/adapters/api/middleware/rate_limiter.py:69:5: error:
-ciris_engine/logic/adapters/api/middleware/rate_limiter.py:167:9: error: Name
-ciris_engine/logic/adapters/api/services/auth_service.py:98:31: error: Item
-ciris_engine/logic/adapters/api/services/auth_service.py:142:29: error: Item
-ciris_engine/logic/adapters/api/services/auth_service.py:150:19: error: Item
-ciris_engine/logic/adapters/api/services/auth_service.py:150:19: error:
-ciris_engine/logic/adapters/api/services/auth_service.py:385:23: error:
-ciris_engine/logic/adapters/api/services/auth_service.py:557:27: error:
-ciris_engine/logic/adapters/api/services/auth_service.py:563:31: error:
-ciris_engine/logic/adapters/api/services/auth_service.py:566:31: error: Missing
-ciris_engine/logic/adapters/api/services/auth_service.py:611:29: error:
-ciris_engine/logic/adapters/api/services/auth_service.py:632:23: error: Missing
-ciris_engine/logic/adapters/api/services/auth_service.py:717:23: error:
-ciris_engine/logic/adapters/api/services/auth_service.py:847:23: error:
-ciris_engine/logic/adapters/api/services/auth_service.py:847:23: error:
-ciris_engine/logic/adapters/api/services/auth_service.py:847:23: error:
-ciris_engine/logic/adapters/api/dependencies/auth.py:69:29: error: Argument 1
-ciris_engine/logic/services/governance/filter.py:68:33: error: "object" has no
-ciris_engine/logic/services/governance/filter.py:463:19: error: "object" has no
-ciris_engine/logic/runtime/modular_service_loader.py:15:1: error: Module
-ciris_engine/logic/runtime/modular_service_loader.py:29:9: error: Need type
-ciris_engine/logic/runtime/modular_service_loader.py:148:13: error: Returning
-ciris_engine/logic/adapters/cirisnode_client.py:57:29: error: Incompatible
-ciris_engine/logic/adapters/discord/discord_tool_service.py:638:16: error:
-ciris_engine/logic/adapters/discord/discord_tool_service.py:638:16: error:
-ciris_engine/logic/adapters/discord/discord_tool_service.py:638:16: error:
-ciris_engine/logic/adapters/api/api_tools.py:36:15: error: Call to abstract
-ciris_engine/logic/adapters/api/api_tools.py:41:15: error: Call to abstract
-ciris_engine/logic/adapters/api/api_tools.py:241:16: error: Missing named
-ciris_engine/logic/adapters/api/api_tools.py:241:16: error: Missing named
-ciris_engine/logic/adapters/api/api_tools.py:241:16: error: Missing named
-ciris_engine/logic/adapters/api/api_tools.py:257:16: error: Missing named
-ciris_engine/logic/adapters/api/api_tools.py:257:16: error: Missing named
-ciris_engine/logic/adapters/api/routes/wa.py:31:1: error: Function is missing a
-ciris_engine/logic/adapters/api/routes/wa.py:103:1: error: Function is missing
-ciris_engine/logic/adapters/api/routes/wa.py:194:1: error: Function is missing
-ciris_engine/logic/adapters/api/routes/wa.py:257:1: error: Function is missing
-ciris_engine/logic/adapters/api/routes/wa.py:330:1: error: Function is missing
-ciris_engine/logic/adapters/api/routes/telemetry_metrics.py:13:1: error:
+ciris_engine/logic/adapters/api/middleware/rate_limiter.py:129:13: error:
+ciris_engine/logic/adapters/api/middleware/rate_limiter.py:175:9: error:
+ciris_engine/logic/adapters/api/services/auth_service.py:8:1: error: Library
+ciris_engine/logic/adapters/api/services/auth_service.py:609:23: error: Missing
+ciris_engine/logic/adapters/api/services/auth_service.py:697:45: error:
+ciris_engine/logic/adapters/api/services/auth_service.py:830:33: error:
+ciris_engine/logic/adapters/api/routes/users.py:8:1: error: Library stubs not
 ciris_engine/logic/adapters/api/routes/telemetry_logs_reader.py:23:5: error:
-ciris_engine/logic/adapters/api/routes/system_extensions.py:25:1: error:
-ciris_engine/logic/adapters/api/routes/system_extensions.py:59:1: error:
-ciris_engine/logic/adapters/api/routes/system_extensions.py:105:1: error:
-ciris_engine/logic/adapters/api/routes/system_extensions.py:131:1: error:
-ciris_engine/logic/adapters/api/routes/system_extensions.py:169:1: error:
-ciris_engine/logic/adapters/api/routes/system_extensions.py:197:1: error:
-ciris_engine/logic/adapters/api/routes/system_extensions.py:233:1: error:
-ciris_engine/logic/adapters/api/routes/config.py:169:9: error: Need type
-ciris_engine/logic/adapters/api/routes/config.py:170:9: error: Need type
-ciris_engine/logic/adapters/api/routes/auth.py:45:1: error: Function is missing
-ciris_engine/logic/adapters/api/routes/audit.py:86:19: error: Incompatible
-ciris_engine/logic/adapters/api/routes/audit.py:358:29: error: Unexpected
-ciris_engine/logic/adapters/api/routes/audit.py:358:29: error: Unexpected
-ciris_engine/logic/utils/shutdown_manager.py:68:5: error: Function is missing a
-ciris_engine/logic/services/infrastructure/authentication.py:1153:13: error:
-ciris_engine/logic/services/infrastructure/authentication.py:1220:25: error:
-ciris_engine/logic/secrets/service.py:588:31: error: No overload variant of
-ciris_engine/logic/buses/tool_bus.py:151:13: error: Returning Any from function
-ciris_engine/logic/buses/tool_bus.py:173:13: error: Returning Any from function
-ciris_engine/logic/buses/tool_bus.py:195:13: error: Returning Any from function
-ciris_engine/logic/buses/tool_bus.py:227:13: error: Returning Any from function
-ciris_engine/logic/buses/tool_bus.py:247:13: error: Returning Any from function
-ciris_engine/logic/buses/memory_bus.py:192:13: error: Module
-ciris_engine/logic/buses/memory_bus.py:197:76: error: "type[GraphScope]" has no
-ciris_engine/logic/buses/memory_bus.py:199:31: error: "type[GraphScope]" has no
-ciris_engine/logic/buses/llm_bus.py:480:13: error: Returning Any from function
-ciris_engine/logic/buses/llm_bus.py:502:20: error: Incompatible return value
-ciris_engine/logic/buses/communication_bus.py:163:21: error: Statement is
-ciris_engine/logic/audit/verifier.py:158:81: error: Value of type
-ciris_engine/logic/audit/verifier.py:159:105: error: Value of type
-ciris_engine/logic/audit/verifier.py:160:84: error:
-ciris_engine/logic/audit/verifier.py:163:102: error: Value of type
-ciris_engine/logic/audit/verifier.py:168:97: error: Value of type
-ciris_engine/logic/adapters/discord/discord_thread_manager.py:49:13: error:
-ciris_engine/logic/adapters/discord/discord_thread_manager.py:98:43: error:
-ciris_engine/logic/adapters/discord/discord_thread_manager.py:104:43: error:
-ciris_engine/logic/adapters/discord/discord_reaction_handler.py:59:13: error:
-ciris_engine/logic/adapters/discord/discord_reaction_handler.py:97:34: error:
-ciris_engine/logic/adapters/discord/discord_reaction_handler.py:97:34: error:
-ciris_engine/logic/adapters/discord/discord_reaction_handler.py:97:34: error:
-ciris_engine/logic/adapters/discord/discord_reaction_handler.py:216:29: error:
-ciris_engine/logic/adapters/discord/discord_reaction_handler.py:216:29: error:
-ciris_engine/logic/adapters/discord/discord_reaction_handler.py:216:29: error:
-ciris_engine/logic/adapters/discord/discord_guidance_handler.py:35:13: error:
-ciris_engine/logic/adapters/discord/discord_connection_manager.py:66:13: error:
-ciris_engine/logic/adapters/discord/discord_connection_manager.py:242:17: error:
-ciris_engine/logic/adapters/discord/discord_audit.py:82:19: error: Unexpected
-ciris_engine/logic/adapters/discord/discord_audit.py:82:19: error: Unexpected
-ciris_engine/logic/adapters/discord/discord_audit.py:85:25: error: Argument
-ciris_engine/logic/services/tools/secrets_tool_service.py:97:20: error: Name
-ciris_engine/logic/services/tools/secrets_tool_service.py:101:32: error: Name
-ciris_engine/logic/services/tools/secrets_tool_service.py:142:17: error: Need
-ciris_engine/logic/services/graph/tsdb_consolidation/consolidators/metrics.py:209:16: error:
-ciris_engine/logic/services/graph/tsdb_consolidation/consolidators/memory.py:68:9: error:
-ciris_engine/logic/services/graph/tsdb_consolidation/consolidators/memory.py:115:33: error:
-ciris_engine/logic/services/graph/tsdb_consolidation/consolidators/memory.py:230:17: error:
-ciris_engine/logic/services/graph/tsdb_consolidation/consolidators/memory.py:234:17: error:
-ciris_engine/logic/services/governance/wise_authority.py:133: error: Unused
-ciris_engine/logic/infrastructure/sub_services/wa_cli_oauth.py:352:13: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_oauth.py:358:17: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_display.py:28:29: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_display.py:54:38: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_display.py:55:23: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_display.py:61:17: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_display.py:81:39: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_display.py:82:49: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_display.py:104:45: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_display.py:111:55: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_display.py:133:41: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_display.py:158:53: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_display.py:161:23: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_display.py:164:16: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_display.py:165:30: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_display.py:171:29: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_bootstrap.py:42:21: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_bootstrap.py:124:21: error:
-ciris_engine/logic/persistence/models/graph.py:15:5: error: Function is missing
-ciris_engine/logic/persistence/models/graph.py:50:21: error: Statement is
-ciris_engine/logic/persistence/models/graph.py:84:21: error: Dict entry 4 has
+ciris_engine/logic/adapters/api/routes/audit.py:360:29: error: Unexpected
+ciris_engine/logic/adapters/api/routes/audit.py:360:29: error: Unexpected
+ciris_engine/logic/persistence/models/graph.py:82:21: error: Dict entry 4 has
 ciris_engine/logic/persistence/models/correlations.py:40:13: error: Statement
-ciris_engine/logic/persistence/models/correlations.py:181:55: error: Unexpected
-ciris_engine/logic/persistence/models/correlations.py:276:55: error: Unexpected
-ciris_engine/logic/infrastructure/sub_services/wa_cli_wizard.py:40:30: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_wizard.py:190:12: error:
-ciris_engine/logic/infrastructure/sub_services/wa_cli_wizard.py:195:16: error:
-ciris_engine/logic/telemetry/log_collector.py:30:31: error: Unexpected keyword
-ciris_engine/logic/telemetry/core.py:174:9: error: "SystemSnapshot" has no
-ciris_engine/logic/services/lifecycle/scheduler.py:190:17: error: Statement is
-ciris_engine/logic/services/lifecycle/scheduler.py:218:21: error: Statement is
-ciris_engine/logic/services/lifecycle/scheduler.py:228:21: error: Statement is
-ciris_engine/logic/services/graph/telemetry_service.py:119:1: error: Cannot
-ciris_engine/logic/services/graph/telemetry_service.py:317:35: error: Subclass
-ciris_engine/logic/services/graph/telemetry_service.py:318:25: error: Statement
-ciris_engine/logic/services/graph/telemetry_service.py:997:72: error: Name
-ciris_engine/logic/services/graph/telemetry_service.py:1003:76: error: Name
-ciris_engine/logic/services/graph/memory_service.py:133:33: error: Unsupported
-ciris_engine/logic/services/graph/memory_service.py:199:29: error: Unsupported
-ciris_engine/logic/services/graph/memory_service.py:266:53: error: Unsupported
-ciris_engine/logic/services/graph/memory_service.py:372:13: error: Statement is
-ciris_engine/logic/services/graph/memory_service.py:419:13: error: Statement is
-ciris_engine/logic/services/graph/audit_service.py:290:9: error: Statement is
-ciris_engine/logic/services/graph/audit_service.py:437:13: error: Incompatible
-ciris_engine/logic/services/graph/audit_service.py:439:41: error: Incompatible
-ciris_engine/logic/services/graph/audit_service.py:514:44: error: Incompatible
-ciris_engine/logic/services/graph/audit_service.py:681:20: error: Item "None"
-ciris_engine/logic/services/graph/audit_service.py:698:25: error: "AuditEntry"
-ciris_engine/logic/services/graph/audit_service.py:860:82: error: Argument 3 to
-ciris_engine/logic/services/graph/audit_service.py:1243:47: error: Argument 1
-ciris_engine/logic/services/graph/audit_service.py:1247:16: error: Incompatible
-ciris_engine/logic/services/graph/audit_service.py:1274:35: error: "AuditEntry"
-ciris_engine/logic/services/graph/audit_service.py:1277:29: error: "AuditEntry"
-ciris_engine/logic/services/graph/audit_service.py:1278:45: error: "AuditEntry"
 ciris_engine/logic/processors/support/thought_manager_enhanced.py:6:1: error:
-ciris_engine/logic/processors/support/thought_manager_enhanced.py:9:1: error:
-ciris_engine/logic/processors/support/thought_manager_enhanced.py:89:17: error:
 ciris_engine/logic/processors/support/thought_manager.py:51:31: error:
 ciris_engine/logic/processors/support/thought_manager.py:75:22: error:
 ciris_engine/logic/processors/support/thought_manager.py:77:26: error:
-ciris_engine/logic/persistence/maintenance.py:167:9: error: Need type
-ciris_engine/logic/infrastructure/sub_services/pattern_analysis_loop.py:213:29: error:
-ciris_engine/logic/infrastructure/sub_services/identity_variance_monitor.py:627:9: error:
-ciris_engine/logic/infrastructure/sub_services/identity_variance_monitor.py:861:5: error:
-ciris_engine/logic/infrastructure/sub_services/identity_variance_monitor.py:872:47: error:
-ciris_engine/logic/infrastructure/handlers/base_handler.py:59:12: error:
-ciris_engine/logic/infrastructure/handlers/base_handler.py:60:33: error:
-ciris_engine/logic/infrastructure/handlers/base_handler.py:93:26: error: Name
-ciris_engine/logic/infrastructure/handlers/base_handler.py:271:35: error:
-ciris_engine/logic/infrastructure/handlers/base_handler.py:275:35: error:
-ciris_engine/logic/context/batch_context.py:21:5: error: Function is missing a
-ciris_engine/logic/context/batch_context.py:203: error: Unused "type: ignore"
-ciris_engine/logic/context/batch_context.py:204: error: Unused "type: ignore"
-ciris_engine/logic/adapters/base_observer.py:202:28: error: Missing named
-ciris_engine/logic/adapters/base_adapter.py:68:23: error: Unexpected keyword
-ciris_engine/logic/adapters/base_adapter.py:68:23: error: Unexpected keyword
-ciris_engine/logic/adapters/base_adapter.py:68:23: error: Unexpected keyword
-ciris_engine/logic/adapters/base_adapter.py:68:23: error: Unexpected keyword
-ciris_engine/logic/adapters/base_adapter.py:84:27: error: Unexpected keyword
-ciris_engine/logic/adapters/base_adapter.py:84:27: error: Unexpected keyword
-ciris_engine/logic/adapters/base_adapter.py:127:23: error: Unexpected keyword
-ciris_engine/logic/adapters/base_adapter.py:127:23: error: Unexpected keyword
-ciris_engine/logic/adapters/base_adapter.py:127:23: error: Unexpected keyword
-ciris_engine/logic/adapters/base_adapter.py:127:23: error: Unexpected keyword
-ciris_engine/logic/adapters/base_adapter.py:143:27: error: Unexpected keyword
-ciris_engine/logic/adapters/base_adapter.py:143:27: error: Unexpected keyword
-ciris_engine/logic/adapters/cli/cli_wa_service.py:13:1: error: Cannot find
-ciris_engine/logic/adapters/cli/cli_wa_service.py:27:15: error: Call to
-ciris_engine/logic/adapters/cli/cli_wa_service.py:31:15: error: Call to
-ciris_engine/logic/adapters/cli/cli_wa_service.py:50:5: error: Return type
-ciris_engine/logic/adapters/cli/cli_wa_service.py:50:35: error: Argument 1 of
-ciris_engine/logic/adapters/cli/cli_wa_service.py:83:16: error: Missing named
-ciris_engine/logic/adapters/cli/cli_tools.py:41:15: error: Call to abstract
-ciris_engine/logic/adapters/cli/cli_tools.py:45:15: error: Call to abstract
-ciris_engine/logic/adapters/cli/cli_tools.py:49:16: error: Missing named
-ciris_engine/logic/adapters/cli/cli_tools.py:90:13: error: Missing positional
-ciris_engine/logic/adapters/cli/cli_adapter.py:682:16: error: Missing named
-ciris_engine/logic/adapters/cli/cli_adapter.py:682:16: error: Missing named
-ciris_engine/logic/adapters/cli/cli_adapter.py:689:32: error: "CLIAdapter" has
-ciris_engine/logic/adapters/api/routes/memory.py:435:21: error: Need type
-ciris_engine/logic/adapters/api/routes/memory.py:903:33: error: Name "params"
-ciris_engine/logic/adapters/api/routes/memory.py:957:29: error: Incompatible
-ciris_engine/logic/adapters/api/routes/memory.py:968:25: error: Incompatible
-ciris_engine/logic/adapters/api/routes/memory.py:1043:52: error: Argument
-ciris_engine/logic/adapters/api/routes/memory.py:1067:29: error: Name "params"
-ciris_engine/logic/adapters/api/routes/memory.py:1136:25: error: Incompatible
-ciris_engine/logic/adapters/api/routes/memory.py:1378:22: error: Incompatible
-ciris_engine/logic/adapters/api/routes/memory.py:1380:13: error: "list[str]"
-ciris_engine/logic/adapters/api/routes/memory.py:1384:16: error: Unsupported
-ciris_engine/logic/adapters/api/routes/agent.py:350:40: error: Value of type
-ciris_engine/logic/adapters/api/routes/agent.py:355:49: error: Value of type
-ciris_engine/logic/adapters/api/routes/agent.py:360:29: error: Value of type
-ciris_engine/logic/adapters/api/routes/agent.py:362:20: error: Value of type
-ciris_engine/logic/adapters/api/routes/agent.py:363:24: error: Value of type
-ciris_engine/logic/adapters/api/routes/agent.py:364:25: error: Value of type
-ciris_engine/logic/adapters/api/routes/agent.py:366:26: error:
-ciris_engine/logic/services/mixins/example_usage.py:117:5: error: Function is
-ciris_engine/logic/services/mixins/example_usage.py:154:1: error: Function is
-ciris_engine/logic/services/graph/incident_service.py:44:5: error: Function is
-ciris_engine/logic/services/graph/incident_service.py:112:28: error: Item
-ciris_engine/logic/services/graph/incident_service.py:129:5: error: Function is
-ciris_engine/logic/services/graph/incident_service.py:137:30: error: Missing
-ciris_engine/logic/services/graph/incident_service.py:155:21: error: Unexpected
-ciris_engine/logic/services/graph/incident_service.py:155:21: error: Unexpected
-ciris_engine/logic/services/graph/incident_service.py:218:40: error: Missing
-ciris_engine/logic/services/graph/incident_service.py:218:40: error: Missing
-ciris_engine/logic/services/graph/incident_service.py:274:9: error: Need type
-ciris_engine/logic/services/graph/incident_service.py:308:28: error: Item
-ciris_engine/logic/services/graph/incident_service.py:327:27: error: Need type
-ciris_engine/logic/services/graph/incident_service.py:396:9: error: Need type
-ciris_engine/logic/services/graph/incident_service.py:487:9: error: Need type
-ciris_engine/logic/services/graph/incident_service.py:494:9: error: Need type
-ciris_engine/logic/services/graph/incident_service.py:501:9: error: Need type
-ciris_engine/logic/services/graph/incident_service.py:507:5: error: Function is
-ciris_engine/logic/services/graph/incident_service.py:538:24: error: Item
-ciris_engine/logic/services/graph/incident_service.py:555:28: error:
-ciris_engine/logic/services/graph/incident_service.py:586:13: error: Statement
-ciris_engine/logic/services/graph/config_service.py:17:14: error: Incompatible
-ciris_engine/logic/services/graph/config_service.py:40:48: error: Function
-ciris_engine/logic/services/graph/config_service.py:91:36: error: Argument 1 of
-ciris_engine/logic/services/graph/config_service.py:101:5: error: Return type
-ciris_engine/logic/services/graph/config_service.py:101:33: error: Argument 1
-ciris_engine/logic/services/graph/config_service.py:174:13: error: Statement is
-ciris_engine/logic/services/graph/config_service.py:226:22: error: Value
-ciris_engine/logic/services/graph/config_service.py:232:68: error: Function
-ciris_engine/logic/services/graph/config_service.py:244:70: error: Function
-ciris_engine/logic/services/graph/config_service.py:251:60: error: Function
-ciris_engine/logic/services/graph/config_service.py:262:35: error: callable?
-ciris_engine/logic/services/graph/config_service.py:264:29: error: callable?
-ciris_engine/logic/services/graph/tsdb_consolidation/service.py:582:13: error:
-ciris_engine/logic/services/graph/tsdb_consolidation/service.py:586:13: error:
-ciris_engine/logic/services/graph/tsdb_consolidation/service.py:662:13: error:
-ciris_engine/logic/services/graph/tsdb_consolidation/service.py:679:18: error:
-ciris_engine/logic/services/adaptation/self_observation.py:178:72: error:
-ciris_engine/logic/services/adaptation/self_observation.py:458:9: error:
-ciris_engine/logic/handlers/memory/recall_handler.py:148:60: error:
+ciris_engine/logic/runtime/modular_service_loader.py:148:13: error: Returning
+ciris_engine/logic/adapters/cli/cli_wa_service.py:15:1: error: Cannot find
+ciris_engine/logic/adapters/cli/cli_tools.py:6:1: error: Library stubs not
+ciris_engine/logic/adapters/cli/cli_adapter.py:11:1: error: Library stubs not
+ciris_engine/logic/adapters/cli/cli_adapter.py:692:32: error: "CLIAdapter" has
+ciris_engine/logic/services/governance/filter.py:70:33: error: "object" has no
+ciris_engine/logic/services/governance/filter.py:465:19: error: "object" has no
+ciris_engine/logic/services/governance/filter.py:581:9: error: Returning Any
+ciris_engine/logic/services/governance/filter.py:581:16: error:
+ciris_engine/logic/secrets/service.py:525:9: error: Returning Any from function
+ciris_engine/logic/secrets/service.py:525:16: error: "type[ServiceType]" has no
+ciris_engine/logic/buses/memory_bus.py:193:1: error: Cannot find implementation
+ciris_engine/logic/buses/memory_bus.py:197:76: error: "type[GraphScope]" has no
+ciris_engine/logic/buses/memory_bus.py:199:31: error: "type[GraphScope]" has no
+ciris_engine/logic/services/lifecycle/time.py:92:17: error: No overload variant
+ciris_engine/logic/services/infrastructure/resource_monitor.py:67:16: error:
+ciris_engine/logic/services/graph/tsdb_consolidation/consolidators/memory.py:230:17: error:
+ciris_engine/logic/services/graph/tsdb_consolidation/consolidators/memory.py:234:17: error:
+ciris_engine/logic/services/graph/tsdb_consolidation/consolidators/conversation.py:220:32: error:
+ciris_engine/logic/services/graph/tsdb_consolidation/consolidators/conversation.py:249:28: error:
+ciris_engine/logic/persistence/maintenance.py:6:1: error: Library stubs not
+ciris_engine/logic/persistence/maintenance.py:330:9: error: Returning Any from
+ciris_engine/logic/persistence/maintenance.py:330:16: error:
+ciris_engine/logic/telemetry/core.py:175:9: error: "SystemSnapshot" has no
+ciris_engine/logic/services/infrastructure/authentication.py:16:1: error:
+ciris_engine/logic/services/infrastructure/authentication.py:1179:13: error:
+ciris_engine/logic/services/infrastructure/authentication.py:1241:21: error:
+ciris_engine/logic/context/batch_context.py:88:44: error: Argument 1 to
+ciris_engine/logic/adapters/discord/discord_thread_manager.py:49:13: error:
+ciris_engine/logic/adapters/discord/discord_thread_manager.py:98:43: error:
+ciris_engine/logic/adapters/discord/discord_thread_manager.py:104:43: error:
+ciris_engine/logic/adapters/discord/discord_reaction_handler.py:60:13: error:
+ciris_engine/logic/adapters/discord/discord_guidance_handler.py:35:13: error:
+ciris_engine/logic/adapters/discord/discord_connection_manager.py:66:13: error:
+ciris_engine/logic/adapters/discord/discord_connection_manager.py:243:17: error:
+ciris_engine/logic/telemetry/__init__.py:17:1: error: Cannot find
+ciris_engine/logic/services/base_graph_service.py:109:17: error: Returning Any
+ciris_engine/logic/services/governance/wise_authority.py:604:9: error:
+ciris_engine/logic/services/governance/wise_authority.py:604:16: error:
+ciris_engine/logic/infrastructure/sub_services/pattern_analysis_loop.py:252:29: error:
+ciris_engine/logic/infrastructure/sub_services/pattern_analysis_loop.py:745:17: error:
+ciris_engine/logic/infrastructure/handlers/base_handler.py:270:47: error:
+ciris_engine/logic/adapters/discord/discord_adapter.py:299:21: error: Returning
+ciris_engine/logic/adapters/discord/discord_adapter.py:1023:29: error: Item
+ciris_engine/logic/adapters/discord/discord_adapter.py:1093:32: error: Item
+ciris_engine/logic/adapters/discord/discord_adapter.py:1106:1: error: Cannot
+ciris_engine/logic/adapters/discord/discord_adapter.py:1244:84: error: Argument
+ciris_engine/logic/adapters/discord/discord_adapter.py:1246:59: error: Item
+ciris_engine/logic/services/graph/telemetry_service.py:121:1: error: Cannot
+ciris_engine/logic/services/graph/memory_service.py:142:33: error: Unsupported
+ciris_engine/logic/services/graph/memory_service.py:208:29: error: Unsupported
+ciris_engine/logic/services/graph/memory_service.py:275:53: error: Unsupported
+ciris_engine/logic/services/graph/incident_service.py:12:1: error: Library
+ciris_engine/logic/services/graph/incident_service.py:577:28: error:
+ciris_engine/logic/services/graph/tsdb_consolidation/service.py:583:13: error:
+ciris_engine/logic/services/graph/tsdb_consolidation/service.py:587:13: error:
+ciris_engine/logic/services/graph/tsdb_consolidation/service.py:663:13: error:
+ciris_engine/logic/services/graph/tsdb_consolidation/service.py:680:18: error:
+ciris_engine/logic/infrastructure/sub_services/wa_cli_wizard.py:190:12: error:
+ciris_engine/logic/infrastructure/sub_services/wa_cli_wizard.py:195:16: error:
 ciris_engine/logic/handlers/memory/memorize_handler.py:101:48: error: Value of
 ciris_engine/logic/handlers/memory/memorize_handler.py:103:47: error: Value of
 ciris_engine/logic/handlers/memory/memorize_handler.py:105:47: error: Value of
-ciris_engine/logic/handlers/external/tool_handler.py:20:5: error: Missing
-ciris_engine/logic/handlers/external/tool_handler.py:47:22: error: Incompatible
-ciris_engine/logic/handlers/external/tool_handler.py:51:13: error: Statement is
-ciris_engine/logic/handlers/external/tool_handler.py:106:28: error:
-ciris_engine/logic/handlers/external/observe_handler.py:69:5: error: Missing
-ciris_engine/logic/handlers/external/observe_handler.py:111:13: error: Return
-ciris_engine/logic/handlers/control/reject_handler.py:16:5: error: Missing
-ciris_engine/logic/handlers/control/reject_handler.py:39:13: error: Return
 ciris_engine/logic/handlers/control/reject_handler.py:45:13: error: Statement
-ciris_engine/logic/handlers/control/ponder_handler.py:32:29: error: Argument
-ciris_engine/logic/handlers/control/ponder_handler.py:34:29: error:
-ciris_engine/logic/handlers/control/defer_handler.py:32:5: error: Missing
-ciris_engine/logic/handlers/control/defer_handler.py:49:36: error: Argument
-ciris_engine/logic/adapters/discord/discord_observer.py:105:51: error: Argument
-ciris_engine/logic/adapters/discord/discord_observer.py:176:51: error: Argument
-ciris_engine/logic/adapters/discord/discord_observer.py:206:51: error: Argument
-ciris_engine/logic/adapters/discord/discord_observer.py:294:98: error: Argument
-ciris_engine/logic/adapters/discord/discord_observer.py:325:48: error:
-ciris_engine/logic/adapters/discord/discord_adapter.py:299:21: error: Returning
-ciris_engine/logic/adapters/discord/discord_adapter.py:320:20: error:
-ciris_engine/logic/adapters/discord/discord_adapter.py:491:37: error: Missing
-ciris_engine/logic/adapters/discord/discord_adapter.py:491:37: error: Missing
-ciris_engine/logic/adapters/discord/discord_adapter.py:491:37: error: Missing
-ciris_engine/logic/adapters/discord/discord_adapter.py:703:9: error: Need type
-ciris_engine/logic/adapters/discord/discord_adapter.py:771:9: error: Need type
-ciris_engine/logic/adapters/discord/discord_adapter.py:816:20: error:
-ciris_engine/logic/adapters/discord/discord_adapter.py:863:38: error: Item
-ciris_engine/logic/adapters/discord/discord_adapter.py:863:38: error: Item
-ciris_engine/logic/adapters/discord/discord_adapter.py:863:38: error: Item
-ciris_engine/logic/adapters/discord/discord_adapter.py:868:27: error: Item
-ciris_engine/logic/adapters/discord/discord_adapter.py:868:27: error: Item
-ciris_engine/logic/adapters/discord/discord_adapter.py:868:27: error: Item
-ciris_engine/logic/adapters/discord/discord_adapter.py:872:38: error: Item
-ciris_engine/logic/adapters/discord/discord_adapter.py:872:38: error: Item
-ciris_engine/logic/adapters/discord/discord_adapter.py:872:38: error: Item
-ciris_engine/logic/adapters/discord/discord_adapter.py:891:37: error: Missing
-ciris_engine/logic/adapters/discord/discord_adapter.py:891:37: error: Missing
-ciris_engine/logic/adapters/discord/discord_adapter.py:891:37: error: Missing
-ciris_engine/logic/adapters/discord/discord_adapter.py:1007:29: error: Item
-ciris_engine/logic/adapters/discord/discord_adapter.py:1077:32: error: Item
-ciris_engine/logic/adapters/discord/discord_adapter.py:1090:1: error: Cannot
-ciris_engine/logic/adapters/discord/discord_adapter.py:1228:84: error: Argument
-ciris_engine/logic/adapters/discord/discord_adapter.py:1230:59: error: Item
-ciris_engine/logic/adapters/api/api_communication.py:273:31: error: Argument
-ciris_engine/logic/adapters/api/api_communication.py:273:41: error:
-ciris_engine/logic/adapters/api/api_communication.py:302:29: error: Name
-ciris_engine/logic/adapters/api/api_communication.py:332:35: error: Name
-ciris_engine/logic/telemetry/__init__.py:17:1: error: Cannot find
-ciris_engine/logic/handlers/memory/forget_handler.py:25:30: error: Argument
-ciris_engine/logic/adapters/discord/adapter.py:24:9: error: Incompatible types
-ciris_engine/logic/adapters/discord/adapter.py:103:24: error: Argument
-ciris_engine/logic/adapters/discord/adapter.py:160:9: error: Statement is
-ciris_engine/logic/adapters/discord/adapter.py:209:33: error: Incompatible
-ciris_engine/logic/adapters/discord/adapter.py:225:19: error: "None" has no
-ciris_engine/logic/adapters/discord/adapter.py:436:19: error: "None" has no
-ciris_engine/logic/adapters/cli/adapter.py:17:5: error: Incompatible types in
-ciris_engine/logic/adapters/cli/adapter.py:82:9: error: Statement is
-ciris_engine/logic/adapters/cli/adapter.py:131:37: error: Incompatible types in
-ciris_engine/logic/adapters/cli/adapter.py:132:32: error: Argument "on_observe"
-ciris_engine/logic/adapters/cli/adapter.py:149:13: error: Statement is
-ciris_engine/logic/adapters/cli/adapter.py:160:34: error: Right operand of
-ciris_engine/logic/adapters/cli/adapter.py:161:13: error: Statement is
-ciris_engine/logic/adapters/cli/adapter.py:197:13: error: Statement is
-ciris_engine/logic/adapters/api/app.py:24:1: error: Function is missing a
-ciris_engine/logic/adapters/api/app.py:62:28: error: Argument 1 to
+ciris_engine/logic/adapters/discord/discord_observer.py:293:98: error: Argument
+ciris_engine/logic/services/graph/config_service.py:222:22: error: Value
+ciris_engine/logic/services/adaptation/self_observation.py:187:1: error: Cannot
+ciris_engine/logic/adapters/discord/adapter.py:207: error: Unused
 ciris_engine/logic/processors/core/base_processor.py:43:50: error: Incompatible
-ciris_engine/logic/dma/pdma.py:66:5: error: Signature of "evaluate"
-ciris_engine/logic/dma/dsdma_base.py:81:5: error: Signature of "evaluate"
-ciris_engine/logic/dma/dsdma_base.py:114:56: error: Argument 1 to
-ciris_engine/logic/dma/dsdma_base.py:118:62: error: "ThoughtState" has no
-ciris_engine/logic/dma/dsdma_base.py:120:30: error: "ThoughtState" has no
-ciris_engine/logic/dma/csdma.py:134:23: error: Value of type
-ciris_engine/logic/dma/csdma.py:193:5: error: Signature of "evaluate"
-ciris_engine/logic/dma/action_selection_pdma.py:73:5: error: Signature of
-ciris_engine/logic/dma/action_selection_pdma.py:195:9: error: Returning Any
-ciris_engine/logic/context/system_snapshot.py:160:25: error: Incompatible types
-ciris_engine/logic/context/system_snapshot.py:174:21: error: Statement is
 ciris_engine/logic/processors/states/work_processor.py:27:5: error: Function is
 ciris_engine/logic/processors/states/work_processor.py:48:29: error:
 ciris_engine/logic/processors/states/solitude_processor.py:218:13: error:
-ciris_engine/logic/processors/states/shutdown_processor.py:161:24: error:
-ciris_engine/logic/context/builder.py:227:40: error: Argument 1 to
+ciris_engine/logic/dma/pdma.py:65:5: error: Signature of "evaluate"
+ciris_engine/logic/dma/dsdma_base.py:81:5: error: Signature of "evaluate"
+ciris_engine/logic/dma/dsdma_base.py:127:62: error: "ThoughtState" has no
+ciris_engine/logic/dma/dsdma_base.py:129:30: error: "ThoughtState" has no
+ciris_engine/logic/dma/csdma.py:195:5: error: Signature of "evaluate"
+ciris_engine/logic/dma/action_selection_pdma.py:71:5: error: Signature of
+ciris_engine/logic/context/system_snapshot.py:159:25: error: Incompatible types
+ciris_engine/logic/context/system_snapshot.py:173:21: error: Statement is
 ciris_engine/logic/processors/support/dma_orchestrator.py:269:12: error:
 ciris_engine/logic/processors/support/dma_orchestrator.py:270:45: error:
 ciris_engine/logic/processors/support/dma_orchestrator.py:272:31: error:
 ciris_engine/logic/processors/support/dma_orchestrator.py:273:39: error:
-ciris_engine/logic/processors/states/play_processor.py:39:5: error: Return type
-ciris_engine/logic/processors/core/main_processor.py:501:53: error:
-ciris_engine/logic/runtime/adapter_manager.py:525:38: error: Incompatible types
-ciris_engine/logic/runtime/adapter_manager.py:528:34: error: Incompatible types
-ciris_engine/logic/runtime/adapter_manager.py:804:68: error: Function
-ciris_engine/logic/runtime/service_initializer.py:196:26: error: Argument
-ciris_engine/logic/runtime/service_initializer.py:206:26: error: Argument
-ciris_engine/logic/runtime/service_initializer.py:222:71: error: Argument 2 to
-ciris_engine/logic/runtime/service_initializer.py:290:30: error: Item "None" of
-ciris_engine/logic/runtime/service_initializer.py:293:26: error: Argument
-ciris_engine/logic/runtime/service_initializer.py:301:26: error: Argument
-ciris_engine/logic/runtime/service_initializer.py:322:13: error: Statement is
-ciris_engine/logic/runtime/service_initializer.py:678:9: error: Item "None" of
-ciris_engine/logic/runtime/ciris_runtime.py:247:6: error: Name
-ciris_engine/logic/runtime/ciris_runtime.py:252:6: error: Name
-ciris_engine/logic/runtime/ciris_runtime.py:1026:42: error: Incompatible types
-ciris_engine/logic/adapters/api/api_runtime_control.py:88:17: error: Returning
-ciris_engine/logic/adapters/api/api_runtime_control.py:235:32: error:
-ciris_engine/logic/adapters/api/api_runtime_control.py:236:25: error:
-ciris_engine/logic/adapters/api/api_runtime_control.py:237:24: error:
-ciris_engine/logic/adapters/api/adapter.py:33:5: error: Incompatible types in
-ciris_engine/logic/adapters/api/adapter.py:68:9: error:
-ciris_engine/logic/adapters/api/adapter.py:190:9: error: Function is missing a
-ciris_engine/logic/adapters/api/adapter.py:196:21: error: Statement is
-ciris_engine/logic/adapters/api/adapter.py:297:33: error: Incompatible types in
-ciris_engine/logic/adapters/api/adapter.py:307:15: error: "None" has no
-ciris_engine/logic/adapters/api/adapter.py:328:24: error: Incompatible types in
-ciris_engine/logic/adapters/api/adapter.py:330:9: error: Statement is
-ciris_engine/logic/adapters/api/adapter.py:355:13: error: Statement is
-ciris_engine/logic/adapters/api/adapter.py:452:42: error: Right operand of
-ciris_engine/logic/adapters/api/adapter.py:454:21: error: Statement is
+ciris_engine/logic/runtime/adapter_manager.py:11:1: error: Library stubs not
+ciris_engine/logic/runtime/adapter_manager.py:532:38: error: Incompatible types
+ciris_engine/logic/runtime/adapter_manager.py:535:34: error: Incompatible types
+ciris_engine/logic/runtime/adapter_manager.py:812:68: error: Function
+ciris_engine/logic/services/runtime/control_service.py:54:67: error: Argument 2
+ciris_engine/logic/services/runtime/control_service.py:885:23: error: No
+ciris_engine/logic/services/runtime/control_service.py:921:23: error: No
+ciris_engine/logic/services/runtime/control_service.py:1385:9: error: Returning
+ciris_engine/logic/services/runtime/control_service.py:1385:16: error:
+ciris_engine/logic/runtime/service_initializer.py:11:1: error: Library stubs
+ciris_engine/logic/runtime/ciris_runtime.py:1017:42: error: Incompatible types
+ciris_engine/logic/runtime/ciris_runtime.py:1106:9: error: Function is missing
+ciris_engine/logic/adapters/api/api_runtime_control.py:87:17: error: Returning
+ciris_engine/logic/adapters/api/api_runtime_control.py:234:32: error:
+ciris_engine/logic/adapters/api/api_runtime_control.py:235:25: error:
+ciris_engine/logic/adapters/api/api_runtime_control.py:236:24: error:

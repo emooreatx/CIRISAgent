@@ -12,6 +12,7 @@ from threading import Lock
 from ciris_engine.protocols.services import ShutdownServiceProtocol
 from ciris_engine.logic.services.base_infrastructure_service import BaseInfrastructureService
 from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.services.metadata import ServiceMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -68,15 +69,19 @@ class ShutdownService(BaseInfrastructureService, ShutdownServiceProtocol):
         # ShutdownService has no dependencies
         return True
 
-    def _get_metadata(self) -> Dict[str, Any]:
-        """Get service-specific metadata."""
-        metadata = super()._get_metadata()
-        metadata.update({
+    def get_capabilities(self) -> "ServiceCapabilities":
+        """Get service capabilities with custom metadata."""
+        # Get parent capabilities which includes infrastructure metadata
+        capabilities = super().get_capabilities()
+        
+        # Add our specific metadata
+        capabilities.metadata.update({
             "description": "Coordinates graceful system shutdown",
             "supports_emergency": True,
             "max_handlers": 100
         })
-        return metadata
+        
+        return capabilities
 
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """Collect shutdown-specific metrics."""

@@ -19,6 +19,8 @@ from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 class MockTimeService(TimeServiceProtocol):
     def __init__(self):
         self._current_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        self._start_time = self._current_time
+        self._started = False
     
     def now(self) -> datetime:
         return self._current_time
@@ -29,31 +31,53 @@ class MockTimeService(TimeServiceProtocol):
     def timestamp(self) -> float:
         return self._current_time.timestamp()
     
+    def get_uptime(self) -> float:
+        """Get service uptime in seconds."""
+        if not self._started:
+            return 0.0
+        return (self._current_time - self._start_time).total_seconds()
+    
     def advance(self, seconds: float):
         """Advance time for testing."""
-        self._current_time = self._current_time.replace(
-            second=self._current_time.second + int(seconds)
-        )
+        from datetime import timedelta
+        self._current_time += timedelta(seconds=seconds)
     
     async def start(self) -> None:
-        pass
+        self._started = True
+        self._start_time = self._current_time
     
     async def stop(self) -> None:
-        pass
+        self._started = False
+        
+    async def is_healthy(self) -> bool:
+        return self._started
+    
+    def get_service_type(self) -> ServiceType:
+        """Get the service type."""
+        return ServiceType.TIME
     
     def get_capabilities(self) -> ServiceCapabilities:
-        return ServiceCapabilities(service_name="MockTimeService", actions=[], version="1.0.0")
+        return ServiceCapabilities(
+            service_name="MockTimeService", 
+            actions=["now", "now_iso", "timestamp", "get_uptime"],
+            version="1.0.0",
+            dependencies=[],
+            metadata={"description": "Mock time service for base service testing"}
+        )
     
     def get_status(self) -> ServiceStatus:
         return ServiceStatus(
             service_name="MockTimeService",
-            service_type="test",
-            is_healthy=True,
-            uptime_seconds=0.0
+            service_type="time",
+            is_healthy=self._started,
+            uptime_seconds=self.get_uptime(),
+            metrics={
+                "current_time": self._current_time.timestamp(),
+                "started": 1.0 if self._started else 0.0
+            },
+            last_error=None,
+            last_health_check=self._current_time
         )
-    
-    async def is_healthy(self) -> bool:
-        return True
 
 
 # Test implementation of BaseService

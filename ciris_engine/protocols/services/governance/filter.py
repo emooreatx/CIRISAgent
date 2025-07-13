@@ -29,16 +29,31 @@ class AdaptiveFilterServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    def get_health(self) -> FilterHealth:
+    async def get_health(self) -> FilterHealth:
         """Get filter service health and statistics."""
         ...
 
     @abstractmethod
-    def add_filter_trigger(self, trigger: FilterTrigger) -> None:
-        """Add a new filter trigger."""
+    async def add_filter_trigger(self, trigger: FilterTrigger, trigger_list: str = "review") -> bool:
+        """Add a new filter trigger to the configuration.
+        
+        Args:
+            trigger: The filter trigger to add
+            trigger_list: Which list to add to ("attention", "review", or "llm")
+            
+        Returns:
+            True if trigger was added successfully
+        """
         ...
 
     @abstractmethod
-    def remove_filter_trigger(self, pattern: str) -> bool:
-        """Remove a filter trigger by pattern."""
+    async def remove_filter_trigger(self, trigger_id: str) -> bool:
+        """Remove a filter trigger from the configuration.
+        
+        Args:
+            trigger_id: The ID of the trigger to remove
+            
+        Returns:
+            True if trigger was removed successfully
+        """
         ...

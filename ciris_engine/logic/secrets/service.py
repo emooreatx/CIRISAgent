@@ -522,7 +522,7 @@ class SecretsService(BaseService, SecretsServiceProtocol):
 
     def get_service_type(self) -> ServiceType:
         """Get the service type enum value."""
-        return ServiceType.CORE_SERVICE
+        return ServiceType.SECRETS
     
     def _check_dependencies(self) -> bool:
         """Check if all required dependencies are available."""

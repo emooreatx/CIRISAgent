@@ -192,8 +192,14 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
                 reasoning=f"Failed CSDMA evaluation: {str(e)}"
             )
 
-    async def evaluate(self, input_data: ProcessingQueueItem, **kwargs: Any) -> CSDMAResult:
+    async def evaluate(self, *args: Any, **kwargs: Any) -> CSDMAResult:  # type: ignore[override]
         """Evaluate thought for common sense alignment."""
+        # Extract arguments - maintain backward compatibility
+        input_data = args[0] if args else kwargs.get('input_data')
+        
+        if not input_data:
+            raise ValueError("input_data is required")
+            
         return await self.evaluate_thought(input_data)
 
     def __repr__(self) -> str:

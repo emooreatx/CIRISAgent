@@ -78,13 +78,15 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
         flags: List[str] = Field(default_factory=list)
         reasoning: str
 
-    async def evaluate(
-        self,
-        input_data: ProcessingQueueItem,
-        current_context: Optional[Dict[str, Any]] = None,
-        **kwargs: Any
-    ) -> DSDMAResult:
+    async def evaluate(self, *args: Any, **kwargs: Any) -> DSDMAResult:  # type: ignore[override]
         """Evaluate thought within domain-specific context."""
+        # Extract arguments - maintain backward compatibility
+        input_data = args[0] if args else kwargs.get('input_data')
+        current_context = args[1] if len(args) > 1 else kwargs.get('current_context')
+        
+        if not input_data:
+            raise ValueError("input_data is required")
+            
         # Extract DMAInputData if provided
         dma_input_data: Optional[DMAInputData] = None
         if current_context and isinstance(current_context, dict):
@@ -123,10 +125,13 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
             user_profiles_block = format_user_profiles(user_profiles_dict)
             system_snapshot_block = format_system_snapshot(system_snapshot)
 
-            # Get identity from DMAInputData - CRITICAL requirement
-            if not current_context.processing_context or not current_context.processing_context.identity_context:
-                raise ValueError(f"CRITICAL: Identity context is required for DSDMA evaluation in domain '{self.domain_name}'")
-            identity_block = current_context.processing_context.identity_context
+            # Get identity from system snapshot - CRITICAL requirement
+            if not system_snapshot.agent_identity:
+                raise ValueError(f"CRITICAL: Agent identity is required for DSDMA evaluation in domain '{self.domain_name}'")
+            # Format identity block from agent_identity data
+            identity_block = f"Agent: {system_snapshot.agent_identity.get('agent_id', 'Unknown')}\n"
+            identity_block += f"Description: {system_snapshot.agent_identity.get('description', 'No description')}\n"
+            identity_block += f"Role: {system_snapshot.agent_identity.get('role', 'No role defined')}"
         else:
             # Fallback to old logic for backwards compatibility
             context_str = "No specific platform context provided."

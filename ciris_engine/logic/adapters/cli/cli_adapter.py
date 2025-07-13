@@ -660,6 +660,10 @@ Tools available:
         logger.debug(f"CLI adapter health check: _running={self._running}")
         return self._running
 
+    def get_service_type(self) -> ServiceType:
+        """Get the type of this service."""
+        return ServiceType.ADAPTER
+
     def get_status(self) -> ServiceStatus:
         """Get current service status."""
         from ciris_engine.schemas.services.core import ServiceStatus
@@ -678,6 +682,10 @@ Tools available:
             last_health_check=self._get_time_service().now() if self._time_service else None
         )
 
+    def get_service_type(self) -> ServiceType:
+        """Get the service type."""
+        return ServiceType.ADAPTER
+    
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""
         return ServiceCapabilities(
@@ -689,7 +697,7 @@ Tools available:
                 "service_type": ServiceType.COMMUNICATION,
                 "max_concurrent_operations": 1,
                 "supports_streaming": False,
-                "interactive": self._interactive,
+                "interactive": self.interactive,
                 "available_tools": list(self._available_tools.keys())
             }
         )

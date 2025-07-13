@@ -9,7 +9,7 @@ import re
 import secrets
 import asyncio
 import logging
-from typing import Dict, Optional, List, Tuple, Any
+from typing import Dict, Optional, List, Tuple
 from datetime import datetime, timedelta
 
 from ciris_engine.logic.services.base_service import BaseService
@@ -18,17 +18,18 @@ from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.services.filters_core import (
     FilterPriority, TriggerType, FilterTrigger,
     UserTrustProfile, FilterResult, AdaptiveFilterConfig,
-    FilterStats, FilterHealth, ContextHint
+    FilterStats, FilterHealth, ContextHint, FilterServiceMetadata
 )
 from ciris_engine.schemas.services.core import ServiceStatus, ServiceCapabilities
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.protocols.services.graph.config import GraphConfigServiceProtocol
 
 logger = logging.getLogger(__name__)
 
 class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
     """Service for adaptive message filtering with graph memory persistence"""
 
-    def __init__(self, memory_service: object, time_service: TimeServiceProtocol, llm_service: Optional[object] = None, config_service: Optional[object] = None) -> None:
+    def __init__(self, memory_service: object, time_service: TimeServiceProtocol, llm_service: Optional[object] = None, config_service: Optional[GraphConfigServiceProtocol] = None) -> None:
         # Set instance variables BEFORE calling super().__init__()
         # This ensures they're available when _register_dependencies() is called
         self.memory = memory_service
@@ -67,6 +68,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
 
         try:
             # Use GraphConfigService for proper config management
+            assert self.config_service is not None  # Type narrowing for MyPy
             config_node = await self.config_service.get_config(self._config_key)
             if config_node and config_node.value.dict_value:
                 # Load from properly stored config
@@ -462,6 +464,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
 
         try:
             # Use GraphConfigService to properly store config
+            assert self.config_service is not None  # Type narrowing for MyPy
             await self.config_service.set_config(
                 key=self._config_key,
                 value=self._config.model_dump(),  # Store as dict
@@ -550,14 +553,22 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
         """Get list of actions this service provides."""
         return ["filter", "update_trust", "add_filter", "remove_filter", "get_health"]
     
-    def _get_metadata(self) -> Dict[str, Any]:
-        """Get service-specific metadata."""
-        return {
-            "description": "Adaptive message filtering with graph memory persistence",
-            "features": ["spam_detection", "trust_tracking", "self_configuration", "llm_filtering"],
-            "filter_types": ["regex", "keyword", "llm_based"],
-            "max_buffer_size": 1000
-        }
+    def get_capabilities(self) -> ServiceCapabilities:
+        """Get service capabilities."""
+        metadata = FilterServiceMetadata(
+            description="Adaptive message filtering with graph memory persistence",
+            features=["spam_detection", "trust_tracking", "self_configuration", "llm_filtering"],
+            filter_types=["regex", "keyword", "llm_based"],
+            max_buffer_size=1000
+        )
+        
+        return ServiceCapabilities(
+            service_name="AdaptiveFilterService",
+            actions=self._get_actions(),
+            version="1.0.0",
+            dependencies=list(self._dependencies) if hasattr(self, '_dependencies') else [],
+            metadata=metadata.model_dump()
+        )
 
     def get_status(self) -> ServiceStatus:
         """Get current service status."""
@@ -578,7 +589,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
 
     def get_service_type(self) -> ServiceType:
         """Get the service type enum value."""
-        return ServiceType.INFRASTRUCTURE_SERVICE
+        return ServiceType.FILTER
     
     def _check_dependencies(self) -> bool:
         """Check if all required dependencies are available."""

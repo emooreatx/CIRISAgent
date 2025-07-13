@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from ciris_engine.schemas.runtime.models import Task, Thought
     from ciris_engine.schemas.handlers.schemas import HandlerContext, HandlerResult
     from ciris_engine.schemas.dma.core import DMAContext, DMADecision
+    from ciris_engine.schemas.runtime.enums import ServiceType
 
 class ServiceProtocol(Protocol):
     """Root protocol for ALL services in CIRIS."""
@@ -47,6 +48,15 @@ class ServiceProtocol(Protocol):
 
         Returns:
             True if service is healthy and available
+        """
+        ...
+
+    @abstractmethod
+    def get_service_type(self) -> "ServiceType":
+        """Get the type of this service.
+
+        Returns:
+            ServiceType enum indicating the service category
         """
         ...
 

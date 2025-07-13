@@ -112,7 +112,8 @@ class CIRISMypyToolkit:
         schema_issues = self.schema_validator.validate_all_files()
         
         # Analyze protocol usage
-        protocol_issues = self.protocol_analyzer.check_all_services()
+        protocol_results = self.protocol_analyzer.check_all_services()
+        protocol_issues = protocol_results.get('issues', [])
         
         # Detect unused/uncalled code
         unused_code = self.unused_code_detector.find_unused_code()
@@ -129,7 +130,12 @@ class CIRISMypyToolkit:
             },
             "protocol_compliance": {
                 "total_issues": len(protocol_issues),
-                "issues": protocol_issues
+                "issues": protocol_issues,
+                "summary": {
+                    "total_services": protocol_results.get('total_services', 0),
+                    "aligned_services": protocol_results.get('aligned_services', 0),
+                    "misaligned_services": protocol_results.get('misaligned_services', 0)
+                }
             },
             "unused_code": {
                 "total_items": len(unused_code),

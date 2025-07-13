@@ -5,7 +5,7 @@ Implements a basic in-memory rate limiter using token bucket algorithm.
 """
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
-from typing import Dict, Tuple, Callable
+from typing import Dict, Tuple, Callable, Any, cast
 from datetime import datetime, timedelta
 import asyncio
 
@@ -121,12 +121,12 @@ class RateLimitMiddleware:
             "/v1/system/health",    # Health checks should not be rate limited
         }
     
-    async def __call__(self, request: Request, call_next: Callable) -> Response:
+    async def __call__(self, request: Request, call_next: Callable[..., Any]) -> Response:
         """Process request through rate limiter."""
         # Check if path is exempt
         if request.url.path in self.exempt_paths:
             response = await call_next(request)
-            return response
+            return cast(Response, response)
         
         # Extract client identifier (prefer authenticated user, fallback to IP)
         client_id = None
@@ -164,6 +164,7 @@ class RateLimitMiddleware:
         
         # Process request
         response = await call_next(request)
+        response = cast(Response, response)
         
         # Add rate limit headers to response
         if client_id in self.limiter.buckets:
