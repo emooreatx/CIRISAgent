@@ -5,7 +5,7 @@ import logging
 from typing import List, Any
 
 from ciris_engine.schemas.processors.states import AgentState
-from ciris_engine.schemas.processors.results import PlayResult
+from ciris_engine.schemas.processors.results import PlayResult, ProcessingResult
 
 from .work_processor import WorkProcessor
 # ServiceProtocol import removed - processors aren't services
@@ -36,7 +36,7 @@ class PlayProcessor(WorkProcessor):
         """Play processor only handles PLAY state."""
         return [AgentState.PLAY]
 
-    async def process(self, round_number: int) -> PlayResult:
+    async def process(self, round_number: int) -> PlayResult:  # type: ignore[override]
         """
         Execute one round of play processing.
         Currently delegates to work processing but logs differently.
@@ -71,9 +71,9 @@ class PlayProcessor(WorkProcessor):
             "pending_tasks": self.task_manager.get_pending_task_count(),
             "pending_thoughts": self.thought_manager.get_pending_thought_count(),
             "processing_thoughts": self.thought_manager.get_processing_thought_count(),
-            "total_rounds": self.metrics.get("rounds_completed", 0),
-            "total_processed": self.metrics.get("items_processed", 0),
-            "total_errors": self.metrics.get("errors", 0)
+            "total_rounds": self.metrics.rounds_completed,
+            "total_processed": self.metrics.items_processed,
+            "total_errors": self.metrics.errors
         }
         base_stats.update({
             "play_metrics": self.play_metrics.copy(),

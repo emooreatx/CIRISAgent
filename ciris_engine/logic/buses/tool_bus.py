@@ -4,7 +4,7 @@ Tool message bus - handles all tool service operations
 
 import logging
 import uuid
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, List, Optional, cast, Any
 
 from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.adapters.tools import ToolExecutionStatus, ToolInfo, ToolExecutionResult
@@ -120,7 +120,7 @@ class ToolBus(BaseBus[ToolService]):
         # Step 5: Execute the tool
         try:
             logger.debug(f"Executing tool '{tool_name}' with {type(selected_service).__name__}")
-            result = await selected_service.execute_tool(tool_name, parameters)
+            result: ToolExecutionResult = await selected_service.execute_tool(tool_name, parameters)
             return result
         except Exception as e:
             logger.error(f"Failed to execute tool {tool_name}: {e}", exc_info=True)
@@ -148,7 +148,10 @@ class ToolBus(BaseBus[ToolService]):
             return []
 
         try:
-            return await service.get_available_tools()
+            # Cast to Any to handle dynamic method access
+            service_any = cast(Any, service)
+            result: List[str] = await service_any.get_available_tools()
+            return result
         except Exception as e:
             logger.error(f"Error getting available tools: {e}", exc_info=True)
             return []
@@ -170,7 +173,10 @@ class ToolBus(BaseBus[ToolService]):
             return None
 
         try:
-            return await service.get_tool_result(correlation_id, timeout)
+            # Cast to Any to handle dynamic method access
+            service_any = cast(Any, service)
+            result: Optional[ToolExecutionResult] = await service_any.get_tool_result(correlation_id, timeout)
+            return result
         except Exception as e:
             logger.error(f"Error getting tool result: {e}", exc_info=True)
             return None
@@ -192,7 +198,10 @@ class ToolBus(BaseBus[ToolService]):
             return False
 
         try:
-            return await service.validate_parameters(tool_name, parameters)
+            # Cast to Any to handle dynamic method access
+            service_any = cast(Any, service)
+            result: bool = await service_any.validate_parameters(tool_name, parameters)
+            return result
         except Exception as e:
             logger.error(f"Error validating parameters: {e}", exc_info=True)
             return False
@@ -224,7 +233,10 @@ class ToolBus(BaseBus[ToolService]):
             return None
 
         try:
-            return await service.get_tool_info(tool_name)
+            # Cast to Any to handle dynamic method access
+            service_any = cast(Any, service)
+            result: Optional[ToolInfo] = await service_any.get_tool_info(tool_name)
+            return result
         except Exception as e:
             logger.error(f"Error getting tool info: {e}", exc_info=True)
             return None
@@ -244,7 +256,10 @@ class ToolBus(BaseBus[ToolService]):
             return []
 
         try:
-            return await service.get_all_tool_info()
+            # Cast to Any to handle dynamic method access
+            service_any = cast(Any, service)
+            result: List[ToolInfo] = await service_any.get_all_tool_info()
+            return result
         except Exception as e:
             logger.error(f"Error getting all tool info: {e}", exc_info=True)
             return []
@@ -255,7 +270,8 @@ class ToolBus(BaseBus[ToolService]):
         if not service:
             return []
         try:
-            return await service.get_capabilities()
+            capabilities = service.get_capabilities()
+            return capabilities.supports_operation_list if hasattr(capabilities, 'supports_operation_list') else []
         except Exception as e:
             logger.error(f"Failed to get capabilities: {e}")
             return []

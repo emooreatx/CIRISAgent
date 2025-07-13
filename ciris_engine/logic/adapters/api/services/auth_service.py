@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from ciris_engine.schemas.api.auth import UserRole, APIKeyInfo
 from ciris_engine.schemas.services.authority_core import WARole
 from ciris_engine.schemas.runtime.api import APIRole
+from ciris_engine.schemas.services.authority.wise_authority import WAUpdate
+from ciris_engine.protocols.services.infrastructure.authentication import AuthenticationServiceProtocol
 
 @dataclass
 class StoredAPIKey:
@@ -51,7 +53,7 @@ class User:
     oauth_provider: Optional[str] = None
     oauth_email: Optional[str] = None
     oauth_external_id: Optional[str] = None
-    created_at: datetime = None
+    created_at: Optional[datetime] = None
     last_login: Optional[datetime] = None
     is_active: bool = True
     wa_parent_id: Optional[str] = None
@@ -62,7 +64,7 @@ class User:
 class APIAuthService:
     """Simple in-memory authentication service with database persistence."""
 
-    def __init__(self, auth_service=None) -> None:
+    def __init__(self, auth_service: Optional[AuthenticationServiceProtocol] = None) -> None:
         # In-memory caches for performance
         self._api_keys: Dict[str, StoredAPIKey] = {}
         self._oauth_users: Dict[str, OAuthUser] = {}
@@ -92,6 +94,10 @@ class APIAuthService:
     def _load_users_from_db(self) -> None:
         """Load existing users from the database."""
         import asyncio
+        
+        if not self._auth_service:
+            return
+            
         try:
             # Get all WA certificates from the database
             was = asyncio.run(self._auth_service.list_was(active_only=False))
@@ -105,8 +111,8 @@ class APIAuthService:
                     api_role=self._wa_role_to_api_role(wa.role),
                     wa_role=wa.role,
                     created_at=wa.created_at,
-                    last_login=wa.last_login,
-                    is_active=wa.active,
+                    last_login=wa.last_auth,
+                    is_active=True,  # Assume active if in database
                     wa_parent_id=wa.parent_wa_id,
                     wa_auto_minted=wa.auto_minted,
                     password_hash=wa.password_hash,
@@ -136,6 +142,9 @@ class APIAuthService:
     
     async def _create_default_admin(self) -> None:
         """Create the default admin user in the database."""
+        if not self._auth_service:
+            return
+            
         try:
             # Create admin WA certificate
             wa_cert = await self._auth_service.create_wa(
@@ -148,6 +157,7 @@ class APIAuthService:
             # Update with password hash
             await self._auth_service.update_wa(
                 wa_cert.wa_id,
+                updates=None,
                 password_hash=self._hash_password("ciris_admin_password")
             )
             
@@ -248,38 +258,6 @@ class APIAuthService:
 
         return stored_key
 
-    async def list_api_keys(self) -> List[APIKeyInfo]:
-        """List all API keys (without the actual keys)."""
-        keys = []
-        for key_hash, stored_key in self._api_keys.items():
-            keys.append(APIKeyInfo(
-                key_id=key_hash[:8],  # Show partial hash as ID
-                role=stored_key.role,
-                expires_at=stored_key.expires_at,
-                description=stored_key.description,
-                created_at=stored_key.created_at,
-                created_by=stored_key.created_by,
-                last_used=stored_key.last_used,
-                is_active=stored_key.is_active
-            ))
-        return keys
-
-    async def get_api_key_info(self, key_id: str) -> Optional[APIKeyInfo]:
-        """Get info about a specific API key."""
-        # Find key by partial hash
-        for key_hash, stored_key in self._api_keys.items():
-            if key_hash.startswith(key_id):
-                return APIKeyInfo(
-                    key_id=key_hash[:8],
-                    role=stored_key.role,
-                    expires_at=stored_key.expires_at,
-                    description=stored_key.description,
-                    created_at=stored_key.created_at,
-                    created_by=stored_key.created_by,
-                    last_used=stored_key.last_used,
-                    is_active=stored_key.is_active
-                )
-        return None
 
     async def revoke_api_key(self, key_id: str) -> None:
         """Revoke an API key."""
@@ -325,15 +303,6 @@ class APIAuthService:
 
         return user
 
-    async def get_user_by_oauth(
-        self,
-        provider: str,
-        external_id: str
-    ) -> Optional[OAuthUser]:
-        """Get user by OAuth provider and external ID."""
-        user_id = f"{provider}:{external_id}"
-        return self._oauth_users.get(user_id)
-    
     # ========== User Management Methods ==========
     
     def _hash_password(self, password: str) -> str:
@@ -383,6 +352,7 @@ class APIAuthService:
                 # Update with password hash
                 await self._auth_service.update_wa(
                     wa_cert.wa_id,
+                    updates=None,
                     password_hash=self._hash_password(password)
                 )
                 
@@ -485,7 +455,7 @@ class APIAuthService:
             
             users.append(user)
         
-        return sorted(users, key=lambda u: u.created_at, reverse=True)
+        return sorted(users, key=lambda u: u.created_at or datetime.min, reverse=True)
     
     def _user_role_to_api_role(self, role: UserRole) -> APIRole:
         """Convert UserRole to APIRole."""
@@ -553,16 +523,22 @@ class APIAuthService:
             try:
                 # Update role in database
                 if api_role is not None and user.wa_role:
-                    await self._auth_service.update_wa(user_id, role=user.wa_role)
+                    await self._auth_service.update_wa(
+                        user_id, 
+                        updates=WAUpdate(role=user.wa_role.value if hasattr(user.wa_role, 'value') else str(user.wa_role))
+                    )
                 
                 # Update active status in database
                 if is_active is not None:
                     if is_active:
                         # Reactivate - note: this may not work if cert was revoked
-                        await self._auth_service.update_wa(user_id, active=True)
+                        await self._auth_service.update_wa(
+                            user_id,
+                            updates=WAUpdate(is_active=True)
+                        )
                     else:
                         # Deactivate
-                        await self._auth_service.revoke_wa(user_id)
+                        await self._auth_service.revoke_wa(user_id, reason="User deactivated via API")
             except Exception as e:
                 print(f"Error updating user in database: {e}")
         
@@ -609,6 +585,7 @@ class APIAuthService:
                 import asyncio
                 asyncio.run(self._auth_service.update_wa(
                     user_id,
+                    updates=None,
                     password_hash=self._hash_password(new_password)
                 ))
             except Exception as e:
@@ -715,6 +692,7 @@ class APIAuthService:
                 # Update the WA certificate with custom permissions
                 await self._auth_service.update_wa(
                     user_id,
+                    updates=None,
                     custom_permissions_json=json.dumps(permissions) if permissions else None
                 )
             except Exception as e:
@@ -845,9 +823,9 @@ class APIAuthService:
                 # Update WA role and parent in database
                 await self._auth_service.update_wa(
                     user_id,
-                    role=wa_role,
+                    updates=WAUpdate(role=wa_role.value if hasattr(wa_role, 'value') else str(wa_role)),
                     parent_wa_id=minted_by,
-                    auto_minted=False
+                    auto_minted=0  # Use 0 instead of False for integer field
                 )
             except Exception as e:
                 print(f"Error updating WA role in database: {e}")

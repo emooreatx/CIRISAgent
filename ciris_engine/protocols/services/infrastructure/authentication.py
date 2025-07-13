@@ -4,8 +4,9 @@ Handles identity verification and token management for Wise Authorities.
 Authentication = "Who are you?"
 """
 
-from typing import Protocol, Optional, List, TYPE_CHECKING, Tuple
+from typing import Protocol, Optional, List, TYPE_CHECKING, Tuple, Union
 from abc import abstractmethod
+from datetime import datetime
 
 from ...runtime.base import ServiceProtocol
 
@@ -49,7 +50,7 @@ class AuthenticationServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    async def update_wa(self, wa_id: str, updates: WAUpdate) -> Optional[WACertificate]:
+    async def update_wa(self, wa_id: str, updates: Optional[WAUpdate] = None, **kwargs: Union[str, bool, datetime]) -> Optional[WACertificate]:
         """Update a Wise Authority identity."""
         ...
 

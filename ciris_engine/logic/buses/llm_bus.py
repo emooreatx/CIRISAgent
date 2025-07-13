@@ -5,7 +5,7 @@ LLM message bus - handles all LLM service operations with redundancy and distrib
 import logging
 import time  # Only used as fallback in CircuitBreaker when time_service is None
 import asyncio
-from typing import Optional, List, Type, Tuple, Any, TYPE_CHECKING
+from typing import Optional, List, Type, Tuple, Any, TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from ciris_engine.logic.registries.base import ServiceRegistry
@@ -169,7 +169,7 @@ class LLMBus(BaseBus[LLMService]):
                     f"Calling LLM service {service_name} for {handler_name}"
                 )
 
-                result, usage = await selected_service.call_llm_structured(
+                result, usage = await selected_service.call_llm_structured(  # type: ignore[attr-defined]
                     messages=messages,
                     response_model=response_model,
                     max_tokens=max_tokens,
@@ -248,8 +248,7 @@ class LLMBus(BaseBus[LLMService]):
         service = await self.service_registry.get_service(
             handler=handler_name,
             service_type=ServiceType.LLM,
-            required_capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED.value],
-            fallback_to_global=True
+            required_capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED.value]
         )
 
         if service and await self._is_service_healthy(service):
@@ -323,7 +322,7 @@ class LLMBus(BaseBus[LLMService]):
     async def _is_service_healthy(self, service: object) -> bool:
         """Check if a service is healthy"""
         try:
-            result = await service.is_healthy()
+            result = await service.is_healthy()  # type: ignore[attr-defined]
             return bool(result)
         except Exception:
             return False
@@ -477,7 +476,10 @@ class LLMBus(BaseBus[LLMService]):
             return []
 
         try:
-            return await service.get_available_models()
+            # Cast to Any to handle dynamic method access
+            service_any = cast(Any, service)
+            result: List[str] = await service_any.get_available_models()
+            return result
         except Exception as e:
             logger.error(f"Error getting available models: {e}", exc_info=True)
             return []
@@ -499,7 +501,8 @@ class LLMBus(BaseBus[LLMService]):
         if not service:
             return []
         try:
-            return await service.get_capabilities()
+            capabilities = service.get_capabilities()
+            return capabilities.supports_operation_list if hasattr(capabilities, 'supports_operation_list') else []
         except Exception as e:
             logger.error(f"Failed to get capabilities: {e}")
             return []
@@ -529,8 +532,6 @@ class LLMBus(BaseBus[LLMService]):
         hide real service failures.
         """
         logger.warning("Clearing all LLM circuit breakers - this should only happen in tests!")
-        self._circuit_breakers.clear()
         self.circuit_breakers.clear()
         # Also clear service metrics to ensure clean state
         self.service_metrics.clear()
-        self._latencies.clear()

@@ -21,8 +21,13 @@ class ForgetHandler(BaseActionHandler):
         params = raw_params
         if not isinstance(params, ForgetParams):
             try:
-                params = ForgetParams(**params) if isinstance(params, dict) else params
-            except ValidationError as e:
+                # Try to convert from another Pydantic model
+                if hasattr(params, 'model_dump'):
+                    params = ForgetParams(**params.model_dump())
+                else:
+                    # Should not happen if DMA is working correctly
+                    raise ValueError(f"Expected ForgetParams but got {type(params)}")
+            except (ValidationError, ValueError) as e:
                 logger.error(f"ForgetHandler: Invalid params dict: {e}")
                 follow_up_content = f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters. {e}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
                 
@@ -36,20 +41,6 @@ class ForgetHandler(BaseActionHandler):
                 
                 await self._audit_log(HandlerActionType.FORGET, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="failed")
                 return follow_up_id
-        if not isinstance(params, ForgetParams):
-            logger.error(f"ForgetHandler: Invalid params type: {type(raw_params)}")
-            follow_up_content = f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters type: {type(raw_params)}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
-            
-            # Use the proper method to complete thought and create follow-up
-            follow_up_id = await self.complete_thought_and_create_followup(
-                thought=thought,
-                follow_up_content=follow_up_content,
-                action_result=result,
-                status=ThoughtStatus.FAILED
-            )
-            
-            await self._audit_log(HandlerActionType.FORGET, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="failed")
-            return follow_up_id
         if not self._can_forget(params, dispatch_context):
             logger.info("ForgetHandler: Permission denied or WA required for forget operation. Creating deferral.")
             follow_up_content = f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action was not permitted. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."

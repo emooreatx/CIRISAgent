@@ -6,6 +6,7 @@ that operates outside normal authentication (signature IS the auth).
 """
 import logging
 from datetime import datetime, timezone, timedelta
+from typing import Dict, Any
 from fastapi import APIRouter, Request, HTTPException
 import base64
 import json
@@ -25,7 +26,6 @@ from ciris_engine.schemas.services.shutdown import (
     EmergencyCommandType
 )
 from ciris_engine.schemas.api.responses import SuccessResponse
-from ciris_engine.logic.registries.base import ServiceRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ def verify_signature(command: WASignedCommand) -> bool:
 
         # Build the message that was signed
         # This must match exactly what was signed on the client side
-        message_data = {
+        message_data: Dict[str, Any] = {
             "command_id": command.command_id,
             "command_type": command.command_type.value,  # Use enum value
             "wa_id": command.wa_id,
@@ -76,6 +76,7 @@ def verify_signature(command: WASignedCommand) -> bool:
         if command.expires_at:
             message_data["expires_at"] = command.expires_at.isoformat()
         if command.target_tree_path:
+            # target_tree_path is List[str], not str
             message_data["target_tree_path"] = command.target_tree_path
 
         message = json.dumps(message_data, sort_keys=True).encode()

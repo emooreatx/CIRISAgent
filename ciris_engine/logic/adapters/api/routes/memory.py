@@ -5,13 +5,14 @@ The memory service implements the three universal verbs: MEMORIZE, RECALL, FORGE
 All operations work through the graph memory system.
 """
 import logging
+import uuid
 from typing import List, Optional, Dict, Literal, TYPE_CHECKING, Any, Tuple
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Query, Path
 from fastapi.responses import Response
 from pydantic import BaseModel, Field, field_serializer, model_validator
 
-from ciris_engine.schemas.api.responses import SuccessResponse
+from ciris_engine.schemas.api.responses import SuccessResponse, ResponseMetadata
 from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope, GraphEdge, GraphEdgeAttributes
 from ciris_engine.schemas.services.operations import MemoryQuery, MemoryOpResult
 from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
@@ -130,7 +131,14 @@ async def store_memory(
 
     try:
         result = await memory_service.memorize(body.node)
-        return SuccessResponse(data=result)
+        return SuccessResponse(
+            data=result,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -237,13 +245,20 @@ async def query_memory(
             nodes = filtered_nodes
 
         # Apply pagination
-        _total = len(nodes)
+        len(nodes)
         if body.offset:
             nodes = nodes[body.offset:]
         if body.limit:
             nodes = nodes[:body.limit]
 
-        return SuccessResponse(data=nodes)
+        return SuccessResponse(
+            data=nodes,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -282,7 +297,14 @@ async def forget_memory(
 
         # Forget the node
         result = await memory_service.forget(nodes[0])
-        return SuccessResponse(data=result)
+        return SuccessResponse(
+            data=result,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except HTTPException:
         raise
@@ -317,7 +339,7 @@ async def get_timeline(
         # Query memories in time range
         # Note: This is just for validation/documentation purposes, not actually used
         # Cap at 100 for QueryRequest validation, but use actual limit for queries below
-        _query_body = QueryRequest(
+        QueryRequest(
             node_id=None,
             query=None,
             related_to=None,
@@ -364,7 +386,7 @@ async def get_timeline(
                         "WHERE updated_at >= ? AND updated_at < ?",
                         "AND NOT (node_type = 'tsdb_data' AND node_id LIKE 'metric_%')"
                     ]
-                    params = [day_start.isoformat(), day_end.isoformat()]
+                    params: List[Any] = [day_start.isoformat(), day_end.isoformat()]
                     
                     # Add scope filter
                     if scope:
@@ -410,8 +432,10 @@ async def get_timeline(
                 # For timeline layout, sample nodes evenly across time range
                 if len(all_db_nodes) > (limit or 100):
                     # Group by hour buckets
-                    hour_buckets = {}
+                    hour_buckets: Dict[datetime, List[Any]] = {}
                     for node in all_db_nodes:
+                        if node.updated_at is None:
+                            continue
                         hour = node.updated_at.replace(minute=0, second=0, microsecond=0)
                         if hour not in hour_buckets:
                             hour_buckets[hour] = []
@@ -571,7 +595,14 @@ async def get_timeline(
             total=len(nodes)
         )
 
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -651,12 +682,26 @@ async def get_memory_stats(
             if row and row['newest']:
                 stats.newest_node_date = datetime.fromisoformat(row['newest'].replace('Z', '+00:00'))
         
-        return SuccessResponse(data=stats)
+        return SuccessResponse(
+            data=stats,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
         
     except Exception as e:
         logger.error(f"Failed to get memory stats: {e}")
         # Return empty stats on error
-        return SuccessResponse(data=MemoryStats())
+        return SuccessResponse(
+            data=MemoryStats(),
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
 @router.get("/{node_id}", response_model=SuccessResponse[GraphNode])
 async def get_memory(
@@ -692,7 +737,14 @@ async def get_memory(
                 detail=f"Node {node_id} not found"
             )
 
-        return SuccessResponse(data=nodes[0])
+        return SuccessResponse(
+            data=nodes[0],
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except HTTPException:
         raise
@@ -773,7 +825,7 @@ async def visualize_memory_graph(
                                     "FROM graph_nodes",
                                     "WHERE updated_at >= ? AND updated_at < ?",
                                 ]
-                                params = [bucket_start.isoformat(), bucket_end.isoformat()]
+                                params: List[Any] = [bucket_start.isoformat(), bucket_end.isoformat()]
                                 
                                 # Add metric filter
                                 if not include_metrics:
@@ -848,7 +900,7 @@ async def visualize_memory_graph(
                                     "FROM graph_nodes",
                                     "WHERE updated_at >= ? AND updated_at < ?",
                                 ]
-                                params = [day_start.isoformat(), day_end.isoformat()]
+                                day_params: List[Any] = [day_start.isoformat(), day_end.isoformat()]
                                 
                                 # Add metric filter
                                 if not include_metrics:
@@ -857,22 +909,22 @@ async def visualize_memory_graph(
                                 # Add scope filter
                                 if scope:
                                     query_parts.append("AND scope = ?")
-                                    params.append(scope.value)
+                                    day_params.append(scope.value)
                                 
                                 # Add type filter
                                 if node_type:
                                     query_parts.append("AND node_type = ?")
-                                    params.append(node_type.value)
+                                    day_params.append(node_type.value)
                                 
                                 # Random sampling for better distribution
                                 query_parts.extend([
                                     "ORDER BY RANDOM()",
                                     "LIMIT ?"
                                 ])
-                                params.append(nodes_per_day * 2)  # Get extra to allow for filtering
+                                day_params.append(nodes_per_day * 2)  # Get extra to allow for filtering
                                 
                                 query = " ".join(query_parts)
-                                cursor.execute(query, params)
+                                cursor.execute(query, day_params)
                                 
                                 # Convert rows to GraphNode objects for this day
                                 for row in cursor.fetchall():
@@ -902,25 +954,25 @@ async def visualize_memory_graph(
                 except Exception as e:
                     logger.error(f"Failed to query timeline data: {e}")
                     # Fall back to standard query
-                    query = MemoryQuery(
+                    memory_query = MemoryQuery(
                         node_id="*",
                         scope=scope or GraphScope.LOCAL,
                         type=node_type,
                         include_edges=False,
                         depth=1
                     )
-                    all_nodes = await memory_service.recall(query)
+                    all_nodes = await memory_service.recall(memory_query)
                     nodes = all_nodes
             else:
                 # Regular time-based query
-                query = MemoryQuery(
+                memory_query = MemoryQuery(
                     node_id="*",
                     scope=scope or GraphScope.LOCAL,
                     type=node_type,
                     include_edges=False,
                     depth=1
                 )
-                all_nodes = await memory_service.recall(query)
+                all_nodes = await memory_service.recall(memory_query)
             
             # Skip additional filtering if we already have nodes from timeline database query
             if layout != "timeline" and nodes == []:
@@ -988,7 +1040,7 @@ async def visualize_memory_graph(
                 import json
                 
                 now = datetime.now(timezone.utc)
-                start_time = now - timedelta(hours=hours)
+                start_time = now - timedelta(hours=hours or 0)
                 
                 try:
                     logger.info(f"Timeline visualization: Querying database for {hours} hours with limit {limit}")
@@ -1012,7 +1064,7 @@ async def visualize_memory_graph(
                                 "FROM graph_nodes",
                                 "WHERE updated_at >= ? AND updated_at < ?",
                             ]
-                            params = [day_start.isoformat(), day_end.isoformat()]
+                            day_params2: List[Any] = [day_start.isoformat(), day_end.isoformat()]
                             
                             # Add metric filter
                             if not include_metrics:
@@ -1021,22 +1073,22 @@ async def visualize_memory_graph(
                             # Add scope filter
                             if scope:
                                 query_parts.append("AND scope = ?")
-                                params.append(scope.value)
+                                day_params2.append(scope.value)
                             
                             # Add type filter
                             if node_type:
                                 query_parts.append("AND node_type = ?")
-                                params.append(node_type.value)
+                                day_params2.append(node_type.value)
                             
                             # Random sampling for better distribution
                             query_parts.extend([
                                 "ORDER BY RANDOM()",
                                 "LIMIT ?"
                             ])
-                            params.append(nodes_per_day * 2)  # Get extra to allow for filtering
+                            day_params2.append(nodes_per_day * 2)  # Get extra to allow for filtering
                         
                             query = " ".join(query_parts)
-                            cursor.execute(query, params)
+                            cursor.execute(query, day_params2)
                             
                             # Convert rows to GraphNode objects for this day
                             for row in cursor.fetchall():
@@ -1081,14 +1133,14 @@ async def visualize_memory_graph(
                     nodes = await memory_service.search("", filters=search_filters)
             else:
                 # Regular query for non-timeline layouts
-                query = MemoryQuery(
+                memory_query = MemoryQuery(
                     node_id="*",
                     scope=scope or GraphScope.LOCAL,
                     type=node_type,
                     include_edges=False,
                     depth=1
                 )
-                nodes = await memory_service.recall(query)
+                nodes = await memory_service.recall(memory_query)
                 
                 # Filter out TSDB_DATA nodes by default unless specifically requested
                 if node_type != NodeType.TSDB_DATA:
@@ -1312,8 +1364,11 @@ def _hierarchy_pos(G: "nx.DiGraph", root: str, width: float = 1., vert_gap: floa
     If the graph is not a tree, this will still produce a hierarchical layout
     by doing a breadth-first traversal.
     """
-    def _hierarchy_pos_recursive(G, root, width=1., vert_gap=0.2, vert_loc=0, xcenter=0.5, 
-                                pos=None, parent=None, parsed=None):
+    def _hierarchy_pos_recursive(G: "nx.DiGraph", root: str, width: float = 1., vert_gap: float = 0.2, 
+                                vert_loc: float = 0, xcenter: float = 0.5, 
+                                pos: Optional[Dict[str, Tuple[float, float]]] = None, 
+                                parent: Optional[str] = None, 
+                                parsed: Optional[set[str]] = None) -> Dict[str, Tuple[float, float]]:
         if pos is None:
             pos = {root: (xcenter, vert_loc)}
         else:
@@ -1707,7 +1762,14 @@ async def create_edge(
     
     try:
         result = await memory_service.create_edge(body.edge)
-        return SuccessResponse(data=result)
+        return SuccessResponse(
+            data=result,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1729,6 +1791,13 @@ async def get_node_edges(
     
     try:
         edges = await memory_service.get_node_edges(node_id, scope)
-        return SuccessResponse(data=edges)
+        return SuccessResponse(
+            data=edges,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

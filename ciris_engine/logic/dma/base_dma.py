@@ -136,7 +136,7 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
 
         for name, faculty in self.faculties.items():
             try:
-                result = await faculty.evaluate(content, context)
+                result = await faculty.analyze(content, context)
                 results[name] = result
             except Exception as e:
                 # Log error but don't fail the entire evaluation

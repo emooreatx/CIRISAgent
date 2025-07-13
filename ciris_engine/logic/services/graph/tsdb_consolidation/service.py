@@ -230,7 +230,7 @@ class TSDBConsolidationService(BaseGraphService):
             List of created summary nodes
         """
         period_label = self._period_manager.get_period_label(period_start)
-        summaries_created = []
+        summaries_created: List[GraphNode] = []
         
         # 1. Query ALL data for the period
         logger.info(f"Querying all data for period {period_label}")
@@ -476,7 +476,7 @@ class TSDBConsolidationService(BaseGraphService):
             cursor = conn.cursor()
             
             # Find all summaries older than the retention period
-            retention_cutoff = self._time_service.get_current_time() - self._raw_retention
+            retention_cutoff = self._now() - self._raw_retention
             
             cursor.execute("""
                 SELECT node_id, node_type, attributes_json

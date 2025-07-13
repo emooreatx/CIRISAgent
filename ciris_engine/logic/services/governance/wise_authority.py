@@ -17,9 +17,10 @@ from datetime import datetime, timedelta
 
 from ciris_engine.protocols.services.governance.wise_authority import WiseAuthorityServiceProtocol
 from ciris_engine.protocols.runtime.base import ServiceProtocol
-from ciris_engine.logic.adapters.base import Service
-from ciris_engine.logic.services.lifecycle.time import TimeService
+from ciris_engine.logic.services.base_service import BaseService
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.services.authority_core import (
     WARole, DeferralRequest, DeferralResponse,
     GuidanceRequest, GuidanceResponse,
@@ -34,7 +35,7 @@ from ciris_engine.logic.config import get_sqlite_db_full_path
 
 logger = logging.getLogger(__name__)
 
-class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtocol):
+class WiseAuthorityService(BaseService, WiseAuthorityServiceProtocol):
     """
     Wise Authority Service for authorization and guidance.
 
@@ -45,62 +46,46 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
     - Permission management
     """
 
-    def __init__(self, time_service: TimeService, auth_service: AuthenticationService, db_path: Optional[str] = None):
+    def __init__(self, time_service: TimeServiceProtocol, auth_service: AuthenticationService, db_path: Optional[str] = None) -> None:
         """Initialize the WA authorization service."""
+        # Initialize BaseService with time service
+        super().__init__(time_service=time_service)
+        
         # Use configured database if not specified
         self.db_path = db_path or get_sqlite_db_full_path()
 
         # Store injected services
-        self.time_service = time_service
         self.auth_service = auth_service
 
         # All deferrals and guidance are persisted in the database
 
-        # Service state
-        self._initialized = False
-        self._started = False
-        self._start_time: Optional[datetime] = None
-
         logger.info(f"Consolidated WA Service initialized with DB: {self.db_path}")
 
-    async def start(self) -> None:
-        """Start the service."""
-        if self._started:
-            return
-
+    async def _on_start(self) -> None:
+        """Custom startup logic for WA service."""
         # Bootstrap if needed
         await self.auth_service.bootstrap_if_needed()
 
         # Deferrals are persisted in the thoughts table with status='deferred'
         # They can be queried via get_pending_deferrals()
 
-        self._started = True
-        self._start_time = self.time_service.now()
-        logger.info("Consolidated WA Service started")
-
-    async def stop(self) -> None:
-        """Stop the service."""
-        self._started = False
-        logger.info("Consolidated WA Service stopped")
+    async def _on_stop(self) -> None:
+        """Custom cleanup logic for WA service."""
+        pass
 
 
-    def get_capabilities(self) -> ServiceCapabilities:
-        """Get service capabilities."""
-        return ServiceCapabilities(
-            service_name="WiseAuthorityService",
-            actions=[
-                # Authorization
-                "check_authorization", "request_approval",
-                # Guidance
-                "get_guidance",
-                # Deferrals
-                "send_deferral", "get_pending_deferrals", "resolve_deferral",
-                # Permissions
-                "grant_permission", "revoke_permission", "list_permissions"
-            ],
-            version="1.0.0",
-            dependencies=["SecretsService", "GraphAuditService"]
-        )
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return [
+            # Authorization
+            "check_authorization", "request_approval",
+            # Guidance
+            "get_guidance",
+            # Deferrals
+            "send_deferral", "get_pending_deferrals", "resolve_deferral",
+            # Permissions
+            "grant_permission", "revoke_permission", "list_permissions"
+        ]
 
     # ========== Authorization Operations ==========
 
@@ -116,19 +101,16 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
         if not wa:
             return False
 
-        # Root can do anything
+        # Check role permissions
         if wa.role == WARole.ROOT:
+            # Root can do anything
             return True
-
-        # Authority can do most things except mint WAs
-        if wa.role == WARole.AUTHORITY:
+        elif wa.role == WARole.AUTHORITY:
+            # Authority can do most things except mint WAs
             return action not in ["mint_wa", "create_wa", "bootstrap_root"]
-
-        # Observer can only read and send messages
-        if wa.role == WARole.OBSERVER:
+        else:  # wa.role == WARole.OBSERVER
+            # Observer can only read and send messages
             return action in ["read", "send_message", "observe", "get_status"]
-
-        return False
 
     async def request_approval(self, action: str, context: DeferralApprovalContext) -> bool:
         """Request approval for an action - may defer to human.
@@ -160,7 +142,7 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
             task_id=context.task_id,
             thought_id=context.thought_id,
             reason=f"Action '{action}' requires human approval",
-            defer_until=self.time_service.now() + timedelta(hours=24),
+            defer_until=self._time_service.now() + timedelta(hours=24) if self._time_service else datetime.now() + timedelta(hours=24),
             context=deferral_context
         )
 
@@ -252,7 +234,8 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
         """
         try:
             # Generate deferral ID
-            deferral_id = f"defer_{deferral.task_id}_{self.time_service.timestamp()}"
+            timestamp = self._time_service.timestamp() if self._time_service else datetime.now().timestamp()
+            deferral_id = f"defer_{deferral.task_id}_{timestamp}"
             
             import sqlite3
             import json
@@ -287,7 +270,7 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
                 "defer_until": deferral.defer_until.isoformat() if deferral.defer_until else None,
                 "requires_wa_approval": True,  # Always true when sent to WA
                 "context": deferral.context or {},
-                "created_at": self.time_service.now().isoformat()
+                "created_at": self._now().isoformat()
             }
             
             # Update task status to deferred
@@ -299,7 +282,7 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
                 WHERE task_id = ?
             """, (
                 json.dumps(existing_context),
-                self.time_service.now().isoformat(),
+                self._now().isoformat(),
                 deferral.task_id
             ))
             
@@ -367,7 +350,7 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
                 # Create PendingDeferral
                 deferral = PendingDeferral(
                     deferral_id=deferral_id,
-                    created_at=datetime.fromisoformat(updated_at.replace(' ', 'T')) if updated_at else self.time_service.now(),
+                    created_at=datetime.fromisoformat(updated_at.replace(' ', 'T')) if updated_at else self._now(),
                     deferred_by="ciris_agent",
                     task_id=task_id,
                     thought_id=thought_id,
@@ -400,30 +383,48 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
             cursor = conn.cursor()
             
             # Extract task_id from deferral_id
-            # Format is defer_{task_id}_{timestamp}
+            # Format can be either defer_{task_id} or defer_{task_id}_{timestamp}
             if deferral_id.startswith("defer_"):
-                parts = deferral_id.split('_')
-                if len(parts) >= 3:
-                    # Rejoin all parts except 'defer' and the timestamp
-                    task_id = '_'.join(parts[1:-1])
-                else:
-                    # Try to find by deferral_id in context
-                    cursor.execute("""
-                        SELECT task_id, context_json 
-                        FROM tasks 
-                        WHERE status = 'deferred' 
-                        AND context_json LIKE ?
-                    """, (f'%"deferral_id":"{deferral_id}"%',))
-                    
-                    row = cursor.fetchone()
-                    if row:
-                        task_id = row[0]
+                parts = deferral_id.split('_', 2)  # Split into at most 3 parts
+                if len(parts) == 2:
+                    # Simple format: defer_{task_id}
+                    task_id = parts[1]
+                elif len(parts) >= 3:
+                    # Timestamp format: defer_{task_id}_{timestamp}
+                    # The task_id might contain underscores, so we need to handle that
+                    # Remove 'defer_' prefix and find the last underscore for timestamp
+                    without_prefix = deferral_id[6:]  # Remove 'defer_'
+                    last_underscore = without_prefix.rfind('_')
+                    if last_underscore > 0:
+                        # Check if the part after last underscore looks like a timestamp
+                        potential_timestamp = without_prefix[last_underscore + 1:]
+                        try:
+                            float(potential_timestamp)  # Timestamps are floats
+                            task_id = without_prefix[:last_underscore]
+                        except ValueError:
+                            # Not a timestamp, so the whole thing is the task_id
+                            task_id = without_prefix
                     else:
-                        logger.error(f"Deferral {deferral_id} not found")
-                        conn.close()
-                        return False
+                        task_id = without_prefix
+                else:
+                    # Shouldn't happen, but handle it
+                    task_id = deferral_id[6:]  # Remove 'defer_' prefix
             else:
-                task_id = deferral_id  # Assume it's a task_id directly
+                # Try to find by deferral_id in context
+                cursor.execute("""
+                    SELECT task_id, context_json 
+                    FROM tasks 
+                    WHERE status = 'deferred' 
+                    AND context_json LIKE ?
+                """, (f'%"deferral_id":"{deferral_id}"%',))
+                
+                row = cursor.fetchone()
+                if row:
+                    task_id = row[0]
+                else:
+                    logger.error(f"Deferral {deferral_id} not found")
+                    conn.close()
+                    return False
             
             # Get existing context
             cursor.execute("""
@@ -451,7 +452,7 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
                     "approved": response.approved,
                     "reason": response.reason,
                     "resolved_by": response.wa_id,
-                    "resolved_at": self.time_service.now().isoformat()
+                    "resolved_at": self._now().isoformat()
                 }
             
             # If approved, add guidance to context for the agent
@@ -467,7 +468,7 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
                 WHERE task_id = ?
             """, (
                 json.dumps(context),
-                self.time_service.now().isoformat(),
+                self._now().isoformat(),
                 task_id
             ))
             
@@ -519,9 +520,10 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
         This wraps fetch_guidance to comply with the protocol.
         """
         # Convert GuidanceRequest to GuidanceContext for internal use
+        timestamp = self._time_service.timestamp() if self._time_service else datetime.now().timestamp()
         context = GuidanceContext(
-            thought_id=f"guidance_{self.time_service.timestamp()}",
-            task_id=f"guidance_task_{self.time_service.timestamp()}",
+            thought_id=f"guidance_{timestamp}",
+            task_id=f"guidance_task_{timestamp}",
             question=request.context,
             ethical_considerations=[],  # Could extract from options
             domain_context={
@@ -583,24 +585,66 @@ class WiseAuthorityService(Service, WiseAuthorityServiceProtocol, ServiceProtoco
         except Exception as e:
             logger.error(f"Error getting deferral counts: {e}")
         
-        uptime_seconds = 0.0
-        if self._start_time:
-            uptime_seconds = (self.time_service.now() - self._start_time).total_seconds()
-        
         return ServiceStatus(
             service_name="WiseAuthorityService",
             service_type="governance_service",
             is_healthy=self._started,
-            uptime_seconds=uptime_seconds,
-            last_error=None,
+            uptime_seconds=self._calculate_uptime(),
+            last_error=self._last_error,
             metrics={
                 "pending_deferrals": float(pending_deferrals_count),
                 "resolved_deferrals": float(resolved_deferrals_count),
                 "total_deferrals": float(pending_deferrals_count + resolved_deferrals_count)
             },
-            last_health_check=self.time_service.now()
+            last_health_check=self._last_health_check
         )
 
-    async def is_healthy(self) -> bool:
-        """Check if service is healthy."""
-        return self._started
+    def get_service_type(self) -> ServiceType:
+        """Get the service type enum value."""
+        return ServiceType.GOVERNANCE_SERVICE
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all required dependencies are available."""
+        return self.auth_service is not None
+    
+    def _register_dependencies(self) -> None:
+        """Register service dependencies."""
+        super()._register_dependencies()
+        self._dependencies.add("AuthenticationService")
+        self._dependencies.add("GraphAuditService")
+        self._dependencies.add("SecretsService")
+    
+    def _collect_custom_metrics(self) -> Dict[str, float]:
+        """Collect service-specific metrics."""
+        # Get counts from database
+        pending_deferrals_count = 0
+        resolved_deferrals_count = 0
+        
+        try:
+            import sqlite3
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # Count pending deferrals (deferred tasks)
+            cursor.execute("""
+                SELECT COUNT(*) FROM tasks 
+                WHERE status = 'deferred'
+            """)
+            pending_deferrals_count = cursor.fetchone()[0]
+            
+            # Count resolved deferrals (tasks with resolution in context)
+            cursor.execute("""
+                SELECT COUNT(*) FROM tasks 
+                WHERE context_json LIKE '%"resolution":%'
+            """)
+            resolved_deferrals_count = cursor.fetchone()[0]
+            
+            conn.close()
+        except Exception as e:
+            logger.error(f"Error getting deferral counts: {e}")
+        
+        return {
+            "pending_deferrals": float(pending_deferrals_count),
+            "resolved_deferrals": float(resolved_deferrals_count),
+            "total_deferrals": float(pending_deferrals_count + resolved_deferrals_count)
+        }

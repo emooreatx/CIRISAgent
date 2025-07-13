@@ -4,13 +4,13 @@ Base action handler - clean architecture with BusManager
 
 import asyncio
 import logging
-from typing import Any, Callable, Optional, Type, TypeVar
+from typing import Any, Callable, Optional, Type, TypeVar, Dict
 from abc import ABC, abstractmethod
 from datetime import datetime
 
 from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
-from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
 from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.schemas.audit.core import AuditEventType
 from ciris_engine.logic.utils.channel_utils import extract_channel_id
@@ -56,8 +56,8 @@ class ActionHandlerDependencies:
         logger.critical(f"GRACEFUL SHUTDOWN REQUESTED: {reason}")
 
         # Use the shutdown service if available
-        if self.dependencies and self.dependencies.shutdown_service:
-            asyncio.create_task(self.dependencies.shutdown_service.request_shutdown(reason))
+        if self.bus_manager and hasattr(self.bus_manager, 'shutdown_service'):
+            asyncio.create_task(self.bus_manager.shutdown_service.request_shutdown(reason))
         else:
             # Fallback to global function if service not available
             request_global_shutdown(reason)
@@ -266,7 +266,7 @@ class BaseActionHandler(ABC):
             # Decapsulate secrets in action parameters
             if result.action_parameters:
                 # Convert parameters to dict if needed
-                params_dict = result.action_parameters
+                params_dict: Dict[str, Any] = result.action_parameters
                 if hasattr(params_dict, 'model_dump'):
                     params_dict = params_dict.model_dump()
 
@@ -423,10 +423,6 @@ class BaseActionHandler(ABC):
         content: str
     ) -> bool:
         """Send a notification using the communication bus."""
-        if not isinstance(content, str):
-            self.logger.error(f"Content must be a string, got {type(content)}")
-            return False
-
         if not channel_id or not content:
             self.logger.error("Missing channel_id or content")
             return False

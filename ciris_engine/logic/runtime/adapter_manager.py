@@ -73,7 +73,7 @@ class AdapterManagerInterface:
 class RuntimeAdapterManager(AdapterManagerInterface):
     """Manages runtime adapter lifecycle with configuration support"""
 
-    def __init__(self, runtime: "CIRISRuntime", time_service: TimeServiceProtocol):
+    def __init__(self, runtime: "CIRISRuntime", time_service: TimeServiceProtocol) -> None:
         self.runtime = runtime
         self.time_service = time_service
         self.loaded_adapters: Dict[str, AdapterInstance] = {}

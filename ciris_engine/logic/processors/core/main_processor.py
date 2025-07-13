@@ -4,7 +4,7 @@ Uses v1 schemas and integrates state management.
 """
 import asyncio
 import logging
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import Any, List, Optional, TYPE_CHECKING, Dict
 from datetime import datetime, timedelta
 
 from ciris_engine.logic.config import ConfigAccessor
@@ -203,12 +203,12 @@ class AgentProcessor:
 
     async def start_processing(self, num_rounds: Optional[int] = None) -> None:
         """Start the main agent processing loop."""
-        if self._processing_task and not self._processing_task.done():
+        if self._processing_task is not None and not self._processing_task.done():
             logger.warning("Processing is already running")
             return
 
         self._ensure_stop_event()
-        if self._stop_event:
+        if self._stop_event is not None:
             self._stop_event.clear()
         logger.info(f"Starting agent processing (rounds: {num_rounds or 'infinite'})")
 
@@ -228,7 +228,7 @@ class AgentProcessor:
         wakeup_complete = False
         wakeup_round = 0
 
-        while not wakeup_complete and not (self._stop_event and self._stop_event.is_set()) and (num_rounds is None or self.current_round_number < num_rounds):
+        while not wakeup_complete and not (self._stop_event is not None and self._stop_event.is_set()) and (num_rounds is None or self.current_round_number < num_rounds):
             logger.info(f"Wakeup round {wakeup_round}")
 
             wakeup_result = await self.wakeup_processor.process(wakeup_round)
@@ -296,7 +296,7 @@ class AgentProcessor:
         except Exception as e:
             logger.error(f"Processing loop error: {e}", exc_info=True)
         finally:
-            if self._stop_event:
+            if self._stop_event is not None:
                 self._stop_event.set()
 
     async def _process_pending_thoughts_async(self) -> int:
@@ -496,7 +496,7 @@ class AgentProcessor:
             # Use fallback-aware process_thought_item
             try:
                 logger.info(f"[DEBUG TIMING] Calling processor.process_thought_item for thought {thought.thought_id}")
-                context = {"origin": "wakeup_async"}
+                context: Dict[str, Any] = {"origin": "wakeup_async"}
                 if prefetched:
                     context["prefetched_thought"] = thought  # Pass the full thought object
                 if batch_context:
@@ -654,12 +654,12 @@ class AgentProcessor:
 
     async def stop_processing(self) -> None:
         """Stop the processing loop gracefully."""
-        if not self._processing_task or self._processing_task.done():
+        if self._processing_task is None or self._processing_task.done():
             logger.info("Processing loop is not running")
             return
 
         logger.info("Stopping processing loop...")
-        if self._stop_event:
+        if self._stop_event is not None:
             self._stop_event.set()
 
         if self.state_manager.get_state() == AgentState.DREAM and self.dream_processor:
@@ -678,11 +678,12 @@ class AgentProcessor:
             logger.info("Processing loop stopped")
         except asyncio.TimeoutError:
             logger.warning("Processing loop did not stop within timeout, cancelling")
-            self._processing_task.cancel()
-            try:
-                await self._processing_task
-            except asyncio.CancelledError:
-                logger.info("Processing task cancelled")
+            if self._processing_task is not None:
+                self._processing_task.cancel()
+                try:
+                    await self._processing_task
+                except asyncio.CancelledError:
+                    logger.info("Processing task cancelled")
         finally:
             self._processing_task = None
 
@@ -693,7 +694,7 @@ class AgentProcessor:
         max_consecutive_errors = 5
 
         try:
-            while not (self._stop_event and self._stop_event.is_set()):
+            while not (self._stop_event is not None and self._stop_event.is_set()):
                 try:
                     if num_rounds is not None and round_count >= num_rounds:
                         logger.info(f"Reached target rounds ({num_rounds}), requesting graceful shutdown")
@@ -835,9 +836,9 @@ class AgentProcessor:
                         elif current_state == AgentState.DREAM:
                             delay = 5.0  # Check dream state periodically
 
-                    if delay > 0 and not (self._stop_event and self._stop_event.is_set()):
+                    if delay > 0 and not (self._stop_event is not None and self._stop_event.is_set()):
                         try:
-                            if self._stop_event:
+                            if self._stop_event is not None:
                                 await asyncio.wait_for(self._stop_event.wait(), timeout=delay)
                                 break  # Stop event was set
                             else:

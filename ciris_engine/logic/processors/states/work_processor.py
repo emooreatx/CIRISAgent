@@ -278,9 +278,9 @@ class WorkProcessor(BaseProcessor):
             "pending_tasks": self.task_manager.get_pending_task_count(),
             "pending_thoughts": self.thought_manager.get_pending_thought_count(),
             "processing_thoughts": self.thought_manager.get_processing_thought_count(),
-            "total_rounds": self.metrics.get("rounds_completed", 0),
-            "total_processed": self.metrics.get("items_processed", 0),
-            "total_errors": self.metrics.get("errors", 0)
+            "total_rounds": self.metrics.rounds_completed,
+            "total_processed": self.metrics.items_processed,
+            "total_errors": self.metrics.errors
         }
         return {
             "processor_type": "work",

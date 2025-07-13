@@ -5,7 +5,7 @@ Provides unified registration and discovery for services, adapters, and tools
 with priority-based fallbacks and circuit breaker patterns for resilience.
 """
 
-from typing import Dict, List, Optional, Protocol, Union, Any
+from typing import Dict, List, Optional, Protocol, Union, Any, cast
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
@@ -144,17 +144,15 @@ class ServiceRegistry:
         self,
         handler: str,
         service_type: ServiceType,
-        required_capabilities: Optional[List[str]] = None,
-        fallback_to_global: bool = True  # Kept for backward compatibility, ignored
+        required_capabilities: Optional[List[str]] = None
     ) -> Optional[Any]:
         """
         Get the best available service.
 
         Args:
-            handler: Handler requesting the service (kept for compatibility, ignored)
+            handler: Handler requesting the service
             service_type: Type of service needed
             required_capabilities: Required capabilities
-            fallback_to_global: Kept for backward compatibility, ignored
 
         Returns:
             Service instance or None if no suitable service available
@@ -328,27 +326,27 @@ class ServiceRegistry:
         Get ALL services of a given type (for broadcasting/aggregation).
 
         Args:
-            service_type: Type of service as string (e.g., 'audit', 'tool')
+            service_type: Type of service as string (e.g., 'audit', 'tool') or ServiceType enum
 
         Returns:
             List of all service instances of that type
         """
-        # Convert string to ServiceType enum if needed
-        service_type_enum: ServiceType
+        # Ensure we have a ServiceType enum
         if isinstance(service_type, str):
             try:
-                service_type_enum = ServiceType(service_type)
+                resolved_type = ServiceType(service_type)
             except ValueError:
                 logger.warning(f"Unknown service type: {service_type}")
                 return []
         else:
-            service_type_enum = service_type
+            # mypy doesn't understand the Union narrowing here, but this is safe
+            resolved_type = cast(ServiceType, service_type)  # type: ignore[unreachable]
 
         all_services = []
 
         # Collect from global registrations
-        if service_type_enum in self._services:
-            for provider in self._services[service_type_enum]:
+        if resolved_type in self._services:
+            for provider in self._services[resolved_type]:
                 # Only include healthy services
                 # Include if no circuit breaker OR circuit breaker is available
                 if not provider.circuit_breaker or provider.circuit_breaker.is_available():
@@ -364,6 +362,21 @@ class ServiceRegistry:
             cb.reset()
         logger.info("Reset all circuit breakers")
 
+    def get_all_services(self) -> List[Any]:
+        """Get all registered services across all types."""
+        all_services = []
+        seen = set()  # Track service IDs to avoid duplicates
+        
+        for service_type, providers in self._services.items():
+            for provider in providers:
+                service_id = id(provider.instance)
+                if service_id not in seen:
+                    seen.add(service_id)
+                    all_services.append(provider.instance)
+        
+        logger.debug(f"Found {len(all_services)} total registered services")
+        return all_services
+    
     def clear_all(self) -> None:
         """Clear all registered services and circuit breakers"""
         self._services.clear()

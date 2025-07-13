@@ -27,27 +27,40 @@ class TSDBLogHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         """Process log record and store as correlation."""
         try:
+            from ciris_engine.schemas.telemetry.core import LogData
+            
+            # Create LogData for the log entry
+            log_data = LogData(
+                log_level=record.levelname,
+                log_message=self.format(record),
+                logger_name=record.name,
+                module_name=record.module or "unknown",
+                function_name=record.funcName or "unknown",
+                line_number=record.lineno,
+                extra_fields={
+                    "pathname": record.pathname,
+                    "thread": str(record.thread),
+                    "process": str(record.process)
+                }
+            )
+            
+            # Create the correlation with log data
+            timestamp = datetime.fromtimestamp(record.created, timezone.utc)
             log_correlation = ServiceCorrelation(
                 correlation_id=str(uuid4()),
                 service_type="logging",
                 handler_name="log_collector",
                 action_type="log_entry",
                 correlation_type=CorrelationType.LOG_ENTRY,
-                timestamp=datetime.fromtimestamp(record.created, timezone.utc),
-                log_level=record.levelname,
-                request_data={
-                    "message": self.format(record),
-                    "logger_name": record.name,
-                    "pathname": record.pathname,
-                    "lineno": record.lineno,
-                    "funcName": record.funcName,
-                    "module": record.module,
-                },
+                timestamp=timestamp,
+                created_at=timestamp,
+                updated_at=timestamp,
+                log_data=log_data,
                 tags={
                     **self.tags,
                     "logger": record.name,
                     "level": record.levelname,
-                    "module": record.module,
+                    "module": record.module or "unknown",
                 },
                 status=ServiceCorrelationStatus.COMPLETED,
                 retention_policy="raw"

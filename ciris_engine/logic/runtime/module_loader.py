@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 class ModuleLoader:
     """Loads modules with MOCK safety enforcement."""
 
-    def __init__(self, modules_dir: Optional[Path] = None):
+    def __init__(self, modules_dir: Optional[Path] = None) -> None:
         self.modules_dir = modules_dir or Path("ciris_modular_services")
         self.loaded_modules: Dict[str, ServiceManifest] = {}
         self.mock_modules: Set[str] = set()

@@ -535,10 +535,9 @@ class WakeupProcessor(BaseProcessor):
         while not self.wakeup_complete and (num_rounds is None or round_num < num_rounds):
             await self.process(round_num)
             round_num += 1
-            if self.wakeup_complete:
-                break
-            # Use shorter delay for testing
-            await asyncio.sleep(0.1)  # Brief pause between rounds
+            # Use shorter delay for testing if not complete
+            if not self.wakeup_complete:
+                await asyncio.sleep(0.1)  # Brief pause between rounds
 
     async def stop_processing(self) -> None:
         """Stop wakeup processing and clean up resources."""

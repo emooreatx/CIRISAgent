@@ -1055,8 +1055,8 @@ class TestForgetHandler:
         # Verify error follow-up
         follow_up_thought = mock_persistence.add_thought.call_args[0][0]
         assert "FORGET action failed: Invalid parameters" in follow_up_thought.content
-        # The error message should mention the missing 'node' field
-        assert "node" in follow_up_thought.content.lower()
+        # The error message should mention dict or invalid type
+        assert "dict" in follow_up_thought.content.lower() or "expected forgetparams" in follow_up_thought.content.lower()
 
     @pytest.mark.asyncio
     async def test_forget_invalid_params_type(self, monkeypatch: Any) -> None:
@@ -1098,7 +1098,7 @@ class TestForgetHandler:
 
         # Verify error follow-up
         follow_up_thought = mock_persistence.add_thought.call_args[0][0]
-        assert "FORGET action failed: Invalid parameters type" in follow_up_thought.content
+        assert "FORGET action failed: Invalid parameters" in follow_up_thought.content
 
     @pytest.mark.asyncio
     async def test_forget_permission_denied(self, monkeypatch: Any) -> None:

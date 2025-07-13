@@ -101,18 +101,18 @@ def create_test_thought(
 async def test_visibility_service_lifecycle(visibility_service):
     """Test VisibilityService start/stop lifecycle."""
     # Service should not be running initially
-    assert visibility_service._running is False
+    assert visibility_service._started is False
     assert await visibility_service.is_healthy() is False
 
     # Start the service
     await visibility_service.start()
-    assert visibility_service._running is True
+    assert visibility_service._started is True
     assert visibility_service._start_time is not None
     assert await visibility_service.is_healthy() is True
 
     # Stop the service
     await visibility_service.stop()
-    assert visibility_service._running is False
+    assert visibility_service._started is False
     assert await visibility_service.is_healthy() is False
 
 
@@ -133,11 +133,13 @@ def test_visibility_service_capabilities(visibility_service):
 async def test_visibility_service_status(visibility_service):
     """Test VisibilityService.get_status() returns correct info."""
     await visibility_service.start()
+    # Call is_healthy to set last_health_check
+    await visibility_service.is_healthy()
     status = visibility_service.get_status()
 
     assert isinstance(status, ServiceStatus)
     assert status.service_name == "VisibilityService"
-    assert status.service_type == "visibility_service"
+    assert status.service_type == "visibility"
     assert status.is_healthy is True
     assert status.uptime_seconds >= 0
     assert isinstance(status.metrics, dict)

@@ -4,13 +4,14 @@ Audit service endpoints for CIRIS API v3 (Simplified).
 Provides access to the immutable audit trail for system observability.
 Simplified to 3 core endpoints: query, get specific entry, and export.
 """
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Depends, Query, Path
 from pydantic import BaseModel, Field, field_serializer
 import json
+import uuid
 
-from ciris_engine.schemas.api.responses import SuccessResponse
+from ciris_engine.schemas.api.responses import SuccessResponse, ResponseMetadata
 from ciris_engine.schemas.services.nodes import AuditEntry
 from ciris_engine.schemas.services.graph.audit import AuditQuery, VerificationReport
 from ..dependencies.auth import require_observer, require_admin, AuthContext
@@ -32,7 +33,7 @@ class AuditEntryResponse(BaseModel):
     hash_chain: Optional[str] = Field(None, description="Previous hash for chain")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info):
+    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None
 
 class AuditEntryDetailResponse(BaseModel):
@@ -63,22 +64,7 @@ def _convert_audit_entry(entry: AuditEntry) -> AuditEntryResponse:
     """Convert AuditEntry to API response format."""
     # Convert context to AuditContext
     ctx = entry.context
-    if isinstance(ctx, dict):
-        context = AuditContext(
-            entity_id=ctx.get('entity_id'),
-            entity_type=ctx.get('entity_type'),
-            operation=ctx.get('operation'),
-            description=ctx.get('description'),
-            request_id=ctx.get('request_id'),
-            correlation_id=ctx.get('correlation_id'),
-            user_id=ctx.get('user_id'),
-            ip_address=ctx.get('ip_address'),
-            user_agent=ctx.get('user_agent'),
-            result=ctx.get('result'),
-            error=ctx.get('error'),
-            metadata=ctx
-        )
-    elif hasattr(ctx, 'model_dump'):
+    if hasattr(ctx, 'model_dump'):
         # Convert AuditEntryContext to dict, then to AuditContext
         ctx_dict = ctx.model_dump()
         context = AuditContext(
@@ -96,8 +82,10 @@ def _convert_audit_entry(entry: AuditEntry) -> AuditEntryResponse:
             metadata=ctx_dict.get('additional_data', {})
         )
     else:
-        # Assume it's already an AuditContext
-        context = ctx
+        # If it's not an AuditEntryContext, create a minimal AuditContext
+        context = AuditContext(
+            description=str(ctx) if ctx else None
+        )
     
     return AuditEntryResponse(
         id=getattr(entry, 'id', f"audit_{entry.timestamp.isoformat()}"),
@@ -114,7 +102,7 @@ async def _get_audit_service(request: Request) -> AuditServiceProtocol:
     audit_service = getattr(request.app.state, 'audit_service', None)
     if not audit_service:
         raise HTTPException(status_code=503, detail="Audit service not available")
-    return audit_service
+    return audit_service  # type: ignore[no-any-return]
 
 # Endpoints
 
@@ -136,7 +124,7 @@ async def query_audit_entries(
     # Pagination
     limit: int = Query(100, ge=1, le=1000, description="Maximum results"),
     offset: int = Query(0, ge=0, description="Results offset")
-):
+) -> SuccessResponse[AuditEntriesResponse]:
     """
     Query audit entries with flexible filtering.
 
@@ -173,12 +161,19 @@ async def query_audit_entries(
         # For now, if we got limit results, assume there are more
         total = len(entries) if len(entries) < limit else offset + len(entries) + 1
 
-        return SuccessResponse(data=AuditEntriesResponse(
-            entries=response_entries,
-            total=total,
-            offset=offset,
-            limit=limit
-        ))
+        return SuccessResponse(
+            data=AuditEntriesResponse(
+                entries=response_entries,
+                total=total,
+                offset=offset,
+                limit=limit
+            ),
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -188,7 +183,7 @@ async def get_audit_entry(
     entry_id: str = Path(..., description="Audit entry ID"),
     auth: AuthContext = Depends(require_observer),
     verify: bool = Query(False, description="Include verification information")
-):
+) -> SuccessResponse[AuditEntryDetailResponse]:
     """
     Get specific audit entry by ID with optional verification.
 
@@ -241,7 +236,7 @@ async def get_audit_entry(
         # Add verification info if requested
         if verify:
             # Get verification report for this entry
-            _verification_report = await audit_service.get_verification_report()
+            await audit_service.get_verification_report()
 
             # Extract verification for this specific entry
             response.verification = EntryVerification(
@@ -264,7 +259,14 @@ async def get_audit_entry(
                 response.next_entry_id = getattr(next_entry, 'id',
                     f"audit_{next_entry.timestamp.strftime('%Y%m%d_%H%M%S')}_{next_entry.actor}")
 
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except HTTPException:
         raise
@@ -281,7 +283,7 @@ async def search_audit_trails(
     outcome: Optional[str] = Query(None, description="Filter by outcome"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum results"),
     offset: int = Query(0, ge=0, description="Results offset")
-):
+) -> SuccessResponse[AuditEntriesResponse]:
     """
     Search audit trails with text search and filters.
 
@@ -311,7 +313,7 @@ async def verify_audit_entry(
     request: Request,
     entry_id: str = Path(..., description="Audit entry ID to verify"),
     auth: AuthContext = Depends(require_admin)
-):
+) -> SuccessResponse[VerificationReport]:
     """
     Verify the integrity of a specific audit entry.
 
@@ -337,7 +339,7 @@ async def export_audit_data(
     end_date: Optional[datetime] = Query(None, description="Export end date"),
     format: str = Query("jsonl", pattern="^(json|jsonl|csv)$", description="Export format"),
     include_verification: bool = Query(False, description="Include verification data in export")
-):
+) -> SuccessResponse[AuditExportResponse]:
     """
     Export audit data for compliance and analysis.
 
@@ -384,18 +386,32 @@ async def export_audit_data(
         if total_entries > 1000:
             # For large exports, would typically upload to storage
             # In production, this would upload to S3/cloud storage and return a signed URL
-            return SuccessResponse(data=AuditExportResponse(
-                format=format,
-                total_entries=total_entries,
-                export_url=f"/v1/audit/export/download/{format}",  # Placeholder URL
-                export_data=None
-            ))
+            return SuccessResponse(
+                data=AuditExportResponse(
+                    format=format,
+                    total_entries=total_entries,
+                    export_url=f"/v1/audit/export/download/{format}",  # Placeholder URL
+                    export_data=None
+                ),
+                metadata=ResponseMetadata(
+                    timestamp=datetime.now(timezone.utc),
+                    request_id=str(uuid.uuid4()),
+                    duration_ms=0
+                )
+            )
         else:
-            return SuccessResponse(data=AuditExportResponse(
-                format=format,
-                total_entries=total_entries,
-                export_url=None,
-                export_data=export_data
-            ))
+            return SuccessResponse(
+                data=AuditExportResponse(
+                    format=format,
+                    total_entries=total_entries,
+                    export_url=None,
+                    export_data=export_data
+                ),
+                metadata=ResponseMetadata(
+                    timestamp=datetime.now(timezone.utc),
+                    request_id=str(uuid.uuid4()),
+                    duration_ms=0
+                )
+            )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

@@ -4,7 +4,6 @@ Separates per-batch vs per-thought operations for performance.
 """
 import logging
 from typing import Any, Dict, List, Optional, Tuple
-from datetime import datetime
 
 from ciris_engine.schemas.runtime.models import Task
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot, TaskSummary
@@ -18,19 +17,19 @@ logger = logging.getLogger(__name__)
 class BatchContextData:
     """Pre-fetched data that's the same for all thoughts in a batch."""
     
-    def __init__(self):
-        self.agent_identity = None
-        self.identity_purpose = None
-        self.identity_capabilities = []
-        self.identity_restrictions = []
-        self.recent_tasks = []
-        self.top_tasks = []
-        self.service_health = {}
-        self.circuit_breaker_status = {}
-        self.resource_alerts = []
-        self.telemetry_summary = None
-        self.secrets_snapshot = {}
-        self.shutdown_context = None
+    def __init__(self) -> None:
+        self.agent_identity: Dict[str, Any] = {}
+        self.identity_purpose: Optional[str] = None
+        self.identity_capabilities: List[str] = []
+        self.identity_restrictions: List[str] = []
+        self.recent_tasks: List[Task] = []
+        self.top_tasks: List[TaskSummary] = []
+        self.service_health: Dict[str, Any] = {}
+        self.circuit_breaker_status: Dict[str, Any] = {}
+        self.resource_alerts: List[Any] = []
+        self.telemetry_summary: Optional[Any] = None
+        self.secrets_snapshot: Dict[str, Any] = {}
+        self.shutdown_context: Optional[Any] = None
         
 
 async def prefetch_batch_context(
@@ -199,8 +198,8 @@ async def build_system_snapshot_with_batch(
     channel_context = None
     
     # Extract channel_id logic (simplified)
-    if task and hasattr(task, 'context'):
-        if hasattr(task.context, 'system_snapshot') and hasattr(task.context.system_snapshot, 'channel_id'):
+    if task and hasattr(task, 'context') and task.context:
+        if hasattr(task.context, 'system_snapshot') and task.context.system_snapshot and hasattr(task.context.system_snapshot, 'channel_id'):
             channel_id = str(task.context.system_snapshot.channel_id)
     
     # Only query channel context if we have a channel_id

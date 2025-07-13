@@ -6,13 +6,13 @@ and generates insights for agent self-improvement. It's integrated with the drea
 for continuous learning from operational issues.
 """
 import logging
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional, TYPE_CHECKING
 from datetime import timedelta
 from collections import defaultdict
 
 from ciris_engine.schemas.services.graph.incident import (
     IncidentNode, ProblemNode, IncidentInsightNode,
-    IncidentStatus
+    IncidentStatus, IncidentSeverity
 )
 from ciris_engine.schemas.services.graph_core import (
     NodeType, GraphScope
@@ -26,6 +26,10 @@ from ciris_engine.schemas.services.core import (
 )
 from ciris_engine.logic.services.graph.base import BaseGraphService
 from datetime import datetime
+
+if TYPE_CHECKING:
+    from ciris_engine.logic.buses import MemoryBus
+    from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +45,7 @@ class IncidentManagementService(BaseGraphService):
     5. Tracks effectiveness of applied changes
     """
 
-    def __init__(self, memory_bus=None, time_service=None):
+    def __init__(self, memory_bus: Optional['MemoryBus'] = None, time_service: Optional['TimeServiceProtocol'] = None) -> None:
         super().__init__(memory_bus=memory_bus, time_service=time_service)
         self.service_name = "IncidentManagementService"
         self._started = False
@@ -109,13 +113,16 @@ class IncidentManagementService(BaseGraphService):
             )
 
             # Store insight in graph
-            result = await self._memory_bus.memorize(
-                node=insight.to_graph_node(),
-                handler_name=self.service_name
-            )
+            if self._memory_bus:
+                result = await self._memory_bus.memorize(
+                    node=insight.to_graph_node(),
+                    handler_name=self.service_name
+                )
 
-            if result.status != MemoryOpStatus.OK:
-                logger.error("Failed to store incident insight: %s", result.error)
+                if result.status != MemoryOpStatus.OK:
+                    logger.error("Failed to store incident insight: %s", result.error)
+            else:
+                logger.warning("Memory bus not available, cannot store incident insight")
 
             # Mark analyzed incidents
             await self._mark_incidents_analyzed(incidents)
@@ -126,7 +133,7 @@ class IncidentManagementService(BaseGraphService):
             logger.error("Failed to process incidents: %s", e, exc_info=True)
             raise
 
-    async def _get_recent_incidents(self, cutoff_time) -> List[IncidentNode]:
+    async def _get_recent_incidents(self, cutoff_time: datetime) -> List[IncidentNode]:
         """Get recent incidents from memory service."""
         if not self._memory_bus:
             logger.error("Memory bus not available")
@@ -134,7 +141,8 @@ class IncidentManagementService(BaseGraphService):
             
         try:
             # First try to get from memory service (for tests)
-            memory_service = self._memory_bus.service_registry.get_service("MemoryService") if hasattr(self._memory_bus, 'service_registry') else None
+            memory_services = self._memory_bus.service_registry.get_services_by_type("memory") if hasattr(self._memory_bus, 'service_registry') else []
+            memory_service = memory_services[0] if memory_services else None
             
             if memory_service and hasattr(memory_service, 'search'):
                 # Use the mocked search method in tests
@@ -150,17 +158,21 @@ class IncidentManagementService(BaseGraphService):
                 return incidents
                 
             # Otherwise query memory bus normally
-            from ciris_engine.schemas.services.operations import MemoryQuery
+            from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
             
-            query = MemoryQuery(
-                conditions={
-                    "node_type": NodeType.AUDIT_ENTRY,
-                    "created_at__gte": cutoff_time.isoformat()
-                },
+            # Create search filter for audit entries created after cutoff time
+            search_filter = MemorySearchFilter(
+                node_type=NodeType.AUDIT_ENTRY.value,
+                created_after=cutoff_time,
                 limit=1000
             )
             
-            nodes = await self._memory_bus.recall(query)
+            # Use search method to find audit entries
+            nodes = await self._memory_bus.search(
+                query="",  # Empty query to get all matching nodes
+                filters=search_filter,
+                handler_name="incident_service"
+            )
             
             # Convert GraphNodes to IncidentNodes
             incidents = []
@@ -221,15 +233,17 @@ class IncidentManagementService(BaseGraphService):
                                 scope=GraphScope.LOCAL,
                                 attributes={},
                                 incident_type=level,
-                            severity="HIGH" if level == "ERROR" else "MEDIUM",
-                            status=IncidentStatus.OPEN,
-                            description=message,
-                            source_component=component,
-                            detected_at=timestamp,
-                            impact="TBD",
-                            urgency="MEDIUM",
-                            updated_by="incident_service",
-                            updated_at=timestamp
+                                severity=IncidentSeverity.HIGH if level == "ERROR" else IncidentSeverity.MEDIUM,
+                                status=IncidentStatus.OPEN,
+                                description=message,
+                                source_component=component,
+                                detected_at=timestamp,
+                                filename=location,  # Use location as filename
+                                line_number=0,  # Line number not available from log parsing
+                                impact="TBD",
+                                urgency="MEDIUM",
+                                updated_by="incident_service",
+                                updated_at=timestamp
                         )
                         incidents.append(incident)
                         
@@ -271,7 +285,7 @@ class IncidentManagementService(BaseGraphService):
 
     async def _identify_problems(self, patterns: Dict[str, List[IncidentNode]]) -> List[ProblemNode]:
         """Identify root cause problems from patterns."""
-        problems = []
+        problems: List[ProblemNode] = []
 
         # Get current time for timestamps
         if not self._time_service:
@@ -305,26 +319,30 @@ class IncidentManagementService(BaseGraphService):
             )
 
             # Store problem in graph
-            result = await self._memory_bus.memorize(
-                node=problem.to_graph_node(),
-                handler_name=self.service_name
-            )
+            if self._memory_bus:
+                result = await self._memory_bus.memorize(
+                    node=problem.to_graph_node(),
+                    handler_name=self.service_name
+                )
 
-            if result.status == MemoryOpStatus.OK:
-                problems.append(problem)
+                if result.status == MemoryOpStatus.OK:
+                    problems.append(problem)
 
-                # Link incidents to problem
-                for incident in pattern_incidents:
-                    incident.problem_id = problem.id
-                    incident.status = IncidentStatus.RECURRING
-                    await self._update_incident(incident)
+                    # Link incidents to problem
+                    for incident in pattern_incidents:
+                        incident.problem_id = problem.id
+                        incident.status = IncidentStatus.RECURRING
+                        await self._update_incident(incident)
+            else:
+                logger.warning("Memory bus not available, cannot store problem node")
+                problems.append(problem)  # Still add to problems list for return value
 
         return problems
 
     def _generate_recommendations(self, patterns: Dict[str, List[IncidentNode]],
                                 problems: List[ProblemNode]) -> Dict[str, List[str]]:
         """Generate actionable recommendations."""
-        recommendations = {
+        recommendations: Dict[str, List[str]] = {
             "behavioral": [],
             "configuration": []
         }
@@ -392,8 +410,8 @@ class IncidentManagementService(BaseGraphService):
         # Sort by time
         sorted_incidents = sorted(incidents, key=lambda i: i.detected_at)
 
-        clusters = []
-        current_cluster = []
+        clusters: List[List[IncidentNode]] = []
+        current_cluster: List[IncidentNode] = []
         cluster_threshold = timedelta(minutes=5)  # Incidents within 5 minutes
 
         for incident in sorted_incidents:
@@ -415,7 +433,7 @@ class IncidentManagementService(BaseGraphService):
 
     def _analyze_root_causes(self, incidents: List[IncidentNode]) -> List[str]:
         """Analyze potential root causes."""
-        root_causes = []
+        root_causes: List[str] = []
 
         # Check for common patterns
         descriptions = [i.description.lower() for i in incidents]
@@ -484,27 +502,27 @@ class IncidentManagementService(BaseGraphService):
 
     def _get_severity_breakdown(self, incidents: List[IncidentNode]) -> Dict[str, int]:
         """Get breakdown by severity."""
-        breakdown = defaultdict(int)
+        breakdown: defaultdict[str, int] = defaultdict(int)
         for incident in incidents:
             breakdown[incident.severity.value] += 1
         return dict(breakdown)
 
     def _get_component_breakdown(self, incidents: List[IncidentNode]) -> Dict[str, int]:
         """Get breakdown by component."""
-        breakdown = defaultdict(int)
+        breakdown: defaultdict[str, int] = defaultdict(int)
         for incident in incidents:
             breakdown[incident.source_component] += 1
         return dict(breakdown)
 
     def _get_time_distribution(self, incidents: List[IncidentNode]) -> Dict[str, int]:
         """Get distribution over time (hourly buckets)."""
-        distribution = defaultdict(int)
+        distribution: defaultdict[str, int] = defaultdict(int)
         for incident in incidents:
             hour_key = incident.detected_at.strftime("%Y-%m-%d %H:00")
             distribution[hour_key] += 1
         return dict(distribution)
 
-    async def _create_no_incidents_insight(self, current_time) -> IncidentInsightNode:
+    async def _create_no_incidents_insight(self, current_time: datetime) -> IncidentInsightNode:
         """Create insight when no incidents found."""
         return IncidentInsightNode(
             id=f"incident_insight_{current_time.strftime('%Y%m%d_%H%M%S')}",
@@ -535,13 +553,16 @@ class IncidentManagementService(BaseGraphService):
 
     async def _update_incident(self, incident: IncidentNode) -> None:
         """Update an incident in the graph."""
-        result = await self._memory_bus.memorize(
-            node=incident.to_graph_node(),
-            handler_name=self.service_name
-        )
+        if self._memory_bus:
+            result = await self._memory_bus.memorize(
+                node=incident.to_graph_node(),
+                handler_name=self.service_name
+            )
 
-        if result.status != MemoryOpStatus.OK:
-            logger.error("Failed to update incident %s: %s", incident.id, result.error)
+            if result.status != MemoryOpStatus.OK:
+                logger.error("Failed to update incident %s: %s", incident.id, result.error)
+        else:
+            logger.warning("Memory bus not available, cannot update incident %s", incident.id)
 
     # Service protocol methods
 
@@ -581,9 +602,7 @@ class IncidentManagementService(BaseGraphService):
     def get_status(self) -> ServiceStatus:
         """Get service status."""
         current_time = self._time_service.now() if self._time_service else datetime.now()
-        uptime_seconds = 0.0
-        if self._start_time:
-            uptime_seconds = (current_time - self._start_time).total_seconds()
+        uptime_seconds = (current_time - self._start_time).total_seconds() if self._start_time else 0.0
         
         return ServiceStatus(
             service_name="IncidentManagementService",

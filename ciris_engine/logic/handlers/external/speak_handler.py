@@ -54,10 +54,10 @@ class SpeakHandler(BaseActionHandler):
             processed_result = await self._decapsulate_secrets_in_params(result, "speak", thought.thought_id)
             
             # Debug: Check what channel_context we received
-            if isinstance(processed_result.action_parameters, dict):
+            if hasattr(processed_result.action_parameters, 'get'):
                 channel_ctx = processed_result.action_parameters.get('channel_context', 'None')
                 logger.info(f"SPEAK: Received action_parameters dict with channel_context: {channel_ctx}")
-                if isinstance(channel_ctx, dict):
+                if hasattr(channel_ctx, 'keys'):
                     logger.info(f"SPEAK: channel_context dict contains: {channel_ctx}")
 
             params: SpeakParams = await self._validate_and_convert_params(processed_result.action_parameters, SpeakParams)

@@ -101,7 +101,12 @@ class GraphEdge(BaseModel):
     relationship: str = Field(..., description="Type of relationship")
     scope: GraphScope = Field(..., description="Scope of the edge")
     weight: float = Field(default=1.0, ge=0.0, le=1.0, description="Relationship weight")
-    attributes: GraphEdgeAttributes = Field(default_factory=lambda: GraphEdgeAttributes())
+    attributes: GraphEdgeAttributes = Field(
+        default_factory=lambda: GraphEdgeAttributes(
+            created_at=datetime.now(timezone.utc),
+            context=None
+        )
+    )
 
     model_config = ConfigDict(extra = "forbid")
 

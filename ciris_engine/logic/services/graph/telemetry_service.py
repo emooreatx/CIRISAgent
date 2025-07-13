@@ -11,7 +11,7 @@ Consolidates functionality from:
 
 import logging
 from typing import Dict, List, Optional, Tuple, Union, Any
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from enum import Enum
 import sys
@@ -25,9 +25,9 @@ except ImportError:
     PSUTIL_AVAILABLE = False
 
 from ciris_engine.protocols.runtime.base import GraphServiceProtocol as TelemetryServiceProtocol
-from ciris_engine.protocols.runtime.base import ServiceProtocol
 from ciris_engine.schemas.runtime.resources import ResourceUsage
 from ciris_engine.schemas.runtime.protocols_core import MetricDataPoint, ResourceLimits
+from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.services.core import ServiceStatus, ServiceCapabilities
 from ciris_engine.schemas.services.operations import MemoryOpStatus, MemoryQuery
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot, TelemetrySummary, UserProfile, ChannelContext as SystemChannelContext
@@ -37,6 +37,8 @@ from ciris_engine.schemas.services.graph.telemetry import (
     GraphQuery
 )
 from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
+from ciris_engine.schemas.services.core import ServiceStatus, ServiceCapabilities
+from ciris_engine.logic.services.base_graph_service import BaseGraphService
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 
 logger = logging.getLogger(__name__)
@@ -66,7 +68,7 @@ class ConsolidationCandidate:
     grace_applicable: bool
     grace_reasons: List[str]
 
-class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
+class GraphTelemetryService(BaseGraphService, TelemetryServiceProtocol):
     """
     Consolidated TelemetryService that stores all metrics as graph memories.
 
@@ -85,9 +87,9 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         memory_bus: Optional[MemoryBus] = None,
         time_service: Optional[Any] = None  # TimeServiceProtocol
     ) -> None:
-        super().__init__()
-        self._memory_bus = memory_bus
-        self._time_service = time_service
+        # Initialize BaseGraphService
+        super().__init__(memory_bus=memory_bus, time_service=time_service)
+        
         self._service_registry: Optional[Any] = None
         self._resource_limits = ResourceLimits(
             max_memory_mb=4096,
@@ -115,8 +117,8 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         if not self._memory_bus and registry:
             # Try to get memory bus from registry
             try:
-                from ciris_engine.logic.buses import MemoryBus  # type: ignore[import-not-found]
-                from ciris_engine.logic.registries.service_registry import ServiceRegistry  # type: ignore[import-not-found]
+                from ciris_engine.logic.buses import MemoryBus
+                from ciris_engine.logic.registries.service_registry import ServiceRegistry
                 if isinstance(registry, ServiceRegistry) and self._time_service is not None:
                     self._memory_bus = MemoryBus(registry, self._time_service)
             except Exception as e:
@@ -287,12 +289,15 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 hours = int((self._now() - start_time).total_seconds() / 3600)
 
             # Recall time series data from memory
+            # Pass actual start/end times for precise filtering
             timeseries_data = await self._memory_bus.recall_timeseries(
                 scope="local",  # Operational metrics are in local scope
                 hours=hours,
-                correlation_types=["METRIC_DATAPOINT"],
+                start_time=start_time,
+                end_time=end_time,
                 handler_name="telemetry_service"
             )
+            
 
             # Convert to dict format
             results: List[Dict[str, Union[str, float, datetime, Dict[str, str]]]] = []
@@ -309,18 +314,11 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
 
                 # Filter by time range
                 if data.timestamp:
-                    ts: Optional[datetime] = None
-                    timestamp_value = data.timestamp
-                    if isinstance(timestamp_value, str):
-                        try:
-                            ts = datetime.fromisoformat(timestamp_value)
-                        except Exception:
-                            continue
-                    else:
-                        # Assume it's already a datetime if not a string
-                        ts = timestamp_value  # type: ignore[assignment]
+                    # timestamp is always a datetime per TimeSeriesDataPoint type
+                    ts = data.timestamp
                     
                     if ts is not None:
+                        
                         if start_time and ts < start_time:
                             continue
                         if end_time and ts > end_time:
@@ -334,6 +332,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                         "timestamp": data.timestamp,
                         "tags": data.tags or {}
                     })
+            
 
             return results
 
@@ -711,6 +710,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
 
     async def start(self) -> None:
         """Start the telemetry service."""
+        await super().start()
         logger.info("GraphTelemetryService started - routing all metrics through memory graph")
 
     async def stop(self) -> None:
@@ -722,17 +722,11 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
             {"event": "service_stop", "timestamp": self._now().isoformat()}
         )
         logger.info("GraphTelemetryService stopped")
+        await super().stop()
 
-    def get_status(self) -> ServiceStatus:
-        """Get service status."""
-        # Calculate memory usage
-        memory_mb = 0.0
-        try:
-            if self._process:
-                memory_info = self._process.memory_info()
-                memory_mb = memory_info.rss / 1024 / 1024  # Convert bytes to MB
-        except Exception as e:
-            logger.debug(f"Could not get memory info: {e}")
+    def _collect_custom_metrics(self) -> Dict[str, float]:
+        """Collect telemetry-specific metrics."""
+        metrics = super()._collect_custom_metrics()
         
         # Calculate cache size
         cache_size_mb = 0.0
@@ -744,7 +738,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
             pass
         
         # Calculate metrics statistics
-        total_metrics_stored = sum(len(metrics) for metrics in self._recent_metrics.values())
+        total_metrics_stored = sum(len(metrics_list) for metrics_list in self._recent_metrics.values())
         unique_metric_types = len(self._recent_metrics.keys())
         
         # Get recent metric activity
@@ -758,86 +752,21 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                     if hasattr(metric, 'timestamp') and metric.timestamp >= one_minute_ago:
                         recent_metrics_per_minute += 1.0
         
-        # Build custom metrics
-        custom_metrics = {
+        # Add telemetry-specific metrics
+        metrics.update({
             "total_metrics_cached": float(total_metrics_stored),
             "unique_metric_types": float(unique_metric_types),
             "summary_cache_entries": float(len(self._summary_cache)),
             "metrics_per_minute": recent_metrics_per_minute,
-            "memory_mb": memory_mb,
             "cache_size_mb": cache_size_mb,
             "max_cached_metrics_per_type": float(self._max_cached_metrics)
-        }
+        })
         
-        return ServiceStatus(
-            service_name="telemetry_service",
-            service_type="telemetry",
-            is_healthy=self._memory_bus is not None,
-            uptime_seconds=0.0,  # Uptime tracked at service level
-            last_error=None,
-            metrics={
-                "cached_metrics": float(total_metrics_stored),
-                "unique_metric_types": float(unique_metric_types),
-                "memory_mb": memory_mb,
-                "cache_size_mb": cache_size_mb
-            },
-            custom_metrics=custom_metrics,
-            last_health_check=self._now() if self._memory_bus else None
-        )
-
-    async def store_in_graph(self, node: GraphNode) -> str:
-        """Store a node in the graph - delegates to memory bus."""
-        if not self._memory_bus:
-            raise RuntimeError("Memory bus not available")
-        result = await self._memory_bus.memorize(node, handler_name="telemetry_service")
-        return node.id if result.status == MemoryOpStatus.OK else ""
-
-    async def query_graph(self, query: MemoryQuery) -> List[GraphNode]:
-        """Query the graph - delegates to memory bus."""
-        if not self._memory_bus:
-            return []
-        # Convert MemoryQuery to timeseries parameters
-        hours = 24  # Default hours
-        if hasattr(query, 'hours'):
-            hours = getattr(query, 'hours')
-        
-        # Get timeseries data points
-        data_points = await self._memory_bus.recall_timeseries(
-            scope="local",
-            hours=hours,
-            correlation_types=["METRIC_DATAPOINT"],
-            handler_name="telemetry_service"
-        )
-        
-        # Convert TimeSeriesDataPoint to GraphNode
-        nodes: List[GraphNode] = []
-        # For now, just return empty list as we don't have the actual nodes
-        # TODO: Implement proper node retrieval when memory bus supports it
-        return nodes
+        return metrics
 
     def get_node_type(self) -> str:
         """Get the type of nodes this service manages."""
         return "TELEMETRY"
-
-    def get_capabilities(self) -> ServiceCapabilities:
-        """Return capabilities this service supports."""
-        return ServiceCapabilities(
-            service_name="telemetry_service",
-            actions=[
-                "record_metric", "record_resource_usage", "query_metrics",
-                "get_service_status", "get_resource_limits", "process_system_snapshot"
-            ],
-            version="1.0.0",
-            dependencies=["memory_bus", "time_service"],
-            metadata={
-                "features": ["graph_storage", "time_series_aggregation", "memory_consolidation", "grace_policies"],
-                "node_type": "TELEMETRY"
-            }
-        )
-
-    async def is_healthy(self) -> bool:
-        """Check if service is healthy."""
-        return self._memory_bus is not None and self._time_service is not None
 
     async def get_metric_count(self) -> int:
         """Get the total count of metrics stored in the system.
@@ -925,6 +854,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
         window_end = now
         window_start_24h = now - timedelta(hours=24)
         window_start_1h = now - timedelta(hours=1)
+        
 
         # Initialize counters
         tokens_24h = 0
@@ -969,6 +899,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                     start_time=window_start_24h,
                     end_time=window_end
                 )
+                
 
                 for metric in day_metrics:
                     raw_value = metric.get("value", 0)
@@ -980,16 +911,23 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                     timestamp = metric.get("timestamp")
                     tags_raw = metric.get("tags", {})
                     tags: Dict[str, str] = tags_raw if isinstance(tags_raw, dict) else {}
+                    
 
                     # Convert timestamp to datetime if needed
                     dt_timestamp: Optional[datetime] = None
-                    if isinstance(timestamp, str):
+                    if isinstance(timestamp, datetime):
+                        dt_timestamp = timestamp
+                        # Ensure timezone awareness
+                        if dt_timestamp.tzinfo is None:
+                            dt_timestamp = dt_timestamp.replace(tzinfo=timezone.utc)
+                    elif isinstance(timestamp, str):
                         try:
                             dt_timestamp = datetime.fromisoformat(timestamp)
+                            # Ensure timezone awareness
+                            if dt_timestamp.tzinfo is None:
+                                dt_timestamp = dt_timestamp.replace(tzinfo=timezone.utc)
                         except Exception:
                             continue
-                    elif isinstance(timestamp, datetime):
-                        dt_timestamp = timestamp
                     else:
                         continue  # Skip if timestamp is invalid
 
@@ -1092,6 +1030,7 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
 
             # Cache the result
             self._summary_cache[cache_key] = (now, summary)
+            
 
             return summary
 
@@ -1121,3 +1060,31 @@ class GraphTelemetryService(TelemetryServiceProtocol, ServiceProtocol):
                 avg_thought_depth=0.0,
                 queue_saturation=0.0
             )
+    
+    # Required methods for BaseGraphService
+    
+    def get_service_type(self) -> ServiceType:
+        """Get the service type."""
+        return ServiceType.TELEMETRY
+    
+    def _get_actions(self) -> List[str]:
+        """Get the list of actions this service supports."""
+        return [
+            "record_metric",
+            "query_metrics",
+            "get_metric_summary",
+            "get_metric_count",
+            "get_telemetry_summary",
+            "process_system_snapshot",
+            "get_resource_usage",
+            "get_telemetry_status"
+        ]
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all dependencies are satisfied."""
+        # Check parent dependencies (memory bus)
+        if not super()._check_dependencies():
+            return False
+        
+        # Telemetry has no additional required dependencies beyond memory bus
+        return True

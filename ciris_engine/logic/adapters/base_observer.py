@@ -184,7 +184,7 @@ class BaseObserver(Generic[MessageT], ABC):
             if hist_msg.get("author_id"):
                 recall_ids.add(f"user/{hist_msg['author_id']}")
         
-        from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
+        from ciris_engine.schemas.services.graph_core import GraphNode, GraphNodeAttributes, GraphScope, NodeType
         for rid in recall_ids:
             for scope in (
                 GraphScope.IDENTITY,
@@ -203,6 +203,12 @@ class BaseObserver(Generic[MessageT], ABC):
                         id=rid, 
                         type=node_type, 
                         scope=scope,
+                        attributes=GraphNodeAttributes(
+                            created_by="base_observer",
+                            created_at=self.time_service.now() if self.time_service else datetime.now(timezone.utc),
+                            updated_at=self.time_service.now() if self.time_service else datetime.now(timezone.utc),
+                            tags=[]
+                        ),
                         updated_by="base_observer",
                         updated_at=self.time_service.now() if self.time_service else datetime.now(timezone.utc)
                     )
@@ -278,7 +284,7 @@ class BaseObserver(Generic[MessageT], ABC):
                 moderation_level="standard"
             )
 
-            _minimal_snapshot = SystemSnapshot(
+            SystemSnapshot(
                 channel_context=channel_context,
                 channel_id=getattr(msg, "channel_id", "system"),
                 agent_identity={
@@ -317,7 +323,7 @@ class BaseObserver(Generic[MessageT], ABC):
                 author = hist_msg.get("author", "Unknown")
                 author_id = hist_msg.get("author_id", "unknown")
                 content = hist_msg.get("content", "")
-                _timestamp = hist_msg.get("timestamp", "")
+                hist_msg.get("timestamp", "")
                 thought_lines.append(f"{i}. @{author} (ID: {author_id}): {content}")
 
             thought_lines.append("\n=== EVALUATE THIS MESSAGE AGAINST YOUR IDENTITY/JOB AND ETHICS AND DECIDE IF AND HOW TO ACT ON IT ===")
@@ -414,18 +420,6 @@ class BaseObserver(Generic[MessageT], ABC):
             persistence.add_thought(thought)
         except Exception as e:  # pragma: no cover - rarely hit in tests
             logger.error("Error creating priority observation task: %s", e, exc_info=True)
-
-    async def get_recent_messages(self, limit: int = 20) -> List[dict]:
-        msgs = self._history[-limit:]
-        return [
-            {
-                "id": m.message_id,  # type: ignore[attr-defined]
-                "content": m.content,  # type: ignore[attr-defined]
-                "author_id": m.author_id,  # type: ignore[attr-defined]
-                "timestamp": getattr(m, "timestamp", "n/a"),
-            }
-            for m in msgs
-        ]
 
     async def handle_incoming_message(self, msg: MessageT) -> None:
         """Standard message handling flow for all observers."""

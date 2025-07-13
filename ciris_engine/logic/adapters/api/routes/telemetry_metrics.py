@@ -1,7 +1,7 @@
 """
 Additional telemetry metrics endpoints.
 """
-from typing import List, Dict, Any
+from typing import Dict, Any
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Path
 from ciris_engine.schemas.api.responses import SuccessResponse
@@ -14,7 +14,7 @@ async def get_metric_detail(
     request: Request,
     metric_name: str = Path(..., description="Name of the metric"),
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[Dict[str, Any]]:
     """
     Get detailed information about a specific metric.
     
@@ -27,7 +27,7 @@ async def get_metric_detail(
     try:
         # Get current value and recent history
         now = datetime.now(timezone.utc)
-        hour_ago = now - timedelta(hours=1)
+        now - timedelta(hours=1)
         
         # Mock data for common metrics
         metric_data = {

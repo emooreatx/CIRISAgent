@@ -45,12 +45,15 @@ class DeferHandler(BaseActionHandler):
 
         defer_params_obj: Optional[DeferParams] = None
         try:
-            if isinstance(raw_params, dict):
-                defer_params_obj = DeferParams(**raw_params)
-            elif isinstance(raw_params, DeferParams): # Should not happen if ActionSelectionDMAResult.action_parameters is always dict
+            # Check if params are already DeferParams
+            if isinstance(raw_params, DeferParams):
                 defer_params_obj = raw_params
+            elif hasattr(raw_params, 'model_dump'):
+                # Try to convert from another Pydantic model
+                defer_params_obj = DeferParams(**raw_params.model_dump())
             else:
-                raise ValueError(f"Unexpected type for deferral parameters: {type(raw_params)}")
+                # Should not happen if DMA is working correctly
+                raise ValueError(f"Expected DeferParams but got {type(raw_params)}")
 
             follow_up_content_key_info = f"Deferred thought {thought_id}. Reason: {defer_params_obj.reason}"
 
@@ -129,7 +132,6 @@ class DeferHandler(BaseActionHandler):
             except Exception as e:
                 self.logger.error(f"WiseAuthorityService deferral failed for thought {thought_id}: {e}")
                 # Deferral still considered processed even if WA fails
-                action_performed_successfully = True
 
         except Exception as param_parse_error:
             self.logger.error(f"DEFER action params parsing error or unexpected structure. Type: {type(raw_params)}, Error: {param_parse_error}. Thought ID: {thought_id}")
@@ -171,3 +173,5 @@ class DeferHandler(BaseActionHandler):
         # Update task status to deferred - "no kings" principle
         persistence.update_task_status(parent_task_id, TaskStatus.DEFERRED, self.time_service)
         self.logger.info(f"Marked parent task {parent_task_id} as DEFERRED due to child thought deferral.")
+        
+        return None

@@ -155,4 +155,5 @@ def create_node_data(node_type: str, data: dict) -> NodeData:
     if "updated_at" not in data:
         data["updated_at"] = now
 
-    return data_class(**data)
+    # Create instance and cast to appropriate type
+    return data_class(**data)  # type: ignore[no-any-return]

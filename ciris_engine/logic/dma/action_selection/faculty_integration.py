@@ -44,7 +44,7 @@ class FacultyIntegration:
 
         for name, faculty in content_faculties.items():
             try:
-                result = await faculty.evaluate(content, minimal_context)
+                result = await faculty.analyze(content, minimal_context)
                 results[name] = result
             except Exception as e:
                 logger.warning(f"Content faculty {name} evaluation failed: {e}")
@@ -53,7 +53,7 @@ class FacultyIntegration:
         for name, faculty in decision_faculties.items():
             try:
                 # These faculties need the full context including identity
-                result = await faculty.evaluate(content, context)
+                result = await faculty.analyze(content, context)
                 results[name] = result
             except Exception as e:
                 logger.warning(f"Decision faculty {name} evaluation failed: {e}")

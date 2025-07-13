@@ -29,15 +29,15 @@ def init_service(time_service):
 async def test_initialization_service_lifecycle(init_service):
     """Test InitializationService start/stop lifecycle."""
     # Before start
-    assert init_service._running is False
+    assert init_service._started is False
 
     # Start
     await init_service.start()
-    assert init_service._running is True
+    assert init_service._started is True
 
     # Stop
     await init_service.stop()
-    assert init_service._running is False
+    assert init_service._started is False
 
 
 @pytest.mark.asyncio
@@ -183,7 +183,7 @@ def test_initialization_service_capabilities(init_service):
     assert "initialize" in caps.actions
     assert "get_initialization_status" in caps.actions
     assert "TimeService" in caps.dependencies
-    assert caps.metadata is None  # Actual service doesn't set description
+    assert "description" in caps.metadata  # Infrastructure services now have metadata
 
 
 @pytest.mark.asyncio
@@ -193,7 +193,7 @@ async def test_initialization_service_status(init_service):
     status = init_service.get_status()
     assert isinstance(status, ServiceStatus)
     assert status.service_name == "InitializationService"
-    assert status.service_type == "core_service"
+    assert status.service_type == "initialization"
     assert status.is_healthy is False  # Not running yet
 
     # After start
@@ -212,7 +212,7 @@ async def test_initialization_service_status(init_service):
     await init_service.initialize()
 
     status = init_service.get_status()
-    assert status.custom_metrics["completed_steps"] == 1.0
+    assert status.metrics["completed_steps"] == 1.0
 
 
 @pytest.mark.asyncio

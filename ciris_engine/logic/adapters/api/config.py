@@ -1,13 +1,13 @@
 """Configuration schema for API adapter."""
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from ciris_engine.constants import DEFAULT_API_HOST, DEFAULT_API_PORT
 
 class APIAdapterConfig(BaseModel):
     """Configuration for the API adapter."""
     
-    host: str = Field(default="0.0.0.0", description="API server host")
-    port: int = Field(default=8080, description="API server port")
+    host: str = Field(default=DEFAULT_API_HOST, description="API server host")
+    port: int = Field(default=DEFAULT_API_PORT, description="API server port")
     
     cors_enabled: bool = Field(default=True, description="Enable CORS support")
     cors_origins: list[str] = Field(default_factory=lambda: ["*"], description="Allowed CORS origins")
@@ -54,47 +54,6 @@ class APIAdapterConfig(BaseModel):
             self.auth_enabled = env_auth.lower() in ("true", "1", "yes", "on")
             
         env_timeout = get_env_var("CIRIS_API_INTERACTION_TIMEOUT")
-        if env_timeout:
-            try:
-                self.interaction_timeout = float(env_timeout)
-            except ValueError:
-                pass
-            
-    def load_env_vars_with_instance(self, instance_id: str) -> None:
-        """Load configuration from environment variables with instance-specific prefix."""
-        from ciris_engine.logic.config.env_utils import get_env_var
-        
-        # First load general env vars as defaults
-        self.load_env_vars()
-        
-        # Then override with instance-specific vars
-        instance_upper = instance_id.upper()
-        
-        # Host
-        env_host = get_env_var(f"CIRIS_API_{instance_upper}_HOST") or get_env_var(f"CIRIS_API_HOST_{instance_upper}")
-        if env_host:
-            self.host = env_host
-            
-        # Port
-        env_port = get_env_var(f"CIRIS_API_{instance_upper}_PORT") or get_env_var(f"CIRIS_API_PORT_{instance_upper}")
-        if env_port:
-            try:
-                self.port = int(env_port)
-            except ValueError:
-                pass
-                
-        # CORS
-        env_cors = get_env_var(f"CIRIS_API_{instance_upper}_CORS_ENABLED") or get_env_var(f"CIRIS_API_CORS_ENABLED_{instance_upper}")
-        if env_cors is not None:
-            self.cors_enabled = env_cors.lower() in ("true", "1", "yes", "on")
-            
-        # Auth
-        env_auth = get_env_var(f"CIRIS_API_{instance_upper}_AUTH_ENABLED") or get_env_var(f"CIRIS_API_AUTH_ENABLED_{instance_upper}")
-        if env_auth is not None:
-            self.auth_enabled = env_auth.lower() in ("true", "1", "yes", "on")
-            
-        # Timeout
-        env_timeout = get_env_var(f"CIRIS_API_{instance_upper}_INTERACTION_TIMEOUT") or get_env_var(f"CIRIS_API_INTERACTION_TIMEOUT_{instance_upper}")
         if env_timeout:
             try:
                 self.interaction_timeout = float(env_timeout)

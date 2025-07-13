@@ -316,7 +316,7 @@ Available tools (check with tool service for current list):
             prop_type = self._extract_type(prop_schema)
 
             # Add description if available
-            _description = prop_schema.get("description", "")
+            prop_schema.get("description", "")
 
             if prop_name in required:
                 params.append(f'"{prop_name}": {prop_type} (required)')
@@ -341,7 +341,7 @@ Available tools (check with tool service for current list):
                 if isinstance(add_props, dict) and add_props.get("type") == "string":
                     return "Dict[str, str]"
 
-            return base_type
+            return str(base_type)
 
         # Handle anyOf (nullable types)
         if "anyOf" in prop_schema:

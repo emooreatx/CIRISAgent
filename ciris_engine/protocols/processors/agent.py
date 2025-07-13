@@ -167,7 +167,7 @@ class AgentProcessorProtocol(Protocol):
         ...
 
     @abstractmethod
-    async def stop_processing(self, graceful: bool = True) -> None:
+    async def stop_processing(self, _: bool = True) -> None:
         """
         Stop processing.
 
@@ -246,7 +246,7 @@ class AgentProcessorProtocol(Protocol):
     # ========================================================================
 
     @abstractmethod
-    async def set_processing_speed(self, multiplier: float) -> None:
+    async def set_processing_speed(self, _: float) -> None:
         """
         Set processing speed multiplier.
 

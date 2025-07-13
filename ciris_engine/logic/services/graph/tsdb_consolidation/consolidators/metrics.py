@@ -206,7 +206,7 @@ class MetricsConsolidator:
         else:
             logger.warning("Memory bus not available - summary not stored")
         
-        return summary_node
+        return summary
     
     def get_edges(
         self,
@@ -243,10 +243,6 @@ class MetricsConsolidator:
         # Link to error metrics from correlations
         error_count = 0
         for corr in metric_correlations:
-            # Skip if not a dict
-            if not isinstance(corr, dict):
-                continue
-                
             if corr.get('tags', {}).get('has_error', False):
                 error_count += 1
                 if error_count <= 10:  # Limit to first 10 errors

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Deque, Dict, List, Optional, Tuple
 
 import psutil
@@ -19,6 +19,8 @@ from ciris_engine.schemas.services.resources_core import (
     ResourceAction,
 )
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
+from ciris_engine.schemas.runtime.enums import ServiceType
 
 logger = logging.getLogger(__name__)
 
@@ -43,49 +45,60 @@ class ResourceSignalBus:
             except Exception as exc:  # pragma: no cover - defensive
                 logger.error("Signal handler error: %s", exc)
 
-class ResourceMonitorService(ResourceMonitorServiceProtocol, ServiceProtocol):
+class ResourceMonitorService(BaseScheduledService, ResourceMonitorServiceProtocol):
     """Monitor system resources and enforce limits."""
 
     def __init__(self, budget: ResourceBudget, db_path: str, time_service: TimeServiceProtocol, signal_bus: Optional[ResourceSignalBus] = None) -> None:
+        super().__init__(run_interval_seconds=1.0, time_service=time_service)
         self.budget = budget
         self.db_path = db_path
-        self.time_service = time_service
         self.snapshot = ResourceSnapshot()
         self.signal_bus = signal_bus or ResourceSignalBus()
 
         self._token_history: Deque[Tuple[datetime, int]] = deque(maxlen=86400)
         self._cpu_history: Deque[float] = deque(maxlen=60)
         self._last_action_time: Dict[str, datetime] = {}
-        self._monitoring = False
         self._process = psutil.Process()
-        self._start_time: Optional[datetime] = None
-        self._monitor_task: Optional[asyncio.Task] = None
-
-    async def start(self) -> None:
+        self._monitoring = False  # For backward compatibility with tests
+    
+    @property
+    def time_service(self) -> TimeServiceProtocol:
+        """Backward compatibility property for time service access."""
+        return self._time_service
+    
+    def get_service_type(self) -> ServiceType:
+        """Get service type."""
+        return ServiceType.VISIBILITY
+    
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return [
+            "resource_monitoring",
+            "cpu_tracking",
+            "memory_tracking",
+            "token_rate_limiting",
+            "thought_counting",
+            "resource_signals"
+        ]
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all dependencies are available."""
+        return True  # Only needs time service which is provided in init
+    
+    async def _on_start(self) -> None:
+        """Called when service starts."""
         self._monitoring = True
-        self._start_time = self.time_service.now()
-        self._monitor_task = asyncio.create_task(self._monitor_loop())
-        logger.info("Resource monitor started")
-
-    async def stop(self) -> None:
+        await super()._on_start()
+    
+    async def _on_stop(self) -> None:
+        """Called when service stops."""
         self._monitoring = False
-        if self._monitor_task and not self._monitor_task.done():
-            self._monitor_task.cancel()
-            try:
-                await self._monitor_task
-            except asyncio.CancelledError:
-                pass
-        logger.info("Resource monitor stopped")
-
-    async def _monitor_loop(self) -> None:
-        while self._monitoring:
-            try:
-                await self._update_snapshot()
-                await self._check_limits()
-                await asyncio.sleep(1)
-            except Exception as exc:  # pragma: no cover - unexpected
-                logger.error("Resource monitor error: %s", exc)
-                await asyncio.sleep(5)
+        await super()._on_stop()
+    
+    async def _run_scheduled_task(self) -> None:
+        """Update resource snapshot and check limits."""
+        await self._update_snapshot()
+        await self._check_limits()
 
     async def _update_snapshot(self) -> None:
         if psutil and self._process:
@@ -113,7 +126,7 @@ class ResourceMonitorService(ResourceMonitorServiceProtocol, ServiceProtocol):
             self.snapshot.disk_free_mb = 0
             self.snapshot.disk_used_mb = 0
 
-        now = self.time_service.now()
+        now = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
         hour_ago = now - timedelta(hours=1)
         day_ago = now - timedelta(days=1)
         self.snapshot.tokens_used_hour = sum(tokens for ts, tokens in self._token_history if ts > hour_ago)
@@ -143,7 +156,7 @@ class ResourceMonitorService(ResourceMonitorServiceProtocol, ServiceProtocol):
 
     async def _take_action(self, resource: str, config: ResourceLimit, level: str) -> None:
         last_action = self._last_action_time.get(f"{resource}_{level}")
-        current_time = self.time_service.now()
+        current_time = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
         if last_action and current_time - last_action < timedelta(seconds=config.cooldown_seconds):
             return
         action = config.action
@@ -159,7 +172,7 @@ class ResourceMonitorService(ResourceMonitorServiceProtocol, ServiceProtocol):
         self._last_action_time[f"{resource}_{level}"] = current_time
 
     async def record_tokens(self, tokens: int) -> None:
-        current_time = self.time_service.now()
+        current_time = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
         self._token_history.append((current_time, tokens))
 
     async def check_available(self, resource: str, amount: int = 0) -> bool:
@@ -183,46 +196,27 @@ class ResourceMonitorService(ResourceMonitorServiceProtocol, ServiceProtocol):
         except Exception:  # pragma: no cover - DB errors unlikely in tests
             return 0
 
-    def get_status(self) -> ServiceStatus:
-        """Get service status as required by ServiceProtocol."""
-        uptime = 0.0
-        if self._start_time:
-            uptime = (self.time_service.now() - self._start_time).total_seconds()
-            
-        return ServiceStatus(
-            service_name="ResourceMonitorService",
-            service_type="infrastructure_service",
-            is_healthy=self.snapshot.healthy,
-            uptime_seconds=uptime,
-            metrics={
-                "memory_mb": float(self.snapshot.memory_mb),
-                "cpu_percent": float(self.snapshot.cpu_percent),
-                "tokens_used_hour": float(self.snapshot.tokens_used_hour),
-                "thoughts_active": float(self.snapshot.thoughts_active),
-                "warnings": float(len(self.snapshot.warnings)),
-                "critical": float(len(self.snapshot.critical))
-            },
-            last_error=None,
-            last_health_check=self.time_service.now()
-        )
-
+    def _collect_custom_metrics(self) -> Dict[str, float]:
+        """Collect resource monitoring metrics."""
+        return {
+            "memory_mb": float(self.snapshot.memory_mb),
+            "cpu_percent": float(self.snapshot.cpu_percent),
+            "tokens_used_hour": float(self.snapshot.tokens_used_hour),
+            "thoughts_active": float(self.snapshot.thoughts_active),
+            "warnings": float(len(self.snapshot.warnings)),
+            "critical": float(len(self.snapshot.critical))
+        }
+    
     async def is_healthy(self) -> bool:
         """Check if service is healthy."""
+        # Service is healthy if no critical resource issues
         return self.snapshot.healthy
-
-    def get_capabilities(self) -> ServiceCapabilities:
-        """Get service capabilities as required by ServiceProtocol."""
-        return ServiceCapabilities(
-            service_name="ResourceMonitorService",
-            actions=[
-                "resource_monitoring",
-                "cpu_tracking",
-                "memory_tracking",
-                "token_rate_limiting",
-                "thought_counting",
-                "resource_signals"
-            ],
-            version="1.0.0",
-            dependencies=["TimeService"],
-            metadata=None
-        )
+    
+    def get_status(self) -> ServiceStatus:
+        """Get service status."""
+        status = super().get_status()
+        # Override service type for backward compatibility
+        status.service_type = "infrastructure_service"
+        # Use snapshot health status instead of started status
+        status.is_healthy = self.snapshot.healthy
+        return status

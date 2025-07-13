@@ -101,7 +101,12 @@ class WACertificate(BaseModel):
         if not self.custom_permissions_json:
             return []
         try:
-            return json.loads(self.custom_permissions_json)
+            permissions = json.loads(self.custom_permissions_json)
+            # Ensure we return a list of strings
+            if isinstance(permissions, list):
+                assert isinstance(permissions, list)  # Help type checker
+                return [str(p) for p in permissions]
+            return []
         except json.JSONDecodeError:
             return []
 

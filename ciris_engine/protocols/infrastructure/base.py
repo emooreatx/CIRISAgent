@@ -103,7 +103,7 @@ class BusManagerProtocol(ServiceProtocol):
         ...
 
     @abstractmethod
-    async def unsubscribe(self, subscription_id: str) -> None:
+    async def unsubscribe(self, _: str) -> None:
         """Unsubscribe from messages."""
         ...
 
@@ -167,7 +167,7 @@ class ConfigurationFeedbackLoopProtocol(ServiceProtocol):
         ...
 
     @abstractmethod
-    async def apply_learning(self, update_id: str) -> bool:
+    async def apply_learning(self, _: str) -> bool:
         """Apply learned configuration."""
         ...
 
@@ -211,12 +211,12 @@ class PersistenceManagerProtocol(ServiceProtocol):
     """Protocol for managing data persistence."""
 
     @abstractmethod
-    async def save_checkpoint(self, checkpoint_id: str) -> None:
+    async def save_checkpoint(self, _: str) -> None:
         """Save system checkpoint."""
         ...
 
     @abstractmethod
-    async def restore_checkpoint(self, checkpoint_id: str) -> None:
+    async def restore_checkpoint(self, _: str) -> None:
         """Restore from checkpoint."""
         ...
 
@@ -238,7 +238,7 @@ class ServiceRegistryProtocol(ServiceProtocol):
     """Protocol for service discovery and registration."""
 
     @abstractmethod
-    async def register_service(self, service_name: str, service_info: Any) -> None:
+    async def register_service(self, service_name: str, _: Any) -> None:
         """Register a service."""
         ...
 

@@ -2,11 +2,14 @@
 Communication service for API adapter.
 """
 import logging
-from typing import Any, Optional, Dict, List
+from typing import Any, Optional, Dict, List, TYPE_CHECKING
 from datetime import datetime, timezone
 import asyncio
 
 from ciris_engine.protocols.services.governance.communication import CommunicationServiceProtocol
+
+if TYPE_CHECKING:
+    from ciris_engine.schemas.services.core import ServiceStatus, ServiceCapabilities
 
 logger = logging.getLogger(__name__)
 
@@ -124,16 +127,6 @@ class APICommunicationService(CommunicationServiceProtocol):
             self._error_count += 1
             return False
     
-    async def get_response(self, timeout: float = 30.0) -> Optional[Any]:
-        """Get queued response for HTTP requests."""
-        try:
-            return await asyncio.wait_for(
-                self._response_queue.get(),
-                timeout=timeout
-            )
-        except asyncio.TimeoutError:
-            return None
-    
     def register_websocket(self, client_id: str, websocket: Any) -> None:
         """Register a WebSocket client."""
         self._websocket_clients[client_id] = websocket
@@ -145,61 +138,6 @@ class APICommunicationService(CommunicationServiceProtocol):
             del self._websocket_clients[client_id]
             logger.info(f"WebSocket client unregistered: {client_id}")
     
-    async def broadcast(
-        self,
-        message: str,
-        channel: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> int:
-        """Broadcast message to all WebSocket clients."""
-        sent_count = 0
-        
-        data = {
-            "type": "broadcast",
-            "channel": channel or "general",
-            "data": {
-                "content": message,
-                "metadata": metadata or {},
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
-        }
-        
-        # Send to all connected WebSocket clients
-        disconnected = []
-        for client_id, ws in self._websocket_clients.items():
-            try:
-                await ws.send_json(data)
-                sent_count += 1
-            except Exception as e:
-                logger.warning(f"Failed to send to {client_id}: {e}")
-                disconnected.append(client_id)
-        
-        # Clean up disconnected clients
-        for client_id in disconnected:
-            self.unregister_websocket(client_id)
-        
-        return sent_count
-    
-    def get_available_channels(self) -> List[str]:
-        """Get list of available channels."""
-        channels = ["http"]  # Always available for HTTP responses
-        
-        # Add WebSocket channels
-        channels.extend([f"ws:{client_id}" for client_id in self._websocket_clients])
-        
-        return channels
-    
-    async def is_channel_available(self, channel_id: str) -> bool:
-        """Check if a channel is available."""
-        if channel_id == "http":
-            return True
-        
-        if channel_id.startswith("ws:"):
-            client_id = channel_id[3:]
-            return client_id in self._websocket_clients
-        
-        return False
-    
     async def fetch_messages(
         self,
         channel_id: str,
@@ -209,7 +147,6 @@ class APICommunicationService(CommunicationServiceProtocol):
     ) -> List[Dict[str, Any]]:
         """Retrieve messages from a channel using the correlations database."""
         from ciris_engine.logic.persistence import get_correlations_by_channel
-        from ciris_engine.schemas.runtime.messages import FetchedMessage
         
         try:
             # Get correlations for this channel
@@ -226,7 +163,7 @@ class APICommunicationService(CommunicationServiceProtocol):
                     # This is an outgoing message from the agent
                     content = ""
                     # Handle both dict and Pydantic model cases
-                    if isinstance(corr.request_data, dict):
+                    if hasattr(corr.request_data, 'get'):
                         params = corr.request_data.get("parameters", {})
                         content = params.get("content", "")
                     elif hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
@@ -248,7 +185,7 @@ class APICommunicationService(CommunicationServiceProtocol):
                     author_name = "User"
                     
                     # Handle both dict and Pydantic model cases
-                    if isinstance(corr.request_data, dict):
+                    if hasattr(corr.request_data, 'get'):
                         params = corr.request_data.get("parameters", {})
                         content = params.get("content", "")
                         author_id = params.get("author_id", "unknown")
@@ -270,7 +207,7 @@ class APICommunicationService(CommunicationServiceProtocol):
                     })
             
             # Sort by timestamp
-            messages.sort(key=lambda m: m["timestamp"])
+            messages.sort(key=lambda m: str(m["timestamp"]))
             
             return messages
             

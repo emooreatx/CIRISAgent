@@ -138,7 +138,8 @@ class AuditHashChain:
                     valid=True,
                     entries_checked=0,
                     errors=[],
-                    last_sequence=0
+                    last_sequence=0,
+                    tampering_location=None
                 )
             else:
                 errors: List[str] = []
@@ -177,7 +178,8 @@ class AuditHashChain:
                     valid=len(errors) == 0,
                     entries_checked=len(entries),
                     errors=errors,
-                    last_sequence=entries[-1]["sequence_number"] if entries else 0
+                    last_sequence=entries[-1]["sequence_number"] if entries else 0,
+                    tampering_location=None
                 )
 
         except sqlite3.Error as e:
@@ -186,7 +188,8 @@ class AuditHashChain:
                 valid=False,
                 entries_checked=0,
                 errors=[f"Database error: {e}"],
-                last_sequence=0
+                last_sequence=0,
+                tampering_location=None
             )
         finally:
             if conn:
@@ -262,7 +265,8 @@ class AuditHashChain:
                 current_sequence=self._sequence_number,
                 current_hash=self._last_hash,
                 oldest_entry=oldest,
-                newest_entry=newest
+                newest_entry=newest,
+                error=None
             )
 
         except sqlite3.Error as e:

@@ -39,7 +39,7 @@ class WACLIBootstrapService:
 
             # Generate WA ID and JWT kid
             timestamp = self.time_service.now()
-            wa_id = self.auth_service.generate_wa_id(timestamp)
+            wa_id = self.auth_service._generate_wa_id(timestamp)
             jwt_kid = f"wa-jwt-{wa_id[-6:].lower()}"
 
             # Create WA certificate
@@ -50,9 +50,7 @@ class WACLIBootstrapService:
                 pubkey=self.auth_service._encode_public_key(public_key),
                 jwt_kid=jwt_kid,
                 scopes_json='["*"]',
-                token_type=TokenType.STANDARD,
-                created=timestamp,
-                active=True
+                created_at=timestamp
             )
 
             # Add password if requested
@@ -71,7 +69,7 @@ class WACLIBootstrapService:
             key_file.chmod(0o600)
 
             # Store WA certificate
-            await self.auth_service.create_wa(root_wa)
+            await self.auth_service._store_wa_certificate(root_wa)
 
             self.console.print("✅ Root WA created successfully!")
             self.console.print(f"📋 WA ID: [bold]{wa_id}[/bold]")
@@ -123,7 +121,7 @@ class WACLIBootstrapService:
 
             # Generate IDs
             timestamp = self.time_service.now()
-            wa_id = self.auth_service.generate_wa_id(timestamp)
+            wa_id = self.auth_service._generate_wa_id(timestamp)
             jwt_kid = f"wa-jwt-{wa_id[-6:].lower()}"
 
             # Determine scopes
@@ -142,9 +140,7 @@ class WACLIBootstrapService:
                 jwt_kid=jwt_kid,
                 parent_wa_id=parent_wa_id,
                 scopes_json=json.dumps(scopes),
-                token_type=TokenType.STANDARD,
-                created=timestamp,
-                active=True
+                created_at=timestamp
             )
 
             # Sign with parent's key
@@ -171,7 +167,7 @@ class WACLIBootstrapService:
             key_file.chmod(0o600)
 
             # Store WA certificate
-            await self.auth_service.create_wa(child_wa)
+            await self.auth_service._store_wa_certificate(child_wa)
 
             self.console.print("✅ WA minted successfully!")
             self.console.print(f"📋 WA ID: [bold]{wa_id}[/bold]")

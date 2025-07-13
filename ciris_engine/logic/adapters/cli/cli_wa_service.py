@@ -2,6 +2,7 @@ import asyncio
 import logging
 import uuid
 from typing import List, Optional
+from datetime import datetime, timezone
 
 from ciris_engine.protocols.services import WiseAuthorityService
 from ciris_engine.schemas.telemetry.core import (
@@ -9,6 +10,7 @@ from ciris_engine.schemas.telemetry.core import (
     ServiceCorrelationStatus,
 )
 from ciris_engine.schemas.services.context import GuidanceContext, DeferralContext
+from ciris_engine.schemas.services.authority_core import DeferralRequest
 from ciris_engine.logic import persistence
 from ciris_engine.logic.services.infrastructure.time import TimeService
 
@@ -24,11 +26,13 @@ class CLIWiseAuthorityService(WiseAuthorityService):
 
     async def start(self) -> None:
         """Start the CLI wise authority service."""
-        await super().start()
+        # Don't call super() on abstract method
+        pass
 
     async def stop(self) -> None:
         """Stop the CLI wise authority service."""
-        await super().stop()
+        # Don't call super() on abstract method
+        pass
 
     async def fetch_guidance(self, context: GuidanceContext) -> Optional[str]:
         """Prompt user for guidance on deferred decision"""
@@ -47,13 +51,17 @@ class CLIWiseAuthorityService(WiseAuthorityService):
             logger.error(f"Failed to get CLI guidance: {e}")
             return None
 
-    async def send_deferral(self, context: DeferralContext) -> bool:
+    async def send_deferral(self, deferral: DeferralRequest) -> str:
         """Log deferral to CLI output with rich context"""
+        deferral_id = str(uuid.uuid4())
         deferral_entry = {
-            "thought_id": context.thought_id,
-            "reason": context.reason,
+            "deferral_id": deferral_id,
+            "thought_id": deferral.thought_id,
+            "task_id": deferral.task_id,
+            "reason": deferral.reason,
+            "defer_until": deferral.defer_until.isoformat() if deferral.defer_until else None,
             "timestamp": self.time_service.now().timestamp(),
-            "context": context.model_dump()
+            "context": deferral.context
         }
 
         self.deferral_log.append(deferral_entry)
@@ -61,35 +69,35 @@ class CLIWiseAuthorityService(WiseAuthorityService):
         # Enhanced CLI deferral output
         print(f"\n{'='*60}")
         print("[CIRIS DEFERRAL REPORT]")
-        print(f"Thought ID: {context.thought_id}")
-        print(f"Task ID: {context.task_id}")
-        print(f"Reason: {context.reason}")
+        print(f"Deferral ID: {deferral_id}")
+        print(f"Thought ID: {deferral.thought_id}")
+        print(f"Task ID: {deferral.task_id}")
+        print(f"Reason: {deferral.reason}")
         print(f"Timestamp: {self.time_service.now().isoformat()}Z")
 
-        if context.defer_until:
-            print(f"Defer until: {context.defer_until}")
-        if context.priority:
-            print(f"Priority: {context.priority}")
-        if context.metadata:
-            if "task_description" in context.metadata:
-                print(f"Task: {context.metadata['task_description']}")
-            if "attempted_action" in context.metadata:
-                print(f"Attempted Action: {context.metadata['attempted_action']}")
-            if "max_rounds_reached" in context.metadata and context.metadata["max_rounds_reached"] == "True":
+        if deferral.defer_until:
+            print(f"Defer until: {deferral.defer_until.isoformat()}")
+        
+        if deferral.context:
+            if "task_description" in deferral.context:
+                print(f"Task: {deferral.context['task_description']}")
+            if "attempted_action" in deferral.context:
+                print(f"Attempted Action: {deferral.context['attempted_action']}")
+            if "max_rounds_reached" in deferral.context and deferral.context["max_rounds_reached"] == "True":
                 print("Note: Maximum processing rounds reached")
 
         print(f"{'='*60}")
 
+        now = datetime.now(timezone.utc)
         corr = ServiceCorrelation(
-            correlation_id=str(uuid.uuid4()),
+            correlation_id=deferral_id,
             service_type="cli",
             handler_name="CLIWiseAuthorityService",
             action_type="send_deferral",
-            request_data=context.model_dump(),
-            response_data={"status": "logged"},
-            status=ServiceCorrelationStatus.COMPLETED,
-            created_at=self.time_service.now().isoformat(),
-            updated_at=self.time_service.now().isoformat(),
+            created_at=now,
+            updated_at=now,
+            timestamp=now,
+            status=ServiceCorrelationStatus.COMPLETED
         )
         persistence.add_correlation(corr)
-        return True
+        return deferral_id

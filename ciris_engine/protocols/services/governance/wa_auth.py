@@ -40,7 +40,7 @@ class WAStore(Protocol):
         ...
 
     @abstractmethod
-    async def create_wa_cert(self, cert: WACertificate) -> bool:
+    async def create_wa_cert(self, _: WACertificate) -> bool:
         """Create new WA certificate."""
         ...
 
@@ -129,7 +129,7 @@ class WAAuthMiddleware(Protocol):
         ...
 
     @abstractmethod
-    async def authorize(self, context: AuthorizationContext, required_scopes: List[str]) -> bool:
+    async def authorize(self, context: AuthorizationContext, _: List[str]) -> bool:
         """Check if context has required scopes."""
         ...
 

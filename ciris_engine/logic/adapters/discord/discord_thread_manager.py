@@ -35,7 +35,6 @@ class DiscordThreadManager:
             auto_archive_duration: Thread auto-archive time in minutes
         """
         self.client = client
-        self._time_service = time_service
         self.auto_archive_duration = auto_archive_duration
 
         # Track active threads
@@ -43,9 +42,11 @@ class DiscordThreadManager:
         self._thread_metadata: Dict[int, Dict[str, Any]] = {}  # thread_id -> metadata
 
         # Ensure we have a time service
-        if self._time_service is None:
+        if time_service is None:
             from ciris_engine.logic.services.lifecycle.time import TimeService
-            self._time_service = TimeService()
+            self._time_service: "TimeServiceProtocol" = TimeService()
+        else:
+            self._time_service: "TimeServiceProtocol" = time_service
 
     def set_client(self, client: discord.Client) -> None:
         """Set Discord client after initialization.
@@ -179,7 +180,10 @@ class DiscordThreadManager:
             Sent message or None
         """
         try:
-            return await thread.send(content=content, embed=embed)
+            if embed is not None:
+                return await thread.send(content=content, embed=embed)
+            else:
+                return await thread.send(content=content)
         except Exception as e:
             logger.error(f"Failed to send to thread {thread.id}: {e}")
             return None

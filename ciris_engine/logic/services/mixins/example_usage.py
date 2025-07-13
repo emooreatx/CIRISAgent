@@ -114,7 +114,7 @@ class MetricsEnabledGraphService(RequestMetricsMixin, BaseGraphService):
 class MetricsEnabledAdapter:
     """Example of adding metrics to a communication adapter."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         # Manually compose the mixin since adapters might not use inheritance
         self._metrics = RequestMetricsMixin()
         
@@ -151,7 +151,7 @@ class MetricsEnabledAdapter:
 
 
 # Example 3: Using metrics in an API endpoint
-async def api_endpoint_with_metrics(service: MetricsEnabledGraphService):
+async def api_endpoint_with_metrics(service: MetricsEnabledGraphService) -> dict:
     """Example API endpoint that exposes service metrics."""
     
     # Get extended status including metrics

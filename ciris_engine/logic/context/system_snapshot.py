@@ -11,7 +11,6 @@ from ciris_engine.schemas.runtime.models import Task
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot, UserProfile
 from ciris_engine.schemas.services.graph_core import GraphScope, NodeType
 from ciris_engine.schemas.services.operations import MemoryQuery
-from ciris_engine.schemas.runtime.enums import TaskStatus
 from ciris_engine.logic import persistence
 from .secrets_snapshot import build_secrets_snapshot
 
@@ -170,8 +169,8 @@ async def build_system_snapshot(
                     identity_capabilities = attrs.get("permitted_actions", [])
                     identity_restrictions = attrs.get("restricted_capabilities", [])
                 else:
-                    # Handle GraphNodeAttributes or other types
-                    attrs_dict = attrs.model_dump() if hasattr(attrs, 'model_dump') else {}
+                    # Handle GraphNodeAttributes - always has model_dump
+                    attrs_dict = attrs.model_dump()
                     identity_data = {
                         "agent_id": attrs_dict.get("agent_id", ""),
                         "description": attrs_dict.get("description", ""),
@@ -322,7 +321,7 @@ async def build_system_snapshot(
     available_tools: Dict[str, List[Dict[str, Any]]] = {}
     if runtime and hasattr(runtime, 'bus_manager') and hasattr(runtime, 'service_registry'):
         try:
-            bus_manager = runtime.bus_manager
+            runtime.bus_manager
             service_registry = runtime.service_registry
             
             # Get all tool services from registry

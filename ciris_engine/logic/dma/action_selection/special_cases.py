@@ -99,7 +99,7 @@ class ActionSelectionSpecialCases:
                 return True
 
             # Also check if the task context has step_type (wakeup tasks have this)
-            if task.context and task.context.get("step_type"):
+            if task.context and hasattr(task.context, "get") and task.context.get("step_type"):
                 return True
 
             return False

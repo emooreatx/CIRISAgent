@@ -739,10 +739,10 @@ class ThoughtProcessor:
     def _get_profile_name(self, thought: Thought) -> str:
         """Extract profile name from thought context or use default."""
         profile_name = None
-        if hasattr(thought, 'context'):
+        if hasattr(thought, 'context') and thought.context:
             context = thought.context
-            if isinstance(context, dict):
-                profile_name = context.get('agent_profile_name')
+            if hasattr(context, 'agent_profile_name'):
+                profile_name = context.agent_profile_name
         if not profile_name and hasattr(self.app_config, 'agent_profiles'):
             for name, profile in self.app_config.agent_profiles.items():
                 if name != "default" and profile:

@@ -5,7 +5,7 @@ Reads actual log files from disk instead of audit entries.
 import os
 import re
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Any
 import json
 from pathlib import Path
 
@@ -165,7 +165,7 @@ class LogFileReader:
             
         return logs
     
-    def _tail(self, file_obj, num_lines: int) -> List[str]:
+    def _tail(self, file_obj: Any, num_lines: int) -> List[str]:
         """Read last N lines from a file efficiently."""
         # For large files, seek to end and read backwards
         file_obj.seek(0, 2)  # Go to end of file
@@ -176,7 +176,7 @@ class LogFileReader:
         
         # Read chunk size (adjust based on expected line length)
         chunk_size = min(file_size, 8192)
-        lines = []
+        lines: List[str] = []
         position = file_size
         
         while len(lines) < num_lines + 1 and position > 0:

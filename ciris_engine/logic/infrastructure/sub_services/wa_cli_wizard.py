@@ -37,7 +37,7 @@ class WACLIWizardService:
         self.console.print("\n🎭 [bold cyan]Welcome to CIRIS WA Onboarding![/bold cyan]\n")
 
         # Check if any WAs exist
-        existing_was = await self.auth_service.list_all_was()
+        existing_was = await self.auth_service.list_was(active_only=False)
         root_exists = any(wa.role == "root" for wa in existing_was)
 
         if root_exists:
@@ -136,16 +136,16 @@ class WACLIWizardService:
 
             # Import the certificate
             wa_cert = WACertificate(**cert_data)
-            await self.auth_service.create_wa(wa_cert)
+            await self.auth_service._store_wa_certificate(wa_cert)
 
             self.console.print("✅ Root certificate imported successfully!")
             self.console.print("⚠️  You'll need the corresponding private key to use root privileges.")
 
-            return {"status": "imported", "wa_id": cert_data["wa_id"]}
+            return WizardResult(status="imported", wa_id=cert_data["wa_id"])
 
         except Exception as e:
             self.console.print(f"❌ Error importing certificate: {e}")
-            return {"status": "error", "error": str(e)}
+            return WizardResult(status="error", error=str(e))
 
     async def _join_wa_tree(self) -> JoinRequestResult:
         """Wizard flow for joining existing WA tree."""

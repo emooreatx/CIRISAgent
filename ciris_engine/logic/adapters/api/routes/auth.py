@@ -12,7 +12,7 @@ Note: OAuth endpoints are in api_auth_v2.py
 import hashlib
 import secrets
 import logging
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException, status, Request, Depends
@@ -46,14 +46,14 @@ async def login(
     request: LoginRequest,
     req: Request,
     auth_service: APIAuthService = Depends(get_auth_service)
-):
+) -> LoginResponse:
     """
     Authenticate with username/password.
 
     Currently supports system admin user only. In production, this would
     integrate with a proper user database.
     """
-    config_service = getattr(req.app.state, 'config_service', None)
+    getattr(req.app.state, 'config_service', None)
 
     # Try to find user by username in auth service
     users = await auth_service.list_users(search=request.username)
@@ -113,7 +113,7 @@ async def login(
 async def logout(
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service)
-):
+) -> None:
     """
     End the current session by revoking the API key.
 
@@ -130,7 +130,7 @@ async def logout(
 @router.get("/auth/me", response_model=UserInfo)
 async def get_current_user(
     auth: AuthContext = Depends(get_auth_context)
-):
+) -> UserInfo:
     """
     Get current authenticated user information.
 
@@ -165,7 +165,7 @@ async def refresh_token(
     request: TokenRefreshRequest,
     auth: Optional[AuthContext] = Depends(optional_auth),
     auth_service: APIAuthService = Depends(get_auth_service)
-):
+) -> LoginResponse:
     """
     Refresh access token.
 
@@ -222,7 +222,7 @@ async def refresh_token(
 async def list_oauth_providers(
     auth: AuthContext = Depends(get_auth_context),
     _: None = Depends(check_permissions(["users.write"]))  # SYSTEM_ADMIN only
-):
+) -> Dict[str, Any]:
     """
     List configured OAuth providers.
     
@@ -266,7 +266,7 @@ async def configure_oauth_provider(
     metadata: Optional[Dict[str, str]] = None,
     auth: AuthContext = Depends(get_auth_context),
     _: None = Depends(check_permissions(["users.write"]))  # SYSTEM_ADMIN only
-):
+) -> Dict[str, Any]:
     """
     Configure an OAuth provider.
     
@@ -318,7 +318,7 @@ async def configure_oauth_provider(
 async def oauth_login(
     provider: str,
     redirect_uri: Optional[str] = None
-):
+) -> Dict[str, str]:
     """
     Initiate OAuth login flow.
     
@@ -412,7 +412,7 @@ async def oauth_callback(
     code: str,
     state: str,
     auth_service: APIAuthService = Depends(get_auth_service)
-):
+) -> LoginResponse:
     """
     Handle OAuth callback.
     

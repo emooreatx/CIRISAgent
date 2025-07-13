@@ -125,7 +125,7 @@ export default function ConfigPage() {
     const sections: Record<string, ConfigSection> = {};
     const configs = configResponse.configs.map(item => ({
       ...item,
-      value: unwrapConfigValue(item.value)
+      value: item.value ? unwrapConfigValue(item.value) : null
     }));
 
     // Filter by search term

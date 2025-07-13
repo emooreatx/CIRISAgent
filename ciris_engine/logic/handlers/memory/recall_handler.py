@@ -9,7 +9,7 @@ from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
 from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.logic import persistence
 import logging
-from typing import Optional
+from typing import Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ class RecallHandler(BaseActionHandler):
             enhanced_data = {}
             
             for n in nodes:
-                node_info = {
+                node_info: Dict[str, Any] = {
                     "type": n.type,
                     "scope": n.scope,
                     "attributes": n.attributes if isinstance(n.attributes, dict) else {}

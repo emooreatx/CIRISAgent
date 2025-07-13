@@ -6,87 +6,91 @@ This replaces the shutdown_manager.py utility with a proper service.
 """
 import asyncio
 import logging
-from datetime import datetime, timezone
-from typing import Awaitable, Callable, List, Optional
+from typing import Awaitable, Callable, List, Optional, Dict, Any
 from threading import Lock
 
 from ciris_engine.protocols.services import ShutdownServiceProtocol
-from ciris_engine.protocols.runtime.base import ServiceProtocol
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.logic.services.base_infrastructure_service import BaseInfrastructureService
+from ciris_engine.schemas.runtime.enums import ServiceType
 
 logger = logging.getLogger(__name__)
 
-class ShutdownService(ShutdownServiceProtocol, ServiceProtocol):
+class ShutdownService(BaseInfrastructureService, ShutdownServiceProtocol):
     """Service for coordinating graceful shutdown."""
 
     def __init__(self) -> None:
         """Initialize the shutdown service."""
+        # Initialize base class without time_service (we ARE a critical infrastructure service)
+        super().__init__(service_name="ShutdownService", version="1.0.0")
+        
+        # Shutdown-specific attributes
         self._shutdown_requested = False
         self._shutdown_reason: Optional[str] = None
         self._shutdown_handlers: List[Callable[[], None]] = []
         self._async_shutdown_handlers: List[Callable[[], Awaitable[None]]] = []
         self._lock = Lock()
         self._shutdown_event: Optional[asyncio.Event] = None
-        self._running = False
-        self._start_time: Optional[datetime] = None
+        self._emergency_mode = False
 
     async def start(self) -> None:
         """Start the service."""
-        self._running = True
-        self._start_time = datetime.now(timezone.utc)
+        await super().start()
         try:
             # Create shutdown event if in async context
             self._shutdown_event = asyncio.Event()
         except RuntimeError:
             # Not in async context yet
             pass
-        logger.info("ShutdownService started")
 
     async def stop(self) -> None:
         """Stop the service."""
-        self._running = False
-        logger.info("ShutdownService stopped")
+        await super().stop()
 
-    def get_capabilities(self) -> ServiceCapabilities:
-        """Get service capabilities."""
-        return ServiceCapabilities(
-            service_name="ShutdownService",
-            actions=[
-                "request_shutdown",
-                "register_shutdown_handler",
-                "is_shutdown_requested",
-                "get_shutdown_reason"
-            ],
-            version="1.0.0",
-            dependencies=[],
-            metadata={"description": "Coordinates graceful system shutdown"}
-        )
+    # Required abstract methods from BaseService
 
-    def get_status(self) -> ServiceStatus:
-        """Get service status."""
+    def get_service_type(self) -> ServiceType:
+        """Get the service type enum value."""
+        return ServiceType.SHUTDOWN
+
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return [
+            "request_shutdown",
+            "register_shutdown_handler", 
+            "is_shutdown_requested",
+            "get_shutdown_reason",
+            "emergency_shutdown"
+        ]
+
+    def _check_dependencies(self) -> bool:
+        """Check if all required dependencies are available."""
+        # ShutdownService has no dependencies
+        return True
+
+    def _get_metadata(self) -> Dict[str, Any]:
+        """Get service-specific metadata."""
+        metadata = super()._get_metadata()
+        metadata.update({
+            "description": "Coordinates graceful system shutdown",
+            "supports_emergency": True,
+            "max_handlers": 100
+        })
+        return metadata
+
+    def _collect_custom_metrics(self) -> Dict[str, float]:
+        """Collect shutdown-specific metrics."""
+        metrics = super()._collect_custom_metrics()
+        
         with self._lock:
             handler_count = len(self._shutdown_handlers) + len(self._async_shutdown_handlers)
-
-        uptime = 0.0
-        if self._start_time:
-            uptime = (datetime.now(timezone.utc) - self._start_time).total_seconds()
-
-        return ServiceStatus(
-            service_name="ShutdownService",
-            service_type="core_service",
-            is_healthy=self._running,
-            uptime_seconds=uptime,
-            metrics={
-                "shutdown_requested": float(self._shutdown_requested),
-                "registered_handlers": float(handler_count)
-            },
-            last_error=None,
-            last_health_check=None
-        )
-
-    async def is_healthy(self) -> bool:
-        """Check if service is healthy."""
-        return self._running
+        
+        metrics.update({
+            "shutdown_requested": float(self._shutdown_requested),
+            "registered_handlers": float(handler_count),
+            "emergency_mode": float(self._emergency_mode)
+        })
+        
+        return metrics
 
     async def request_shutdown(self, reason: str) -> None:
         """

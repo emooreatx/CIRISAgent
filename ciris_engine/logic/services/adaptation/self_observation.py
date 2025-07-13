@@ -12,11 +12,12 @@ enabling meta-learning and self-directed analytical evolution.
 """
 
 import logging
-from typing import List, Optional, TYPE_CHECKING, Dict, Any
+from typing import List, Optional, TYPE_CHECKING, Dict, Any, cast
 from collections import defaultdict
 
 if TYPE_CHECKING:
     from ciris_engine.logic.registries.base import ServiceRegistry
+    from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.services.special.self_observation import (
     ObservationCycleResult, CycleEventData, ObservationStatus,
     ReviewOutcome, ObservabilityAnalysis,
@@ -34,7 +35,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 from enum import Enum
 
-from ciris_engine.logic.adapters.base import Service
+from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
 from ciris_engine.protocols.services import SelfObservationServiceProtocol
 from ciris_engine.protocols.runtime.base import ServiceProtocol
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
@@ -69,7 +70,7 @@ class ObservationCycle:
     variance_after: Optional[float]
     completed_at: Optional[datetime]
 
-class SelfObservationService(Service, SelfObservationServiceProtocol, ServiceProtocol):
+class SelfObservationService(BaseScheduledService, SelfObservationServiceProtocol, ServiceProtocol):
     """
     Service that enables self-observation, pattern detection, and insight generation.
 
@@ -91,8 +92,12 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
         observation_interval_hours: int = 6,
         stabilization_period_hours: int = 24
     ) -> None:
-        super().__init__()
-        self._time_service = time_service
+        # Convert observation interval to seconds for BaseScheduledService
+        super().__init__(
+            time_service=time_service,
+            run_interval_seconds=observation_interval_hours * 3600
+        )
+        self._time_service: Optional[TimeServiceProtocol] = time_service
         self._memory_bus = memory_bus
         self._variance_threshold = variance_threshold
         self._observation_interval = timedelta(hours=observation_interval_hours)
@@ -107,14 +112,13 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
         self._current_state = ObservationState.LEARNING
         self._current_cycle: Optional[ObservationCycle] = None
         self._adaptation_history: List[ObservationCycle] = []
-        self._last_adaptation = self._time_service.now()
+        self._last_adaptation = self._time_service.now() if self._time_service else datetime.now()
         # No more pending proposals - agent decides through thoughts
 
         # Safety mechanisms
         self._emergency_stop = False
         self._consecutive_failures = 0
         self._max_failures = 3
-        self._start_time: Optional[datetime] = None
         self._pattern_history: List[DetectedPattern] = []  # Add missing attribute for tracking pattern history
         self._last_variance_report = 0.0  # Store last variance for status reporting
 
@@ -126,7 +130,9 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
         if not self._memory_bus and registry:
             try:
                 from ciris_engine.logic.buses import MemoryBus
-                self._memory_bus = MemoryBus(registry, self._time_service)
+                time_service = self._time_service
+                if time_service is not None:
+                    self._memory_bus = MemoryBus(registry, time_service)
             except Exception as e:
                 logger.error(f"Failed to initialize memory bus: {e}")
 
@@ -137,21 +143,24 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
         """Initialize the component services."""
         try:
             # Create variance monitor
-            self._variance_monitor = IdentityVarianceMonitor(
-                time_service=self._time_service,
-                memory_bus=self._memory_bus,
-                variance_threshold=self._variance_threshold
-            )
-            if self._service_registry:
+            time_service = self._time_service
+            if time_service is not None:
+                self._variance_monitor = IdentityVarianceMonitor(
+                    time_service=time_service,
+                    memory_bus=self._memory_bus,
+                    variance_threshold=self._variance_threshold
+                )
+            if self._service_registry and self._variance_monitor:
                 self._variance_monitor.set_service_registry(self._service_registry)
 
             # Create feedback loop
-            self._pattern_loop = PatternAnalysisLoop(
-                time_service=self._time_service,
-                memory_bus=self._memory_bus,
-                analysis_interval_hours=int(self._observation_interval.total_seconds() / 3600)
-            )
-            if self._service_registry:
+            if time_service is not None:
+                self._pattern_loop = PatternAnalysisLoop(
+                    time_service=time_service,
+                    memory_bus=self._memory_bus,
+                    analysis_interval_hours=int(self._observation_interval.total_seconds() / 3600)
+                )
+            if self._service_registry and self._pattern_loop:
                 self._pattern_loop.set_service_registry(self._service_registry)
 
             # Create telemetry service
@@ -175,22 +184,28 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
         if not self._variance_monitor:
             raise RuntimeError("Variance monitor not initialized")
 
-        baseline_id = await self._variance_monitor.initialize_baseline(identity)
+        from ciris_engine.schemas.typed_graph_nodes.agent_identity import AgentIdentityNode
+        identity_node = AgentIdentityNode(
+            ciris_instance_id=getattr(identity, 'ciris_instance_id', 'default'),
+            identity_root=identity,
+            created_at=datetime.now()
+        )
+        baseline_id = await self._variance_monitor.initialize_baseline(identity_node)
         logger.info(f"Identity baseline established: {baseline_id}")
 
         # Store initialization event
         init_node = GraphNode(
-            id=f"self_observation_init_{int(self._time_service.now().timestamp())}",
+            id=f"self_observation_init_{int(self._time_service.now().timestamp() if self._time_service else datetime.now().timestamp())}",
             type=NodeType.CONCEPT,
             scope=GraphScope.IDENTITY,
             attributes={
                 "event_type": "self_observation_initialized",
                 "baseline_id": baseline_id,
                 "variance_threshold": self._variance_threshold,
-                "timestamp": self._time_service.now().isoformat()
+                "timestamp": self._time_service.now().isoformat() if self._time_service else datetime.now().isoformat()
             },
             updated_by="self_observation",
-            updated_at=self._time_service.now()
+            updated_at=self._time_service.now() if self._time_service else datetime.now()
         )
 
         if self._memory_bus:
@@ -198,6 +213,19 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
 
         return baseline_id
 
+
+    async def _run_scheduled_task(self) -> None:
+        """
+        Execute the scheduled observation cycle.
+        
+        This is called periodically by BaseScheduledService.
+        """
+        # Check if we should actually run
+        if not await self._should_run_observation_cycle():
+            return
+            
+        # Run the observation cycle
+        await self._run_observation_cycle()
 
     async def _should_run_observation_cycle(self) -> bool:
         """Check if it's time to run an adaptation cycle."""
@@ -216,13 +244,14 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
 
         if self._current_state == ObservationState.STABILIZING:
             # Check if stabilization period has passed
+            if not self._time_service:
+                return False
             time_since_last = self._time_service.now() - self._last_adaptation
             if time_since_last < self._stabilization_period:
                 return False
 
-        # Check interval
-        time_since_last = self._time_service.now() - self._last_adaptation
-        return time_since_last >= self._observation_interval
+        # We're already scheduled by BaseScheduledService, so just check state
+        return True
 
     async def _run_observation_cycle(self) -> ObservationCycleResult:
         """
@@ -241,8 +270,8 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
                 return ObservationCycleResult(
                     cycle_id="no_monitor",
                     state=ObservationState(self._current_state.value),
-                    started_at=self._time_service.now(),
-                    completed_at=self._time_service.now(),
+                    started_at=self._time_service.now() if self._time_service else datetime.now(),
+                    completed_at=self._time_service.now() if self._time_service else datetime.now(),
                     patterns_detected=0,
                     proposals_generated=0,
                     proposals_approved=0,
@@ -256,7 +285,7 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
                     error="Variance monitor not initialized"
                 )
 
-            cycle_id = f"variance_check_{int(self._time_service.now().timestamp())}"
+            cycle_id = f"variance_check_{int(self._time_service.now().timestamp() if self._time_service else datetime.now().timestamp())}"
 
             if variance_report.requires_wa_review:
                 # Variance too high - enter review state
@@ -271,8 +300,8 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
             return ObservationCycleResult(
                 cycle_id=cycle_id,
                 state=ObservationState(self._current_state.value),
-                started_at=self._time_service.now(),
-                completed_at=self._time_service.now(),
+                started_at=self._time_service.now() if self._time_service else datetime.now(),
+                completed_at=self._time_service.now() if self._time_service else datetime.now(),
                 patterns_detected=0,  # Patterns detected by feedback loop
                 proposals_generated=0,  # No proposals - agent decides
                 proposals_approved=0,
@@ -296,8 +325,8 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
             return ObservationCycleResult(
                 cycle_id="error",
                 state=ObservationState(self._current_state.value),
-                started_at=self._time_service.now(),
-                completed_at=self._time_service.now(),
+                started_at=self._time_service.now() if self._time_service else datetime.now(),
+                completed_at=self._time_service.now() if self._time_service else datetime.now(),
                 patterns_detected=0,
                 proposals_generated=0,
                 proposals_approved=0,
@@ -316,17 +345,17 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
         """Store an event during the adaptation cycle."""
         cycle_id = self._current_cycle.cycle_id if self._current_cycle else "unknown"
         event_node = GraphNode(
-            id=f"cycle_event_{cycle_id}_{event_type}_{int(self._time_service.now().timestamp())}",
+            id=f"cycle_event_{cycle_id}_{event_type}_{int(self._time_service.now().timestamp() if self._time_service else datetime.now().timestamp())}",
             type=NodeType.CONCEPT,
             scope=GraphScope.LOCAL,
             attributes={
                 "cycle_id": cycle_id,
                 "event_type": event_type,
                 "data": data.model_dump(),
-                "timestamp": self._time_service.now().isoformat()
+                "timestamp": self._time_service.now().isoformat() if self._time_service else datetime.now().isoformat()
             },
             updated_by="self_observation",
-            updated_at=self._time_service.now()
+            updated_at=self._time_service.now() if self._time_service else datetime.now()
         )
 
         if self._memory_bus:
@@ -348,10 +377,10 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
                 "variance_after": cycle.variance_after,
                 "final_state": cycle.state.value,
                 "success": cycle.changes_applied > 0 or cycle.patterns_detected > 0,
-                "timestamp": cycle.completed_at.isoformat() if cycle.completed_at else self._time_service.now().isoformat()
+                "timestamp": cycle.completed_at.isoformat() if cycle.completed_at else (self._time_service.now().isoformat() if self._time_service else datetime.now().isoformat())
             },
             updated_by="self_observation",
-            updated_at=self._time_service.now()
+            updated_at=self._time_service.now() if self._time_service else datetime.now()
         )
 
         if self._memory_bus:
@@ -380,7 +409,7 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
             total_changes_applied=sum(c.changes_applied for c in self._adaptation_history),
             rollback_rate=0.0,  # TODO: Track rollbacks
             identity_stable=self._consecutive_failures < 3,
-            time_since_last_change=(self._time_service.now() - self._last_adaptation).total_seconds() if self._last_adaptation else None,
+            time_since_last_change=(self._time_service.now() - self._last_adaptation).total_seconds() if self._time_service and self._last_adaptation else None,
             under_review=self._current_state == ObservationState.REVIEWING,
             review_reason="Variance exceeded threshold" if self._current_state == ObservationState.REVIEWING else None
         )
@@ -406,17 +435,17 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
 
         # Store review outcome
         review_node = GraphNode(
-            id=f"wa_review_outcome_{int(self._time_service.now().timestamp())}",
+            id=f"wa_review_outcome_{int(self._time_service.now().timestamp() if self._time_service else datetime.now().timestamp())}",
             type=NodeType.CONCEPT,
             scope=GraphScope.IDENTITY,
             attributes={
                 "review_type": "identity_variance",
                 "outcome": review_outcome.model_dump(),
                 "new_state": self._current_state.value,
-                "timestamp": self._time_service.now().isoformat()
+                "timestamp": self._time_service.now().isoformat() if self._time_service else datetime.now().isoformat()
             },
             updated_by="self_observation",
-            updated_at=self._time_service.now()
+            updated_at=self._time_service.now() if self._time_service else datetime.now()
         )
 
         if self._memory_bus:
@@ -429,23 +458,23 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
 
         # Store emergency stop event
         stop_node = GraphNode(
-            id=f"emergency_stop_{int(self._time_service.now().timestamp())}",
+            id=f"emergency_stop_{int(self._time_service.now().timestamp() if self._time_service else datetime.now().timestamp())}",
             type=NodeType.CONCEPT,
             scope=GraphScope.IDENTITY,
             attributes={
                 "event_type": "emergency_stop",
                 "reason": reason,
                 "previous_state": self._current_state.value,
-                "timestamp": self._time_service.now().isoformat()
+                "timestamp": self._time_service.now().isoformat() if self._time_service else datetime.now().isoformat()
             },
             updated_by="self_observation",
-            updated_at=self._time_service.now()
+            updated_at=self._time_service.now() if self._time_service else datetime.now()
         )
 
         if self._memory_bus:
             await self._memory_bus.memorize(stop_node, handler_name="self_observation")
 
-    async def start(self) -> None:
+    async def _on_start(self) -> None:
         """Start the self-configuration service."""
         # Start component services
         if self._variance_monitor:
@@ -455,14 +484,13 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
         if self._telemetry_service:
             await self._telemetry_service.start()
         
-        self._start_time: Optional[datetime] = self._time_service.now()
         logger.info("SelfObservationService started - enabling autonomous observation and learning")
 
-    async def stop(self) -> None:
+    async def _on_stop(self) -> None:
         """Stop the service."""
         # Complete current cycle if any
         if self._current_cycle and not self._current_cycle.completed_at:
-            self._current_cycle.completed_at = self._time_service.now()
+            self._current_cycle.completed_at = self._time_service.now() if self._time_service else datetime.now()
             await self._store_cycle_summary(self._current_cycle)
 
         # Stop component services
@@ -509,25 +537,20 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
 
     def get_status(self) -> ServiceStatus:
         """Get current service status."""
-        current_time = self._time_service.now()
-        uptime_seconds = 0.0
-        if self._start_time is not None:
-            uptime_seconds = (current_time - self._start_time).total_seconds()
-            
-        return ServiceStatus(
-            service_name="SelfObservationService",
-            service_type="SPECIAL",
-            is_healthy=not self._emergency_stop and self._consecutive_failures < self._max_failures,
-            uptime_seconds=uptime_seconds,
-            last_error=None,
-            custom_metrics={
-                "adaptation_count": float(len(self._adaptation_history)),
-                "consecutive_failures": float(self._consecutive_failures),
-                "emergency_stop": float(self._emergency_stop),
-                "changes_since_last_adaptation": float(sum(c.changes_applied for c in self._adaptation_history[-1:]) if self._adaptation_history else 0)
-            },
-            last_health_check=current_time
-        )
+        # Let BaseScheduledService handle the status
+        status = super().get_status()
+        
+        # Add our custom metrics
+        if status.custom_metrics is not None:
+            status.custom_metrics.update({
+            "adaptation_count": float(len(self._adaptation_history)),
+            "consecutive_failures": float(self._consecutive_failures),
+            "emergency_stop": float(self._emergency_stop),
+            "changes_since_last_adaptation": float(sum(c.changes_applied for c in self._adaptation_history[-1:]) if self._adaptation_history else 0),
+            "current_variance": self._last_variance_report
+        })
+        
+        return status
 
     # ========== New Protocol Methods for 1000-Year Operation ==========
 
@@ -547,7 +570,7 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
 
         This method looks at insights stored by the feedback loop.
         """
-        current_time = self._time_service.now()
+        current_time = self._time_service.now() if self._time_service else datetime.now()
         window_start = current_time - window
 
         analysis = ObservabilityAnalysis(
@@ -601,8 +624,8 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
             return ObservationCycleResult(
                 cycle_id="manual_trigger_blocked",
                 state=ObservationState(self._current_state.value),
-                started_at=self._time_service.now(),
-                completed_at=self._time_service.now(),
+                started_at=self._time_service.now() if self._time_service else datetime.now(),
+                completed_at=self._time_service.now() if self._time_service else datetime.now(),
                 patterns_detected=0,
                 proposals_generated=0,
                 proposals_approved=0,
@@ -696,7 +719,7 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
         """
         Generate service improvement report for period.
         """
-        current_time = self._time_service.now()
+        current_time = self._time_service.now() if self._time_service else datetime.now()
         period_start = current_time - period
 
         report = ServiceImprovementReport(
@@ -746,7 +769,7 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
             status="no_pattern_loop",
             patterns_detected=0,
             insights_stored=0,
-            timestamp=self._time_service.now(),
+            timestamp=self._time_service.now() if self._time_service else datetime.now(),
             next_analysis_in=None,
             error="Pattern analysis loop not initialized"
         )
@@ -768,7 +791,7 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
         all_patterns = list(self._pattern_loop._detected_patterns.values())
         
         # Filter by time window
-        cutoff_time = self._time_service.now() - timedelta(hours=hours)
+        cutoff_time = (self._time_service.now() if self._time_service else datetime.now()) - timedelta(hours=hours)
         recent_patterns = [
             p for p in all_patterns 
             if p.detected_at >= cutoff_time
@@ -808,7 +831,7 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
             telemetry_nodes = await self._memory_bus.recall(query, handler_name="self_observation")
             
             # Count actions in the time window
-            cutoff_time = self._time_service.now() - timedelta(hours=hours)
+            cutoff_time = (self._time_service.now() if self._time_service else datetime.now()) - timedelta(hours=hours)
             action_counts: Dict[str, List[datetime]] = defaultdict(list)
             
             for node in telemetry_nodes:
@@ -829,7 +852,7 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
                     action=action,
                     count=len(timestamps),
                     evidence=[ts.isoformat() for ts in timestamps_sorted[-3:]],  # Last 3 examples
-                    last_seen=timestamps_sorted[-1] if timestamps_sorted else self._time_service.now(),
+                    last_seen=timestamps_sorted[-1] if timestamps_sorted else (self._time_service.now() if self._time_service else datetime.now()),
                     daily_average=daily_average
                 )
                 
@@ -974,7 +997,7 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
         """
         Get current analysis status.
         """
-        time_since_last = self._time_service.now() - self._last_adaptation
+        time_since_last = (self._time_service.now() if self._time_service else datetime.now()) - self._last_adaptation
         next_analysis_in = max(
             0,
             self._observation_interval.total_seconds() - time_since_last.total_seconds()
@@ -991,3 +1014,20 @@ class SelfObservationService(Service, SelfObservationServiceProtocol, ServicePro
             "current_state": self._current_state.value,
             "consecutive_failures": self._consecutive_failures
         }
+    
+    def get_service_type(self) -> "ServiceType":
+        """Get the service type enum value."""
+        from ciris_engine.schemas.runtime.enums import ServiceType
+        # Self-observation is closest to visibility in available ServiceType options
+        return ServiceType.VISIBILITY
+    
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return [
+            "observe", "analyze_patterns", "get_insights", "get_variance",
+            "pause_adaptation", "resume_adaptation", "emergency_stop"
+        ]
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all required dependencies are available."""
+        return self._time_service is not None

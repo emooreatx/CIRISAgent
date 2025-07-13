@@ -64,22 +64,6 @@ class DiscordAdapterConfig(BaseModel):
 
         return intents
 
-    def get_activity(self) -> Optional[Any]:
-        """Get Discord activity based on configuration."""
-        if not self.activity_name:
-            return None
-
-        import discord
-        activity_type_map = {
-            "playing": discord.ActivityType.playing,
-            "watching": discord.ActivityType.watching,
-            "listening": discord.ActivityType.listening,
-            "streaming": discord.ActivityType.streaming,
-        }
-
-        activity_type = activity_type_map.get(self.activity_type.lower(), discord.ActivityType.watching)
-        return discord.Activity(type=activity_type, name=self.activity_name)
-
     def get_status(self) -> Any:
         """Get Discord status based on configuration."""
         import discord
@@ -139,34 +123,3 @@ class DiscordAdapterConfig(BaseModel):
                 self.admin_user_ids.append(env_admin)
 
 
-    def load_env_vars_with_instance(self, instance_id: str) -> None:
-        """Load configuration from environment variables with instance-specific prefix."""
-        from ciris_engine.logic.config.env_utils import get_env_var
-
-        self.load_env_vars()
-
-        instance_upper = instance_id.upper()
-
-        env_token = get_env_var(f"DISCORD_{instance_upper}_BOT_TOKEN") or get_env_var(f"DISCORD_BOT_TOKEN_{instance_upper}")
-        if env_token:
-            self.bot_token = env_token
-
-        env_home_channel = get_env_var(f"DISCORD_{instance_upper}_HOME_CHANNEL_ID") or get_env_var(f"DISCORD_HOME_CHANNEL_ID_{instance_upper}")
-        if env_home_channel:
-            self.home_channel_id = env_home_channel
-            if env_home_channel not in self.monitored_channel_ids:
-                self.monitored_channel_ids.append(env_home_channel)
-
-        env_channels = get_env_var(f"DISCORD_{instance_upper}_CHANNEL_IDS") or get_env_var(f"DISCORD_CHANNEL_IDS_{instance_upper}")
-        if env_channels:
-            channel_list = [ch.strip() for ch in env_channels.split(",") if ch.strip()]
-            self.monitored_channel_ids.extend(channel_list)
-
-        env_deferral = get_env_var(f"DISCORD_{instance_upper}_DEFERRAL_CHANNEL_ID") or get_env_var(f"DISCORD_DEFERRAL_CHANNEL_ID_{instance_upper}")
-        if env_deferral:
-            self.deferral_channel_id = env_deferral
-
-        env_admin = get_env_var(f"WA_{instance_upper}_USER_ID") or get_env_var(f"WA_USER_ID_{instance_upper}")
-        if env_admin:
-            if env_admin not in self.admin_user_ids:
-                self.admin_user_ids.append(env_admin)

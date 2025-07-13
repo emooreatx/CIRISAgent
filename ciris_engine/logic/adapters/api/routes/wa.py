@@ -3,12 +3,13 @@ Wise Authority Service endpoints for CIRIS API v3 (Simplified).
 
 Manages human-in-the-loop deferrals and permissions.
 """
-from typing import Optional
+from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 import logging
+import uuid
 
-from ciris_engine.schemas.api.responses import SuccessResponse, ErrorResponse, ErrorCode, ErrorDetail
+from ciris_engine.schemas.api.responses import SuccessResponse, ErrorResponse, ErrorCode, ErrorDetail, ResponseMetadata
 from ciris_engine.schemas.api.wa import (
     ResolveDeferralRequest,
     ResolveDeferralResponse,
@@ -31,7 +32,7 @@ async def get_deferrals(
     request: Request,
     wa_id: Optional[str] = Query(None, description="Filter by WA ID"),
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[List[DeferralResponse]]:
     """
     Get list of pending deferrals.
 
@@ -74,7 +75,14 @@ async def get_deferrals(
             "total": len(transformed_deferrals)
         }
 
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except Exception as e:
         logger.error(f"Failed to get deferrals: {e}")
@@ -97,7 +105,7 @@ async def resolve_deferral(
     deferral_id: str,
     resolve_request: ResolveDeferralRequest,
     auth: AuthContext = Depends(require_authority)
-):
+) -> SuccessResponse[ResolveDeferralResponse]:
     """
     Resolve a pending deferral with guidance.
 
@@ -156,7 +164,14 @@ async def resolve_deferral(
         safe_deferral_id = ''.join(c if c.isprintable() and c not in '\n\r\t' else ' ' for c in deferral_id)
         logger.info(f"Deferral {safe_deferral_id} resolved by {auth.user_id} with resolution: {safe_resolution}")
 
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except HTTPException:
         raise
@@ -180,7 +195,7 @@ async def get_permissions(
     request: Request,
     wa_id: Optional[str] = Query(None, description="WA ID to get permissions for (defaults to current user)"),
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[PermissionsListResponse]:
     """
     Get WA permission status.
 
@@ -216,7 +231,14 @@ async def get_permissions(
             wa_id=target_wa_id
         )
 
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except Exception as e:
         logger.error(f"Failed to get permissions for {target_wa_id}: {e}")
@@ -235,7 +257,7 @@ async def get_permissions(
 async def get_wa_status(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[WAStatusResponse]:
     """
     Get current WA service status.
 
@@ -282,7 +304,14 @@ async def get_wa_status(
             timestamp=datetime.now(timezone.utc)
         )
 
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except Exception as e:
         logger.error(f"Failed to get WA status: {e}")
@@ -302,7 +331,7 @@ async def request_guidance(
     request: Request,
     guidance_request: WAGuidanceRequest,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[WAGuidanceResponse]:
     """
     Request guidance from WA on a specific topic.
 
@@ -359,7 +388,14 @@ async def request_guidance(
             timestamp=datetime.now(timezone.utc)
         )
 
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except Exception as e:
         logger.error(f"Failed to get guidance: {e}")

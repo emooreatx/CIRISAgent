@@ -7,7 +7,6 @@ overrides the action to DEFER, ensuring proper escalation to humans.
 
 import logging
 from typing import Optional
-from datetime import datetime, timezone
 
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.conscience.core import ConscienceCheckResult, ConscienceStatus, EpistemicData
@@ -174,7 +173,7 @@ class ThoughtDepthGuardrail(ConscienceInterface):
             )
 
             # Create the defer action that will replace the original
-            _defer_action = ActionSelectionDMAResult(
+            ActionSelectionDMAResult(
                 selected_action=HandlerActionType.DEFER.value,
                 action_parameters=_defer_params,
                 rationale=f"Automatically deferred: Maximum thought depth of {self.max_depth} reached"

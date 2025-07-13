@@ -9,7 +9,8 @@ if TYPE_CHECKING:
 
 from ciris_engine.protocols.services import RuntimeControlService as RuntimeControlServiceProtocol
 from ciris_engine.logic.runtime.adapter_manager import RuntimeAdapterManager
-from ciris_engine.logic.adapters.base import Service
+from ciris_engine.logic.services.base_service import BaseService
+from ciris_engine.schemas.runtime.enums import ServiceType
 # GraphConfigService is injected via dependency injection to avoid circular imports
 
 from ciris_engine.schemas.services.core import ServiceStatus, ServiceCapabilities
@@ -30,7 +31,7 @@ from ciris_engine.schemas.services.shutdown import (
 
 logger = logging.getLogger(__name__)
 
-class RuntimeControlService(Service, RuntimeControlServiceProtocol):
+class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
     """Service for runtime control of processor, adapters, and configuration."""
 
     def __init__(
@@ -40,23 +41,20 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
         config_manager: Optional[Any] = None,
         time_service: Optional[TimeServiceProtocol] = None
     ) -> None:
-        super().__init__()  # Initialize Service base class
+        # Always create a time service if not provided for BaseService
+        if time_service is None:
+            from ciris_engine.logic.services.lifecycle.time import TimeService
+            time_service = TimeService()
+        
+        super().__init__(time_service=time_service)
+        
         self.runtime = runtime
-        self._time_service = time_service
         self.adapter_manager = adapter_manager
         if not self.adapter_manager and runtime:
-            # Ensure we have a time service before creating adapter manager
-            if self._time_service is None:
-                from ciris_engine.logic.services.lifecycle.time import TimeService
-                self._time_service = TimeService()
             self.adapter_manager = RuntimeAdapterManager(runtime, self._time_service)
         self.config_manager: Optional["GraphConfigService"] = config_manager
-        # Ensure we have a time service
-        if self._time_service is None:
-            from ciris_engine.logic.services.lifecycle.time import TimeService
-            self._time_service = TimeService()
+        
         self._processor_status = ProcessorStatus.RUNNING
-        self._start_time = self._now()
         self._last_config_change: Optional[datetime] = None
         self._events_history: List[RuntimeEvent] = []
 
@@ -73,11 +71,6 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
         )
         self._wa_public_keys: Dict[str, Any] = {}  # wa_id -> Ed25519PublicKey
 
-    def _now(self) -> datetime:
-        """Get current time, with fallback if time service not available."""
-        if self._time_service:
-            return self._time_service.now()
-        return datetime.now(timezone.utc)
     
     def _get_config_manager(self) -> "GraphConfigService":
         """Get config manager with lazy initialization to avoid circular imports."""
@@ -1387,59 +1380,68 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
             )
 
     # Service interface methods required by Service base class
-    async def is_healthy(self) -> bool:
-        """Check if the runtime control service is healthy."""
-        try:
-            # Check if core components are available
-            if not self.runtime:
-                return False
+    def get_service_type(self) -> ServiceType:
+        """Get the service type enum value."""
+        return ServiceType.CORE_SERVICE
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all required dependencies are available."""
+        # Runtime is optional - service can function without it
+        return True
+    
+    def _register_dependencies(self) -> None:
+        """Register service dependencies."""
+        super()._register_dependencies()
+        if hasattr(self, 'config_manager') and self.config_manager:
+            self._dependencies.add("GraphConfigService")
+        if hasattr(self, 'adapter_manager') and self.adapter_manager:
+            self._dependencies.add("RuntimeAdapterManager")
+    
+    def _collect_custom_metrics(self) -> Dict[str, float]:
+        """Collect service-specific metrics."""
+        metrics = {
+            "events_count": float(len(self._events_history)),
+            "processor_status": 1.0 if self._processor_status == ProcessorStatus.RUNNING else 0.0,
+        }
+        
+        if self.adapter_manager and hasattr(self.adapter_manager, 'active_adapters'):
+            metrics["adapters_loaded"] = float(len(self.adapter_manager.active_adapters))
+        
+        return metrics
 
-            # Check processor status
-            if self._processor_status == ProcessorStatus.ERROR:
-                return False
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return [
+            "single_step", "pause_processing", "resume_processing",
+            "get_processor_queue_status", "shutdown_runtime",
+            "load_adapter", "unload_adapter", "list_adapters", "get_adapter_info",
+            "get_config", "update_config", "validate_config", "backup_config",
+            "restore_config", "list_config_backups", "reload_config_profile",
+            "get_runtime_status", "get_runtime_snapshot",
+            "get_service_registry_info", "update_service_priority",
+            "reset_circuit_breakers", "get_service_health_status"
+        ]
+    
+    def _get_metadata(self) -> Dict[str, Any]:
+        """Get service-specific metadata."""
+        return {
+            "description": "Runtime control and management service",
+            "features": ["processor_control", "adapter_management", "config_management", "health_monitoring"]
+        }
 
-            return True
-        except Exception:
-            return False
-
-    def get_capabilities(self) -> 'ServiceCapabilities':
-        """Get service capabilities."""
-        from ciris_engine.schemas.services.core import ServiceCapabilities
-        return ServiceCapabilities(
-            service_name="RuntimeControlService",
-            actions=[
-                "single_step", "pause_processing", "resume_processing",
-                "get_processor_queue_status", "shutdown_runtime",
-                "load_adapter", "unload_adapter", "list_adapters", "get_adapter_info",
-                "get_config", "update_config", "validate_config", "backup_config",
-                "restore_config", "list_config_backups", "reload_config_profile",
-                "get_runtime_status", "get_runtime_snapshot",
-                "get_service_registry_info", "update_service_priority",
-                "reset_circuit_breakers", "get_service_health_status"
-            ],
-            version="1.0.0",
-            dependencies=[],
-            metadata={
-                "description": "Runtime control and management service",
-                "features": ["processor_control", "adapter_management", "config_management", "health_monitoring"]
-            }
-        )
-
-    def get_status(self) -> 'ServiceStatus':
+    def get_status(self) -> ServiceStatus:
         """Get current service status."""
-        from ciris_engine.schemas.services.core import ServiceStatus
         return ServiceStatus(
             service_name="RuntimeControlService",
             service_type="CORE",
             is_healthy=self.runtime is not None,
-            uptime_seconds=(self._now() - self._start_time).total_seconds() if hasattr(self, '_start_time') else 0.0,
-            last_error=None,
+            uptime_seconds=self._calculate_uptime(),
+            last_error=self._last_error,
             metrics={
                 "events_count": float(len(self._events_history)),
                 "adapters_loaded": float(len(self.adapter_manager.active_adapters) if self.adapter_manager and hasattr(self.adapter_manager, 'active_adapters') else 0)
             },
-            last_health_check=self._now(),
-            custom_metrics={}
+            last_health_check=self._last_health_check
         )
 
     def set_runtime(self, runtime: Any) -> None:
@@ -1452,13 +1454,13 @@ class RuntimeControlService(Service, RuntimeControlServiceProtocol):
             self.adapter_manager._register_config_listener()
         logger.info("Runtime reference set in RuntimeControlService")
     
-    async def start(self) -> None:
-        """Start the runtime control service."""
+    async def _on_start(self) -> None:
+        """Custom startup logic for runtime control service."""
         await self._initialize()
         logger.info("Runtime control service started")
 
-    async def stop(self) -> None:
-        """Stop the runtime control service."""
+    async def _on_stop(self) -> None:
+        """Custom cleanup logic for runtime control service."""
         logger.info("Runtime control service stopping")
         # Clean up any resources if needed
         self._events_history.clear()

@@ -3,12 +3,11 @@ Simple rate limiting middleware for CIRIS API.
 
 Implements a basic in-memory rate limiter using token bucket algorithm.
 """
-from fastapi import Request, Response, HTTPException
+from fastapi import Request, Response
 from fastapi.responses import JSONResponse
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Callable
 from datetime import datetime, timedelta
 import asyncio
-from collections import defaultdict
 
 
 class RateLimiter:
@@ -66,7 +65,7 @@ class RateLimiter:
             self.buckets[client_id] = (tokens, now)
             return False
     
-    async def _cleanup_old_entries(self):
+    async def _cleanup_old_entries(self) -> None:
         """Remove entries that haven't been used in over an hour."""
         now = datetime.now()
         cutoff = now - timedelta(hours=1)
@@ -122,11 +121,12 @@ class RateLimitMiddleware:
             "/v1/system/health",    # Health checks should not be rate limited
         }
     
-    async def __call__(self, request: Request, call_next):
+    async def __call__(self, request: Request, call_next: Callable) -> Response:
         """Process request through rate limiter."""
         # Check if path is exempt
         if request.url.path in self.exempt_paths:
-            return await call_next(request)
+            response = await call_next(request)
+            return response
         
         # Extract client identifier (prefer authenticated user, fallback to IP)
         client_id = None
@@ -136,10 +136,12 @@ class RateLimitMiddleware:
         if auth_header.startswith("Bearer ") and ":" not in auth_header:
             # This might be a JWT token, but we'll just use a generic "auth" prefix
             # The actual user extraction would require JWT decoding
-            client_id = f"auth_{request.client.host}"
+            client_host = request.client.host if request.client else "unknown"
+            client_id = f"auth_{client_host}"
         else:
             # Use IP address
-            client_id = f"ip_{request.client.host}"
+            client_host = request.client.host if request.client else "unknown"
+            client_id = f"ip_{client_host}"
         
         # Check rate limit
         allowed = await self.limiter.check_rate_limit(client_id)

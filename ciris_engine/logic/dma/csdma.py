@@ -1,4 +1,4 @@
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, cast
 import logging
 
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
@@ -130,14 +130,16 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
         thought_content_str = str(thought_item.content)
 
         context_summary = "Standard Earth-based physical context, unless otherwise specified in the thought."
-        if hasattr(thought_item, 'initial_context') and thought_item.initial_context and "environment_context" in thought_item.initial_context:
-            env_ctx = thought_item.initial_context["environment_context"]
-            if isinstance(env_ctx, dict) and "description" in env_ctx:
-                context_summary = env_ctx["description"]
-            elif isinstance(env_ctx, dict) and "current_channel" in env_ctx:
-                 context_summary = f"Context: Discord channel '{env_ctx['current_channel']}'"
-            elif isinstance(env_ctx, str):
-                context_summary = env_ctx
+        if hasattr(thought_item, 'initial_context') and thought_item.initial_context:
+            # Type narrow to dict
+            if isinstance(thought_item.initial_context, dict) and "environment_context" in thought_item.initial_context:
+                env_ctx = thought_item.initial_context["environment_context"]
+                if isinstance(env_ctx, dict) and "description" in env_ctx:
+                    context_summary = str(env_ctx["description"])
+                elif isinstance(env_ctx, dict) and "current_channel" in env_ctx:
+                     context_summary = f"Context: Discord channel '{env_ctx['current_channel']}'"
+                elif isinstance(env_ctx, str):
+                    context_summary = env_ctx
 
         system_snapshot_block = ""
         user_profiles_block = ""

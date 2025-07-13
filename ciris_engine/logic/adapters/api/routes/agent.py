@@ -6,7 +6,7 @@ Core endpoints for natural agent interaction.
 import asyncio
 import logging
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Depends, Query
 from pydantic import BaseModel, Field
@@ -122,7 +122,7 @@ async def interact(
     request: Request,
     body: InteractRequest,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[InteractResponse]:
     """
     Send message and get response.
 
@@ -218,7 +218,7 @@ async def get_history(
     limit: int = Query(50, ge=1, le=200, description="Maximum messages to return"),
     before: Optional[datetime] = Query(None, description="Get messages before this time"),
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[ConversationHistory]:
     """
     Conversation history.
 
@@ -298,7 +298,7 @@ async def get_history(
             query = MemoryQuery(
                 node_id=f"conversation_{channel_id}",
                 scope=GraphScope.LOCAL,
-                type=NodeType.CONVERSATION if hasattr(NodeType, 'CONVERSATION') else None,
+                type=NodeType.CONVERSATION_SUMMARY,
                 include_edges=True,
                 depth=1
             )
@@ -330,44 +330,52 @@ async def get_history(
         fetch_limit = limit * 2 if before else limit
         
         # Fetch messages from all relevant channels
-        all_messages = []
+        fetched_messages: List[Dict[str, Any]] = []
         for channel in channels_to_query:
             try:
                 logger.info(f"Fetching messages from channel: {channel}")
+                if comm_service is None:
+                    logger.warning(f"Communication service is not available")
+                    continue
                 channel_messages = await comm_service.fetch_messages(channel, limit=fetch_limit)
                 logger.info(f"Retrieved {len(channel_messages)} messages from {channel}")
-                all_messages.extend(channel_messages)
+                fetched_messages.extend(channel_messages)
             except Exception as e:
                 # If a channel doesn't exist or has no messages, continue
                 logger.warning(f"Failed to fetch from channel {channel}: {e}")
                 continue
         
         # Sort messages by timestamp (newest first)
-        messages = sorted(all_messages, 
-                         key=lambda m: m["timestamp"] if isinstance(m["timestamp"], datetime) else datetime.fromisoformat(m["timestamp"]), 
+        sorted_messages = sorted(fetched_messages, 
+                         key=lambda m: m["timestamp"] if isinstance(m["timestamp"], datetime) else datetime.fromisoformat(str(m["timestamp"])), 
                          reverse=True)
 
         # Filter by time if specified
         if before:
-            messages = [m for m in messages if (m["timestamp"] if isinstance(m["timestamp"], datetime) else datetime.fromisoformat(m["timestamp"])) < before]
+            filtered_messages = [m for m in sorted_messages if (m["timestamp"] if isinstance(m["timestamp"], datetime) else datetime.fromisoformat(str(m["timestamp"]))) < before]
+        else:
+            filtered_messages = sorted_messages
 
         # Convert to conversation messages
         conv_messages = []
-        for msg in messages[:limit]:  # Apply limit after filtering
-            msg_timestamp = msg["timestamp"] if isinstance(msg["timestamp"], datetime) else datetime.fromisoformat(msg["timestamp"])
+        for msg in filtered_messages[:limit]:  # Apply limit after filtering
+            # Safely access dictionary values
+            timestamp_val = msg["timestamp"]
+            msg_timestamp = timestamp_val if isinstance(timestamp_val, datetime) else datetime.fromisoformat(str(timestamp_val))
+            
             conv_messages.append(ConversationMessage(
-                id=msg["message_id"],
-                author=msg["author_name"] or msg["author_id"],
-                content=msg["content"],
+                id=str(msg.get("message_id", "")),
+                author=str(msg.get("author_name") or msg.get("author_id", "")),
+                content=str(msg.get("content", "")),
                 timestamp=msg_timestamp,
-                is_agent=msg.get("is_agent_message", False)
+                is_agent=bool(msg.get("is_agent_message", False))
             ))
 
         # Build response
         history = ConversationHistory(
             messages=conv_messages,
-            total_count=len(messages),  # Total before limiting
-            has_more=len(messages) > limit
+            total_count=len(filtered_messages),  # Total before limiting
+            has_more=len(filtered_messages) > limit
         )
 
         return SuccessResponse(data=history)
@@ -378,7 +386,7 @@ async def get_history(
 async def get_status(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[AgentStatus]:
     """
     Agent status and cognitive state.
 
@@ -505,7 +513,7 @@ async def get_status(
 async def get_identity(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[AgentIdentity]:
     """
     Agent identity and capabilities.
 
@@ -541,15 +549,15 @@ async def get_identity(
                 identity = runtime.agent_identity
                 identity_data = {
                     'agent_id': identity.agent_id,
-                    'name': identity.name,
-                    'purpose': identity.purpose,
-                    'created_at': identity.created_at.isoformat(),
+                    'name': getattr(identity, 'name', identity.core_profile.description.split('.')[0]),
+                    'purpose': getattr(identity, 'purpose', identity.core_profile.description),
+                    'created_at': identity.identity_metadata.created_at.isoformat(),
                     'lineage': {
-                        'model': identity.lineage.get('model', 'unknown'),
-                        'version': identity.lineage.get('version', '1.0'),
-                        'parent_id': identity.lineage.get('parent_id'),
-                        'creation_context': identity.lineage.get('creation_context', 'default'),
-                        'adaptations': identity.lineage.get('adaptations', [])
+                        'model': identity.identity_metadata.model,
+                        'version': identity.identity_metadata.version,
+                        'parent_id': getattr(identity.identity_metadata, 'parent_id', None),
+                        'creation_context': getattr(identity.identity_metadata, 'creation_context', 'default'),
+                        'adaptations': getattr(identity.identity_metadata, 'adaptations', [])
                     },
                     'variance_threshold': 0.2
                 }
@@ -629,7 +637,7 @@ async def get_identity(
 async def get_channels(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-):
+) -> SuccessResponse[ChannelList]:
     """
     List active communication channels.
     
@@ -765,7 +773,7 @@ async def get_channels(
         raise HTTPException(status_code=500, detail=str(e))
 
 # Helper function to notify interact responses
-async def notify_interact_response(message_id: str, content: str):
+async def notify_interact_response(message_id: str, content: str) -> None:
     """Notify waiting interact requests of responses."""
     if message_id in _response_events:
         _message_responses[message_id] = content
@@ -774,12 +782,11 @@ async def notify_interact_response(message_id: str, content: str):
 
 # WebSocket endpoint for streaming
 from fastapi import WebSocket, WebSocketDisconnect
-import json
 
 @router.websocket("/stream")
 async def websocket_stream(
     websocket: WebSocket,
-):
+) -> None:
     """
     WebSocket endpoint for real-time updates.
     

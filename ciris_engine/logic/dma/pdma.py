@@ -10,8 +10,7 @@ from ciris_engine.logic.formatters import format_user_profiles, format_system_sn
 from ciris_engine.logic.utils import COVENANT_TEXT
 from ciris_engine.schemas.runtime.system_context import ThoughtState
 from .prompt_loader import get_prompt_loader
-
-DEFAULT_OPENAI_MODEL_NAME = "gpt-4o"
+from ciris_engine.constants import DEFAULT_OPENAI_MODEL_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -69,11 +68,11 @@ class EthicalPDMAEvaluator(BaseDMA, PDMAProtocol):
 
         system_snapshot_context_str = ""
         user_profile_context_str = ""
-        if context and context.system_snapshot:
+        if context and hasattr(context, 'system_snapshot') and context.system_snapshot:
             system_snapshot_context_str = format_system_snapshot(context.system_snapshot)
-            if context.system_snapshot.user_profiles:
+            if hasattr(context.system_snapshot, 'user_profiles') and context.system_snapshot.user_profiles:
                 user_profile_context_str = format_user_profiles(context.system_snapshot.user_profiles)
-        elif context and context.user_profiles:
+        elif context and hasattr(context, 'user_profiles') and context.user_profiles:
             user_profile_context_str = format_user_profiles(context.user_profiles)
 
         full_context_str = system_snapshot_context_str + user_profile_context_str
@@ -105,7 +104,6 @@ class EthicalPDMAEvaluator(BaseDMA, PDMAProtocol):
                 temperature=0.0
             )
             response_obj: EthicalDMAResult = result_tuple[0]
-            _resource_usage = result_tuple[1]
             logger.info(f"Evaluation successful for thought ID {input_data.thought_id}")
             return response_obj
         except Exception as e:

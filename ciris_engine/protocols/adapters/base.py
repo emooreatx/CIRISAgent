@@ -50,7 +50,7 @@ class CLIAdapterProtocol(BaseAdapterProtocol):
         ...
 
     @abstractmethod
-    async def handle_input(self, input_text: str) -> str:
+    async def handle_input(self, _: str) -> str:
         """Handle CLI input and return response."""
         ...
 
@@ -83,7 +83,7 @@ class DiscordAdapterProtocol(BaseAdapterProtocol):
         ...
 
     @abstractmethod
-    async def handle_reaction(self, reaction: Any, user: Any) -> None:
+    async def handle_reaction(self, _: Any, user: Any) -> None:
         """Handle reaction events."""
         ...
 
@@ -126,11 +126,11 @@ class MatrixAdapterProtocol(BaseAdapterProtocol):
     """Protocol for Matrix protocol adapter (future)."""
 
     @abstractmethod
-    async def handle_room_message(self, room: Any, event: Any) -> None:
+    async def handle_room_message(self, _: Any, event: Any) -> None:
         """Handle Matrix room message."""
         ...
 
     @abstractmethod
-    async def join_room(self, room_id: str) -> None:
+    async def join_room(self, _: str) -> None:
         """Join a Matrix room."""
         ...

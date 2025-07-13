@@ -7,10 +7,11 @@ This implements the patent's requirement for bounded identity evolution.
 
 import logging
 from typing import Any, Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
-from ciris_engine.protocols.services import Service
+from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.infrastructure.identity_variance import (
     VarianceImpact, IdentityDiff, VarianceReport,
     WAReviewRequest, VarianceCheckMetadata
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 # VarianceReport now imported from schemas
 
-class IdentityVarianceMonitor(Service):
+class IdentityVarianceMonitor(BaseScheduledService):
     """
     Monitors identity drift from baseline and enforces the 20% variance threshold.
 
@@ -50,7 +51,11 @@ class IdentityVarianceMonitor(Service):
         variance_threshold: float = 0.20,
         check_interval_hours: int = 24
     ) -> None:
-        super().__init__()
+        # Initialize BaseScheduledService with check interval
+        super().__init__(
+            time_service=time_service,
+            run_interval_seconds=check_interval_hours * 3600
+        )
         self._time_service = time_service
         self._memory_bus = memory_bus
         self._wa_bus = wa_bus
@@ -69,16 +74,45 @@ class IdentityVarianceMonitor(Service):
         if not self._memory_bus and registry:
             try:
                 from ciris_engine.logic.buses import MemoryBus
-                self._memory_bus = MemoryBus(registry, self._time_service)
+                time_service = self._time_service
+                if time_service is not None:
+                    self._memory_bus = MemoryBus(registry, time_service)
+                else:
+                    logger.error("Time service is None when creating MemoryBus")
             except Exception as e:
                 logger.error(f"Failed to initialize memory bus: {e}")
 
         if not self._wa_bus and registry:
             try:
                 from ciris_engine.logic.buses import WiseBus
-                self._wa_bus = WiseBus(registry, self._time_service)
+                time_service = self._time_service
+                if time_service is not None:
+                    self._wa_bus = WiseBus(registry, time_service)
+                else:
+                    logger.error("Time service is None when creating WiseBus")
             except Exception as e:
                 logger.error(f"Failed to initialize WA bus: {e}")
+    
+    def get_service_type(self) -> ServiceType:
+        """Get service type."""
+        return ServiceType.MAINTENANCE  # Identity variance monitor is a maintenance sub-service
+    
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return [
+            "initialize_baseline",
+            "check_variance",
+            "take_snapshot",
+            "calculate_variance",
+            "trigger_wa_review",
+            "generate_recommendations"
+        ]
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all dependencies are available."""
+        # TimeService is required and provided by base class
+        # MemoryBus and WiseBus are optional - we can detect patterns without them
+        return True
 
     async def initialize_baseline(self, identity: AgentIdentityRoot) -> str:
         """
@@ -91,6 +125,8 @@ class IdentityVarianceMonitor(Service):
                 raise RuntimeError("Memory bus not available")
 
             # Create baseline snapshot using IdentitySnapshot type
+            if self._time_service is None:
+                raise RuntimeError("Time service not available")
             baseline_id = f"identity_baseline_{int(self._time_service.now().timestamp())}"
             
             baseline_snapshot = IdentitySnapshot(
@@ -100,7 +136,7 @@ class IdentityVarianceMonitor(Service):
                 expires_at=None,
                 identity_root=identity,
                 snapshot_id=baseline_id,
-                timestamp=self._time_service.now(),
+                timestamp=self._time_service.now() if self._time_service else datetime.now(),
                 agent_id=identity.agent_id,
                 identity_hash=identity.identity_hash,
                 core_purpose=identity.core_profile.description,
@@ -131,7 +167,7 @@ class IdentityVarianceMonitor(Service):
                         check_reason="baseline",
                         previous_check=None,
                         check_type="baseline",
-                        baseline_established=self._time_service.now()
+                        baseline_established=self._time_service.now() if self._time_service else datetime.now()
                     ).model_dump()
                 )
 
@@ -146,10 +182,10 @@ class IdentityVarianceMonitor(Service):
                     scope=GraphScope.IDENTITY,
                     attributes={
                         "baseline_id": baseline_id,
-                        "established_at": self._time_service.now().isoformat()
+                        "established_at": self._time_service.now().isoformat() if self._time_service else datetime.now().isoformat()
                     },
                     updated_by="identity_variance_monitor",
-                    updated_at=self._time_service.now()
+                    updated_at=self._time_service.now() if self._time_service else datetime.now()
                 )
                 if self._memory_bus:
                     await self._memory_bus.memorize(reference_node, handler_name="identity_variance_monitor")
@@ -198,6 +234,8 @@ class IdentityVarianceMonitor(Service):
                 behavioral_patterns_dict[pattern.pattern_type] = pattern.frequency
 
             # Create new baseline snapshot
+            if self._time_service is None:
+                raise RuntimeError("Time service not available")
             baseline_id = f"identity_baseline_{int(self._time_service.now().timestamp())}"
             baseline_snapshot = IdentitySnapshot(
                 id=baseline_id,
@@ -206,7 +244,7 @@ class IdentityVarianceMonitor(Service):
                 expires_at=None,
                 identity_root=None,  # No identity root for re-baseline
                 snapshot_id=baseline_id,
-                timestamp=self._time_service.now(),
+                timestamp=self._time_service.now() if self._time_service else datetime.now(),
                 agent_id=current_identity.get("agent_id", "unknown"),
                 identity_hash=current_identity.get("identity_hash", "unknown"),
                 core_purpose=current_identity.get("core_purpose", "unknown"),
@@ -235,11 +273,9 @@ class IdentityVarianceMonitor(Service):
                 metadata=VarianceCheckMetadata(
                     handler_name="identity_variance_monitor",
                     check_reason="rebaseline",
-                    previous_check=self._baseline_snapshot_id,
+                    previous_check=self._last_check,
                     check_type="rebaseline",
-                    variance_level=0.0,
-                    threshold_exceeded=False,
-                    wa_approval=wa_approval_token
+                    baseline_established=self._time_service.now()
                 ).model_dump()
             )
 
@@ -248,20 +284,21 @@ class IdentityVarianceMonitor(Service):
                 old_baseline = self._baseline_snapshot_id
                 self._baseline_snapshot_id = baseline_id
 
+                # TODO: Implement correlation through appropriate service
                 # Store baseline reference correlation
-                from ciris_engine.schemas.persistence.correlations import CorrelationType
-                if self._memory_bus:
-                    await self._memory_bus.correlate(
-                    source_id="identity_baseline",
-                    target_id=baseline_id,
-                    relationship=CorrelationType.REFERENCES,
-                    handler_name="identity_variance_monitor",
-                    metadata={
-                        "wa_approval": wa_approval_token,
-                        "previous_baseline": old_baseline,
-                        "created_at": self._time_service.now().isoformat()
-                    }
-                )
+                # from ciris_engine.schemas.persistence.correlations import CorrelationType
+                # if self._memory_bus:
+                #     await self._memory_bus.correlate(
+                #     source_id="identity_baseline",
+                #     target_id=baseline_id,
+                #     relationship=CorrelationType.REFERENCES,
+                #     handler_name="identity_variance_monitor",
+                #     metadata={
+                #         "wa_approval": wa_approval_token,
+                #         "previous_baseline": old_baseline,
+                #         "created_at": self._time_service.now().isoformat()
+                #     }
+                # )
 
                 logger.info(f"Successfully re-baselined identity to {baseline_id}")
                 return baseline_id
@@ -284,6 +321,16 @@ class IdentityVarianceMonitor(Service):
         """
         try:
             # Check if due for variance check
+            if self._time_service is None:
+                return VarianceReport(
+                    timestamp=datetime.now(),
+                    baseline_snapshot_id=self._baseline_snapshot_id or "unknown",
+                    current_snapshot_id="unavailable",
+                    total_variance=0.0,
+                    differences=[],
+                    requires_wa_review=False,
+                    recommendations=["Time service unavailable"]
+                )
             time_since_last = self._time_service.now() - self._last_check
             if not force and time_since_last.total_seconds() < self._check_interval_hours * 3600:
                 logger.debug("Variance check not due yet")
@@ -305,7 +352,7 @@ class IdentityVarianceMonitor(Service):
 
             # Create report
             report = VarianceReport(
-                timestamp=self._time_service.now(),
+                timestamp=self._time_service.now() if self._time_service else datetime.now(),
                 baseline_snapshot_id=self._baseline_snapshot_id,
                 current_snapshot_id=current_snapshot.id,
                 total_variance=total_variance,
@@ -321,7 +368,8 @@ class IdentityVarianceMonitor(Service):
             if report.requires_wa_review:
                 await self._trigger_wa_review(report)
 
-            self._last_check = self._time_service.now()
+            if self._time_service:
+                self._last_check = self._time_service.now()
 
             return report
 
@@ -331,6 +379,8 @@ class IdentityVarianceMonitor(Service):
 
     async def _take_identity_snapshot(self) -> GraphNode:
         """Take a snapshot of current identity state."""
+        if self._time_service is None:
+            raise RuntimeError("Time service not available")
         snapshot_id = f"identity_snapshot_{int(self._time_service.now().timestamp())}"
 
         # Gather current identity components
@@ -544,8 +594,8 @@ class IdentityVarianceMonitor(Service):
 
             # Create review request
             review_request = WAReviewRequest(
-                request_id=f"variance_review_{int(self._time_service.now().timestamp())}",
-                timestamp=self._time_service.now(),
+                request_id=f"variance_review_{int(self._time_service.now().timestamp() if self._time_service else datetime.now().timestamp())}",
+                timestamp=self._time_service.now() if self._time_service else datetime.now(),
                 current_variance=report.total_variance,
                 variance_report=report,
                 critical_changes=[
@@ -625,7 +675,7 @@ class IdentityVarianceMonitor(Service):
         """Analyze recent behavioral patterns from audit trail."""
         from ciris_engine.schemas.infrastructure.behavioral_patterns import BehavioralPattern
 
-        patterns = []
+        patterns: List[BehavioralPattern] = []
         try:
             # Query recent actions
             if not self._memory_bus:
@@ -649,7 +699,7 @@ class IdentityVarianceMonitor(Service):
                 action_counts[action_type] = action_counts.get(action_type, 0) + 1
 
                 # Track first/last seen
-                action_time = datetime.fromisoformat(action.timestamp)
+                action_time = action.timestamp
                 if action_type not in first_seen:
                     first_seen[action_type] = action_time
                 last_seen[action_type] = action_time
@@ -668,8 +718,8 @@ class IdentityVarianceMonitor(Service):
                         pattern_type=f"action_frequency_{action_type}",
                         frequency=count / total_actions if total_actions > 0 else 0.0,
                         evidence=evidence.get(action_type, []),
-                        first_seen=first_seen.get(action_type, self._time_service.now()),
-                        last_seen=last_seen.get(action_type, self._time_service.now()),
+                        first_seen=first_seen.get(action_type, self._time_service.now() if self._time_service else datetime.now()),
+                        last_seen=last_seen.get(action_type, self._time_service.now() if self._time_service else datetime.now()),
                     )
                     patterns.append(pattern)
 
@@ -769,7 +819,7 @@ class IdentityVarianceMonitor(Service):
             )
 
             if not self._memory_bus:
-                return None
+                return
 
             nodes = await self._memory_bus.recall(
                 recall_query=query,
@@ -831,7 +881,7 @@ class IdentityVarianceMonitor(Service):
                 "recommendations": report.recommendations
             },
             updated_by="identity_variance_monitor",
-            updated_at=self._time_service.now()
+            updated_at=self._time_service.now() if self._time_service else datetime.now()
         )
 
         if self._memory_bus:
@@ -841,37 +891,40 @@ class IdentityVarianceMonitor(Service):
                 metadata={"variance_report": True}
             )
 
-    async def start(self) -> None:
-        """Start the identity variance monitor."""
-        logger.info("IdentityVarianceMonitor started - protecting identity within 20% variance")
-
-    async def stop(self) -> None:
-        """Stop the monitor."""
-        # Run final variance check
+    async def _run_scheduled_task(self) -> None:
+        """
+        Execute scheduled variance check.
+        
+        This is called periodically by BaseScheduledService.
+        """
         try:
             await self.check_variance(force=True)
         except Exception as e:
-            logger.error(f"Failed final variance check: {e}")
+            logger.error(f"Scheduled variance check failed: {e}")
 
-        logger.info("IdentityVarianceMonitor stopped")
+    async def _on_start(self) -> None:
+        """Start the identity variance monitor."""
+        logger.info("IdentityVarianceMonitor started - protecting identity within 20% variance")
+
+    async def _on_stop(self) -> None:
+        """Stop the monitor."""
+        # Skip final variance check during shutdown to avoid race conditions
+        # The memory service might already be stopped when we reach here
+        self._memory_bus = None  # Clear reference to avoid shutdown issues
+        self._wa_bus = None
+        logger.info("IdentityVarianceMonitor stopped (final check skipped during shutdown)")
 
     async def is_healthy(self) -> bool:
         """Check if the monitor is healthy."""
         return self._memory_bus is not None
 
-    async def get_capabilities(self) -> List[str]:
-        """Return list of capabilities this service supports."""
-        return [
-            "initialize_baseline", "check_variance", "monitor_identity_drift",
-            "trigger_wa_review", "analyze_behavioral_patterns"
-        ]
-    
     async def _extract_current_identity(self, identity_nodes: List[GraphNode]) -> Dict[str, Any]:
         """Extract current identity data from identity nodes."""
         # Look for the main identity node
         for node in identity_nodes:
-            if node.id == "agent/identity" or node.attributes.get("_node_class") == "IdentityNode":
-                attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
+            node_attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump() if hasattr(node.attributes, 'model_dump') else {}
+            if node.id == "agent/identity" or node_attrs.get("_node_class") == "IdentityNode":
+                attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump() if hasattr(node.attributes, 'model_dump') else {}
                 return {
                     "agent_id": attrs.get("agent_id", "unknown"),
                     "identity_hash": attrs.get("identity_hash", "unknown"),
@@ -917,16 +970,30 @@ class IdentityVarianceMonitor(Service):
     
     def get_status(self) -> Any:
         """Get service status for Service base class."""
-        from ciris_engine.schemas.services.core import ServiceStatus
-        return ServiceStatus(
+        # Let BaseScheduledService handle the base status
+        status = super().get_status()
+        
+        # Add our custom metrics
+        custom_metrics: Dict[str, Any] = {
+            "has_baseline": float(self._baseline_snapshot_id is not None),
+            "last_variance_check": self._last_check.isoformat() if self._last_check else None,
+            "variance_threshold": self._variance_threshold
+        }
+        if hasattr(status, 'custom_metrics') and isinstance(status.custom_metrics, dict):
+            status.custom_metrics.update(custom_metrics)
+        
+        return status
+    
+    def get_capabilities(self) -> Any:
+        """Get service capabilities."""
+        from ciris_engine.schemas.services.core import ServiceCapabilities
+        return ServiceCapabilities(
             service_name="IdentityVarianceMonitor",
-            service_type="INFRASTRUCTURE",
-            is_healthy=self._memory_bus is not None,
-            uptime_seconds=0.0,  # Would need to track start time
-            last_error=None,
-            metrics={
-                "has_baseline": float(self._baseline_snapshot_id is not None),
-                "last_check": self._last_check.isoformat() if self._last_check else None
-            },
-            last_health_check=self._time_service.now()
+            actions=["initialize_baseline", "check_variance", "monitor_identity_drift", "trigger_wa_review"],
+            version="1.0.0",
+            dependencies=["TimeService", "MemoryBus", "WiseBus"],
+            metadata={
+                "variance_threshold": self._variance_threshold,
+                "check_interval_hours": self._check_interval_hours
+            }
         )

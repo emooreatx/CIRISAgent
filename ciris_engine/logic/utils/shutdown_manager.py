@@ -6,7 +6,7 @@ the old shutdown_manager location. The functionality is now provided by
 the ShutdownService.
 """
 import logging
-from typing import Optional, Callable
+from typing import Optional, Callable, Any
 from ciris_engine.logic.services.lifecycle.shutdown import ShutdownService
 
 logger = logging.getLogger(__name__)
@@ -62,10 +62,10 @@ async def execute_async_handlers() -> None:
 # Add attribute to shutdown service instance for compatibility
 class ShutdownManagerWrapper:
     """Wrapper to provide compatibility methods."""
-    def __init__(self, service: ShutdownService):
+    def __init__(self, service: ShutdownService) -> None:
         self._service = service
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> Any:
         return getattr(self._service, name)
 
     async def execute_async_handlers(self) -> None:

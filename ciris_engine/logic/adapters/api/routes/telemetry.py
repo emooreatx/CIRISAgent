@@ -4,13 +4,14 @@ Telemetry & Observability endpoints for CIRIS API v1.
 Consolidated metrics, traces, logs, and insights from all system components.
 """
 import logging
+import uuid
 from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Query, Path
 from pydantic import BaseModel, Field, field_serializer
 from collections import defaultdict
 
-from ciris_engine.schemas.api.responses import SuccessResponse
+from ciris_engine.schemas.api.responses import SuccessResponse, ResponseMetadata
 from ..dependencies.auth import require_observer, require_admin, AuthContext
 from ciris_engine.schemas.api.telemetry import (
     MetricTags, ServiceMetricValue, ThoughtStep, LogContext,
@@ -181,9 +182,14 @@ async def _get_system_overview(request: Request) -> SystemOverview:
         thoughts_processed_24h=0,
         tasks_completed_24h=0,
         errors_24h=0,
-        tokens_per_hour=0.0,
-        cost_per_hour_cents=0.0,
-        carbon_per_hour_grams=0.0,
+        tokens_last_hour=0.0,
+        cost_last_hour_cents=0.0,
+        carbon_last_hour_grams=0.0,
+        energy_last_hour_kwh=0.0,
+        tokens_24h=0.0,
+        cost_24h_cents=0.0,
+        carbon_24h_grams=0.0,
+        energy_24h_kwh=0.0,
         memory_mb=0.0,
         cpu_percent=0.0,
         healthy_services=0,
@@ -200,7 +206,7 @@ async def _get_system_overview(request: Request) -> SystemOverview:
     # Get uptime from time service
     if time_service:
         try:
-            uptime = await time_service.get_uptime()
+            uptime = time_service.get_uptime()
             overview.uptime_seconds = uptime
         except Exception as e:
             logger.warning(f"Telemetry metric retrieval failed for uptime: {type(e).__name__}: {str(e)} - Returning default/empty value")
@@ -335,7 +341,14 @@ async def get_telemetry_overview(
     """
     try:
         overview = await _get_system_overview(request)
-        return SuccessResponse(data=overview)
+        return SuccessResponse(
+            data=overview,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -415,7 +428,14 @@ async def get_resource_telemetry(
             }
         }
         
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -524,7 +544,14 @@ async def get_detailed_metrics(
             timestamp=now
         )
 
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -668,7 +695,14 @@ async def get_reasoning_traces(
         has_more=len(traces) == limit
     )
 
-    return SuccessResponse(data=response)
+    return SuccessResponse(
+        data=response,
+        metadata=ResponseMetadata(
+            timestamp=datetime.now(timezone.utc),
+            request_id=str(uuid.uuid4()),
+            duration_ms=0
+        )
+    )
 
 @router.get("/logs", response_model=SuccessResponse[LogsResponse])
 async def get_system_logs(
@@ -766,7 +800,14 @@ async def get_system_logs(
         has_more=len(logs) > limit
     )
 
-    return SuccessResponse(data=response)
+    return SuccessResponse(
+        data=response,
+        metadata=ResponseMetadata(
+            timestamp=datetime.now(timezone.utc),
+            request_id=str(uuid.uuid4()),
+            duration_ms=0
+        )
+    )
 
 @router.post("/query", response_model=SuccessResponse[QueryResponse])
 async def query_telemetry(
@@ -956,7 +997,14 @@ async def query_telemetry(
             execution_time_ms=execution_time
         )
 
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1042,7 +1090,14 @@ async def get_detailed_metric(
             ]
         )
         
-        return SuccessResponse(data=metric)
+        return SuccessResponse(
+            data=metric,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
         
     except HTTPException:
         raise
@@ -1131,7 +1186,14 @@ async def get_resource_history(
             }
         }
         
-        return SuccessResponse(data=response)
+        return SuccessResponse(
+            data=response,
+            metadata=ResponseMetadata(
+                timestamp=datetime.now(timezone.utc),
+                request_id=str(uuid.uuid4()),
+                duration_ms=0
+            )
+        )
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

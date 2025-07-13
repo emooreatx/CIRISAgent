@@ -207,7 +207,8 @@ class MockLLMService(Service, MockLLMServiceProtocol):
             tokens_input=input_tokens,
             tokens_output=output_tokens,
             # Together.ai pricing for Llama models: ~$0.0002/1K input, $0.0003/1K output tokens
-            cost_cents=(input_tokens * 0.0002 + output_tokens * 0.0003) * 100,  # Convert to cents (multiply by 100, not divide by 10)
+            # $0.0002 per 1K tokens = $0.0002/1000 per token
+            cost_cents=(input_tokens * 0.0002/1000 + output_tokens * 0.0003/1000) * 100,  # Convert to cents
             # Energy estimates: ~0.0001 kWh per 1K tokens (efficient model)
             energy_kwh=(input_tokens + output_tokens) * 0.0001 / 1000,
             # Carbon: ~0.5g CO2 per kWh (US grid average)

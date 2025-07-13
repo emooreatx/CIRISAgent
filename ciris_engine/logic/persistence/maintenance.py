@@ -2,8 +2,12 @@ import logging
 from datetime import timedelta
 from pathlib import Path
 import asyncio
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict, TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from ciris_engine.schemas.services.core import ServiceCapabilities
+
+from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
 from ciris_engine.logic.persistence import (
     get_all_tasks,
     update_task_status,
@@ -17,66 +21,43 @@ from ciris_engine.logic.persistence import (
     update_thought_status,
     get_thoughts_older_than,
 )
-from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
+from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus, ServiceType
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
 
-class DatabaseMaintenanceService:
+class DatabaseMaintenanceService(BaseScheduledService):
     """
     Service for performing database maintenance tasks like cleanup and archiving.
     """
     def __init__(self, time_service: TimeServiceProtocol, archive_dir_path: str = "data_archive", archive_older_than_hours: int = 24, config_service: Optional[Any] = None) -> None:
+        # Initialize BaseScheduledService with hourly maintenance interval
+        super().__init__(
+            time_service=time_service,
+            run_interval_seconds=3600  # Run every hour
+        )
         self.time_service = time_service
         self.archive_dir = Path(archive_dir_path)
         self.archive_older_than_hours = archive_older_than_hours
-        # No special treatment - "no kings"
-        self._maintenance_task: Optional[asyncio.Task] = None
-        self._shutdown_event: Optional[asyncio.Event] = None
         self.config_service = config_service
 
-    def _ensure_shutdown_event(self) -> None:
-        """Ensure shutdown event is created when needed in async context."""
-        if self._shutdown_event is None:
-            try:
-                self._shutdown_event = asyncio.Event()
-            except RuntimeError:
-                logger.warning("Cannot create shutdown event outside of async context")
-
-    async def start(self) -> None:
-        """Start the maintenance service with periodic tasks."""
-        self._ensure_shutdown_event()
-        self._maintenance_task = asyncio.create_task(self._maintenance_loop())
-
-    async def stop(self) -> None:
-        """Properly stop the maintenance service."""
-        if self._shutdown_event:
-            self._shutdown_event.set()
-        if self._maintenance_task:
-            try:
-                await asyncio.wait_for(self._maintenance_task, timeout=5.0)
-            except asyncio.TimeoutError:
-                logger.warning("Maintenance task did not finish in time")
-                self._maintenance_task.cancel()
-        await self._final_cleanup()
-
-    async def _maintenance_loop(self) -> None:
-        """Periodic maintenance loop."""
-        while not (self._shutdown_event and self._shutdown_event.is_set()):
-            try:
-                if self._shutdown_event:
-                    await asyncio.wait_for(
-                        self._shutdown_event.wait(),
-                        timeout=3600  # Run every hour
-                    )
-                else:
-                    await asyncio.sleep(3600)  # Run every hour
-            except asyncio.TimeoutError:
-                await self._perform_periodic_maintenance()
+    async def _run_scheduled_task(self) -> None:
+        """
+        Execute scheduled maintenance tasks.
+        
+        This is called periodically by BaseScheduledService.
+        """
+        await self._perform_periodic_maintenance()
 
     async def _perform_periodic_maintenance(self) -> None:
         """Run periodic maintenance tasks."""
         logger.info("Periodic maintenance tasks executed.")
+        # The actual maintenance logic would go here
+        # For now, this is a placeholder
+
+    async def _on_stop(self) -> None:
+        """Stop hook for cleanup."""
+        await self._final_cleanup()
 
     async def _final_cleanup(self) -> None:
         """Final cleanup before shutdown."""
@@ -101,7 +82,8 @@ class DatabaseMaintenanceService:
         # --- Clean up runtime-specific configuration from previous runs ---
         await self._cleanup_runtime_config()
 
-        # Skip WAKEUP cleanup - "no kings" principle
+        # --- Clean up stale wakeup tasks from interrupted startups ---
+        await self._cleanup_stale_wakeup_tasks()
 
         # --- 1. Remove orphaned active tasks and thoughts ---
         orphaned_tasks_deleted_count = 0
@@ -164,7 +146,7 @@ class DatabaseMaintenanceService:
 
         # Skip task archival - handled by TSDB consolidator
         logger.info("Task archival skipped - tasks are now managed by TSDB consolidator")
-        task_ids_actually_archived_and_deleted = set()
+        task_ids_actually_archived_and_deleted: set[str] = set()
 
         thoughts_to_archive = get_thoughts_older_than(older_than_timestamp)
         if thoughts_to_archive:
@@ -275,3 +257,81 @@ class DatabaseMaintenanceService:
                 
         except Exception as e:
             logger.error(f"Failed to clean up runtime config: {e}", exc_info=True)
+    
+    async def _cleanup_stale_wakeup_tasks(self) -> None:
+        """Clean up stale wakeup tasks and thoughts from interrupted startups."""
+        try:
+            logger.info("Checking for stale wakeup tasks from interrupted startups")
+            
+            # Get all wakeup-related tasks
+            all_tasks = get_all_tasks()
+            wakeup_tasks = []
+            for task in all_tasks:
+                if not hasattr(task, 'task_id'):
+                    continue
+                # Check for wakeup tasks by ID pattern
+                if (task.task_id.startswith("WAKEUP_") or 
+                    task.task_id.startswith("VERIFY_IDENTITY_") or
+                    task.task_id.startswith("VALIDATE_INTEGRITY_") or
+                    task.task_id.startswith("EVALUATE_RESILIENCE_") or
+                    task.task_id.startswith("ACCEPT_INCOMPLETENESS_") or
+                    task.task_id.startswith("EXPRESS_GRATITUDE_")):
+                    wakeup_tasks.append(task)
+            
+            # Clean up any active wakeup tasks (these indicate interrupted startup)
+            stale_task_ids = []
+            stale_thought_ids = []
+            
+            for task in wakeup_tasks:
+                if task.status == TaskStatus.ACTIVE:
+                    logger.info(f"Found stale active wakeup task from interrupted startup: {task.task_id}")
+                    stale_task_ids.append(task.task_id)
+                    
+                    # Also get all thoughts for this task
+                    thoughts = get_thoughts_by_task_id(task.task_id)
+                    for thought in thoughts:
+                        if thought.status in [ThoughtStatus.PENDING, ThoughtStatus.PROCESSING]:
+                            logger.info(f"Found stale wakeup thought: {thought.thought_id} (status: {thought.status})")
+                            stale_thought_ids.append(thought.thought_id)
+            
+            # Delete stale thoughts first
+            if stale_thought_ids:
+                deleted_thoughts = delete_thoughts_by_ids(stale_thought_ids)
+                logger.info(f"Deleted {deleted_thoughts} stale wakeup thoughts from interrupted startups")
+            
+            # Then delete stale tasks
+            if stale_task_ids:
+                deleted_tasks = delete_tasks_by_ids(stale_task_ids)
+                logger.info(f"Deleted {deleted_tasks} stale wakeup tasks from interrupted startups")
+            
+            if not stale_task_ids and not stale_thought_ids:
+                logger.info("No stale wakeup tasks or thoughts found")
+                
+        except Exception as e:
+            logger.error(f"Failed to clean up stale wakeup tasks: {e}", exc_info=True)
+    
+    def get_capabilities(self) -> "ServiceCapabilities":
+        """Get service capabilities."""
+        from ciris_engine.schemas.services.core import ServiceCapabilities
+        return ServiceCapabilities(
+            service_name="DatabaseMaintenanceService",
+            actions=["cleanup", "archive", "maintenance"],
+            version="1.0.0",
+            dependencies=["TimeService"],
+            metadata={
+                "archive_older_than_hours": self.archive_older_than_hours,
+                "maintenance_interval": "hourly"
+            }
+        )
+    
+    def get_service_type(self) -> ServiceType:
+        """Get the service type enum value."""
+        return ServiceType.INFRASTRUCTURE_SERVICE
+    
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return ["cleanup", "archive", "maintenance"]
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all required dependencies are available."""
+        return self.time_service is not None

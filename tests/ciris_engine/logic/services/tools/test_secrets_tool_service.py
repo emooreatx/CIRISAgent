@@ -21,8 +21,8 @@ class TestSecretsToolService:
         mock.filter = Mock()
         mock.filter.detection_config = Mock()
         mock.store = Mock()
-        # Add retrieve method that SecretsToolService expects
-        mock.retrieve = Mock()
+        # Add retrieve_secret method that SecretsToolService expects
+        mock.retrieve_secret = AsyncMock()
         return mock
 
     @pytest.fixture
@@ -72,8 +72,8 @@ class TestSecretsToolService:
     @pytest.mark.asyncio
     async def test_recall_secret_success(self, tool_service, mock_secrets_service):
         """Test successful secret recall."""
-        # Setup mock
-        mock_secrets_service.retrieve.return_value = "my-secret-value"
+        # Setup mock - use retrieve_secret (async method)
+        mock_secrets_service.retrieve_secret.return_value = "my-secret-value"
 
         result = await tool_service.execute_tool("recall_secret", {
             "secret_uuid": "test-uuid",
@@ -89,20 +89,88 @@ class TestSecretsToolService:
 
     @pytest.mark.asyncio
     async def test_update_secrets_filter_add_pattern(self, tool_service, mock_secrets_service):
-        """Test adding a pattern to secrets filter."""
-        # Setup mock
-        mock_secrets_service.filter.add_pattern.return_value = True
-
+        """Test adding a pattern to secrets filter - currently disabled."""
+        # Filter operations are intentionally disabled in the implementation
         result = await tool_service.execute_tool("update_secrets_filter", {
             "operation": "add_pattern",
             "pattern": "API_KEY=.*",
             "pattern_type": "regex"
         })
 
+        # The implementation returns FAILED status for filter operations
+        assert result.status == ToolExecutionStatus.FAILED
+        assert result.success is False
+        assert result.error == "Filter operations not currently exposed"
+
+    @pytest.mark.asyncio
+    async def test_update_secrets_filter_remove_pattern(self, tool_service, mock_secrets_service):
+        """Test removing a pattern from secrets filter - currently disabled."""
+        result = await tool_service.execute_tool("update_secrets_filter", {
+            "operation": "remove_pattern",
+            "pattern": "API_KEY=.*"
+        })
+
+        assert result.status == ToolExecutionStatus.FAILED
+        assert result.success is False
+        assert result.error == "Filter operations not currently exposed"
+
+    @pytest.mark.asyncio
+    async def test_update_secrets_filter_enable(self, tool_service, mock_secrets_service):
+        """Test enabling/disabling secrets filter - currently disabled."""
+        result = await tool_service.execute_tool("update_secrets_filter", {
+            "operation": "enable",
+            "enabled": True
+        })
+
+        assert result.status == ToolExecutionStatus.FAILED
+        assert result.success is False
+        assert result.error == "Filter operations not currently exposed"
+
+    @pytest.mark.asyncio
+    async def test_update_secrets_filter_list_patterns(self, tool_service, mock_secrets_service):
+        """Test listing patterns - returns empty list but succeeds."""
+        result = await tool_service.execute_tool("update_secrets_filter", {
+            "operation": "list_patterns"
+        })
+
+        # list_patterns succeeds but returns empty list
         assert result.status == ToolExecutionStatus.COMPLETED
         assert result.success is True
-        assert result.data["operation"] == "add_pattern"
-        assert result.data["pattern"] == "API_KEY=.*"
+        assert result.data["operation"] == "list_patterns"
+        assert result.data["patterns"] == []
+
+    @pytest.mark.asyncio
+    async def test_recall_secret_not_found(self, tool_service, mock_secrets_service):
+        """Test recalling a non-existent secret."""
+        # Setup mock to return None (not found)
+        mock_secrets_service.retrieve_secret.return_value = None
+
+        result = await tool_service.execute_tool("recall_secret", {
+            "secret_uuid": "non-existent-uuid",
+            "purpose": "testing"
+        })
+
+        assert result.status == ToolExecutionStatus.FAILED
+        assert result.success is False
+        assert "not found" in result.error
+
+    @pytest.mark.asyncio
+    async def test_recall_secret_without_decrypt(self, tool_service, mock_secrets_service):
+        """Test recalling a secret without decryption (just verify existence)."""
+        # Setup mock
+        mock_secrets_service.retrieve_secret.return_value = "my-secret-value"
+
+        result = await tool_service.execute_tool("recall_secret", {
+            "secret_uuid": "test-uuid",
+            "purpose": "verification",
+            "decrypt": False
+        })
+
+        assert result.status == ToolExecutionStatus.COMPLETED
+        assert result.success is True
+        assert result.data["exists"] is True
+        assert result.data["decrypted"] is False
+        assert "value" not in result.data
 
     @pytest.mark.asyncio
     async def test_self_help_success(self, tool_service):

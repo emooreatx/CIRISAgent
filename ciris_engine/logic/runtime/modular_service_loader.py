@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Type
 
 from ciris_engine.protocols.services import ServiceProtocol
-from ciris_engine.schemas.runtime.enums import ServiceType, Priority
+from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.runtime.manifest import ServiceManifest, ModuleLoadResult, ServiceMetadata, ServicePriority
 
 logger = logging.getLogger(__name__)
@@ -20,13 +20,13 @@ logger = logging.getLogger(__name__)
 class ModularServiceLoader:
     """Loads modular services from external packages."""
 
-    def __init__(self, services_dir: Path = None):
+    def __init__(self, services_dir: Path | None = None) -> None:
         self.services_dir = services_dir or Path("ciris_modular_services")
         self.loaded_services: Dict[str, ServiceMetadata] = {}
 
     def discover_services(self) -> List[ServiceManifest]:
         """Discover all modular services with valid manifests."""
-        services = []
+        services: List[ServiceManifest] = []
 
         if not self.services_dir.exists():
             logger.info(f"Modular services directory not found: {self.services_dir}")
@@ -197,7 +197,7 @@ class ModularServiceLoader:
                     service_registry.register_global(
                         service_type=service_decl.type,
                         provider=service_instance,
-                        priority=Priority[service_decl.priority.value],
+                        priority=ServicePriority[service_decl.priority.value],
                         capabilities=service_decl.capabilities or manifest.capabilities or [],
                         metadata=self.loaded_services[manifest.module.name].model_dump()
                     )

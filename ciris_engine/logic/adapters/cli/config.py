@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel, Field
 from typing import Optional
+import os
+import uuid
 
 class CLIAdapterConfig(BaseModel):
     """Configuration for the CLI adapter."""
@@ -18,7 +20,10 @@ class CLIAdapterConfig(BaseModel):
     max_output_lines: int = Field(default=100, description="Maximum lines to display per response")
     word_wrap: bool = Field(default=True, description="Enable word wrapping for long lines")
 
-    default_channel_id: Optional[str] = Field(default=None, description="Default channel ID for CLI messages")
+    default_channel_id: Optional[str] = Field(
+        default_factory=lambda: f"cli_{os.getpid()}_{uuid.uuid4().hex[:8]}", 
+        description="Default channel ID for CLI messages"
+    )
 
     enable_cli_tools: bool = Field(default=True, description="Enable CLI-specific tools")
 
@@ -55,32 +60,3 @@ class CLIAdapterConfig(BaseModel):
         if env_prompt:
             self.prompt_prefix = env_prompt
 
-    def load_env_vars_with_instance(self, instance_id: str) -> None:
-        """Load configuration from environment variables with instance-specific prefix."""
-        from ciris_engine.logic.config.env_utils import get_env_var
-
-        # First load general env vars as defaults
-        self.load_env_vars()
-
-        # Then override with instance-specific vars
-        instance_upper = instance_id.upper()
-
-        # Interactive mode
-        env_interactive = get_env_var(f"CIRIS_CLI_{instance_upper}_INTERACTIVE") or get_env_var(f"CIRIS_CLI_INTERACTIVE_{instance_upper}")
-        if env_interactive is not None:
-            self.interactive = env_interactive.lower() in ("true", "1", "yes", "on")
-
-        # Colors
-        env_colors = get_env_var(f"CIRIS_CLI_{instance_upper}_COLORS") or get_env_var(f"CIRIS_CLI_COLORS_{instance_upper}")
-        if env_colors is not None:
-            self.enable_colors = env_colors.lower() in ("true", "1", "yes", "on")
-
-        # Channel ID
-        env_channel = get_env_var(f"CIRIS_CLI_{instance_upper}_CHANNEL_ID") or get_env_var(f"CIRIS_CLI_CHANNEL_ID_{instance_upper}")
-        if env_channel:
-            self.default_channel_id = env_channel
-
-        # Prompt prefix
-        env_prompt = get_env_var(f"CIRIS_CLI_{instance_upper}_PROMPT") or get_env_var(f"CIRIS_CLI_PROMPT_{instance_upper}")
-        if env_prompt:
-            self.prompt_prefix = env_prompt

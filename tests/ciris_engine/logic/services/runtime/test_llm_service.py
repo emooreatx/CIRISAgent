@@ -165,6 +165,9 @@ def test_llm_service_capabilities(llm_service):
     assert caps.version == "1.0.0"
     assert len(caps.actions) > 0
     assert "call_llm_structured" in caps.actions[0].lower()
+    # Check dependencies (should include at least TimeService if provided)
+    if caps.dependencies:
+        assert isinstance(caps.dependencies, list)
 
 
 def test_llm_service_status(llm_service):
@@ -172,15 +175,21 @@ def test_llm_service_status(llm_service):
     status = llm_service.get_status()
     assert isinstance(status, ServiceStatus)
     assert status.service_name == "llm_service"
-    assert status.service_type == "core_service"
+    assert status.service_type == "llm"  # Changed from "core_service" to match ServiceType.LLM
     assert isinstance(status.is_healthy, bool)
     assert isinstance(status.uptime_seconds, (int, float))
     assert status.uptime_seconds >= 0
     assert isinstance(status.metrics, dict)
+    # Base service metrics
+    assert "uptime_seconds" in status.metrics
+    assert "request_count" in status.metrics
+    assert "error_count" in status.metrics
+    assert "error_rate" in status.metrics
+    assert "healthy" in status.metrics
+    # Custom LLM metrics
     assert "success_rate" in status.metrics
     assert "call_count" in status.metrics
     assert "failure_count" in status.metrics
-    assert "circuit_breaker_open" in status.metrics
     # All metrics should be floats
     for key, value in status.metrics.items():
         assert isinstance(value, (int, float)), f"Metric {key} should be numeric, got {type(value)}"

@@ -221,15 +221,20 @@ def test_memory_service_capabilities(memory_service):
     """Test MemoryService.get_capabilities() returns correct info."""
     caps = memory_service.get_capabilities()
     assert isinstance(caps, ServiceCapabilities)
-    assert caps.service_name == "MemoryService"
+    assert caps.service_name == "LocalGraphMemoryService"  # Uses class name by default
     assert caps.version == "1.0.0"
     assert "memorize" in caps.actions
     assert "recall" in caps.actions
     assert "forget" in caps.actions
     assert "search" in caps.actions
-    # Note: update_identity is not in the capabilities
-    assert "TimeService" in caps.dependencies
-    assert "SecretsService" in caps.dependencies
+    assert "memorize_metric" in caps.actions
+    assert "memorize_log" in caps.actions
+    assert "recall_timeseries" in caps.actions
+    assert "export_identity_context" in caps.actions
+    # BaseGraphService adds MemoryBus dependency, LocalGraphMemoryService also uses TimeService
+    assert "MemoryBus" in caps.dependencies  # From BaseGraphService
+    assert "TimeService" in caps.dependencies  # From _register_dependencies
+    # SecretsService is not listed as a dependency in _register_dependencies
 
 
 @pytest.mark.asyncio
@@ -237,8 +242,8 @@ async def test_memory_service_status(memory_service):
     """Test MemoryService.get_status() returns correct status."""
     status = memory_service.get_status()
     assert isinstance(status, ServiceStatus)
-    assert status.service_name == "MemoryService"
-    assert status.service_type == "graph_service"
+    assert status.service_name == "LocalGraphMemoryService"  # Uses class name by default
+    assert status.service_type == "memory"  # ServiceType.MEMORY from get_service_type()
     assert status.is_healthy is True
     assert status.metrics["secrets_enabled"] == 1.0  # Should have secrets service from fixture
 

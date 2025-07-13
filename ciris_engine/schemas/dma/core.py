@@ -87,9 +87,9 @@ class DMAInputData(BaseModel):
         # Use telemetry_summary for resource data
         if self.system_snapshot.telemetry_summary:
             return {
-                "tokens": self.system_snapshot.telemetry_summary.tokens_per_hour,
-                "cost_cents": self.system_snapshot.telemetry_summary.cost_per_hour_cents,
-                "carbon_grams": self.system_snapshot.telemetry_summary.carbon_per_hour_grams
+                "tokens": self.system_snapshot.telemetry_summary.tokens_last_hour,
+                "cost_cents": self.system_snapshot.telemetry_summary.cost_last_hour_cents,
+                "carbon_grams": self.system_snapshot.telemetry_summary.carbon_last_hour_grams
             }
         return {"tokens": 0, "cost_cents": 0.0, "carbon_grams": 0.0}
 

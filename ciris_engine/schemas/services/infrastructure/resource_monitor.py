@@ -11,8 +11,10 @@ from ciris_engine.schemas.services.resources_core import (
     ResourceBudget,
     ResourceLimit,
     ResourceSnapshot,
-    ResourceUsage,
 )
+
+# ResourceUsage is in runtime.resources, not resources_core
+from ciris_engine.schemas.runtime.resources import ResourceUsage
 
 __all__ = [
     "ResourceAction",

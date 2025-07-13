@@ -79,7 +79,8 @@ class StateManager:
         record = StateTransitionRecord(
             timestamp=self.time_service.now_iso(),
             from_state=old_state.value if old_state else None,
-            to_state=new_state.value
+            to_state=new_state.value,
+            metadata=None  # Optional field, explicitly set to None
         )
         self.state_history.append(record)
 

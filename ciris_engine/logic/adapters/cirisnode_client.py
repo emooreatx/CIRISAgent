@@ -54,7 +54,7 @@ class CIRISNodeClient(Service):
             # Default to localhost for testing/development
             node_cfg = CIRISNodeConfig()
             node_cfg.load_env_vars()
-            self.base_url = node_cfg.base_url
+            self.base_url = node_cfg.base_url or "http://localhost:8080"
 
         self._client = httpx.AsyncClient(base_url=self.base_url)
         self._closed = False
@@ -71,8 +71,7 @@ class CIRISNodeClient(Service):
         self._audit_service = await self.service_registry.get_service(
             self.__class__.__name__,
             ServiceType.AUDIT,
-            required_capabilities=["log_action"],
-            fallback_to_global=True,
+            required_capabilities=["log_action"]
         )
 
         if not self._audit_service:

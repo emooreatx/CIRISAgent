@@ -4,7 +4,7 @@ Base protocols that all CIRIS components inherit from.
 These form the foundation of the Protocol-Module-Schema architecture.
 Every component in CIRIS must implement one of these base protocols.
 """
-from typing import Dict, List, Protocol, TYPE_CHECKING
+from typing import Dict, List, Protocol, TYPE_CHECKING, Any
 from abc import abstractmethod
 
 if TYPE_CHECKING:
@@ -118,6 +118,16 @@ class BaseAdapterProtocol(Protocol):
     @abstractmethod
     def get_status(self) -> "AdapterStatus":
         """Get adapter status."""
+        ...
+
+    @abstractmethod
+    def get_services_to_register(self) -> list:
+        """Get list of services this adapter provides."""
+        ...
+
+    @abstractmethod
+    async def run_lifecycle(self, agent_task: Any) -> None:
+        """Run the adapter lifecycle."""
         ...
 
 class BaseDMAProtocol(Protocol):

@@ -2,7 +2,6 @@
 API observer for handling incoming API messages.
 """
 import logging
-from typing import Optional, Any
 
 from ciris_engine.logic.adapters.base_observer import BaseObserver
 from ciris_engine.schemas.runtime.messages import IncomingMessage

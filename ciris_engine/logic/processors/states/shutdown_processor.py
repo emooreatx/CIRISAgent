@@ -158,7 +158,7 @@ class ShutdownProcessor(BaseProcessor):
                     logger.debug(f"Shutdown already complete, self.shutdown_complete = {self.shutdown_complete}")
                     import asyncio
                     await asyncio.sleep(1.0)
-                return self.shutdown_result
+                return self.shutdown_result or {"status": "shutdown_complete", "reason": "system shutdown"}
             elif current_task.status == TaskStatus.FAILED:
                 # Task failed - could be REJECT or error
                 self.shutdown_complete = True
@@ -269,8 +269,8 @@ class ShutdownProcessor(BaseProcessor):
             for thought in reversed(thoughts):
                 if hasattr(thought, 'final_action') and thought.final_action:
                     action = thought.final_action
-                    if isinstance(action, dict) and action.get('selected_action') == 'REJECT':
-                        reason = action.get('action_parameters', {}).get('reason', 'No reason provided')
+                    if action.action_type == 'REJECT':
+                        reason = action.action_params.get('reason', 'No reason provided') if isinstance(action.action_params, dict) else 'No reason provided'
                         logger.warning(f"Agent REJECTED shutdown: {reason}")
                         # Human override available via emergency shutdown API with Ed25519 signature
                         return {

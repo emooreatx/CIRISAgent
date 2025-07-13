@@ -36,7 +36,7 @@ class DiscordDeferralNode(TypedGraphNode):
         """Convert to generic GraphNode for storage."""
         return GraphNode(
             id=self.id,
-            type=self.type,  # type: ignore[arg-type]
+            type=self.type,
             scope=self.scope,
             attributes=self._serialize_extra_fields(),
             version=self.version,
@@ -135,7 +135,7 @@ class DiscordApprovalNode(TypedGraphNode):
         """Convert to generic GraphNode for storage."""
         return GraphNode(
             id=self.id,
-            type=self.type,  # type: ignore[arg-type]
+            type=self.type,
             scope=self.scope,
             attributes=self._serialize_extra_fields(),
             version=self.version,
@@ -233,7 +233,7 @@ class DiscordWANode(TypedGraphNode):
         """Convert to generic GraphNode for storage."""
         return GraphNode(
             id=self.id,
-            type=self.type,  # type: ignore[arg-type]
+            type=self.type,
             scope=self.scope,
             attributes=self._serialize_extra_fields(),
             version=self.version,

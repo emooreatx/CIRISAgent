@@ -176,7 +176,7 @@ class TaskCompleteHandler(BaseActionHandler):
                     "vibe_type": "task_completion_joy",
                     "description": positive_moment[:500],  # Keep it brief
                     "task_id": task_id or "unknown",
-                    "channel_id": dispatch_context.channel_id or "somewhere",
+                    "channel_id": dispatch_context.channel_context.channel_id or "somewhere",
                     "timestamp": self.time_service.now_iso()
                 }
             )

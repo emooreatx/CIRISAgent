@@ -102,7 +102,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
     async def _should_process_message(self, msg: DiscordMessage) -> bool:
         """Check if Discord observer should process this message."""
         # Extract the raw channel ID from the formatted channel_id
-        raw_channel_id = self._extract_channel_id(msg.channel_id)
+        raw_channel_id = self._extract_channel_id(msg.channel_id) if msg.channel_id else ""
         
         # Check if message is from a monitored channel or deferral channel
         is_from_monitored = False
@@ -173,7 +173,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         monitored_channel_ids = self.monitored_channel_ids or []
         wa_discord_user = DEFAULT_WA
 
-        raw_channel_id = self._extract_channel_id(msg.channel_id)
+        raw_channel_id = self._extract_channel_id(msg.channel_id) if msg.channel_id else ""
         
         if raw_channel_id in monitored_channel_ids or msg.channel_id in monitored_channel_ids:
             await self._create_priority_observation_result(msg, filter_result)
@@ -203,7 +203,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         monitored_channel_ids = self.monitored_channel_ids or []
         wa_discord_user = DEFAULT_WA
 
-        raw_channel_id = self._extract_channel_id(msg.channel_id)
+        raw_channel_id = self._extract_channel_id(msg.channel_id) if msg.channel_id else ""
         
         if raw_channel_id in monitored_channel_ids or msg.channel_id in monitored_channel_ids:
             await self._create_passive_observation_result(msg)
@@ -239,7 +239,6 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
             from ciris_engine.logic import persistence
 
             # Check if this is a reply to a deferral report
-            _thought_id_match = None
             referenced_thought_id = None
 
             # First check if this message is replying to another message
@@ -296,8 +295,8 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
 
                         # Extract deferral reason from the original thought's final_action
                         deferral_reason = "Unknown deferral reason"
-                        if original_thought.final_action and isinstance(original_thought.final_action, dict):
-                            action_params = original_thought.final_action.get('action_parameters', {})
+                        if original_thought.final_action:
+                            action_params = original_thought.final_action.action_params
                             if isinstance(action_params, dict) and 'reason' in action_params:
                                 deferral_reason = action_params['reason']
 
@@ -315,19 +314,15 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                                 "deferral_reason": deferral_reason
                             })
                         else:
-                            from ciris_engine.schemas.runtime.system_context import SystemSnapshot
-                            # Create channel context for guidance
-                            guidance_channel_context = create_channel_context(
+                            from ciris_engine.schemas.runtime.models import ThoughtContext
+                            # Create a ThoughtContext for the guidance thought
+                            guidance_context = ThoughtContext(
+                                task_id=original_task.task_id,
                                 channel_id=msg.channel_id,
-                                channel_type="discord"
-                            )
-                            # Create a minimal valid ThoughtContext
-                            guidance_context = ProcessingThoughtContext(
-                                system_snapshot=SystemSnapshot(
-                                    channel_context=guidance_channel_context
-                                ),
-                                user_profiles={},  # Dict[str, UserProfile] - empty dict is valid
-                                task_history=[]
+                                round_number=0,
+                                depth=0,
+                                parent_thought_id=referenced_thought_id,
+                                correlation_id=str(uuid.uuid4())
                             )
                             # Add extra fields after creation
                             setattr(guidance_context, 'guidance_message_id', msg.message_id)

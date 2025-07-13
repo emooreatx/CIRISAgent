@@ -6,7 +6,7 @@ Tracks request counts, error rates, and response times with full type safety.
 """
 from collections import deque
 from datetime import datetime, timezone
-from typing import Deque, Optional, Tuple
+from typing import Any, Deque, Optional, Tuple
 import time
 import logging
 
@@ -43,7 +43,7 @@ class RequestMetricsMixin:
                     raise
     """
     
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize request metrics tracking."""
         super().__init__(*args, **kwargs)
         self._requests_handled: int = 0

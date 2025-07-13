@@ -45,7 +45,8 @@ class TestGraphAuditService:
                 memory_bus=mock_memory_bus,
                 time_service=mock_time_service,
                 retention_days=30,
-                db_path=f"{temp_dir}/test_audit.db"  # Use temporary database
+                db_path=f"{temp_dir}/test_audit.db",  # Use temporary database
+                export_path=f"{temp_dir}/audit_export.jsonl"  # Provide export path
             )
             yield service
 
@@ -312,17 +313,15 @@ class TestGraphAuditService:
         # Mock query results
         mock_memory_bus.recall_timeseries = AsyncMock(return_value=[])
 
-        # Since export_path is None in fixture, this should handle gracefully
-        try:
-            result = await audit_service.export_audit_data(
-                start_time=datetime.now(timezone.utc) - timedelta(days=1),
-                format="jsonl"
-            )
-            # If export_path is None, might return None or raise
-            assert result is None or isinstance(result, str)
-        except AttributeError:
-            # Expected if export_path is None
-            pass
+        # Export should work now that export_path is configured
+        result = await audit_service.export_audit_data(
+            start_time=datetime.now(timezone.utc) - timedelta(days=1),
+            format="jsonl"
+        )
+        # Should return a valid path string
+        assert result is not None
+        assert isinstance(result, str)
+        assert "audit_export" in result
 
     def test_get_capabilities(self, audit_service):
         """Test getting service capabilities."""
@@ -340,7 +339,8 @@ class TestGraphAuditService:
         status = audit_service.get_status()
 
         assert isinstance(status, ServiceStatus)
-        assert status.is_healthy is True
+        # Service is not started in this test, so it won't be healthy
+        assert status.is_healthy is False
         assert "cached_entries" in status.metrics
         assert "pending_exports" in status.metrics
         assert "hash_chain_enabled" in status.metrics

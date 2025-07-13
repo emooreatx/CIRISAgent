@@ -135,8 +135,7 @@ class BaseBus(ABC, Generic[ServiceT]):
         service = await self.service_registry.get_service(
             handler=handler_name,  # Ignored by registry, all services are global
             service_type=self.service_type,
-            required_capabilities=required_capabilities,
-            fallback_to_global=True  # Always true now, kept for compatibility
+            required_capabilities=required_capabilities
         )
         # Trust the registry returns the right type
         return service

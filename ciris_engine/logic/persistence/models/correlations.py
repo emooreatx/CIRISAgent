@@ -38,8 +38,6 @@ def add_correlation(corr: ServiceCorrelation, time_service: Optional[TimeService
             timestamp_str = corr.timestamp.isoformat()
         else:
             timestamp_str = str(corr.timestamp)
-    else:
-        timestamp_str = None
 
     params = (
         corr.correlation_id,
@@ -183,8 +181,7 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
                         metric_value=row["metric_value"],
                         metric_unit="count",
                         metric_type="gauge",
-                        labels={},
-                        timestamp=timestamp or datetime.now(timezone.utc)
+                        labels={}
                     )
 
                 if row["log_level"]:
@@ -278,8 +275,7 @@ def get_correlations_by_task_and_action(task_id: str, action_type: str, status: 
                         metric_value=row["metric_value"],
                         metric_unit="count",
                         metric_type="gauge",
-                        labels={},
-                        timestamp=timestamp or datetime.now(timezone.utc)
+                        labels={}
                     )
 
                 if row["log_level"]:

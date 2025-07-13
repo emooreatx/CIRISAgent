@@ -10,6 +10,7 @@ from fastapi import APIRouter, Request, HTTPException, Depends, Body
 from pydantic import BaseModel, Field, field_serializer
 import logging
 import asyncio
+from ciris_engine.utils.serialization import serialize_timestamp
 
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ..dependencies.auth import require_observer, require_admin, AuthContext
@@ -39,8 +40,8 @@ class SystemHealthResponse(BaseModel):
     timestamp: datetime = Field(..., description="Current server time")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
-        return timestamp.isoformat() if timestamp else None
+    def serialize_ts(self, timestamp: datetime, _info: Any) -> Optional[str]:
+        return serialize_timestamp(timestamp, _info)
 
 
 class SystemTimeResponse(BaseModel):
@@ -52,7 +53,7 @@ class SystemTimeResponse(BaseModel):
 
     @field_serializer('system_time', 'agent_time')
     def serialize_times(self, dt: datetime, _info: Any) -> Optional[str]:
-        return dt.isoformat() if dt else None
+        return serialize_timestamp(dt, _info)
 
 
 class ResourceUsageResponse(BaseModel):
@@ -103,8 +104,8 @@ class ServicesStatusResponse(BaseModel):
     timestamp: datetime = Field(..., description="When status was collected")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
-        return timestamp.isoformat() if timestamp else None
+    def serialize_ts(self, timestamp: datetime, _info: Any) -> Optional[str]:
+        return serialize_timestamp(timestamp, _info)
 
 
 class ShutdownRequest(BaseModel):
@@ -122,8 +123,8 @@ class ShutdownResponse(BaseModel):
     timestamp: datetime = Field(..., description="When shutdown was initiated")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
-        return timestamp.isoformat() if timestamp else None
+    def serialize_ts(self, timestamp: datetime, _info: Any) -> Optional[str]:
+        return serialize_timestamp(timestamp, _info)
 
 
 class AdapterActionRequest(BaseModel):
@@ -956,7 +957,7 @@ async def get_available_tools(
         if service_registry:
             # Get provider info for TOOL services
             provider_info = service_registry.get_provider_info(service_type=ServiceType.TOOL.value)
-            tool_services = provider_info.get('services', {}).get(ServiceType.TOOL.value, [])
+            provider_info.get('services', {}).get(ServiceType.TOOL.value, [])
             
             # Get the actual provider instances from the registry
             if hasattr(service_registry, '_services') and ServiceType.TOOL in service_registry._services:
@@ -1004,12 +1005,8 @@ async def get_available_tools(
                 if existing['provider'] != tool['provider']:
                     existing['provider'] = f"{existing['provider']}, {tool['provider']}"
         
-        return SuccessResponse(
-            data=unique_tools,
-            metadata={
-                "total_tools": len(unique_tools),
-                "tool_providers": tool_providers
-            }
+        return SuccessResponse[List[dict]](
+            data=unique_tools
         )
         
     except Exception as e:

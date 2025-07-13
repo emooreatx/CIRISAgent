@@ -24,14 +24,15 @@ class DiscordGuidanceHandler:
             memory_service: Memory service for WA lookups
         """
         self.client = client
-        self._time_service = time_service
         self._memory_service = memory_service
         self._wa_cache: Dict[str, bool] = {}  # Cache WA status
 
         # Ensure we have a time service
-        if self._time_service is None:
+        if time_service is None:
             from ciris_engine.logic.services.lifecycle.time import TimeService
-            self._time_service = TimeService()
+            self._time_service: "TimeServiceProtocol" = TimeService()
+        else:
+            self._time_service: "TimeServiceProtocol" = time_service
 
     def set_client(self, client: discord.Client) -> None:
         """Set the Discord client after initialization.
@@ -73,10 +74,7 @@ class DiscordGuidanceHandler:
 
         try:
             # Query memory for Discord WA node
-            query = {
-                "node_type": "DISCORD_WA",
-                "discord_id": discord_id
-            }
+            query = f"node_type:DISCORD_WA discord_id:{discord_id}"
 
             nodes = await self._memory_service.search(query)
             is_wa = len(nodes) > 0

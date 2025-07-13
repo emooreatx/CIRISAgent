@@ -25,6 +25,7 @@ from ciris_engine.schemas.services.discord_nodes import DiscordDeferralNode, Dis
 from ciris_engine.schemas.adapters.tools import ToolExecutionResult
 from ciris_engine.logic import persistence
 from ciris_engine.logic.adapters.base import Service
+from ciris_engine.schemas.services.graph_core import GraphScope, GraphNodeAttributes
 
 from .discord_message_handler import DiscordMessageHandler
 from .discord_guidance_handler import DiscordGuidanceHandler
@@ -35,7 +36,6 @@ from .discord_connection_manager import DiscordConnectionManager
 from .discord_error_handler import DiscordErrorHandler
 from .discord_rate_limiter import DiscordRateLimiter
 from .discord_embed_formatter import DiscordEmbedFormatter
-from .discord_access_control import DiscordAccessControl
 from .discord_tool_handler import DiscordToolHandler
 from .config import DiscordAdapterConfig
 
@@ -90,7 +90,6 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         self._error_handler = DiscordErrorHandler()
         self._rate_limiter = DiscordRateLimiter()
         self._embed_formatter = DiscordEmbedFormatter()
-        self._access_control = DiscordAccessControl(bot)
         self._tool_handler = DiscordToolHandler(None, bot, self._time_service)
         self._start_time: Optional[datetime] = None
 
@@ -169,11 +168,11 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         time_service = self._time_service
         if time_service is None:
             logger.error("Time service not initialized")
-            return False
+            raise RuntimeError("Time service not initialized")
         start_time = time_service.now()
 
         try:
-            _result = await self._retry_discord_operation(
+            await self._retry_discord_operation(
                 self._message_handler.send_message_to_channel,
                 channel_id, content,
                 operation_name="send_message",
@@ -317,7 +316,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         time_service = self._time_service
         if time_service is None:
             logger.error("Time service not initialized")
-            return False
+            return None
         start_time = time_service.now()
 
         try:
@@ -489,6 +488,12 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             if approval_result and self.bus_manager and self.bus_manager.memory:
                 try:
                     approval_node = DiscordApprovalNode(
+                        id=f"discord_approval/{approval_request.message_id}",
+                        scope=GraphScope.LOCAL,
+                        attributes=GraphNodeAttributes(
+                            created_by="discord_adapter",
+                            tags=["discord", "approval"]
+                        ),
                         approval_id=str(approval_request.message_id),
                         action=action,
                         request_type="action_approval",
@@ -503,9 +508,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                         resolver_name=approval_result.resolver_name,
                         context={"channel_id": context.channel_id} if context.channel_id else {},
                         action_params=context.action_params,
-                        created_at=time_service.now(),
                         updated_at=time_service.now(),
-                        created_by="discord_adapter",
                         updated_by="discord_adapter"
                     )
 
@@ -702,7 +705,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
 
     async def get_active_channels(self) -> List[Dict[str, Any]]:
         """Get list of active Discord channels."""
-        channels = []
+        channels: List[Dict[str, Any]] = []
         
         logger.info(f"[DISCORD] get_active_channels called, client ready: {self._channel_manager.client.is_ready() if self._channel_manager.client else False}")
         
@@ -722,7 +725,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                         'channel_type': 'discord',
                         'display_name': f'#{channel.name}' if hasattr(channel, 'name') else f'Discord Channel {channel_id}',
                         'is_active': True,
-                        'created_at': channel.created_at.isoformat() if hasattr(channel, 'created_at') else None,
+                        'created_at': channel.created_at.isoformat() if hasattr(channel, 'created_at') and channel.created_at else None,
                         'last_activity': None,  # Could track this if needed
                         'message_count': 0  # Could track this if needed
                     })
@@ -736,7 +739,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                         'channel_type': 'discord',
                         'display_name': f'#{channel.name} (Deferrals)' if hasattr(channel, 'name') else f'Discord Deferral Channel',
                         'is_active': True,
-                        'created_at': channel.created_at.isoformat() if hasattr(channel, 'created_at') else None,
+                        'created_at': channel.created_at.isoformat() if hasattr(channel, 'created_at') and channel.created_at else None,
                         'last_activity': None,
                         'message_count': 0
                     })
@@ -770,7 +773,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
 
     async def list_permissions(self, wa_id: str) -> List[WAPermission]:
         """List all permissions for a Discord user."""
-        permissions = []
+        permissions: List[WAPermission] = []
 
         try:
             if not self._channel_manager.client:
@@ -783,8 +786,10 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                     for role in member.roles:
                         if role.name.upper() in ["AUTHORITY", "OBSERVER"]:
                             permissions.append(WAPermission(
+                                permission_id=f"discord_{guild.id}_{role.name.upper()}_{wa_id}",
                                 wa_id=wa_id,
-                                permission=role.name.upper(),
+                                permission_type="role",
+                                permission_name=role.name.upper(),
                                 resource=f"guild:{guild.id}",
                                 granted_at=self._time_service.now() if self._time_service else datetime.now(),
                                 granted_by="discord_adapter"
@@ -813,7 +818,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         time_service = self._time_service
         if time_service is None:
             logger.error("Time service not initialized")
-            return False
+            raise RuntimeError("Time service not initialized")
         start_time = time_service.now()
 
         try:
@@ -855,6 +860,10 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             if not channel:
                 raise RuntimeError(f"Deferral channel {deferral_channel_id} not found")
 
+            # Check if channel supports sending messages
+            if not isinstance(channel, (discord.TextChannel, discord.DMChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel)):
+                raise RuntimeError(f"Channel {deferral_channel_id} does not support sending messages")
+
             # Split the message if needed using the message handler's method
             chunks = self._message_handler._split_message(message_text, max_length=1900)
 
@@ -889,6 +898,12 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             if self.bus_manager and self.bus_manager.memory:
                 try:
                     deferral_node = DiscordDeferralNode(
+                        id=f"discord_deferral/{correlation_id}",
+                        scope=GraphScope.LOCAL,
+                        attributes=GraphNodeAttributes(
+                            created_by="discord_adapter",
+                            tags=["discord", "deferral"]
+                        ),
                         deferral_id=correlation_id,
                         task_id=deferral.task_id,
                         thought_id=deferral.thought_id,
@@ -897,9 +912,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                         channel_id=deferral_channel_id,
                         status="pending",
                         context=deferral.context,
-                        created_at=start_time,
                         updated_at=start_time,
-                        created_by="discord_adapter",
                         updated_by="discord_adapter"
                     )
 
@@ -960,7 +973,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                 defer_until=context.defer_until or (self._time_service.now() if self._time_service else datetime.now()) + timedelta(hours=1),
                 context=context.metadata
             )
-            _deferral_id = await self.send_deferral(request)
+            await self.send_deferral(request)
             return True
         except Exception:
             return False
@@ -1014,7 +1027,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
 
     async def _send_output(self, channel_id: str, content: str) -> None:
         """Send output to a Discord channel with retry logic"""
-        _result = await self._retry_discord_operation(
+        await self._retry_discord_operation(
             self._message_handler.send_message_to_channel,
             channel_id, content,
             operation_name="send_output",
@@ -1191,7 +1204,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             - is_home: bool (if is home_channel_id)
             - is_deferral: bool (if is deferral_channel_id)
         """
-        channels = []
+        channels: List[Dict[str, Any]] = []
         
         # Add configured channels from config
         if self.discord_config:

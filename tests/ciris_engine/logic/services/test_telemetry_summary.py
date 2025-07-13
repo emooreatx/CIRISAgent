@@ -2,7 +2,7 @@
 
 import pytest
 import pytest_asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, AsyncMock, patch
 from typing import List, Dict, Any, Optional
 
@@ -18,7 +18,7 @@ class TestTelemetrySummary:
     def mock_time_service(self) -> Mock:
         """Create a mock time service."""
         mock = Mock()
-        mock.now.return_value = datetime(2024, 1, 1, 12, 0, 0)
+        mock.now.return_value = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
         mock.timestamp.return_value = 1704110400.0
         return mock
 
@@ -35,7 +35,7 @@ class TestTelemetrySummary:
             time_service=mock_time_service
         )
         # Set start time for uptime calculation
-        setattr(service, '_start_time', datetime(2024, 1, 1, 0, 0, 0))
+        setattr(service, '_start_time', datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc))
         return service
 
     def create_mock_metrics(self, base_time: datetime, metric_name: str,
@@ -43,11 +43,12 @@ class TestTelemetrySummary:
         """Helper to create mock metric data."""
         metrics = []
         for i, value in enumerate(values):
-            timestamp = base_time - timedelta(minutes=i)
+            # Create timestamps that are within the last hour
+            timestamp = base_time - timedelta(minutes=i * 5)  # Space out by 5 minutes
             metrics.append({
                 "metric_name": metric_name,
                 "value": value,
-                "timestamp": timestamp,
+                "timestamp": timestamp.isoformat(),  # Convert to ISO format string
                 "tags": {"service": service}
             })
         return metrics
@@ -57,24 +58,26 @@ class TestTelemetrySummary:
         """Test basic telemetry summary generation."""
         # Mock query_metrics to return test data
         async def mock_query_metrics(metric_name: str, start_time: datetime, end_time: datetime, tags: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+            # Always ensure we return metrics with the correct metric_name
             if metric_name == "llm.tokens.total":
                 return self.create_mock_metrics(
                     mock_time_service.now(),
-                    metric_name,
+                    "llm.tokens.total",  # Use exact metric name
                     [100, 200, 150, 300]  # 750 total
                 )
             elif metric_name == "llm.cost.cents":
                 return self.create_mock_metrics(
                     mock_time_service.now(),
-                    metric_name,
+                    "llm.cost.cents",  # Use exact metric name
                     [1.5, 3.0, 2.25, 4.5]  # 11.25 total
                 )
             elif metric_name == "llm.environmental.carbon_grams":
                 return self.create_mock_metrics(
                     mock_time_service.now(),
-                    metric_name,
+                    "llm.environmental.carbon_grams",  # Use exact metric name
                     [0.15, 0.30, 0.225, 0.45]  # 1.125 total
                 )
+            # Return empty list for other metric types that get_telemetry_summary queries
             return []
 
         telemetry_service.query_metrics = mock_query_metrics
@@ -105,9 +108,11 @@ class TestTelemetrySummary:
 
         telemetry_service.query_metrics = mock_query_metrics
 
-        # First call should query metrics
+        # First call should query metrics (multiple times for different metric types)
         summary1 = await telemetry_service.get_telemetry_summary()
         initial_calls = call_count
+        # Should have made multiple queries for different metric types
+        assert initial_calls > 0
 
         # Second call should use cache
         summary2 = await telemetry_service.get_telemetry_summary()
@@ -117,8 +122,8 @@ class TestTelemetrySummary:
         assert summary1.tokens_last_hour == summary2.tokens_last_hour
         assert summary1.cost_last_hour_cents == summary2.cost_last_hour_cents
 
-        # Advance time past cache TTL
-        mock_time_service.now.return_value = datetime(2024, 1, 1, 12, 2, 0)  # 2 minutes later
+        # Advance time past cache TTL (default is 60 seconds)
+        mock_time_service.now.return_value = datetime(2024, 1, 1, 12, 1, 1, tzinfo=timezone.utc)  # 61 seconds later
 
         # Third call should query metrics again
         summary3 = await telemetry_service.get_telemetry_summary()
@@ -158,11 +163,11 @@ class TestTelemetrySummary:
                 return metrics
             elif metric_name == "llm.latency.ms":
                 return [
-                    {"metric_name": metric_name, "value": 150.0, "timestamp": mock_time_service.now(),
+                    {"metric_name": metric_name, "value": 150.0, "timestamp": mock_time_service.now().isoformat(),
                      "tags": {"service": "openai"}},
-                    {"metric_name": metric_name, "value": 200.0, "timestamp": mock_time_service.now(),
+                    {"metric_name": metric_name, "value": 200.0, "timestamp": mock_time_service.now().isoformat(),
                      "tags": {"service": "openai"}},
-                    {"metric_name": metric_name, "value": 100.0, "timestamp": mock_time_service.now(),
+                    {"metric_name": metric_name, "value": 100.0, "timestamp": mock_time_service.now().isoformat(),
                      "tags": {"service": "anthropic"}},
                 ]
             return []

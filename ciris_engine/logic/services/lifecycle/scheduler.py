@@ -10,16 +10,17 @@ their own future actions with human approval.
 
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 
 from ciris_engine.logic.adapters.base import Service
 from ciris_engine.protocols.services import ServiceProtocol as TaskSchedulerServiceProtocol
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.schemas.runtime.enums import ThoughtStatus, ThoughtType
+from ciris_engine.schemas.runtime.enums import ThoughtStatus, ThoughtType, ServiceType
 from ciris_engine.schemas.runtime.extended import ScheduledTask, ShutdownContext, ScheduledTaskInfo
 from ciris_engine.schemas.runtime.models import Thought, FinalAction
+from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
 
 from ciris_engine.logic.persistence import (
     get_db_connection,
@@ -36,7 +37,7 @@ except ImportError:
     CRONITER_AVAILABLE = False
     logger.warning("croniter not installed. Cron scheduling will be disabled.")
 
-class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
+class TaskSchedulerService(BaseScheduledService, TaskSchedulerServiceProtocol):
     """
     Manages scheduled tasks and integrates with the DEFER system.
 
@@ -49,46 +50,41 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
         db_path: str,
         time_service: TimeServiceProtocol,
         check_interval_seconds: int = 60
-    ):
-        super().__init__()
+    ) -> None:
+        super().__init__(run_interval_seconds=float(check_interval_seconds), time_service=time_service)
         self.db_path = db_path
-        self.time_service = time_service
         self.conn = None
         self.check_interval = check_interval_seconds
-        self._scheduler_task: Optional[asyncio.Task] = None
         self._active_tasks: Dict[str, ScheduledTask] = {}
         self._shutdown_event = asyncio.Event()
-        self._start_time: Optional[datetime] = None
 
-    async def start(self) -> None:
-        """Start the scheduler service."""
-        await super().start()
-        self._start_time = self.time_service.now()
-
+    def get_service_type(self) -> ServiceType:
+        """Get service type."""
+        return ServiceType.MAINTENANCE
+    
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return ["schedule_task", "cancel_task", "get_scheduled_tasks"]
+    
+    def _check_dependencies(self) -> bool:
+        """Check if all dependencies are available."""
+        return True  # Only needs time service which is provided
+    
+    async def _on_start(self) -> None:
+        """Called when service starts."""
+        await super()._on_start()
+        
         # Load active tasks from database
         await self._load_active_tasks()
-
-        # Start the scheduler loop
-        self._scheduler_task = asyncio.create_task(self._scheduler_loop())
-
+        
         logger.info(
             f"TaskSchedulerService started with {len(self._active_tasks)} active tasks"
         )
-
-    async def stop(self) -> None:
-        """Stop the scheduler service gracefully."""
+    
+    async def _on_stop(self) -> None:
+        """Called when service stops."""
         self._shutdown_event.set()
-
-        if self._scheduler_task:
-            # Cancel the task to interrupt the sleep
-            self._scheduler_task.cancel()
-            try:
-                await self._scheduler_task
-            except asyncio.CancelledError:
-                pass
-
-        await super().stop()
-        logger.info("TaskSchedulerService stopped")
+        await super()._on_stop()
 
     async def _load_active_tasks(self) -> None:
         """Load all active tasks from the database."""
@@ -123,50 +119,20 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
             schedule_cron=schedule_cron,
             trigger_prompt=trigger_prompt,
             origin_thought_id=origin_thought_id,
-            created_at=self.time_service.now().isoformat(),
+            created_at=(self._time_service.now() if self._time_service else datetime.now(timezone.utc)).isoformat(),
             last_triggered_at=None,
             deferral_count=0,
             deferral_history=[]
         )
 
-    async def _scheduler_loop(self) -> None:
-        """Main scheduler loop that checks for due tasks."""
-        try:
-            while not self._shutdown_event.is_set():
-                try:
-                    # Check for due tasks
-                    now = self.time_service.now()
-                    due_tasks = self._get_due_tasks(now)
+    async def _run_scheduled_task(self) -> None:
+        """Check for due tasks and trigger them."""
+        # Check for due tasks
+        now = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
+        due_tasks = self._get_due_tasks(now)
 
-                    for task in due_tasks:
-                        await self._trigger_task(task)
-
-                    # Wait for next check interval or until shutdown
-                    try:
-                        await asyncio.wait_for(
-                            self._shutdown_event.wait(),
-                            timeout=self.check_interval
-                        )
-                        # If we get here, shutdown was requested
-                        break
-                    except asyncio.TimeoutError:
-                        # Normal timeout, continue loop
-                        pass
-
-                except Exception as e:
-                    logger.error(f"Error in scheduler loop: {e}")
-                    # Use shorter sleep on error to be more responsive to shutdown
-                    try:
-                        await asyncio.wait_for(
-                            self._shutdown_event.wait(),
-                            timeout=min(self.check_interval, 5.0)
-                        )
-                        break
-                    except asyncio.TimeoutError:
-                        pass
-        except asyncio.CancelledError:
-            logger.debug("Scheduler loop cancelled")
-            raise
+        for task in due_tasks:
+            await self._trigger_task(task)
 
     def _get_due_tasks(self, current_time: datetime) -> List[ScheduledTask]:
         """Get all tasks that are due for execution."""
@@ -182,16 +148,8 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
         """Check if a task is due for execution."""
         # One-time deferred task
         if task.defer_until:
-            # Handle both datetime objects and strings
-            if isinstance(task.defer_until, datetime):
-                defer_time = task.defer_until
-            else:
-                # Handle both 'Z' and '+00:00' formats
-                defer_str = task.defer_until
-                if defer_str.endswith('Z'):
-                    defer_str = defer_str[:-1] + '+00:00'
-                defer_time = datetime.fromisoformat(defer_str)
-            return current_time >= defer_time
+            # defer_until is always a datetime per the type annotation
+            return current_time >= task.defer_until
 
         # Cron-style recurring task
         if task.schedule_cron:
@@ -210,25 +168,11 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
         try:
             # If never triggered, use creation time as base
             if not task.last_triggered_at:
-                # Handle both datetime objects and strings
-                if isinstance(task.created_at, datetime):
-                    base_time = task.created_at
-                else:
-                    # Handle both 'Z' and '+00:00' formats
-                    created_str = task.created_at
-                    if created_str.endswith('Z'):
-                        created_str = created_str[:-1] + '+00:00'
-                    base_time = datetime.fromisoformat(created_str)
+                # created_at is always a datetime per the type annotation
+                base_time = task.created_at
             else:
-                # Handle both datetime objects and strings
-                if isinstance(task.last_triggered_at, datetime):
-                    base_time = task.last_triggered_at
-                else:
-                    # Handle both 'Z' and '+00:00' formats
-                    triggered_str = task.last_triggered_at
-                    if triggered_str.endswith('Z'):
-                        triggered_str = triggered_str[:-1] + '+00:00'
-                    base_time = datetime.fromisoformat(triggered_str)
+                # last_triggered_at is always a datetime per the type annotation
+                base_time = task.last_triggered_at
 
             # Create croniter instance
             cron = croniter(task.schedule_cron, base_time)
@@ -261,20 +205,24 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
                 from ciris_engine.logic.persistence import update_task_status
                 from ciris_engine.schemas.runtime.enums import TaskStatus
                 
-                update_task_status(deferred_task_id, TaskStatus.PENDING, self.time_service)
+                if self._time_service:
+                    update_task_status(deferred_task_id, TaskStatus.PENDING, self._time_service)
+                else:
+                    # If no time service available, skip updating the task
+                    logger.warning(f"Cannot update task {deferred_task_id} status: no time service available")
                 
                 logger.info(f"Task {deferred_task_id} reactivated and marked as pending")
                 
             else:
                 # Create a new thought for regular scheduled tasks
                 thought = Thought(
-                    thought_id=f"thought_{self.time_service.now().timestamp()}",
+                    thought_id=f"thought_{(self._time_service.now() if self._time_service else datetime.now(timezone.utc)).timestamp()}",
                     content=task.trigger_prompt,
                     status=ThoughtStatus.PENDING,
                     thought_type=ThoughtType.SCHEDULED,
                     source_task_id=task.task_id,
-                    created_at=self.time_service.now().isoformat(),
-                    updated_at=self.time_service.now().isoformat(),
+                    created_at=(self._time_service.now() if self._time_service else datetime.now(timezone.utc)).isoformat(),
+                    updated_at=(self._time_service.now() if self._time_service else datetime.now(timezone.utc)).isoformat(),
                     final_action=FinalAction(
                         action_type="SCHEDULED_TASK",
                         action_params={
@@ -302,11 +250,11 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
 
     async def _update_task_triggered(self, task: ScheduledTask) -> None:
         """Update task after triggering."""
-        now = self.time_service.now()
+        now = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
         now_iso = now.isoformat()
 
         # Update in-memory task
-        task.last_triggered_at = now_iso
+        task.last_triggered_at = now
         if task.schedule_cron:
             task.status = "ACTIVE"
             # Calculate and log next trigger time for recurring tasks
@@ -355,7 +303,7 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
             if not self._validate_cron_expression(schedule_cron):
                 raise ValueError(f"Invalid cron expression: {schedule_cron}")
 
-        task_id = f"task_{self.time_service.now().timestamp()}"
+        task_id = f"task_{(self._time_service.now() if self._time_service else datetime.now(timezone.utc)).timestamp()}"
 
         task = self._create_scheduled_task(
             task_id=task_id,
@@ -422,12 +370,13 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
             schedule_cron=None  # One-time execution
         )
         
-        # Store the task_id in the scheduled task for reactivation
-        scheduled_task.metadata = {
+        # Store the deferral information in the deferral_history
+        scheduled_task.deferral_count += 1
+        scheduled_task.deferral_history.append({
             "deferred_task_id": task_id,
             "deferral_reason": reason,
-            "deferral_context": context or {}
-        }
+            "deferred_at": datetime.now(timezone.utc).isoformat()
+        })
         
         logger.info(f"Scheduled deferred task {task_id} for reactivation at {defer_until}")
         
@@ -488,10 +437,12 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
         """
         if task_id in self._active_tasks:
             task = self._active_tasks[task_id]
-            task.defer_until = defer_until
+            # Convert ISO string to datetime
+            from datetime import datetime
+            task.defer_until = datetime.fromisoformat(defer_until.replace('Z', '+00:00'))
             task.deferral_count += 1
             task.deferral_history.append({
-                "deferred_at": self.time_service.now().isoformat(),
+                "deferred_at": (self._time_service.now() if self._time_service else datetime.now(timezone.utc)).isoformat(),
                 "deferred_until": defer_until,
                 "reason": reason
             })
@@ -519,41 +470,22 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
                 "Tasks will resume at that time."
             )
 
-    def get_capabilities(self) -> ServiceCapabilities:
-        """Get service capabilities."""
-        from ciris_engine.schemas.services.core import ServiceCapabilities
-        return ServiceCapabilities(
-            service_name="TaskSchedulerService",
-            actions=["schedule_task", "cancel_task", "get_scheduled_tasks"],
-            version="1.0.0",
-            dependencies=[],
-            metadata={
-                "features": ["cron_scheduling", "one_time_defer", "task_persistence"],
-                "cron_support": CRONITER_AVAILABLE,
-                "description": "Task scheduling and deferral service"
-            }
-        )
-
-    def get_status(self) -> ServiceStatus:
-        """Get current service status."""
-        from ciris_engine.schemas.services.core import ServiceStatus
-
-        uptime_seconds = 0.0
-        if self._start_time:
-            uptime_seconds = (self.time_service.now() - self._start_time).total_seconds()
-
-        return ServiceStatus(
-            service_name="TaskSchedulerService",
-            service_type="SPECIAL",
-            is_healthy=bool(self._scheduler_task and not self._shutdown_event.is_set()),
-            uptime_seconds=uptime_seconds,
-            last_error=None,
-            metrics={
-                "active_tasks": float(len(self._active_tasks)),
-                "check_interval": float(self.check_interval)
-            },
-            last_health_check=self.time_service.now()
-        )
+    def _get_metadata(self) -> Dict[str, Any]:
+        """Get service-specific metadata."""
+        metadata = super()._get_metadata()
+        metadata.update({
+            "features": ["cron_scheduling", "one_time_defer", "task_persistence"],
+            "cron_support": CRONITER_AVAILABLE,
+            "description": "Task scheduling and deferral service"
+        })
+        return metadata
+    
+    def _collect_custom_metrics(self) -> Dict[str, float]:
+        """Collect service-specific metrics."""
+        return {
+            "active_tasks": float(len(self._active_tasks)),
+            "check_interval": float(self.check_interval)
+        }
 
     def _validate_cron_expression(self, cron_expr: str) -> bool:
         """
@@ -591,7 +523,7 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
             return "unknown (croniter not installed)"
 
         try:
-            now = self.time_service.now()
+            now = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
             cron = croniter(cron_expr, now)
             next_time = cron.get_next(datetime)
             return str(next_time.isoformat())
@@ -601,4 +533,4 @@ class TaskSchedulerService(Service, TaskSchedulerServiceProtocol):
 
     async def is_healthy(self) -> bool:
         """Check if the service is healthy."""
-        return bool(self._scheduler_task and not self._shutdown_event.is_set())
+        return bool(self._task and not self._shutdown_event.is_set())

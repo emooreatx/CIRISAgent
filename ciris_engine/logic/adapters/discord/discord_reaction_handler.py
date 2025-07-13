@@ -48,14 +48,15 @@ class DiscordReactionHandler:
             time_service: Time service for consistent time operations
         """
         self.client = client
-        self._time_service = time_service
         self._pending_approvals: Dict[int, ApprovalRequest] = {}
         self._approval_callbacks: Dict[int, Callable[[ApprovalRequest], Awaitable[None]]] = {}
 
         # Ensure we have a time service
-        if self._time_service is None:
+        if time_service is None:
             from ciris_engine.logic.services.lifecycle.time import TimeService
-            self._time_service = TimeService()
+            self._time_service: "TimeServiceProtocol" = TimeService()
+        else:
+            self._time_service: "TimeServiceProtocol" = time_service
 
     def set_client(self, client: discord.Client) -> None:
         """Set the Discord client after initialization.
@@ -91,6 +92,11 @@ class DiscordReactionHandler:
             channel = self.client.get_channel(channel_id)
             if not channel:
                 channel = await self.client.fetch_channel(channel_id)
+
+            # Check if channel supports sending messages
+            if not isinstance(channel, (discord.TextChannel, discord.DMChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel)):
+                logger.error(f"Channel {channel_id} does not support sending messages")
+                return None
 
             # Send message
             sent_message = await channel.send(message)
@@ -211,6 +217,11 @@ class DiscordReactionHandler:
             channel = self.client.get_channel(approval.channel_id)
             if not channel:
                 channel = await self.client.fetch_channel(approval.channel_id)
+
+            # Check if channel supports fetching messages
+            if not isinstance(channel, (discord.TextChannel, discord.DMChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel)):
+                logger.error(f"Channel {approval.channel_id} does not support fetching messages")
+                return
 
             message = await channel.fetch_message(approval.message_id)
 

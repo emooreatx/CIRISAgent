@@ -48,7 +48,7 @@ async def store_agent_identity(
 
         # Store in graph
         add_graph_node(graph_node, time_service, db_path=db_path)
-        logger.info(f"Stored identity for agent {identity.agent_id or identity.name}")
+        logger.info(f"Stored identity for agent {identity.agent_id}")
         return True
 
     except Exception as e:

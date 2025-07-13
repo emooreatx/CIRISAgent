@@ -2,8 +2,11 @@
 Enhanced thought manager that generates proper observation thoughts.
 This shows how we could modify generate_seed_thought to use correlations.
 """
+from typing import Optional, Any
+from ciris_engine.schemas.memory.memory import Task, Thought, ThoughtType, ThoughtStatus
+import uuid
 
-def generate_seed_thought_enhanced(self, task: Task, round_number: int = 0) -> Optional[Thought]:
+def generate_seed_thought_enhanced(self: Any, task: Task, round_number: int = 0) -> Optional[Thought]:
     """Generate a seed thought for a task - with proper observation handling."""
     now_iso = self.time_service.now().isoformat()
     
@@ -73,10 +76,16 @@ Evaluate if or how you should respond based on your role.
 
 AGAIN you observed user @{author_name} say "{message_content}", so the task is to evaluate if you should respond based on your identity and ethics."""
     
+    # Use task's channel_id or default
+    task_channel_id = task.channel_id if hasattr(task, 'channel_id') else 'unknown'
+    
+    # Create a basic thought context (would need proper context conversion in real implementation)
+    thought_context = None  # This would need to be built from task context
+    
     thought = Thought(
         thought_id=f"th_seed_{task.task_id}_{str(uuid.uuid4())[:4]}",
         source_task_id=task.task_id,
-        channel_id=channel_id,
+        channel_id=task_channel_id,
         thought_type=thought_type,
         status=ThoughtStatus.PENDING,
         created_at=now_iso,
@@ -88,3 +97,5 @@ AGAIN you observed user @{author_name} say "{message_content}", so the task is t
     )
     
     # ... rest of the method ...
+    
+    return thought

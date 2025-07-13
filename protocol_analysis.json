@@ -1,0 +1,1577 @@
+{
+  "total_services": 19,
+  "aligned_services": 4,
+  "misaligned_services": 15,
+  "no_untyped_dicts": false,
+  "issues": [
+    {
+      "service": "AdaptiveFilterService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: get_retry_config"
+    },
+    {
+      "service": "AdaptiveFilterService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: health_check"
+    },
+    {
+      "service": "AdaptiveFilterService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: retry_with_backoff"
+    },
+    {
+      "service": "ShutdownService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: wait_for_shutdown"
+    },
+    {
+      "service": "ShutdownService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: emergency_shutdown"
+    },
+    {
+      "service": "ShutdownService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: wait_for_shutdown_async"
+    },
+    {
+      "service": "SelfConfigurationService",
+      "type": "missing_protocol",
+      "message": "No protocol found for SelfConfigurationService"
+    },
+    {
+      "service": "RuntimeControlService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: get_retry_config"
+    },
+    {
+      "service": "RuntimeControlService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: health_check"
+    },
+    {
+      "service": "RuntimeControlService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: set_runtime"
+    },
+    {
+      "service": "RuntimeControlService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: retry_with_backoff"
+    },
+    {
+      "service": "RuntimeControlService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 74: self._wa_public_keys: Dict[str, Any] = {}  # wa_id -> Ed25519PublicKey"
+    },
+    {
+      "service": "RuntimeControlService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 655: config_values: Dict[str, Any]"
+    },
+    {
+      "service": "RuntimeControlService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 820: actual_backup: Dict[str, Any] = {}"
+    },
+    {
+      "service": "RuntimeControlService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 960: async def _get_service_registry_info(self, handler: Optional[str] = None, service_type: Optional[str] = None) -> Dict[str, Any]:"
+    },
+    {
+      "service": "RuntimeControlService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 991: ) -> Dict[str, Any]:"
+    },
+    {
+      "service": "RuntimeControlService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 1098: async def reset_circuit_breakers(self, service_type: Optional[str] = None) -> Dict[str, Any]:"
+    },
+    {
+      "service": "RuntimeControlService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 1445: def set_runtime(self, runtime: Any) -> None:"
+    },
+    {
+      "service": "MemoryService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: create_edge"
+    },
+    {
+      "service": "MemoryService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: get_node_edges"
+    },
+    {
+      "service": "MemoryService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 45: def default(self, obj: object) -> Any:"
+    },
+    {
+      "service": "MemoryService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 364: attributes_dict: Dict[str, Any]"
+    },
+    {
+      "service": "MemoryService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 411: attributes_dict: Dict[str, Any]"
+    },
+    {
+      "service": "LLMService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 105: self._response_cache: Dict[str, Any] = {}  # Simple response cache"
+    },
+    {
+      "service": "LLMService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 411: *args: Any,"
+    },
+    {
+      "service": "LLMService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 412: **kwargs: Any"
+    },
+    {
+      "service": "TimeService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: get_uptime"
+    },
+    {
+      "service": "TelemetryService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 148: **kwargs: Any  # Accept any other extra parameters"
+    },
+    {
+      "service": "TelemetryService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 602: usage_data: Dict[str, Any] = {}"
+    },
+    {
+      "service": "TaskSchedulerService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: get_retry_config"
+    },
+    {
+      "service": "TaskSchedulerService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: health_check"
+    },
+    {
+      "service": "TaskSchedulerService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: schedule_deferred_task"
+    },
+    {
+      "service": "TaskSchedulerService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: retry_with_backoff"
+    },
+    {
+      "service": "TaskSchedulerService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 393: context: Optional[Dict[str, Any]] = None"
+    },
+    {
+      "service": "IncidentManagementService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: set_memory_bus"
+    },
+    {
+      "service": "IncidentManagementService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: set_time_service"
+    },
+    {
+      "service": "IncidentManagementService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 50: async def _get_time_service(self) -> Any:"
+    },
+    {
+      "service": "TSDBConsolidationService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: set_memory_bus"
+    },
+    {
+      "service": "TSDBConsolidationService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: set_time_service"
+    },
+    {
+      "service": "TSDBConsolidationService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 334: correlations: Dict[str, List[Dict[str, Any]]],"
+    },
+    {
+      "service": "TSDBConsolidationService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 335: tasks: List[Dict[str, Any]],"
+    },
+    {
+      "service": "TSDBConsolidationService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 682: async def get_summary_for_period(self, period_start: datetime, period_end: datetime) -> Optional[Dict[str, Any]]:"
+    },
+    {
+      "service": "AuthenticationService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 836: async def async_wrapper(*args: Any, **kwargs: Any) -> Any:"
+    },
+    {
+      "service": "AuthenticationService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 836: async def async_wrapper(*args: Any, **kwargs: Any) -> Any:"
+    },
+    {
+      "service": "AuthenticationService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 862: def sync_wrapper(*args: Any, **kwargs: Any) -> Any:"
+    },
+    {
+      "service": "AuthenticationService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 862: def sync_wrapper(*args: Any, **kwargs: Any) -> Any:"
+    },
+    {
+      "service": "AuthenticationService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 905: async def async_wrapper(*args: Any, **kwargs: Any) -> Any:"
+    },
+    {
+      "service": "AuthenticationService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 905: async def async_wrapper(*args: Any, **kwargs: Any) -> Any:"
+    },
+    {
+      "service": "AuthenticationService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 946: def sync_wrapper(*args: Any, **kwargs: Any) -> Any:"
+    },
+    {
+      "service": "AuthenticationService",
+      "type": "untyped_dict",
+      "message": "Uses Dict[str, Any] at line 946: def sync_wrapper(*args: Any, **kwargs: Any) -> Any:"
+    },
+    {
+      "service": "SecretsService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: get_retry_config"
+    },
+    {
+      "service": "SecretsService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: health_check"
+    },
+    {
+      "service": "SecretsService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: retry_with_backoff"
+    },
+    {
+      "service": "WiseAuthorityService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: get_retry_config"
+    },
+    {
+      "service": "WiseAuthorityService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: health_check"
+    },
+    {
+      "service": "WiseAuthorityService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: retry_with_backoff"
+    },
+    {
+      "service": "GraphConfigService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: query_config_by_key"
+    },
+    {
+      "service": "GraphConfigService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: register_config_listener"
+    },
+    {
+      "service": "GraphConfigService",
+      "type": "extra_method",
+      "message": "Module has method not in protocol: unregister_config_listener"
+    }
+  ],
+  "services": {
+    "AdaptiveFilterService": {
+      "service": "AdaptiveFilterService",
+      "is_aligned": false,
+      "no_untyped_dicts": true,
+      "issues": [
+        {
+          "service": "AdaptiveFilterService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: get_retry_config"
+        },
+        {
+          "service": "AdaptiveFilterService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: health_check"
+        },
+        {
+          "service": "AdaptiveFilterService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: retry_with_backoff"
+        }
+      ],
+      "protocol_methods": [
+        "filter_message",
+        "add_filter_trigger",
+        "remove_filter_trigger",
+        "get_capabilities",
+        "get_health",
+        "start",
+        "get_status",
+        "is_healthy",
+        "stop"
+      ],
+      "module_methods": [
+        "filter_message",
+        "add_filter_trigger",
+        "remove_filter_trigger",
+        "_initialize",
+        "get_capabilities",
+        "start",
+        "__repr__",
+        "_create_default_config",
+        "get_health",
+        "_extract_content",
+        "_extract_message_id",
+        "get_retry_config",
+        "_update_user_trust",
+        "_test_trigger",
+        "health_check",
+        "_extract_user_id",
+        "_is_direct_message",
+        "_extract_channel_id",
+        "_semantic_analysis",
+        "get_status",
+        "__init__",
+        "is_healthy",
+        "_save_config",
+        "_check_frequency",
+        "_generate_reasoning",
+        "retry_with_backoff",
+        "_priority_value",
+        "stop"
+      ],
+      "missing_methods": [],
+      "extra_methods": [
+        "get_retry_config",
+        "health_check",
+        "retry_with_backoff"
+      ],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "ShutdownService": {
+      "service": "ShutdownService",
+      "is_aligned": false,
+      "no_untyped_dicts": true,
+      "issues": [
+        {
+          "service": "ShutdownService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: wait_for_shutdown"
+        },
+        {
+          "service": "ShutdownService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: emergency_shutdown"
+        },
+        {
+          "service": "ShutdownService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: wait_for_shutdown_async"
+        }
+      ],
+      "protocol_methods": [
+        "register_shutdown_handler",
+        "is_shutdown_requested",
+        "get_capabilities",
+        "request_shutdown",
+        "start",
+        "get_status",
+        "is_healthy",
+        "stop",
+        "get_shutdown_reason"
+      ],
+      "module_methods": [
+        "register_shutdown_handler",
+        "wait_for_shutdown_async",
+        "__init__",
+        "_register_async_shutdown_handler",
+        "is_shutdown_requested",
+        "wait_for_shutdown",
+        "_request_shutdown_sync",
+        "_wait_for_shutdown",
+        "_execute_sync_handlers",
+        "get_capabilities",
+        "request_shutdown",
+        "start",
+        "get_shutdown_reason",
+        "get_status",
+        "emergency_shutdown",
+        "stop",
+        "_execute_async_handlers",
+        "is_healthy"
+      ],
+      "missing_methods": [],
+      "extra_methods": [
+        "wait_for_shutdown",
+        "emergency_shutdown",
+        "wait_for_shutdown_async"
+      ],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "SelfConfigurationService": {
+      "service": "SelfConfigurationService",
+      "is_aligned": false,
+      "no_untyped_dicts": true,
+      "issues": [
+        {
+          "service": "SelfConfigurationService",
+          "type": "missing_protocol",
+          "message": "No protocol found for SelfConfigurationService"
+        }
+      ],
+      "protocol_methods": [],
+      "module_methods": [],
+      "missing_methods": [],
+      "extra_methods": [],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "VisibilityService": {
+      "service": "VisibilityService",
+      "is_aligned": true,
+      "no_untyped_dicts": true,
+      "issues": [],
+      "protocol_methods": [
+        "get_reasoning_trace",
+        "get_capabilities",
+        "get_decision_history",
+        "start",
+        "get_status",
+        "is_healthy",
+        "stop",
+        "explain_action",
+        "get_current_state"
+      ],
+      "module_methods": [
+        "is_healthy",
+        "get_capabilities",
+        "get_reasoning_trace",
+        "get_decision_history",
+        "start",
+        "get_status",
+        "__init__",
+        "stop",
+        "explain_action",
+        "get_current_state"
+      ],
+      "missing_methods": [],
+      "extra_methods": [],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "RuntimeControlService": {
+      "service": "RuntimeControlService",
+      "is_aligned": false,
+      "no_untyped_dicts": false,
+      "issues": [
+        {
+          "service": "RuntimeControlService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: get_retry_config"
+        },
+        {
+          "service": "RuntimeControlService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: health_check"
+        },
+        {
+          "service": "RuntimeControlService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: set_runtime"
+        },
+        {
+          "service": "RuntimeControlService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: retry_with_backoff"
+        },
+        {
+          "service": "RuntimeControlService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 74: self._wa_public_keys: Dict[str, Any] = {}  # wa_id -> Ed25519PublicKey"
+        },
+        {
+          "service": "RuntimeControlService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 655: config_values: Dict[str, Any]"
+        },
+        {
+          "service": "RuntimeControlService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 820: actual_backup: Dict[str, Any] = {}"
+        },
+        {
+          "service": "RuntimeControlService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 960: async def _get_service_registry_info(self, handler: Optional[str] = None, service_type: Optional[str] = None) -> Dict[str, Any]:"
+        },
+        {
+          "service": "RuntimeControlService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 991: ) -> Dict[str, Any]:"
+        },
+        {
+          "service": "RuntimeControlService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 1098: async def reset_circuit_breakers(self, service_type: Optional[str] = None) -> Dict[str, Any]:"
+        },
+        {
+          "service": "RuntimeControlService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 1445: def set_runtime(self, runtime: Any) -> None:"
+        }
+      ],
+      "protocol_methods": [
+        "get_processor_queue_status",
+        "list_adapters",
+        "update_service_priority",
+        "get_runtime_status",
+        "handle_emergency_shutdown",
+        "update_config",
+        "get_service_selection_explanation",
+        "get_capabilities",
+        "list_config_backups",
+        "reset_circuit_breakers",
+        "start",
+        "get_events_history",
+        "backup_config",
+        "get_runtime_snapshot",
+        "get_config",
+        "shutdown_runtime",
+        "validate_config",
+        "single_step",
+        "load_adapter",
+        "get_status",
+        "is_healthy",
+        "resume_processing",
+        "get_adapter_info",
+        "get_service_health_status",
+        "restore_config",
+        "pause_processing",
+        "unload_adapter",
+        "stop"
+      ],
+      "module_methods": [
+        "get_processor_queue_status",
+        "list_adapters",
+        "update_service_priority",
+        "handle_emergency_shutdown",
+        "get_runtime_status",
+        "update_config",
+        "_configure_kill_switch",
+        "_initialize",
+        "get_service_selection_explanation",
+        "get_capabilities",
+        "list_config_backups",
+        "reset_circuit_breakers",
+        "_get_service_selection_explanation",
+        "start",
+        "__repr__",
+        "get_events_history",
+        "backup_config",
+        "_reload_config",
+        "_extract_wa_id_from_pem",
+        "get_runtime_snapshot",
+        "get_config",
+        "get_retry_config",
+        "shutdown_runtime",
+        "_get_config_manager",
+        "validate_config",
+        "single_step",
+        "health_check",
+        "_now",
+        "set_runtime",
+        "load_adapter",
+        "_get_service_registry_info",
+        "get_status",
+        "__init__",
+        "is_healthy",
+        "_record_event",
+        "_verify_wa_signature",
+        "resume_processing",
+        "retry_with_backoff",
+        "get_adapter_info",
+        "get_service_health_status",
+        "restore_config",
+        "pause_processing",
+        "unload_adapter",
+        "stop"
+      ],
+      "missing_methods": [],
+      "extra_methods": [
+        "get_retry_config",
+        "health_check",
+        "set_runtime",
+        "retry_with_backoff"
+      ],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "MemoryService": {
+      "service": "MemoryService",
+      "is_aligned": false,
+      "no_untyped_dicts": false,
+      "issues": [
+        {
+          "service": "MemoryService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: create_edge"
+        },
+        {
+          "service": "MemoryService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: get_node_edges"
+        },
+        {
+          "service": "MemoryService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 45: def default(self, obj: object) -> Any:"
+        },
+        {
+          "service": "MemoryService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 364: attributes_dict: Dict[str, Any]"
+        },
+        {
+          "service": "MemoryService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 411: attributes_dict: Dict[str, Any]"
+        }
+      ],
+      "protocol_methods": [
+        "export_identity_context",
+        "memorize_metric",
+        "recall",
+        "forget",
+        "memorize",
+        "query_graph",
+        "get_status",
+        "get_capabilities",
+        "get_node_type",
+        "search",
+        "store_in_graph",
+        "recall_timeseries",
+        "start",
+        "memorize_log",
+        "is_healthy",
+        "stop"
+      ],
+      "module_methods": [
+        "get_capabilities",
+        "get_node_type",
+        "search",
+        "start",
+        "export_identity_context",
+        "memorize_metric",
+        "create_edge",
+        "query_graph",
+        "_process_secrets_for_forget",
+        "store_in_graph",
+        "recall_timeseries",
+        "memorize_log",
+        "get_status",
+        "__init__",
+        "is_healthy",
+        "get_node_edges",
+        "_process_secrets_for_recall",
+        "memorize",
+        "recall",
+        "forget",
+        "_process_secrets_for_memorize",
+        "stop"
+      ],
+      "missing_methods": [],
+      "extra_methods": [
+        "create_edge",
+        "get_node_edges"
+      ],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "ResourceMonitorService": {
+      "service": "ResourceMonitorService",
+      "is_aligned": true,
+      "no_untyped_dicts": true,
+      "issues": [],
+      "protocol_methods": [
+        "record_tokens",
+        "get_capabilities",
+        "check_available",
+        "start",
+        "get_status",
+        "is_healthy",
+        "stop"
+      ],
+      "module_methods": [
+        "_take_action",
+        "record_tokens",
+        "stop",
+        "_update_snapshot",
+        "get_capabilities",
+        "start",
+        "check_available",
+        "_count_active_thoughts",
+        "get_status",
+        "__init__",
+        "_check_limits",
+        "_monitor_loop",
+        "is_healthy",
+        "_check_resource"
+      ],
+      "missing_methods": [],
+      "extra_methods": [],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "LLMService": {
+      "service": "LLMService",
+      "is_aligned": false,
+      "no_untyped_dicts": false,
+      "issues": [
+        {
+          "service": "LLMService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 105: self._response_cache: Dict[str, Any] = {}  # Simple response cache"
+        },
+        {
+          "service": "LLMService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 411: *args: Any,"
+        },
+        {
+          "service": "LLMService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 412: **kwargs: Any"
+        }
+      ],
+      "protocol_methods": [
+        "call_llm_structured",
+        "get_capabilities",
+        "start",
+        "get_status",
+        "is_healthy",
+        "stop"
+      ],
+      "module_methods": [
+        "_get_client",
+        "call_llm_structured",
+        "_stop",
+        "_get_status",
+        "_start",
+        "get_capabilities",
+        "_extract_json_from_response",
+        "_extract_json",
+        "_retry_with_backoff",
+        "start",
+        "get_status",
+        "__init__",
+        "stop",
+        "is_healthy"
+      ],
+      "missing_methods": [],
+      "extra_methods": [],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "AuditService": {
+      "service": "AuditService",
+      "is_aligned": true,
+      "no_untyped_dicts": true,
+      "issues": [],
+      "protocol_methods": [
+        "get_capabilities",
+        "log_action",
+        "get_node_type",
+        "get_event_by_id",
+        "start",
+        "query_events",
+        "get_verification_report",
+        "query_graph",
+        "set_service_registry",
+        "store_in_graph",
+        "log_conscience_event",
+        "log_event",
+        "get_status",
+        "is_healthy",
+        "verify_audit_integrity",
+        "export_audit_data",
+        "get_audit_trail",
+        "stop",
+        "query_audit_trail"
+      ],
+      "module_methods": [
+        "_export_jsonl",
+        "stop",
+        "get_capabilities",
+        "_add_to_hash_chain",
+        "log_action",
+        "get_node_type",
+        "get_event_by_id",
+        "start",
+        "_export_sqlite",
+        "query_events",
+        "get_verification_report",
+        "query_graph",
+        "_initialize_hash_chain",
+        "_init_components_sync",
+        "_export_worker",
+        "set_service_registry",
+        "_flush_exports",
+        "store_in_graph",
+        "_init_database",
+        "log_conscience_event",
+        "_convert_timeseries_to_entries",
+        "log_event",
+        "get_status",
+        "__init__",
+        "is_healthy",
+        "_audit_request_to_entry",
+        "_calculate_hours",
+        "_matches_filters",
+        "_export_csv",
+        "_store_entry_in_graph",
+        "verify_audit_integrity",
+        "_tsdb_to_audit_entry",
+        "export_audit_data",
+        "get_audit_trail",
+        "_cache_entry",
+        "_get_severity",
+        "query_audit_trail"
+      ],
+      "missing_methods": [],
+      "extra_methods": [],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "TimeService": {
+      "service": "TimeService",
+      "is_aligned": false,
+      "no_untyped_dicts": true,
+      "issues": [
+        {
+          "service": "TimeService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: get_uptime"
+        }
+      ],
+      "protocol_methods": [
+        "now",
+        "get_capabilities",
+        "start",
+        "get_status",
+        "now_iso",
+        "stop",
+        "timestamp",
+        "is_healthy"
+      ],
+      "module_methods": [
+        "__init__",
+        "get_status",
+        "get_capabilities",
+        "get_uptime",
+        "start",
+        "now",
+        "now_iso",
+        "stop",
+        "timestamp",
+        "is_healthy"
+      ],
+      "missing_methods": [],
+      "extra_methods": [
+        "get_uptime"
+      ],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "TelemetryService": {
+      "service": "TelemetryService",
+      "is_aligned": false,
+      "no_untyped_dicts": false,
+      "issues": [
+        {
+          "service": "TelemetryService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 148: **kwargs: Any  # Accept any other extra parameters"
+        },
+        {
+          "service": "TelemetryService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 602: usage_data: Dict[str, Any] = {}"
+        }
+      ],
+      "protocol_methods": [
+        "record_metric",
+        "get_metric_summary",
+        "get_telemetry_summary",
+        "query_graph",
+        "get_capabilities",
+        "query_metrics",
+        "get_node_type",
+        "store_in_graph",
+        "start",
+        "get_metric_count",
+        "get_status",
+        "is_healthy",
+        "stop"
+      ],
+      "module_methods": [
+        "get_telemetry_summary",
+        "_get_resource_limits",
+        "_get_service_status",
+        "get_capabilities",
+        "get_node_type",
+        "start",
+        "_store_behavioral_data",
+        "_record_resource_usage",
+        "get_metric_summary",
+        "query_graph",
+        "_store_resource_usage",
+        "store_in_graph",
+        "get_metric_count",
+        "_set_service_registry",
+        "_store_telemetry_metrics",
+        "_process_system_snapshot",
+        "_store_social_context",
+        "_store_identity_context",
+        "_now",
+        "get_status",
+        "record_metric",
+        "__init__",
+        "is_healthy",
+        "query_metrics",
+        "stop"
+      ],
+      "missing_methods": [],
+      "extra_methods": [],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "TaskSchedulerService": {
+      "service": "TaskSchedulerService",
+      "is_aligned": false,
+      "no_untyped_dicts": false,
+      "issues": [
+        {
+          "service": "TaskSchedulerService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: get_retry_config"
+        },
+        {
+          "service": "TaskSchedulerService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: health_check"
+        },
+        {
+          "service": "TaskSchedulerService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: schedule_deferred_task"
+        },
+        {
+          "service": "TaskSchedulerService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: retry_with_backoff"
+        },
+        {
+          "service": "TaskSchedulerService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 393: context: Optional[Dict[str, Any]] = None"
+        }
+      ],
+      "protocol_methods": [
+        "get_scheduled_tasks",
+        "get_capabilities",
+        "cancel_task",
+        "start",
+        "get_status",
+        "schedule_task",
+        "stop",
+        "is_healthy"
+      ],
+      "module_methods": [
+        "_complete_task",
+        "_scheduler_loop",
+        "get_capabilities",
+        "start",
+        "__repr__",
+        "get_retry_config",
+        "_get_next_cron_time",
+        "_handle_shutdown",
+        "schedule_task",
+        "_validate_cron_expression",
+        "schedule_deferred_task",
+        "_defer_task",
+        "health_check",
+        "_load_active_tasks",
+        "get_scheduled_tasks",
+        "get_status",
+        "__init__",
+        "is_healthy",
+        "_get_due_tasks",
+        "_trigger_task",
+        "retry_with_backoff",
+        "_is_task_due",
+        "_update_task_triggered",
+        "cancel_task",
+        "_should_trigger_cron",
+        "stop",
+        "_create_scheduled_task"
+      ],
+      "missing_methods": [],
+      "extra_methods": [
+        "get_retry_config",
+        "health_check",
+        "schedule_deferred_task",
+        "retry_with_backoff"
+      ],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "IncidentManagementService": {
+      "service": "IncidentManagementService",
+      "is_aligned": false,
+      "no_untyped_dicts": false,
+      "issues": [
+        {
+          "service": "IncidentManagementService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: set_memory_bus"
+        },
+        {
+          "service": "IncidentManagementService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: set_time_service"
+        },
+        {
+          "service": "IncidentManagementService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 50: async def _get_time_service(self) -> Any:"
+        }
+      ],
+      "protocol_methods": [
+        "process_recent_incidents",
+        "query_graph",
+        "get_capabilities",
+        "get_node_type",
+        "store_in_graph",
+        "start",
+        "get_status",
+        "is_healthy",
+        "stop"
+      ],
+      "module_methods": [
+        "process_recent_incidents",
+        "_group_by_similarity",
+        "_create_no_incidents_insight",
+        "_detect_patterns",
+        "get_capabilities",
+        "get_node_type",
+        "_analyze_root_causes",
+        "start",
+        "_mark_incidents_analyzed",
+        "_get_severity_breakdown",
+        "query_graph",
+        "_create_problem_statement",
+        "store_in_graph",
+        "_get_recent_incidents",
+        "set_memory_bus",
+        "_identify_problems",
+        "_generate_recommendations",
+        "_get_time_service",
+        "_update_incident",
+        "_detect_time_clusters",
+        "_get_component_breakdown",
+        "_summarize_analysis",
+        "_get_time_distribution",
+        "get_status",
+        "__init__",
+        "is_healthy",
+        "set_time_service",
+        "stop",
+        "_suggest_fixes"
+      ],
+      "missing_methods": [],
+      "extra_methods": [
+        "set_memory_bus",
+        "set_time_service"
+      ],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "TSDBConsolidationService": {
+      "service": "TSDBConsolidationService",
+      "is_aligned": false,
+      "no_untyped_dicts": false,
+      "issues": [
+        {
+          "service": "TSDBConsolidationService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: set_memory_bus"
+        },
+        {
+          "service": "TSDBConsolidationService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: set_time_service"
+        },
+        {
+          "service": "TSDBConsolidationService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 334: correlations: Dict[str, List[Dict[str, Any]]],"
+        },
+        {
+          "service": "TSDBConsolidationService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 335: tasks: List[Dict[str, Any]],"
+        },
+        {
+          "service": "TSDBConsolidationService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 682: async def get_summary_for_period(self, period_start: datetime, period_end: datetime) -> Optional[Dict[str, Any]]:"
+        }
+      ],
+      "protocol_methods": [
+        "query_graph",
+        "get_capabilities",
+        "get_node_type",
+        "store_in_graph",
+        "get_summary_for_period",
+        "start",
+        "get_status",
+        "is_healthy",
+        "stop"
+      ],
+      "module_methods": [
+        "_calculate_next_run_time",
+        "get_capabilities",
+        "get_node_type",
+        "start",
+        "_cleanup_old_data",
+        "query_graph",
+        "_create_all_edges",
+        "store_in_graph",
+        "_is_period_consolidated",
+        "_set_service_registry",
+        "set_memory_bus",
+        "_run_consolidation",
+        "_now",
+        "_find_oldest_unconsolidated_period",
+        "get_status",
+        "__init__",
+        "_cleanup_old_nodes",
+        "is_healthy",
+        "set_time_service",
+        "_consolidation_loop",
+        "get_summary_for_period",
+        "stop",
+        "_consolidate_period"
+      ],
+      "missing_methods": [],
+      "extra_methods": [
+        "set_memory_bus",
+        "set_time_service"
+      ],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "AuthenticationService": {
+      "service": "AuthenticationService",
+      "is_aligned": false,
+      "no_untyped_dicts": false,
+      "issues": [
+        {
+          "service": "AuthenticationService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 836: async def async_wrapper(*args: Any, **kwargs: Any) -> Any:"
+        },
+        {
+          "service": "AuthenticationService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 836: async def async_wrapper(*args: Any, **kwargs: Any) -> Any:"
+        },
+        {
+          "service": "AuthenticationService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 862: def sync_wrapper(*args: Any, **kwargs: Any) -> Any:"
+        },
+        {
+          "service": "AuthenticationService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 862: def sync_wrapper(*args: Any, **kwargs: Any) -> Any:"
+        },
+        {
+          "service": "AuthenticationService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 905: async def async_wrapper(*args: Any, **kwargs: Any) -> Any:"
+        },
+        {
+          "service": "AuthenticationService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 905: async def async_wrapper(*args: Any, **kwargs: Any) -> Any:"
+        },
+        {
+          "service": "AuthenticationService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 946: def sync_wrapper(*args: Any, **kwargs: Any) -> Any:"
+        },
+        {
+          "service": "AuthenticationService",
+          "type": "untyped_dict",
+          "message": "Uses Dict[str, Any] at line 946: def sync_wrapper(*args: Any, **kwargs: Any) -> Any:"
+        }
+      ],
+      "protocol_methods": [
+        "update_wa",
+        "revoke_wa",
+        "list_was",
+        "get_capabilities",
+        "start",
+        "bootstrap_if_needed",
+        "sign_data",
+        "create_token",
+        "get_wa_by_oauth",
+        "get_wa",
+        "get_system_wa_id",
+        "generate_keypair",
+        "update_last_login",
+        "rotate_keys",
+        "verify_token",
+        "sign_task",
+        "create_wa",
+        "get_status",
+        "is_healthy",
+        "authenticate",
+        "hash_password",
+        "verify_token_sync",
+        "create_gateway_token",
+        "create_channel_token",
+        "verify_task_signature",
+        "stop"
+      ],
+      "module_methods": [
+        "update_wa",
+        "_list_all_was",
+        "list_was",
+        "revoke_wa",
+        "get_capabilities",
+        "_create_system_wa_certificate",
+        "_get_wa_by_adapter",
+        "start",
+        "bootstrap_if_needed",
+        "sign_data",
+        "_store_wa_certificate",
+        "create_token",
+        "get_wa_by_oauth",
+        "_decode_public_key",
+        "_verify_jwt_and_get_context",
+        "get_wa",
+        "get_system_wa_id",
+        "generate_keypair",
+        "_verify_signature",
+        "_verify_password",
+        "_generate_wa_id",
+        "_init_database",
+        "_create_authority_token",
+        "_verify_token_internal",
+        "update_last_login",
+        "rotate_keys",
+        "_generate_api_key",
+        "verify_token",
+        "_create_channel_token_for_adapter",
+        "sign_task",
+        "create_wa",
+        "authenticate",
+        "__init__",
+        "get_status",
+        "hash_password",
+        "is_healthy",
+        "_get_system_wa",
+        "verify_token_sync",
+        "create_gateway_token",
+        "create_channel_token",
+        "_get_wa_by_kid",
+        "_get_adapter_token",
+        "_get_or_create_gateway_secret",
+        "_encode_public_key",
+        "_require_scope",
+        "_require_wa_auth",
+        "verify_task_signature",
+        "stop",
+        "_create_adapter_observer"
+      ],
+      "missing_methods": [],
+      "extra_methods": [],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "SecretsService": {
+      "service": "SecretsService",
+      "is_aligned": false,
+      "no_untyped_dicts": true,
+      "issues": [
+        {
+          "service": "SecretsService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: get_retry_config"
+        },
+        {
+          "service": "SecretsService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: health_check"
+        },
+        {
+          "service": "SecretsService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: retry_with_backoff"
+        }
+      ],
+      "protocol_methods": [
+        "get_filter_config",
+        "process_incoming_text",
+        "encrypt",
+        "get_service_stats",
+        "decrypt",
+        "recall_secret",
+        "store_secret",
+        "get_capabilities",
+        "start",
+        "decapsulate_secrets_in_parameters",
+        "forget_secret",
+        "update_filter_config",
+        "reencrypt_all",
+        "retrieve_secret",
+        "list_stored_secrets",
+        "get_status",
+        "is_healthy",
+        "stop"
+      ],
+      "module_methods": [
+        "_enable_auto_forget",
+        "_auto_forget_task_secrets",
+        "get_capabilities",
+        "_deep_decapsulate",
+        "start",
+        "__repr__",
+        "_disable_auto_forget",
+        "store_secret",
+        "get_retry_config",
+        "reencrypt_all",
+        "update_filter_config",
+        "forget_secret",
+        "decrypt",
+        "recall_secret",
+        "_decapsulate_string",
+        "get_filter_config",
+        "process_incoming_text",
+        "get_service_stats",
+        "health_check",
+        "retrieve_secret",
+        "list_stored_secrets",
+        "get_status",
+        "__init__",
+        "is_healthy",
+        "encrypt",
+        "retry_with_backoff",
+        "_get_auto_decapsulate_actions",
+        "decapsulate_secrets_in_parameters",
+        "stop"
+      ],
+      "missing_methods": [],
+      "extra_methods": [
+        "get_retry_config",
+        "health_check",
+        "retry_with_backoff"
+      ],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "InitializationService": {
+      "service": "InitializationService",
+      "is_aligned": true,
+      "no_untyped_dicts": true,
+      "issues": [],
+      "protocol_methods": [
+        "get_initialization_status",
+        "register_step",
+        "get_capabilities",
+        "verify_initialization",
+        "start",
+        "initialize",
+        "get_status",
+        "is_healthy",
+        "stop"
+      ],
+      "module_methods": [
+        "get_initialization_status",
+        "_execute_step",
+        "_execute_phase",
+        "register_step",
+        "stop",
+        "get_capabilities",
+        "verify_initialization",
+        "start",
+        "initialize",
+        "get_status",
+        "__init__",
+        "_is_initialized",
+        "is_healthy"
+      ],
+      "missing_methods": [],
+      "extra_methods": [],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "WiseAuthorityService": {
+      "service": "WiseAuthorityService",
+      "is_aligned": false,
+      "no_untyped_dicts": true,
+      "issues": [
+        {
+          "service": "WiseAuthorityService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: get_retry_config"
+        },
+        {
+          "service": "WiseAuthorityService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: health_check"
+        },
+        {
+          "service": "WiseAuthorityService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: retry_with_backoff"
+        }
+      ],
+      "protocol_methods": [
+        "revoke_permission",
+        "get_pending_deferrals",
+        "list_permissions",
+        "get_guidance",
+        "fetch_guidance",
+        "request_approval",
+        "get_capabilities",
+        "check_authorization",
+        "resolve_deferral",
+        "start",
+        "grant_permission",
+        "get_status",
+        "send_deferral",
+        "stop",
+        "is_healthy"
+      ],
+      "module_methods": [
+        "get_pending_deferrals",
+        "get_guidance",
+        "get_capabilities",
+        "start",
+        "__repr__",
+        "send_deferral",
+        "revoke_permission",
+        "fetch_guidance",
+        "get_retry_config",
+        "health_check",
+        "request_approval",
+        "check_authorization",
+        "grant_permission",
+        "get_status",
+        "__init__",
+        "is_healthy",
+        "list_permissions",
+        "retry_with_backoff",
+        "resolve_deferral",
+        "stop"
+      ],
+      "missing_methods": [],
+      "extra_methods": [
+        "get_retry_config",
+        "health_check",
+        "retry_with_backoff"
+      ],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    },
+    "GraphConfigService": {
+      "service": "GraphConfigService",
+      "is_aligned": false,
+      "no_untyped_dicts": true,
+      "issues": [
+        {
+          "service": "GraphConfigService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: query_config_by_key"
+        },
+        {
+          "service": "GraphConfigService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: register_config_listener"
+        },
+        {
+          "service": "GraphConfigService",
+          "type": "extra_method",
+          "message": "Module has method not in protocol: unregister_config_listener"
+        }
+      ],
+      "protocol_methods": [
+        "list_configs",
+        "query_graph",
+        "get_config",
+        "get_capabilities",
+        "set_config",
+        "get_node_type",
+        "store_in_graph",
+        "start",
+        "get_status",
+        "is_healthy",
+        "stop"
+      ],
+      "module_methods": [
+        "_notify_listeners",
+        "list_configs",
+        "query_graph",
+        "query_config_by_key",
+        "get_config",
+        "get_capabilities",
+        "get_node_type",
+        "set_config",
+        "store_in_graph",
+        "start",
+        "get_status",
+        "__init__",
+        "stop",
+        "register_config_listener",
+        "is_healthy",
+        "unregister_config_listener"
+      ],
+      "missing_methods": [],
+      "extra_methods": [
+        "query_config_by_key",
+        "register_config_listener",
+        "unregister_config_listener"
+      ],
+      "untyped_parameters": [],
+      "untyped_returns": []
+    }
+  }
+}

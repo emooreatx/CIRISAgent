@@ -36,7 +36,7 @@ class RejectHandler(BaseActionHandler):
                 status=final_thought_status,
                 final_action=result,
             )
-            return
+            return None
         final_thought_status = ThoughtStatus.FAILED
         _action_performed_successfully = False
         follow_up_content_key_info = f"REJECT action for thought {thought_id}"
@@ -74,6 +74,8 @@ class RejectHandler(BaseActionHandler):
         # REJECT is a terminal action - no follow-up thoughts should be created
         self.logger.info(f"REJECT action completed for thought {thought_id}. This is a terminal action.")
         await self._audit_log(HandlerActionType.REJECT, dispatch_context, outcome="success")
+        
+        return None
 
     async def _create_adaptive_filter(self, params: RejectParams, thought: Thought, dispatch_context: DispatchContext) -> None:
         """Create an adaptive filter based on the rejected content."""

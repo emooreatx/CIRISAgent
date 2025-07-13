@@ -1,9 +1,10 @@
 """User management API routes."""
 
-from typing import List, Optional, TypeVar, Generic, Dict
+from typing import List, Optional, TypeVar, Generic, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from datetime import datetime
+import logging
 
 from ..services.auth_service import APIAuthService
 from ciris_engine.schemas.runtime.api import (
@@ -18,6 +19,8 @@ from ..dependencies.auth import (
 from ciris_engine.schemas.api.auth import AuthContext
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+logger = logging.getLogger(__name__)
 
 
 # Generic models
@@ -116,7 +119,7 @@ async def list_users(
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service),
     _: None = Depends(check_permissions(["users.read"]))
-):
+) -> PaginatedResponse[UserSummary]:
     """
     List all users with optional filtering.
     
@@ -168,7 +171,7 @@ async def create_user(
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service),
     _: None = Depends(check_permissions(["users.write"]))
-):
+) -> UserDetail:
     """
     Create a new user account.
     
@@ -205,7 +208,7 @@ async def get_user(
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service),
     _: None = Depends(check_permissions(["users.read"]))
-):
+) -> UserDetail:
     """
     Get detailed information about a specific user.
     
@@ -249,7 +252,7 @@ async def update_user(
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service),
     _: None = Depends(check_permissions(["users.write"]))
-):
+) -> UserDetail:
     """
     Update user information (role, active status).
     
@@ -283,7 +286,7 @@ async def change_password(
     request: ChangePasswordRequest,
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service)
-):
+) -> Dict[str, str]:
     """
     Change user password.
     
@@ -323,7 +326,7 @@ async def mint_wise_authority(
     request: MintWARequest,
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service)
-):
+) -> UserDetail:
     """
     Mint a user as a Wise Authority.
     
@@ -343,7 +346,7 @@ async def mint_wise_authority(
         )
     
     # Validate that request.wa_role is not ROOT
-    if request.wa_role == WARole.ROOT:
+    if request.wa_role == WARole.ROOT:  # type: ignore[unreachable]
         raise HTTPException(
             status_code=400,
             detail="Cannot mint new ROOT authorities. ROOT is singular."
@@ -437,7 +440,7 @@ async def check_wa_key_exists(
     path: str = Query(..., description="Path to check for private key"),
     auth: AuthContext = Depends(get_auth_context),
     _: None = Depends(check_permissions(["wa.mint"]))  # SYSTEM_ADMIN only
-):
+) -> Dict[str, Any]:
     """
     Check if a WA private key exists at the given path.
     
@@ -496,7 +499,7 @@ async def deactivate_user(
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service),
     _: None = Depends(check_permissions(["users.delete"]))
-):
+) -> Dict[str, str]:
     """
     Deactivate a user account.
     
@@ -522,7 +525,7 @@ async def list_user_api_keys(
     user_id: str,
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service)
-):
+) -> List[Dict[str, Any]]:
     """
     List API keys for a user.
     
@@ -556,7 +559,7 @@ async def update_user_permissions(
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service),
     _: None = Depends(check_permissions(["manage_user_permissions"]))
-):
+) -> UserDetail:
     """
     Update user's custom permissions.
     

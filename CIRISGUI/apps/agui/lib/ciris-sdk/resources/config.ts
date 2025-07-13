@@ -42,7 +42,9 @@ export interface ConfigListResponse {
 }
 
 // Helper function to extract actual value from wrapper
-export function unwrapConfigValue(wrapper: ConfigValueWrapper): any {
+export function unwrapConfigValue(wrapper: ConfigValueWrapper | null | undefined): any {
+  if (!wrapper) return null;
+  
   if (wrapper.string_value !== null && wrapper.string_value !== undefined) return wrapper.string_value;
   if (wrapper.int_value !== null && wrapper.int_value !== undefined) return wrapper.int_value;
   if (wrapper.float_value !== null && wrapper.float_value !== undefined) return wrapper.float_value;

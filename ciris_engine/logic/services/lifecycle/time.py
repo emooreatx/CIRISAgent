@@ -10,54 +10,50 @@ Provides centralized time operations that are:
 This replaces the time_utils.py utility with a proper service.
 """
 from datetime import datetime, timezone
+from typing import List, Dict, Any
 
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.protocols.runtime.base import ServiceProtocol
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.logic.services.base_infrastructure_service import BaseInfrastructureService
+from ciris_engine.schemas.runtime.enums import ServiceType
 
-class TimeService(TimeServiceProtocol, ServiceProtocol):
+class TimeService(BaseInfrastructureService, TimeServiceProtocol):
     """Secure time service implementation."""
 
     def __init__(self) -> None:
         """Initialize the time service."""
-        self._start_time = datetime.now(timezone.utc)
-        self._running = False
-
-    async def start(self) -> None:
-        """Start the service."""
-        self._running = True
+        # Initialize base class without time_service (we ARE the time service)
+        super().__init__(service_name="TimeService", version="1.0.0")
         self._start_time = datetime.now(timezone.utc)
 
-    async def stop(self) -> None:
-        """Stop the service."""
-        self._running = False
+    # Required abstract methods from BaseService
 
-    def get_capabilities(self) -> ServiceCapabilities:
-        """Get service capabilities."""
-        return ServiceCapabilities(
-            service_name="TimeService",
-            actions=["now", "now_iso", "timestamp"],
-            version="1.0.0",
-            dependencies=[],
-            metadata={"description": "Provides consistent UTC time operations"}
-        )
+    def get_service_type(self) -> ServiceType:
+        """Get the service type enum value."""
+        return ServiceType.TIME
 
-    def get_status(self) -> ServiceStatus:
-        """Get service status."""
-        uptime = (self.now() - self._start_time).total_seconds()
-        return ServiceStatus(
-            service_name="TimeService",
-            service_type="infrastructure",
-            is_healthy=self._running,
-            uptime_seconds=uptime,
-            metrics={},
-            last_error=None,
-            last_health_check=self.now() if self._running else None
-        )
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service provides."""
+        return ["now", "now_iso", "timestamp"]
 
-    async def is_healthy(self) -> bool:
-        """Check if service is healthy."""
-        return self._running
+    def _check_dependencies(self) -> bool:
+        """Check if all required dependencies are available."""
+        # TimeService has no dependencies
+        return True
+
+    def _get_metadata(self) -> Dict[str, Any]:
+        """Get service-specific metadata."""
+        metadata = super()._get_metadata()
+        metadata.update({
+            "description": "Provides consistent UTC time operations",
+            "mockable": True,
+            "timezone": "UTC"
+        })
+        return metadata
+
+    # Override _now to prevent circular dependency
+    def _now(self) -> datetime:
+        """Get current time without using time service."""
+        return datetime.now(timezone.utc)
 
     def now(self) -> datetime:
         """
@@ -85,12 +81,12 @@ class TimeService(TimeServiceProtocol, ServiceProtocol):
             float: Seconds since Unix epoch
         """
         return self.now().timestamp()
-
-    async def get_uptime(self) -> float:
+    
+    def get_uptime(self) -> float:
         """
         Get service uptime in seconds.
-
+        
         Returns:
-            float: Uptime in seconds since service start
+            float: Seconds since service started
         """
         return (self.now() - self._start_time).total_seconds()

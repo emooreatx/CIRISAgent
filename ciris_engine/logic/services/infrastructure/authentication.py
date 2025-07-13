@@ -10,7 +10,7 @@ import asyncio
 import functools
 import inspect
 import logging
-from typing import Optional, List, Dict, Tuple, Callable, TypeVar, Union, TYPE_CHECKING
+from typing import Optional, List, Dict, Tuple, Callable, TypeVar, Union, TYPE_CHECKING, Any
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -44,7 +44,7 @@ F = TypeVar('F', bound=Callable)
 class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceProtocol):
     """Infrastructure service for WA authentication and identity management."""
 
-    def __init__(self, db_path: str, time_service: TimeService, key_dir: Optional[str] = None):
+    def __init__(self, db_path: str, time_service: TimeService, key_dir: Optional[str] = None) -> None:
         """Initialize the WA Authentication Service.
 
         Args:
@@ -72,7 +72,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
 
         # Track service state
         self._started = False
-        self._start_time = None
+        self._start_time: Optional[datetime] = None
 
     @staticmethod
     def _encode_public_key(pubkey_bytes: bytes) -> str:
@@ -340,9 +340,9 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             if updates.permissions:
                 update_kwargs['scopes_json'] = json.dumps(updates.permissions)
             if updates.metadata:
-                update_kwargs['metadata'] = updates.metadata
+                update_kwargs['metadata'] = json.dumps(updates.metadata)
             if updates.is_active is not None:
-                update_kwargs['active'] = updates.is_active
+                update_kwargs['active'] = str(int(updates.is_active))
             kwargs.update(update_kwargs)
         if not kwargs:
             return await self.get_wa(wa_id)
@@ -679,7 +679,10 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             if not claims:
                 return None
 
-            wa_id = claims.get("wa_id") if isinstance(claims, dict) else getattr(claims, "wa_id", None)
+            if hasattr(claims, 'get'):
+                wa_id = claims.get("wa_id")
+            else:
+                wa_id = getattr(claims, "wa_id", None)
             if not wa_id:
                 return None
 
@@ -696,7 +699,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 wa_id=wa_id,
                 name=wa.name,
                 role=wa.role.value,
-                expires_at=datetime.fromtimestamp(claims.get("exp", 0), tz=timezone.utc) if isinstance(claims, dict) else self._time_service.now(),
+                expires_at=datetime.fromtimestamp(claims.get("exp", 0), tz=timezone.utc) if hasattr(claims, 'get') else self._time_service.now(),
                 permissions=wa.scopes,
                 metadata={}
             )
@@ -769,13 +772,11 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
         wa_cert = WACertificate(
             wa_id=wa_id,
             name=name,
-            email=email,
             role=role,
             pubkey=self._encode_public_key(public_key),
             jwt_kid=jwt_kid,
             scopes_json=json.dumps(scopes),
-            created_at=timestamp,
-            active=True
+            created_at=timestamp
         )
 
         # Store in database
@@ -832,7 +833,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
     def _require_scope(self, scope: str) -> Callable[[F], F]:
         """Decorator to require specific scope for endpoint."""
         def decorator(func: F) -> F:
-            async def async_wrapper(*args, **kwargs):
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 # Extract auth context from kwargs
                 auth_context = kwargs.get('auth_context')
 
@@ -858,7 +859,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
 
                 return await func(*args, **kwargs)
 
-            def sync_wrapper(*args, **kwargs):
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 # Extract auth context from kwargs
                 auth_context = kwargs.get('auth_context')
 
@@ -901,7 +902,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
             Decorated function that enforces authentication
         """
         def decorator(func: F) -> F:
-            async def async_wrapper(*args, **kwargs):
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 # Extract token from various sources
                 token = None
                 auth_context = None
@@ -942,7 +943,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
                 # Call the original function
                 return await func(*args, **kwargs)
 
-            def sync_wrapper(*args, **kwargs):
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 # For synchronous functions, we need to handle auth differently
                 # This is a simplified version that expects auth_context to be pre-verified
                 auth_context = kwargs.get('auth_context')
@@ -1149,7 +1150,7 @@ class AuthenticationService(BaseService, AuthenticationServiceProtocol, ServiceP
         system_wa = await self._get_system_wa()
         if not system_wa:
             # Find the root certificate
-            root_wa = None
+            root_wa: Optional[WACertificate] = None
             for wa in await self._list_all_was():
                 if wa.role == WARole.ROOT:
                     root_wa = wa

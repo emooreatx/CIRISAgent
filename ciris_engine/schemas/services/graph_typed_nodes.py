@@ -60,7 +60,7 @@ class TypedGraphNode(GraphNode, ABC):
             base_fields.update(exclude_fields)
 
         # Get all fields from this model
-        extra_data = {}
+        extra_data: Dict[str, Any] = {}
         for field_name, field_value in self.model_dump().items():
             if field_name not in base_fields and field_value is not None:
                 # Handle special types
