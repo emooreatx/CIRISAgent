@@ -2,9 +2,10 @@
 
 from typing import Protocol, List, Optional, Dict
 from abc import abstractmethod
+from datetime import datetime
 
 from ...runtime.base import GraphServiceProtocol
-from ciris_engine.schemas.services.graph_core import GraphNode
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphEdge, GraphScope
 from ciris_engine.schemas.services.operations import MemoryOpResult, MemoryQuery
 from ciris_engine.schemas.runtime.memory import TimeSeriesDataPoint
 from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
@@ -41,7 +42,8 @@ class MemoryServiceProtocol(GraphServiceProtocol, Protocol):
 
     @abstractmethod
     async def recall_timeseries(self, scope: str = "default", hours: int = 24,
-                               correlation_types: Optional[List[str]] = None) -> List[TimeSeriesDataPoint]:
+                               correlation_types: Optional[List[str]] = None,
+                               start_time: Optional['datetime'] = None, end_time: Optional['datetime'] = None) -> List[TimeSeriesDataPoint]:
         """Recall time-series data."""
         ...
 
@@ -53,4 +55,14 @@ class MemoryServiceProtocol(GraphServiceProtocol, Protocol):
     @abstractmethod
     async def search(self, query: str, filters: Optional['MemorySearchFilter'] = None) -> List[GraphNode]:
         """Search memories using text query."""
+        ...
+    
+    @abstractmethod
+    async def create_edge(self, edge: 'GraphEdge') -> MemoryOpResult:
+        """Create an edge between two nodes in the memory graph."""
+        ...
+    
+    @abstractmethod
+    async def get_node_edges(self, node_id: str, scope: 'GraphScope') -> List['GraphEdge']:
+        """Get all edges connected to a node."""
         ...

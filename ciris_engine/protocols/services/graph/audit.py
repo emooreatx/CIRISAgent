@@ -93,7 +93,3 @@ class AuditServiceProtocol(GraphServiceProtocol, Protocol):
         """Get specific audit event."""
         ...
 
-    @abstractmethod
-    def set_service_registry(self, registry: object) -> None:
-        """Set the service registry."""
-        ...

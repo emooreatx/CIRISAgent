@@ -1,6 +1,6 @@
 """Configuration Service Protocol."""
 
-from typing import Protocol, Dict, List, Optional, Union, TYPE_CHECKING
+from typing import Protocol, Dict, List, Optional, Union, TYPE_CHECKING, Callable
 from abc import abstractmethod
 
 from ...runtime.base import GraphServiceProtocol
@@ -24,4 +24,14 @@ class GraphConfigServiceProtocol(GraphServiceProtocol, Protocol):
     @abstractmethod
     async def list_configs(self, prefix: Optional[str] = None) -> Dict[str, Union[str, int, float, bool, List, Dict]]:
         """List all configurations with optional prefix filter."""
+        ...
+    
+    @abstractmethod
+    def register_config_listener(self, key_pattern: str, callback: 'Callable') -> None:
+        """Register a callback for config changes matching the key pattern."""
+        ...
+    
+    @abstractmethod
+    def unregister_config_listener(self, key_pattern: str, callback: 'Callable') -> None:
+        """Unregister a config change callback."""
         ...

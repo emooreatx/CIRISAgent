@@ -26,6 +26,7 @@ from ciris_engine.schemas.adapters.tools import ToolExecutionResult
 from ciris_engine.logic import persistence
 from ciris_engine.logic.adapters.base import Service
 from ciris_engine.schemas.services.graph_core import GraphScope, GraphNodeAttributes
+from ciris_engine.schemas.runtime.enums import ServiceType
 
 from .discord_message_handler import DiscordMessageHandler
 from .discord_guidance_handler import DiscordGuidanceHandler
@@ -296,12 +297,13 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             # Fall back to Discord API if correlation fetch fails
             if self._channel_manager.client:
                 try:
-                    return await self._retry_discord_operation(
+                    messages_result = await self._retry_discord_operation(
                         self._message_handler.fetch_messages_from_channel,
                         channel_id, limit,
                         operation_name="fetch_messages",
                         config_key="discord_api"
                     )
+                    return messages_result if messages_result else []
                 except Exception as e2:
                     logger.exception(f"Failed to fetch messages from Discord API: {e2}")
             return []
@@ -1020,7 +1022,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             service_name="DiscordAdapter",
             service_type="adapter",
             is_healthy=is_healthy,
-            uptime_seconds=(self._time_service.now() - self._start_time).total_seconds() if self._start_time else 0.0,
+            uptime_seconds=float((self._time_service.now() - self._start_time).total_seconds()) if self._start_time and self._time_service else 0.0,
             metrics={
                 "latency": latency_ms
             }
@@ -1090,7 +1092,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         """
         try:
             # Capture start time
-            self._start_time = self._time_service.now()
+            self._start_time = datetime.now()
 
             # Emit telemetry for adapter start
             await self._emit_telemetry("discord.adapter.starting", 1.0, {
@@ -1100,12 +1102,10 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             await super().start()
 
             # Set up audit service if available
-            if self.bus_manager:
-                # Try to get audit service from service registry if available
+            if self.bus_manager and hasattr(self.bus_manager, 'audit'):
+                # Try to get audit service from bus manager
                 try:
-                    from ciris_engine.logic.services.identity import ServiceRegistry
-                    registry = ServiceRegistry.get_instance()
-                    audit_service = registry.get_service("audit")
+                    audit_service = self.bus_manager.audit
                     if audit_service:
                         self._audit_logger.set_audit_service(audit_service)
                         logger.info("Discord adapter connected to audit service")
@@ -1190,6 +1190,10 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         except Exception:
             return False
     
+    def get_service_type(self) -> ServiceType:
+        """Get the type of this service."""
+        return ServiceType.ADAPTER
+    
     def get_channel_list(self) -> List[Dict[str, Any]]:
         """
         Get list of available Discord channels.
@@ -1241,11 +1245,13 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         if self._channel_manager and self._channel_manager.client and self._channel_manager.client.is_ready():
             for channel_info in channels:
                 try:
-                    discord_channel = self._channel_manager.client.get_channel(int(channel_info["channel_id"]))
-                    if discord_channel:
-                        channel_info["channel_name"] = f"#{discord_channel.name}"
-                        channel_info["guild_id"] = str(discord_channel.guild.id) if hasattr(discord_channel, 'guild') else None
-                        channel_info["guild_name"] = discord_channel.guild.name if hasattr(discord_channel, 'guild') else None
+                    channel_id_str = channel_info.get("channel_id")
+                    if channel_id_str and isinstance(channel_id_str, str):
+                        discord_channel = self._channel_manager.client.get_channel(int(channel_id_str))
+                        if discord_channel and hasattr(discord_channel, 'name'):
+                            channel_info["channel_name"] = f"#{discord_channel.name}"
+                            channel_info["guild_id"] = str(discord_channel.guild.id) if hasattr(discord_channel, 'guild') and discord_channel.guild else None
+                            channel_info["guild_name"] = discord_channel.guild.name if hasattr(discord_channel, 'guild') and discord_channel.guild else None
                 except Exception as e:
                     logger.debug(f"Could not get Discord channel info for {channel_info['channel_id']}: {e}")
         

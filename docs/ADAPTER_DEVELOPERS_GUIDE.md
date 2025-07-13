@@ -12,7 +12,7 @@ The CIRIS Engine uses a sophisticated adapter architecture to interface with dif
 - **Communication** between core and platforms happens through well-defined service protocols
 
 ### 2. Service-Oriented Design
-- Adapters implement standardized service interfaces (`CommunicationService`, `WiseAuthorityService`, `ToolService`)
+- Adapters implement standardized service interfaces (`CommunicationService`, `WiseAuthorityService`, `ToolService`, `RuntimeControlService`)
 - Core components interact with adapters through the `ServiceRegistry` and protocol interfaces
 - Multiple adapters can provide the same service type with different priorities
 
@@ -71,17 +71,31 @@ class DiscordPlatform:
         self.discord_observer = DiscordObserver(**services)
         self.client = discord.Client(intents=self.config.get_intents())
         
-    def get_services_to_register(self) -> List[ServiceRegistration]:
+    def get_services_to_register(self) -> List[AdapterServiceRegistration]:
         """Return services this platform provides."""
         return [
-            ServiceRegistration(
+            AdapterServiceRegistration(
                 service_type=ServiceType.COMMUNICATION,
-                instance=self.discord_adapter,
+                provider=self.discord_adapter,
                 priority=Priority.HIGH,
-                capabilities=["send_message", "fetch_messages"],
-                handlers={"SpeakHandler": self.discord_adapter, ...}
+                handlers=["SpeakHandler", "ObserveHandler"],
+                capabilities=["send_message", "fetch_messages"]
             ),
-            # ... more services
+            AdapterServiceRegistration(
+                service_type=ServiceType.WISE_AUTHORITY,
+                provider=self.discord_adapter,
+                priority=Priority.HIGH,
+                handlers=["DeferHandler", "SpeakHandler"],
+                capabilities=["fetch_guidance", "send_deferral"]
+            ),
+            AdapterServiceRegistration(
+                service_type=ServiceType.TOOL,
+                provider=self.discord_tool_service,
+                priority=Priority.NORMAL,
+                handlers=["ToolHandler"],
+                capabilities=["execute_tool", "list_tools", "get_tool_info"]
+            ),
+            # RuntimeControlService would be added here if platform supports it
         ]
 ```
 
@@ -206,8 +220,8 @@ async def get_capabilities() -> List[str]
 For human guidance and escalation:
 
 ```python
-async def send_deferral(self, thought_id: str, reason: str, context: Dict[str, Any]) -> bool
-async def fetch_guidance(self, context: Dict[str, Any]) -> Optional[str]
+async def send_deferral(self, deferral: DeferralRequest) -> str
+async def fetch_guidance(self, context: GuidanceContext) -> Optional[str]
 ```
 
 ### Tool Service
@@ -215,10 +229,59 @@ async def fetch_guidance(self, context: Dict[str, Any]) -> Optional[str]
 For platform-specific tool execution:
 
 ```python
-async def execute_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]
-async def get_available_tools() -> List[str]
-async def get_tool_result(self, correlation_id: str) -> Optional[Dict[str, Any]]
+async def execute_tool(self, tool_name: str, parameters: dict) -> ToolExecutionResult
+async def list_tools() -> List[str]
+async def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]
+async def get_all_tool_info() -> List[ToolInfo]
+async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[ToolExecutionResult]
+async def validate_parameters(self, tool_name: str, parameters: dict) -> bool
 ```
+
+### Runtime Control Service
+
+For controlling CIRIS runtime behavior (currently only implemented by API adapter):
+
+```python
+async def pause_processing() -> bool
+async def resume_processing() -> bool
+async def request_state_transition(self, target_state: str) -> bool
+async def get_runtime_status() -> RuntimeStatus
+async def single_step_processing() -> bool
+async def get_processing_queue_status() -> Dict[str, Any]
+```
+
+**Note:** RuntimeControlService is typically only provided by administrative interfaces like the API adapter. Most adapters do not need to implement this service as it provides sensitive runtime control capabilities.
+
+## Current Service Implementations
+
+### Services by Adapter
+
+**CLI Adapter:**
+- ✅ CommunicationService (Priority: HIGH)
+- ✅ ToolService (Priority: HIGH)
+- ❌ WiseAuthorityService
+- ❌ RuntimeControlService
+
+**API Adapter:**
+- ✅ CommunicationService (Priority: NORMAL)
+- ✅ ToolService (Priority: NORMAL)
+- ❌ WiseAuthorityService
+- ✅ RuntimeControlService (Priority: HIGH) - **UNIQUE**
+
+**Discord Adapter:**
+- ✅ CommunicationService (Priority: HIGH)
+- ✅ ToolService (Priority: NORMAL)
+- ✅ WiseAuthorityService (Priority: HIGH) - **UNIQUE**
+- ❌ RuntimeControlService
+
+### Service Capabilities Summary
+
+| Service Type | CLI | API | Discord | Description |
+|-------------|-----|-----|---------|-------------|
+| Communication | ✅ | ✅ | ✅ | Send/receive messages |
+| Tool | ✅ | ✅ | ✅ | Execute platform tools |
+| Wise Authority | ❌ | ❌ | ✅ | Human guidance/deferrals |
+| Runtime Control | ❌ | ✅ | ❌ | Control agent runtime |
 
 ## Data Schemas
 
@@ -299,15 +362,19 @@ class MyPlatformPlatform:
         self.config = MyPlatformConfig()
         self.adapter = MyPlatformAdapter(**kwargs)
         
-    def get_services_to_register(self) -> List[ServiceRegistration]:
+    def get_services_to_register(self) -> List[AdapterServiceRegistration]:
         return [
-            ServiceRegistration(
+            AdapterServiceRegistration(
                 service_type=ServiceType.COMMUNICATION,
-                instance=self.adapter,
+                provider=self.adapter,
                 priority=Priority.MEDIUM,
-                capabilities=self.adapter.get_capabilities(),
-                handlers={"SpeakHandler": self.adapter}
-            )
+                handlers=["SpeakHandler", "ObserveHandler"],
+                capabilities=["send_message", "fetch_messages"]
+            ),
+            # Add other services if your adapter provides them:
+            # - WiseAuthorityService
+            # - ToolService  
+            # - RuntimeControlService
         ]
 ```
 

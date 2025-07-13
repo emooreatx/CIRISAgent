@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from ciris_engine.logic.adapters.base import Service
 from ciris_engine.protocols.services import LLMService as MockLLMServiceProtocol
 from ciris_engine.schemas.runtime.resources import ResourceUsage
+from ciris_engine.schemas.runtime.enums import ServiceType
 
 from .responses import create_response
 from typing import Dict
@@ -129,6 +130,10 @@ class MockLLMService(Service, MockLLMServiceProtocol):
         super().__init__()
         self._client: Optional[MockLLMClient] = None
         self.model_name = "mock-model"
+    
+    def get_service_type(self) -> ServiceType:
+        """Get the service type."""
+        return ServiceType.LLM
 
     async def start(self) -> None:
         await super().start()

@@ -29,9 +29,12 @@ from ciris_engine.schemas.runtime.memory import TimeSeriesDataPoint
 
 
 class MockTimeService(TimeServiceProtocol):
-    """Mock time service for testing."""
+    """Mock time service for testing with full protocol compliance."""
     def __init__(self, fixed_time: datetime):
         self.fixed_time = fixed_time
+        self.start_time = fixed_time
+        self._started = False
+        self._healthy = True
     
     def now(self) -> datetime:
         return self.fixed_time
@@ -42,20 +45,68 @@ class MockTimeService(TimeServiceProtocol):
     def timestamp(self) -> float:
         return self.fixed_time.timestamp()
     
+    def get_uptime(self) -> float:
+        """Get service uptime in seconds."""
+        if not self._started:
+            return 0.0
+        return (self.fixed_time - self.start_time).total_seconds()
+    
     async def start(self) -> None:
-        pass
+        """Start the mock service."""
+        self._started = True
+        self.start_time = self.fixed_time
     
     async def stop(self) -> None:
-        pass
+        """Stop the mock service."""
+        self._started = False
     
     async def is_healthy(self) -> bool:
-        return True
+        """Check if service is healthy."""
+        return self._started and self._healthy
     
-    def get_capabilities(self):
-        return None
+    def get_service_type(self) -> "ServiceType":
+        """Get the service type."""
+        from ciris_engine.schemas.runtime.enums import ServiceType
+        return ServiceType.TIME
     
-    def get_status(self):
-        return None
+    def get_capabilities(self) -> "ServiceCapabilities":
+        """Get service capabilities."""
+        from ciris_engine.schemas.services.core import ServiceCapabilities
+        return ServiceCapabilities(
+            service_name="MockTimeService",
+            actions=["now", "now_iso", "timestamp", "get_uptime"],
+            version="1.0.0",
+            dependencies=[],
+            metadata={
+                "fixed_time": self.fixed_time.isoformat(),
+                "description": "Mock time service for testing"
+            }
+        )
+    
+    def get_status(self) -> "ServiceStatus":
+        """Get current service status."""
+        from ciris_engine.schemas.services.core import ServiceStatus
+        return ServiceStatus(
+            service_name="MockTimeService",
+            service_type="time",
+            is_healthy=self._started and self._healthy,
+            uptime_seconds=self.get_uptime(),
+            metrics={
+                "fixed_time": self.fixed_time.timestamp(),
+                "started": 1.0 if self._started else 0.0
+            },
+            last_error=None,
+            last_health_check=self.fixed_time
+        )
+    
+    # Test helper methods
+    def advance_time(self, hours: int = 0, minutes: int = 0, seconds: int = 0):
+        """Advance the fixed time for testing."""
+        self.fixed_time += timedelta(hours=hours, minutes=minutes, seconds=seconds)
+    
+    def set_healthy(self, healthy: bool):
+        """Set the health status for testing error conditions."""
+        self._healthy = healthy
 
 
 @pytest.fixture

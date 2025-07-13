@@ -1,7 +1,7 @@
 import logging
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from pydantic import BaseModel
 from ciris_engine.logic.services.memory_service import LocalGraphMemoryService
@@ -156,30 +156,25 @@ async def build_system_snapshot(
             if identity_result and identity_result.attributes:
                 # The identity is stored as a TypedGraphNode (IdentityNode)
                 # Extract the identity fields from attributes
-                attrs = identity_result.attributes
-                if isinstance(attrs, dict):
-                    # Direct access to identity fields
-                    identity_data = {
-                        "agent_id": attrs.get("agent_id", ""),
-                        "description": attrs.get("description", ""),
-                        "role": attrs.get("role_description", ""),
-                        "trust_level": attrs.get("trust_level", 0.5)
-                    }
-                    identity_purpose = attrs.get("role_description", "")
-                    identity_capabilities = attrs.get("permitted_actions", [])
-                    identity_restrictions = attrs.get("restricted_capabilities", [])
+                node_attrs: Union[Any, Dict[str, Any]] = identity_result.attributes
+                # GraphNodeAttributes is always a Pydantic model with model_dump()
+                # Convert to dict for consistent access
+                attrs_dict: Dict[str, Any]
+                if hasattr(node_attrs, 'model_dump'):
+                    attrs_dict = node_attrs.model_dump()
                 else:
-                    # Handle GraphNodeAttributes - always has model_dump
-                    attrs_dict = attrs.model_dump()
-                    identity_data = {
-                        "agent_id": attrs_dict.get("agent_id", ""),
-                        "description": attrs_dict.get("description", ""),
-                        "role": attrs_dict.get("role_description", ""),
-                        "trust_level": attrs_dict.get("trust_level", 0.5)
-                    }
-                    identity_purpose = attrs_dict.get("role_description", "")
-                    identity_capabilities = attrs_dict.get("permitted_actions", [])
-                    identity_restrictions = attrs_dict.get("restricted_capabilities", [])
+                    # Fallback for dict-like objects
+                    attrs_dict = dict(node_attrs) if node_attrs else {}
+                
+                identity_data = {
+                    "agent_id": attrs_dict.get("agent_id", ""),
+                    "description": attrs_dict.get("description", ""),
+                    "role": attrs_dict.get("role_description", ""),
+                    "trust_level": attrs_dict.get("trust_level", 0.5)
+                }
+                identity_purpose = attrs_dict.get("role_description", "")
+                identity_capabilities = attrs_dict.get("permitted_actions", [])
+                identity_restrictions = attrs_dict.get("restricted_capabilities", [])
         except Exception as e:
             logger.warning(f"Failed to retrieve agent identity from graph: {e}")
 

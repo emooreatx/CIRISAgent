@@ -5,7 +5,8 @@ This service observes system behavior, detects patterns, and stores insights
 for the agent's autonomous adaptation within its identity bounds.
 """
 
-from typing import List, Optional, Protocol, TYPE_CHECKING
+from typing import List, Optional, Protocol, TYPE_CHECKING, Dict, Any
+from datetime import timedelta
 from abc import abstractmethod
 
 from ...runtime.base import ServiceProtocol
@@ -18,6 +19,12 @@ if TYPE_CHECKING:
     from ciris_engine.schemas.infrastructure.behavioral_patterns import (
         ActionFrequency, TemporalPattern
     )
+    from ciris_engine.schemas.services.special.self_observation import (
+        ObservationCycleResult, ObservationStatus, ReviewOutcome,
+        ObservabilityAnalysis, ObservationEffectiveness,
+        PatternLibrarySummary, ServiceImprovementReport
+    )
+    from ciris_engine.schemas.runtime.core import AgentIdentityRoot
 
 class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
     """
@@ -166,5 +173,133 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
 
         Returns:
             Status including last analysis time, patterns detected, etc.
+        """
+        ...
+
+    # ========== Adaptation and Identity Management ==========
+
+    @abstractmethod
+    async def initialize_baseline(
+        self,
+        identity: "AgentIdentityRoot"
+    ) -> str:
+        """
+        Establish identity baseline for variance monitoring.
+
+        Args:
+            identity: The agent's identity root
+
+        Returns:
+            Baseline ID
+        """
+        ...
+
+    @abstractmethod
+    async def get_adaptation_status(
+        self
+    ) -> "ObservationStatus":
+        """
+        Get current status of the self-observation system.
+
+        Returns:
+            ObservationStatus with current state and metrics
+        """
+        ...
+
+    @abstractmethod
+    async def analyze_observability_window(
+        self,
+        window: timedelta = timedelta(hours=6)
+    ) -> "ObservabilityAnalysis":
+        """
+        Analyze all observability signals for adaptation opportunities.
+
+        Args:
+            window: Time window to analyze
+
+        Returns:
+            ObservabilityAnalysis with signals and opportunities
+        """
+        ...
+
+    @abstractmethod
+    async def trigger_adaptation_cycle(
+        self
+    ) -> "ObservationCycleResult":
+        """
+        Manually trigger an adaptation assessment cycle.
+
+        Returns:
+            ObservationCycleResult with cycle outcomes
+        """
+        ...
+
+    @abstractmethod
+    async def get_pattern_library(
+        self
+    ) -> "PatternLibrarySummary":
+        """
+        Get summary of learned adaptation patterns.
+
+        Returns:
+            PatternLibrarySummary with pattern statistics
+        """
+        ...
+
+    @abstractmethod
+    async def measure_adaptation_effectiveness(
+        self,
+        adaptation_id: str
+    ) -> "ObservationEffectiveness":
+        """
+        Measure if an adaptation actually improved the system.
+
+        Args:
+            adaptation_id: ID of the adaptation to measure
+
+        Returns:
+            ObservationEffectiveness metrics
+        """
+        ...
+
+    @abstractmethod
+    async def get_improvement_report(
+        self,
+        period: timedelta = timedelta(days=30)
+    ) -> "ServiceImprovementReport":
+        """
+        Generate service improvement report for period.
+
+        Args:
+            period: Time period to analyze
+
+        Returns:
+            ServiceImprovementReport with metrics and recommendations
+        """
+        ...
+
+    @abstractmethod
+    async def resume_after_review(
+        self,
+        review_outcome: "ReviewOutcome"
+    ) -> None:
+        """
+        Resume self-configuration after WA review.
+
+        Args:
+            review_outcome: The outcome of the WA review
+        """
+        ...
+
+    @abstractmethod
+    async def emergency_stop(
+        self,
+        reason: str
+    ) -> None:
+        """
+        Activate emergency stop for self-configuration.
+
+        Args:
+            reason: Reason for emergency stop
         """
         ...

@@ -17,6 +17,7 @@ from ciris_engine.protocols.runtime.base import ServiceProtocol
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.services.metadata import ServiceMetadata
 
 
 class BaseService(ABC, ServiceProtocol):
@@ -40,7 +41,7 @@ class BaseService(ABC, ServiceProtocol):
     - _on_start() -> None (for custom startup logic)
     - _on_stop() -> None (for custom cleanup)
     - _collect_custom_metrics() -> Dict[str, float]
-    - _get_metadata() -> Dict[str, Any]
+    - _get_metadata() -> ServiceMetadata
     """
     
     def __init__(
@@ -110,9 +111,14 @@ class BaseService(ABC, ServiceProtocol):
         """Collect service-specific metrics - override in subclass."""
         return {}
     
-    def _get_metadata(self) -> Dict[str, Any]:
+    def _get_metadata(self) -> ServiceMetadata:
         """Get service-specific metadata - override in subclass."""
-        return {}
+        from uuid import uuid4
+        return ServiceMetadata(
+            service_name=self.service_name,
+            method_name="_get_metadata",
+            correlation_id=uuid4()
+        )
     
     def _register_dependencies(self) -> None:
         """Register service dependencies - override in subclass."""
@@ -173,12 +179,16 @@ class BaseService(ABC, ServiceProtocol):
     
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""
+        # Get ServiceMetadata and convert to dict for compatibility
+        service_metadata = self._get_metadata()
+        metadata_dict = service_metadata.model_dump() if isinstance(service_metadata, ServiceMetadata) else {}
+        
         return ServiceCapabilities(
             service_name=self.service_name,
             actions=self._get_actions(),
             version=self._version,
             dependencies=list(self._dependencies),
-            metadata=self._get_metadata()
+            metadata=metadata_dict
         )
     
     def get_status(self) -> ServiceStatus:

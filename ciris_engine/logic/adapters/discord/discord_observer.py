@@ -289,7 +289,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                 else:
                     # Reactivate the original task
                     original_task = persistence.get_task_by_id(original_thought.source_task_id)
-                    if original_task:
+                    if original_task and self.time_service:
                         persistence.update_task_status(original_task.task_id, TaskStatus.ACTIVE, self.time_service)
                         logger.info(f"Reactivated task {original_task.task_id} due to guidance")
 

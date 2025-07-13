@@ -215,7 +215,7 @@ class SolitudeProcessor(BaseProcessor):
             state_duration = self.state_manager.get_state_duration()
 
         if state_duration > 1800:
-            conditions["should_exit"] = True
+            conditions.should_exit = True
             conditions.reason = "Maximum solitude duration reached"
             return conditions
 

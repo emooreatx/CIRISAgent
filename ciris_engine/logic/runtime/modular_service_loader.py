@@ -9,7 +9,7 @@ import logging
 import importlib
 import importlib.util
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Dict, List, Optional, cast
 
 from ciris_engine.protocols.services import ServiceProtocol
 from ciris_engine.schemas.runtime.enums import ServiceType
@@ -91,7 +91,7 @@ class ModularServiceLoader:
 
         return True
 
-    def load_service(self, manifest: ServiceManifest) -> Optional[Type[ServiceProtocol]]:
+    def load_service(self, manifest: ServiceManifest) -> Optional[type[ServiceProtocol]]:
         """Dynamically load a service class from manifest."""
         if not self.validate_manifest(manifest):
             return None
@@ -145,7 +145,7 @@ class ModularServiceLoader:
             )
             self.loaded_services[service_name] = service_meta
 
-            return service_class
+            return cast(type[ServiceProtocol], service_class)
 
         except Exception as e:
             logger.error(f"Failed to load service {service_name}: {e}")

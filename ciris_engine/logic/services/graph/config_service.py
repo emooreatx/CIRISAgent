@@ -22,7 +22,7 @@ from ciris_engine.schemas.services.nodes import ConfigNode, ConfigValue
 from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.services.graph_core import GraphNode
 from ciris_engine.schemas.services.operations import MemoryQuery
-from ciris_engine.logic.services.base_graph_service import BaseGraphService
+from ciris_engine.logic.services.base_graph_service import BaseGraphService, GraphNodeConvertible
 from ciris_engine.logic.services.graph.memory_service import LocalGraphMemoryService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
@@ -67,12 +67,15 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
         
         return metrics
 
-    async def store_in_graph(self, node: GraphNode) -> str:
+    async def store_in_graph(self, node: Union[GraphNode, GraphNodeConvertible]) -> str:
         """Store config node in graph."""
         # If it's a ConfigNode, use it directly, otherwise convert
         if isinstance(node, ConfigNode):
             graph_node = node.to_graph_node()
+        elif hasattr(node, 'to_graph_node'):
+            graph_node = node.to_graph_node()
         else:
+            # node must be a GraphNode already
             graph_node = node
         result = await self.graph.memorize(graph_node)
         # MemoryOpResult has data field, not node_id
@@ -84,14 +87,14 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
         """Query config nodes from graph.
         
         This method is required by BaseGraphService but not used in ConfigService.
-        Config queries should use query_config_by_key() instead.
+        Config queries should use _query_config_by_key() instead.
         """
         # For config service, we always query all config nodes
         # The MemoryQuery parameter is ignored as it's not applicable to config queries
         nodes = await self.graph.search("type:config")
         return nodes
     
-    async def query_config_by_key(self, key: str) -> List[GraphNode]:
+    async def _query_config_by_key(self, key: str) -> List[GraphNode]:
         """Query config nodes by key."""
         # Get all config nodes
         nodes = await self.graph.search("type:config")
@@ -118,7 +121,7 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
     async def get_config(self, key: str) -> Optional[ConfigNode]:
         """Get current configuration value."""
         # Query config nodes by key
-        graph_nodes = await self.query_config_by_key(key)
+        graph_nodes = await self._query_config_by_key(key)
         if not graph_nodes:
             return None
 
@@ -219,7 +222,12 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
                 continue
 
         # Return key->value mapping (extract actual value from ConfigValue)
-        return {key: node.value.value for key, node in config_map.items()}
+        result: Dict[str, Union[str, int, float, bool, List, Dict]] = {}
+        for key, node in config_map.items():
+            val = node.value.value
+            if val is not None:  # Skip None values to match return type
+                result[key] = val
+        return result
 
     def register_config_listener(self, key_pattern: str, callback: Callable) -> None:
         """Register a callback for config changes matching the key pattern.

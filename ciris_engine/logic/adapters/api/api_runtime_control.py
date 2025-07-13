@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from ciris_engine.logic.adapters.base import Service
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.logic.runtime.adapter_manager import RuntimeAdapterManager
 
 logger = logging.getLogger(__name__)
@@ -84,7 +85,7 @@ class APIRuntimeControlService(Service):
             
             # Use runtime's state transition if available
             if hasattr(self.runtime, 'request_state_transition'):
-                return await self.runtime.request_state_transition(
+                return await self.runtime.request_state_transition(  # type: ignore[no-any-return]
                     target_state, reason
                 )
             
@@ -169,6 +170,10 @@ class APIRuntimeControlService(Service):
         """Check if service is healthy."""
         return True
     
+    def get_service_type(self) -> ServiceType:
+        """Get the type of this service."""
+        return ServiceType.ADAPTER
+    
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""
         return ServiceCapabilities(
@@ -231,9 +236,9 @@ class APIRuntimeControlService(Service):
             adapter_type=status.adapter_type,
             status=adapter_status,
             started_at=status.loaded_at,
-            messages_processed=status.metrics.messages_processed if status.metrics else 0,
-            error_count=status.metrics.errors_count if status.metrics else 0,
-            last_error=status.metrics.last_error if status.metrics else None
+            messages_processed=status.metrics.messages_processed if status.metrics else 0,  # type: ignore[attr-defined]
+            error_count=status.metrics.errors_count if status.metrics else 0,  # type: ignore[attr-defined]
+            last_error=status.metrics.last_error if status.metrics else None  # type: ignore[attr-defined]
         )
     
     async def load_adapter(

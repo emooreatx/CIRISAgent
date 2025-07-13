@@ -5,13 +5,13 @@ Consolidates TRACE_SPAN correlations into TraceSummaryNode.
 """
 
 import logging
-import json
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 from collections import defaultdict
 
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.services.operations import MemoryOpStatus
+from ciris_engine.schemas.services.graph.consolidation import TraceSpanData
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ class TraceConsolidator:
         period_start: datetime,
         period_end: datetime,
         period_label: str,
-        trace_spans: List[Dict[str, Any]]
+        trace_spans: List[TraceSpanData]
     ) -> Optional[GraphNode]:
         """
         Consolidate trace spans into a summary showing task processing patterns.
@@ -43,7 +43,7 @@ class TraceConsolidator:
             period_start: Start of consolidation period
             period_end: End of consolidation period
             period_label: Human-readable period label
-            trace_spans: List of trace_span correlations
+            trace_spans: List of TraceSpanData objects
             
         Returns:
             TraceSummaryNode as GraphNode if successful
@@ -69,24 +69,17 @@ class TraceConsolidator:
         dma_decisions: Dict[str, int] = defaultdict(int)
         
         for span in trace_spans:
-            # Extract tags if available
-            tags = {}
-            if span.get('tags'):
-                try:
-                    tags = json.loads(span['tags']) if isinstance(span['tags'], str) else span['tags']
-                except:
-                    pass
-            
-            # Extract key identifiers
-            trace_id = span.get('trace_id')
-            span_id = span.get('span_id')
-            parent_span_id = span.get('parent_span_id')
-            timestamp = span.get('timestamp')
+            # Extract key identifiers from typed schema
+            trace_id = span.trace_id
+            span_id = span.span_id
+            parent_span_id = span.parent_span_id
+            timestamp = span.timestamp
             
             # Extract from tags
-            task_id = tags.get('task_id')
-            thought_id = tags.get('thought_id')
-            component_type = tags.get('component_type', 'unknown')
+            tags = span.tags
+            task_id = span.task_id
+            thought_id = span.thought_id
+            component_type = span.component_type or 'unknown'
             
             # Track unique entities
             if task_id:
@@ -137,24 +130,17 @@ class TraceConsolidator:
             # Component tracking
             component_calls[component_type] += 1
             
-            # Parse response data for metrics
-            if span.get('response_data'):
-                try:
-                    resp_data = json.loads(span['response_data']) if isinstance(span['response_data'], str) else span['response_data']
-                    
-                    if not resp_data.get('success', True):
-                        component_failures[component_type] += 1
-                        errors_by_component[component_type] += 1
-                        total_errors += 1
-                    
-                    if 'execution_time_ms' in resp_data:
-                        try:
-                            latency = float(resp_data['execution_time_ms'])
-                            component_latencies[component_type].append(latency)
-                        except (TypeError, ValueError):
-                            pass
-                except:
-                    pass
+            # Process error information
+            if span.error:
+                component_failures[component_type] += 1
+                errors_by_component[component_type] += 1
+                total_errors += 1
+            
+            # Track latency
+            if span.latency_ms is not None:
+                component_latencies[component_type].append(span.latency_ms)
+            elif span.duration_ms > 0:
+                component_latencies[component_type].append(span.duration_ms)
             
             # Track guardrail violations
             if component_type == 'guardrail':
@@ -273,7 +259,7 @@ class TraceConsolidator:
     def get_edges(
         self,
         summary_node: GraphNode,
-        trace_spans: List[Dict[str, Any]]
+        trace_spans: List[TraceSpanData]
     ) -> List[Tuple[GraphNode, GraphNode, str, Dict[str, Any]]]:
         """
         Get edges to create for trace summary.
@@ -289,32 +275,16 @@ class TraceConsolidator:
         high_latency_tasks = set()
         
         for span in trace_spans:
-            task_id = span.get('trace_id')
+            task_id = span.trace_id
             if task_id:
-                # Check for errors in tags
-                if span.get('tags', {}).get('error', False):
+                # Check for errors
+                if span.error:
                     tasks_with_errors.add(task_id)
                 
-                # Also check for failed tasks in response_data
-                resp_data = span.get('response_data', {})
-                if isinstance(resp_data, dict):
-                    success = resp_data.get('success', 'true')
-                    # Handle string boolean values
-                    if isinstance(success, str) and success.lower() == 'false':
-                        tasks_with_errors.add(task_id)
-                    elif success is False:
-                        tasks_with_errors.add(task_id)
-                
                 # Check for high latency (> 5 seconds)
-                resp_data = span.get('response_data', {})
-                if isinstance(resp_data, dict):
-                    latency_str = resp_data.get('execution_time_ms', 0)
-                    try:
-                        latency = float(latency_str) if isinstance(latency_str, str) else latency_str
-                        if latency > 5000:
-                            high_latency_tasks.add(task_id)
-                    except (ValueError, TypeError):
-                        pass
+                latency = span.latency_ms or span.duration_ms
+                if latency and latency > 5000:
+                    high_latency_tasks.add(task_id)
         
         # Create edges to problematic tasks (limit to 10 each)
         for i, task_id in enumerate(list(tasks_with_errors)[:10]):

@@ -1,50 +1,24 @@
-ciris_engine/logic/config/bootstrap.py:11:1: error: Library stubs not installed
-ciris_engine/logic/services/graph/tsdb_consolidation/edge_manager.py:584:5: error:
-ciris_engine/logic/dma/action_selection/faculty_integration.py:162:29: error:
 ciris_engine/logic/adapters/api/middleware/rate_limiter.py:129:13: error:
 ciris_engine/logic/adapters/api/middleware/rate_limiter.py:175:9: error:
-ciris_engine/logic/adapters/api/services/auth_service.py:8:1: error: Library
-ciris_engine/logic/adapters/api/services/auth_service.py:609:23: error: Missing
-ciris_engine/logic/adapters/api/services/auth_service.py:697:45: error:
-ciris_engine/logic/adapters/api/services/auth_service.py:830:33: error:
-ciris_engine/logic/adapters/api/routes/users.py:8:1: error: Library stubs not
-ciris_engine/logic/adapters/api/routes/telemetry_logs_reader.py:23:5: error:
-ciris_engine/logic/adapters/api/routes/audit.py:360:29: error: Unexpected
-ciris_engine/logic/adapters/api/routes/audit.py:360:29: error: Unexpected
+ciris_engine/logic/services/graph/tsdb_consolidation/edge_manager.py:584:5: error:
+ciris_engine/logic/runtime/modular_service_loader.py:148:13: error: Returning
 ciris_engine/logic/persistence/models/graph.py:82:21: error: Dict entry 4 has
 ciris_engine/logic/persistence/models/correlations.py:40:13: error: Statement
 ciris_engine/logic/processors/support/thought_manager_enhanced.py:6:1: error:
 ciris_engine/logic/processors/support/thought_manager.py:51:31: error:
 ciris_engine/logic/processors/support/thought_manager.py:75:22: error:
 ciris_engine/logic/processors/support/thought_manager.py:77:26: error:
-ciris_engine/logic/runtime/modular_service_loader.py:148:13: error: Returning
-ciris_engine/logic/adapters/cli/cli_wa_service.py:15:1: error: Cannot find
-ciris_engine/logic/adapters/cli/cli_tools.py:6:1: error: Library stubs not
-ciris_engine/logic/adapters/cli/cli_adapter.py:11:1: error: Library stubs not
-ciris_engine/logic/adapters/cli/cli_adapter.py:692:32: error: "CLIAdapter" has
-ciris_engine/logic/services/governance/filter.py:70:33: error: "object" has no
-ciris_engine/logic/services/governance/filter.py:465:19: error: "object" has no
-ciris_engine/logic/services/governance/filter.py:581:9: error: Returning Any
-ciris_engine/logic/services/governance/filter.py:581:16: error:
-ciris_engine/logic/secrets/service.py:525:9: error: Returning Any from function
-ciris_engine/logic/secrets/service.py:525:16: error: "type[ServiceType]" has no
 ciris_engine/logic/buses/memory_bus.py:193:1: error: Cannot find implementation
-ciris_engine/logic/buses/memory_bus.py:197:76: error: "type[GraphScope]" has no
-ciris_engine/logic/buses/memory_bus.py:199:31: error: "type[GraphScope]" has no
-ciris_engine/logic/services/lifecycle/time.py:92:17: error: No overload variant
+ciris_engine/logic/adapters/cli/cli_wa_service.py:15:1: error: Cannot find
+ciris_engine/logic/adapters/cli/cli_adapter.py:692:32: error: "CLIAdapter" has
 ciris_engine/logic/services/infrastructure/resource_monitor.py:67:16: error:
 ciris_engine/logic/services/graph/tsdb_consolidation/consolidators/memory.py:230:17: error:
 ciris_engine/logic/services/graph/tsdb_consolidation/consolidators/memory.py:234:17: error:
 ciris_engine/logic/services/graph/tsdb_consolidation/consolidators/conversation.py:220:32: error:
 ciris_engine/logic/services/graph/tsdb_consolidation/consolidators/conversation.py:249:28: error:
-ciris_engine/logic/persistence/maintenance.py:6:1: error: Library stubs not
-ciris_engine/logic/persistence/maintenance.py:330:9: error: Returning Any from
-ciris_engine/logic/persistence/maintenance.py:330:16: error:
 ciris_engine/logic/telemetry/core.py:175:9: error: "SystemSnapshot" has no
-ciris_engine/logic/services/infrastructure/authentication.py:16:1: error:
 ciris_engine/logic/services/infrastructure/authentication.py:1179:13: error:
 ciris_engine/logic/services/infrastructure/authentication.py:1241:21: error:
-ciris_engine/logic/context/batch_context.py:88:44: error: Argument 1 to
 ciris_engine/logic/adapters/discord/discord_thread_manager.py:49:13: error:
 ciris_engine/logic/adapters/discord/discord_thread_manager.py:98:43: error:
 ciris_engine/logic/adapters/discord/discord_thread_manager.py:104:43: error:
@@ -54,11 +28,10 @@ ciris_engine/logic/adapters/discord/discord_connection_manager.py:66:13: error:
 ciris_engine/logic/adapters/discord/discord_connection_manager.py:243:17: error:
 ciris_engine/logic/telemetry/__init__.py:17:1: error: Cannot find
 ciris_engine/logic/services/base_graph_service.py:109:17: error: Returning Any
-ciris_engine/logic/services/governance/wise_authority.py:604:9: error:
-ciris_engine/logic/services/governance/wise_authority.py:604:16: error:
 ciris_engine/logic/infrastructure/sub_services/pattern_analysis_loop.py:252:29: error:
 ciris_engine/logic/infrastructure/sub_services/pattern_analysis_loop.py:745:17: error:
 ciris_engine/logic/infrastructure/handlers/base_handler.py:270:47: error:
+ciris_engine/logic/context/batch_context.py:88:44: error: Argument 1 to
 ciris_engine/logic/adapters/discord/discord_adapter.py:299:21: error: Returning
 ciris_engine/logic/adapters/discord/discord_adapter.py:1023:29: error: Item
 ciris_engine/logic/adapters/discord/discord_adapter.py:1093:32: error: Item
@@ -69,7 +42,6 @@ ciris_engine/logic/services/graph/telemetry_service.py:121:1: error: Cannot
 ciris_engine/logic/services/graph/memory_service.py:142:33: error: Unsupported
 ciris_engine/logic/services/graph/memory_service.py:208:29: error: Unsupported
 ciris_engine/logic/services/graph/memory_service.py:275:53: error: Unsupported
-ciris_engine/logic/services/graph/incident_service.py:12:1: error: Library
 ciris_engine/logic/services/graph/incident_service.py:577:28: error:
 ciris_engine/logic/services/graph/tsdb_consolidation/service.py:583:13: error:
 ciris_engine/logic/services/graph/tsdb_consolidation/service.py:587:13: error:
@@ -101,16 +73,12 @@ ciris_engine/logic/processors/support/dma_orchestrator.py:269:12: error:
 ciris_engine/logic/processors/support/dma_orchestrator.py:270:45: error:
 ciris_engine/logic/processors/support/dma_orchestrator.py:272:31: error:
 ciris_engine/logic/processors/support/dma_orchestrator.py:273:39: error:
-ciris_engine/logic/runtime/adapter_manager.py:11:1: error: Library stubs not
 ciris_engine/logic/runtime/adapter_manager.py:532:38: error: Incompatible types
 ciris_engine/logic/runtime/adapter_manager.py:535:34: error: Incompatible types
 ciris_engine/logic/runtime/adapter_manager.py:812:68: error: Function
 ciris_engine/logic/services/runtime/control_service.py:54:67: error: Argument 2
 ciris_engine/logic/services/runtime/control_service.py:885:23: error: No
 ciris_engine/logic/services/runtime/control_service.py:921:23: error: No
-ciris_engine/logic/services/runtime/control_service.py:1385:9: error: Returning
-ciris_engine/logic/services/runtime/control_service.py:1385:16: error:
-ciris_engine/logic/runtime/service_initializer.py:11:1: error: Library stubs
 ciris_engine/logic/runtime/ciris_runtime.py:1017:42: error: Incompatible types
 ciris_engine/logic/runtime/ciris_runtime.py:1106:9: error: Function is missing
 ciris_engine/logic/adapters/api/api_runtime_control.py:87:17: error: Returning

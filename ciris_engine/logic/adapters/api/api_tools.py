@@ -14,6 +14,7 @@ from ciris_engine.schemas.adapters.tools import (
     ToolExecutionResult, ToolExecutionStatus, ToolInfo, ToolParameterSchema
 )
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.runtime.enums import ServiceType
 
 logger = logging.getLogger(__name__)
 
@@ -235,6 +236,10 @@ class APIToolService(ToolService):
     async def is_healthy(self) -> bool:
         """Check if the service is healthy."""
         return True
+
+    def get_service_type(self) -> ServiceType:
+        """Get the type of this service."""
+        return ServiceType.ADAPTER
 
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""

@@ -131,8 +131,8 @@ class TestServicePriorityUpdate:
         )
         
         # Verify
-        assert result["success"] is True
-        assert "Successfully updated provider 'TestProvider'" in result["message"]
+        assert result.success is True
+        assert "Successfully updated provider 'TestProvider'" in result.message
     
     @pytest.mark.asyncio
     async def test_update_priority_invalid_priority(self, runtime_control_service, mock_runtime):
@@ -146,8 +146,8 @@ class TestServicePriorityUpdate:
         )
         
         # Verify
-        assert result["success"] is False
-        assert "Invalid priority" in result["error"]
+        assert result.success is False
+        assert "Invalid priority" in result.error
     
     @pytest.mark.asyncio
     async def test_update_priority_provider_not_found(self, runtime_control_service, mock_runtime):
@@ -162,8 +162,8 @@ class TestServicePriorityUpdate:
         )
         
         # Verify
-        assert result["success"] is False
-        assert "Service provider 'NonExistent' not found" in result["error"]
+        assert result.success is False
+        assert "Service provider 'NonExistent' not found" in result.error
 
 
 class TestCircuitBreakerReset:
@@ -179,8 +179,8 @@ class TestCircuitBreakerReset:
         result = await runtime_control_service.reset_circuit_breakers()
         
         # Verify
-        assert result["success"] is True
-        assert "Circuit breakers reset" in result["message"]
+        assert result.success is True
+        assert "Circuit breakers reset" in result.message
         mock_runtime.service_registry.reset_circuit_breakers.assert_called_once()
     
     @pytest.mark.asyncio
@@ -193,8 +193,8 @@ class TestCircuitBreakerReset:
         result = await runtime_control_service.reset_circuit_breakers()
         
         # Verify
-        assert result["success"] is False
-        assert "Service registry not available" in result["error"]
+        assert result.success is False
+        assert "Service registry not available" in result.error
 
 
 class TestServiceHealthStatus:

@@ -10,11 +10,12 @@ Provides centralized time operations that are:
 This replaces the time_utils.py utility with a proper service.
 """
 from datetime import datetime, timezone
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.logic.services.base_infrastructure_service import BaseInfrastructureService
 from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.services.metadata import ServiceMetadata
 
 class TimeService(BaseInfrastructureService, TimeServiceProtocol):
     """Secure time service implementation."""
@@ -40,15 +41,17 @@ class TimeService(BaseInfrastructureService, TimeServiceProtocol):
         # TimeService has no dependencies
         return True
 
-    def _get_metadata(self) -> Dict[str, Any]:
-        """Get service-specific metadata."""
-        metadata = super()._get_metadata()
-        metadata.update({
-            "description": "Provides consistent UTC time operations",
-            "mockable": True,
-            "timezone": "UTC"
+    def get_capabilities(self) -> "ServiceCapabilities":
+        """Get service capabilities with custom metadata."""
+        # Get parent capabilities which includes infrastructure metadata
+        capabilities = super().get_capabilities()
+        
+        # Add our specific metadata
+        capabilities.metadata.update({
+            "description": "Provides consistent UTC time operations"
         })
-        return metadata
+        
+        return capabilities
 
     # Override _now to prevent circular dependency
     def _now(self) -> datetime:
@@ -89,4 +92,6 @@ class TimeService(BaseInfrastructureService, TimeServiceProtocol):
         Returns:
             float: Seconds since service started
         """
+        if self._start_time is None:
+            return 0.0
         return (self.now() - self._start_time).total_seconds()

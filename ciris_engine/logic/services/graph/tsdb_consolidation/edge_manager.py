@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Any, Optional, Set, Tuple
 from uuid import uuid4
 
-from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.logic.persistence.db.core import get_db_connection
 
 logger = logging.getLogger(__name__)
@@ -23,55 +23,6 @@ class EdgeManager:
         """Initialize edge manager."""
         pass
     
-    async def create_edges(
-        self,
-        edges: List[Tuple[GraphNode, GraphNode, str, Dict[str, Any]]]
-    ) -> int:
-        """
-        Create multiple edges in the graph.
-        
-        Args:
-            edges: List of (source_node, target_node, relationship, attributes) tuples
-            
-        Returns:
-            Number of edges created
-        """
-        if not edges:
-            return 0
-        
-        edges_created = 0
-        
-        try:
-            with get_db_connection() as conn:
-                cursor = conn.cursor()
-                
-                for source_node, target_node, relationship, attrs in edges:
-                    edge_id = str(uuid4())
-                    
-                    cursor.execute("""
-                        INSERT INTO graph_edges (
-                            edge_id, source_node_id, target_node_id, scope,
-                            relationship, weight, attributes_json, created_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        edge_id,
-                        source_node.id,
-                        target_node.id,
-                        GraphScope.LOCAL.value,
-                        relationship,
-                        attrs.get('weight', 1.0),
-                        json.dumps(attrs),
-                        datetime.now(timezone.utc).isoformat()
-                    ))
-                    edges_created += 1
-                
-                conn.commit()
-                logger.info(f"Created {edges_created} edges")
-                
-        except Exception as e:
-            logger.error(f"Failed to create edges: {e}")
-            
-        return edges_created
     
     async def create_summary_to_nodes_edges(
         self,
@@ -605,7 +556,61 @@ class EdgeManager:
                 
                 edge_data = []
                 
+                # First, ensure all nodes exist
+                node_ids_to_check = set()
+                nodes_to_create = []
+                
                 for source_node, target_node, relationship, attrs in edges:
+                    node_ids_to_check.add(source_node.id)
+                    node_ids_to_check.add(target_node.id)
+                
+                # Check which nodes already exist
+                placeholders = ','.join(['?'] * len(node_ids_to_check))
+                cursor.execute(f"""
+                    SELECT node_id FROM graph_nodes 
+                    WHERE node_id IN ({placeholders})
+                """, list(node_ids_to_check))
+                
+                existing_nodes = {row['node_id'] for row in cursor.fetchall()}
+                
+                # Create missing nodes
+                for source_node, target_node, relationship, attrs in edges:
+                    for node in [source_node, target_node]:
+                        if node.id not in existing_nodes:
+                            # Check if this is a summary node (which should already exist)
+                            if node.type in [NodeType.TSDB_SUMMARY, NodeType.CONVERSATION_SUMMARY, 
+                                           NodeType.TRACE_SUMMARY, NodeType.AUDIT_SUMMARY, 
+                                           NodeType.TASK_SUMMARY]:
+                                logger.warning(f"Summary node {node.id} doesn't exist, skipping edge")
+                                continue
+                            
+                            # Create the node
+                            nodes_to_create.append((
+                                node.id,
+                                node.scope.value if hasattr(node.scope, 'value') else str(node.scope),
+                                node.type.value if hasattr(node.type, 'value') else str(node.type),
+                                json.dumps(node.attributes if isinstance(node.attributes, dict) else {}),
+                                1,  # version
+                                node.updated_by or 'tsdb_consolidation',
+                                node.updated_at.isoformat() if node.updated_at else datetime.now(timezone.utc).isoformat(),
+                                datetime.now(timezone.utc).isoformat()
+                            ))
+                            existing_nodes.add(node.id)
+                
+                if nodes_to_create:
+                    cursor.executemany("""
+                        INSERT OR IGNORE INTO graph_nodes 
+                        (node_id, scope, node_type, attributes_json, 
+                         version, updated_by, updated_at, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, nodes_to_create)
+                    logger.info(f"Created {cursor.rowcount} missing nodes")
+                
+                for source_node, target_node, relationship, attrs in edges:
+                    # Skip edges if nodes don't exist
+                    if source_node.id not in existing_nodes or target_node.id not in existing_nodes:
+                        continue
+                    
                     # Handle self-references (where we store data in attributes)
                     if source_node.id == target_node.id:
                         # For self-references, we create edges with special attributes

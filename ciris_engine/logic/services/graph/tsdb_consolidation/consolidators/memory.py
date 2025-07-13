@@ -226,11 +226,11 @@ class MemoryConsolidator:
         if isinstance(attrs, dict):
             # Try config_type first, then key
             config_type = attrs.get('config_type')
-            if config_type:
-                return config_type
+            if config_type and isinstance(config_type, str):
+                return str(config_type)  # Ensure str type for mypy
             # Extract type from key if available
             key = attrs.get('key', '')
-            if '.' in key:
+            if isinstance(key, str) and '.' in key:
                 return key.split('.')[0]  # e.g., 'database' from 'database.main_db'
-            return key if key else 'general'
+            return str(key) if key else 'general'
         return 'general'

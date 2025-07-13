@@ -12,22 +12,7 @@ from pathlib import Path
 from ciris_engine.schemas.api.telemetry import LogContext
 
 # Import LogEntry from the route file where it's defined
-try:
-    from .telemetry import LogEntry
-except ImportError:
-    # Define locally if import fails
-    from pydantic import BaseModel, Field
-    from datetime import datetime
-    from typing import Optional
-    
-    class LogEntry(BaseModel):
-        """Telemetry log entry."""
-        timestamp: datetime = Field(..., description="Log timestamp")
-        level: str = Field(..., description="Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)")
-        service: str = Field(..., description="Service that generated log")
-        message: str = Field(..., description="Log message")
-        context: Optional[LogContext] = Field(None, description="Structured context")
-        trace_id: Optional[str] = Field(None, description="Trace ID for correlation")
+from .telemetry import LogEntry
 
 
 class LogFileReader:

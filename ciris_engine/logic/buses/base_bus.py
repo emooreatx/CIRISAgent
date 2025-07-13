@@ -78,8 +78,8 @@ class BaseBus(ABC, Generic[ServiceT]):
             try:
                 await self._process_task
             except asyncio.CancelledError:
-                # Re-raise CancelledError after cleanup
-                raise
+                # Expected when we cancel the task, don't re-raise
+                pass
         logger.info(f"{self.__class__.__name__} stopped")
 
     async def _process_loop(self) -> None:

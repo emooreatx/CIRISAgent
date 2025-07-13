@@ -16,9 +16,11 @@ if TYPE_CHECKING:
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.services.graph_core import GraphNode, NodeType
 from ciris_engine.schemas.services.operations import MemoryQuery, MemoryOpStatus
+from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.services.graph.base import BaseGraphService
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.services.graph.consolidation import TaskCorrelationData
 
 from .period_manager import PeriodManager
 from .query_manager import QueryManager
@@ -253,9 +255,38 @@ class TSDBConsolidationService(BaseGraphService):
         
         # 2. Create summaries
         
+        # Store converted correlation objects for reuse in edge creation
+        converted_correlations = {}
+        converted_tasks = []  # Store converted tasks separately
+        
         # Metrics summary (TSDB data + correlations)
         tsdb_nodes = nodes_by_type.get('tsdb_data', [])
-        metric_correlations = correlations.get('metric_datapoint', [])
+        metric_correlations_raw = correlations.get('metric_datapoint', [])
+        
+        # Convert raw dicts to MetricCorrelationData objects
+        metric_correlations = []
+        if metric_correlations_raw:
+            from ciris_engine.schemas.services.graph.consolidation import MetricCorrelationData
+            for raw_data in metric_correlations_raw:
+                try:
+                    corr = MetricCorrelationData(
+                        correlation_id=raw_data['correlation_id'],
+                        metric_name=raw_data.get('request_data', {}).get('metric_name', 'unknown'),
+                        value=float(raw_data.get('request_data', {}).get('value', 0)),
+                        timestamp=raw_data['timestamp'],
+                        request_data=raw_data.get('request_data', {}),
+                        response_data=raw_data.get('response_data', {}),
+                        tags=raw_data.get('tags', {}),
+                        source='correlation',
+                        unit=raw_data.get('request_data', {}).get('unit'),
+                        aggregation_type=raw_data.get('request_data', {}).get('aggregation_type')
+                    )
+                    metric_correlations.append(corr)
+                except Exception as e:
+                    logger.warning(f"Failed to convert metric correlation data: {e}")
+                    continue
+        
+        converted_correlations['metric_datapoint'] = metric_correlations
         
         if tsdb_nodes or metric_correlations:
             metric_summary = await self._metrics_consolidator.consolidate(
@@ -267,44 +298,175 @@ class TSDBConsolidationService(BaseGraphService):
         
         # Task summary
         if tasks:
-            task_summary = await self._task_consolidator.consolidate(
-                period_start, period_end, period_label, tasks
-            )
-            if task_summary:
-                summaries_created.append(task_summary)
+            # Convert raw task dicts to TaskCorrelationData objects
+            from ciris_engine.schemas.services.graph.consolidation import TaskCorrelationData
+            task_correlations = []
+            for raw_task in tasks:
+                try:
+                    # Extract handlers from thoughts
+                    handlers_used = []
+                    final_handler = None
+                    for thought in raw_task.get('thoughts', []):
+                        if thought.get('final_action'):
+                            try:
+                                import json
+                                action_data = json.loads(thought['final_action']) if isinstance(thought['final_action'], str) else thought['final_action']
+                                handler = action_data.get('handler')
+                                if handler:
+                                    handlers_used.append(handler)
+                                    final_handler = handler  # Last one is final
+                            except:
+                                pass
+                    
+                    # Parse dates
+                    created_at = datetime.fromisoformat(raw_task['created_at'].replace('Z', '+00:00')) if raw_task['created_at'] else datetime.now(timezone.utc)
+                    updated_at = datetime.fromisoformat(raw_task['updated_at'].replace('Z', '+00:00')) if raw_task['updated_at'] else datetime.now(timezone.utc)
+                    
+                    # Create TaskCorrelationData
+                    task_data = TaskCorrelationData(
+                        task_id=raw_task['task_id'],
+                        status=raw_task['status'],
+                        created_at=created_at,
+                        updated_at=updated_at,
+                        channel_id=raw_task.get('channel_id'),
+                        user_id=None,  # Not available in raw data
+                        task_type=raw_task.get('description', '').split()[0] if raw_task.get('description') else None,
+                        retry_count=raw_task.get('retry_count', 0),
+                        duration_ms=(updated_at - created_at).total_seconds() * 1000,
+                        thoughts=raw_task.get('thoughts', []),
+                        handlers_used=handlers_used,
+                        final_handler=final_handler,
+                        success=raw_task['status'] in ['completed', 'success'],
+                        error_message=None,  # Would need to parse from outcome
+                        result_summary=raw_task.get('description'),
+                        metadata={}
+                    )
+                    task_correlations.append(task_data)
+                except Exception as e:
+                    logger.warning(f"Failed to convert task data: {e}")
+                    continue
+            
+            # Store converted tasks for edge creation
+            converted_tasks = task_correlations
+            
+            if task_correlations:
+                task_summary = await self._task_consolidator.consolidate(
+                    period_start, period_end, period_label, task_correlations
+                )
+                if task_summary:
+                    summaries_created.append(task_summary)
         
         # Memory consolidator doesn't create a summary, it only creates edges
         # We'll call it later in _create_all_edges
         
         # Conversation summary
-        service_interactions = correlations.get('service_interaction', [])
-        if service_interactions:
-            conversation_summary = await self._conversation_consolidator.consolidate(
-                period_start, period_end, period_label, service_interactions
-            )
-            if conversation_summary:
-                summaries_created.append(conversation_summary)
-                
-                # Get participant data and create user edges
-                participant_data = self._conversation_consolidator.get_participant_data(
-                    service_interactions
-                )
-                if participant_data:
-                    user_edges = await self._edge_manager.create_user_participation_edges(
-                        conversation_summary,
-                        participant_data,
-                        period_label
+        service_interactions_raw = correlations.get('service_interaction', [])
+        if service_interactions_raw:
+            # Convert raw dicts to ServiceInteractionData objects
+            from ciris_engine.schemas.services.graph.consolidation import ServiceInteractionData
+            service_interactions = []
+            for raw_data in service_interactions_raw:
+                try:
+                    # Extract fields from raw correlation data
+                    request_data = raw_data.get('request_data', {})
+                    parameters = request_data.get('parameters', {})
+                    
+                    # Try to get author info from parameters first, then from request_data directly
+                    author_id = parameters.get('author_id') or request_data.get('author_id')
+                    author_name = parameters.get('author_name') or request_data.get('author_name')
+                    content = parameters.get('content') or request_data.get('content')
+                    
+                    interaction = ServiceInteractionData(
+                        correlation_id=raw_data['correlation_id'],
+                        action_type=raw_data.get('action_type', 'unknown'),
+                        service_type=raw_data.get('service_type', 'unknown'),
+                        timestamp=raw_data['timestamp'],
+                        channel_id=request_data.get('channel_id', 'unknown'),
+                        request_data=request_data,
+                        author_id=author_id,
+                        author_name=author_name,
+                        content=content,
+                        response_data=raw_data.get('response_data', {}),
+                        execution_time_ms=raw_data.get('response_data', {}).get('execution_time_ms', 0.0),
+                        success=raw_data.get('response_data', {}).get('success', True),
+                        error_message=raw_data.get('response_data', {}).get('error')
                     )
-                    logger.info(f"Created {user_edges} user participation edges")
+                    service_interactions.append(interaction)
+                except Exception as e:
+                    logger.warning(f"Failed to convert service interaction data: {e}")
+                    continue
+            
+            converted_correlations['service_interaction'] = service_interactions
+            
+            if service_interactions:
+                conversation_summary = await self._conversation_consolidator.consolidate(
+                    period_start, period_end, period_label, service_interactions
+                )
+                if conversation_summary:
+                    summaries_created.append(conversation_summary)
+                    
+                    # Get participant data and create user edges
+                    participant_data = self._conversation_consolidator.get_participant_data(
+                        service_interactions
+                    )
+                    if participant_data:
+                        user_edges = await self._edge_manager.create_user_participation_edges(
+                            conversation_summary,
+                            participant_data,
+                            period_label
+                        )
+                        logger.info(f"Created {user_edges} user participation edges")
         
         # Trace summary
-        trace_spans = correlations.get('trace_span', [])
-        if trace_spans:
-            trace_summary = await self._trace_consolidator.consolidate(
-                period_start, period_end, period_label, trace_spans
-            )
-            if trace_summary:
-                summaries_created.append(trace_summary)
+        trace_spans_raw = correlations.get('trace_span', [])
+        if trace_spans_raw:
+            # Convert raw dicts to TraceSpanData objects
+            from ciris_engine.schemas.services.graph.consolidation import TraceSpanData
+            trace_spans = []
+            for raw_data in trace_spans_raw:
+                try:
+                    # Extract fields from raw correlation data
+                    tags = raw_data.get('tags', {})
+                    request_data = raw_data.get('request_data', {})
+                    response_data = raw_data.get('response_data', {})
+                    
+                    # Try to get task_id and thought_id from tags first, then from request_data
+                    task_id = tags.get('task_id') or request_data.get('task_id')
+                    thought_id = tags.get('thought_id') or request_data.get('thought_id')
+                    component_type = tags.get('component_type') or raw_data.get('service_type')
+                    
+                    span = TraceSpanData(
+                        trace_id=raw_data.get('trace_id', ''),
+                        span_id=raw_data.get('span_id', ''),
+                        parent_span_id=raw_data.get('parent_span_id'),
+                        timestamp=raw_data['timestamp'],
+                        duration_ms=response_data.get('duration_ms', 0.0),
+                        operation_name=raw_data.get('action_type', 'unknown'),
+                        service_name=raw_data.get('service_type', 'unknown'),
+                        status='ok' if response_data.get('success', True) else 'error',
+                        tags=tags,
+                        task_id=task_id,
+                        thought_id=thought_id,
+                        component_type=component_type,
+                        error=not response_data.get('success', True),
+                        error_message=response_data.get('error'),
+                        error_type=response_data.get('error_type'),
+                        latency_ms=response_data.get('execution_time_ms'),
+                        resource_usage=response_data.get('resource_usage', {})
+                    )
+                    trace_spans.append(span)
+                except Exception as e:
+                    logger.warning(f"Failed to convert trace span data: {e}")
+                    continue
+            
+            converted_correlations['trace_span'] = trace_spans
+            
+            if trace_spans:
+                trace_summary = await self._trace_consolidator.consolidate(
+                    period_start, period_end, period_label, trace_spans
+                )
+                if trace_summary:
+                    summaries_created.append(trace_summary)
         
         # Audit summary
         audit_nodes = nodes_by_type.get('audit_entry', [])
@@ -320,8 +482,8 @@ class TSDBConsolidationService(BaseGraphService):
             await self._create_all_edges(
                 summaries_created, 
                 nodes_by_type,
-                correlations,
-                tasks,
+                converted_correlations,  # Use converted correlations instead of raw
+                converted_tasks,  # Use converted tasks instead of raw
                 period_start,
                 period_label
             )
@@ -332,8 +494,8 @@ class TSDBConsolidationService(BaseGraphService):
         self,
         summaries: List[GraphNode],
         nodes_by_type: Dict[str, List[GraphNode]],
-        correlations: Dict[str, List[Dict[str, Any]]],
-        tasks: List[Dict[str, Any]],
+        correlations: Dict[str, List[Any]],  # Now contains typed schema objects
+        tasks: List[TaskCorrelationData],  # Now contains typed task objects
         period_start: datetime,
         period_label: str
     ) -> None:
@@ -462,7 +624,7 @@ class TSDBConsolidationService(BaseGraphService):
         
         return None
     
-    async def _cleanup_old_data(self) -> None:
+    async def _cleanup_old_data(self) -> int:
         """Clean up old consolidated data that has been successfully summarized."""
         try:
             import sqlite3
@@ -657,7 +819,8 @@ class TSDBConsolidationService(BaseGraphService):
                 AND json_extract(attributes_json, '$.period_end') = ?
             """, (NodeType.TSDB_SUMMARY.value, period_start.isoformat(), period_end.isoformat()))
             
-            count = cursor.fetchone()[0]
+            result = cursor.fetchone()
+            count = int(result[0]) if result else 0
             conn.close()
             
             return count > 0
@@ -728,3 +891,7 @@ class TSDBConsolidationService(BaseGraphService):
         except Exception as e:
             logger.error(f"Error getting summary for period: {e}")
             return None
+    
+    def get_service_type(self) -> ServiceType:
+        """Get the service type."""
+        return ServiceType.TSDB_CONSOLIDATION

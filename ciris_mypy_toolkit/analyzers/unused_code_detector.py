@@ -29,6 +29,28 @@ class UnusedCodeDetector:
         self.all_definitions = {}  # file -> {type: name -> line}
         self.all_references = {}   # file -> {name -> [lines]}
         self.scan_complete = False
+        self.whitelist = self._load_whitelist()
+        self.pydantic_decorators = {'field_validator', 'model_validator', 'field_serializer', 
+                                   'model_serializer', 'computed_field', 'property'}
+    
+    def _load_whitelist(self) -> Set[str]:
+        """Load vulture whitelist if it exists."""
+        whitelist_names = set()
+        whitelist_path = self.target_dir.parent / "vulture_whitelist.py"
+        
+        if whitelist_path.exists():
+            try:
+                with open(whitelist_path, 'r') as f:
+                    content = f.read()
+                # Extract whitelisted names from _. patterns
+                import re
+                matches = re.findall(r'_\.(\w+)', content)
+                whitelist_names.update(matches)
+                logger.info(f"Loaded {len(whitelist_names)} names from vulture whitelist")
+            except Exception as e:
+                logger.warning(f"Could not load vulture whitelist: {e}")
+        
+        return whitelist_names
         
     def find_unused_code(self) -> List[Dict[str, Any]]:
         """Find all types of unused code across the codebase."""
@@ -77,7 +99,7 @@ class UnusedCodeDetector:
     
     def _extract_definitions(self, content: str) -> Dict[str, Dict[str, int]]:
         """Extract all function, class, and variable definitions."""
-        definitions: schemas.BaseSchema = {
+        definitions = {
             "functions": {},
             "classes": {},
             "methods": {},
@@ -87,12 +109,17 @@ class UnusedCodeDetector:
         try:
             tree = ast.parse(content)
             
+            # First pass: mark parent relationships
+            for parent in ast.walk(tree):
+                for child in ast.iter_child_nodes(parent):
+                    child.parent = parent
+            
+            # Second pass: extract definitions
             for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef):
+                if isinstance(node, ast.FunctionDef) or isinstance(node, ast.AsyncFunctionDef):
                     # Determine if it's a method or function
                     parent = getattr(node, 'parent', None)
-                    if any(isinstance(parent, ast.ClassDef) for parent in ast.walk(tree) 
-                           if hasattr(parent, 'body') and node in parent.body):
+                    if isinstance(parent, ast.ClassDef):
                         definitions["methods"][node.name] = node.lineno
                     else:
                         definitions["functions"][node.name] = node.lineno
@@ -122,13 +149,18 @@ class UnusedCodeDetector:
                 if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
                     references[node.id].append(node.lineno)
                 elif isinstance(node, ast.Call):
-                    if isinstance(node.func, ast.Name):
-                        references[node.func.id].append(node.lineno)
-                    elif isinstance(node.func, ast.Attribute):
-                        references[node.func.attr].append(node.lineno)
+                    # Handle different call types safely
+                    if hasattr(node, 'func'):
+                        if isinstance(node.func, ast.Name):
+                            references[node.func.id].append(node.lineno)
+                        elif isinstance(node.func, ast.Attribute) and hasattr(node.func, 'attr'):
+                            references[node.func.attr].append(node.lineno)
+                elif isinstance(node, ast.Attribute) and isinstance(node.ctx, ast.Load):
+                    if hasattr(node, 'attr'):
+                        references[node.attr].append(node.lineno)
         
-        except SyntaxError:
-            pass
+        except (SyntaxError, AttributeError) as e:
+            logger.debug(f"Could not extract references: {e}")
         
         return dict(references)
     
@@ -140,6 +172,14 @@ class UnusedCodeDetector:
             for func_name, line_num in definitions.get("functions", {}).items():
                 # Skip special functions
                 if func_name.startswith("__") or func_name in ["main"]:
+                    continue
+                
+                # Skip whitelisted names
+                if func_name in self.whitelist:
+                    continue
+                
+                # Skip FastAPI route handlers (common pattern)
+                if self._is_route_handler(file_path, func_name):
                     continue
                 
                 # Check if function is referenced anywhere
@@ -165,6 +205,14 @@ class UnusedCodeDetector:
             for class_name, line_num in definitions.get("classes", {}).items():
                 # Skip special classes and base classes
                 if class_name.startswith("Base") or class_name.endswith("Interface"):
+                    continue
+                
+                # Skip whitelisted names
+                if class_name in self.whitelist:
+                    continue
+                
+                # Skip Pydantic models and schemas (often used for validation/serialization)
+                if class_name.endswith(('Model', 'Schema', 'Config', 'Request', 'Response')):
                     continue
                 
                 is_referenced = self._is_name_referenced(class_name)
@@ -313,6 +361,45 @@ class UnusedCodeDetector:
         for file_references in self.all_references.values():
             if name in file_references:
                 return True
+        return False
+    
+    def _is_route_handler(self, file_path: str, func_name: str) -> bool:
+        """Check if a function is likely a FastAPI/Flask route handler."""
+        if "/routes/" in file_path or "/api/" in file_path:
+            # In API route files, most functions are handlers
+            return True
+        
+        # Check if the file contains route decorators
+        try:
+            with open(file_path, 'r') as f:
+                content = f.read()
+                # Look for route decorators before the function
+                import re
+                pattern = rf'@\w+\.(get|post|put|delete|patch|websocket).*\n.*def {func_name}'
+                if re.search(pattern, content, re.MULTILINE):
+                    return True
+        except:
+            pass
+        
+        return False
+    
+    def _is_pydantic_field(self, file_path: str, var_name: str) -> bool:
+        """Check if a variable is a Pydantic model field."""
+        try:
+            with open(file_path, 'r') as f:
+                content = f.read()
+                # Check if in a class that inherits from BaseModel/BaseSchema
+                if 'BaseModel' in content or 'BaseSchema' in content:
+                    # Simple heuristic: field assignments in classes
+                    import re
+                    # Look for class definition and field assignment
+                    class_pattern = r'class\s+\w+.*(?:BaseModel|BaseSchema)'
+                    field_pattern = rf'^\s+{var_name}\s*[:=]'
+                    if re.search(class_pattern, content) and re.search(field_pattern, content, re.MULTILINE):
+                        return True
+        except:
+            pass
+        
         return False
     
     def propose_cleanup(self) -> Dict[str, Any]:

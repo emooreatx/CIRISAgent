@@ -67,3 +67,12 @@ class LLMCallParams(BaseModel):
     presence_penalty: Optional[float] = Field(None, description="Presence penalty")
     stop: Optional[List[str]] = Field(None, description="Stop sequences")
     seed: Optional[int] = Field(None, description="Random seed for deterministic output")
+
+class CachedLLMResponse(BaseModel):
+    """Cached response from LLM service."""
+    response_model_name: str = Field(..., description="Name of the response model type")
+    response_data: dict = Field(..., description="Serialized response data")
+    cache_key: str = Field(..., description="Cache key used")
+    cached_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    metadata: LLMCallMetadata = Field(..., description="Call metadata")
+    expires_at: Optional[datetime] = Field(None, description="When cache entry expires")

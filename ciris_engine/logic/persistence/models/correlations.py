@@ -31,13 +31,8 @@ def add_correlation(corr: ServiceCorrelation, time_service: Optional[TimeService
             trace_id, span_id, parent_span_id, tags, retention_policy
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
-    # Convert timestamp to ISO string if it's a datetime object
-    timestamp_str = None
-    if corr.timestamp:
-        if isinstance(corr.timestamp, datetime):
-            timestamp_str = corr.timestamp.isoformat()
-        else:
-            timestamp_str = str(corr.timestamp)
+    # Convert timestamp to ISO string
+    timestamp_str = corr.timestamp.isoformat()
 
     params = (
         corr.correlation_id,

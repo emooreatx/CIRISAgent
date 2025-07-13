@@ -81,11 +81,16 @@ class BusManager:
 
     async def stop(self) -> None:
         """Stop all message buses"""
+        import asyncio
+        
         logger.info("Stopping all message buses...")
         for name, bus in self._buses.items():
             try:
-                await bus.stop()
+                # Add timeout protection to prevent hanging
+                await asyncio.wait_for(bus.stop(), timeout=5.0)
                 logger.info(f"Stopped {name} bus")
+            except asyncio.TimeoutError:
+                logger.error(f"Timeout stopping {name} bus after 5 seconds")
             except Exception as e:
                 logger.error(f"Failed to stop {name} bus: {e}", exc_info=True)
                 # Continue stopping other buses

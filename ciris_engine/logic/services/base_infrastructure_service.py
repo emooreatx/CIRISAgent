@@ -5,6 +5,8 @@ from typing import Dict, Any
 
 from ciris_engine.logic.services.base_service import BaseService
 from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.services.metadata import ServiceMetadata
+from ciris_engine.schemas.services.core import ServiceCapabilities
 
 
 class BaseInfrastructureService(BaseService):
@@ -33,20 +35,36 @@ class BaseInfrastructureService(BaseService):
         """
         return ServiceType.TIME
     
-    def _get_metadata(self) -> Dict[str, Any]:
+    def get_capabilities(self) -> ServiceCapabilities:
+        """Get service capabilities with infrastructure metadata."""
+        # Get metadata dict from parent's _get_metadata()
+        service_metadata = self._get_metadata()
+        metadata_dict = service_metadata.model_dump() if isinstance(service_metadata, ServiceMetadata) else {}
+        
+        # Add infrastructure-specific metadata
+        metadata_dict.update({
+            "category": "infrastructure",
+            "critical": True
+        })
+        
+        return ServiceCapabilities(
+            service_name=self.service_name,
+            actions=self._get_actions(),
+            version=self._version,
+            dependencies=list(self._dependencies),
+            metadata=metadata_dict
+        )
+    
+    def _get_metadata(self) -> ServiceMetadata:
         """
         Get infrastructure service metadata.
         
-        Marks service as critical and adds infrastructure category.
-        Subclasses can override to add more metadata.
+        Returns ServiceMetadata for type safety.
+        Subclasses can override to add more specific metadata.
         """
-        metadata = super()._get_metadata()
-        metadata.update({
-            "category": "infrastructure",
-            "critical": True,
-            "restart_on_failure": True
-        })
-        return metadata
+        # Return base metadata - infrastructure-specific attributes
+        # are now handled through other mechanisms
+        return super()._get_metadata()
     
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """

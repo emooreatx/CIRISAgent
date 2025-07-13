@@ -50,7 +50,7 @@ class IncidentManagementService(BaseGraphService):
         super().__init__(memory_bus=memory_bus, time_service=time_service)
         self.service_name = "IncidentManagementService"
         self._started = False
-        self._start_time = None
+        self._start_time: Optional[datetime] = None
 
     async def _get_time_service(self) -> Any:
         """Get time service for consistent timestamps."""
@@ -620,4 +620,8 @@ class IncidentManagementService(BaseGraphService):
     async def is_healthy(self) -> bool:
         """Check if service is healthy."""
         return self._started and self._memory_bus is not None
+    
+    def get_service_type(self) -> ServiceType:
+        """Get the service type."""
+        return ServiceType.INCIDENT_MANAGEMENT
 

@@ -62,7 +62,14 @@ class EthicalPDMAEvaluator(BaseDMA, PDMAProtocol):
             self.prompt_template_data.update(prompt_overrides)
         logger.info(f"EthicalPDMAEvaluator initialized with model: {self.model_name}")
 
-    async def evaluate(self, input_data: ProcessingQueueItem, context: Optional[ThoughtState] = None, **kwargs: Any) -> EthicalDMAResult:
+    async def evaluate(self, *args: Any, **kwargs: Any) -> EthicalDMAResult:  # type: ignore[override]
+        # Extract arguments - maintain backward compatibility
+        input_data = args[0] if args else kwargs.get('input_data')
+        context = args[1] if len(args) > 1 else kwargs.get('context')
+        
+        if not input_data:
+            raise ValueError("input_data is required")
+            
         original_thought_content = str(input_data.content)
         logger.debug(f"Evaluating thought ID {input_data.thought_id}")
 

@@ -187,9 +187,13 @@ class WACLIWizardService:
             client_secret=client_secret
         )
 
-        if result["status"] == "success":
+        if result.status == "success":
             self.console.print("\n✅ OAuth configured successfully!")
             self.console.print("You can now login with:")
             self.console.print(f"[bold]ciris wa oauth-login {provider}[/bold]")
 
-        return OAuthConfigResult(**result)
+        return OAuthConfigResult(
+            status=result.status,
+            provider=result.provider or provider,
+            error=result.error
+        )

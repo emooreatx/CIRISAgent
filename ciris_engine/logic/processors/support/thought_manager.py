@@ -47,18 +47,31 @@ class ThoughtManager:
                 correlation_id=task.context.correlation_id if hasattr(task.context, 'correlation_id') else str(uuid.uuid4())
             )
         elif task.context:
-            # If it's already some other type of context, try to copy it
-            thought_context = task.context.model_copy()
+            # If it's already some other type of context, create a new ThoughtContext
+            # We can't just copy a TaskContext to ThoughtContext - they're different types
+            thought_context = ThoughtContext(
+                task_id=task.task_id,
+                channel_id=getattr(task.context, 'channel_id', None),
+                round_number=round_number,
+                depth=0,
+                parent_thought_id=None,
+                correlation_id=getattr(task.context, 'correlation_id', str(uuid.uuid4()))
+            )
+
+        # Extract channel_id from task for the thought
+        channel_id: Optional[str] = None
+        if task.context and hasattr(task.context, 'channel_id'):
+            channel_id = task.context.channel_id
+        elif task.channel_id:
+            channel_id = task.channel_id
 
         # Log for debugging but don't modify the context
         if thought_context:
             logger.debug(f"SEED_THOUGHT: Copying context for task {task.task_id}")
             # Check if we have channel context in the proper location
             # For logging purposes, check the original task context
-            if task.context and hasattr(task.context, 'channel_id') and task.context.channel_id:
-                # TaskContext has channel_id directly
-                channel_id = task.context.channel_id
-                logger.debug(f"SEED_THOUGHT: Found channel_id='{channel_id}' in task's TaskContext")
+            if channel_id:
+                logger.debug(f"SEED_THOUGHT: Found channel_id='{channel_id}' in task's context")
             else:
                 logger.warning(f"SEED_THOUGHT: No channel context found for task {task.task_id}")
         else:
@@ -70,13 +83,6 @@ class ThoughtManager:
             except Exception as e:
                 logger.critical(f"SEED_THOUGHT: Failed to mark malicious task {task.task_id} as FAILED: {e}")
             return None
-
-        # Extract channel_id from task for the thought
-        channel_id = None
-        if task.context and hasattr(task.context, 'channel_id'):
-            channel_id = task.context.channel_id
-        elif task.channel_id:
-            channel_id = task.channel_id
 
         thought = Thought(
             thought_id=generate_thought_id(

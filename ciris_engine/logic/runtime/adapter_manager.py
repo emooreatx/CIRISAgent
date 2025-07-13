@@ -529,10 +529,10 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 if value:
                     sanitized[key] = "***MASKED***"
                 else:
-                    sanitized[key] = None
+                    sanitized[key] = None  # type: ignore[assignment]
             elif isinstance(value, dict):
                 # Recursively sanitize nested dictionaries
-                sanitized[key] = self._sanitize_config_params(adapter_type, value)
+                sanitized[key] = self._sanitize_config_params(adapter_type, value)  # type: ignore[assignment]
             else:
                 # Keep non-sensitive values as-is
                 sanitized[key] = value
@@ -809,7 +809,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
         except Exception as e:
             logger.error(f"Failed to register config listener: {e}")
     
-    async def _on_adapter_config_change(self, key: str, old_value: any, new_value: any) -> None:
+    async def _on_adapter_config_change(self, key: str, old_value: Any, new_value: Any) -> None:
         """Handle adapter configuration changes.
         
         This is called by the config service when adapter configs change.

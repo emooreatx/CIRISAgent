@@ -34,9 +34,16 @@ from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.schemas.secrets.service import DecapsulationContext
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.logic.services.base_graph_service import BaseGraphService
+from ciris_engine.logic.services.base_graph_service import BaseGraphService, GraphNodeConvertible
 from ciris_engine.schemas.services.graph.memory import (
     MemorySearchFilter
+)
+from ciris_engine.schemas.services.graph.attributes import (
+    NodeAttributes,
+    MemoryNodeAttributes,
+    TelemetryNodeAttributes,
+    AnyNodeAttributes,
+    create_node_attributes
 )
 
 logger = logging.getLogger(__name__)
@@ -113,7 +120,8 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
                 # Process secrets for all nodes
                 processed_nodes = []
                 for node in nodes:
-                    processed_attrs = node.attributes
+                    # Process attributes - always returns a dict
+                    processed_attrs: Dict[str, Any] = {}
                     if node.attributes:
                         processed_attrs = await self._process_secrets_for_recall(node.attributes, "recall")
                     
@@ -135,12 +143,8 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
                                 edges_data.append(edge_dict)
                             
                             # Add edges to attributes
-                            if isinstance(processed_attrs, dict):
-                                processed_attrs["_edges"] = edges_data
-                            else:
-                                attrs_dict = processed_attrs.model_dump() if hasattr(processed_attrs, 'model_dump') else processed_attrs
-                                attrs_dict["_edges"] = edges_data
-                                processed_attrs = attrs_dict
+                            # processed_attrs is always a dict after _process_secrets_for_recall
+                            processed_attrs["_edges"] = edges_data
                     
                     processed_node = GraphNode(
                         id=node.id,
@@ -200,11 +204,12 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
                             edges_data.append(edge_dict)
                         
                         # Add edges to node attributes
+                        # Need to ensure we have a mutable dict for attributes
                         if isinstance(stored.attributes, dict):
                             stored.attributes["_edges"] = edges_data
                         else:
                             # For typed attributes, we need to convert to dict first
-                            attrs_dict = stored.attributes.model_dump() if hasattr(stored.attributes, 'model_dump') else stored.attributes
+                            attrs_dict: Dict[str, Any] = stored.attributes.model_dump() if hasattr(stored.attributes, 'model_dump') else dict(stored.attributes) if stored.attributes else {}
                             attrs_dict["_edges"] = edges_data
                             stored = GraphNode(
                                 id=stored.id,
@@ -242,17 +247,9 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
                                             visited_nodes.add(connected_id)
                                             
                                             # Process secrets if needed
+                                            connected_processed_attrs: Dict[str, Any] = {}
                                             if connected_node.attributes:
-                                                processed_attrs = await self._process_secrets_for_recall(connected_node.attributes, "recall")
-                                                connected_node = GraphNode(
-                                                    id=connected_node.id,
-                                                    type=connected_node.type,
-                                                    scope=connected_node.scope,
-                                                    attributes=processed_attrs,
-                                                    version=connected_node.version,
-                                                    updated_by=connected_node.updated_by,
-                                                    updated_at=connected_node.updated_at
-                                                )
+                                                connected_processed_attrs = await self._process_secrets_for_recall(connected_node.attributes, "recall")
                                             
                                             # Add edges to connected node
                                             connected_edges = get_edges_for_node(connected_node.id, connected_node.scope, db_path=self.db_path)
@@ -268,20 +265,19 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
                                                     }
                                                     edges_data.append(edge_dict)
                                                 
-                                                if isinstance(connected_node.attributes, dict):
-                                                    connected_node.attributes["_edges"] = edges_data
-                                                else:
-                                                    attrs_dict = connected_node.attributes.model_dump() if hasattr(connected_node.attributes, 'model_dump') else connected_node.attributes
-                                                    attrs_dict["_edges"] = edges_data
-                                                    connected_node = GraphNode(
-                                                        id=connected_node.id,
-                                                        type=connected_node.type,
-                                                        scope=connected_node.scope,
-                                                        attributes=attrs_dict,
-                                                        version=connected_node.version,
-                                                        updated_by=connected_node.updated_by,
-                                                        updated_at=connected_node.updated_at
-                                                    )
+                                                # Add edges to processed attributes dict
+                                                connected_processed_attrs["_edges"] = edges_data
+                                            
+                                            # Create new node with processed attributes
+                                            connected_node = GraphNode(
+                                                id=connected_node.id,
+                                                type=connected_node.type,
+                                                scope=connected_node.scope,
+                                                attributes=connected_processed_attrs,
+                                                version=connected_node.version,
+                                                updated_by=connected_node.updated_by,
+                                                updated_at=connected_node.updated_at
+                                            )
                                             
                                             all_nodes.append(connected_node)
                                             nodes_to_process.append((connected_node, current_depth + 1))
@@ -351,7 +347,7 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
         # Add secret references to node metadata if any were found
         if secret_refs:
             if isinstance(processed_attributes, dict):
-                processed_attributes.setdefault("_secret_refs", []).extend([ref.uuid for ref in secret_refs])
+                processed_attributes.setdefault("secret_refs", []).extend([ref.uuid for ref in secret_refs])
             logger.info(f"Stored {len(secret_refs)} secret references in memory node {node.id}")
 
         return GraphNode(
@@ -364,7 +360,7 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
             updated_at=node.updated_at
         )
 
-    async def _process_secrets_for_recall(self, attributes: Union[Dict[str, Union[str, int, float, bool, list, dict, None]], GraphNodeAttributes], action_type: str) -> Dict[str, Union[str, int, float, bool, list, dict, None]]:
+    async def _process_secrets_for_recall(self, attributes: Union[AnyNodeAttributes, GraphNodeAttributes, Dict[str, Any]], action_type: str) -> Dict[str, Any]:
         """Process secrets in recalled attributes for potential decryption."""
         if not attributes:
             return {}
@@ -378,7 +374,7 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
         else:  # isinstance(attributes, dict)
             attributes_dict = attributes
 
-        secret_refs = attributes_dict.get("_secret_refs", [])
+        secret_refs = attributes_dict.get("secret_refs", [])
         if not secret_refs:
             return attributes_dict
 
@@ -409,7 +405,7 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
 
         return attributes_dict
 
-    async def _process_secrets_for_forget(self, attributes: Union[Dict[str, Union[str, int, float, bool, list, dict, None]], GraphNodeAttributes]) -> None:
+    async def _process_secrets_for_forget(self, attributes: Union[AnyNodeAttributes, GraphNodeAttributes, Dict[str, Any]]) -> None:
         """Clean up secrets when forgetting a node."""
         if not attributes:
             return
@@ -424,7 +420,7 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
             attributes_dict = attributes
 
         # Check for secret references
-        secret_refs = attributes_dict.get("_secret_refs", [])
+        secret_refs = attributes_dict.get("secret_refs", [])
         if secret_refs:
             # Note: We don't automatically delete secrets on FORGET since they might be
             # referenced elsewhere. This would need to be a conscious decision by the agent.
@@ -565,22 +561,27 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
             node_id = f"metric_{metric_name}_{int(now.timestamp() * 1000000)}"
 
             # Create typed attributes with metric-specific data
-            attrs_dict = {
-                "created_at": now,
-                "updated_at": now,
-                "created_by": "memory_service",
-                "tags": ["metric", metric_name],
-                "metric_name": metric_name,
-                "value": value,
-                "metric_tags": tags or {},
-                "retention_policy": "raw"
-            }
+            telemetry_attrs = TelemetryNodeAttributes(
+                created_at=now,
+                updated_at=now,
+                created_by="memory_service",
+                tags=["metric", metric_name],
+                metric_name=metric_name,
+                metric_type="gauge",  # Default metric type
+                value=value,
+                start_time=now,
+                end_time=now,
+                duration_seconds=0.0,
+                sample_count=1,
+                labels=tags or {},
+                service_name="memory_service"
+            )
 
             node = GraphNode(
                 id=node_id,
                 type=NodeType.TSDB_DATA,
                 scope=GraphScope(scope),
-                attributes=attrs_dict,
+                attributes=telemetry_attrs.model_dump(),  # Convert to dict for storage
                 updated_by="memory_service",
                 updated_at=now
             )
@@ -637,16 +638,22 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
             node_id = f"log_{log_level}_{int(now.timestamp())}"
 
             # Create typed attributes with log-specific data
-            attrs_dict = {
-                "created_at": now,
-                "updated_at": now,
-                "created_by": "memory_service",
-                "tags": ["log", log_level.lower()],
+            # Using base NodeAttributes with additional log fields in the dict
+            node_attrs = NodeAttributes(
+                created_at=now,
+                updated_at=now,
+                created_by="memory_service",
+                tags=["log", log_level.lower()]
+            )
+            
+            # Convert to dict and add log-specific fields
+            attrs_dict = node_attrs.model_dump()
+            attrs_dict.update({
                 "log_message": log_message,
                 "log_level": log_level,
                 "log_tags": tags or {},
                 "retention_policy": "raw"
-            }
+            })
 
             node = GraphNode(
                 id=node_id,
@@ -832,10 +839,16 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
         except Exception:
             return False
 
-    async def store_in_graph(self, node: GraphNode) -> str:
+    async def store_in_graph(self, node: Union[GraphNode, GraphNodeConvertible]) -> str:
         """Store a node in the graph."""
-        result = await self.memorize(node)
-        return node.id if result.status == MemoryOpStatus.OK else ""
+        # Convert to GraphNode if needed
+        if hasattr(node, 'to_graph_node'):
+            graph_node = node.to_graph_node()
+        else:
+            graph_node = node
+        
+        result = await self.memorize(graph_node)
+        return graph_node.id if result.status == MemoryOpStatus.OK else ""
 
     async def query_graph(self, query: MemoryQuery) -> List[GraphNode]:
         """Query the graph."""

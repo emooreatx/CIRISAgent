@@ -23,7 +23,6 @@ from ciris_engine.schemas.dma.results import (
     DSDMAResult,
 )
 from ciris_engine.schemas.processors.core import DMAResults
-from ciris_engine.schemas.runtime.system_context import ThoughtState
 from ciris_engine.logic.registries.circuit_breaker import CircuitBreaker
 from ciris_engine.logic.utils.channel_utils import extract_channel_id
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
@@ -72,7 +71,7 @@ class DMAOrchestrator:
     async def run_initial_dmas(
         self,
         thought_item: ProcessingQueueItem,
-        processing_context: Optional[ThoughtState] = None,
+        processing_context: Optional[Any] = None,  # ProcessingThoughtContext, but using Any to avoid circular import
         dsdma_context: Optional[DMAMetadata] = None,
     ) -> InitialDMAResults:
         """
@@ -149,7 +148,7 @@ class DMAOrchestrator:
     async def run_dmas(
         self,
         thought_item: ProcessingQueueItem,
-        processing_context: Optional[ThoughtState] = None,
+        processing_context: Optional[Any] = None,  # ProcessingThoughtContext, but using Any to avoid circular import
         dsdma_context: Optional[DMAMetadata] = None,
     ) -> "DMAResults":
         """Run all DMAs with circuit breaker protection."""
@@ -246,7 +245,7 @@ class DMAOrchestrator:
         self,
         thought_item: ProcessingQueueItem,
         actual_thought: Thought,
-        processing_context: ThoughtState,
+        processing_context: Any,  # ProcessingThoughtContext, but using Any to avoid circular import
         dma_results: InitialDMAResults,
         profile_name: str
     ) -> ActionSelectionDMAResult:

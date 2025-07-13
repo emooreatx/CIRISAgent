@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 import asyncio
 
 from ciris_engine.protocols.services.governance.communication import CommunicationServiceProtocol
+from ciris_engine.schemas.runtime.enums import ServiceType
 
 if TYPE_CHECKING:
     from ciris_engine.schemas.services.core import ServiceStatus, ServiceCapabilities
@@ -235,6 +236,10 @@ class APICommunicationService(CommunicationServiceProtocol):
     async def is_healthy(self) -> bool:
         """Check if the service is healthy."""
         return self._is_started
+    
+    def get_service_type(self) -> ServiceType:
+        """Get the type of this service."""
+        return ServiceType.ADAPTER
     
     def get_status(self) -> "ServiceStatus":
         """Get the service status."""

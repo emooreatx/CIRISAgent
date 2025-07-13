@@ -41,11 +41,11 @@ class BaseGraphService(ABC, GraphServiceProtocol):
         self._memory_bus = memory_bus
         self._time_service = time_service
 
-    def set_memory_bus(self, memory_bus: 'MemoryBus') -> None:
+    def _set_memory_bus(self, memory_bus: 'MemoryBus') -> None:
         """Set the memory bus for graph operations."""
         self._memory_bus = memory_bus
 
-    def set_time_service(self, time_service: TimeServiceProtocol) -> None:
+    def _set_time_service(self, time_service: TimeServiceProtocol) -> None:
         """Set the time service for timestamps."""
         self._time_service = time_service
 

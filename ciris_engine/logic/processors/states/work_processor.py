@@ -31,7 +31,7 @@ class WorkProcessor(BaseProcessor):
         action_dispatcher: "ActionDispatcher",
         services: dict,
         startup_channel_id: Optional[str] = None,
-        **kwargs
+        **kwargs: Any
     ) -> None:
         """Initialize work processor."""
         self.startup_channel_id = startup_channel_id
@@ -45,9 +45,10 @@ class WorkProcessor(BaseProcessor):
             max_active_tasks = 10
             max_active_thoughts = 50
 
-        self.time_service = services.get("time_service")
-        if not self.time_service:
+        time_service = services.get("time_service")
+        if not time_service:
             raise ValueError("time_service is required in services")
+        self.time_service = time_service
         self.task_manager = TaskManager(max_active_tasks=max_active_tasks, time_service=self.time_service)
         self.thought_manager = ThoughtManager(
             time_service=self.time_service,

@@ -40,19 +40,20 @@ class ProtocolAnalyzer:
         # New special services path
         self.special_path = self.project_root / "logic" / "services" / "special"
         
-        # The actual 19 CIRIS production services (MockLLMService is test-only, not counted)
-        # Tool and Communication are provided ONLY by adapters, not standalone services
+        # The actual 21 CIRIS core services as per CLAUDE.md
         self.known_services = {
             # Graph Services (6)
-            "MemoryService", "AuditService", "GraphConfigService", "TelemetryService", 
+            "MemoryService", "GraphConfigService", "TelemetryService", "AuditService",
             "IncidentManagementService", "TSDBConsolidationService",
-            # Core Services (3) - MockLLMService excluded as it's test-only
-            "LLMService", "SecretsService", "RuntimeControlService",
             # Infrastructure Services (7)
-            "TimeService", "ShutdownService", "InitializationService", "VisibilityService", 
-            "AuthenticationService", "WiseAuthorityService", "ResourceMonitorService",
-            # Special Services (3)
-            "SelfConfigurationService", "AdaptiveFilterService", "TaskSchedulerService"
+            "TimeService", "ShutdownService", "InitializationService", "AuthenticationService",
+            "ResourceMonitorService", "DatabaseMaintenanceService", "SecretsService",
+            # Governance Services (4)
+            "WiseAuthorityService", "AdaptiveFilterService", "VisibilityService", "SelfObservationService",
+            # Runtime Services (3)
+            "LLMService", "RuntimeControlService", "TaskSchedulerService",
+            # Tool Services (1)
+            "SecretsToolService"
         }
         
     def check_all_services(self) -> Dict[str, Any]:
@@ -158,6 +159,7 @@ class ProtocolAnalyzer:
         
         # Find extra methods (in module but not in protocol)
         # Note: Private methods (_method) and special methods (__method__) are allowed
+        # CIRIS requires 100% protocol alignment - no extra public methods allowed
         extra = {m for m in module_methods if not m.startswith('_')} - protocol_methods
         if extra:
             results["is_aligned"] = False
@@ -166,7 +168,7 @@ class ProtocolAnalyzer:
                 results["issues"].append({
                     "service": service_name,
                     "type": "extra_method",
-                    "message": f"Module has method not in protocol: {method}"
+                    "message": f"Module has method not in protocol: {method} - CIRIS requires 100% protocol alignment"
                 })
         
         # Check for Dict[str, Any] usage
@@ -223,20 +225,24 @@ class ProtocolAnalyzer:
                                     is_service_protocol = True
                                     break
                             
-                            # Also include known service protocols (excluding test-only MockLLMService)
+                            # Also include known service protocols
                             known_service_protocols = [
-                                'LLMServiceProtocol', 'ToolServiceProtocol', 'WiseAuthorityServiceProtocol', 'RuntimeControlServiceProtocol',
-                                'TimeServiceProtocol', 'MemoryServiceProtocol', 'GraphMemoryServiceProtocol',
-                                'AuditServiceProtocol', 'TelemetryServiceProtocol', 'ConfigServiceProtocol', 'SecretsServiceProtocol',
-                                'InitializationServiceProtocol', 'ShutdownServiceProtocol', 'ResourceMonitorServiceProtocol',
-                                'VisibilityServiceProtocol', 'AuthenticationServiceProtocol', 'IncidentManagementServiceProtocol',
-                                'TSDBConsolidationServiceProtocol', 'SelfConfigurationServiceProtocol', 'AdaptiveFilterServiceProtocol',
-                                'TaskSchedulerServiceProtocol', 'CommunicationService', 'ToolService', 'WiseAuthorityService',
-                                'ShutdownService', 'InitializationService', 'VisibilityService',
-                                'AuthenticationService', 'SelfConfigurationService',
-                                'AdaptiveFilterService', 'TaskSchedulerService', 'IncidentManagementService',
-                                'TSDBConsolidationService', 'TSDBConsolidationServiceProtocol',
-                                'ResourceMonitorService', 'ResourceMonitorServiceProtocol'
+                                # Graph Service Protocols
+                                'GraphMemoryServiceProtocol', 'GraphConfigServiceProtocol', 'TelemetryServiceProtocol',
+                                'AuditServiceProtocol', 'IncidentManagementServiceProtocol', 'TSDBConsolidationServiceProtocol',
+                                # Infrastructure Service Protocols
+                                'TimeServiceProtocol', 'ShutdownServiceProtocol', 'InitializationServiceProtocol',
+                                'AuthenticationServiceProtocol', 'ResourceMonitorServiceProtocol', 'DatabaseMaintenanceServiceProtocol',
+                                'SecretsServiceProtocol',
+                                # Governance Service Protocols
+                                'WiseAuthorityServiceProtocol', 'AdaptiveFilterServiceProtocol', 'VisibilityServiceProtocol',
+                                'SelfObservationServiceProtocol',
+                                # Runtime Service Protocols
+                                'LLMServiceProtocol', 'RuntimeControlServiceProtocol', 'TaskSchedulerServiceProtocol',
+                                # Tool Service Protocols
+                                'SecretsToolServiceProtocol', 'ToolServiceProtocol',
+                                # Bus-based Service Protocols (not standalone)
+                                'CommunicationServiceProtocol', 'MemoryServiceProtocol'
                             ]
                             
                             if is_service_protocol or protocol_name in known_service_protocols:
@@ -297,7 +303,7 @@ class ProtocolAnalyzer:
         if base_class_name == "BaseGraphService":
             methods.update(['store_in_graph', 'query_graph', 'get_node_type',
                           'start', 'stop', 'get_capabilities', 'get_status', 'is_healthy',
-                          'set_memory_bus', 'set_time_service'])
+                          '_set_memory_bus', '_set_time_service'])
         elif base_class_name == "BaseService":
             methods.update(['start', 'stop', 'get_capabilities', 'get_status', 'is_healthy'])
         

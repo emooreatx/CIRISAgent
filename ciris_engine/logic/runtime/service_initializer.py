@@ -681,7 +681,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
         )
         # Set service registry so it can access memory bus
         if self.service_registry:
-            graph_audit.set_service_registry(self.service_registry)
+            graph_audit._set_service_registry(self.service_registry)
         await graph_audit.start()
         self.audit_services.append(graph_audit)
         logger.info("Consolidated GraphAuditService started")

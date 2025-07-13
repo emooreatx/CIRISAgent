@@ -25,11 +25,14 @@ class RejectHandler(BaseActionHandler):
         await self._audit_log(HandlerActionType.REJECT, dispatch_context, outcome="start")
         original_event_channel_id = extract_channel_id(dispatch_context.channel_context)
 
+        final_thought_status = ThoughtStatus.FAILED
+        _action_performed_successfully = False
+        follow_up_content_key_info = f"REJECT action for thought {thought_id}"
+
         try:
             params: RejectParams = await self._validate_and_convert_params(raw_params, RejectParams)
         except Exception as e:
             await self._handle_error(HandlerActionType.REJECT, dispatch_context, thought_id, e)
-            final_thought_status = ThoughtStatus.FAILED
             await self._audit_log(HandlerActionType.REJECT, dispatch_context, outcome="failed")
             persistence.update_thought_status(
                 thought_id=thought_id,
@@ -37,24 +40,17 @@ class RejectHandler(BaseActionHandler):
                 final_action=result,
             )
             return None
-        final_thought_status = ThoughtStatus.FAILED
-        _action_performed_successfully = False
-        follow_up_content_key_info = f"REJECT action for thought {thought_id}"
 
-        if not isinstance(params, RejectParams):
-            self.logger.error(f"REJECT action params are not RejectParams model. Type: {type(params)}. Thought ID: {thought_id}")
-            follow_up_content_key_info = f"REJECT action failed: Invalid parameters type ({type(params)}) for thought {thought_id}. Original reason might be lost."
-        else:
-            follow_up_content_key_info = f"Rejected thought {thought_id}. Reason: {params.reason}"
-            if original_event_channel_id and params.reason:
-                try:
-                    # Use the communication bus
-                    await self.bus_manager.communication.send_message(
-                        channel_id=original_event_channel_id,
-                        content=f"Unable to proceed: {params.reason}",
-                        handler_name=self.__class__.__name__
-                    )
-                except Exception as e:
+        follow_up_content_key_info = f"Rejected thought {thought_id}. Reason: {params.reason}"
+        if original_event_channel_id and params.reason:
+            try:
+                # Use the communication bus
+                await self.bus_manager.communication.send_message(
+                    channel_id=original_event_channel_id,
+                    content=f"Unable to proceed: {params.reason}",
+                    handler_name=self.__class__.__name__
+                )
+            except Exception as e:
                     self.logger.error(
                         f"Failed to send REJECT notification via communication service for thought {thought_id}: {e}"
                     )

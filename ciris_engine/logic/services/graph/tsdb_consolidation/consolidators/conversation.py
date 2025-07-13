@@ -5,13 +5,13 @@ Consolidates SERVICE_INTERACTION correlations into ConversationSummaryNode.
 """
 
 import logging
-import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Tuple, TYPE_CHECKING
 from collections import defaultdict
 
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.services.operations import MemoryOpStatus
+from ciris_engine.schemas.services.graph.consolidation import ServiceInteractionData, ConversationEntry, ParticipantData
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 
 if TYPE_CHECKING:
@@ -39,7 +39,7 @@ class ConversationConsolidator:
         period_start: datetime,
         period_end: datetime,
         period_label: str,
-        service_interactions: List[Dict[str, Any]]
+        service_interactions: List[ServiceInteractionData]
     ) -> Optional[GraphNode]:
         """
         Consolidate service interactions into a conversation summary.
@@ -48,7 +48,7 @@ class ConversationConsolidator:
             period_start: Start of consolidation period
             period_end: End of consolidation period
             period_label: Human-readable period label
-            service_interactions: List of service_interaction correlations
+            service_interactions: List of ServiceInteractionData objects
             
         Returns:
             ConversationSummaryNode as GraphNode if successful
@@ -68,67 +68,45 @@ class ConversationConsolidator:
         error_count = 0
         
         for interaction in service_interactions:
-            # Extract key data
-            correlation_id = interaction.get('correlation_id', 'unknown')
-            action_type = interaction.get('action_type', 'unknown')
-            service_type = interaction.get('service_type', 'unknown')
-            timestamp = interaction.get('timestamp')
+            # Extract key data from typed schema
+            correlation_id = interaction.correlation_id
+            action_type = interaction.action_type
+            service_type = interaction.service_type
+            timestamp = interaction.timestamp
+            channel_id = interaction.channel_id
             
-            # Parse request data
-            channel_id = 'unknown'
-            content = ''
-            author_id = None
-            author_name = None
+            # Extract message content
+            content = interaction.content or ''
+            author_id = interaction.author_id
+            author_name = interaction.author_name
             
-            if interaction.get('request_data'):
-                try:
-                    req_data = json.loads(interaction['request_data']) if isinstance(interaction['request_data'], str) else interaction['request_data']
-                    channel_id = req_data.get('channel_id', 'unknown')
-                    
-                    # Extract message content based on action type
-                    if action_type in ['speak', 'observe']:
-                        params = req_data.get('parameters', {})
-                        content = params.get('content', '')
-                        author_id = params.get('author_id')
-                        author_name = params.get('author_name')
-                        
-                        if author_id:
-                            unique_users.add(author_id)
-                except Exception as e:
-                    logger.warning(f"Failed to parse request data: {e}")
+            if author_id:
+                unique_users.add(author_id)
             
-            # Parse response data
-            execution_time = 0
-            success = True
+            # Get response metrics
+            execution_time = interaction.execution_time_ms
+            success = interaction.success
             
-            if interaction.get('response_data'):
-                try:
-                    resp_data = json.loads(interaction['response_data']) if isinstance(interaction['response_data'], str) else interaction['response_data']
-                    execution_time = resp_data.get('execution_time_ms', 0)
-                    success = resp_data.get('success', True)
-                    
-                    if execution_time > 0:
-                        total_response_time += execution_time
-                        response_count += 1
-                    
-                    if not success:
-                        error_count += 1
-                except:
-                    pass
+            if execution_time > 0:
+                total_response_time += execution_time
+                response_count += 1
             
-            # Build conversation entry
-            conv_entry = {
-                'timestamp': timestamp.isoformat() if timestamp else None,
-                'correlation_id': correlation_id,
-                'action_type': action_type,
-                'content': content,
-                'author_id': author_id,
-                'author_name': author_name,
-                'execution_time_ms': execution_time,
-                'success': success
-            }
+            if not success:
+                error_count += 1
             
-            conversations_by_channel[channel_id].append(conv_entry)
+            # Build conversation entry using typed schema
+            conv_entry = ConversationEntry(
+                timestamp=timestamp.isoformat() if timestamp else None,
+                correlation_id=correlation_id,
+                action_type=action_type,
+                content=content,
+                author_id=author_id,
+                author_name=author_name,
+                execution_time_ms=execution_time,
+                success=success
+            )
+            
+            conversations_by_channel[channel_id].append(conv_entry.model_dump())
             action_counts[action_type] += 1
             service_calls[service_type] += 1
         
@@ -190,7 +168,7 @@ class ConversationConsolidator:
     def get_edges(
         self,
         summary_node: GraphNode,
-        service_interactions: List[Dict[str, Any]]
+        service_interactions: List[ServiceInteractionData]
     ) -> List[Tuple[GraphNode, GraphNode, str, Dict[str, Any]]]:
         """
         Get edges to create for conversation summary.
@@ -200,6 +178,16 @@ class ConversationConsolidator:
         - Channels where conversations happened (OCCURRED_IN_CHANNEL)
         """
         edges = []
+        
+        # Get period_end from summary node attributes for fallback timestamp
+        period_end = datetime.now(timezone.utc)
+        if isinstance(summary_node.attributes, dict):
+            period_end_str = summary_node.attributes.get('period_end')
+            if period_end_str:
+                try:
+                    period_end = datetime.fromisoformat(period_end_str.replace('Z', '+00:00'))
+                except Exception:
+                    pass
         
         # Get participant data
         participant_data = self.get_participant_data(service_interactions)
@@ -217,7 +205,7 @@ class ConversationConsolidator:
                         "username": data.get('author_name', user_id)
                     },
                     updated_by="tsdb_consolidation",
-                    updated_at=period_end if not self._time_service else self._time_service.now()
+                    updated_at=self._time_service.now() if self._time_service else period_end
                 )
                 
                 edges.append((
@@ -233,8 +221,8 @@ class ConversationConsolidator:
         # Create edges to channels
         channels = set()
         for interaction in service_interactions:
-            channel_id = interaction.get('context', {}).get('channel_id')
-            if channel_id:
+            channel_id = interaction.channel_id
+            if channel_id and channel_id != 'unknown':
                 channels.add(channel_id)
         
         for channel_id in channels:
@@ -246,7 +234,7 @@ class ConversationConsolidator:
                     "channel_id": channel_id
                 },
                 updated_by="tsdb_consolidation",
-                updated_at=period_end if not self._time_service else self._time_service.now()
+                updated_at=self._time_service.now() if self._time_service else period_end
             )
             
             edges.append((
@@ -255,13 +243,13 @@ class ConversationConsolidator:
                 'OCCURRED_IN_CHANNEL',
                 {
                     'message_count': len([i for i in service_interactions 
-                                        if i.get('context', {}).get('channel_id') == channel_id])
+                                        if i.channel_id == channel_id])
                 }
             ))
         
         return edges
     
-    def get_participant_data(self, service_interactions: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    def get_participant_data(self, service_interactions: List[ServiceInteractionData]) -> Dict[str, Dict[str, Any]]:
         """
         Extract participant data for edge creation.
         
@@ -274,21 +262,14 @@ class ConversationConsolidator:
         })
         
         for interaction in service_interactions:
-            if interaction.get('request_data'):
-                try:
-                    req_data = json.loads(interaction['request_data']) if isinstance(interaction['request_data'], str) else interaction['request_data']
-                    
-                    if interaction.get('action_type') in ['speak', 'observe']:
-                        params = req_data.get('parameters', {})
-                        author_id = params.get('author_id')
-                        
-                        if author_id:
-                            participants[author_id]['message_count'] += 1
-                            participants[author_id]['channels'].add(req_data.get('channel_id', 'unknown'))
-                            if params.get('author_name'):
-                                participants[author_id]['author_name'] = params['author_name']
-                except:
-                    pass
+            if interaction.action_type in ['speak', 'observe']:
+                author_id = interaction.author_id
+                
+                if author_id:
+                    participants[author_id]['message_count'] += 1
+                    participants[author_id]['channels'].add(interaction.channel_id)
+                    if interaction.author_name:
+                        participants[author_id]['author_name'] = interaction.author_name
         
         # Convert sets to lists for serialization
         for user_id in participants:

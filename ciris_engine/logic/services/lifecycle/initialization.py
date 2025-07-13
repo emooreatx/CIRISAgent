@@ -7,6 +7,7 @@ This replaces the initialization_manager.py utility with a proper service.
 import asyncio
 import logging
 from typing import Dict, List, Optional, Callable, Awaitable, Any
+from ciris_engine.schemas.services.metadata import ServiceMetadata
 from datetime import datetime
 from dataclasses import dataclass
 
@@ -72,15 +73,19 @@ class InitializationService(BaseInfrastructureService, InitializationServiceProt
         # Check if time service is available
         return self.time_service is not None
 
-    def _get_metadata(self) -> Dict[str, Any]:
-        """Get service-specific metadata."""
-        metadata = super()._get_metadata()
-        metadata.update({
+    def get_capabilities(self) -> "ServiceCapabilities":
+        """Get service capabilities with custom metadata."""
+        # Get parent capabilities which includes infrastructure metadata
+        capabilities = super().get_capabilities()
+        
+        # Add our specific metadata
+        capabilities.metadata.update({
             "description": "Manages system initialization coordination",
             "phases": [phase.value for phase in InitializationPhase],
             "supports_verification": True
         })
-        return metadata
+        
+        return capabilities
 
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """Collect initialization-specific metrics."""

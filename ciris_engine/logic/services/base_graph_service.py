@@ -1,7 +1,7 @@
 """
 Enhanced Base Graph Service - Extends BaseService for graph-backed services.
 """
-from typing import Optional, List, Dict, Any, TYPE_CHECKING
+from typing import Optional, List, Dict, Any, TYPE_CHECKING, Protocol, Union
 
 from ciris_engine.logic.services.base_service import BaseService
 from ciris_engine.schemas.services.graph_core import GraphNode
@@ -9,6 +9,11 @@ from ciris_engine.schemas.services.operations import MemoryQuery, MemoryOpStatus
 
 if TYPE_CHECKING:
     from ciris_engine.logic.buses import MemoryBus
+
+
+class GraphNodeConvertible(Protocol):
+    """Protocol for objects that can be converted to GraphNode."""
+    def to_graph_node(self) -> GraphNode: ...
 
 
 class BaseGraphService(BaseService):
@@ -42,7 +47,7 @@ class BaseGraphService(BaseService):
         super().__init__(**kwargs)
         self._memory_bus = memory_bus
     
-    def set_memory_bus(self, memory_bus: 'MemoryBus') -> None:
+    def _set_memory_bus(self, memory_bus: 'MemoryBus') -> None:
         """Set the memory bus for graph operations."""
         self._memory_bus = memory_bus
         self._logger.info(f"{self.service_name}: Memory bus updated")
@@ -77,7 +82,7 @@ class BaseGraphService(BaseService):
     
     # Graph operations
     
-    async def store_in_graph(self, node: GraphNode) -> str:
+    async def store_in_graph(self, node: Union[GraphNode, GraphNodeConvertible]) -> str:
         """
         Store a node in the graph using MemoryBus.
         
@@ -97,10 +102,11 @@ class BaseGraphService(BaseService):
         
         try:
             # Convert to GraphNode if it has a to_graph_node method
-            if hasattr(node, 'to_graph_node') and callable(getattr(node, 'to_graph_node')):
-                graph_node = node.to_graph_node()
-            else:
+            graph_node: GraphNode
+            if isinstance(node, GraphNode):
                 graph_node = node
+            else:
+                graph_node = node.to_graph_node()
             
             result = await self._memory_bus.memorize(graph_node)
             

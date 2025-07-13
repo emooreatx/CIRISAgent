@@ -5,13 +5,13 @@ Creates TaskSummaryNode with final task results and handler selections.
 """
 
 import logging
-import json
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 from collections import defaultdict
 
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.services.operations import MemoryOpStatus
+from ciris_engine.schemas.services.graph.consolidation import TaskCorrelationData
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ class TaskConsolidator:
         period_start: datetime,
         period_end: datetime,
         period_label: str,
-        tasks: List[Dict[str, Any]]
+        tasks: List[TaskCorrelationData]
     ) -> Optional[GraphNode]:
         """
         Consolidate tasks into a summary showing outcomes and patterns.
@@ -43,7 +43,7 @@ class TaskConsolidator:
             period_start: Start of consolidation period
             period_end: End of consolidation period
             period_label: Human-readable period label
-            tasks: List of task data with thoughts
+            tasks: List of TaskCorrelationData objects
             
         Returns:
             TaskSummaryNode as GraphNode if successful, None otherwise
@@ -64,56 +64,55 @@ class TaskConsolidator:
         retry_stats: Dict[str, int] = defaultdict(int)
         
         for task in tasks:
-            task_id = task['task_id']
-            status = task['status']
-            channel = task.get('channel_id', 'unknown')
+            task_id = task.task_id
+            status = task.status
+            channel = task.channel_id or 'unknown'
             
             # Count by status and channel
             tasks_by_status[status] += 1
             tasks_by_channel[channel] += 1
             
             # Track retries
-            retry_count = task.get('retry_count', 0)
+            retry_count = task.retry_count
             if retry_count > 0:
                 retry_stats[f"retries_{retry_count}"] += 1
             
-            # Calculate task duration
-            try:
-                created = datetime.fromisoformat(task['created_at'].replace('Z', '+00:00'))
-                updated = datetime.fromisoformat(task['updated_at'].replace('Z', '+00:00'))
-                duration_ms = (updated - created).total_seconds() * 1000
-                task_durations.append(duration_ms)
-            except:
-                duration_ms = 0
+            # Use duration from schema or calculate
+            duration_ms = task.duration_ms
+            if duration_ms == 0:
+                try:
+                    created = task.created_at
+                    updated = task.updated_at
+                    duration_ms = (updated - created).total_seconds() * 1000
+                except:
+                    duration_ms = 0
+            task_durations.append(duration_ms)
             
             # Process thoughts and handlers
-            thoughts = task.get('thoughts', [])
+            thoughts = task.thoughts
             total_thoughts += len(thoughts)
             thoughts_per_task.append(len(thoughts))
             
-            handlers_selected = []
-            for thought in thoughts:
-                # Extract handler from final_action
-                if thought.get('final_action'):
-                    try:
-                        action_data = json.loads(thought['final_action']) if isinstance(thought['final_action'], str) else thought['final_action']
-                        handler = action_data.get('action_type', 'unknown')
-                        handlers_selected.append(handler)
-                        handler_usage[handler] += 1
-                    except:
-                        pass
+            # Use handlers from schema
+            handlers_selected = task.handlers_used
+            for handler in handlers_selected:
+                handler_usage[handler] += 1
+            
+            # Add final handler if present
+            if task.final_handler:
+                handler_usage[task.final_handler] += 1
             
             # Create task summary
             task_summaries[task_id] = {
                 'task_id': task_id,
-                'description': task.get('description', ''),
+                'description': task.result_summary or '',
                 'status': status,
                 'channel': channel,
                 'duration_ms': duration_ms,
                 'thought_count': len(thoughts),
                 'handlers_selected': handlers_selected,
                 'retry_count': retry_count,
-                'outcome': task.get('outcome')
+                'outcome': 'success' if task.success else task.error_message
             }
         
         # Calculate statistics
@@ -182,7 +181,7 @@ class TaskConsolidator:
     def get_edges(
         self,
         summary_node: GraphNode,
-        tasks: List[Dict[str, Any]]
+        tasks: List[TaskCorrelationData]
     ) -> List[Tuple[GraphNode, GraphNode, str, Dict[str, Any]]]:
         """
         Get edges to create for task summary.
@@ -200,58 +199,49 @@ class TaskConsolidator:
         long_running_count = 0
         
         for task in tasks:
-            task_id = task.get('task_id')
-            if not task_id:
-                continue
+            task_id = task.task_id
             
             # Failed tasks
-            if task.get('status') == 'FAILED' and failed_count < 5:
+            if not task.success and failed_count < 5:
                 edges.append((
                     summary_node,
                     summary_node,  # Self-reference with task data
                     'FAILED_TASK',
                     {
                         'task_id': task_id,
-                        'failure_reason': task.get('error_message', 'unknown'),
-                        'channel_id': task.get('channel_id')
+                        'failure_reason': task.error_message or 'unknown',
+                        'channel_id': task.channel_id
                     }
                 ))
                 failed_count += 1
             
             # Tasks with retries
-            if task.get('retry_count', 0) > 0 and retry_count < 5:
+            if task.retry_count > 0 and retry_count < 5:
                 edges.append((
                     summary_node,
                     summary_node,  # Self-reference with task data
                     'RETRIED_TASK',
                     {
                         'task_id': task_id,
-                        'retry_count': task.get('retry_count'),
-                        'final_status': task.get('status')
+                        'retry_count': task.retry_count,
+                        'final_status': task.status
                     }
                 ))
                 retry_count += 1
             
-            # Long-running tasks (check if updated_at - created_at > 1 minute)
-            if task.get('created_at') and task.get('updated_at'):
-                try:
-                    created = datetime.fromisoformat(task['created_at'].replace('Z', '+00:00'))
-                    updated = datetime.fromisoformat(task['updated_at'].replace('Z', '+00:00'))
-                    duration = (updated - created).total_seconds()
-                    
-                    if duration > 60 and long_running_count < 5:  # More than 1 minute
-                        edges.append((
-                            summary_node,
-                            summary_node,  # Self-reference with task data
-                            'LONG_RUNNING_TASK',
-                            {
-                                'task_id': task_id,
-                                'duration_seconds': duration,
-                                'status': task.get('status')
-                            }
-                        ))
-                        long_running_count += 1
-                except:
-                    pass
+            # Long-running tasks (> 1 minute)
+            duration_seconds = task.duration_ms / 1000.0
+            if duration_seconds > 60 and long_running_count < 5:
+                edges.append((
+                    summary_node,
+                    summary_node,  # Self-reference with task data
+                    'LONG_RUNNING_TASK',
+                    {
+                        'task_id': task_id,
+                        'duration_seconds': duration_seconds,
+                        'status': task.status
+                    }
+                ))
+                long_running_count += 1
         
         return edges

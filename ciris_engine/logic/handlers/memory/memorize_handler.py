@@ -97,12 +97,22 @@ class MemorizeHandler(BaseActionHandler):
                 # Extract meaningful content from the node
                 content_preview = ""
                 if hasattr(node, 'attributes') and node.attributes:
-                    if 'content' in node.attributes:
-                        content_preview = f": {node.attributes['content'][:100]}"
-                    elif 'name' in node.attributes:
-                        content_preview = f": {node.attributes['name']}"
-                    elif 'value' in node.attributes:
-                        content_preview = f": {node.attributes['value']}"
+                    # Handle both dict and GraphNodeAttributes types
+                    if isinstance(node.attributes, dict):
+                        if 'content' in node.attributes:
+                            content_preview = f": {node.attributes['content'][:100]}"
+                        elif 'name' in node.attributes:
+                            content_preview = f": {node.attributes['name']}"
+                        elif 'value' in node.attributes:
+                            content_preview = f": {node.attributes['value']}"
+                    else:
+                        # For GraphNodeAttributes, check if it has these as actual attributes
+                        if hasattr(node.attributes, 'content'):
+                            content_preview = f": {node.attributes.content[:100]}"
+                        elif hasattr(node.attributes, 'name'):
+                            content_preview = f": {node.attributes.name}"
+                        elif hasattr(node.attributes, 'value'):
+                            content_preview = f": {node.attributes.value}"
 
                 follow_up_content = (
                     f"MEMORIZE COMPLETE - stored {node.type.value} '{node.id}'{content_preview}. "

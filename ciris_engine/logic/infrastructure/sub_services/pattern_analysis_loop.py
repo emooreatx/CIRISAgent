@@ -249,9 +249,9 @@ class PatternAnalysisLoop(BaseScheduledService):
             underused_capabilities = self._find_underused_capabilities(action_frequency)
             for capability in underused_capabilities:
                 # Get the frequency data if it exists
-                freq_data = action_frequency.get(capability)
-                count = freq_data.count if freq_data else 0
-                last_used = freq_data.last_seen if freq_data else None
+                capability_freq_data: Optional[ActionFrequency] = action_frequency.get(capability)
+                count = capability_freq_data.count if capability_freq_data else 0
+                last_used = capability_freq_data.last_seen if capability_freq_data else None
 
                 pattern = DetectedPattern(
                     pattern_type=PatternType.FREQUENCY,
@@ -742,7 +742,7 @@ class PatternAnalysisLoop(BaseScheduledService):
             status.custom_metrics.update({
                 "patterns_detected": float(len(self._detected_patterns)),
                 "pattern_history_size": float(len(self._pattern_history)),
-                "last_analysis": self._last_analysis.isoformat() if self._last_analysis else None
+                "last_analysis_timestamp": self._last_analysis.timestamp() if self._last_analysis else 0.0
             })
         
         return status

@@ -118,7 +118,9 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
             raise RuntimeError(f"Failed to initialize OpenAI client: {e}")
         
         # Memory tracking (process is inherited from BaseService)
-        self._response_cache: Dict[str, Any] = {}  # Simple response cache
+        # Use proper types for response cache instead of Dict[str, Any]
+        from ciris_engine.schemas.services.llm import CachedLLMResponse
+        self._response_cache: Dict[str, CachedLLMResponse] = {}  # Typed response cache
         self._max_cache_size = 100  # Maximum cache entries
         
     # Required BaseService abstract methods

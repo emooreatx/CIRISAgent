@@ -20,7 +20,7 @@ from ..dependencies.auth import require_observer, require_admin, AuthContext
 from ciris_engine.logic.persistence.db.core import get_db_connection
 
 if TYPE_CHECKING:
-    import networkx as nx  # type: ignore[import-untyped]
+    import networkx as nx
 
 logger = logging.getLogger(__name__)
 
