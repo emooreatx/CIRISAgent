@@ -36,7 +36,6 @@ from .discord_connection_manager import DiscordConnectionManager
 from .discord_error_handler import DiscordErrorHandler
 from .discord_rate_limiter import DiscordRateLimiter
 from .discord_embed_formatter import DiscordEmbedFormatter
-from .discord_access_control import DiscordAccessControl
 from .discord_tool_handler import DiscordToolHandler
 from .config import DiscordAdapterConfig
 
@@ -91,7 +90,6 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         self._error_handler = DiscordErrorHandler()
         self._rate_limiter = DiscordRateLimiter()
         self._embed_formatter = DiscordEmbedFormatter()
-        self._access_control = DiscordAccessControl(bot)
         self._tool_handler = DiscordToolHandler(None, bot, self._time_service)
         self._start_time: Optional[datetime] = None
 

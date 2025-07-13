@@ -258,38 +258,6 @@ class APIAuthService:
 
         return stored_key
 
-    async def list_api_keys(self) -> List[APIKeyInfo]:
-        """List all API keys (without the actual keys)."""
-        keys = []
-        for key_hash, stored_key in self._api_keys.items():
-            keys.append(APIKeyInfo(
-                key_id=key_hash[:8],  # Show partial hash as ID
-                role=stored_key.role,
-                expires_at=stored_key.expires_at,
-                description=stored_key.description,
-                created_at=stored_key.created_at,
-                created_by=stored_key.created_by,
-                last_used=stored_key.last_used,
-                is_active=stored_key.is_active
-            ))
-        return keys
-
-    async def get_api_key_info(self, key_id: str) -> Optional[APIKeyInfo]:
-        """Get info about a specific API key."""
-        # Find key by partial hash
-        for key_hash, stored_key in self._api_keys.items():
-            if key_hash.startswith(key_id):
-                return APIKeyInfo(
-                    key_id=key_hash[:8],
-                    role=stored_key.role,
-                    expires_at=stored_key.expires_at,
-                    description=stored_key.description,
-                    created_at=stored_key.created_at,
-                    created_by=stored_key.created_by,
-                    last_used=stored_key.last_used,
-                    is_active=stored_key.is_active
-                )
-        return None
 
     async def revoke_api_key(self, key_id: str) -> None:
         """Revoke an API key."""
@@ -335,15 +303,6 @@ class APIAuthService:
 
         return user
 
-    async def get_user_by_oauth(
-        self,
-        provider: str,
-        external_id: str
-    ) -> Optional[OAuthUser]:
-        """Get user by OAuth provider and external ID."""
-        user_id = f"{provider}:{external_id}"
-        return self._oauth_users.get(user_id)
-    
     # ========== User Management Methods ==========
     
     def _hash_password(self, password: str) -> str:

@@ -115,10 +115,6 @@ class ApiPlatform(Service):
         
         return registrations
     
-    def get_observer(self) -> Any:
-        """Get the message observer for this adapter."""
-        return self.message_observer
-    
     def _inject_services(self) -> None:
         """Inject services into FastAPI app state after initialization."""
         runtime = self.runtime
@@ -357,18 +353,6 @@ class ApiPlatform(Service):
         
         await super().stop()
     
-    async def health_check(self) -> dict:
-        """Check API server health."""
-        return {
-            "service_name": "API Adapter",
-            "status": "healthy" if self._server else "stopped",
-            "host": self.config.host,
-            "port": self.config.port,
-            "endpoints": 35,  # From v1 spec
-            "auth_enabled": self.config.auth_enabled,
-            "cors_enabled": self.config.cors_enabled
-        }
-    
     def get_channel_list(self) -> List[Dict[str, Any]]:
         """
         Get list of available API channels from correlations.
@@ -396,49 +380,6 @@ class ApiPlatform(Service):
             channel["is_admin"] = is_admin_channel(channel["channel_id"])
         
         return channels
-    
-    async def cleanup_inactive_channels(self) -> int:
-        """
-        Clean up inactive API channels (non-admin) older than 30 days.
-        
-        This is called periodically by the runtime to ensure the channel
-        list doesn't grow unbounded. Admin channels are exempt from cleanup.
-        
-        Returns:
-            Number of channels cleaned up
-        """
-        from datetime import datetime, timezone, timedelta
-        from ciris_engine.logic.persistence.models.correlations import (
-            get_channel_last_activity,
-            is_admin_channel
-        )
-        
-        cleanup_count = 0
-        cutoff_time = datetime.now(timezone.utc) - timedelta(days=30)
-        
-        # Get all API channels
-        channels = self.get_channel_list()
-        
-        for channel in channels:
-            channel_id = channel["channel_id"]
-            
-            # Skip admin channels
-            if channel.get("is_admin", False):
-                logger.debug(f"Skipping cleanup of admin channel: {channel_id}")
-                continue
-            
-            # Check last activity
-            last_activity = get_channel_last_activity(channel_id)
-            if last_activity and last_activity < cutoff_time:
-                # This channel is inactive and not admin - mark for cleanup
-                # In practice, we don't delete data, just exclude from active lists
-                logger.info(f"Channel {channel_id} marked as inactive (last activity: {last_activity})")
-                cleanup_count += 1
-        
-        if cleanup_count > 0:
-            logger.info(f"Marked {cleanup_count} inactive API channels for cleanup")
-        
-        return cleanup_count
     
     async def run_lifecycle(self, agent_run_task: asyncio.Task) -> None:
         """Run the adapter lifecycle - API runs until agent stops."""

@@ -1,0 +1,90 @@
+# Vulture configuration for CIRIS Engine
+
+[tool.vulture]
+min_confidence = 60
+paths = ["ciris_engine/"]
+exclude = ["tests/", "docs/", "scripts/", "__pycache__/", "*.pyc"]
+make_whitelist = false
+sort_by_size = true
+verbose = false
+
+# Include the whitelist file
+whitelist = ["vulture_whitelist.py"]
+
+# Ignore specific patterns
+ignore_names = [
+    # Pydantic model fields (too many to list individually)
+    "*_id",
+    "*_at",
+    "*_timestamp",
+    "*_date",
+    "*_time",
+    "*_count",
+    "*_rate",
+    "*_score",
+    "*_status",
+    "*_state",
+    "*_type",
+    "*_name",
+    "*_value",
+    "*_data",
+    "*_config",
+    "*_token",
+    "*_key",
+    "*_role",
+    "*_level",
+    "*_path",
+    "*_url",
+    "*_uri",
+    "*_message",
+    "*_error",
+    "*_result",
+    "*_response",
+    "*_request",
+    "*_context",
+    "*_metadata",
+    "*_attributes",
+    "*_properties",
+    "*_options",
+    "*_params",
+    "*_args",
+    "*_kwargs",
+    # Common field names
+    "id",
+    "name",
+    "type",
+    "value",
+    "data",
+    "status",
+    "created",
+    "updated",
+    "deleted",
+    "enabled",
+    "disabled",
+    "active",
+    "inactive",
+    "valid",
+    "invalid",
+    "success",
+    "failure",
+    "error",
+    "warning",
+    "info",
+    "debug",
+    "trace"
+]
+
+# Ignore decorators that register functions
+ignore_decorators = [
+    "@router.*",
+    "@app.*",
+    "@validator",
+    "@root_validator",
+    "@field_serializer",
+    "@model_validator",
+    "@property",
+    "@cached_property",
+    "@classmethod",
+    "@staticmethod",
+    "@abstractmethod"
+]

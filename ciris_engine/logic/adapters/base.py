@@ -132,19 +132,6 @@ class Service(ABC):
         result = {**defaults, **retry_config.get("global", {}), **operation_config}
         return result
 
-    async def health_check(self) -> dict:
-        """
-        Perform a health check on the service.
-
-        Returns:
-            Dictionary with health status information
-        """
-        return {
-            "service_name": self.service_name,
-            "status": "healthy",
-            "timestamp": asyncio.get_event_loop().time()
-        }
-
     # Note: get_status() is NOT defined in base class
     # Each service protocol defines its own typed status return
     # This follows "No Dicts, No Strings, No Kings" philosophy

@@ -11,7 +11,6 @@ from ciris_engine.logic.adapters.discord.discord_error_handler import DiscordErr
 from ciris_engine.logic.adapters.discord.discord_rate_limiter import DiscordRateLimiter
 from ciris_engine.logic.adapters.discord.discord_embed_formatter import DiscordEmbedFormatter, EmbedType
 from ciris_engine.logic.adapters.discord.discord_thread_manager import DiscordThreadManager, ThreadType
-from ciris_engine.logic.adapters.discord.discord_access_control import DiscordAccessControl, AccessLevel
 from ciris_engine.logic.adapters.discord.discord_audit import DiscordAuditLogger
 from typing import Any, Dict, Optional
 
@@ -364,74 +363,6 @@ class TestDiscordThreadManager:
         assert count == 1
         old_thread.edit.assert_called_once_with(archived=True, reason="Auto-archive after 24 hours")
 
-
-class TestDiscordAccessControl:
-    """Test Discord access control."""
-
-    @pytest.fixture
-    def access_control(self) -> DiscordAccessControl:
-        """Create access control instance."""
-        mock_client = Mock(spec=discord.Client)
-        mock_client.guilds = []
-        return DiscordAccessControl(client=mock_client)
-
-    @pytest.mark.asyncio
-    async def test_check_channel_access_with_override(self, access_control: DiscordAccessControl) -> None:
-        """Test channel access with user override."""
-        # Set user override
-        access_control.set_user_override("123456", AccessLevel.ADMIN)
-
-        # Check access
-        result = await access_control.check_channel_access(
-            "123456", "channel123", AccessLevel.WRITE
-        )
-
-        assert result is True
-
-    @pytest.mark.asyncio
-    async def test_check_operation_permissions(self, access_control: DiscordAccessControl) -> None:
-        """Test operation permission checking."""
-        # Configure channel
-        access_control.configure_channel(
-            "123456789",
-            read_roles=["MEMBER"],
-            write_roles=["MEMBER", "MODERATOR"],
-            execute_roles=["MODERATOR"],
-            admin_roles=["ADMIN"]
-        )
-
-        # Mock user with MEMBER role
-        mock_member = Mock()
-        member_role = Mock()
-        member_role.name = "MEMBER"  # Set name as attribute, not Mock parameter
-        mock_member.roles = [member_role]
-
-        mock_guild = Mock()
-        # Convert user_id string to int as Discord expects - access control converts "111" to int(111)
-        def get_member_mock(uid: int) -> Optional[Any]:
-            return mock_member if uid == 111 else None
-        mock_guild.get_member = Mock(side_effect=get_member_mock)
-
-        access_control.client.guilds = [mock_guild]
-
-        # Check operations - expecting specific results based on configured permissions
-        # MEMBER has write access which includes read
-        assert await access_control.check_operation("111", "123456789", "read_messages") is True
-        assert await access_control.check_operation("111", "123456789", "send_message") is True
-        # MEMBER doesn't have execute access (requires MODERATOR)
-        assert await access_control.check_operation("111", "123456789", "execute_tool") is False
-        # MEMBER doesn't have admin access
-        assert await access_control.check_operation("111", "123456789", "manage_channel") is False
-
-    def test_global_role_permissions(self, access_control: DiscordAccessControl) -> None:
-        """Test global role permission settings."""
-        # Check defaults
-        assert access_control._global_permissions["AUTHORITY"] == AccessLevel.ADMIN
-        assert access_control._global_permissions["OBSERVER"] == AccessLevel.READ
-
-        # Set custom global permission
-        access_control.set_global_role_access("CUSTOM_ROLE", AccessLevel.EXECUTE)
-        assert access_control._global_permissions["CUSTOM_ROLE"] == AccessLevel.EXECUTE
 
 
 class TestDiscordAuditLogger:

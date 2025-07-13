@@ -421,18 +421,6 @@ class BaseObserver(Generic[MessageT], ABC):
         except Exception as e:  # pragma: no cover - rarely hit in tests
             logger.error("Error creating priority observation task: %s", e, exc_info=True)
 
-    async def get_recent_messages(self, limit: int = 20) -> List[dict]:
-        msgs = self._history[-limit:]
-        return [
-            {
-                "id": m.message_id,  # type: ignore[attr-defined]
-                "content": m.content,  # type: ignore[attr-defined]
-                "author_id": m.author_id,  # type: ignore[attr-defined]
-                "timestamp": getattr(m, "timestamp", "n/a"),
-            }
-            for m in msgs
-        ]
-
     async def handle_incoming_message(self, msg: MessageT) -> None:
         """Standard message handling flow for all observers."""
         # Check if this is the agent's own message
