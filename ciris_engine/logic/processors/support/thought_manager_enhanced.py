@@ -26,7 +26,7 @@ def generate_seed_thought_enhanced(self: Any, task: Task, round_number: int = 0)
         # Format: "Respond to message from @{author} (ID: {id}) in #{channel}: '{content}'"
         import re
         match = re.match(
-            r"Respond to message from @(.*?) \(ID: (.*?)\) in #(.*?): '(.*)'",
+            r"Respond to message from @(.*?) \(ID: (.*?)\) in #(.*?): '(.*?)'$",
             task.description
         )
         

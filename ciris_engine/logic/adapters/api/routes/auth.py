@@ -9,7 +9,6 @@ Implements session management endpoints:
 
 Note: OAuth endpoints are in api_auth_v2.py
 """
-import hashlib
 import secrets
 import logging
 from typing import Optional, Dict, List
@@ -56,23 +55,10 @@ async def login(
     """
     getattr(req.app.state, 'config_service', None)
 
-    # Try to find user by username in auth service
-    users = await auth_service.list_users(search=request.username)
-    user = None
-    for u in users:
-        if u.name == request.username and u.auth_type == "password":
-            user = u
-            break
+    # Verify username and password using secure bcrypt verification
+    user = await auth_service.verify_user_password(request.username, request.password)
     
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials"
-        )
-    
-    # Verify password
-    password_hash = hashlib.sha256(request.password.encode()).hexdigest()
-    if user.password_hash != password_hash:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials"

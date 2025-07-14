@@ -269,7 +269,20 @@ class ShutdownService(BaseInfrastructureService, ShutdownServiceProtocol):
             logger.critical("Emergency shutdown timeout reached - forcing termination")
             import os
             import signal
-            os.kill(os.getpid(), signal.SIGKILL)
+            
+            # Safety check: only kill our own process
+            pid = os.getpid()
+            logger.critical(f"Sending SIGKILL to process {pid}")
+            
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except OSError as e:
+                logger.error(f"Failed to force kill process: {e}")
+                # If SIGKILL fails, try SIGTERM as fallback
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                except OSError:
+                    pass
 
         # Start force kill timer
         self._force_kill_task = asyncio.create_task(force_kill())
