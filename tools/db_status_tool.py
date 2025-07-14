@@ -642,6 +642,214 @@ class DBStatusTool:
                     
         return periods
     
+    def get_tsdb_node_age_analysis(self) -> Dict[str, Any]:
+        """Analyze TSDB data nodes by age to identify consolidation issues."""
+        result = {
+            "tsdb_data_nodes": {
+                "within_30h": 0,  # Expected - before first consolidation
+                "between_30_36h": 0,  # May be OK - waiting for next run
+                "over_36h": 0,  # Should have been consolidated
+                "total": 0
+            },
+            "basic_summaries": {
+                "within_7d": 0,  # Expected retention
+                "over_7d": 0,  # Should have been consolidated to daily
+                "over_15d": 0,  # Definitely should be gone
+                "total": 0
+            },
+            "oldest_unconsolidated": None,
+            "recommendations": []
+        }
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Analyze TSDB data nodes by age
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN (julianday('now') - julianday(created_at)) * 24 <= 30 THEN 1 END) as within_30h,
+                    COUNT(CASE WHEN (julianday('now') - julianday(created_at)) * 24 > 30 
+                                AND (julianday('now') - julianday(created_at)) * 24 <= 36 THEN 1 END) as between_30_36h,
+                    COUNT(CASE WHEN (julianday('now') - julianday(created_at)) * 24 > 36 THEN 1 END) as over_36h,
+                    MIN(created_at) as oldest
+                FROM graph_nodes
+                WHERE node_type = 'tsdb_data'
+            """)
+            
+            row = cursor.fetchone()
+            if row:
+                result["tsdb_data_nodes"] = {
+                    "total": row["total"],
+                    "within_30h": row["within_30h"],
+                    "between_30_36h": row["between_30_36h"],
+                    "over_36h": row["over_36h"]
+                }
+                
+                if row["oldest"]:
+                    result["oldest_unconsolidated"] = row["oldest"]
+            
+            # Analyze basic summaries by age
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN (julianday('now') - julianday(created_at)) <= 7 THEN 1 END) as within_7d,
+                    COUNT(CASE WHEN (julianday('now') - julianday(created_at)) > 7 
+                                AND (julianday('now') - julianday(created_at)) <= 15 THEN 1 END) as over_7d,
+                    COUNT(CASE WHEN (julianday('now') - julianday(created_at)) > 15 THEN 1 END) as over_15d
+                FROM graph_nodes
+                WHERE node_type = 'tsdb_summary'
+                  AND json_extract(attributes_json, '$.consolidation_level') = 'basic'
+            """)
+            
+            row = cursor.fetchone()
+            if row:
+                result["basic_summaries"] = {
+                    "total": row["total"],
+                    "within_7d": row["within_7d"],
+                    "over_7d": row["over_7d"] - row["over_15d"],  # 7-15 days
+                    "over_15d": row["over_15d"]
+                }
+            
+            # Generate recommendations
+            if result["tsdb_data_nodes"]["over_36h"] > 0:
+                result["recommendations"].append({
+                    "severity": "HIGH",
+                    "issue": f"{result['tsdb_data_nodes']['over_36h']:,} TSDB data nodes older than 36 hours",
+                    "action": "Check if consolidation service is running properly"
+                })
+            
+            if result["tsdb_data_nodes"]["between_30_36h"] > 100:
+                result["recommendations"].append({
+                    "severity": "MEDIUM",
+                    "issue": f"{result['tsdb_data_nodes']['between_30_36h']:,} nodes waiting for consolidation",
+                    "action": "Normal if consolidation is about to run"
+                })
+            
+            if result["basic_summaries"]["over_7d"] > 0:
+                result["recommendations"].append({
+                    "severity": "MEDIUM",
+                    "issue": f"{result['basic_summaries']['over_7d']:,} basic summaries older than 7 days",
+                    "action": "Should be consolidated to daily summaries"
+                })
+            
+            if result["basic_summaries"]["over_15d"] > 0:
+                result["recommendations"].append({
+                    "severity": "HIGH", 
+                    "issue": f"{result['basic_summaries']['over_15d']:,} basic summaries older than 15 days",
+                    "action": "Extensive consolidation may not be running"
+                })
+            
+        return result
+    
+    def get_nodes_without_edges(self, limit: int = 100) -> Dict[str, Any]:
+        """Get nodes that have no edges (orphaned nodes)."""
+        result = {
+            "total_orphaned": 0,
+            "by_type": {},
+            "sample_nodes": [],
+            "analysis": {}
+        }
+        
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Count total nodes without edges
+            cursor.execute("""
+                SELECT COUNT(DISTINCT n.node_id) as orphaned_count
+                FROM graph_nodes n
+                LEFT JOIN graph_edges e1 ON n.node_id = e1.source_node_id
+                LEFT JOIN graph_edges e2 ON n.node_id = e2.target_node_id
+                WHERE e1.edge_id IS NULL AND e2.edge_id IS NULL
+            """)
+            
+            result["total_orphaned"] = cursor.fetchone()["orphaned_count"]
+            
+            # Break down by node type
+            cursor.execute("""
+                SELECT n.node_type, COUNT(*) as count
+                FROM graph_nodes n
+                LEFT JOIN graph_edges e1 ON n.node_id = e1.source_node_id
+                LEFT JOIN graph_edges e2 ON n.node_id = e2.target_node_id
+                WHERE e1.edge_id IS NULL AND e2.edge_id IS NULL
+                GROUP BY n.node_type
+                ORDER BY count DESC
+            """)
+            
+            for row in cursor:
+                result["by_type"][row["node_type"]] = row["count"]
+            
+            # Get sample of orphaned nodes
+            cursor.execute(f"""
+                SELECT n.node_id, n.node_type, n.created_at, n.updated_at
+                FROM graph_nodes n
+                LEFT JOIN graph_edges e1 ON n.node_id = e1.source_node_id
+                LEFT JOIN graph_edges e2 ON n.node_id = e2.target_node_id
+                WHERE e1.edge_id IS NULL AND e2.edge_id IS NULL
+                ORDER BY n.created_at DESC
+                LIMIT {limit}
+            """)
+            
+            for row in cursor:
+                result["sample_nodes"].append({
+                    "node_id": row["node_id"],
+                    "node_type": row["node_type"],
+                    "created_at": row["created_at"],
+                    "updated_at": row["updated_at"]
+                })
+            
+            # Analysis - check age of orphaned nodes
+            cursor.execute("""
+                SELECT 
+                    COUNT(CASE WHEN datetime(n.created_at) > datetime('now', '-1 hour') THEN 1 END) as last_hour,
+                    COUNT(CASE WHEN datetime(n.created_at) > datetime('now', '-6 hours') THEN 1 END) as last_6h,
+                    COUNT(CASE WHEN datetime(n.created_at) > datetime('now', '-24 hours') THEN 1 END) as last_24h,
+                    COUNT(CASE WHEN datetime(n.created_at) > datetime('now', '-7 days') THEN 1 END) as last_7d
+                FROM graph_nodes n
+                LEFT JOIN graph_edges e1 ON n.node_id = e1.source_node_id
+                LEFT JOIN graph_edges e2 ON n.node_id = e2.target_node_id
+                WHERE e1.edge_id IS NULL AND e2.edge_id IS NULL
+            """)
+            
+            age_stats = cursor.fetchone()
+            result["analysis"]["age_distribution"] = {
+                "last_hour": age_stats["last_hour"],
+                "last_6_hours": age_stats["last_6h"],
+                "last_24_hours": age_stats["last_24h"],
+                "last_7_days": age_stats["last_7d"]
+            }
+            
+        return result
+    
+    def print_nodes_without_edges(self):
+        """Print report on orphaned nodes."""
+        self.print_section("NODES WITHOUT EDGES (ORPHANED)")
+        
+        orphaned = self.get_nodes_without_edges()
+        
+        print(f"\nTotal Orphaned Nodes: {orphaned['total_orphaned']:,}")
+        
+        if orphaned["by_type"]:
+            self.print_subsection("Orphaned Nodes by Type")
+            for node_type, count in orphaned["by_type"].items():
+                print(f"  {node_type}: {count:,}")
+        
+        if orphaned["analysis"]["age_distribution"]:
+            self.print_subsection("Age Distribution")
+            age = orphaned["analysis"]["age_distribution"]
+            print(f"  Created in last hour: {age['last_hour']:,}")
+            print(f"  Created in last 6 hours: {age['last_6_hours']:,}")
+            print(f"  Created in last 24 hours: {age['last_24_hours']:,}")
+            print(f"  Created in last 7 days: {age['last_7_days']:,}")
+        
+        if orphaned["sample_nodes"]:
+            self.print_subsection("Sample Orphaned Nodes (newest first)")
+            print("\nNode ID                              | Type       | Created")
+            print("-" * 70)
+            for node in orphaned["sample_nodes"][:20]:
+                created = node["created_at"][:19] if node["created_at"] else "Unknown"
+                print(f"{node['node_id'][:35]:35} | {node['node_type']:10} | {created}")
+    
     def print_status_report(self):
         """Print comprehensive status report."""
         self.print_section("CIRIS DATABASE STATUS REPORT")
@@ -1048,7 +1256,7 @@ Examples:
         "command",
         nargs="?",
         default="all",
-        choices=["all", "status", "tsdb", "audit", "verify", "periods", "consolidation"],
+        choices=["all", "status", "tsdb", "audit", "verify", "periods", "consolidation", "orphaned"],
         help="Command to run (default: all)"
     )
     
@@ -1086,6 +1294,8 @@ Examples:
         elif args.command == "consolidation":
             tool.print_tsdb_report()
             tool.print_consolidated_state_analysis()
+        elif args.command == "orphaned":
+            tool.print_nodes_without_edges()
             
     except KeyboardInterrupt:
         print("\n\nInterrupted by user")
