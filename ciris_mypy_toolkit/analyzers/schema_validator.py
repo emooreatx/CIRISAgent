@@ -8,6 +8,27 @@ from pathlib import Path
 from typing import Dict, List, Any, Set
 from collections import defaultdict
 import logging
+import sys
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+try:
+    from config.schema_whitelist import (
+        is_private_method_whitelisted,
+        is_sql_access_whitelisted,
+        is_dict_any_whitelisted,
+        should_skip_file
+    )
+except ImportError:
+    # Fallback if whitelist not available
+    def is_private_method_whitelisted(file_path: str, method_name: str) -> bool:
+        return False
+    def is_sql_access_whitelisted(file_path: str) -> bool:
+        return False
+    def is_dict_any_whitelisted(file_path: str, line_content: str) -> bool:
+        return False
+    def should_skip_file(file_path: str) -> bool:
+        return False
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +117,16 @@ class SchemaValidator:
         if not file_path.exists():
             return {"error": f"File {file_path} does not exist"}
         
+        # Skip files based on whitelist
+        if should_skip_file(str(file_path)):
+            return {
+                "file": str(file_path),
+                "total_issues": 0,
+                "issues": [],
+                "compliant": True,
+                "skipped": True
+            }
+        
         try:
             with open(file_path, 'r') as f:
                 content = f.read()
@@ -107,19 +138,27 @@ class SchemaValidator:
                 matches = re.finditer(pattern_info["pattern"], content, re.MULTILINE)
                 for match in matches:
                     line_num = content[:match.start()].count('\n') + 1
-                    issues.append({
-                        "line": line_num,
-                        "issue": pattern_info["issue"],
-                        "pattern": match.group(),
-                        "fix_suggestion": pattern_info["fix"]
-                    })
+                    line_content = content.split('\n')[line_num - 1] if line_num > 0 else ""
+                    
+                    # Check whitelist
+                    skip = False
+                    if "Dict[str, Any]" in pattern_info["pattern"] or ": Any" in pattern_info["pattern"]:
+                        skip = is_dict_any_whitelisted(str(file_path), line_content)
+                    
+                    if not skip:
+                        issues.append({
+                            "line": line_num,
+                            "issue": pattern_info["issue"],
+                            "pattern": match.group(),
+                            "fix_suggestion": pattern_info["fix"]
+                        })
             
             # Check for proper v1 schema usage
             v1_issues = self._validate_v1_usage(content, file_path)
             issues.extend(v1_issues)
             
             # Check for direct internal method calls
-            internal_issues = self._check_internal_method_usage(content)
+            internal_issues = self._check_internal_method_usage(content, file_path)
             issues.extend(internal_issues)
             
             return {
@@ -205,13 +244,13 @@ class SchemaValidator:
         
         return issues
     
-    def _check_internal_method_usage(self, content: str) -> List[Dict[str, Any]]:
+    def _check_internal_method_usage(self, content: str, file_path: Path = None) -> List[Dict[str, Any]]:
         """Check for usage of internal methods instead of protocol interfaces."""
         issues = []
         
         # Pattern for direct service access instead of protocol
         internal_patterns = [
-            (r"\._\w+\(", "Using private method - should use protocol interface"),
+            (r"\._(\w+)\(", "Using private method - should use protocol interface"),
             (r"\.get_db_connection\(", "Direct DB access - should use persistence interface"),
             (r"import sqlite3", "Direct SQLite usage - should use persistence layer"),
             (r"\.execute\(", "Direct SQL execution - should use persistence methods")
@@ -221,12 +260,26 @@ class SchemaValidator:
             matches = re.finditer(pattern, content)
             for match in matches:
                 line_num = content[:match.start()].count('\n') + 1
-                issues.append({
-                    "line": line_num,
-                    "issue": issue_desc,
-                    "pattern": match.group(),
-                    "fix_suggestion": "Refactor to use protocol interface"
-                })
+                
+                # Check whitelist
+                skip = False
+                if pattern.startswith(r"\._"):
+                    # Extract method name
+                    method_match = re.match(r"\._(\w+)\(", match.group())
+                    if method_match and file_path:
+                        method_name = f"_{method_match.group(1)}"
+                        skip = is_private_method_whitelisted(str(file_path), method_name)
+                elif "sqlite" in pattern.lower() or "execute" in pattern or "db_connection" in pattern:
+                    if file_path:
+                        skip = is_sql_access_whitelisted(str(file_path))
+                
+                if not skip:
+                    issues.append({
+                        "line": line_num,
+                        "issue": issue_desc,
+                        "pattern": match.group(),
+                        "fix_suggestion": "Refactor to use protocol interface"
+                    })
         
         return issues
     

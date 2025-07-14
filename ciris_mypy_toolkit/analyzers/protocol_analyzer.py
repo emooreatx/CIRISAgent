@@ -12,6 +12,16 @@ import os
 from typing import Dict, List, Any, Optional, Set
 from pathlib import Path
 import importlib.util
+import sys
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+try:
+    from config.protocol_whitelist import is_whitelisted
+except ImportError:
+    # Fallback if whitelist not available
+    def is_whitelisted(service_name: str, line: str, context: str) -> bool:
+        return False
 
 class ProtocolAnalyzer:
     """Analyzes protocol-module-schema alignment in the codebase."""
@@ -174,14 +184,21 @@ class ProtocolAnalyzer:
         # Check for Dict[str, Any] usage
         untyped_usages = self._find_untyped_dicts(module_info["file_path"])
         if untyped_usages:
-            results["no_untyped_dicts"] = False
-            results["is_aligned"] = False
+            # Filter out whitelisted usages
+            non_whitelisted = []
             for usage in untyped_usages:
-                results["issues"].append({
-                    "service": service_name,
-                    "type": "untyped_dict",
-                    "message": f"Uses Dict[str, Any] at line {usage['line']}: {usage['context']}"
-                })
+                if not is_whitelisted(service_name, str(usage['line']), usage['context']):
+                    non_whitelisted.append(usage)
+            
+            if non_whitelisted:
+                results["no_untyped_dicts"] = False
+                results["is_aligned"] = False
+                for usage in non_whitelisted:
+                    results["issues"].append({
+                        "service": service_name,
+                        "type": "untyped_dict",
+                        "message": f"Uses Dict[str, Any] at line {usage['line']}: {usage['context']}"
+                    })
         
         return results
     
