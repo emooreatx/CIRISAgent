@@ -224,7 +224,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                     await instance.lifecycle_runner
                 except asyncio.CancelledError:
                     # This is expected when we cancel the task
-                    pass
+                    pass  # NOSONAR - Intentionally not re-raising in unload_adapter()
             
             if hasattr(instance, 'lifecycle_task') and instance.lifecycle_task is not None:
                 logger.debug(f"Cancelling lifecycle task for {adapter_id}")
@@ -233,7 +233,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                     await instance.lifecycle_task
                 except asyncio.CancelledError:
                     # This is expected when we cancel the task
-                    pass
+                    pass  # NOSONAR - Intentionally not re-raising in unload_adapter()
 
             if instance.is_running:
                 await instance.adapter.stop()

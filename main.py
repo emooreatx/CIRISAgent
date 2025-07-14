@@ -124,7 +124,7 @@ async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds
                         await runtime_task
                     except asyncio.CancelledError:
                         # Expected when we cancel the task
-                        pass
+                        pass  # NOSONAR - Intentionally not re-raising after timeout cancellation
                     
                     # Ensure shutdown is called if the task was cancelled
                     logger.info("Calling shutdown explicitly after task cancellation")
@@ -276,7 +276,7 @@ def main(
                 handler.flush()
             # Give a tiny bit of time for output to be written
             import time
-            time.sleep(0.1)
+            time.sleep(0.1)  # NOSONAR - Sync sleep is appropriate here before program exit
             # Force immediate exit to avoid hanging in subprocess
             # Use os._exit only when running under coverage
             if sys.gettrace() is not None or 'coverage' in sys.modules:

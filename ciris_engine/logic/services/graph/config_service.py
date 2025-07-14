@@ -176,7 +176,11 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
             compare_value = str(value) if isinstance(value, Path) else value
             if current_value == compare_value:
                 # No change needed
-                logger.debug(f"Config {key} unchanged, skipping update")
+                # Sanitize key for logging
+                safe_key = ''.join(c if c.isprintable() and c not in '\n\r\t' else '?' for c in key)
+                if len(safe_key) > 100:
+                    safe_key = safe_key[:100] + '...'
+                logger.debug(f"Config {safe_key} unchanged, skipping update")
                 return
 
         # Create new config node with all required fields
@@ -239,7 +243,11 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
         if key_pattern not in self._config_listeners:
             self._config_listeners[key_pattern] = []
         self._config_listeners[key_pattern].append(callback)
-        logger.info(f"Registered config listener for pattern: {key_pattern}")
+        # Sanitize pattern for logging
+        safe_pattern = ''.join(c if c.isprintable() and c not in '\n\r\t' else '?' for c in key_pattern)
+        if len(safe_pattern) > 100:
+            safe_pattern = safe_pattern[:100] + '...'
+        logger.info(f"Registered config listener for pattern: {safe_pattern}")
     
     def unregister_config_listener(self, key_pattern: str, callback: Callable) -> None:
         """Unregister a config change callback."""
@@ -264,10 +272,15 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
                             callback(key, old_value, new_value)
                     except Exception as e:
                         # Sanitize key for logging to prevent log injection
-                        safe_key = key.replace('\n', '\\n').replace('\r', '\\r')
+                        # Remove all control characters and non-printable characters
+                        safe_key = ''.join(c if c.isprintable() and c not in '\n\r\t' else '?' for c in key)
                         if len(safe_key) > 100:
                             safe_key = safe_key[:100] + '...'
-                        logger.error(f"Error notifying config listener for config key: {safe_key}, pattern: {pattern}, error: {str(e)[:200]}")
+                        # Also sanitize the pattern in case it contains user input
+                        safe_pattern = ''.join(c if c.isprintable() and c not in '\n\r\t' else '?' for c in pattern)
+                        if len(safe_pattern) > 50:
+                            safe_pattern = safe_pattern[:50] + '...'
+                        logger.error(f"Error notifying config listener for config key: {safe_key}, pattern: {safe_pattern}, error: {str(e)[:200]}")
     
     # Required methods for BaseGraphService
     
