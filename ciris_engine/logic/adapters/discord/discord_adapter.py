@@ -4,7 +4,7 @@ import logging
 import asyncio
 import uuid
 from datetime import datetime, timedelta
-from typing import Awaitable, Callable, List, Optional, TYPE_CHECKING, Any, Dict
+from typing import Awaitable, Callable, List, Optional, TYPE_CHECKING, Any, Union
 
 from ciris_engine.schemas.runtime.messages import IncomingMessage
 from ciris_engine.protocols.services import CommunicationService, WiseAuthorityService
@@ -37,6 +37,9 @@ from .discord_connection_manager import DiscordConnectionManager
 from .discord_error_handler import DiscordErrorHandler
 from .discord_rate_limiter import DiscordRateLimiter
 from .discord_embed_formatter import DiscordEmbedFormatter
+from ciris_engine.schemas.adapters.discord import (
+    DiscordMessageData, DiscordGuidanceData, DiscordApprovalData, DiscordChannelInfo
+)
 from .discord_tool_handler import DiscordToolHandler
 from .config import DiscordAdapterConfig
 
@@ -130,7 +133,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                     raise
             raise
 
-    async def _emit_telemetry(self, metric_name: str, value: float = 1.0, tags: Optional[Dict[str, Any]] = None) -> None:
+    async def _emit_telemetry(self, metric_name: str, value: float = 1.0, tags: Optional[dict[str, Union[str, float, int, bool]]] = None) -> None:
         """Emit telemetry as TSDBGraphNode through memory bus."""
         if not self.bus_manager or not self.bus_manager.memory:
             return  # No bus manager, can't emit telemetry
@@ -236,7 +239,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             logger.error(f"Failed to send message via Discord: {error_info}")
             return False
 
-    async def fetch_messages(self, channel_id: str, *, limit: int = 50, before: Optional[datetime] = None) -> List[Dict[str, Any]]:
+    async def fetch_messages(self, channel_id: str, *, limit: int = 50, before: Optional[datetime] = None) -> List[DiscordMessageData]:
         """Implementation of CommunicationService.fetch_messages - fetches from correlations"""
         from ciris_engine.logic.persistence import get_correlations_by_channel
         
@@ -256,15 +259,15 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                     if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
                         content = corr.request_data.parameters.get("content", "")
                     
-                    messages.append({
-                        "id": corr.correlation_id,
-                        "author_id": "ciris",
-                        "author_name": "CIRIS",
-                        "content": content,
-                        "timestamp": (corr.timestamp or corr.created_at).isoformat() if corr.timestamp or corr.created_at else None,
-                        "channel_id": channel_id,
-                        "is_bot": True
-                    })
+                    messages.append(DiscordMessageData(
+                        id=corr.correlation_id,
+                        author_id="ciris",
+                        author_name="CIRIS",
+                        content=content,
+                        timestamp=(corr.timestamp or corr.created_at).isoformat() if corr.timestamp or corr.created_at else None,
+                        channel_id=channel_id,
+                        is_bot=True
+                    ))
                 elif corr.action_type == "observe" and corr.request_data:
                     # This is an incoming message from a user
                     content = ""
@@ -277,18 +280,18 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                         author_id = params.get("author_id", "unknown")
                         author_name = params.get("author_name", "User")
                     
-                    messages.append({
-                        "id": corr.correlation_id,
-                        "author_id": author_id,
-                        "author_name": author_name,
-                        "content": content,
-                        "timestamp": (corr.timestamp or corr.created_at).isoformat() if corr.timestamp or corr.created_at else None,
-                        "channel_id": channel_id,
-                        "is_bot": False
-                    })
+                    messages.append(DiscordMessageData(
+                        id=corr.correlation_id,
+                        author_id=author_id,
+                        author_name=author_name,
+                        content=content,
+                        timestamp=(corr.timestamp or corr.created_at).isoformat() if corr.timestamp or corr.created_at else None,
+                        channel_id=channel_id,
+                        is_bot=False
+                    ))
             
             # Sort by timestamp
-            messages.sort(key=lambda m: m.get("timestamp") or "")
+            messages.sort(key=lambda m: m.timestamp or "")
             
             return messages
             
@@ -303,7 +306,13 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                         operation_name="fetch_messages",
                         config_key="discord_api"
                     )
-                    return messages_result if messages_result else []
+                    # Convert raw dicts to DiscordMessageData
+                    if messages_result:
+                        return [
+                            DiscordMessageData(**msg) if isinstance(msg, dict) else msg
+                            for msg in messages_result
+                        ]
+                    return []
                 except Exception as e2:
                     logger.exception(f"Failed to fetch messages from Discord API: {e2}")
             return []
@@ -330,8 +339,8 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                 operation_name="fetch_guidance",
                 config_key="discord_api"
             )
-            # Type assertion: retry_with_backoff should return dict from fetch_guidance_from_channel
-            guidance: dict = guidance_result
+            # guidance_result should be a dict from fetch_guidance_from_channel
+            guidance = guidance_result if isinstance(guidance_result, dict) else {}
 
             end_time = time_service.now()
             execution_time_ms = (end_time - start_time).total_seconds() * 1000
@@ -423,10 +432,16 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
 
         try:
             # Create approval request embed
-            embed = self._embed_formatter.format_approval_request(
-                action,
-                context.model_dump()
+            approval_data = DiscordApprovalData(
+                action=action,
+                task_id=context.task_id,
+                thought_id=context.thought_id,
+                requester_id=context.requester_id,
+                action_name=context.action_name,
+                action_params=context.action_params or {},
+                channel_id=context.channel_id
             )
+            embed = self._embed_formatter.format_approval_request(action, approval_data)
 
             # Get channel for sending embed
             channel = await self._channel_manager.resolve_channel(deferral_channel_id)
@@ -706,9 +721,9 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             logger.exception(f"Failed to revoke permission: {e}")
             return False
 
-    async def get_active_channels(self) -> List[Dict[str, Any]]:
+    async def get_active_channels(self) -> List[DiscordChannelInfo]:
         """Get list of active Discord channels."""
-        channels: List[Dict[str, Any]] = []
+        channels: List[DiscordChannelInfo] = []
         
         logger.info(f"[DISCORD] get_active_channels called, client ready: {self._channel_manager.client.is_ready() if self._channel_manager.client else False}")
         
@@ -723,29 +738,29 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                 channel = self._channel_manager.client.get_channel(int(channel_id))
                 logger.info(f"[DISCORD] Channel {channel_id}: {'found' if channel else 'not found'}")
                 if channel:
-                    channels.append({
-                        'channel_id': f'discord_{channel_id}',
-                        'channel_type': 'discord',
-                        'display_name': f'#{channel.name}' if hasattr(channel, 'name') else f'Discord Channel {channel_id}',
-                        'is_active': True,
-                        'created_at': channel.created_at.isoformat() if hasattr(channel, 'created_at') and channel.created_at else None,
-                        'last_activity': None,  # Could track this if needed
-                        'message_count': 0  # Could track this if needed
-                    })
+                    channels.append(DiscordChannelInfo(
+                        channel_id=f'discord_{channel_id}',
+                        channel_type='discord',
+                        display_name=f'#{channel.name}' if hasattr(channel, 'name') else f'Discord Channel {channel_id}',
+                        is_active=True,
+                        created_at=channel.created_at.isoformat() if hasattr(channel, 'created_at') and channel.created_at else None,
+                        last_activity=None,  # Could track this if needed
+                        message_count=0  # Could track this if needed
+                    ))
             
             # Add deferral channel if configured
             if self.discord_config.deferral_channel_id:
                 channel = self._channel_manager.client.get_channel(int(self.discord_config.deferral_channel_id))
-                if channel and f'discord_{self.discord_config.deferral_channel_id}' not in [ch['channel_id'] for ch in channels]:
-                    channels.append({
-                        'channel_id': f'discord_{self.discord_config.deferral_channel_id}',
-                        'channel_type': 'discord',
-                        'display_name': f'#{channel.name} (Deferrals)' if hasattr(channel, 'name') else f'Discord Deferral Channel',
-                        'is_active': True,
-                        'created_at': channel.created_at.isoformat() if hasattr(channel, 'created_at') and channel.created_at else None,
-                        'last_activity': None,
-                        'message_count': 0
-                    })
+                if channel and f'discord_{self.discord_config.deferral_channel_id}' not in [ch.channel_id for ch in channels]:
+                    channels.append(DiscordChannelInfo(
+                        channel_id=f'discord_{self.discord_config.deferral_channel_id}',
+                        channel_type='discord',
+                        display_name=f'#{channel.name} (Deferrals)' if hasattr(channel, 'name') else f'Discord Deferral Channel',
+                        is_active=True,
+                        created_at=channel.created_at.isoformat() if hasattr(channel, 'created_at') and channel.created_at else None,
+                        last_activity=None,
+                        message_count=0
+                    ))
                     
         except Exception as e:
             logger.error(f"Error getting active channels: {e}", exc_info=True)
@@ -753,7 +768,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         logger.info(f"[DISCORD] Returning {len(channels)} channels")    
         return channels
 
-    async def execute_tool(self, tool_name: str, tool_args: Optional[Dict[str, Any]] = None, *, parameters: Optional[Dict[str, Any]] = None) -> ToolExecutionResult:
+    async def execute_tool(self, tool_name: str, tool_args: Optional[dict[str, Union[str, int, float, bool, list, dict]]] = None, *, parameters: Optional[dict[str, Union[str, int, float, bool, list, dict]]] = None) -> ToolExecutionResult:
         """Execute a tool through the tool handler."""
         from ciris_engine.schemas.adapters.tools import ToolExecutionResult
         # Support both tool_args and parameters for compatibility
@@ -828,14 +843,14 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             correlation_id = str(uuid.uuid4())
 
             # Create deferral data for embed formatter
-            deferral_data = {
-                "deferral_id": correlation_id,
-                "task_id": deferral.task_id,
-                "thought_id": deferral.thought_id,
-                "reason": deferral.reason,
-                "defer_until": deferral.defer_until,
-                "context": deferral.context
-            }
+            deferral_data = DiscordGuidanceData(
+                deferral_id=correlation_id,
+                task_id=deferral.task_id,
+                thought_id=deferral.thought_id,
+                reason=deferral.reason,
+                defer_until=deferral.defer_until,
+                context=deferral.context or {}
+            )
 
             # Create rich embed
             embed = self._embed_formatter.format_deferral_request(deferral_data)
@@ -1194,7 +1209,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         """Get the type of this service."""
         return ServiceType.ADAPTER
     
-    def get_channel_list(self) -> List[Dict[str, Any]]:
+    def get_channel_list(self) -> List[DiscordChannelInfo]:
         """
         Get list of available Discord channels.
         
@@ -1209,51 +1224,53 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             - is_home: bool (if is home_channel_id)
             - is_deferral: bool (if is deferral_channel_id)
         """
-        channels: List[Dict[str, Any]] = []
+        channels: List[DiscordChannelInfo] = []
         
         # Add configured channels from config
         if self.discord_config:
             # Add monitored channels
             for channel_id in self.discord_config.monitored_channel_ids:
-                channel_info = {
-                    "channel_id": channel_id,
-                    "channel_name": None,  # Will be populated if bot is connected
-                    "channel_type": "discord",
-                    "is_active": True,
-                    "last_activity": None,
-                    "is_monitored": True,
-                    "is_home": channel_id == self.discord_config.home_channel_id,
-                    "is_deferral": channel_id == self.discord_config.deferral_channel_id
-                }
+                channel_info = DiscordChannelInfo(
+                    channel_id=channel_id,
+                    channel_name=None,  # Will be populated if bot is connected
+                    channel_type="discord",
+                    is_active=True,
+                    last_activity=None,
+                    message_count=0,
+                    is_monitored=True,
+                    is_home=channel_id == self.discord_config.home_channel_id,
+                    is_deferral=channel_id == self.discord_config.deferral_channel_id
+                )
                 channels.append(channel_info)
             
             # Add deferral channel if not already in monitored
             if (self.discord_config.deferral_channel_id and 
                 self.discord_config.deferral_channel_id not in self.discord_config.monitored_channel_ids):
-                channels.append({
-                    "channel_id": self.discord_config.deferral_channel_id,
-                    "channel_name": None,
-                    "channel_type": "discord",
-                    "is_active": True,
-                    "last_activity": None,
-                    "is_monitored": False,
-                    "is_home": False,
-                    "is_deferral": True
-                })
+                channels.append(DiscordChannelInfo(
+                    channel_id=self.discord_config.deferral_channel_id,
+                    channel_name=None,
+                    channel_type="discord",
+                    is_active=True,
+                    last_activity=None,
+                    message_count=0,
+                    is_monitored=False,
+                    is_home=False,
+                    is_deferral=True
+                ))
         
         # If bot is connected, enhance with actual channel names
         if self._channel_manager and self._channel_manager.client and self._channel_manager.client.is_ready():
             for channel_info in channels:
                 try:
-                    channel_id_str = channel_info.get("channel_id")
+                    channel_id_str = channel_info.channel_id
                     if channel_id_str and isinstance(channel_id_str, str):
                         discord_channel = self._channel_manager.client.get_channel(int(channel_id_str))
                         if discord_channel and hasattr(discord_channel, 'name'):
-                            channel_info["channel_name"] = f"#{discord_channel.name}"
-                            channel_info["guild_id"] = str(discord_channel.guild.id) if hasattr(discord_channel, 'guild') and discord_channel.guild else None
-                            channel_info["guild_name"] = discord_channel.guild.name if hasattr(discord_channel, 'guild') and discord_channel.guild else None
+                            channel_info.channel_name = f"#{discord_channel.name}"
+                            channel_info.guild_id = str(discord_channel.guild.id) if hasattr(discord_channel, 'guild') and discord_channel.guild else None
+                            channel_info.guild_name = discord_channel.guild.name if hasattr(discord_channel, 'guild') and discord_channel.guild else None
                 except Exception as e:
-                    logger.debug(f"Could not get Discord channel info for {channel_info['channel_id']}: {e}")
+                    logger.debug(f"Could not get Discord channel info for {channel_info.channel_id}: {e}")
         
         return channels
 

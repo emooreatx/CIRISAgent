@@ -3,7 +3,7 @@ System management endpoint extensions for CIRIS API v1.
 
 Adds runtime queue, service management, and processor state endpoints.
 """
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 from fastapi import APIRouter, Request, HTTPException, Depends, Body
 from pydantic import BaseModel, Field
 import logging
@@ -126,13 +126,24 @@ async def get_service_health_details(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.put("/services/{provider_name}/priority", response_model=SuccessResponse[Dict[str, Any]])
+class ServicePriorityUpdateResponse(BaseModel):
+    """Response from service priority update."""
+    provider_name: str = Field(..., description="Provider name that was updated")
+    old_priority: str = Field(..., description="Previous priority level")
+    new_priority: str = Field(..., description="New priority level")
+    old_priority_group: Optional[int] = Field(None, description="Previous priority group")
+    new_priority_group: Optional[int] = Field(None, description="New priority group")
+    old_strategy: Optional[str] = Field(None, description="Previous selection strategy")
+    new_strategy: Optional[str] = Field(None, description="New selection strategy")
+    message: str = Field(..., description="Status message")
+
+@router.put("/services/{provider_name}/priority", response_model=SuccessResponse[ServicePriorityUpdateResponse])
 async def update_service_priority(
     provider_name: str,
     body: ServicePriorityUpdateRequest,
     request: Request,
     auth: AuthContext = Depends(require_admin)
-) -> SuccessResponse[Dict[str, Any]]:
+) -> SuccessResponse[ServicePriorityUpdateResponse]:
     """
     Update service provider priority.
     
@@ -153,7 +164,18 @@ async def update_service_priority(
             new_priority_group=body.priority_group,
             new_strategy=body.strategy
         )
-        return SuccessResponse(data=result)
+        # Convert the result dict to our typed response
+        response = ServicePriorityUpdateResponse(
+            provider_name=result.get('provider_name', provider_name),
+            old_priority=result.get('old_priority', 'NORMAL'),
+            new_priority=result.get('new_priority', body.priority),
+            old_priority_group=result.get('old_priority_group'),
+            new_priority_group=result.get('new_priority_group'),
+            old_strategy=result.get('old_strategy'),
+            new_strategy=result.get('new_strategy'),
+            message=result.get('message', 'Priority updated successfully')
+        )
+        return SuccessResponse(data=response)
     except Exception as e:
         logger.error(f"Error updating service priority: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -164,12 +186,19 @@ class CircuitBreakerResetRequest(BaseModel):
     service_type: Optional[str] = Field(None, description="Specific service type to reset, or all if not specified")
 
 
-@router.post("/services/circuit-breakers/reset", response_model=SuccessResponse[Dict[str, Any]])
+class CircuitBreakerResetResponse(BaseModel):
+    """Response from circuit breaker reset."""
+    service_type: Optional[str] = Field(None, description="Service type that was reset")
+    reset_count: int = Field(..., description="Number of circuit breakers reset")
+    services_affected: List[str] = Field(default_factory=list, description="List of affected services")
+    message: str = Field(..., description="Status message")
+
+@router.post("/services/circuit-breakers/reset", response_model=SuccessResponse[CircuitBreakerResetResponse])
 async def reset_service_circuit_breakers(
     body: CircuitBreakerResetRequest,
     request: Request,
     auth: AuthContext = Depends(require_admin)
-) -> SuccessResponse[Dict[str, Any]]:
+) -> SuccessResponse[CircuitBreakerResetResponse]:
     """
     Reset circuit breakers.
     
@@ -186,7 +215,14 @@ async def reset_service_circuit_breakers(
     
     try:
         result = await runtime_control.reset_circuit_breakers(body.service_type)
-        return SuccessResponse(data=result)
+        # Convert the result dict to our typed response
+        response = CircuitBreakerResetResponse(
+            service_type=body.service_type,
+            reset_count=result.get('reset_count', 0),
+            services_affected=result.get('services_affected', []),
+            message=result.get('message', 'Circuit breakers reset successfully')
+        )
+        return SuccessResponse(data=response)
     except Exception as e:
         logger.error(f"Error resetting circuit breakers: {e}")
         raise HTTPException(status_code=500, detail=str(e))

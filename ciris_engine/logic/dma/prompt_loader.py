@@ -9,6 +9,7 @@ import yaml
 import logging
 from typing import Any, Optional, Dict
 from pathlib import Path
+from ciris_engine.schemas.dma.prompts import PromptCollection, PromptMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class DMAPromptLoader:
         if not self.prompts_dir.exists():
             logger.warning(f"Prompts directory does not exist: {self.prompts_dir}")
 
-    def load_prompt_template(self, template_name: str) -> Dict[str, Any]:
+    def load_prompt_template(self, template_name: str) -> PromptCollection:
         """
         Load a prompt template from a YAML file.
 
@@ -40,7 +41,7 @@ class DMAPromptLoader:
             template_name: Name of the template file (without .yml extension)
 
         Returns:
-            Dictionary containing the prompt template data
+            PromptCollection containing the prompt template data
 
         Raises:
             FileNotFoundError: If the template file doesn't exist
@@ -59,7 +60,41 @@ class DMAPromptLoader:
                 raise ValueError(f"Invalid template format in {template_path}: expected dict, got {type(template_data)}")
 
             logger.debug(f"Loaded prompt template: {template_name}")
-            return template_data
+            
+            # Convert dict to PromptCollection
+            prompt_collection = PromptCollection(
+                component_name=template_name,
+                description=template_data.get("description", f"Prompts for {template_name}"),
+                version=template_data.get("version", "1.0"),
+                system_header=template_data.get("system_header"),
+                system_guidance_header=template_data.get("system_guidance_header"),
+                domain_principles=template_data.get("domain_principles"),
+                evaluation_steps=template_data.get("evaluation_steps"),
+                evaluation_criteria=template_data.get("evaluation_criteria"),
+                response_format=template_data.get("response_format"),
+                response_guidance=template_data.get("response_guidance"),
+                decision_format=template_data.get("decision_format"),
+                action_parameter_schemas=template_data.get("action_parameter_schemas"),
+                csdma_ambiguity_guidance=template_data.get("csdma_ambiguity_guidance"),
+                action_params_speak_csdma_guidance=template_data.get("action_params_speak_csdma_guidance"),
+                action_params_ponder_guidance=template_data.get("action_params_ponder_guidance"),
+                action_params_observe_guidance=template_data.get("action_params_observe_guidance"),
+                rationale_csdma_guidance=template_data.get("rationale_csdma_guidance"),
+                final_ponder_advisory=template_data.get("final_ponder_advisory"),
+                closing_reminder=template_data.get("closing_reminder"),
+                context_integration=template_data.get("context_integration"),
+                uses_covenant_header=bool(template_data.get("covenant_header", False)),
+                supports_agent_modes=bool(template_data.get("supports_agent_modes", True))
+            )
+            
+            # Add any agent-specific variations
+            for key, value in template_data.items():
+                if "_mode_" in key and isinstance(value, str):
+                    prompt_collection.agent_variations[key] = value
+                elif key not in prompt_collection.model_fields and isinstance(value, str):
+                    prompt_collection.custom_prompts[key] = value
+            
+            return prompt_collection
 
         except yaml.YAMLError as e:
             logger.error(f"Failed to parse YAML template {template_path}: {e}")
@@ -68,7 +103,7 @@ class DMAPromptLoader:
             logger.error(f"Failed to load template {template_path}: {e}")
             raise
 
-    def get_system_message(self, template_data: Dict[str, Any], **kwargs: Any) -> str:
+    def get_system_message(self, template_data: PromptCollection, **kwargs: Any) -> str:
         """
         Build a system message from template data and variables.
 
@@ -82,32 +117,32 @@ class DMAPromptLoader:
         system_parts = []
 
         # Add main system guidance header
-        if 'system_guidance_header' in template_data:
-            system_parts.append(template_data['system_guidance_header'].format(**kwargs))
+        if template_data.system_guidance_header:
+            system_parts.append(template_data.system_guidance_header.format(**kwargs))
 
         # Add domain principles if present
-        if 'domain_principles' in template_data:
-            system_parts.append(template_data['domain_principles'].format(**kwargs))
+        if template_data.domain_principles:
+            system_parts.append(template_data.domain_principles.format(**kwargs))
 
         # Add evaluation steps if present
-        if 'evaluation_steps' in template_data:
-            system_parts.append(template_data['evaluation_steps'].format(**kwargs))
+        if template_data.evaluation_steps:
+            system_parts.append(template_data.evaluation_steps.format(**kwargs))
 
         # Add evaluation criteria if present
-        if 'evaluation_criteria' in template_data:
-            system_parts.append(template_data['evaluation_criteria'].format(**kwargs))
+        if template_data.evaluation_criteria:
+            system_parts.append(template_data.evaluation_criteria.format(**kwargs))
 
         # Add response format guidance if present
-        if 'response_format' in template_data:
-            system_parts.append(template_data['response_format'].format(**kwargs))
+        if template_data.response_format:
+            system_parts.append(template_data.response_format.format(**kwargs))
 
         # Add response guidance if present
-        if 'response_guidance' in template_data:
-            system_parts.append(template_data['response_guidance'].format(**kwargs))
+        if template_data.response_guidance:
+            system_parts.append(template_data.response_guidance.format(**kwargs))
 
         return '\n\n'.join(system_parts)
 
-    def get_user_message(self, template_data: Dict[str, Any], **kwargs: Any) -> str:
+    def get_user_message(self, template_data: PromptCollection, **kwargs: Any) -> str:
         """
         Build a user message from template data and variables.
 
@@ -118,13 +153,13 @@ class DMAPromptLoader:
         Returns:
             Formatted user message string
         """
-        if 'context_integration' in template_data:
-            return str(template_data['context_integration']).format(**kwargs)
+        if template_data.context_integration:
+            return template_data.context_integration.format(**kwargs)
         else:
             # Fallback for basic context integration
             return f"Thought to evaluate: {kwargs.get('original_thought_content', '')}"
 
-    def uses_covenant_header(self, template_data: Dict[str, Any]) -> bool:
+    def uses_covenant_header(self, template_data: PromptCollection) -> bool:
         """
         Check if template requires COVENANT_TEXT as system header.
 
@@ -134,7 +169,7 @@ class DMAPromptLoader:
         Returns:
             True if covenant header should be used
         """
-        return bool(template_data.get('covenant_header', False))
+        return template_data.uses_covenant_header
 
 # Global instance for convenience
 _default_loader = None

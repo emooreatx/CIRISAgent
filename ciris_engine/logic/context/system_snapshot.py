@@ -560,7 +560,11 @@ async def build_system_snapshot(
                                     'content': msg_content,
                                     'timestamp': row['created_at']
                                 })
-                            except:
+                            except (json.JSONDecodeError, TypeError, AttributeError, KeyError):
+                                # JSONDecodeError: malformed JSON in tags or request_data
+                                # TypeError: row['tags'] or row['request_data'] is not a string
+                                # AttributeError: row object missing expected attributes
+                                # KeyError: row dictionary missing expected keys
                                 pass
                         
                         if recent_messages and existing_profiles:

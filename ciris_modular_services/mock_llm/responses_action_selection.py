@@ -44,7 +44,7 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                 import json
                 try:
                     messages = json.loads(item.split(":", 1)[1])
-                except:
+                except json.JSONDecodeError:
                     pass
                 break
     
@@ -256,7 +256,7 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
                             import json
                             tool_params = json.loads(parts[1])
                             logger.info(f"[MOCK_LLM] TOOL handler - parsed as JSON: {tool_params}")
-                        except:
+                        except json.JSONDecodeError:
                             # Special handling for curl tool - expects 'url' parameter
                             if tool_name == "curl":
                                 tool_params = {"url": parts[1].strip()}
@@ -484,7 +484,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                         try:
                             import json
                             tool_params = json.loads(params_str)
-                        except:
+                        except json.JSONDecodeError:
                             # Try simple key=value parsing
                             for pair in params_str.split():
                                 if '=' in pair:
@@ -770,7 +770,7 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                                     try:
                                         import json
                                         tool_params = json.loads(tool_parts[1])
-                                    except:
+                                    except json.JSONDecodeError:
                                         # Simple key=value parsing
                                         for pair in tool_parts[1].split():
                                             if '=' in pair:

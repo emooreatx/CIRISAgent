@@ -1,7 +1,8 @@
 """Discord error handling and recovery component."""
 import logging
-from typing import Optional, Dict, Any, Callable, Awaitable
+from typing import Optional, Callable, Awaitable, Union
 from enum import Enum
+from ciris_engine.schemas.adapters.discord import DiscordErrorInfo, ErrorSeverity as SchemaErrorSeverity
 from datetime import datetime, timedelta, timezone
 import discord
 from discord.errors import (
@@ -12,12 +13,8 @@ from discord.errors import (
 logger = logging.getLogger(__name__)
 
 
-class ErrorSeverity(Enum):
-    """Error severity levels."""
-    LOW = "low"          # Can be ignored or retried
-    MEDIUM = "medium"    # Should be handled but not critical
-    HIGH = "high"        # Critical error, affects functionality
-    CRITICAL = "critical"  # System-breaking error
+# Use ErrorSeverity from schema
+ErrorSeverity = SchemaErrorSeverity
 
 
 class DiscordErrorHandler:
@@ -30,13 +27,13 @@ class DiscordErrorHandler:
             on_critical_error: Callback for critical errors
         """
         self.on_critical_error = on_critical_error
-        self._error_counts: Dict[str, int] = {}
-        self._last_errors: Dict[str, datetime] = {}
+        self._error_counts: dict[str, int] = {}
+        self._last_errors: dict[str, datetime] = {}
         self._error_threshold = 5  # Errors before escalation
         self._error_window = timedelta(minutes=5)  # Time window for error counting
 
     async def handle_channel_error(self, channel_id: str, error: Exception,
-                                  operation: str = "unknown") -> Dict[str, Any]:
+                                  operation: str = "unknown") -> DiscordErrorInfo:
         """Handle channel-related errors.
 
         Args:
@@ -80,21 +77,21 @@ class DiscordErrorHandler:
         # Track error frequency
         await self._track_error(error_key, severity)
 
-        result = {
-            "severity": severity.value,
-            "message": message,
-            "can_retry": can_retry,
-            "fallback_action": fallback_action,
-            "error_type": type(error).__name__,
-            "channel_id": channel_id,
-            "operation": operation
-        }
+        result = DiscordErrorInfo(
+            severity=severity,
+            message=message,
+            can_retry=can_retry,
+            fallback_action=fallback_action,
+            error_type=type(error).__name__,
+            channel_id=channel_id,
+            operation=operation
+        )
 
-        logger.error(f"Channel error: {result}")
+        logger.error(f"Channel error: {result.model_dump()}")
         return result
 
     async def handle_message_error(self, error: Exception, message_content: Optional[str] = None,
-                                 channel_id: Optional[str] = None) -> Dict[str, Any]:
+                                 channel_id: Optional[str] = None) -> DiscordErrorInfo:
         """Handle message-related errors.
 
         Args:
@@ -132,19 +129,19 @@ class DiscordErrorHandler:
 
         await self._track_error(error_key, severity)
 
-        result = {
-            "severity": severity.value,
-            "message": message,
-            "can_retry": can_retry,
-            "suggested_fix": suggested_fix,
-            "error_type": type(error).__name__,
-            "channel_id": channel_id
-        }
+        result = DiscordErrorInfo(
+            severity=severity,
+            message=message,
+            can_retry=can_retry,
+            suggested_fix=suggested_fix,
+            error_type=type(error).__name__,
+            channel_id=channel_id
+        )
 
-        logger.error(f"Message error: {result}")
+        logger.error(f"Message error: {result.model_dump()}")
         return result
 
-    async def handle_connection_error(self, error: Exception) -> Dict[str, Any]:
+    async def handle_connection_error(self, error: Exception) -> DiscordErrorInfo:
         """Handle connection-related errors.
 
         Args:
@@ -176,17 +173,18 @@ class DiscordErrorHandler:
         if severity == ErrorSeverity.CRITICAL and self.on_critical_error:
             await self.on_critical_error(message, error)
 
-        result = {
-            "severity": severity.value,
-            "message": message,
-            "recovery_action": recovery_action,
-            "error_type": type(error).__name__
-        }
+        result = DiscordErrorInfo(
+            severity=severity,
+            message=message,
+            recovery_action=recovery_action,
+            error_type=type(error).__name__,
+            can_retry=True  # Connection errors are generally retryable
+        )
 
-        logger.critical(f"Connection error: {result}")
+        logger.critical(f"Connection error: {result.model_dump()}")
         return result
 
-    async def handle_api_error(self, error: Exception, endpoint: str) -> Dict[str, Any]:
+    async def handle_api_error(self, error: Exception, endpoint: str) -> DiscordErrorInfo:
         """Handle Discord API errors.
 
         Args:
@@ -217,15 +215,16 @@ class DiscordErrorHandler:
 
         await self._track_error(error_key, severity)
 
-        result = {
-            "severity": severity.value,
-            "message": message,
-            "retry_after": retry_after,
-            "error_type": type(error).__name__,
-            "endpoint": endpoint
-        }
+        result = DiscordErrorInfo(
+            severity=severity,
+            message=message,
+            retry_after=retry_after,
+            error_type=type(error).__name__,
+            endpoint=endpoint,
+            can_retry=True  # API errors are generally retryable
+        )
 
-        logger.error(f"API error: {result}")
+        logger.error(f"API error: {result.model_dump()}")
         return result
 
     async def _track_error(self, error_key: str, severity: ErrorSeverity) -> None:
@@ -259,7 +258,7 @@ class DiscordErrorHandler:
             elif severity == ErrorSeverity.MEDIUM:
                 severity = ErrorSeverity.HIGH
 
-    def get_error_stats(self) -> Dict[str, Any]:
+    def get_error_stats(self) -> dict[str, Union[dict[str, int], int, float]]:
         """Get current error statistics.
 
         Returns:
@@ -271,7 +270,7 @@ class DiscordErrorHandler:
             "window_minutes": self._error_window.total_seconds() / 60
         }
 
-    def create_error_embed(self, error_info: Dict[str, Any]) -> discord.Embed:
+    def create_error_embed(self, error_info: DiscordErrorInfo) -> discord.Embed:
         """Create a Discord embed for error reporting.
 
         Args:
@@ -282,37 +281,34 @@ class DiscordErrorHandler:
         """
         # Color based on severity
         colors = {
-            "low": 0x3498db,      # Blue
-            "medium": 0xf39c12,   # Orange
-            "high": 0xe74c3c,     # Red
-            "critical": 0x992d22  # Dark red
+            ErrorSeverity.LOW: 0x3498db,      # Blue
+            ErrorSeverity.MEDIUM: 0xf39c12,   # Orange
+            ErrorSeverity.HIGH: 0xe74c3c,     # Red
+            ErrorSeverity.CRITICAL: 0x992d22  # Dark red
         }
 
         embed = discord.Embed(
-            title=f"⚠️ Error: {error_info.get('error_type', 'Unknown')}",
-            description=error_info.get('message', 'An error occurred'),
-            color=colors.get(error_info.get('severity', 'medium'), 0x95a5a6),
+            title=f"⚠️ Error: {error_info.error_type}",
+            description=error_info.message,
+            color=colors.get(error_info.severity, 0x95a5a6),
             timestamp=datetime.now(timezone.utc)
         )
 
         # Add fields
-        if error_info.get('operation'):
-            embed.add_field(name="Operation", value=error_info['operation'], inline=True)
+        if error_info.operation:
+            embed.add_field(name="Operation", value=error_info.operation, inline=True)
 
-        if error_info.get('channel_id'):
-            embed.add_field(name="Channel", value=f"<#{error_info['channel_id']}>", inline=True)
+        if error_info.channel_id:
+            embed.add_field(name="Channel", value=f"<#{error_info.channel_id}>", inline=True)
 
-        if error_info.get('severity'):
-            embed.add_field(name="Severity", value=error_info['severity'].upper(), inline=True)
+        embed.add_field(name="Severity", value=error_info.severity.value.upper(), inline=True)
+        embed.add_field(name="Retryable", value="Yes" if error_info.can_retry else "No", inline=True)
 
-        if error_info.get('can_retry') is not None:
-            embed.add_field(name="Retryable", value="Yes" if error_info['can_retry'] else "No", inline=True)
+        if error_info.suggested_fix:
+            embed.add_field(name="Suggested Fix", value=error_info.suggested_fix, inline=False)
 
-        if error_info.get('suggested_fix'):
-            embed.add_field(name="Suggested Fix", value=error_info['suggested_fix'], inline=False)
-
-        if error_info.get('retry_after'):
-            embed.add_field(name="Retry After", value=f"{error_info['retry_after']} seconds", inline=True)
+        if error_info.retry_after:
+            embed.add_field(name="Retry After", value=f"{error_info.retry_after} seconds", inline=True)
 
         embed.set_footer(text="Discord Error Handler")
 

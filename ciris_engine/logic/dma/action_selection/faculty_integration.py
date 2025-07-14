@@ -4,6 +4,12 @@ import logging
 from typing import Dict, Any, Optional
 from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from ciris_engine.schemas.dma.faculty import (
+    FacultyContext,
+    FacultyEvaluationSet,
+    ConscienceFailureContext,
+    EnhancedDMAInputs,
+)
 from ciris_engine.protocols.faculties import EpistemicFaculty
 
 logger = logging.getLogger(__name__)
@@ -17,10 +23,10 @@ class FacultyIntegration:
     async def apply_faculties_to_content(
         self,
         content: str,
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        context: Optional[FacultyContext] = None
+    ) -> FacultyEvaluationSet:
         """Apply available epistemic faculties to content - consolidated approach."""
-        results = {}
+        results = FacultyEvaluationSet()
 
         # Group 1: Content Analysis Faculties (entropy, coherence)
         # These analyze the output content and need minimal context
@@ -37,15 +43,16 @@ class FacultyIntegration:
         }
 
         # Call content faculties with minimal context (just the content)
-        minimal_context = {
-            "evaluation_context": context.get("evaluation_context", "") if context else "",
-            "thought_metadata": context.get("thought_metadata", {}) if context else {}
-        }
+        minimal_context = FacultyContext(
+            evaluation_context=context.evaluation_context if context else "content_analysis",
+            thought_metadata=context.thought_metadata if context else {}
+        )
 
         for name, faculty in content_faculties.items():
             try:
-                result = await faculty.analyze(content, minimal_context)
-                results[name] = result
+                # Faculty analyze expects Dict for backward compatibility
+                result = await faculty.analyze(content, minimal_context.model_dump())
+                results.add_result(name, result)
             except Exception as e:
                 logger.warning(f"Content faculty {name} evaluation failed: {e}")
 
@@ -53,21 +60,26 @@ class FacultyIntegration:
         for name, faculty in decision_faculties.items():
             try:
                 # These faculties need the full context including identity
-                result = await faculty.analyze(content, context)
-                results[name] = result
+                # Faculty analyze expects Dict for backward compatibility
+                result = await faculty.analyze(content, context.model_dump() if context else None)
+                results.add_result(name, result)
             except Exception as e:
                 logger.warning(f"Decision faculty {name} evaluation failed: {e}")
 
         return results
 
-    def build_faculty_insights_string(self, faculty_results: Dict[str, Any]) -> str:
+    def build_faculty_insights_string(self, faculty_results: FacultyEvaluationSet) -> str:
         """Build a formatted string of faculty insights for prompt injection."""
-        if not faculty_results:
+        if not faculty_results or not faculty_results.evaluations:
             return ""
 
         faculty_insights_str = "\n\nEPISTEMIC FACULTY INSIGHTS:\n"
-        for faculty_name, result in faculty_results.items():
-            faculty_insights_str += f"- {faculty_name}: {result}\n"
+        for faculty_name, result in faculty_results.evaluations.items():
+            faculty_insights_str += f"- {faculty_name}: {result.assessment}\n"
+            if result.concerns:
+                faculty_insights_str += f"  Concerns: {', '.join(result.concerns)}\n"
+            if result.recommendations:
+                faculty_insights_str += f"  Recommendations: {', '.join(result.recommendations)}\n"
         faculty_insights_str += "\nConsider these faculty evaluations in your decision-making process.\n"
 
         return faculty_insights_str
@@ -76,8 +88,8 @@ class FacultyIntegration:
         self,
         original_thought: Thought,
         triaged_inputs: Dict[str, Any],
-        conscience_failure_context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        conscience_failure_context: Optional[ConscienceFailureContext] = None
+    ) -> EnhancedDMAInputs:
         """Enhance triaged inputs with faculty evaluations."""
 
         # Extract identity context from processing context (ThoughtContext)
@@ -113,16 +125,17 @@ class FacultyIntegration:
                 identity_context["identity_context_string"] = processing_context.get("identity_context", "")
 
         # Apply faculties to the thought content with enhanced context
-        context = {
-            **(conscience_failure_context or {}),
-            "evaluation_context": "faculty_enhanced_action_selection",
-            "thought_metadata": {
+        context = FacultyContext(
+            evaluation_context="faculty_enhanced_action_selection",
+            thought_metadata={
                 "thought_id": original_thought.thought_id,
-                "thought_type": original_thought.thought_type,
+                "thought_type": original_thought.thought_type.value if hasattr(original_thought.thought_type, 'value') else str(original_thought.thought_type),
                 "source_task_id": original_thought.source_task_id
             },
-            **identity_context  # Include identity context for faculties
-        }
+            **identity_context,
+            conscience_failure_reason=conscience_failure_context.failure_reason if conscience_failure_context else None,
+            conscience_guidance=conscience_failure_context.retry_guidance if conscience_failure_context else None
+        )
 
         faculty_results = await self.apply_faculties_to_content(
             content=str(original_thought.content),
@@ -131,15 +144,25 @@ class FacultyIntegration:
 
         logger.debug(f"Faculty evaluation results for thought {original_thought.thought_id}: {faculty_results}")
 
-        # Enhance triaged inputs with faculty insights
-        enhanced_inputs = {
-            **triaged_inputs,
-            "faculty_evaluations": faculty_results,
-            "faculty_enhanced": True
-        }
+        # Create enhanced inputs with typed model
+        enhanced_inputs = EnhancedDMAInputs(
+            original_thought=triaged_inputs["original_thought"],
+            ethical_pdma_result=triaged_inputs["ethical_pdma_result"],
+            csdma_result=triaged_inputs["csdma_result"],
+            dsdma_result=triaged_inputs.get("dsdma_result"),
+            current_thought_depth=triaged_inputs["current_thought_depth"],
+            max_rounds=triaged_inputs["max_rounds"],
+            processing_context=triaged_inputs["processing_context"],
+            faculty_evaluations=faculty_results,
+            faculty_enhanced=True,
+            recursive_evaluation=False,
+            conscience_context=conscience_failure_context
+        )
 
-        if conscience_failure_context:
-            enhanced_inputs["conscience_context"] = conscience_failure_context
+        # Copy any additional fields from triaged_inputs
+        for key, value in triaged_inputs.items():
+            if key not in enhanced_inputs.model_fields_set:
+                setattr(enhanced_inputs, key, value)
 
         return enhanced_inputs
 

@@ -1244,8 +1244,13 @@ async def visualize_memory_graph(
                 else:
                     # For non-tree graphs, use spring layout with higher k value
                     pos = nx.spring_layout(G, k=3, iterations=50)
-            except:
+            except (nx.NetworkXError, ValueError, TypeError, AttributeError, KeyError):
                 # Fallback to spring layout if hierarchical fails
+                # NetworkXError: General NetworkX exceptions
+                # ValueError: Invalid parameters to layout functions
+                # TypeError: Type mismatches in graph operations
+                # AttributeError: Missing attributes on graph objects
+                # KeyError: Missing nodes in position calculations
                 pos = nx.spring_layout(G, k=2, iterations=50)
             
             # Scale to fit canvas

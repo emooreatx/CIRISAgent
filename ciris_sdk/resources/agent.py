@@ -6,10 +6,12 @@ Primary interface for communicating with the CIRIS agent.
 **WARNING**: This SDK is for the v1 API which is in pre-beta stage.
 The API interfaces may change without notice.
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 from ..transport import Transport
+from ..model_types import LineageInfo
+from ..telemetry_models import InteractionContext
 
 
 # Request/Response models matching the API
@@ -17,7 +19,7 @@ from ..transport import Transport
 class InteractRequest(BaseModel):
     """Request to interact with the agent."""
     message: str = Field(..., description="Message to send to the agent")
-    context: Optional[Dict[str, Any]] = Field(None, description="Optional context")
+    context: Optional[InteractionContext] = Field(None, description="Optional context")
 
 class InteractResponse(BaseModel):
     """Response from agent interaction."""
@@ -94,7 +96,7 @@ class AgentIdentity(BaseModel):
     name: str = Field(..., description="Agent name")
     purpose: str = Field(..., description="Agent's purpose")
     created_at: datetime = Field(..., description="When agent was created")
-    lineage: Dict[str, Any] = Field(..., description="Agent lineage information")
+    lineage: LineageInfo = Field(..., description="Agent lineage information")
     variance_threshold: float = Field(..., description="Identity variance threshold")
 
     # Capabilities
@@ -107,7 +109,9 @@ class AgentIdentity(BaseModel):
     @property
     def version(self) -> str:
         """Version from lineage for backward compatibility."""
-        if isinstance(self.lineage, dict):
+        if isinstance(self.lineage, LineageInfo):
+            return self.lineage.version
+        elif isinstance(self.lineage, dict):
             return self.lineage.get('version', '1.0')
         return '1.0'
 
@@ -130,7 +134,7 @@ class AgentResource:
     async def interact(
         self,
         message: str,
-        context: Optional[Dict[str, Any]] = None
+        context: Optional[Union[InteractionContext, Dict[str, Any]]] = None
     ) -> InteractResponse:
         """Send message and get response.
 
@@ -144,6 +148,9 @@ class AgentResource:
         Returns:
             InteractResponse with message_id, response, state, and timing
         """
+        # Convert dict context to InteractionContext if needed
+        if context and isinstance(context, dict):
+            context = InteractionContext(**context)
         request = InteractRequest(message=message, context=context)
 
         # Handle both Pydantic v1 (dict) and v2 (model_dump)
@@ -220,6 +227,10 @@ class AgentResource:
 
         # Parse timestamp
         result["created_at"] = datetime.fromisoformat(result["created_at"])
+        
+        # Parse lineage if it's a dict
+        if isinstance(result.get("lineage"), dict):
+            result["lineage"] = LineageInfo(**result["lineage"])
 
         return AgentIdentity(**result)
 
@@ -235,7 +246,7 @@ class AgentResource:
     
     # Convenience methods for common patterns
 
-    async def ask(self, question: str, context: Optional[Dict[str, Any]] = None) -> str:
+    async def ask(self, question: str, context: Optional[Union[InteractionContext, Dict[str, Any]]] = None) -> str:
         """Ask a question and get response.
 
         Convenience method that wraps interact() for simple Q&A.

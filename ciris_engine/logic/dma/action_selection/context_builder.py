@@ -1,9 +1,11 @@
 """Context building utilities for Action Selection PDMA."""
 
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.dma.results import EthicalDMAResult, CSDMAResult, DSDMAResult
+from ciris_engine.schemas.dma.prompts import PromptCollection
+from ciris_engine.schemas.dma.faculty import ConscienceFailureContext, EnhancedDMAInputs
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.logic.formatters import format_user_profiles, format_system_snapshot
 
@@ -12,7 +14,7 @@ logger = logging.getLogger(__name__)
 class ActionSelectionContextBuilder:
     """Builds context for action selection evaluation."""
 
-    def __init__(self, prompts: Dict[str, str], service_registry: Optional[Any] = None, bus_manager: Optional[Any] = None):
+    def __init__(self, prompts: Union[Dict[str, str], PromptCollection], service_registry: Optional[Any] = None, bus_manager: Optional[Any] = None):
         self.prompts = prompts
         self.service_registry = service_registry
         self.bus_manager = bus_manager
@@ -20,18 +22,18 @@ class ActionSelectionContextBuilder:
 
     def build_main_user_content(
         self,
-        triaged_inputs: Dict[str, Any],
+        triaged_inputs: EnhancedDMAInputs,
         agent_name: Optional[str] = None
     ) -> str:
         """Build the main user content for LLM evaluation."""
 
-        # Extract core components
-        original_thought = triaged_inputs["original_thought"]
-        ethical_pdma_result = triaged_inputs["ethical_pdma_result"]
-        csdma_result = triaged_inputs["csdma_result"]
-        dsdma_result = triaged_inputs.get("dsdma_result")
-        current_thought_depth = triaged_inputs["current_thought_depth"]
-        max_rounds = triaged_inputs["max_rounds"]
+        # Extract core components from typed input
+        original_thought = triaged_inputs.original_thought
+        ethical_pdma_result = triaged_inputs.ethical_pdma_result
+        csdma_result = triaged_inputs.csdma_result
+        dsdma_result = triaged_inputs.dsdma_result
+        current_thought_depth = triaged_inputs.current_thought_depth
+        max_rounds = triaged_inputs.max_rounds
 
         # Build context sections
         permitted_actions = self._get_permitted_actions(triaged_inputs)
@@ -58,7 +60,7 @@ class ActionSelectionContextBuilder:
         _guidance_sections = self._build_guidance_sections(agent_name, permitted_actions)
 
         # Build system context
-        processing_context = triaged_inputs.get("processing_context")
+        processing_context = triaged_inputs.processing_context
         user_profile_context_str, system_snapshot_context_str = self._build_system_context(
             processing_context
         )
@@ -67,7 +69,7 @@ class ActionSelectionContextBuilder:
         _startup_guidance = self._build_startup_guidance(original_thought)
 
         # Build conscience feedback guidance if available
-        _conscience_guidance = self._build_conscience_guidance(triaged_inputs.get("conscience_feedback"))
+        _conscience_guidance = self._build_conscience_guidance(triaged_inputs.conscience_feedback)
         
         # Get reject thought guidance
         _reject_thought_guidance = self._get_reject_thought_guidance()
@@ -143,7 +145,7 @@ Adhere strictly to the schema for your JSON output.
         )
         return formatted_content.strip()
 
-    def _get_permitted_actions(self, triaged_inputs: Dict[str, Any]) -> List[HandlerActionType]:
+    def _get_permitted_actions(self, triaged_inputs: EnhancedDMAInputs) -> List[HandlerActionType]:
         """Get permitted actions from triaged inputs."""
         default_permitted_actions = [
             HandlerActionType.SPEAK,
@@ -158,15 +160,10 @@ Adhere strictly to the schema for your JSON output.
             HandlerActionType.TASK_COMPLETE,
         ]
 
-        permitted_actions = triaged_inputs.get("permitted_actions", default_permitted_actions)
+        permitted_actions = triaged_inputs.permitted_actions or default_permitted_actions
 
-        if "permitted_actions" not in triaged_inputs:
-            original_thought = triaged_inputs["original_thought"]
-            logger.warning(
-                f"ActionSelectionPDMA: 'permitted_actions' not found in triaged_inputs for thought {original_thought.thought_id}. Falling back to default."
-            )
-        elif not permitted_actions:
-            original_thought = triaged_inputs["original_thought"]
+        if not permitted_actions:
+            original_thought = triaged_inputs.original_thought
             logger.warning(
                 f"ActionSelectionPDMA: 'permitted_actions' in triaged_inputs is empty for thought {original_thought.thought_id}. Falling back to default."
             )
@@ -335,12 +332,14 @@ Adhere strictly to the schema for your JSON output.
             )
         return ""
 
-    def _build_conscience_guidance(self, conscience_feedback: Optional[Dict[str, Any]]) -> str:
+    def _build_conscience_guidance(self, conscience_feedback: Optional[Union[Dict[str, Any], ConscienceFailureContext]]) -> str:
         """Build conscience guidance from feedback if available."""
         if not conscience_feedback:
             return ""
 
-        if isinstance(conscience_feedback, dict) and "retry_guidance" in conscience_feedback:
+        if isinstance(conscience_feedback, ConscienceFailureContext):
+            return f"\n\n**CONSCIENCE OVERRIDE GUIDANCE:**\n{conscience_feedback.retry_guidance}\n"
+        elif isinstance(conscience_feedback, dict) and "retry_guidance" in conscience_feedback:
             return f"\n\n**CONSCIENCE OVERRIDE GUIDANCE:**\n{conscience_feedback['retry_guidance']}\n"
 
         return ""
@@ -353,13 +352,20 @@ Adhere strictly to the schema for your JSON output.
         self, base_key: str, agent_name: Optional[str]
     ) -> str:
         """Get agent-specific prompt variation, falling back to base key."""
-        if agent_name:
-            agent_key = f"{agent_name.lower()}_mode_{base_key}"
-            if agent_key in self.prompts:
-                return self.prompts[agent_key]
+        # Handle both dict and PromptCollection
+        if isinstance(self.prompts, PromptCollection):
+            prompt = self.prompts.get_prompt(base_key, agent_name)
+            if prompt:
+                return prompt
+        else:
+            # Original dict logic
+            if agent_name:
+                agent_key = f"{agent_name.lower()}_mode_{base_key}"
+                if agent_key in self.prompts:
+                    return self.prompts[agent_key]
 
-        if base_key in self.prompts:
-            return self.prompts[base_key]
+            if base_key in self.prompts:
+                return self.prompts[base_key]
 
         logger.warning(
             f"Prompt key for '{base_key}' (agent: {agent_name}) not found. Using empty string."
@@ -385,4 +391,7 @@ Adhere strictly to the schema for your JSON output.
             logger.warning(f"Failed to generate dynamic action schemas: {e}")
 
         # Fall back to static schemas from prompts
-        return self.prompts.get("action_parameter_schemas", "")
+        if isinstance(self.prompts, PromptCollection):
+            return self.prompts.action_parameter_schemas or ""
+        else:
+            return self.prompts.get("action_parameter_schemas", "")

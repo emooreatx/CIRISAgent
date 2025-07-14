@@ -81,7 +81,13 @@ class CLIToolService(ToolService):
                 success = False
                 error_msg = str(e)
 
-        (self._time_service.timestamp() - start_time) * 1000  # milliseconds
+        execution_time_ms = (self._time_service.timestamp() - start_time) * 1000  # milliseconds
+        
+        # Add execution time to result data
+        if result is None:
+            result = {}
+        if isinstance(result, dict):
+            result["_execution_time_ms"] = execution_time_ms
 
         tool_result = ToolExecutionResult(
             tool_name=tool_name,

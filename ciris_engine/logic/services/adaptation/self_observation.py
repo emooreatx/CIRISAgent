@@ -889,7 +889,7 @@ class SelfObservationService(BaseScheduledService, SelfObservationServiceProtoco
                     if isinstance(last_seen, str) and last_seen:
                         try:
                             last_seen = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
-                        except:
+                        except (ValueError, TypeError):
                             last_seen = datetime.now()
                     else:
                         last_seen = datetime.now()

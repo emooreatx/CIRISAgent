@@ -191,7 +191,7 @@ def show_correlations(limit=20, trace_id=None):
                 end = datetime.fromisoformat(updated.replace('Z', '+00:00'))
                 duration_ms = (end - start).total_seconds() * 1000
                 duration = f" [{duration_ms:.0f}ms]"
-            except:
+            except (ValueError, TypeError, AttributeError):
                 pass
         
         print(f"\n{prefix}{created} - {handler} -> {action} ({status}){duration}")
@@ -215,7 +215,7 @@ def show_correlations(limit=20, trace_id=None):
                     print(f"{prefix}  Channel: {data['channel_id']}")
                 if 'parameters' in data and data['parameters']:
                     print(f"{prefix}  Params: {str(data['parameters'])[:80]}...")
-            except:
+            except (json.JSONDecodeError, TypeError, KeyError):
                 pass
         
         # Show response summary
@@ -226,7 +226,7 @@ def show_correlations(limit=20, trace_id=None):
                     print(f"{prefix}  ERROR: {resp.get('error_message', 'Unknown error')}")
                 elif resp.get('result_summary'):
                     print(f"{prefix}  Result: {resp['result_summary'][:80]}...")
-            except:
+            except (json.JSONDecodeError, TypeError, KeyError):
                 pass
     
     if trace_id:

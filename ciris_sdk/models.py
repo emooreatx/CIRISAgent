@@ -1,8 +1,15 @@
 from __future__ import annotations
 
-from typing import Optional, List, Any, Dict
+from typing import Optional, List, Any, Dict, Union
 from datetime import datetime
 from pydantic import BaseModel, Field
+
+from .model_types import (
+    BaseAttributes, MemoryAttributes, ConfigAttributes, TelemetryAttributes,
+    ProcessorResult, AdapterConfig, LineageInfo, ProcessorStateInfo,
+    SystemConfiguration, ServiceMetadata as ServiceMetadataTyped,
+    DeferralContext, AuditContext, VerificationResult, ThoughtContent
+)
 
 class Message(BaseModel):
     id: str
@@ -18,7 +25,7 @@ class GraphNode(BaseModel):
     id: str = Field(..., description="Unique node identifier")
     type: str = Field(..., description="Type of node")
     scope: str = Field(..., description="Scope of the node")
-    attributes: Dict[str, Any] = Field(..., description="Node attributes")
+    attributes: Union[BaseAttributes, MemoryAttributes, ConfigAttributes, TelemetryAttributes, dict] = Field(..., description="Node attributes")
     version: int = Field(default=1, ge=1, description="Version number")
     updated_by: Optional[str] = Field(None, description="Who last updated")
     updated_at: Optional[datetime] = Field(None, description="When last updated")
@@ -60,7 +67,7 @@ class ProcessorControlResponse(BaseModel):
     success: bool
     action: str
     timestamp: str
-    result: Optional[Dict[str, Any]] = None
+    result: Optional[ProcessorResult] = None
     error: Optional[str] = None
 
 class AdapterInfo(BaseModel):
@@ -70,12 +77,12 @@ class AdapterInfo(BaseModel):
     health_status: str
     services_count: int
     loaded_at: str
-    config_params: Dict[str, Any]
+    config_params: AdapterConfig
 
 class AdapterLoadRequest(BaseModel):
     adapter_type: str
     adapter_id: Optional[str] = None
-    config: Dict[str, Any] = {}
+    config: Optional[AdapterConfig] = Field(default_factory=lambda: AdapterConfig(adapter_type="unknown", connection_params={}, feature_flags={}, limits={}))
     auto_start: bool = True
 
 class AdapterOperationResponse(BaseModel):
@@ -146,8 +153,8 @@ class TelemetrySnapshot(BaseModel):
     cpu_usage_percent: float
     overall_health: str
     adapters: List[AdapterInfo]
-    processor_state: Dict[str, Any]
-    configuration: Dict[str, Any]
+    processor_state: ProcessorStateInfo
+    configuration: SystemConfiguration
 
 class ServiceInfo(BaseModel):
     name: str
@@ -157,7 +164,7 @@ class ServiceInfo(BaseModel):
     capabilities: List[str]
     status: str
     circuit_breaker_state: str
-    metadata: Dict[str, Any]
+    metadata: ServiceMetadataTyped
 
 class ProcessorState(BaseModel):
     is_running: bool
@@ -179,7 +186,7 @@ class DeferralInfo(BaseModel):
     deferral_id: str
     thought_id: str
     reason: str
-    context: Dict[str, Any]
+    context: DeferralContext
     status: str
     created_at: str
     resolved_at: Optional[str] = None
@@ -191,14 +198,14 @@ class AuditEntryResponse(BaseModel):
     action: str
     actor: str
     timestamp: datetime
-    context: Dict[str, Any]
+    context: AuditContext
     signature: Optional[str] = None
     hash_chain: Optional[str] = None
 
 class AuditEntryDetailResponse(BaseModel):
     """Detailed audit entry with verification info."""
     entry: AuditEntryResponse
-    verification: Optional[Dict[str, Any]] = None
+    verification: Optional[VerificationResult] = None
     chain_position: Optional[int] = None
     next_entry_id: Optional[str] = None
     previous_entry_id: Optional[str] = None
@@ -273,7 +280,7 @@ class TelemetryReasoningTrace(BaseModel):
     thought_count: int = 0
     decision_count: int = 0
     reasoning_depth: int = 0
-    thoughts: List[Dict[str, Any]] = []
+    thoughts: List[ThoughtContent] = []
     outcome: Optional[str] = None
 
 class TelemetryLogEntry(BaseModel):
@@ -282,5 +289,5 @@ class TelemetryLogEntry(BaseModel):
     level: str  # DEBUG|INFO|WARNING|ERROR|CRITICAL
     service: str
     message: str
-    context: Dict[str, Any] = {}
+    context: Dict[str, str] = {}
     trace_id: Optional[str] = None

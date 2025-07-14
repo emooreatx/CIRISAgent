@@ -87,10 +87,10 @@ class TestDiscordErrorHandler:
             "123456789", error, "send_message"
         )
 
-        assert result["severity"] == ErrorSeverity.HIGH.value
-        assert result["can_retry"] is False
-        assert result["fallback_action"] == "remove_channel"
-        assert "not found" in result["message"]
+        assert result.severity == ErrorSeverity.HIGH
+        assert result.can_retry is False
+        assert result.fallback_action == "remove_channel"
+        assert "not found" in result.message
 
     @pytest.mark.asyncio
     async def test_handle_forbidden_error(self, error_handler: DiscordErrorHandler) -> None:
@@ -101,10 +101,10 @@ class TestDiscordErrorHandler:
             "123456789", error, "send_message"
         )
 
-        assert result["severity"] == ErrorSeverity.HIGH.value
-        assert result["can_retry"] is False
-        assert result["fallback_action"] == "check_permissions"
-        assert "permission" in result["message"].lower()
+        assert result.severity == ErrorSeverity.HIGH
+        assert result.can_retry is False
+        assert result.fallback_action == "check_permissions"
+        assert "permission" in result.message.lower()
 
     @pytest.mark.asyncio
     async def test_handle_rate_limit_error(self, error_handler: DiscordErrorHandler) -> None:
@@ -117,9 +117,9 @@ class TestDiscordErrorHandler:
             "123456789", error, "send_message"
         )
 
-        assert result["severity"] == ErrorSeverity.MEDIUM.value
-        assert result["can_retry"] is True
-        assert result["fallback_action"] == "wait_and_retry"
+        assert result.severity == ErrorSeverity.MEDIUM
+        assert result.can_retry is True
+        assert result.fallback_action == "wait_and_retry"
 
     @pytest.mark.asyncio
     async def test_error_threshold_escalation(self, error_handler: DiscordErrorHandler) -> None:
@@ -197,13 +197,15 @@ class TestDiscordEmbedFormatter:
 
     def test_format_guidance_request(self) -> None:
         """Test formatting guidance request."""
-        context = {
-            "question": "Should I proceed?",
-            "thought_id": "thought123",
-            "task_id": "task456",
-            "ethical_considerations": ["Consider user privacy", "Ensure accuracy"],
-            "domain_context": {"urgency": "high"}
-        }
+        from ciris_engine.schemas.adapters.discord import DiscordGuidanceData
+        
+        context = DiscordGuidanceData(
+            deferral_id="defer123",
+            thought_id="thought123",
+            task_id="task456",
+            reason="Should I proceed?",
+            context={"urgency": "high"}
+        )
 
         embed = DiscordEmbedFormatter.format_guidance_request(context)
 
@@ -215,16 +217,19 @@ class TestDiscordEmbedFormatter:
         field_names = [field.name for field in embed.fields]
         assert "Thought ID" in field_names
         assert "Task ID" in field_names
-        assert "Urgency" in field_names
+        assert "Context" in field_names  # Context field includes urgency
 
     def test_format_approval_request(self) -> None:
         """Test formatting approval request."""
-        context = {
-            "requester_id": "user123",
-            "task_id": "task789",
-            "action_name": "delete_file",
-            "action_params": {"file": "test.txt", "force": True}
-        }
+        from ciris_engine.schemas.adapters.discord import DiscordApprovalData
+        
+        context = DiscordApprovalData(
+            action="Delete File",
+            requester_id="user123",
+            task_id="task789",
+            action_name="delete_file",
+            action_params={"file": "test.txt", "force": True}
+        )
 
         embed = DiscordEmbedFormatter.format_approval_request("Delete File", context)
 
@@ -248,11 +253,14 @@ class TestDiscordEmbedFormatter:
         assert "Executing..." in embed.description
 
         # Test success
-        result = {
-            "success": True,
-            "output": "Operation completed",
-            "execution_time": 123.45
-        }
+        from ciris_engine.schemas.adapters.discord import DiscordToolResult
+        
+        result = DiscordToolResult(
+            success=True,
+            output="Operation completed",
+            execution_time=123.45,
+            status="completed"
+        )
         embed = DiscordEmbedFormatter.format_tool_execution(
             "test_tool",
             {"param1": "value1"},
@@ -262,11 +270,12 @@ class TestDiscordEmbedFormatter:
         assert embed.color.value == 0x2ecc71
 
         # Test failure
-        result = {
-            "success": False,
-            "error": "Operation failed",
-            "execution_time": 50.0
-        }
+        result = DiscordToolResult(
+            success=False,
+            error="Operation failed",
+            execution_time=50.0,
+            status="failed"
+        )
         embed = DiscordEmbedFormatter.format_tool_execution(
             "test_tool",
             {"param1": "value1"},

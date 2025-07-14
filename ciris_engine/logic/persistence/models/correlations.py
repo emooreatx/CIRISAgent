@@ -86,7 +86,7 @@ def update_correlation(update_request_or_id: Union[CorrelationUpdateRequest, str
             } if correlation.response_data else None,
             status=ServiceCorrelationStatus.COMPLETED if correlation.response_data and getattr(correlation.response_data, 'success', False) else ServiceCorrelationStatus.FAILED
         )
-        db_path = db_path
+        # db_path is already set from parameter
     # Handle new signature: update_correlation(update_request, time_service)
     elif isinstance(update_request_or_id, CorrelationUpdateRequest):
         update_request = update_request_or_id
@@ -679,7 +679,7 @@ def get_active_channels_by_adapter(
                             if timestamp_str.endswith('Z'):
                                 timestamp_str = timestamp_str[:-1] + '+00:00'
                             last_activity = datetime.fromisoformat(timestamp_str)
-                        except:
+                        except (ValueError, AttributeError):
                             last_activity = cutoff_time
                     
                     channels[channel_id] = {
@@ -783,7 +783,7 @@ def get_channel_last_activity(
                     if timestamp_str.endswith('Z'):
                         timestamp_str = timestamp_str[:-1] + '+00:00'
                     last_activity = datetime.fromisoformat(timestamp_str)
-                except:
+                except (ValueError, AttributeError):
                     pass
     except Exception as e:
         logger.warning("Failed to query channel activity: %s", e)
@@ -813,7 +813,7 @@ def get_channel_last_activity(
                     summary_time = datetime.fromisoformat(row[0])
                     if not last_activity or summary_time > last_activity:
                         last_activity = summary_time
-                except:
+                except (ValueError, AttributeError):
                     pass
     except Exception as e:
         logger.debug("Memory graph query failed: %s", e)

@@ -3,9 +3,10 @@ from __future__ import annotations
 import yaml
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional, Any, Dict, TypeVar, Generic, TYPE_CHECKING, Tuple
+from typing import Optional, Any, Dict, TypeVar, Generic, TYPE_CHECKING, Tuple, Union
 
 from pydantic import BaseModel
+from ciris_engine.schemas.dma.prompts import PromptCollection
 
 from ciris_engine.logic.registries.base import ServiceRegistry
 from ciris_engine.protocols.services import LLMService
@@ -29,7 +30,7 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
         service_registry: ServiceRegistry,
         model_name: Optional[str] = None,
         max_retries: int = 3,
-        prompt_overrides: Optional[Dict[str, str]] = None,
+        prompt_overrides: Optional[Union[Dict[str, str], PromptCollection]] = None,
         faculties: Optional[Dict[str, 'EpistemicFaculty']] = None,
         sink: Optional[Any] = None,
         **kwargs: Any
@@ -42,10 +43,10 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
 
         self.kwargs = kwargs
 
-        self.prompts: Dict[str, str] = {}
+        self.prompts: Union[Dict[str, str], PromptCollection] = {}
         self._load_prompts(prompt_overrides)
 
-    def _load_prompts(self, overrides: Optional[Dict[str, str]] = None) -> None:
+    def _load_prompts(self, overrides: Optional[Union[Dict[str, str], PromptCollection]] = None) -> None:
         """Load prompts from YAML file or use defaults.
 
         First checks for PROMPT_FILE class attribute, then falls back to
@@ -61,22 +62,40 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
 
         if prompt_file and Path(prompt_file).exists():
             try:
+                # If overrides is already a PromptCollection, use it directly
+                if isinstance(overrides, PromptCollection):
+                    self.prompts = overrides
+                    return
+                    
                 with open(prompt_file, 'r') as f:
                     file_prompts = yaml.safe_load(f) or {}
-                self.prompts = {**file_prompts, **(overrides or {})}
+                    
+                # Support both dict and PromptCollection
+                if isinstance(overrides, dict):
+                    self.prompts = {**file_prompts, **overrides}
+                else:
+                    self.prompts = file_prompts
                 return
             except Exception as e:
                 import logging
                 logger = logging.getLogger(__name__)
                 logger.warning(f"Failed to load prompts from {prompt_file}: {e}")
 
+        # Handle overrides as PromptCollection
+        if isinstance(overrides, PromptCollection):
+            self.prompts = overrides
+            return
+            
         defaults = {}
         if hasattr(self, 'DEFAULT_PROMPT'):
             defaults = getattr(self, 'DEFAULT_PROMPT')
         elif hasattr(self, 'DEFAULT_PROMPT_TEMPLATE'):
             defaults = getattr(self, 'DEFAULT_PROMPT_TEMPLATE')
 
-        self.prompts = {**defaults, **(overrides or {})}
+        if isinstance(overrides, dict):
+            self.prompts = {**defaults, **overrides}
+        else:
+            self.prompts = defaults
 
     async def get_llm_service(self) -> Optional[LLMService]:
         """Return the LLM service for this DMA from the service registry."""

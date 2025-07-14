@@ -250,10 +250,7 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
         if match:
             json_str = match.group(1)
         else:
-            if raw.strip().startswith('{') and raw.strip().endswith('}'):
-                json_str = raw.strip()
-            else:
-                json_str = raw.strip()
+            json_str = raw.strip()
         try:
             parsed = json.loads(json_str)
             return JSONExtractionResult(

@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from typing import List, Optional, Any
+from ciris_engine.schemas.adapters.discord import DiscordChannelInfo
 
 import discord # Ensure discord.py is available
 
@@ -484,7 +485,7 @@ class DiscordPlatform(Service):
             logger.warning(f"Discord health check failed: {e}")
             return False
 
-    async def get_active_channels(self) -> List[dict[str, Any]]:
+    async def get_active_channels(self) -> List[DiscordChannelInfo]:
         """Get list of active Discord channels."""
         logger.info("[DISCORD_PLATFORM] get_active_channels called on wrapper")
         if hasattr(self.discord_adapter, 'get_active_channels'):

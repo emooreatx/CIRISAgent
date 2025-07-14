@@ -120,9 +120,13 @@ async def create_dsdma_from_identity(
         raise RuntimeError("Cannot create DSDMA without agent identity. Who am I?")
 
     # Extract overrides from identity configuration
-    overrides = identity.dsdma_kwargs or {}
-    prompt_template = overrides.get("prompt_template")
-    domain_knowledge = overrides.get("domain_specific_knowledge")
+    if identity.dsdma_kwargs:
+        # Handle DSDMAConfiguration object
+        prompt_template = identity.dsdma_kwargs.prompt_template
+        domain_knowledge = identity.dsdma_kwargs.domain_specific_knowledge
+    else:
+        prompt_template = None
+        domain_knowledge = None
 
     # Always use BaseDSDMA now
     dma_result = await create_dma(

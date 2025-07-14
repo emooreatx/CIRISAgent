@@ -12,6 +12,13 @@ from uuid import uuid4
 
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.logic.persistence.db.core import get_db_connection
+from ciris_engine.schemas.services.graph.edges import (
+    EdgeAttributes,
+    SummaryEdgeAttributes,
+    UserParticipationAttributes,
+    GenericEdgeAttributes
+)
+from ciris_engine.schemas.services.graph.consolidation import ParticipantData
 
 logger = logging.getLogger(__name__)
 
@@ -414,7 +421,7 @@ class EdgeManager:
                 
                 edge_data = []
                 
-                for user_id, metrics in participant_data.items():
+                for user_id, participant in participant_data.items():
                     user_node_id = f"user_{user_id}"
                     
                     # Check if user node exists
@@ -427,15 +434,15 @@ class EdgeManager:
                     user_exists = cursor.fetchone() is not None
                     
                     # Create user node if it doesn't exist
-                    if not user_exists and metrics.get('author_name'):
-                        logger.info(f"Creating user node for {user_id} ({metrics['author_name']})")
+                    if not user_exists and participant.author_name:
+                        logger.info(f"Creating user node for {user_id} ({participant.author_name})")
                         
                         user_attributes = {
                             'user_id': user_id,
-                            'display_name': metrics['author_name'],
+                            'display_name': participant.author_name,
                             'first_seen': datetime.now(timezone.utc).isoformat(),
                             'created_by': 'tsdb_consolidation',
-                            'channels': metrics['channels']
+                            'channels': participant.channels
                         }
                         
                         cursor.execute("""
@@ -458,18 +465,20 @@ class EdgeManager:
                     if user_exists:
                         # Create edge from summary to user
                         edge_id = f"edge_{uuid4().hex[:8]}"
-                        message_count = metrics['message_count']
+                        message_count = participant.message_count
                         
                         # Weight based on participation level (normalized 0-1)
                         # More messages = higher weight
                         weight = min(1.0, message_count / 100.0)
                         
-                        attributes = {
-                            "context": f"Participated in conversations during {period_label}",
-                            "message_count": message_count,
-                            "channels": metrics['channels'],
-                            "author_name": metrics.get('author_name')
-                        }
+                        # Use typed edge attributes
+                        edge_attrs = UserParticipationAttributes(
+                            context=f"Participated in conversations during {period_label}",
+                            message_count=message_count,
+                            channels=participant.channels,
+                            author_name=participant.author_name
+                        )
+                        attributes = edge_attrs.model_dump(exclude_none=True)
                         
                         edge_data.append((
                             edge_id,

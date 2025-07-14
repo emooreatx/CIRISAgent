@@ -8,7 +8,7 @@ import logging
 import json
 import hashlib
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional, Tuple, TYPE_CHECKING
+from typing import List, Dict, Optional, Tuple, TYPE_CHECKING
 from collections import defaultdict
 
 if TYPE_CHECKING:
@@ -110,7 +110,7 @@ class AuditConsolidator:
             if isinstance(context, str):
                 try:
                     context = json.loads(context)
-                except:
+                except (json.JSONDecodeError, ValueError):
                     context = {}
             
             service_name = context.get('service_name', 'unknown')
@@ -228,7 +228,7 @@ class AuditConsolidator:
         self,
         summary_node: GraphNode,
         audit_nodes: List[GraphNode]
-    ) -> List[Tuple[GraphNode, GraphNode, str, Dict[str, Any]]]:
+    ) -> List[Tuple[GraphNode, GraphNode, str, dict]]:
         """
         Get edges to create for audit summary.
         

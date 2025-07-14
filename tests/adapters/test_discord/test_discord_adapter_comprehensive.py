@@ -221,8 +221,8 @@ class TestDiscordAdapterCore:
             messages = await discord_adapter.fetch_messages("123456789", limit=10)
 
             assert len(messages) == 2
-            assert messages[0]["content"] == "Message 1"
-            assert messages[1]["content"] == "Message 2"
+            assert messages[0].content == "Message 1"
+            assert messages[1].content == "Message 2"
 
 
 class TestDiscordWiseAuthority:

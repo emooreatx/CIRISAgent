@@ -12,10 +12,11 @@ Note: OAuth endpoints are in api_auth_v2.py
 import hashlib
 import secrets
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, List
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException, status, Request, Depends
+from pydantic import BaseModel, Field
 
 from ciris_engine.schemas.api.auth import (
     LoginRequest,
@@ -218,11 +219,23 @@ async def refresh_token(
 
 # ========== OAuth Management Endpoints ==========
 
-@router.get("/auth/oauth/providers")
+class OAuthProviderInfo(BaseModel):
+    """OAuth provider information."""
+    provider: str = Field(..., description="Provider name")
+    client_id: str = Field(..., description="OAuth client ID")
+    created: Optional[str] = Field(None, description="Creation timestamp")
+    callback_url: str = Field(..., description="OAuth callback URL")
+    metadata: Dict[str, str] = Field(default_factory=dict, description="Additional metadata")
+
+class OAuthProvidersResponse(BaseModel):
+    """OAuth providers list response."""
+    providers: List[OAuthProviderInfo] = Field(default_factory=list, description="List of configured providers")
+
+@router.get("/auth/oauth/providers", response_model=OAuthProvidersResponse)
 async def list_oauth_providers(
     auth: AuthContext = Depends(get_auth_context),
     _: None = Depends(check_permissions(["users.write"]))  # SYSTEM_ADMIN only
-) -> Dict[str, Any]:
+) -> OAuthProvidersResponse:
     """
     List configured OAuth providers.
     
@@ -234,22 +247,22 @@ async def list_oauth_providers(
     oauth_config_file = Path.home() / ".ciris" / "oauth.json"
     
     if not oauth_config_file.exists():
-        return {"providers": []}
+        return OAuthProvidersResponse(providers=[])
     
     try:
         config = json.loads(oauth_config_file.read_text())
         providers = []
         
         for provider, settings in config.items():
-            providers.append({
-                "provider": provider,
-                "client_id": settings.get("client_id"),
-                "created": settings.get("created"),
-                "callback_url": f"http://localhost:3000/auth/oauth/{provider}/callback",
-                "metadata": settings.get("metadata", {})
-            })
+            providers.append(OAuthProviderInfo(
+                provider=provider,
+                client_id=settings.get("client_id", ""),
+                created=settings.get("created"),
+                callback_url=f"http://localhost:3000/auth/oauth/{provider}/callback",
+                metadata=settings.get("metadata", {})
+            ))
         
-        return {"providers": providers}
+        return OAuthProvidersResponse(providers=providers)
     except Exception as e:
         logger.error(f"Failed to read OAuth config: {e}")
         raise HTTPException(
@@ -258,15 +271,25 @@ async def list_oauth_providers(
         )
 
 
-@router.post("/auth/oauth/providers")
+class ConfigureOAuthProviderRequest(BaseModel):
+    """Request to configure an OAuth provider."""
+    provider: str = Field(..., description="Provider name")
+    client_id: str = Field(..., description="OAuth client ID")
+    client_secret: str = Field(..., description="OAuth client secret")
+    metadata: Optional[Dict[str, str]] = Field(None, description="Additional metadata")
+
+class ConfigureOAuthProviderResponse(BaseModel):
+    """Response from OAuth provider configuration."""
+    provider: str = Field(..., description="Provider name")
+    callback_url: str = Field(..., description="OAuth callback URL")
+    message: str = Field(..., description="Status message")
+
+@router.post("/auth/oauth/providers", response_model=ConfigureOAuthProviderResponse)
 async def configure_oauth_provider(
-    provider: str,
-    client_id: str,
-    client_secret: str,
-    metadata: Optional[Dict[str, str]] = None,
+    body: ConfigureOAuthProviderRequest,
     auth: AuthContext = Depends(get_auth_context),
     _: None = Depends(check_permissions(["users.write"]))  # SYSTEM_ADMIN only
-) -> Dict[str, Any]:
+) -> ConfigureOAuthProviderResponse:
     """
     Configure an OAuth provider.
     
@@ -283,15 +306,16 @@ async def configure_oauth_provider(
     if oauth_config_file.exists():
         try:
             config = json.loads(oauth_config_file.read_text())
-        except:
+        except (json.JSONDecodeError, IOError, OSError) as e:
+            logger.warning(f"Failed to load OAuth config file: {e}")
             pass
     
     # Add/update provider
-    config[provider] = {
-        "client_id": client_id,
-        "client_secret": client_secret,
+    config[body.provider] = {
+        "client_id": body.client_id,
+        "client_secret": body.client_secret,
         "created": datetime.now(timezone.utc).isoformat(),
-        "metadata": metadata or {}
+        "metadata": body.metadata or {}
     }
     
     # Save config
@@ -299,13 +323,13 @@ async def configure_oauth_provider(
         oauth_config_file.write_text(json.dumps(config, indent=2))
         oauth_config_file.chmod(0o600)
         
-        logger.info(f"OAuth provider '{provider}' configured by {auth.user_id}")
+        logger.info(f"OAuth provider '{body.provider}' configured by {auth.user_id}")
         
-        return {
-            "provider": provider,
-            "callback_url": f"http://localhost:3000/auth/oauth/{provider}/callback",
-            "message": "OAuth provider configured successfully"
-        }
+        return ConfigureOAuthProviderResponse(
+            provider=body.provider,
+            callback_url=f"http://localhost:3000/auth/oauth/{body.provider}/callback",
+            message="OAuth provider configured successfully"
+        )
     except Exception as e:
         logger.error(f"Failed to save OAuth config: {e}")
         raise HTTPException(
@@ -314,11 +338,16 @@ async def configure_oauth_provider(
         )
 
 
-@router.get("/auth/oauth/{provider}/login")
+class OAuthLoginResponse(BaseModel):
+    """OAuth login initiation response."""
+    authorization_url: str = Field(..., description="URL to redirect user to for authorization")
+    state: str = Field(..., description="State parameter for CSRF protection")
+
+@router.get("/auth/oauth/{provider}/login", response_model=OAuthLoginResponse)
 async def oauth_login(
     provider: str,
     redirect_uri: Optional[str] = None
-) -> Dict[str, str]:
+) -> OAuthLoginResponse:
     """
     Initiate OAuth login flow.
     
@@ -393,10 +422,10 @@ async def oauth_login(
         # Build full URL
         full_url = f"{auth_url}?{urllib.parse.urlencode(params)}"
         
-        return {
-            "authorization_url": full_url,
-            "state": state
-        }
+        return OAuthLoginResponse(
+            authorization_url=full_url,
+            state=state
+        )
         
     except Exception as e:
         logger.error(f"OAuth login initiation failed: {e}")

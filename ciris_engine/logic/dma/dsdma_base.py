@@ -58,15 +58,32 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
 
         self.prompt_loader = get_prompt_loader()
         try:
-            self.prompt_template_data = self.prompt_loader.load_prompt_template("dsdma_base")
+            prompt_collection = self.prompt_loader.load_prompt_template("dsdma_base")
+            self.prompt_template_data = prompt_collection
+            # Get system guidance header from the collection
+            system_guidance = prompt_collection.get_prompt("system_guidance_header")
+            if prompt_template is not None:
+                self.prompt_template = prompt_template
+            elif system_guidance:
+                self.prompt_template = system_guidance  # get_prompt returns a string
+            else:
+                self.prompt_template = ""
         except FileNotFoundError:
             logger.warning(f"DSDMA base prompt template not found for domain '{domain_name}', using fallback")
-            self.prompt_template_data = {
-                "system_guidance_header": self.DEFAULT_TEMPLATE if self.DEFAULT_TEMPLATE else "",
-                "covenant_header": True
-            }
-
-        self.prompt_template = prompt_template if prompt_template is not None else self.prompt_template_data.get("system_guidance_header", "")
+            # Create a PromptCollection with fallback data
+            from ciris_engine.schemas.dma.prompts import PromptCollection, PromptTemplate
+            self.prompt_template_data = PromptCollection(
+                name="dsdma_base_fallback",
+                description="Fallback DSDMA prompt collection",
+                prompts={
+                    "system_guidance_header": PromptTemplate(
+                        name="system_guidance_header",
+                        template=self.DEFAULT_TEMPLATE if self.DEFAULT_TEMPLATE else "",
+                        description="Fallback system guidance"
+                    )
+                }
+            )
+            self.prompt_template = prompt_template if prompt_template is not None else (self.DEFAULT_TEMPLATE if self.DEFAULT_TEMPLATE else "")
 
         logger.info(
             f"BaseDSDMA '{self.domain_name}' initialized with model: {self.model_name}"

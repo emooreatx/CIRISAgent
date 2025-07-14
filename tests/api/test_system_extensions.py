@@ -224,7 +224,16 @@ class TestServicePriorityEndpoint:
             priority_group=0,
             strategy="ROUND_ROBIN"
         )
-        mock_runtime_control.update_service_priority.return_value = {"success": True}
+        mock_runtime_control.update_service_priority.return_value = {
+            "provider_name": "TestService",
+            "old_priority": "NORMAL",
+            "new_priority": "HIGH",
+            "old_priority_group": 1,
+            "new_priority_group": 0,
+            "old_strategy": "FALLBACK",
+            "new_strategy": "ROUND_ROBIN",
+            "message": "Priority updated successfully"
+        }
         mock_request.app.state.main_runtime_control_service = mock_runtime_control
         
         # Execute
@@ -237,7 +246,8 @@ class TestServicePriorityEndpoint:
         
         # Verify
         assert isinstance(result, SuccessResponse)
-        assert result.data["success"] is True
+        assert result.data.new_priority == "HIGH"
+        assert result.data.provider_name == "TestService"
         mock_runtime_control.update_service_priority.assert_called_once_with(
             provider_name="TestService",
             new_priority="HIGH",
@@ -253,24 +263,18 @@ class TestServicePriorityEndpoint:
             priority="HIGH",
             priority_group=0
         )
-        mock_runtime_control.update_service_priority.return_value = {
-            "success": False,
-            "error": "Invalid priority 'INVALID'"
-        }
+        mock_runtime_control.update_service_priority.side_effect = Exception("Invalid priority 'INVALID'")
         mock_request.app.state.main_runtime_control_service = mock_runtime_control
         
-        # Execute
-        result = await update_service_priority(
-            "TestService",
-            update_request,
-            mock_request,
-            mock_admin_auth_context
-        )
-        
-        # Verify
-        assert isinstance(result, SuccessResponse)
-        assert result.data["success"] is False
-        assert "Invalid priority" in result.data["error"]
+        # Execute & Verify
+        with pytest.raises(Exception) as exc_info:
+            await update_service_priority(
+                "TestService",
+                update_request,
+                mock_request,
+                mock_admin_auth_context
+            )
+        assert "Invalid priority" in str(exc_info.value)
 
 
 class TestCircuitBreakerEndpoint:
@@ -282,8 +286,10 @@ class TestCircuitBreakerEndpoint:
         # Setup
         reset_request = CircuitBreakerResetRequest()
         mock_runtime_control.reset_circuit_breakers.return_value = {
-            "success": True,
-            "reset_count": 5
+            "service_type": None,
+            "reset_count": 5,
+            "services_affected": ["llm_service1", "llm_service2", "memory_service1", "memory_service2", "memory_service3"],
+            "message": "Circuit breakers reset successfully"
         }
         mock_request.app.state.main_runtime_control_service = mock_runtime_control
         
@@ -296,8 +302,9 @@ class TestCircuitBreakerEndpoint:
         
         # Verify
         assert isinstance(result, SuccessResponse)
-        assert result.data["success"] is True
-        assert result.data["reset_count"] == 5
+        assert result.data.reset_count == 5
+        assert result.data.service_type is None
+        assert len(result.data.services_affected) == 5
         mock_runtime_control.reset_circuit_breakers.assert_called_once_with(None)
     
     @pytest.mark.asyncio
@@ -306,8 +313,10 @@ class TestCircuitBreakerEndpoint:
         # Setup
         reset_request = CircuitBreakerResetRequest(service_type="llm")
         mock_runtime_control.reset_circuit_breakers.return_value = {
-            "success": True,
-            "reset_count": 2
+            "service_type": "llm",
+            "reset_count": 2,
+            "services_affected": ["llm_service1", "llm_service2"],
+            "message": "Circuit breakers reset successfully"
         }
         mock_request.app.state.main_runtime_control_service = mock_runtime_control
         
@@ -320,7 +329,9 @@ class TestCircuitBreakerEndpoint:
         
         # Verify
         assert isinstance(result, SuccessResponse)
-        assert result.data["success"] is True
+        assert result.data.reset_count == 2
+        assert result.data.service_type == "llm"
+        assert len(result.data.services_affected) == 2
         mock_runtime_control.reset_circuit_breakers.assert_called_once_with("llm")
 
 

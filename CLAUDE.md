@@ -23,6 +23,66 @@ The CIRIS codebase follows strict typing principles:
 
 This ensures type safety, validation, and clear contracts throughout the system.
 
+### Type Safety Best Practices
+
+1. **Replace Dict[str, Any] with Pydantic Models**
+   ```python
+   # ❌ Bad
+   def process_data(data: Dict[str, Any]) -> Dict[str, Any]:
+       return {"result": data.get("value", 0) * 2}
+   
+   # ✅ Good
+   class ProcessRequest(BaseModel):
+       value: int = 0
+   
+   class ProcessResponse(BaseModel):
+       result: int
+   
+   def process_data(data: ProcessRequest) -> ProcessResponse:
+       return ProcessResponse(result=data.value * 2)
+   ```
+
+2. **Use Specific Types Instead of Any**
+   ```python
+   # ❌ Bad
+   metrics: Dict[str, Any] = {"cpu": 0.5, "memory": 1024}
+   
+   # ✅ Good
+   class SystemMetrics(BaseModel):
+       cpu: float = Field(..., ge=0, le=1, description="CPU usage 0-1")
+       memory: int = Field(..., gt=0, description="Memory in MB")
+   
+   metrics = SystemMetrics(cpu=0.5, memory=1024)
+   ```
+
+3. **Leverage Union Types for Flexibility**
+   ```python
+   # For gradual migration or multiple input types
+   def process(data: Union[dict, ProcessRequest]) -> ProcessResponse:
+       if isinstance(data, dict):
+           data = ProcessRequest(**data)
+       return ProcessResponse(result=data.value * 2)
+   ```
+
+4. **Use Enums for Constants**
+   ```python
+   # ❌ Bad
+   status = "active"  # Magic string
+   
+   # ✅ Good
+   class ServiceStatus(str, Enum):
+       ACTIVE = "active"
+       INACTIVE = "inactive"
+       ERROR = "error"
+   
+   status = ServiceStatus.ACTIVE
+   ```
+
+5. **Strict Mypy Configuration**
+   - Enable `strict = True` in mypy.ini
+   - Use `disallow_any_explicit = True` to catch Dict[str, Any]
+   - Run mypy as part of CI/CD pipeline
+
 ## Current Status (July 1, 2025)
 
 ### 🎉 Major Achievements

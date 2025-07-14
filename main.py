@@ -217,14 +217,8 @@ def main(
         if not final_adapter_types_list:
             final_adapter_types_list = ["cli"]
         
-        # Support multiple instances of same adapter type
-        selected_adapter_types = []
-        for adapter_type in final_adapter_types_list:
-            if ":" in adapter_type:
-                # Support instance-specific adapter types like "discord:instance1" or "api:port8081"
-                selected_adapter_types.append(adapter_type)
-            else:
-                selected_adapter_types.append(adapter_type)
+        # Support multiple instances of same adapter type like "discord:instance1" or "api:port8081"
+        selected_adapter_types = list(final_adapter_types_list)
 
         # Validate Discord adapter types have tokens available
         validated_adapter_types = []
@@ -409,11 +403,26 @@ def main(
                 logger.info("CLI runtime shutdown complete, preparing clean exit")
                 await asyncio.sleep(0.2)  # Brief pause for final log entries
                 
-                # Flush all output
-                sys.stdout.flush()
-                sys.stderr.flush()
+                # Flush all output in parallel
+                async def flush_handler(handler):
+                    """Flush a single handler."""
+                    try:
+                        handler.flush()
+                    except Exception:
+                        pass  # Ignore flush errors during shutdown
+                
+                # Create flush tasks for all operations
+                flush_tasks = [
+                    asyncio.create_task(asyncio.to_thread(sys.stdout.flush)),
+                    asyncio.create_task(asyncio.to_thread(sys.stderr.flush))
+                ]
+                
+                # Add tasks for each log handler
                 for handler in logging.getLogger().handlers:
-                    handler.flush()
+                    flush_tasks.append(asyncio.create_task(asyncio.to_thread(flush_handler, handler)))
+                
+                # Wait for all flush operations to complete
+                await asyncio.gather(*flush_tasks, return_exceptions=True)
                 
                 # Force exit to handle the blocking input thread
                 logger.info("Forcing exit to handle blocking CLI input thread")
@@ -441,10 +450,27 @@ def main(
         if "cli" in selected_adapter_types:
             logger.info("CLI runtime completed, forcing exit")
             await asyncio.sleep(0.5)  # Give time for final logs to flush
-            sys.stdout.flush()
-            sys.stderr.flush()
+            
+            # Flush all output in parallel
+            async def flush_handler(handler):
+                """Flush a single handler."""
+                try:
+                    handler.flush()
+                except Exception:
+                    pass  # Ignore flush errors during shutdown
+            
+            # Create flush tasks for all operations
+            flush_tasks = [
+                asyncio.create_task(asyncio.to_thread(sys.stdout.flush)),
+                asyncio.create_task(asyncio.to_thread(sys.stderr.flush))
+            ]
+            
+            # Add tasks for each log handler
             for handler in logging.getLogger().handlers:
-                handler.flush()
+                flush_tasks.append(asyncio.create_task(asyncio.to_thread(flush_handler, handler)))
+            
+            # Wait for all flush operations to complete
+            await asyncio.gather(*flush_tasks, return_exceptions=True)
             import os
             os._exit(0)
 

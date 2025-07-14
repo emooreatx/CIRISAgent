@@ -103,15 +103,22 @@ class IdentityManager:
 
         # Extract DSDMA configuration from template
         domain_knowledge = {}
+        dsdma_prompt_template = None
+        
         if template.dsdma_kwargs:
-            # Convert nested dict to flat string dict for CoreProfile
-            for key, value in template.dsdma_kwargs.items():
-                if isinstance(value, dict):
-                    # Convert nested dicts to JSON strings
-                    import json
-                    domain_knowledge[key] = json.dumps(value)
-                else:
-                    domain_knowledge[key] = str(value)
+            # Extract domain knowledge from typed model
+            if template.dsdma_kwargs.domain_specific_knowledge:
+                for key, value in template.dsdma_kwargs.domain_specific_knowledge.items():
+                    if isinstance(value, dict):
+                        # Convert nested dicts to JSON strings
+                        import json
+                        domain_knowledge[key] = json.dumps(value)
+                    else:
+                        domain_knowledge[key] = str(value)
+            
+            # Extract prompt template
+            if template.dsdma_kwargs.prompt_template:
+                dsdma_prompt_template = template.dsdma_kwargs.prompt_template
 
         # Create identity root from template
         return AgentIdentityRoot(
@@ -121,9 +128,9 @@ class IdentityManager:
                 description=template.description,
                 role_description=template.role_description,
                 domain_specific_knowledge=domain_knowledge,
-                dsdma_prompt_template=None,
-                csdma_overrides={},
-                action_selection_pdma_overrides={},
+                dsdma_prompt_template=dsdma_prompt_template,
+                csdma_overrides=template.csdma_overrides.__dict__ if template.csdma_overrides else {},
+                action_selection_pdma_overrides=template.action_selection_pdma_overrides.__dict__ if template.action_selection_pdma_overrides else {},
                 last_shutdown_memory=None
             ),
             identity_metadata=IdentityMetadata(
