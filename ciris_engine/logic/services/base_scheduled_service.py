@@ -59,7 +59,7 @@ class BaseScheduledService(BaseService):
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass  # Expected when stopping the service
+                pass  # NOSONAR - Expected when stopping the service in _on_stop()
             self._task = None
             self._logger.info(f"{self.service_name}: Stopped scheduled task")
         

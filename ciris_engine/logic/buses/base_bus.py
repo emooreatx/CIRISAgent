@@ -79,7 +79,7 @@ class BaseBus(ABC, Generic[ServiceT]):
                 await self._process_task
             except asyncio.CancelledError:
                 # Expected when we cancel the task, don't re-raise
-                pass
+                pass  # NOSONAR - Intentionally not re-raising in stop() method
         logger.info(f"{self.__class__.__name__} stopped")
 
     async def _process_loop(self) -> None:
@@ -106,6 +106,9 @@ class BaseBus(ABC, Generic[ServiceT]):
 
             except asyncio.TimeoutError:
                 continue
+            except asyncio.CancelledError:
+                # Re-raise to allow proper cancellation
+                raise
             except Exception as e:
                 logger.error(f"Unexpected error in {self.__class__.__name__} loop: {e}")
 

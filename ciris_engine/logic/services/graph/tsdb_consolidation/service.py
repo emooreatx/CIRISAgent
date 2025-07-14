@@ -143,7 +143,7 @@ class TSDBConsolidationService(BaseGraphService):
             try:
                 await self._consolidation_task
             except asyncio.CancelledError:
-                pass  # Expected when stopping the service
+                pass  # NOSONAR - Expected when stopping the service in stop()
         
         await super().stop()
         logger.info("TSDBConsolidationService stopped")

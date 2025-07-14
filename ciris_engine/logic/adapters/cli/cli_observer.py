@@ -177,7 +177,7 @@ class CLIObserver(BaseObserver[IncomingMessage]):
                 try:
                     await self._input_task
                 except asyncio.CancelledError:
-                    pass  # Expected when cancelling the task, don't re-raise here
+                    pass  # NOSONAR - Expected when we cancelled the task ourselves in stop()
             self._input_task = None
             self._stop_event.clear()
         logger.info("CLIObserver stopped")

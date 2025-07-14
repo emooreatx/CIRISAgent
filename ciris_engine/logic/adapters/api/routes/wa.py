@@ -176,7 +176,9 @@ async def resolve_deferral(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Failed to resolve deferral {deferral_id}: {e}")
+        # Sanitize user input before logging to prevent log injection
+        safe_deferral_id = ''.join(c if c.isprintable() and c not in '\n\r\t' else ' ' for c in deferral_id)
+        logger.error(f"Failed to resolve deferral {safe_deferral_id}: {e}")
         raise HTTPException(
             status_code=500,
             detail=ErrorResponse(
@@ -241,7 +243,9 @@ async def get_permissions(
         )
 
     except Exception as e:
-        logger.error(f"Failed to get permissions for {target_wa_id}: {e}")
+        # Sanitize user input before logging to prevent log injection
+        safe_target_wa_id = ''.join(c if c.isprintable() and c not in '\n\r\t' else ' ' for c in target_wa_id)
+        logger.error(f"Failed to get permissions for {safe_target_wa_id}: {e}")
         raise HTTPException(
             status_code=500,
             detail=ErrorResponse(
