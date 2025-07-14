@@ -75,13 +75,13 @@ async def test_tsdb_service_consolidate_period(tsdb_service, mock_memory_bus):
 
         # Create mock datapoints that match what the implementation expects
         class MockDataPoint:
-        def __init__(self, timestamp, metric_name, value, correlation_type, tags):
-            # Keep timestamp as datetime object - the service expects datetime, not string
-            self.timestamp = timestamp
-            self.metric_name = metric_name
-            self.value = value
-            self.correlation_type = correlation_type
-            self.tags = tags
+            def __init__(self, timestamp, metric_name, value, correlation_type, tags):
+                # Keep timestamp as datetime object - the service expects datetime, not string
+                self.timestamp = timestamp
+                self.metric_name = metric_name
+                self.value = value
+                self.correlation_type = correlation_type
+                self.tags = tags
 
     mock_datapoints = [
         MockDataPoint(
