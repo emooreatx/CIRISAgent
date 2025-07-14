@@ -17,7 +17,7 @@ anyio>=4.0.0,<5.0.0
 discord.py>=2.3.0,<3.0.0
 
 # Security and Cryptography
-cryptography>=41.0.0,<42.0.0
+cryptography>=41.0.0,<46.0.0
 PyJWT[crypto]>=2.8.0,<3.0.0
 
 # Web Framework (API/GUI)
