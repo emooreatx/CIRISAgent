@@ -300,8 +300,40 @@ async def test_tsdb_service_resource_aggregation(tsdb_service, mock_memory_bus):
         return resource_datapoints  # Return resource metrics
     mock_memory_bus.recall_timeseries.side_effect = test_recall_timeseries
 
-    # Consolidate with resource aggregation
-    summaries = await tsdb_service._consolidate_period(start_time, end_time)
+    # Mock the query manager methods - metrics consolidator needs metric correlations
+    from ciris_engine.schemas.services.graph.consolidation import MetricCorrelationData
+    from ciris_engine.schemas.services.graph.query_results import TSDBNodeQueryResult
+    
+    # Convert mock datapoints to MetricCorrelationData
+    metric_correlations = [
+        MetricCorrelationData(
+            correlation_id=f"corr_{i}",
+            metric_name=dp.metric_name,
+            value=dp.value,
+            timestamp=dp.timestamp,
+            tags=dp.tags,
+            source='test'
+        ) for i, dp in enumerate(resource_datapoints)
+    ]
+    
+    with patch.object(tsdb_service._query_manager, 'check_period_consolidated', return_value=False), \
+         patch.object(tsdb_service._query_manager, 'query_all_nodes_in_period', return_value={}), \
+         patch.object(tsdb_service._query_manager, 'query_service_correlations', return_value=Mock(
+             service_interactions=[],
+             metric_correlations=metric_correlations,
+             trace_spans=[],
+             task_correlations=[]
+         )), \
+         patch.object(tsdb_service._query_manager, 'query_tasks_in_period', return_value=[]):
+        # Consolidate with resource aggregation
+        summaries = await tsdb_service._consolidate_period(start_time, end_time)
+
+    # Debug output if test fails
+    if not summaries:
+        print(f"DEBUG: No summaries returned")
+        print(f"DEBUG: recall_timeseries call count: {mock_memory_bus.recall_timeseries.call_count}")
+        if mock_memory_bus.recall_timeseries.called:
+            print(f"DEBUG: recall_timeseries calls: {mock_memory_bus.recall_timeseries.call_args_list}")
 
     assert summaries is not None
     assert len(summaries) > 0
@@ -486,8 +518,39 @@ async def test_tsdb_service_action_summary(tsdb_service, mock_memory_bus):
         return action_datapoints  # Return action metrics
     mock_memory_bus.recall_timeseries.side_effect = test_recall_timeseries
 
-    # Consolidate with action aggregation
-    summaries = await tsdb_service._consolidate_period(start_time, end_time)
+    # Mock the query manager methods - metrics consolidator needs metric correlations  
+    from ciris_engine.schemas.services.graph.consolidation import MetricCorrelationData
+    
+    # Convert mock datapoints to MetricCorrelationData
+    metric_correlations = [
+        MetricCorrelationData(
+            correlation_id=f"corr_{i}",
+            metric_name=dp.metric_name,
+            value=dp.value,
+            timestamp=dp.timestamp,
+            tags=dp.tags,
+            source='test'
+        ) for i, dp in enumerate(action_datapoints)
+    ]
+    
+    with patch.object(tsdb_service._query_manager, 'check_period_consolidated', return_value=False), \
+         patch.object(tsdb_service._query_manager, 'query_all_nodes_in_period', return_value={}), \
+         patch.object(tsdb_service._query_manager, 'query_service_correlations', return_value=Mock(
+             service_interactions=[],
+             metric_correlations=metric_correlations,
+             trace_spans=[],
+             task_correlations=[]
+         )), \
+         patch.object(tsdb_service._query_manager, 'query_tasks_in_period', return_value=[]):
+        # Consolidate with action aggregation
+        summaries = await tsdb_service._consolidate_period(start_time, end_time)
+
+    # Debug output if test fails
+    if not summaries:
+        print(f"DEBUG: No summaries returned")
+        print(f"DEBUG: recall_timeseries call count: {mock_memory_bus.recall_timeseries.call_count}")
+        if mock_memory_bus.recall_timeseries.called:
+            print(f"DEBUG: recall_timeseries calls: {mock_memory_bus.recall_timeseries.call_args_list}")
 
     assert summaries is not None
     assert len(summaries) > 0
