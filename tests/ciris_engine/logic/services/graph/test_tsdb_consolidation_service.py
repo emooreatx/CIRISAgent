@@ -44,10 +44,118 @@ def mock_time_service():
 @pytest.fixture
 def tsdb_service(mock_memory_bus, mock_time_service):
     """Create a TSDB consolidation service for testing."""
-    return TSDBConsolidationService(
+    # Create temporary test database
+    import tempfile
+    import sqlite3
+    import os
+    
+    fd, db_path = tempfile.mkstemp(suffix='_test.db')
+    os.close(fd)
+    
+    # Initialize database with required tables
+    conn = sqlite3.connect(db_path)
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS graph_nodes (
+            node_id TEXT PRIMARY KEY,
+            node_type TEXT NOT NULL,
+            scope TEXT NOT NULL,
+            attributes_json TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            updated_by TEXT,
+            version INTEGER DEFAULT 1
+        );
+        
+        CREATE TABLE IF NOT EXISTS graph_edges (
+            edge_id TEXT PRIMARY KEY,
+            source_node_id TEXT NOT NULL,
+            target_node_id TEXT NOT NULL,
+            relationship TEXT NOT NULL,
+            scope TEXT NOT NULL,
+            attributes_json TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            updated_by TEXT,
+            version INTEGER DEFAULT 1
+        );
+        
+        CREATE TABLE IF NOT EXISTS service_correlations (
+            correlation_id TEXT PRIMARY KEY,
+            service_type TEXT NOT NULL,
+            handler_name TEXT,
+            action_type TEXT,
+            request_data TEXT,
+            response_data TEXT,
+            status TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            correlation_type TEXT,
+            timestamp TEXT,
+            metric_name TEXT,
+            metric_value REAL,
+            trace_id TEXT,
+            span_id TEXT,
+            parent_span_id TEXT,
+            tags TEXT
+        );
+        
+        CREATE TABLE IF NOT EXISTS thoughts (
+            thought_id TEXT PRIMARY KEY,
+            channel_id TEXT NOT NULL,
+            agent_id TEXT NOT NULL,
+            content TEXT NOT NULL,
+            thought_type TEXT NOT NULL,
+            processing_status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            processed_at TEXT,
+            parent_thought_id TEXT,
+            metadata_json TEXT,
+            action_result TEXT
+        );
+        
+        CREATE TABLE IF NOT EXISTS tasks (
+            task_id TEXT PRIMARY KEY,
+            thought_id TEXT,
+            action TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            completed_at TEXT,
+            result TEXT,
+            error TEXT,
+            metadata_json TEXT
+        );
+    """)
+    conn.commit()
+    conn.close()
+    
+    # Monkey patch get_db_connection to use our test database
+    import ciris_engine.logic.persistence.db.core
+    import ciris_engine.logic.services.graph.tsdb_consolidation.query_manager
+    
+    original_get_db = ciris_engine.logic.persistence.db.core.get_db_connection
+    def get_test_db_connection():
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+    
+    # Patch in both places
+    ciris_engine.logic.persistence.db.core.get_db_connection = get_test_db_connection
+    ciris_engine.logic.services.graph.tsdb_consolidation.query_manager.get_db_connection = get_test_db_connection
+    
+    service = TSDBConsolidationService(
         memory_bus=mock_memory_bus,
         time_service=mock_time_service
     )
+    
+    yield service
+    
+    # Cleanup
+    ciris_engine.logic.persistence.db.core.get_db_connection = original_get_db
+    ciris_engine.logic.services.graph.tsdb_consolidation.query_manager.get_db_connection = original_get_db
+    try:
+        os.unlink(db_path)
+    except:
+        pass
 
 
 @pytest.mark.asyncio
@@ -62,7 +170,6 @@ async def test_tsdb_service_lifecycle(tsdb_service):
     assert tsdb_service._running is False
 
 
-@pytest.mark.skip(reason="Database locking issue - needs isolation fix")
 @pytest.mark.asyncio
 async def test_tsdb_service_consolidate_period(tsdb_service, mock_memory_bus):
     """Test consolidating TSDB data for a period."""
@@ -413,7 +520,6 @@ def test_tsdb_service_status(tsdb_service):
     assert isinstance(status.metrics["task_running"], float)
 
 
-@pytest.mark.skip(reason="Database locking issue - needs isolation fix")
 @pytest.mark.asyncio
 async def test_tsdb_service_get_summary_for_period(tsdb_service, mock_memory_bus):
     """Test retrieving a specific TSDB summary for a period."""
