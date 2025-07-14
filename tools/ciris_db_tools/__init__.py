@@ -9,13 +9,15 @@ from .tsdb_analyzer import TSDBAnalyzer
 from .audit_verifier import AuditVerifierWrapper
 from .graph_analyzer import GraphAnalyzer
 from .consolidation_monitor import ConsolidationMonitor
+from .storage_analyzer import StorageAnalyzer
 
 __all__ = [
     "DBStatusReporter",
     "TSDBAnalyzer", 
     "AuditVerifierWrapper",
     "GraphAnalyzer",
-    "ConsolidationMonitor"
+    "ConsolidationMonitor",
+    "StorageAnalyzer"
 ]
 
 __version__ = "1.0.0"

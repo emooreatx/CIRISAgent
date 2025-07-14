@@ -95,15 +95,15 @@ class CLIAdapter(Service, CommunicationService, ToolService):
             return  # Memory bus not available yet
 
         try:
-            # Extract value from tags if it exists, otherwise default to 1.0
-            value = 1.0
+            # Use the provided value or extract from tags if available
+            metric_value = value
             if tags and "value" in tags:
-                value = float(tags.pop("value"))
+                metric_value = float(tags.pop("value"))
             elif tags and "execution_time_ms" in tags:
-                value = float(tags["execution_time_ms"])
+                metric_value = float(tags["execution_time_ms"])
             elif tags and "success" in tags:
                 # For boolean success, use 1.0 for true, 0.0 for false
-                value = 1.0 if tags["success"] else 0.0
+                metric_value = 1.0 if tags["success"] else 0.0
 
             # Convert all tag values to strings as required by memorize_metric
             string_tags = {k: str(v) for k, v in (tags or {}).items()}
@@ -111,7 +111,7 @@ class CLIAdapter(Service, CommunicationService, ToolService):
             # Use memorize_metric instead of creating GraphNode directly
             await self.bus_manager.memory.memorize_metric(
                 metric_name=metric_name,
-                value=value,
+                value=metric_value,
                 tags=string_tags,
                 scope="local",
                 handler_name="adapter.cli"

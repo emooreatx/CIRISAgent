@@ -17,6 +17,7 @@ from .tsdb_analyzer import TSDBAnalyzer
 from .audit_verifier import AuditVerifierWrapper
 from .graph_analyzer import GraphAnalyzer
 from .consolidation_monitor import ConsolidationMonitor
+from .storage_analyzer import StorageAnalyzer
 
 
 def main():
@@ -35,6 +36,8 @@ Commands:
   connectivity    Graph connectivity analysis
   consolidation   Consolidation health report
   gaps            Find consolidation gaps
+  comprehensive   COMPREHENSIVE analysis with orphaned nodes, storage, edges
+  storage         Detailed storage analysis
 
 Examples:
   %(prog)s status                    # Full status report
@@ -42,6 +45,7 @@ Examples:
   %(prog)s orphaned                  # Find nodes without edges
   %(prog)s verify --sample 1000      # Verify sample of audit entries
   %(prog)s consolidation             # Check consolidation health
+  %(prog)s comprehensive             # Complete analysis with critical issues
         """
     )
     
@@ -49,7 +53,8 @@ Examples:
         "command",
         choices=[
             "status", "tsdb", "tsdb-age", "audit", "verify",
-            "orphaned", "connectivity", "consolidation", "gaps"
+            "orphaned", "connectivity", "consolidation", "gaps",
+            "comprehensive", "storage"
         ],
         help="Command to run"
     )
@@ -152,6 +157,14 @@ Examples:
                     print(f"  {gap['period_start'][:16]} - Age: {gap['age']}")
                 if len(gaps["basic_gaps"]) > 10:
                     print(f"  ... and {len(gaps['basic_gaps']) - 10} more")
+        
+        elif args.command == "comprehensive":
+            monitor = ConsolidationMonitor(args.db_path)
+            monitor.print_comprehensive_analysis()
+            
+        elif args.command == "storage":
+            storage = StorageAnalyzer(args.db_path)
+            storage.print_comprehensive_storage_report()
             
     except KeyboardInterrupt:
         print("\n\nInterrupted by user")

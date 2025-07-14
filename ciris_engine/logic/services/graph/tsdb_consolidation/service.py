@@ -359,7 +359,9 @@ class TSDBConsolidationService(BaseGraphService):
                     else:
                         logger.debug(f"No data found for period {period_start}")
                 else:
-                    logger.debug(f"Period {period_start} already consolidated, skipping")
+                    logger.debug(f"Period {period_start} already consolidated, checking edges...")
+                    # Ensure edges exist for this already-consolidated period
+                    await self._ensure_summary_edges(period_start, period_end)
                 
                 # Move to next period
                 period_start = period_end
@@ -597,10 +599,19 @@ class TSDBConsolidationService(BaseGraphService):
         # CRITICAL: Create edges from summaries to ALL nodes in the period
         # This ensures every node gets at least one edge after consolidation
         all_nodes_in_period = []
+        logger.debug(f"Collecting nodes for SUMMARIZES edges. nodes_by_type keys: {list(nodes_by_type.keys())}")
+        
         for node_type, result in nodes_by_type.items():
             # Skip TSDB_DATA nodes as they're temporary and will be cleaned up
             if node_type != 'tsdb_data':
-                all_nodes_in_period.extend(result.nodes)
+                node_count = len(result.nodes) if hasattr(result, 'nodes') else 0
+                logger.debug(f"  {node_type}: {node_count} nodes")
+                if hasattr(result, 'nodes'):
+                    all_nodes_in_period.extend(result.nodes)
+                else:
+                    logger.warning(f"  {node_type} result has no 'nodes' attribute: {type(result)}")
+        
+        logger.info(f"Total nodes collected for SUMMARIZES edges: {len(all_nodes_in_period)}")
         
         if all_nodes_in_period:
             # Create a primary summary (TSDB or first available) to link all nodes
@@ -908,6 +919,80 @@ class TSDBConsolidationService(BaseGraphService):
         except Exception as e:
             logger.error(f"Error checking if period consolidated: {e}")
             return False
+    
+    async def _ensure_summary_edges(self, period_start: datetime, period_end: datetime) -> None:
+        """
+        Ensure edges exist for an already-consolidated period.
+        This fixes the issue where summaries exist but have no SUMMARIZES edges.
+        
+        Args:
+            period_start: Start of the period
+            period_end: End of the period
+        """
+        try:
+            period_label = self._period_manager.get_period_label(period_start)
+            logger.info(f"Ensuring edges exist for consolidated period {period_label}")
+            
+            # Find the summary node for this period
+            period_id = period_start.strftime('%Y%m%d_%H')
+            summary_id = f"tsdb_summary_{period_id}"
+            
+            # Check if SUMMARIZES edges already exist
+            from ciris_engine.logic.persistence.db.core import get_db_connection
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT COUNT(*) as count
+                    FROM graph_edges
+                    WHERE source_node_id = ?
+                      AND relationship = 'SUMMARIZES'
+                """, (summary_id,))
+                
+                edge_count = cursor.fetchone()['count']
+                
+                if edge_count > 0:
+                    logger.debug(f"Period {period_label} already has {edge_count} SUMMARIZES edges")
+                    return
+            
+            # No SUMMARIZES edges exist - we need to create them
+            logger.warning(f"Period {period_label} has NO SUMMARIZES edges! Creating them now...")
+            
+            # Query all nodes in the period
+            nodes_by_type = await self._query_manager.query_all_nodes_in_period(
+                period_start, period_end
+            )
+            
+            # Get the summary node
+            from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
+            summary_node = GraphNode(
+                id=summary_id,
+                type=NodeType.TSDB_SUMMARY,
+                scope=GraphScope.LOCAL,
+                attributes={},
+                updated_by="tsdb_consolidation",
+                updated_at=period_end
+            )
+            
+            # Collect all nodes (except tsdb_data)
+            all_nodes_in_period = []
+            for node_type, result in nodes_by_type.items():
+                if node_type != 'tsdb_data' and hasattr(result, 'nodes'):
+                    all_nodes_in_period.extend(result.nodes)
+            
+            if all_nodes_in_period:
+                logger.info(f"Creating SUMMARIZES edges from {summary_id} to {len(all_nodes_in_period)} nodes")
+                edges_created = await self._edge_manager.create_summary_to_nodes_edges(
+                    summary_node,
+                    all_nodes_in_period,
+                    "SUMMARIZES",
+                    f"Node active during {period_label}"
+                )
+                logger.info(f"Created {edges_created} SUMMARIZES edges for period {period_label}")
+            else:
+                logger.warning(f"No nodes found in period {period_label} to create edges to")
+                
+        except Exception as e:
+            logger.error(f"Error ensuring summary edges: {e}", exc_info=True)
     
     def _calculate_next_run_time(self) -> datetime:
         """Calculate when the next consolidation should run."""

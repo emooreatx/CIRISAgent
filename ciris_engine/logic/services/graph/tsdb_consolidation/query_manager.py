@@ -68,17 +68,18 @@ class QueryManager:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
                 
-                # Query all nodes updated in this period
+                # Query all LOCAL nodes CREATED in this period
+                # CRITICAL: Only local nodes can have edges within the same scope
+                # We want nodes CREATED during the period, not just updated
                 cursor.execute("""
                     SELECT node_id, node_type, scope, attributes_json, 
                            version, updated_by, updated_at, created_at
                     FROM graph_nodes
-                    WHERE (datetime(updated_at) >= datetime(?) AND datetime(updated_at) < datetime(?))
-                       OR (updated_at IS NULL AND datetime(created_at) >= datetime(?) AND datetime(created_at) < datetime(?))
-                    ORDER BY node_type, updated_at
+                    WHERE scope = 'local'
+                      AND datetime(created_at) >= datetime(?)
+                      AND datetime(created_at) < datetime(?)
+                    ORDER BY node_type, created_at
                 """, (
-                    period_start.isoformat(),
-                    period_end.isoformat(),
                     period_start.isoformat(),
                     period_end.isoformat()
                 ))
