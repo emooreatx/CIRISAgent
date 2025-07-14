@@ -223,7 +223,7 @@ class TaskConsolidator:
                     'RETRIED_TASK',
                     {
                         'task_id': task_id,
-                        'retry_count': task.retry_count,
+                        'retry_count': str(task.retry_count),
                         'final_status': task.status
                     }
                 ))
@@ -238,7 +238,7 @@ class TaskConsolidator:
                     'LONG_RUNNING_TASK',
                     {
                         'task_id': task_id,
-                        'duration_seconds': duration_seconds,
+                        'duration_seconds': str(duration_seconds),
                         'status': task.status
                     }
                 ))

@@ -7,7 +7,7 @@ into permanent summary records with proper edge connections.
 
 import asyncio
 import logging
-from typing import List, Optional, TYPE_CHECKING, Dict, Any
+from typing import List, Optional, TYPE_CHECKING, Union, Dict, Any
 from datetime import datetime, timedelta, timezone
 
 if TYPE_CHECKING:
@@ -20,7 +20,13 @@ from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.services.graph.base import BaseGraphService
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
-from ciris_engine.schemas.services.graph.consolidation import TaskCorrelationData
+from ciris_engine.schemas.services.graph.consolidation import (
+    TaskCorrelationData,
+    MetricCorrelationData,
+    ServiceInteractionData,
+    TraceSpanData,
+    TSDBPeriodSummary
+)
 
 from .period_manager import PeriodManager
 from .query_manager import QueryManager
@@ -256,17 +262,16 @@ class TSDBConsolidationService(BaseGraphService):
         # 2. Create summaries
         
         # Store converted correlation objects for reuse in edge creation
-        converted_correlations = {}
-        converted_tasks = []  # Store converted tasks separately
+        converted_correlations: Dict[str, Union[List[MetricCorrelationData], List[ServiceInteractionData], List[TraceSpanData]]] = {}
+        converted_tasks: List[TaskCorrelationData] = []  # Store converted tasks separately
         
         # Metrics summary (TSDB data + correlations)
         tsdb_nodes = nodes_by_type.get('tsdb_data', [])
         metric_correlations_raw = correlations.get('metric_datapoint', [])
         
         # Convert raw dicts to MetricCorrelationData objects
-        metric_correlations = []
+        metric_correlations: List[MetricCorrelationData] = []
         if metric_correlations_raw:
-            from ciris_engine.schemas.services.graph.consolidation import MetricCorrelationData
             for raw_data in metric_correlations_raw:
                 try:
                     corr = MetricCorrelationData(
@@ -299,8 +304,7 @@ class TSDBConsolidationService(BaseGraphService):
         # Task summary
         if tasks:
             # Convert raw task dicts to TaskCorrelationData objects
-            from ciris_engine.schemas.services.graph.consolidation import TaskCorrelationData
-            task_correlations = []
+            task_correlations: List[TaskCorrelationData] = []
             for raw_task in tasks:
                 try:
                     # Extract handlers from thoughts
@@ -363,8 +367,7 @@ class TSDBConsolidationService(BaseGraphService):
         service_interactions_raw = correlations.get('service_interaction', [])
         if service_interactions_raw:
             # Convert raw dicts to ServiceInteractionData objects
-            from ciris_engine.schemas.services.graph.consolidation import ServiceInteractionData
-            service_interactions = []
+            service_interactions: List[ServiceInteractionData] = []
             for raw_data in service_interactions_raw:
                 try:
                     # Extract fields from raw correlation data
@@ -421,8 +424,7 @@ class TSDBConsolidationService(BaseGraphService):
         trace_spans_raw = correlations.get('trace_span', [])
         if trace_spans_raw:
             # Convert raw dicts to TraceSpanData objects
-            from ciris_engine.schemas.services.graph.consolidation import TraceSpanData
-            trace_spans = []
+            trace_spans: List[TraceSpanData] = []
             for raw_data in trace_spans_raw:
                 try:
                     # Extract fields from raw correlation data
@@ -843,7 +845,7 @@ class TSDBConsolidationService(BaseGraphService):
         result = await self._cleanup_old_data()
         return result if result is not None else 0
     
-    async def get_summary_for_period(self, period_start: datetime, period_end: datetime) -> Optional[Dict[str, Any]]:
+    async def get_summary_for_period(self, period_start: datetime, period_end: datetime) -> Optional[TSDBPeriodSummary]:
         """Get the summary for a specific period."""
         try:
             # Use direct DB query since MemoryQuery doesn't support field conditions
@@ -869,24 +871,24 @@ class TSDBConsolidationService(BaseGraphService):
                 import json
                 node_data = json.loads(row[0])
                 attrs = node_data.get('attributes', {})
-                # Return the summary data
-                return {
-                    "metrics": attrs.get("metrics", {}),
-                    "total_tokens": attrs.get("total_tokens", 0),
-                    "total_cost_cents": attrs.get("total_cost_cents", 0),
-                    "total_carbon_grams": attrs.get("total_carbon_grams", 0),
-                    "total_energy_kwh": attrs.get("total_energy_kwh", 0),
-                    "action_counts": attrs.get("action_counts", {}),
-                    "source_node_count": attrs.get("source_node_count", 0),
-                    "period_start": attrs.get("period_start"),
-                    "period_end": attrs.get("period_end"),
-                    "period_label": attrs.get("period_label"),
-                    "conversations": attrs.get("conversations", []),
-                    "traces": attrs.get("traces", []),
-                    "audits": attrs.get("audits", []),
-                    "tasks": attrs.get("tasks", []),
-                    "memories": attrs.get("memories", [])
-                }
+                # Return the summary data as a typed schema
+                return TSDBPeriodSummary(
+                    metrics=attrs.get("metrics", {}),
+                    total_tokens=attrs.get("total_tokens", 0),
+                    total_cost_cents=attrs.get("total_cost_cents", 0),
+                    total_carbon_grams=attrs.get("total_carbon_grams", 0),
+                    total_energy_kwh=attrs.get("total_energy_kwh", 0),
+                    action_counts=attrs.get("action_counts", {}),
+                    source_node_count=attrs.get("source_node_count", 0),
+                    period_start=attrs.get("period_start", period_start.isoformat()),
+                    period_end=attrs.get("period_end", period_end.isoformat()),
+                    period_label=attrs.get("period_label", ""),
+                    conversations=attrs.get("conversations", []),
+                    traces=attrs.get("traces", []),
+                    audits=attrs.get("audits", []),
+                    tasks=attrs.get("tasks", []),
+                    memories=attrs.get("memories", [])
+                )
             return None
         except Exception as e:
             logger.error(f"Error getting summary for period: {e}")
@@ -894,4 +896,4 @@ class TSDBConsolidationService(BaseGraphService):
     
     def get_service_type(self) -> ServiceType:
         """Get the service type."""
-        return ServiceType.TSDB_CONSOLIDATION
+        return ServiceType.TELEMETRY

@@ -424,12 +424,12 @@ async def test_tsdb_service_get_summary_for_period(tsdb_service, mock_memory_bus
     result = await tsdb_service.get_summary_for_period(period_start, period_end)
 
     assert result is not None
-    assert isinstance(result, dict)  # Method returns dict, not TSDBSummary
-    assert 'period_start' in result
-    assert 'source_node_count' in result
-    # The value might be nested or modified during serialization
-    # Just check it exists and is numeric
-    assert isinstance(result['source_node_count'], (int, float))
+    # Import the schema for type checking
+    from ciris_engine.schemas.services.graph.consolidation import TSDBPeriodSummary
+    assert isinstance(result, TSDBPeriodSummary)
+    assert result.period_start == period_start.isoformat()
+    assert result.period_end == period_end.isoformat()
+    assert isinstance(result.source_node_count, int)
 
 
 @pytest.mark.asyncio

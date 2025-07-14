@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Optional, Dict, List, Union, Any, TYPE_CHECKING
+from typing import Optional, Dict, List, Union, TYPE_CHECKING
 import json
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
@@ -51,16 +51,16 @@ logger = logging.getLogger(__name__)
 class DateTimeEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles datetime objects and Pydantic models."""
 
-    def default(self, obj: object) -> Any:
+    def default(self, obj: object) -> Union[str, dict, list, int, float, bool, None]:
         if isinstance(obj, datetime):
             return obj.isoformat()
         # Handle Pydantic models
         if hasattr(obj, 'model_dump'):
-            return obj.model_dump()
+            return obj.model_dump()  # type: ignore[no-any-return]
         # Handle any object with to_dict method
         if hasattr(obj, 'to_dict'):
-            return obj.to_dict()
-        return super().default(obj)
+            return obj.to_dict()  # type: ignore[no-any-return]
+        return super().default(obj)  # type: ignore[no-any-return]
 
 class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServiceProtocol):
     """Graph memory backed by the persistence database."""
@@ -120,8 +120,8 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
                 # Process secrets for all nodes
                 processed_nodes = []
                 for node in nodes:
-                    # Process attributes - always returns a dict
-                    processed_attrs: Dict[str, Any] = {}
+                    # Process attributes - convert to proper schema
+                    processed_attrs: Union[AnyNodeAttributes, GraphNodeAttributes, dict] = {}
                     if node.attributes:
                         processed_attrs = await self._process_secrets_for_recall(node.attributes, "recall")
                     
@@ -144,7 +144,8 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
                             
                             # Add edges to attributes
                             # processed_attrs is always a dict after _process_secrets_for_recall
-                            processed_attrs["_edges"] = edges_data
+                            if isinstance(processed_attrs, dict):
+                                processed_attrs["_edges"] = edges_data
                     
                     processed_node = GraphNode(
                         id=node.id,
@@ -209,7 +210,7 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
                             stored.attributes["_edges"] = edges_data
                         else:
                             # For typed attributes, we need to convert to dict first
-                            attrs_dict: Dict[str, Any] = stored.attributes.model_dump() if hasattr(stored.attributes, 'model_dump') else dict(stored.attributes) if stored.attributes else {}
+                            attrs_dict = stored.attributes.model_dump() if hasattr(stored.attributes, 'model_dump') else dict(stored.attributes) if stored.attributes else {}
                             attrs_dict["_edges"] = edges_data
                             stored = GraphNode(
                                 id=stored.id,
@@ -247,7 +248,7 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
                                             visited_nodes.add(connected_id)
                                             
                                             # Process secrets if needed
-                                            connected_processed_attrs: Dict[str, Any] = {}
+                                            connected_processed_attrs: Union[AnyNodeAttributes, GraphNodeAttributes, dict] = {}
                                             if connected_node.attributes:
                                                 connected_processed_attrs = await self._process_secrets_for_recall(connected_node.attributes, "recall")
                                             
@@ -266,7 +267,8 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
                                                     edges_data.append(edge_dict)
                                                 
                                                 # Add edges to processed attributes dict
-                                                connected_processed_attrs["_edges"] = edges_data
+                                                if isinstance(connected_processed_attrs, dict):
+                                                    connected_processed_attrs["_edges"] = edges_data
                                             
                                             # Create new node with processed attributes
                                             connected_node = GraphNode(
@@ -360,13 +362,13 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
             updated_at=node.updated_at
         )
 
-    async def _process_secrets_for_recall(self, attributes: Union[AnyNodeAttributes, GraphNodeAttributes, Dict[str, Any]], action_type: str) -> Dict[str, Any]:
+    async def _process_secrets_for_recall(self, attributes: Union[AnyNodeAttributes, GraphNodeAttributes, dict], action_type: str) -> dict:
         """Process secrets in recalled attributes for potential decryption."""
         if not attributes:
             return {}
 
         # Convert GraphNodeAttributes to dict if needed
-        attributes_dict: Dict[str, Any]
+        attributes_dict: dict
         if hasattr(attributes, 'model_dump'):
             attributes_dict = attributes.model_dump()
         elif hasattr(attributes, 'dict'):
@@ -405,13 +407,13 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
 
         return attributes_dict
 
-    async def _process_secrets_for_forget(self, attributes: Union[AnyNodeAttributes, GraphNodeAttributes, Dict[str, Any]]) -> None:
+    async def _process_secrets_for_forget(self, attributes: Union[AnyNodeAttributes, GraphNodeAttributes, dict]) -> None:
         """Clean up secrets when forgetting a node."""
         if not attributes:
             return
 
         # Convert GraphNodeAttributes to dict if needed
-        attributes_dict: Dict[str, Any]
+        attributes_dict: dict
         if hasattr(attributes, 'model_dump'):
             attributes_dict = attributes.model_dump()
         elif hasattr(attributes, 'dict'):

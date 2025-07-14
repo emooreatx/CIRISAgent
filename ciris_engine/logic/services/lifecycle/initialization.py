@@ -19,6 +19,7 @@ from ciris_engine.schemas.services.lifecycle.initialization import (
     InitializationStatus, InitializationVerification
 )
 from ciris_engine.schemas.services.operations import InitializationPhase
+from ciris_engine.schemas.services.core import ServiceCapabilities
 
 logger = logging.getLogger(__name__)
 
@@ -73,19 +74,28 @@ class InitializationService(BaseInfrastructureService, InitializationServiceProt
         # Check if time service is available
         return self.time_service is not None
 
-    def get_capabilities(self) -> "ServiceCapabilities":
+    def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities with custom metadata."""
-        # Get parent capabilities which includes infrastructure metadata
-        capabilities = super().get_capabilities()
+        # Get metadata dict from parent's _get_metadata()
+        service_metadata = self._get_metadata()
+        metadata_dict = service_metadata.model_dump() if isinstance(service_metadata, ServiceMetadata) else {}
         
-        # Add our specific metadata
-        capabilities.metadata.update({
+        # Add infrastructure-specific metadata from parent
+        metadata_dict.update({
+            "category": "infrastructure",
+            "critical": True,
             "description": "Manages system initialization coordination",
             "phases": [phase.value for phase in InitializationPhase],
             "supports_verification": True
         })
         
-        return capabilities
+        return ServiceCapabilities(
+            service_name=self.service_name,
+            actions=self._get_actions(),
+            version=self._version,
+            dependencies=list(self._dependencies),
+            metadata=metadata_dict
+        )
 
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """Collect initialization-specific metrics."""

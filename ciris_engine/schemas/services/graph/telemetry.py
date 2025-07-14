@@ -70,6 +70,27 @@ class ServiceCapabilities(BaseModel):
     node_type: str = Field(..., description="Primary node type managed")
     version: str = Field("1.0.0", description="Service version")
 
+class LLMUsageData(BaseModel):
+    """Structured LLM usage data to replace Dict[str, Any]."""
+    tokens_used: Optional[int] = Field(None, description="Total tokens used")
+    tokens_input: Optional[int] = Field(None, description="Input tokens")
+    tokens_output: Optional[int] = Field(None, description="Output tokens")
+    cost_cents: Optional[float] = Field(None, description="Cost in cents")
+    carbon_grams: Optional[float] = Field(None, description="Carbon emissions in grams")
+    energy_kwh: Optional[float] = Field(None, description="Energy usage in kWh")
+    model_used: Optional[str] = Field(None, description="Model name used")
+
+class TelemetryKwargs(BaseModel):
+    """Structured kwargs for telemetry operations."""
+    handler_name: Optional[str] = Field(None, description="Handler name for the operation")
+    trace_id: Optional[str] = Field(None, description="Trace ID for correlation")
+    parent_id: Optional[str] = Field(None, description="Parent operation ID")
+    user_id: Optional[str] = Field(None, description="User ID if applicable")
+    channel_id: Optional[str] = Field(None, description="Channel ID if applicable")
+    metadata: Dict[str, Union[str, int, float, bool]] = Field(
+        default_factory=dict, description="Additional metadata"
+    )
+
 
 __all__ = [
     "TelemetrySnapshotResult",
@@ -80,4 +101,6 @@ __all__ = [
     "TelemetryServiceStatus",
     "GraphQuery",
     "ServiceCapabilities",
+    "LLMUsageData",
+    "TelemetryKwargs",
 ]

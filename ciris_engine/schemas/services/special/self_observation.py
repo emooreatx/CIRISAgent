@@ -268,6 +268,54 @@ class ServiceImprovementReport(BaseModel):
     # Recommendations
     recommendations: List[str] = Field(default_factory=list, description="Future recommendations")
 
+# Additional schemas for replacing Dict[str, Any] usage
+
+class PatternInsight(BaseModel):
+    """Insight from pattern analysis."""
+    pattern_id: str = Field(..., description="Pattern identifier")
+    pattern_type: str = Field(..., description="Type of pattern")
+    description: str = Field(..., description="Pattern description")
+    confidence: float = Field(..., description="Confidence score 0-1")
+    occurrences: int = Field(..., description="Number of occurrences")
+    last_seen: datetime = Field(..., description="When last observed")
+    metadata: Dict[str, Union[str, int, float, bool]] = Field(
+        default_factory=dict, description="Additional pattern metadata"
+    )
+
+class LearningSummary(BaseModel):
+    """Summary of system learning progress."""
+    total_patterns: int = Field(0, description="Total patterns detected")
+    patterns_by_type: Dict[str, int] = Field(default_factory=dict, description="Patterns grouped by type")
+    action_frequencies: Dict[str, int] = Field(default_factory=dict, description="Action usage counts")
+    most_used_actions: List[str] = Field(default_factory=list, description="Top 5 most used actions")
+    least_used_actions: List[str] = Field(default_factory=list, description="Bottom 5 used actions")
+    insights_count: int = Field(0, description="Number of insights generated")
+    recent_insights: List[str] = Field(default_factory=list, description="Recent insight descriptions")
+    learning_rate: float = Field(0.0, description="Rate of new pattern detection")
+    recommendation: str = Field("continue", description="continue, review, pause")
+
+class PatternEffectiveness(BaseModel):
+    """Effectiveness metrics for a specific pattern."""
+    pattern_id: str = Field(..., description="Pattern identifier")
+    pattern_type: str = Field(..., description="Type of pattern")
+    times_applied: int = Field(0, description="Times pattern was applied")
+    success_rate: float = Field(0.0, description="Success rate 0-1")
+    average_improvement: float = Field(0.0, description="Average improvement %")
+    last_applied: Optional[datetime] = Field(None, description="When last applied")
+    recommendation: str = Field("monitor", description="monitor, apply, ignore")
+    confidence_score: float = Field(0.0, description="Confidence in effectiveness metrics")
+
+class AnalysisStatus(BaseModel):
+    """Current status of pattern analysis system."""
+    is_running: bool = Field(..., description="Whether analysis is active")
+    last_analysis: datetime = Field(..., description="When last analysis ran")
+    next_analysis_in_seconds: float = Field(..., description="Seconds until next analysis")
+    patterns_detected: int = Field(0, description="Total patterns detected")
+    insights_generated: int = Field(0, description="Total insights generated")
+    analysis_interval_seconds: float = Field(..., description="Current analysis interval")
+    error_count: int = Field(0, description="Number of analysis errors")
+    last_error: Optional[str] = Field(None, description="Last error message")
+
 # Re-export SystemSnapshot from runtime context
 
 __all__ = [
@@ -289,5 +337,9 @@ __all__ = [
     "PatternRecord",
     "PatternLibrarySummary",
     "ServiceImprovementReport",
+    "PatternInsight",
+    "LearningSummary",
+    "PatternEffectiveness",
+    "AnalysisStatus",
     "SystemSnapshot"
 ]

@@ -240,7 +240,7 @@ class ProtocolAnalyzer:
                                 # Runtime Service Protocols
                                 'LLMServiceProtocol', 'RuntimeControlServiceProtocol', 'TaskSchedulerServiceProtocol',
                                 # Tool Service Protocols
-                                'SecretsToolServiceProtocol', 'ToolServiceProtocol',
+                                'ToolServiceProtocol',
                                 # Bus-based Service Protocols (not standalone)
                                 'CommunicationServiceProtocol', 'MemoryServiceProtocol'
                             ]
@@ -254,10 +254,10 @@ class ProtocolAnalyzer:
                                     if isinstance(base, ast.Name):
                                         if base.id == 'ServiceProtocol':
                                             # Add standard ServiceProtocol methods
-                                            base_methods.update(['start', 'stop', 'get_capabilities', 'get_status', 'is_healthy'])
+                                            base_methods.update(['start', 'stop', 'get_capabilities', 'get_status', 'is_healthy', 'get_service_type'])
                                         elif base.id == 'GraphServiceProtocol':
                                             # GraphServiceProtocol inherits from ServiceProtocol
-                                            base_methods.update(['start', 'stop', 'get_capabilities', 'get_status', 'is_healthy'])
+                                            base_methods.update(['start', 'stop', 'get_capabilities', 'get_status', 'is_healthy', 'get_service_type'])
                                             # Plus its own methods
                                             base_methods.update(['store_in_graph', 'query_graph', 'get_node_type'])
                                 
@@ -293,6 +293,11 @@ class ProtocolAnalyzer:
             if protocol_name in protocols:
                 return protocols[protocol_name]
         
+        # Special case for tool services - they implement ToolServiceProtocol
+        if service_name.endswith("ToolService"):
+            if "ToolServiceProtocol" in protocols:
+                return protocols["ToolServiceProtocol"]
+        
         return None
     
     def _get_inherited_methods(self, base_class_name: str, search_paths: List[Path]) -> Set[str]:
@@ -302,10 +307,10 @@ class ProtocolAnalyzer:
         # Known base class methods
         if base_class_name == "BaseGraphService":
             methods.update(['store_in_graph', 'query_graph', 'get_node_type',
-                          'start', 'stop', 'get_capabilities', 'get_status', 'is_healthy',
+                          'start', 'stop', 'get_capabilities', 'get_status', 'is_healthy', 'get_service_type',
                           '_set_memory_bus', '_set_time_service'])
         elif base_class_name == "BaseService":
-            methods.update(['start', 'stop', 'get_capabilities', 'get_status', 'is_healthy'])
+            methods.update(['start', 'stop', 'get_capabilities', 'get_status', 'is_healthy', 'get_service_type'])
         
         # Try to find the base class definition
         for path in search_paths:

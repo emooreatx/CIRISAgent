@@ -1,12 +1,12 @@
 """Runtime control service for processor and adapter management."""
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, TYPE_CHECKING, Dict, Any, cast, Union
-from datetime import timezone
 
 if TYPE_CHECKING:
     from ciris_engine.logic.services.graph.config_service import GraphConfigService
     from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    from ciris_engine.logic.runtime.runtime_interface import RuntimeInterface
 
 from ciris_engine.protocols.services import RuntimeControlService as RuntimeControlServiceProtocol
 from ciris_engine.logic.runtime.adapter_manager import RuntimeAdapterManager
@@ -17,7 +17,7 @@ from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.services.core import ServiceStatus, ServiceCapabilities
 from ciris_engine.schemas.services.core.runtime import (
     ProcessorStatus, ProcessorQueueStatus, AdapterInfo, ConfigBackup,
-    ServiceHealthStatus, ServiceRegistryInfo, CircuitBreakerResetResult,
+    ServiceHealthStatus, CircuitBreakerResetResult,
     ServiceSelectionExplanation, RuntimeEvent, ConfigReloadResult,
     ProcessorControlResponse, AdapterOperationResponse, RuntimeStatusResponse,
     RuntimeStateSnapshot, ConfigSnapshot, ConfigOperationResponse, ConfigValidationResponse,
@@ -27,8 +27,8 @@ from ciris_engine.schemas.services.core.runtime import (
 
 from ciris_engine.schemas.services.runtime_control import (
     CircuitBreakerStatus, CircuitBreakerState, ConfigValueMap, ServicePriorityUpdateResponse,
-    CircuitBreakerResetResponse, ServiceRegistryInfoResponse, WAPublicKeyMap,
-    ConfigBackupData, ServiceProviderUpdate
+    CircuitBreakerResetResponse, ServiceRegistryInfoResponse, WAPublicKeyMap, ConfigBackupData,
+    ConfigBackupData, ServiceProviderUpdate, ServiceProviderInfo
 )
 
 from ciris_engine.protocols.services import TimeServiceProtocol
@@ -43,9 +43,9 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
 
     def __init__(
         self,
-        runtime: Optional[Any] = None,
+        runtime: Optional["RuntimeInterface"] = None,
         adapter_manager: Optional[RuntimeAdapterManager] = None,
-        config_manager: Optional[Any] = None,
+        config_manager: Optional["GraphConfigService"] = None,
         time_service: Optional[TimeServiceProtocol] = None
     ) -> None:
         # Always create a time service if not provided for BaseService
@@ -55,7 +55,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
         
         super().__init__(time_service=time_service)
         
-        self.runtime = runtime
+        self.runtime: Optional["RuntimeInterface"] = runtime
         self.adapter_manager = adapter_manager
         if not self.adapter_manager and runtime:
             self.adapter_manager = RuntimeAdapterManager(runtime, self._time_service)  # type: ignore[arg-type]
@@ -390,7 +390,13 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 return False
                 
             from cryptography.hazmat.primitives import serialization
+            from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
             public_key = serialization.load_pem_public_key(key_pem.encode('utf-8'))
+            
+            # Ensure it's an Ed25519 key
+            if not isinstance(public_key, Ed25519PublicKey):
+                logger.error(f"WA {command.wa_id} key is not Ed25519")
+                return False
 
             # Reconstruct signed data (canonical form)
             signed_data = "|".join([
@@ -473,7 +479,8 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             if self._time_service is None:
                 from ciris_engine.logic.services.lifecycle.time import TimeService
                 self._time_service = TimeService()
-            self.adapter_manager = RuntimeAdapterManager(self.runtime, self._time_service)
+            from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+            self.adapter_manager = RuntimeAdapterManager(cast(CIRISRuntime, self.runtime), self._time_service)
             logger.info("Lazy-initialized adapter_manager in load_adapter")
 
         if not self.adapter_manager:
@@ -512,7 +519,8 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             if self._time_service is None:
                 from ciris_engine.logic.services.lifecycle.time import TimeService
                 self._time_service = TimeService()
-            self.adapter_manager = RuntimeAdapterManager(self.runtime, self._time_service)
+            from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+            self.adapter_manager = RuntimeAdapterManager(cast(CIRISRuntime, self.runtime), self._time_service)
             logger.info("Lazy-initialized adapter_manager in unload_adapter")
 
         if not self.adapter_manager:
@@ -545,7 +553,8 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             if self._time_service is None:
                 from ciris_engine.logic.services.lifecycle.time import TimeService
                 self._time_service = TimeService()
-            self.adapter_manager = RuntimeAdapterManager(self.runtime, self._time_service)
+            from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+            self.adapter_manager = RuntimeAdapterManager(cast(CIRISRuntime, self.runtime), self._time_service)
             logger.info("Lazy-initialized adapter_manager in list_adapters")
         
         adapters_list = []
@@ -624,7 +633,8 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             if self._time_service is None:
                 from ciris_engine.logic.services.lifecycle.time import TimeService
                 self._time_service = TimeService()
-            self.adapter_manager = RuntimeAdapterManager(self.runtime, self._time_service)
+            from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+            self.adapter_manager = RuntimeAdapterManager(cast(CIRISRuntime, self.runtime), self._time_service)
             logger.info("Lazy-initialized adapter_manager in get_adapter_info")
         
         if not self.adapter_manager:
@@ -677,7 +687,10 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             if path:
                 config_node = await self._get_config_manager().get_config(path)
                 if config_node:
-                    config_value_map.set(path, config_node.value)
+                    # Extract actual value from ConfigValue wrapper
+                    actual_value = config_node.value.value
+                    if actual_value is not None:
+                        config_value_map.set(path, actual_value)
             else:
                 # list_configs returns Dict[str, Union[str, int, float, bool, List, Dict]]
                 all_configs = await self._get_config_manager().list_configs()
@@ -839,23 +852,31 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             # ConfigValue is a special type, need to extract the actual value
             backup_raw = backup_config.value
             
+            # Extract actual value from ConfigValue wrapper
+            backup_value = backup_raw.value if hasattr(backup_raw, 'value') else backup_raw
+            
             # Try to reconstruct ConfigBackupData
-            if isinstance(backup_raw, dict) and 'configs' in backup_raw:
-                backup_data = ConfigBackupData.from_config_value(backup_raw)
+            actual_backup: Dict[str, Union[str, int, float, bool, list, dict]]
+            if isinstance(backup_value, dict) and 'configs' in backup_value:
+                # Create ConfigBackupData from the stored dict
+                timestamp_str = backup_value.get('backup_timestamp')
+                if not isinstance(timestamp_str, str):
+                    raise ValueError("backup_timestamp must be a string")
+                    
+                backup_data = ConfigBackupData(
+                    configs=backup_value['configs'],
+                    backup_timestamp=datetime.fromisoformat(timestamp_str),
+                    backup_version=str(backup_value.get('backup_version', '1.0.0')),
+                    backup_by=str(backup_value.get('backup_by', 'RuntimeControlService'))
+                )
                 actual_backup = backup_data.configs
             else:
-                # Fallback to direct dict extraction
-                actual_backup: Dict[str, Union[str, int, float, bool, list, dict]] = {}
-                if hasattr(backup_raw, 'dict_value') and backup_raw.dict_value:
-                    actual_backup = backup_raw.dict_value
-                elif hasattr(backup_raw, 'to_dict'):
-                    actual_backup = backup_raw.to_dict()
+                # Fallback - try to use as direct config dict
+                if isinstance(backup_value, dict):
+                    # Filter out None values to match the expected type
+                    actual_backup = {k: v for k, v in backup_value.items() if v is not None}
                 else:
-                    # Try to convert directly
-                    try:
-                        actual_backup = dict(backup_raw) if backup_raw else {}
-                    except:
-                        raise ValueError("Cannot extract backup data from config")
+                    raise ValueError("Backup data is not in expected format")
             
             # Restore configs
             for key, value in actual_backup.items():
@@ -982,7 +1003,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             logger.error(f"Failed to get runtime snapshot: {e}")
             raise
 
-    async def _get_service_registry_info(self, handler: Optional[str] = None, service_type: Optional[str] = None) -> ServiceRegistryInfo:
+    async def _get_service_registry_info(self, handler: Optional[str] = None, service_type: Optional[str] = None) -> ServiceRegistryInfoResponse:
         """Get information about registered services in the service registry."""
         try:
             if not self.runtime or not hasattr(self.runtime, 'service_registry') or self.runtime.service_registry is None:
@@ -1000,17 +1021,23 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             # Convert the dict to ServiceRegistryInfoResponse
             if isinstance(info, dict):
                 # Extract handler services with full details
-                handlers_dict: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
+                handlers_dict: Dict[str, Dict[str, List[ServiceProviderInfo]]] = {}
                 for handler_name, services in info.get('handlers', {}).items():
-                    service_dict = {}
+                    service_dict: Dict[str, List[ServiceProviderInfo]] = {}
                     for service_type_name, providers in services.items():
-                        service_dict[service_type_name] = providers
+                        # Convert provider dicts to ServiceProviderInfo objects
+                        provider_infos = [ServiceProviderInfo(**p) for p in providers]
+                        service_dict[service_type_name] = provider_infos
                     handlers_dict[handler_name] = service_dict
                 
                 # Extract global services if present
-                global_services: Optional[Dict[str, List[Dict[str, Any]]]] = None
+                global_services: Optional[Dict[str, List[ServiceProviderInfo]]] = None
                 if 'global_services' in info:
-                    global_services = info['global_services']
+                    global_services_dict: Dict[str, List[ServiceProviderInfo]] = {}
+                    for service_type_name, providers in info['global_services'].items():
+                        provider_infos = [ServiceProviderInfo(**p) for p in providers]
+                        global_services_dict[service_type_name] = provider_infos
+                    global_services = global_services_dict
                 
                 return ServiceRegistryInfoResponse(
                     total_services=info.get('total_services', 0),
@@ -1576,12 +1603,19 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             "reset_circuit_breakers", "get_service_health_status"
         ]
     
-    def _get_metadata(self) -> Dict[str, Any]:
-        """Get service-specific metadata."""
-        return {
-            "description": "Runtime control and management service",
-            "features": ["processor_control", "adapter_management", "config_management", "health_monitoring"]
-        }
+    def get_capabilities(self) -> ServiceCapabilities:
+        """Get service capabilities with custom metadata."""
+        # Get base capabilities
+        capabilities = super().get_capabilities()
+        
+        # Add custom metadata
+        if capabilities.metadata is not None:
+            capabilities.metadata.update({
+                "description": "Runtime control and management service",
+                "features": ["processor_control", "adapter_management", "config_management", "health_monitoring"]
+            })
+        
+        return capabilities
 
     def get_status(self) -> ServiceStatus:
         """Get current service status."""
@@ -1598,12 +1632,13 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             last_health_check=self._last_health_check
         )
 
-    def _set_runtime(self, runtime: Any) -> None:
+    def _set_runtime(self, runtime: "RuntimeInterface") -> None:
         """Set the runtime reference after initialization (private method)."""
         self.runtime = runtime
         # If adapter manager exists, update its runtime reference too
         if self.adapter_manager:
-            self.adapter_manager.runtime = runtime
+            from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+            self.adapter_manager.runtime = cast(CIRISRuntime, runtime)
             # Re-register config listener with updated runtime
             self.adapter_manager._register_config_listener()
         logger.info("Runtime reference set in RuntimeControlService")

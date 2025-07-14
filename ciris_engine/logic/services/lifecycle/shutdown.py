@@ -13,6 +13,7 @@ from ciris_engine.protocols.services import ShutdownServiceProtocol
 from ciris_engine.logic.services.base_infrastructure_service import BaseInfrastructureService
 from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.services.metadata import ServiceMetadata
+from ciris_engine.schemas.services.core import ServiceCapabilities
 
 logger = logging.getLogger(__name__)
 
@@ -69,19 +70,28 @@ class ShutdownService(BaseInfrastructureService, ShutdownServiceProtocol):
         # ShutdownService has no dependencies
         return True
 
-    def get_capabilities(self) -> "ServiceCapabilities":
+    def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities with custom metadata."""
-        # Get parent capabilities which includes infrastructure metadata
-        capabilities = super().get_capabilities()
+        # Get metadata dict from parent's _get_metadata()
+        service_metadata = self._get_metadata()
+        metadata_dict = service_metadata.model_dump() if isinstance(service_metadata, ServiceMetadata) else {}
         
-        # Add our specific metadata
-        capabilities.metadata.update({
+        # Add infrastructure-specific metadata from parent
+        metadata_dict.update({
+            "category": "infrastructure",
+            "critical": True,
             "description": "Coordinates graceful system shutdown",
             "supports_emergency": True,
             "max_handlers": 100
         })
         
-        return capabilities
+        return ServiceCapabilities(
+            service_name=self.service_name,
+            actions=self._get_actions(),
+            version=self._version,
+            dependencies=list(self._dependencies),
+            metadata=metadata_dict
+        )
 
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """Collect shutdown-specific metrics."""

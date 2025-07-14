@@ -54,17 +54,14 @@ class ResourceMonitorService(BaseScheduledService, ResourceMonitorServiceProtoco
         self.db_path = db_path
         self.snapshot = ResourceSnapshot()
         self.signal_bus = signal_bus or ResourceSignalBus()
+        # Make time_service a direct attribute to match protocol
+        self.time_service: Optional[TimeServiceProtocol] = time_service
 
         self._token_history: Deque[Tuple[datetime, int]] = deque(maxlen=86400)
         self._cpu_history: Deque[float] = deque(maxlen=60)
         self._last_action_time: Dict[str, datetime] = {}
         self._process = psutil.Process()
         self._monitoring = False  # For backward compatibility with tests
-    
-    @property
-    def time_service(self) -> Optional[TimeServiceProtocol]:
-        """Backward compatibility property for time service access."""
-        return self._time_service
     
     def get_service_type(self) -> ServiceType:
         """Get service type."""
@@ -126,7 +123,7 @@ class ResourceMonitorService(BaseScheduledService, ResourceMonitorServiceProtoco
             self.snapshot.disk_free_mb = 0
             self.snapshot.disk_used_mb = 0
 
-        now = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
+        now = self.time_service.now() if self.time_service else datetime.now(timezone.utc)
         hour_ago = now - timedelta(hours=1)
         day_ago = now - timedelta(days=1)
         self.snapshot.tokens_used_hour = sum(tokens for ts, tokens in self._token_history if ts > hour_ago)
@@ -156,7 +153,7 @@ class ResourceMonitorService(BaseScheduledService, ResourceMonitorServiceProtoco
 
     async def _take_action(self, resource: str, config: ResourceLimit, level: str) -> None:
         last_action = self._last_action_time.get(f"{resource}_{level}")
-        current_time = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
+        current_time = self.time_service.now() if self.time_service else datetime.now(timezone.utc)
         if last_action and current_time - last_action < timedelta(seconds=config.cooldown_seconds):
             return
         action = config.action
@@ -172,7 +169,7 @@ class ResourceMonitorService(BaseScheduledService, ResourceMonitorServiceProtoco
         self._last_action_time[f"{resource}_{level}"] = current_time
 
     async def record_tokens(self, tokens: int) -> None:
-        current_time = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
+        current_time = self.time_service.now() if self.time_service else datetime.now(timezone.utc)
         self._token_history.append((current_time, tokens))
 
     async def check_available(self, resource: str, amount: int = 0) -> bool:

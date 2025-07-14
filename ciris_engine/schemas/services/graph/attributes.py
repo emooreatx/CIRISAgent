@@ -4,7 +4,7 @@ Typed node attribute schemas for graph services.
 Replaces Dict[str, Any] attribute storage in graph services with strongly-typed schemas.
 These schemas ensure type safety across all graph node operations.
 """
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Type, cast
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -254,7 +254,7 @@ def create_node_attributes(
         data["created_by"] = created_by
     
     # Map node types to attribute classes
-    type_map = {
+    type_map: Dict[str, Type[AnyNodeAttributes]] = {
         "memory": MemoryNodeAttributes,
         "config": ConfigNodeAttributes,
         "telemetry": TelemetryNodeAttributes,
@@ -266,6 +266,7 @@ def create_node_attributes(
         # Fall back to base attributes for unknown types
         return NodeAttributes(**data)
     
+    # Type is inferred correctly from the typed dictionary
     return attr_class(**data)
 
 

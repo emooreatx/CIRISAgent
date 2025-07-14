@@ -1,0 +1,24 @@
+INFO: Loaded 106 names from vulture whitelist
+INFO: 🔍 Starting CIRIS compliance analysis...
+INFO: Scanning codebase for definitions and references...
+🔍 CIRIS Compliance Analysis
+==================================================
+
+📊 MyPy Type Safety:
+   Total Errors: 9
+   Error Categories:
+     • other: 9 errors
+
+🏗️ Schema Compliance:
+   Issues Found: 1543
+
+🔌 Protocol Compliance:
+   Issues Found: 9
+
+🧹 Code Quality:
+   Unused Code Items: 2125
+
+💡 Recommendations:
+   • Schema compliance issues found. Update code to use current v1 schemas.
+   • Protocol violations detected. Refactor to use protocol interfaces only.
+   • Significant unused code detected. Consider cleanup to improve maintainability.

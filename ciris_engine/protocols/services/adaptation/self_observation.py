@@ -20,6 +20,9 @@ if TYPE_CHECKING:
         ActionFrequency, TemporalPattern
     )
     from ciris_engine.schemas.services.special.self_observation import (
+        PatternInsight, LearningSummary, PatternEffectiveness, AnalysisStatus
+    )
+    from ciris_engine.schemas.services.special.self_observation import (
         ObservationCycleResult, ObservationStatus, ReviewOutcome,
         ObservabilityAnalysis, ObservationEffectiveness,
         PatternLibrarySummary, ServiceImprovementReport
@@ -97,7 +100,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
     async def get_pattern_insights(
         self,
         limit: int = 50
-    ) -> List[dict]:
+    ) -> List["PatternInsight"]:
         """
         Get stored pattern insights.
 
@@ -108,19 +111,19 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
             limit: Maximum insights to return
 
         Returns:
-            List of insight nodes from graph memory
+            List of PatternInsight objects from graph memory
         """
         ...
 
     @abstractmethod
     async def get_learning_summary(
         self
-    ) -> dict:
+    ) -> "LearningSummary":
         """
         Get summary of what the system has learned.
 
         Returns:
-            Summary of patterns, frequencies, and adaptations
+            LearningSummary object with patterns, frequencies, and adaptations
         """
         ...
 
@@ -148,7 +151,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
     async def get_pattern_effectiveness(
         self,
         pattern_id: str
-    ) -> Optional[dict]:
+    ) -> Optional["PatternEffectiveness"]:
         """
         Get effectiveness metrics for a specific pattern.
 
@@ -158,7 +161,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
             pattern_id: ID of pattern to check
 
         Returns:
-            Effectiveness metrics if available
+            PatternEffectiveness object if available
         """
         ...
 
@@ -167,12 +170,12 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
     @abstractmethod
     async def get_analysis_status(
         self
-    ) -> dict:
+    ) -> "AnalysisStatus":
         """
         Get current analysis status.
 
         Returns:
-            Status including last analysis time, patterns detected, etc.
+            AnalysisStatus object including last analysis time, patterns detected, etc.
         """
         ...
 

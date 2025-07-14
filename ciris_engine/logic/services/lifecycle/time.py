@@ -16,6 +16,7 @@ from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.logic.services.base_infrastructure_service import BaseInfrastructureService
 from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.services.metadata import ServiceMetadata
+from ciris_engine.schemas.services.core import ServiceCapabilities
 
 class TimeService(BaseInfrastructureService, TimeServiceProtocol):
     """Secure time service implementation."""
@@ -41,17 +42,26 @@ class TimeService(BaseInfrastructureService, TimeServiceProtocol):
         # TimeService has no dependencies
         return True
 
-    def get_capabilities(self) -> "ServiceCapabilities":
+    def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities with custom metadata."""
-        # Get parent capabilities which includes infrastructure metadata
-        capabilities = super().get_capabilities()
+        # Get metadata dict from parent's _get_metadata()
+        service_metadata = self._get_metadata()
+        metadata_dict = service_metadata.model_dump() if isinstance(service_metadata, ServiceMetadata) else {}
         
-        # Add our specific metadata
-        capabilities.metadata.update({
+        # Add infrastructure-specific metadata from parent
+        metadata_dict.update({
+            "category": "infrastructure",
+            "critical": True,
             "description": "Provides consistent UTC time operations"
         })
         
-        return capabilities
+        return ServiceCapabilities(
+            service_name=self.service_name,
+            actions=self._get_actions(),
+            version=self._version,
+            dependencies=list(self._dependencies),
+            metadata=metadata_dict
+        )
 
     # Override _now to prevent circular dependency
     def _now(self) -> datetime:

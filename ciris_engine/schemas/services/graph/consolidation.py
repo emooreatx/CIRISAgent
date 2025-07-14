@@ -138,11 +138,41 @@ class ParticipantData(BaseModel):
     author_name: Optional[str] = Field(None, description="Participant name")
 
 
+class TSDBPeriodSummary(BaseModel):
+    """Summary data for a TSDB consolidation period."""
+    
+    # Metrics data
+    metrics: Dict[str, Any] = Field(default_factory=dict, description="Aggregated metrics for the period")
+    
+    # Resource usage totals
+    total_tokens: int = Field(default=0, description="Total tokens used in period")
+    total_cost_cents: int = Field(default=0, description="Total cost in cents for period")
+    total_carbon_grams: float = Field(default=0.0, description="Total carbon emissions in grams")
+    total_energy_kwh: float = Field(default=0.0, description="Total energy usage in kWh")
+    
+    # Action counts
+    action_counts: Dict[str, int] = Field(default_factory=dict, description="Count of actions by type")
+    source_node_count: int = Field(default=0, description="Number of source nodes consolidated")
+    
+    # Period information
+    period_start: str = Field(..., description="ISO formatted period start time")
+    period_end: str = Field(..., description="ISO formatted period end time")
+    period_label: str = Field(..., description="Human-readable period label")
+    
+    # Consolidated data lists
+    conversations: List[Dict[str, Any]] = Field(default_factory=list, description="Consolidated conversation data")
+    traces: List[Dict[str, Any]] = Field(default_factory=list, description="Consolidated trace data")
+    audits: List[Dict[str, Any]] = Field(default_factory=list, description="Consolidated audit data")
+    tasks: List[Dict[str, Any]] = Field(default_factory=list, description="Consolidated task data")
+    memories: List[Dict[str, Any]] = Field(default_factory=list, description="Consolidated memory data")
+
+
 __all__ = [
     "ServiceInteractionData",
     "MetricCorrelationData", 
     "TraceSpanData",
     "TaskCorrelationData",
     "ConversationEntry",
-    "ParticipantData"
+    "ParticipantData",
+    "TSDBPeriodSummary"
 ]

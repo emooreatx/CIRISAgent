@@ -351,7 +351,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
 
         # Generate new observer WA
         private_key, public_key = self.generate_keypair()
-        timestamp = self._time_service.now()
+        timestamp = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
         wa_id = self._generate_wa_id(timestamp)
         jwt_kid = f"wa-jwt-{wa_id[-6:].lower()}"
 
@@ -464,7 +464,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
 
     async def update_last_login(self, wa_id: str) -> None:
         """Update last login timestamp."""
-        await self.update_wa(wa_id, last_login=self._time_service.now())
+        await self.update_wa(wa_id, last_login=self._time_service.now() if self._time_service else datetime.now(timezone.utc))
 
     # JWTService Protocol Implementation
 
@@ -480,7 +480,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             'sub_type': JWTSubType.ANON.value,
             'name': wa.name,
             'scope': wa.scopes,
-            'iat': int(self._time_service.timestamp()),
+            'iat': int(self._time_service.timestamp() if self._time_service else datetime.now(timezone.utc).timestamp()),
         }
 
         # For observer tokens, use adapter_id and make them long-lived (no expiry)
@@ -489,11 +489,11 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             # No expiry for observer tokens by default
             if ttl > 0:
                 # Only add expiry if explicitly requested
-                payload['exp'] = int(self._time_service.timestamp()) + ttl
+                payload['exp'] = int(self._time_service.timestamp() if self._time_service else datetime.now(timezone.utc).timestamp()) + ttl
         else:
             # For non-observer tokens, include channel and expiry
             payload['channel'] = channel_id
-            payload['exp'] = int(self._time_service.timestamp()) + ttl
+            payload['exp'] = int(self._time_service.timestamp() if self._time_service else datetime.now(timezone.utc).timestamp()) + ttl
 
         return jwt.encode(
             payload,
@@ -504,7 +504,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
 
     def create_gateway_token(self, wa: WACertificate, expires_hours: int = 8) -> str:
         """Create gateway-signed token (OAuth/password auth)."""
-        now = int(self._time_service.timestamp())
+        now = int(self._time_service.timestamp() if self._time_service else datetime.now(timezone.utc).timestamp())
 
         payload = {
             'sub': wa.wa_id,
@@ -527,7 +527,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
 
     def _create_authority_token(self, wa: WACertificate, private_key: bytes) -> str:
         """Create WA-signed authority token."""
-        now = int(self._time_service.timestamp())
+        now = int(self._time_service.timestamp() if self._time_service else datetime.now(timezone.utc).timestamp())
 
         payload = {
             'sub': wa.wa_id,
@@ -765,7 +765,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
                 wa_id=wa_id,
                 name=wa.name,
                 role=wa.role.value,
-                expires_at=datetime.fromtimestamp(claims.get("exp", 0), tz=timezone.utc) if hasattr(claims, 'get') else self._time_service.now(),
+                expires_at=datetime.fromtimestamp(claims.get("exp", 0), tz=timezone.utc) if hasattr(claims, 'get') else (self._time_service.now() if self._time_service else datetime.now(timezone.utc)),
                 permissions=wa.scopes,
                 metadata={}
             )
@@ -803,7 +803,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             wa_name = wa.name if wa else context.wa_id
             
             # Use expiration from token, or current time as fallback
-            expires_at = expiration if expiration else self._time_service.now()
+            expires_at = expiration if expiration else (self._time_service.now() if self._time_service else datetime.now(timezone.utc))
 
             return TokenVerification(
                 valid=True,
@@ -831,7 +831,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
         private_key, public_key = self.generate_keypair()
 
         # Create certificate
-        timestamp = self._time_service.now()
+        timestamp = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
         wa_id = self._generate_wa_id(timestamp)
         jwt_kid = f"wa-jwt-{wa_id[-6:].lower()}"
 
@@ -1072,7 +1072,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
         system_key_path.chmod(0o600)
 
         # Create the system WA certificate
-        timestamp = self._time_service.now()
+        timestamp = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
         wa_id = self._generate_wa_id(timestamp)
         jwt_kid = f"wa-jwt-{wa_id[-6:].lower()}"
 
@@ -1153,7 +1153,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
 
         canonical_json = json.dumps(task_data, sort_keys=True, separators=(',', ':'))
         signature = self.sign_data(canonical_json.encode('utf-8'), private_key)
-        signed_at = self._time_service.now().isoformat()
+        signed_at = (self._time_service.now() if self._time_service else datetime.now(timezone.utc)).isoformat()
 
         return signature, signed_at
 

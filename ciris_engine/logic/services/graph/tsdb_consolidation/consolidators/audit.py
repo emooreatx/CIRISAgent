@@ -302,7 +302,7 @@ class AuditConsolidator:
                             'event_type': attrs.get('event_type', 'unknown'),
                             'severity': severity,
                             'target_entity': attrs.get('target_entity'),
-                            'is_security': is_security,
+                            'is_security': str(is_security),
                             'timestamp': node.updated_at.isoformat() if node.updated_at else None
                         }
                     ))

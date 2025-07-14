@@ -5,7 +5,7 @@ This service consolidates time-series telemetry data into permanent summaries
 for long-term memory (1000+ years).
 """
 
-from typing import Protocol, runtime_checkable, Optional, TYPE_CHECKING, Dict, Any
+from typing import Protocol, runtime_checkable, Optional, TYPE_CHECKING
 from datetime import datetime
 from abc import abstractmethod
 
@@ -14,6 +14,7 @@ from ...runtime.base import GraphServiceProtocol
 if TYPE_CHECKING:
     from ciris_engine.schemas.services.graph_core import NodeType
     from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+    from ciris_engine.schemas.services.graph.consolidation import TSDBPeriodSummary
 
 @runtime_checkable
 class TSDBConsolidationServiceProtocol(GraphServiceProtocol, Protocol):
@@ -70,7 +71,7 @@ class TSDBConsolidationServiceProtocol(GraphServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    async def get_summary_for_period(self, period_start: datetime, period_end: datetime) -> Optional[Dict[str, Any]]:
+    async def get_summary_for_period(self, period_start: datetime, period_end: datetime) -> Optional["TSDBPeriodSummary"]:
         """Get the summary for a specific period.
 
         Args:
@@ -78,19 +79,6 @@ class TSDBConsolidationServiceProtocol(GraphServiceProtocol, Protocol):
             period_end: End of the period
 
         Returns:
-            Dictionary containing summary data if found, including:
-            - metrics: Aggregated metrics for the period
-            - total_tokens: Total tokens used
-            - total_cost_cents: Total cost in cents
-            - total_carbon_grams: Total carbon emissions
-            - total_energy_kwh: Total energy consumption
-            - action_counts: Counts by action type
-            - source_node_count: Number of source nodes
-            - period_start/end/label: Period information
-            - conversations: Conversation summaries
-            - traces: Trace summaries
-            - audits: Audit summaries
-            - tasks: Task summaries
-            - memories: Memory references
+            TSDBPeriodSummary containing summary data if found, or None if not found
         """
         ...
