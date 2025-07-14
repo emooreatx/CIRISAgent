@@ -6,6 +6,7 @@ import hashlib
 import secrets
 import base64
 import aiofiles
+import bcrypt
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass
@@ -307,9 +308,29 @@ class APIAuthService:
     # ========== User Management Methods ==========
     
     def _hash_password(self, password: str) -> str:
-        """Hash a password for storage."""
-        # In production, use bcrypt or argon2
-        return hashlib.sha256(password.encode()).hexdigest()
+        """Hash a password for storage using bcrypt."""
+        # Generate a salt and hash the password
+        salt = bcrypt.gensalt(rounds=12)  # 12 rounds is a good default
+        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+        return hashed.decode('utf-8')
+    
+    def _verify_password(self, password: str, password_hash: str) -> bool:
+        """Verify a password against its hash."""
+        try:
+            return bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
+        except Exception:
+            # If verification fails (e.g., invalid hash format), return False
+            return False
+    
+    async def verify_user_password(self, username: str, password: str) -> Optional[User]:
+        """Verify a user's password and return the user if valid."""
+        user = await self.get_user_by_username(username)
+        if not user:
+            return None
+        
+        if self._verify_password(password, user.password_hash):
+            return user
+        return None
     
     async def get_user_by_username(self, username: str) -> Optional[User]:
         """Get a user by username."""
@@ -572,8 +593,7 @@ class APIAuthService:
         
         # Verify current password unless skip_current_check is True
         if not skip_current_check and current_password:
-            current_hash = self._hash_password(current_password)
-            if user.password_hash != current_hash:
+            if not self._verify_password(current_password, user.password_hash):
                 return False
         
         # Update password

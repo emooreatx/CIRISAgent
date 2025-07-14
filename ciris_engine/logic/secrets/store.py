@@ -199,7 +199,7 @@ class SecretsStore:
                 return secret_record
 
             except Exception as e:  # pragma: no cover - error path
-                logger.error(f"Failed to store secret {secret.secret_uuid}: {e}")
+                logger.error(f"Failed to store secret {secret.secret_uuid}: {type(e).__name__}")
                 await self._log_access(
                     secret.secret_uuid,
                     "STORE",
@@ -281,7 +281,7 @@ class SecretsStore:
                 return secret_record
 
             except Exception as e:  # pragma: no cover - error path
-                logger.error(f"Failed to retrieve secret {secret_uuid}: {e}")
+                logger.error(f"Failed to retrieve secret {secret_uuid}: {type(e).__name__}")
                 await self._log_access(
                     secret_uuid, "VIEW", "system", "retrieve", False, str(e)
                 )
@@ -304,7 +304,7 @@ class SecretsStore:
                 secret_record.nonce
             )
         except Exception as e:  # pragma: no cover - error path
-            logger.error(f"Failed to decrypt secret {secret_record.secret_uuid}: {e}")
+            logger.error(f"Failed to decrypt secret {secret_record.secret_uuid}: {type(e).__name__}")
             return None
 
     async def delete_secret(self, secret_uuid: str) -> bool:
@@ -336,7 +336,7 @@ class SecretsStore:
                 return deleted
 
             except Exception as e:  # pragma: no cover - error path
-                logger.error(f"Failed to delete secret {secret_uuid}: {e}")
+                logger.error(f"Failed to delete secret {secret_uuid}: {type(e).__name__}")
                 await self._log_access(
                     secret_uuid, "DELETE", "system", "Secret deletion", False, str(e)
                 )
@@ -388,7 +388,7 @@ class SecretsStore:
             return secrets
 
         except Exception as e:  # pragma: no cover - error path
-            logger.error(f"Failed to list secrets: {e}")
+            logger.error(f"Failed to list secrets: {type(e).__name__}")
             return []
 
     async def list_all_secrets(self) -> List[SecretReference]:
@@ -480,7 +480,7 @@ class SecretsStore:
                 conn.commit()
 
         except Exception as e:  # pragma: no cover - error path
-            logger.error(f"Failed to log secret access: {e}")
+            logger.error(f"Failed to log secret access: {type(e).__name__}")
 
     # Implement missing SecretsEncryptionInterface methods by delegating to encryption instance
     def encrypt_secret(self, value: str) -> Tuple[bytes, bytes, bytes]:
@@ -535,7 +535,7 @@ class SecretsStore:
                         'success': bool(row[9])
                     })
         except Exception as e:  # pragma: no cover - error path
-            logger.error(f"Failed to retrieve access logs: {e}")
+            logger.error(f"Failed to retrieve access logs: {type(e).__name__}")
         return logs
 
     async def reencrypt_all(self, new_encryption_key: bytes) -> bool:
@@ -566,7 +566,7 @@ class SecretsStore:
                     updated_secrets.append((new_encrypted_value, new_salt, new_nonce, secret_uuid))
 
                 except Exception as decrypt_error:
-                    logger.error(f"Failed to re-encrypt secret {secret_uuid}: {decrypt_error}")
+                    logger.error(f"Failed to re-encrypt secret {secret_uuid}: {type(decrypt_error).__name__}")
                     return False
 
             # Update all secrets in database
@@ -584,7 +584,7 @@ class SecretsStore:
             return True
 
         except Exception as e:
-            logger.error(f"Failed to re-encrypt secrets: {e}")
+            logger.error(f"Failed to re-encrypt secrets: {type(e).__name__}")
             return False
 
     async def update_access_log(self, log_entry: Any) -> None:

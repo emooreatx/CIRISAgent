@@ -306,7 +306,7 @@ class LLMBus(BaseBus[LLMService]):
             return best_service or services[0]
 
         elif self.distribution_strategy == DistributionStrategy.RANDOM:
-            # Random selection
+            # Random selection for load distribution (not cryptographic)
             import random
             return random.choice(services)
 

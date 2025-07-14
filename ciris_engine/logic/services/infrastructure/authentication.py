@@ -19,6 +19,8 @@ import jwt
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.backends import default_backend
 from cryptography.exceptions import InvalidSignature
 
 from ciris_engine.schemas.services.authority_core import (
@@ -130,17 +132,108 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             pubkey_str += '=' * padding
         return base64.urlsafe_b64decode(pubkey_str)
 
+    def _derive_encryption_key(self) -> bytes:
+        """Derive an encryption key from machine-specific data."""
+        # Use machine ID and hostname as key material
+        machine_id = ""
+        hostname = ""
+        
+        try:
+            # Try to get machine ID (Linux)
+            machine_id_path = Path("/etc/machine-id")
+            if machine_id_path.exists():
+                machine_id = machine_id_path.read_text().strip()
+            else:
+                # Fallback to hostname
+                import socket
+                hostname = socket.gethostname()
+        except Exception:
+            hostname = "default"
+        
+        # Combine with a fixed salt for this purpose
+        key_material = f"{machine_id}:{hostname}:gateway-secret-encryption".encode()
+        
+        # Use PBKDF2 to derive a 32-byte key
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=b"ciris-gateway-encryption-salt",
+            iterations=100000,
+            backend=default_backend()
+        )
+        return kdf.derive(key_material)
+    
+    def _encrypt_secret(self, secret: bytes) -> bytes:
+        """Encrypt a secret using AES-GCM."""
+        key = self._derive_encryption_key()
+        
+        # Generate a random 96-bit nonce for GCM
+        nonce = os.urandom(12)
+        
+        # Create cipher
+        cipher = Cipher(
+            algorithms.AES(key),
+            modes.GCM(nonce),
+            backend=default_backend()
+        )
+        encryptor = cipher.encryptor()
+        
+        # Encrypt and get tag
+        ciphertext = encryptor.update(secret) + encryptor.finalize()
+        
+        # Return nonce + ciphertext + tag
+        return nonce + ciphertext + encryptor.tag
+    
+    def _decrypt_secret(self, encrypted: bytes) -> bytes:
+        """Decrypt a secret using AES-GCM."""
+        key = self._derive_encryption_key()
+        
+        # Extract components
+        nonce = encrypted[:12]
+        tag = encrypted[-16:]
+        ciphertext = encrypted[12:-16]
+        
+        # Create cipher
+        cipher = Cipher(
+            algorithms.AES(key),
+            modes.GCM(nonce, tag),
+            backend=default_backend()
+        )
+        decryptor = cipher.decryptor()
+        
+        # Decrypt
+        return decryptor.update(ciphertext) + decryptor.finalize()
+
     def _get_or_create_gateway_secret(self) -> bytes:
         """Get or create the gateway secret for JWT signing."""
         secret_path = self.key_dir / "gateway.secret"
+        encrypted_path = self.key_dir / "gateway.secret.enc"
 
+        # Try to load existing encrypted secret first
+        if encrypted_path.exists():
+            try:
+                encrypted = encrypted_path.read_bytes()
+                return self._decrypt_secret(encrypted)
+            except Exception as e:
+                logger.warning(f"Failed to decrypt gateway secret: {type(e).__name__}")
+                # Fall through to regenerate
+        
+        # Check for legacy unencrypted secret
         if secret_path.exists():
-            return secret_path.read_bytes()
+            # Read and encrypt the existing secret
+            secret = secret_path.read_bytes()
+            encrypted = self._encrypt_secret(secret)
+            encrypted_path.write_bytes(encrypted)
+            encrypted_path.chmod(0o600)
+            # Remove the unencrypted version
+            secret_path.unlink()
+            return secret
 
         # Generate new 32-byte secret
         secret = secrets.token_bytes(32)
-        secret_path.write_bytes(secret)
-        secret_path.chmod(0o600)
+        encrypted = self._encrypt_secret(secret)
+        encrypted_path.write_bytes(encrypted)
+        encrypted_path.chmod(0o600)
         return secret
 
     def _init_database(self) -> None:
