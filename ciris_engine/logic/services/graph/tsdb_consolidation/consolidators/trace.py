@@ -6,7 +6,7 @@ Consolidates TRACE_SPAN correlations into TraceSummaryNode.
 
 import logging
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Tuple, Set, TypedDict
+from typing import List, Dict, Optional, Tuple, Set, TypedDict, Any
 from collections import defaultdict
 
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
@@ -28,7 +28,7 @@ class TaskSummaryData(TypedDict, total=False):
     """Summary data for a task (using total=False for optional fields)."""
     task_id: str
     status: str
-    thoughts: List[Dict[str, Any]]  # List of thought info dicts
+    thoughts: List[dict]  # List of thought info dicts
     start_time: datetime
     end_time: datetime
     handlers_selected: List[str]
@@ -73,7 +73,7 @@ class TraceConsolidator:
         logger.info(f"Consolidating {len(trace_spans)} trace spans")
         
         # Initialize tracking structures
-        task_summaries: Dict[str, Dict[str, Any]] = {}  # task_id -> summary data
+        task_summaries: Dict[str, dict] = {}  # task_id -> summary data
         unique_tasks: Set[str] = set()
         unique_thoughts: Set[str] = set()
         tasks_by_status: Dict[str, int] = defaultdict(int)
@@ -123,12 +123,16 @@ class TraceConsolidator:
                 unique_thoughts.add(thought_id)
                 
                 # Track thought type
-                thought_type = tags.get('thought_type', 'unknown')
+                thought_type = 'unknown'
+                if tags and hasattr(tags, 'additional_tags'):
+                    thought_type = tags.additional_tags.get('thought_type', 'unknown')
                 thoughts_by_type[thought_type] += 1
                 
                 # Track handler selection
                 if component_type == 'handler' and task_id:
-                    action_type = tags.get('action_type', 'unknown')
+                    action_type = 'unknown'
+                    if tags and hasattr(tags, 'additional_tags'):
+                        action_type = tags.additional_tags.get('action_type', 'unknown')
                     handler_actions[action_type] += 1
                     
                     if task_id in task_summaries:
@@ -140,8 +144,8 @@ class TraceConsolidator:
                         })
             
             # Track task completion
-            if task_id and tags.get('task_status'):
-                status = tags['task_status']
+            if task_id and tags and hasattr(tags, 'additional_tags') and tags.additional_tags.get('task_status'):
+                status = tags.additional_tags['task_status']
                 tasks_by_status[status] += 1
                 if task_id in task_summaries:
                     task_summaries[task_id]['status'] = status
@@ -163,13 +167,19 @@ class TraceConsolidator:
             
             # Track guardrail violations
             if component_type == 'guardrail':
-                guardrail_type = tags.get('guardrail_type', 'unknown')
-                if tags.get('violation') == 'true':
+                guardrail_type = 'unknown'
+                violation = False
+                if tags and hasattr(tags, 'additional_tags'):
+                    guardrail_type = tags.additional_tags.get('guardrail_type', 'unknown')
+                    violation = tags.additional_tags.get('violation') == 'true'
+                if violation:
                     guardrail_violations[guardrail_type] += 1
             
             # Track DMA decisions
             if component_type == 'dma':
-                dma_type = tags.get('dma_type', 'unknown')
+                dma_type = 'unknown'
+                if tags and hasattr(tags, 'additional_tags'):
+                    dma_type = tags.additional_tags.get('dma_type', 'unknown')
                 dma_decisions[dma_type] += 1
         
         # Calculate latency statistics
@@ -279,7 +289,7 @@ class TraceConsolidator:
         self,
         summary_node: GraphNode,
         trace_spans: List[TraceSpanData]
-    ) -> List[Tuple[GraphNode, GraphNode, str, Dict[str, Any]]]:
+    ) -> List[Tuple[GraphNode, GraphNode, str, dict]]:
         """
         Get edges to create for trace summary.
         

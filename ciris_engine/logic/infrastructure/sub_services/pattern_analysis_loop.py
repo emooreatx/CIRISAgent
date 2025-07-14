@@ -124,7 +124,7 @@ class PatternAnalysisLoop(BaseScheduledService):
                     status="not_due",
                     patterns_detected=0,
                     insights_stored=0,
-                    timestamp=self._time_service.now() if self._time_service else datetime.now(timezone.utc) if self._time_service else datetime.now(timezone.utc),
+                    timestamp=self._time_service.now() if self._time_service else datetime.now(timezone.utc),
                     next_analysis_in=self._analysis_interval_hours * 3600 - time_since_last.total_seconds()
                 )
 

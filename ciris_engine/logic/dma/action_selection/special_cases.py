@@ -5,6 +5,7 @@ from typing import Dict, Any, Optional
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.actions.parameters import PonderParams
 from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.schemas.dma.faculty import EnhancedDMAInputs
 
 logger = logging.getLogger(__name__)
 
@@ -12,10 +13,10 @@ class ActionSelectionSpecialCases:
     """Handles special cases in action selection evaluation."""
 
     @staticmethod
-    async def handle_ponder_force(triaged_inputs: Dict[str, Any]) -> Optional[ActionSelectionDMAResult]:
+    async def handle_ponder_force(triaged_inputs: EnhancedDMAInputs) -> Optional[ActionSelectionDMAResult]:
         """Handle forced ponder case."""
-        processing_context_data = triaged_inputs.get("processing_context")
-        original_thought = triaged_inputs["original_thought"]
+        processing_context_data = triaged_inputs.processing_context
+        original_thought = triaged_inputs.original_thought
 
         # Check the original message content from the task context
         original_message_content = None
@@ -50,9 +51,9 @@ class ActionSelectionSpecialCases:
         return None
 
     @staticmethod
-    async def handle_wakeup_task_speak_requirement(triaged_inputs: Dict[str, Any]) -> Optional[ActionSelectionDMAResult]:
+    async def handle_wakeup_task_speak_requirement(triaged_inputs: EnhancedDMAInputs) -> Optional[ActionSelectionDMAResult]:
         """Handle wakeup task SPEAK requirement."""
-        original_thought = triaged_inputs["original_thought"]
+        original_thought = triaged_inputs.original_thought
         task_id = original_thought.source_task_id
 
         if not task_id or not ActionSelectionSpecialCases._is_wakeup_task(task_id):
@@ -60,7 +61,7 @@ class ActionSelectionSpecialCases:
 
         logger.debug(f"ActionSelectionPDMA: Processing wakeup task {task_id}")
 
-        llm_response_internal = triaged_inputs.get("llm_response_internal")
+        llm_response_internal = getattr(triaged_inputs, "llm_response_internal", None)
         if (
             llm_response_internal
             and hasattr(llm_response_internal, "selected_action")

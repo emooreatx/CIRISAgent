@@ -259,7 +259,7 @@ class WiseAuthorityService(BaseService, WiseAuthorityServiceProtocol):
             if row[0]:
                 try:
                     existing_context = json.loads(row[0])
-                except:
+                except json.JSONDecodeError:
                     pass
             
             # Add deferral information to context
@@ -335,7 +335,7 @@ class WiseAuthorityService(BaseService, WiseAuthorityServiceProtocol):
                     try:
                         context = json.loads(context_json)
                         deferral_info = context.get('deferral', {})
-                    except:
+                    except json.JSONDecodeError:
                         pass
                 
                 # Extract deferral details
@@ -443,7 +443,7 @@ class WiseAuthorityService(BaseService, WiseAuthorityServiceProtocol):
             if row[0]:
                 try:
                     context = json.loads(row[0])
-                except:
+                except json.JSONDecodeError:
                     pass
             
             # Add resolution to deferral info

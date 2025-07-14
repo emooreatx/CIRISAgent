@@ -22,7 +22,7 @@ class ProtocolGenerator:
         try:
             with open("trinity_analysis_results.json", "r") as f:
                 self.trinity_data = json.load(f)
-        except:
+        except (FileNotFoundError, json.JSONDecodeError, PermissionError, IOError):
             self.trinity_data = {"modules": {}, "protocols": {}}
             
     def generate_all_missing_protocols(self):

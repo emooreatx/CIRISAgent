@@ -8,7 +8,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from ciris_engine.schemas.processors.states import AgentState
 from ciris_engine.schemas.processors.state import (
-    StateTransitionRecord, StateMetadata, StateHistory
+    StateTransitionRecord, StateMetadata, StateHistory, StateMetrics, StateConfiguration
 )
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
@@ -62,7 +62,7 @@ class StateManager:
         # Initialize metadata for the initial state
         self.state_metadata[initial_state] = StateMetadata(
             entered_at=self.time_service.now_iso(),
-            metrics={}
+            metrics=StateMetrics()
         )
 
     def _build_transition_map(self) -> Dict[AgentState, Dict[AgentState, StateTransition]]:
@@ -147,7 +147,7 @@ class StateManager:
         if target_state not in self.state_metadata:
             self.state_metadata[target_state] = StateMetadata(
                 entered_at=self.time_service.now_iso(),
-                metrics={}
+                metrics=StateMetrics()
             )
 
         return True
@@ -160,7 +160,7 @@ class StateManager:
         """Get metadata for current state."""
         return self.state_metadata.get(
             self.current_state, 
-            StateMetadata(entered_at=self.time_service.now_iso(), metrics={})
+            StateMetadata(entered_at=self.time_service.now_iso(), metrics=StateMetrics())
         )
 
     def update_state_metadata(self, key: str, value: Any) -> None:
@@ -168,7 +168,7 @@ class StateManager:
         if self.current_state not in self.state_metadata:
             self.state_metadata[self.current_state] = StateMetadata(
                 entered_at=self.time_service.now_iso(),
-                metrics={}
+                metrics=StateMetrics()
             )
         self.state_metadata[self.current_state].add_metric(key, value)
 
@@ -209,7 +209,7 @@ class StateManager:
         """Get a complete summary of state history and current state."""
         current_metadata = self.state_metadata.get(
             self.current_state,
-            StateMetadata(entered_at=self.time_service.now_iso(), metrics={})
+            StateMetadata(entered_at=self.time_service.now_iso(), metrics=StateMetrics())
         )
         
         return StateHistory(

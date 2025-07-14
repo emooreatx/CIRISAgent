@@ -104,8 +104,29 @@ class BaseProcessor(ABC):
             self.metrics.errors += updates.errors
         if updates.rounds_completed is not None:
             self.metrics.rounds_completed += updates.rounds_completed
-        if updates.additional:
-            self.metrics.additional_metrics.update(updates.additional)
+        
+        # Update additional metrics
+        additional = self.metrics.additional_metrics
+        if updates.thoughts_generated is not None:
+            additional.thoughts_generated += updates.thoughts_generated
+        if updates.actions_dispatched is not None:
+            additional.actions_dispatched += updates.actions_dispatched
+        if updates.memories_created is not None:
+            additional.memories_created += updates.memories_created
+        if updates.state_transitions is not None:
+            additional.state_transitions += updates.state_transitions
+        if updates.llm_tokens_used is not None:
+            additional.llm_tokens_used += updates.llm_tokens_used
+        if updates.cache_hits is not None:
+            additional.cache_hits += updates.cache_hits
+        if updates.cache_misses is not None:
+            additional.cache_misses += updates.cache_misses
+        
+        # Update custom metrics
+        for key, value in updates.custom_counters.items():
+            additional.custom_counters[key] = additional.custom_counters.get(key, 0) + value
+        for key, value in updates.custom_gauges.items():
+            additional.custom_gauges[key] = value
 
     async def dispatch_action(
         self,

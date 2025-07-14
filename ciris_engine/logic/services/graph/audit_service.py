@@ -506,7 +506,7 @@ class GraphAuditService(BaseGraphService, AuditServiceProtocol):
             if isinstance(timestamp, str):
                 try:
                     timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                except:
+                except (ValueError, TypeError):
                     timestamp = self._time_service.now() if self._time_service else datetime.now()
             
             # Extract context data - handle both dict and nested structures

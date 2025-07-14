@@ -6,7 +6,7 @@ Consolidates SERVICE_INTERACTION correlations into ConversationSummaryNode.
 
 import logging
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional, Tuple, TYPE_CHECKING
+from typing import List, Dict, Optional, Tuple, TYPE_CHECKING
 from collections import defaultdict
 
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
@@ -169,7 +169,7 @@ class ConversationConsolidator:
         self,
         summary_node: GraphNode,
         service_interactions: List[ServiceInteractionData]
-    ) -> List[Tuple[GraphNode, GraphNode, str, Dict[str, Any]]]:
+    ) -> List[Tuple[GraphNode, GraphNode, str, dict]]:
         """
         Get edges to create for conversation summary.
         
@@ -193,8 +193,8 @@ class ConversationConsolidator:
         participant_data = self.get_participant_data(service_interactions)
         
         # Create edges to participants
-        for user_id, data in participant_data.items():
-            if user_id and data['message_count'] > 0:
+        for user_id, participant in participant_data.items():
+            if user_id and participant.message_count > 0:
                 # Create user node if needed (edge creation will handle this)
                 user_node = GraphNode(
                     id=f"user_{user_id}",
@@ -202,7 +202,7 @@ class ConversationConsolidator:
                     scope=GraphScope.LOCAL,
                     attributes={
                         "user_id": user_id,
-                        "username": data.get('author_name', user_id)
+                        "username": participant.author_name or user_id
                     },
                     updated_by="tsdb_consolidation",
                     updated_at=self._time_service.now() if self._time_service else period_end
@@ -213,8 +213,8 @@ class ConversationConsolidator:
                     user_node,
                     'INVOLVED_USER',
                     {
-                        'message_count': str(data['message_count']),
-                        'channels': str(list(data['channels']))
+                        'message_count': str(participant.message_count),
+                        'channels': str(participant.channels)
                     }
                 ))
         
@@ -249,30 +249,34 @@ class ConversationConsolidator:
         
         return edges
     
-    def get_participant_data(self, service_interactions: List[ServiceInteractionData]) -> Dict[str, Dict[str, Any]]:
+    def get_participant_data(self, service_interactions: List[ServiceInteractionData]) -> Dict[str, ParticipantData]:
         """
         Extract participant data for edge creation.
         
         Returns a dict mapping user_id to participation metrics.
         """
-        participants: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
-            'message_count': 0,
-            'channels': set(),
-            'author_name': None
-        })
+        # Track participant data with proper typing
+        participant_counts: Dict[str, int] = defaultdict(int)
+        participant_channels: Dict[str, set] = defaultdict(set)
+        participant_names: Dict[str, str] = {}
         
         for interaction in service_interactions:
             if interaction.action_type in ['speak', 'observe']:
                 author_id = interaction.author_id
                 
                 if author_id:
-                    participants[author_id]['message_count'] += 1
-                    participants[author_id]['channels'].add(interaction.channel_id)
+                    participant_counts[author_id] += 1
+                    participant_channels[author_id].add(interaction.channel_id)
                     if interaction.author_name:
-                        participants[author_id]['author_name'] = interaction.author_name
+                        participant_names[author_id] = interaction.author_name
         
-        # Convert sets to lists for serialization
-        for user_id in participants:
-            participants[user_id]['channels'] = list(participants[user_id]['channels'])
+        # Build typed ParticipantData objects
+        result: Dict[str, ParticipantData] = {}
+        for user_id in participant_counts:
+            result[user_id] = ParticipantData(
+                message_count=participant_counts[user_id],
+                channels=list(participant_channels[user_id]),
+                author_name=participant_names.get(user_id)
+            )
         
-        return dict(participants)
+        return result

@@ -212,15 +212,23 @@ class CIRISRuntime:
         from ciris_engine.schemas.config.agent import AgentTemplate
 
         # Create AgentTemplate from identity
+        from ciris_engine.schemas.config.agent import DSDMAConfiguration
+        
+        # Create DSDMAConfiguration object if needed
+        dsdma_config = None
+        if (self.agent_identity.core_profile.domain_specific_knowledge or 
+            self.agent_identity.core_profile.dsdma_prompt_template):
+            dsdma_config = DSDMAConfiguration(
+                domain_specific_knowledge=self.agent_identity.core_profile.domain_specific_knowledge,
+                prompt_template=self.agent_identity.core_profile.dsdma_prompt_template
+            )
+        
         return AgentTemplate(
             name=self.agent_identity.agent_id,
             description=self.agent_identity.core_profile.description,
             role_description=self.agent_identity.core_profile.role_description,
             permitted_actions=self.agent_identity.permitted_actions,
-            dsdma_kwargs={
-                'domain_specific_knowledge': self.agent_identity.core_profile.domain_specific_knowledge,
-                'prompt_template': self.agent_identity.core_profile.dsdma_prompt_template
-            } if self.agent_identity.core_profile.domain_specific_knowledge or self.agent_identity.core_profile.dsdma_prompt_template else None,
+            dsdma_kwargs=dsdma_config,
             csdma_overrides=self.agent_identity.core_profile.csdma_overrides,
             action_selection_pdma_overrides=self.agent_identity.core_profile.action_selection_pdma_overrides
         )

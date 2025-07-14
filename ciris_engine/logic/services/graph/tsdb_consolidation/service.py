@@ -39,6 +39,7 @@ from .consolidators import (
     TaskConsolidator,
     MemoryConsolidator
 )
+from .data_converter import TSDBDataConverter
 
 logger = logging.getLogger(__name__)
 
@@ -273,23 +274,9 @@ class TSDBConsolidationService(BaseGraphService):
         metric_correlations: List[MetricCorrelationData] = []
         if metric_correlations_raw:
             for raw_data in metric_correlations_raw:
-                try:
-                    corr = MetricCorrelationData(
-                        correlation_id=raw_data['correlation_id'],
-                        metric_name=raw_data.get('request_data', {}).get('metric_name', 'unknown'),
-                        value=float(raw_data.get('request_data', {}).get('value', 0)),
-                        timestamp=raw_data['timestamp'],
-                        request_data=raw_data.get('request_data', {}),
-                        response_data=raw_data.get('response_data', {}),
-                        tags=raw_data.get('tags', {}),
-                        source='correlation',
-                        unit=raw_data.get('request_data', {}).get('unit'),
-                        aggregation_type=raw_data.get('request_data', {}).get('aggregation_type')
-                    )
+                corr = TSDBDataConverter.convert_metric_correlation(raw_data)
+                if corr:
                     metric_correlations.append(corr)
-                except Exception as e:
-                    logger.warning(f"Failed to convert metric correlation data: {e}")
-                    continue
         
         converted_correlations['metric_datapoint'] = metric_correlations
         
@@ -306,49 +293,9 @@ class TSDBConsolidationService(BaseGraphService):
             # Convert raw task dicts to TaskCorrelationData objects
             task_correlations: List[TaskCorrelationData] = []
             for raw_task in tasks:
-                try:
-                    # Extract handlers from thoughts
-                    handlers_used = []
-                    final_handler = None
-                    for thought in raw_task.get('thoughts', []):
-                        if thought.get('final_action'):
-                            try:
-                                import json
-                                action_data = json.loads(thought['final_action']) if isinstance(thought['final_action'], str) else thought['final_action']
-                                handler = action_data.get('handler')
-                                if handler:
-                                    handlers_used.append(handler)
-                                    final_handler = handler  # Last one is final
-                            except:
-                                pass
-                    
-                    # Parse dates
-                    created_at = datetime.fromisoformat(raw_task['created_at'].replace('Z', '+00:00')) if raw_task['created_at'] else datetime.now(timezone.utc)
-                    updated_at = datetime.fromisoformat(raw_task['updated_at'].replace('Z', '+00:00')) if raw_task['updated_at'] else datetime.now(timezone.utc)
-                    
-                    # Create TaskCorrelationData
-                    task_data = TaskCorrelationData(
-                        task_id=raw_task['task_id'],
-                        status=raw_task['status'],
-                        created_at=created_at,
-                        updated_at=updated_at,
-                        channel_id=raw_task.get('channel_id'),
-                        user_id=None,  # Not available in raw data
-                        task_type=raw_task.get('description', '').split()[0] if raw_task.get('description') else None,
-                        retry_count=raw_task.get('retry_count', 0),
-                        duration_ms=(updated_at - created_at).total_seconds() * 1000,
-                        thoughts=raw_task.get('thoughts', []),
-                        handlers_used=handlers_used,
-                        final_handler=final_handler,
-                        success=raw_task['status'] in ['completed', 'success'],
-                        error_message=None,  # Would need to parse from outcome
-                        result_summary=raw_task.get('description'),
-                        metadata={}
-                    )
+                task_data = TSDBDataConverter.convert_task(raw_task)
+                if task_data:
                     task_correlations.append(task_data)
-                except Exception as e:
-                    logger.warning(f"Failed to convert task data: {e}")
-                    continue
             
             # Store converted tasks for edge creation
             converted_tasks = task_correlations
@@ -369,35 +316,9 @@ class TSDBConsolidationService(BaseGraphService):
             # Convert raw dicts to ServiceInteractionData objects
             service_interactions: List[ServiceInteractionData] = []
             for raw_data in service_interactions_raw:
-                try:
-                    # Extract fields from raw correlation data
-                    request_data = raw_data.get('request_data', {})
-                    parameters = request_data.get('parameters', {})
-                    
-                    # Try to get author info from parameters first, then from request_data directly
-                    author_id = parameters.get('author_id') or request_data.get('author_id')
-                    author_name = parameters.get('author_name') or request_data.get('author_name')
-                    content = parameters.get('content') or request_data.get('content')
-                    
-                    interaction = ServiceInteractionData(
-                        correlation_id=raw_data['correlation_id'],
-                        action_type=raw_data.get('action_type', 'unknown'),
-                        service_type=raw_data.get('service_type', 'unknown'),
-                        timestamp=raw_data['timestamp'],
-                        channel_id=request_data.get('channel_id', 'unknown'),
-                        request_data=request_data,
-                        author_id=author_id,
-                        author_name=author_name,
-                        content=content,
-                        response_data=raw_data.get('response_data', {}),
-                        execution_time_ms=raw_data.get('response_data', {}).get('execution_time_ms', 0.0),
-                        success=raw_data.get('response_data', {}).get('success', True),
-                        error_message=raw_data.get('response_data', {}).get('error')
-                    )
+                interaction = TSDBDataConverter.convert_service_interaction(raw_data)
+                if interaction:
                     service_interactions.append(interaction)
-                except Exception as e:
-                    logger.warning(f"Failed to convert service interaction data: {e}")
-                    continue
             
             converted_correlations['service_interaction'] = service_interactions
             
@@ -426,40 +347,9 @@ class TSDBConsolidationService(BaseGraphService):
             # Convert raw dicts to TraceSpanData objects
             trace_spans: List[TraceSpanData] = []
             for raw_data in trace_spans_raw:
-                try:
-                    # Extract fields from raw correlation data
-                    tags = raw_data.get('tags', {})
-                    request_data = raw_data.get('request_data', {})
-                    response_data = raw_data.get('response_data', {})
-                    
-                    # Try to get task_id and thought_id from tags first, then from request_data
-                    task_id = tags.get('task_id') or request_data.get('task_id')
-                    thought_id = tags.get('thought_id') or request_data.get('thought_id')
-                    component_type = tags.get('component_type') or raw_data.get('service_type')
-                    
-                    span = TraceSpanData(
-                        trace_id=raw_data.get('trace_id', ''),
-                        span_id=raw_data.get('span_id', ''),
-                        parent_span_id=raw_data.get('parent_span_id'),
-                        timestamp=raw_data['timestamp'],
-                        duration_ms=response_data.get('duration_ms', 0.0),
-                        operation_name=raw_data.get('action_type', 'unknown'),
-                        service_name=raw_data.get('service_type', 'unknown'),
-                        status='ok' if response_data.get('success', True) else 'error',
-                        tags=tags,
-                        task_id=task_id,
-                        thought_id=thought_id,
-                        component_type=component_type,
-                        error=not response_data.get('success', True),
-                        error_message=response_data.get('error'),
-                        error_type=response_data.get('error_type'),
-                        latency_ms=response_data.get('execution_time_ms'),
-                        resource_usage=response_data.get('resource_usage', {})
-                    )
+                span = TSDBDataConverter.convert_trace_span(raw_data)
+                if span:
                     trace_spans.append(span)
-                except Exception as e:
-                    logger.warning(f"Failed to convert trace span data: {e}")
-                    continue
             
             converted_correlations['trace_span'] = trace_spans
             
@@ -496,7 +386,7 @@ class TSDBConsolidationService(BaseGraphService):
         self,
         summaries: List[GraphNode],
         nodes_by_type: Dict[str, List[GraphNode]],
-        correlations: Dict[str, List[Any]],  # Now contains typed schema objects
+        correlations: Dict[str, List[Union[MetricCorrelationData, ServiceInteractionData, TraceSpanData]]],
         tasks: List[TaskCorrelationData],  # Now contains typed task objects
         period_start: datetime,
         period_label: str

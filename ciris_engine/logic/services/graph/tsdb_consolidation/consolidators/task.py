@@ -6,7 +6,7 @@ Creates TaskSummaryNode with final task results and handler selections.
 
 import logging
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Optional, Tuple
 from collections import defaultdict
 
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
@@ -84,7 +84,7 @@ class TaskConsolidator:
                     created = task.created_at
                     updated = task.updated_at
                     duration_ms = (updated - created).total_seconds() * 1000
-                except:
+                except (AttributeError, TypeError):
                     duration_ms = 0
             task_durations.append(duration_ms)
             
@@ -182,7 +182,7 @@ class TaskConsolidator:
         self,
         summary_node: GraphNode,
         tasks: List[TaskCorrelationData]
-    ) -> List[Tuple[GraphNode, GraphNode, str, Dict[str, Any]]]:
+    ) -> List[Tuple[GraphNode, GraphNode, str, dict]]:
         """
         Get edges to create for task summary.
         

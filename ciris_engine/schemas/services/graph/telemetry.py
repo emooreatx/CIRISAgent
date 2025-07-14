@@ -45,6 +45,16 @@ class TelemetryConsolidationResult(BaseModel):
     memories_consolidated: int = Field(0, description="Number of memories consolidated")
     errors: List[str] = Field(default_factory=list, description="Any errors during consolidation")
 
+class CustomMetrics(BaseModel):
+    """Custom metrics for telemetry service status."""
+    cache_hit_rate: Optional[float] = Field(None, description="Cache hit rate percentage")
+    metrics_per_second: Optional[float] = Field(None, description="Metrics processed per second")
+    average_processing_time_ms: Optional[float] = Field(None, description="Average processing time")
+    queue_depth: Optional[int] = Field(None, description="Current queue depth")
+    error_rate: Optional[float] = Field(None, description="Error rate percentage")
+    additional_metrics: Dict[str, float] = Field(default_factory=dict, description="Other custom metrics")
+
+
 class TelemetryServiceStatus(BaseModel):
     """Status of the telemetry service."""
     healthy: bool = Field(..., description="Whether service is healthy")
@@ -54,7 +64,7 @@ class TelemetryServiceStatus(BaseModel):
     last_consolidation: Optional[datetime] = Field(None, description="Last consolidation time")
     memory_mb: float = Field(0.0, description="Memory usage in MB")
     cache_size_mb: float = Field(0.0, description="Size of cached data in MB")
-    custom_metrics: Optional[Dict[str, float]] = Field(None, description="Additional custom metrics")
+    custom_metrics: Optional[CustomMetrics] = Field(None, description="Typed custom metrics")
 
 class GraphQuery(BaseModel):
     """Query parameters for graph operations."""
@@ -103,4 +113,5 @@ __all__ = [
     "ServiceCapabilities",
     "LLMUsageData",
     "TelemetryKwargs",
+    "CustomMetrics",
 ]

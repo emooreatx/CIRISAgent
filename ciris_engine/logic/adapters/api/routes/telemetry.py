@@ -5,7 +5,7 @@ Consolidated metrics, traces, logs, and insights from all system components.
 """
 import logging
 import uuid
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Query, Path
 from pydantic import BaseModel, Field, field_serializer
@@ -31,7 +31,7 @@ class MetricData(BaseModel):
     tags: MetricTags = Field(default_factory=lambda: MetricTags.model_validate({}), description="Metric tags")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
+    def serialize_timestamp(self, timestamp: datetime, _info) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None
 
 class MetricSeries(BaseModel):
@@ -97,7 +97,7 @@ class MetricsResponse(BaseModel):
     timestamp: datetime = Field(..., description="Response timestamp")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
+    def serialize_timestamp(self, timestamp: datetime, _info) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None
 
 class ReasoningTraceData(BaseModel):
@@ -114,7 +114,7 @@ class ReasoningTraceData(BaseModel):
     outcome: Optional[str] = Field(None, description="Final outcome")
 
     @field_serializer('start_time')
-    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
+    def serialize_timestamp(self, timestamp: datetime, _info) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None
 
 class TracesResponse(BaseModel):
@@ -133,7 +133,7 @@ class LogEntry(BaseModel):
     trace_id: Optional[str] = Field(None, description="Associated trace ID")
 
     @field_serializer('timestamp')
-    def serialize_timestamp(self, timestamp: datetime, _info: Any) -> Optional[str]:
+    def serialize_timestamp(self, timestamp: datetime, _info) -> Optional[str]:
         return timestamp.isoformat() if timestamp else None
 
 class LogsResponse(BaseModel):
@@ -152,7 +152,7 @@ class TelemetryQuery(BaseModel):
     limit: int = Field(100, ge=1, le=1000, description="Result limit")
 
     @field_serializer('start_time', 'end_time')
-    def serialize_times(self, dt: Optional[datetime], _info: Any) -> Optional[str]:
+    def serialize_times(self, dt: Optional[datetime], _info) -> Optional[str]:
         return dt.isoformat() if dt else None
 
 class QueryResponse(BaseModel):
@@ -315,7 +315,8 @@ async def _get_system_overview(request: Request) -> SystemOverview:
                         )
                         if data:
                             total += len(data)
-                    except:
+                    except (AttributeError, TypeError, ValueError, RuntimeError) as e:
+                        logger.debug(f"Failed to query metric '{metric}': {type(e).__name__}: {str(e)}")
                         pass
                 overview.total_metrics = total
             
@@ -355,11 +356,45 @@ async def get_telemetry_overview(
 
 
 
-@router.get("/resources", response_model=SuccessResponse[Dict[str, Any]])
+class ResourceUsageData(BaseModel):
+    """Current resource usage data."""
+    cpu_percent: float = Field(..., description="CPU usage percentage")
+    memory_mb: float = Field(..., description="Memory usage in MB")
+    memory_percent: float = Field(..., description="Memory usage percentage")
+    disk_usage_bytes: int = Field(0, description="Disk usage in bytes")
+    active_threads: int = Field(0, description="Number of active threads")
+    open_files: int = Field(0, description="Number of open files")
+    timestamp: str = Field(..., description="Timestamp of measurement")
+
+class ResourceLimits(BaseModel):
+    """Resource usage limits."""
+    max_memory_mb: float = Field(..., description="Maximum memory in MB")
+    max_cpu_percent: float = Field(100.0, description="Maximum CPU percentage")
+    max_disk_bytes: int = Field(0, description="Maximum disk usage in bytes")
+
+class ResourceHistoryPoint(BaseModel):
+    """Historical resource usage point."""
+    timestamp: datetime = Field(..., description="Timestamp of measurement")
+    cpu_percent: float = Field(..., description="CPU usage percentage")
+    memory_mb: float = Field(..., description="Memory usage in MB")
+
+class ResourceHealthStatus(BaseModel):
+    """Resource health status."""
+    status: str = Field(..., description="Health status: healthy|warning|critical")
+    warnings: List[str] = Field(default_factory=list, description="Warning messages")
+
+class ResourceTelemetryResponse(BaseModel):
+    """Complete resource telemetry response."""
+    current: ResourceUsageData = Field(..., description="Current resource usage")
+    limits: ResourceLimits = Field(..., description="Resource limits")
+    history: List[ResourceHistoryPoint] = Field(default_factory=list, description="Historical data")
+    health: ResourceHealthStatus = Field(..., description="Health status")
+
+@router.get("/resources", response_model=SuccessResponse[ResourceTelemetryResponse])
 async def get_resource_telemetry(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-) -> SuccessResponse[Dict[str, Any]]:
+) -> SuccessResponse[ResourceTelemetryResponse]:
     """
     Get current resource usage telemetry.
     
@@ -406,27 +441,36 @@ async def get_resource_telemetry(
                     "memory_mb": memory_history[i].get('value', 0.0)
                 })
         
-        response = {
-            "current": {
-                "cpu_percent": current_usage.cpu_percent,
-                "memory_mb": current_usage.memory_mb,
-                "memory_percent": current_usage.memory_percent,
-                "disk_usage_bytes": getattr(current_usage, 'disk_usage_bytes', 0),
-                "active_threads": getattr(current_usage, 'active_threads', 0),
-                "open_files": getattr(current_usage, 'open_files', 0),
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            },
-            "limits": {
-                "max_memory_mb": limits.memory_mb.limit if hasattr(limits.memory_mb, 'limit') else 0,
-                "max_cpu_percent": 100.0,  # CPU is always 0-100%
-                "max_disk_bytes": getattr(limits, 'max_disk_bytes', 0)
-            },
-            "history": history[-60:],  # Last hour of data
-            "health": {
-                "status": "healthy" if current_usage.memory_percent < 80 and current_usage.cpu_percent < 80 else "warning",
-                "warnings": current_usage.warnings
-            }
-        }
+        # Build history points
+        history_points = []
+        for i in range(min(len(cpu_history), len(memory_history))):
+            history_points.append(ResourceHistoryPoint(
+                timestamp=cpu_history[i].get('timestamp', now),
+                cpu_percent=cpu_history[i].get('value', 0.0),
+                memory_mb=memory_history[i].get('value', 0.0)
+            ))
+        
+        response = ResourceTelemetryResponse(
+            current=ResourceUsageData(
+                cpu_percent=current_usage.cpu_percent,
+                memory_mb=current_usage.memory_mb,
+                memory_percent=current_usage.memory_percent,
+                disk_usage_bytes=getattr(current_usage, 'disk_usage_bytes', 0),
+                active_threads=getattr(current_usage, 'active_threads', 0),
+                open_files=getattr(current_usage, 'open_files', 0),
+                timestamp=datetime.now(timezone.utc).isoformat()
+            ),
+            limits=ResourceLimits(
+                max_memory_mb=limits.memory_mb.limit if hasattr(limits.memory_mb, 'limit') else 0,
+                max_cpu_percent=100.0,
+                max_disk_bytes=getattr(limits, 'max_disk_bytes', 0)
+            ),
+            history=history_points[-60:],  # Last hour of data
+            health=ResourceHealthStatus(
+                status="healthy" if current_usage.memory_percent < 80 and current_usage.cpu_percent < 80 else "warning",
+                warnings=current_usage.warnings
+            )
+        )
         
         return SuccessResponse(
             data=response,
@@ -1108,12 +1152,43 @@ async def get_detailed_metric(
 
 
 
-@router.get("/resources/history", response_model=SuccessResponse[Dict[str, Any]])
+class ResourceDataPoint(BaseModel):
+    """Resource usage data point."""
+    timestamp: datetime = Field(..., description="Timestamp of measurement")
+    value: float = Field(..., description="Measured value")
+
+class ResourceStats(BaseModel):
+    """Resource usage statistics."""
+    min: float = Field(..., description="Minimum value")
+    max: float = Field(..., description="Maximum value")
+    avg: float = Field(..., description="Average value")
+    current: float = Field(..., description="Current value")
+
+class ResourceMetricData(BaseModel):
+    """Resource metric with data and statistics."""
+    data: List[ResourceDataPoint] = Field(default_factory=list, description="Time series data")
+    stats: ResourceStats = Field(..., description="Statistical summary")
+    unit: str = Field(..., description="Unit of measurement")
+
+class TimePeriod(BaseModel):
+    """Time period specification."""
+    start: str = Field(..., description="Start time (ISO format)")
+    end: str = Field(..., description="End time (ISO format)")
+    hours: int = Field(..., description="Period length in hours")
+
+class ResourceHistoryResponse(BaseModel):
+    """Historical resource usage response."""
+    period: TimePeriod = Field(..., description="Time period covered")
+    cpu: ResourceMetricData = Field(..., description="CPU usage data")
+    memory: ResourceMetricData = Field(..., description="Memory usage data")
+    disk: ResourceMetricData = Field(..., description="Disk usage data")
+
+@router.get("/resources/history", response_model=SuccessResponse[ResourceHistoryResponse])
 async def get_resource_history(
     request: Request,
     auth: AuthContext = Depends(require_observer),
     hours: int = Query(24, ge=1, le=168, description="Hours of history")
-) -> SuccessResponse[Dict[str, Any]]:
+) -> SuccessResponse[ResourceHistoryResponse]:
     """
     Get historical resource usage data.
     
@@ -1152,39 +1227,39 @@ async def get_resource_history(
             )
         
         # Calculate aggregations
-        def calculate_stats(data: List[Dict[str, Any]]) -> Dict[str, float]:
+        def calculate_stats(data: List[dict]) -> ResourceStats:
             if not data:
-                return {"min": 0, "max": 0, "avg": 0, "current": 0}
+                return ResourceStats(min=0, max=0, avg=0, current=0)
             values = [d.get('value', 0) for d in data]
-            return {
-                "min": min(values),
-                "max": max(values),
-                "avg": sum(values) / len(values),
-                "current": values[-1] if values else 0
-            }
+            return ResourceStats(
+                min=min(values),
+                max=max(values),
+                avg=sum(values) / len(values),
+                current=values[-1] if values else 0
+            )
         
-        response = {
-            "period": {
-                "start": start_time.isoformat(),
-                "end": now.isoformat(),
-                "hours": hours
-            },
-            "cpu": {
-                "data": [{"timestamp": d.get('timestamp'), "value": d.get('value', 0)} for d in cpu_data],
-                "stats": calculate_stats(cpu_data),
-                "unit": "percent"
-            },
-            "memory": {
-                "data": [{"timestamp": d.get('timestamp'), "value": d.get('value', 0)} for d in memory_data],
-                "stats": calculate_stats(memory_data),
-                "unit": "MB"
-            },
-            "disk": {
-                "data": [{"timestamp": d.get('timestamp'), "value": d.get('value', 0)} for d in disk_data],
-                "stats": calculate_stats(disk_data),
-                "unit": "bytes"
-            }
-        }
+        response = ResourceHistoryResponse(
+            period=TimePeriod(
+                start=start_time.isoformat(),
+                end=now.isoformat(),
+                hours=hours
+            ),
+            cpu=ResourceMetricData(
+                data=[ResourceDataPoint(timestamp=d.get('timestamp'), value=d.get('value', 0)) for d in cpu_data],
+                stats=calculate_stats(cpu_data),
+                unit="percent"
+            ),
+            memory=ResourceMetricData(
+                data=[ResourceDataPoint(timestamp=d.get('timestamp'), value=d.get('value', 0)) for d in memory_data],
+                stats=calculate_stats(memory_data),
+                unit="MB"
+            ),
+            disk=ResourceMetricData(
+                data=[ResourceDataPoint(timestamp=d.get('timestamp'), value=d.get('value', 0)) for d in disk_data],
+                stats=calculate_stats(disk_data),
+                unit="bytes"
+            )
+        )
         
         return SuccessResponse(
             data=response,

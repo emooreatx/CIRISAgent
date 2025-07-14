@@ -95,15 +95,24 @@ class ComponentBuilder:
             raise RuntimeError("Cannot create DSDMA - no agent identity loaded from graph!")
 
         # Create identity configuration for DSDMA
-        from ciris_engine.schemas.config.agent import AgentTemplate
+        from ciris_engine.schemas.config.agent import AgentTemplate, DSDMAConfiguration
+        
+        # Create DSDMAConfiguration object
+        dsdma_config = None
+        domain_knowledge = getattr(self.runtime.agent_identity.core_profile, 'domain_specific_knowledge', {})
+        prompt_template = getattr(self.runtime.agent_identity.core_profile, 'dsdma_prompt_template', None)
+        
+        if domain_knowledge or prompt_template:
+            dsdma_config = DSDMAConfiguration(
+                domain_specific_knowledge=domain_knowledge,
+                prompt_template=prompt_template
+            )
+        
         identity_config = AgentTemplate(
             name=self.runtime.agent_identity.agent_id,
             description=self.runtime.agent_identity.core_profile.description,
             role_description=self.runtime.agent_identity.core_profile.role_description,
-            dsdma_kwargs={
-                "domain_specific_knowledge": getattr(self.runtime.agent_identity.core_profile, 'domain_specific_knowledge', {}),
-                "prompt_template": getattr(self.runtime.agent_identity.core_profile, 'dsdma_prompt_template', None)
-            },
+            dsdma_kwargs=dsdma_config,
             csdma_overrides=self.runtime.agent_identity.core_profile.csdma_overrides,
             action_selection_pdma_overrides=self.runtime.agent_identity.core_profile.action_selection_pdma_overrides
         )

@@ -4,7 +4,7 @@ Processor error handling schemas.
 Replaces Dict[str, Any] in handle_error() method with typed schemas.
 """
 from enum import Enum
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, Union
 from datetime import datetime
 from pydantic import BaseModel, Field
 
@@ -17,6 +17,20 @@ class ErrorSeverity(str, Enum):
     CRITICAL = "critical"  # Processing should stop, immediate attention needed
 
 
+class AdditionalErrorContext(BaseModel):
+    """Additional context for error handling."""
+    channel_id: Optional[str] = Field(None, description="Channel where error occurred")
+    user_id: Optional[str] = Field(None, description="User involved in the error")
+    task_id: Optional[str] = Field(None, description="Task ID if error during task processing")
+    memory_operation: Optional[str] = Field(None, description="Memory operation if error during memory access")
+    llm_model: Optional[str] = Field(None, description="LLM model if error during LLM call")
+    handler_name: Optional[str] = Field(None, description="Handler name if error during handler execution")
+    custom_data: Dict[str, Union[str, int, float, bool]] = Field(default_factory=dict, description="Custom error context data")
+    
+    class Config:
+        extra = 'allow'  # Allow additional fields for extensibility
+
+
 class ErrorContext(BaseModel):
     """Context information for processor error handling."""
     processor_name: str = Field(..., description="Name of the processor where error occurred")
@@ -26,7 +40,7 @@ class ErrorContext(BaseModel):
     item_id: Optional[str] = Field(None, description="ID of item being processed if applicable")
     thought_content: Optional[str] = Field(None, description="Thought content if error during thought processing")
     action_type: Optional[str] = Field(None, description="Action type if error during action dispatch")
-    additional_context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Any additional context")
+    additional_context: Optional[AdditionalErrorContext] = Field(None, description="Any additional context")
 
 
 class ProcessingError(BaseModel):
@@ -52,6 +66,30 @@ class ErrorHandlingResult(BaseModel):
     metrics_updated: bool = Field(True, description="Whether error metrics were updated")
 
 
+class ProcessorConfigOverrides(BaseModel):
+    """Processor-specific configuration overrides."""
+    # Common processor overrides
+    batch_size: Optional[int] = Field(None, description="Batch size for processing")
+    processing_interval_ms: Optional[int] = Field(None, description="Processing interval in milliseconds")
+    enable_caching: Optional[bool] = Field(None, description="Enable caching for this processor")
+    cache_ttl_seconds: Optional[int] = Field(None, description="Cache time-to-live in seconds")
+    
+    # State-specific overrides
+    min_state_duration_seconds: Optional[int] = Field(None, description="Minimum time to stay in state")
+    max_state_duration_seconds: Optional[int] = Field(None, description="Maximum time to stay in state")
+    
+    # Resource limits
+    max_memory_mb: Optional[int] = Field(None, description="Maximum memory usage in MB")
+    max_cpu_percent: Optional[float] = Field(None, description="Maximum CPU usage percentage")
+    
+    # Custom settings
+    custom_flags: Dict[str, bool] = Field(default_factory=dict, description="Custom boolean flags")
+    custom_values: Dict[str, Union[str, int, float]] = Field(default_factory=dict, description="Custom configuration values")
+    
+    class Config:
+        extra = 'forbid'  # Strict validation for config overrides
+
+
 class ProcessorConfig(BaseModel):
     """Configuration for a processor."""
     processor_name: str = Field(..., description="Name of the processor")
@@ -59,13 +97,15 @@ class ProcessorConfig(BaseModel):
     max_retries: int = Field(3, description="Maximum retry attempts on error")
     timeout_seconds: Optional[int] = Field(None, description="Processing timeout in seconds")
     error_threshold: int = Field(10, description="Error count before processor is considered unhealthy")
-    config_overrides: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Processor-specific configuration")
+    config_overrides: Optional[ProcessorConfigOverrides] = Field(None, description="Processor-specific configuration")
 
 
 __all__ = [
     "ErrorSeverity",
+    "AdditionalErrorContext",
     "ErrorContext", 
     "ProcessingError",
     "ErrorHandlingResult",
+    "ProcessorConfigOverrides",
     "ProcessorConfig"
 ]

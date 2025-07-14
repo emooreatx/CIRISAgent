@@ -5,11 +5,14 @@ Reads actual log files from disk instead of audit entries.
 import os
 import re
 from datetime import datetime
-from typing import List, Optional, Any
+from typing import List, Optional, IO
 import json
 from pathlib import Path
+import logging
 
 from ciris_engine.schemas.api.telemetry import LogContext
+
+logger = logging.getLogger(__name__)
 
 # Import LogEntry from the route file where it's defined
 from .telemetry import LogEntry
@@ -36,7 +39,8 @@ class LogFileReader:
             try:
                 with open(current_log_path, 'r') as f:
                     main_log_file = Path(f.read().strip())
-            except:
+            except (IOError, OSError, ValueError) as e:
+                logger.debug(f"Failed to read current log path: {e}")
                 pass
         
         current_incident_path = self.logs_dir / ".current_incident_log"
@@ -44,7 +48,8 @@ class LogFileReader:
             try:
                 with open(current_incident_path, 'r') as f:
                     incident_log_file = Path(f.read().strip())
-            except:
+            except (IOError, OSError, ValueError) as e:
+                logger.debug(f"Failed to read current incident log path: {e}")
                 pass
         
         # If we couldn't find stored filenames, try logging handlers
@@ -66,7 +71,8 @@ class LogFileReader:
             if latest_log.exists():
                 try:
                     main_log_file = latest_log.resolve()
-                except:
+                except (OSError, RuntimeError) as e:
+                    logger.debug(f"Failed to resolve latest log symlink: {e}")
                     main_log_file = latest_log
         
         if incident_log_file is None:
@@ -74,7 +80,8 @@ class LogFileReader:
             if incidents_log.exists():
                 try:
                     incident_log_file = incidents_log.resolve()
-                except:
+                except (OSError, RuntimeError) as e:
+                    logger.debug(f"Failed to resolve incidents log symlink: {e}")
                     incident_log_file = incidents_log
                     
         return main_log_file, incident_log_file
@@ -150,7 +157,7 @@ class LogFileReader:
             
         return logs
     
-    def _tail(self, file_obj: Any, num_lines: int) -> List[str]:
+    def _tail(self, file_obj: IO[str], num_lines: int) -> List[str]:
         """Read last N lines from a file efficiently."""
         # For large files, seek to end and read backwards
         file_obj.seek(0, 2)  # Go to end of file
@@ -218,7 +225,8 @@ class LogFileReader:
                     context_data = json.loads(json_str)
                     # Remove JSON from message
                     message = message[:json_start].strip() + message[json_end:].strip()
-                except:
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.debug(f"Failed to parse JSON from log message: {e}")
                     pass
             
             # Build log entry

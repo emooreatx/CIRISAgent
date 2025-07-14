@@ -423,6 +423,8 @@ async def run_action_selection_pdma(
     time_service: Optional["TimeServiceProtocol"] = None,
 ) -> ActionSelectionDMAResult:
     """Select the next handler action using the triaged DMA results."""
+    from ciris_engine.schemas.dma.faculty import EnhancedDMAInputs
+    
     if not time_service:
         raise RuntimeError("TimeService is required for DMA execution")
     start_time = time_service.now()
@@ -484,7 +486,24 @@ async def run_action_selection_pdma(
         persistence.add_correlation(correlation, time_service)
     
     try:
-        result = await evaluator.evaluate(input_data=triaged_inputs)
+        # Convert dict to EnhancedDMAInputs
+        enhanced_inputs = EnhancedDMAInputs(
+            original_thought=triaged_inputs["original_thought"],
+            ethical_pdma_result=triaged_inputs["ethical_pdma_result"],
+            csdma_result=triaged_inputs["csdma_result"],
+            dsdma_result=triaged_inputs.get("dsdma_result"),
+            current_thought_depth=triaged_inputs["current_thought_depth"],
+            max_rounds=triaged_inputs["max_rounds"],
+            processing_context=triaged_inputs.get("processing_context"),
+            permitted_actions=triaged_inputs.get("permitted_actions", []),
+            agent_identity=triaged_inputs.get("agent_identity", {}),
+            faculty_evaluations=triaged_inputs.get("faculty_evaluations"),
+            faculty_enhanced=triaged_inputs.get("faculty_enhanced", False),
+            recursive_evaluation=triaged_inputs.get("recursive_evaluation", False),
+            conscience_feedback=triaged_inputs.get("conscience_feedback")
+        )
+        
+        result = await evaluator.evaluate(enhanced_inputs)
 
         logger.debug(f"run_action_selection_pdma: Evaluation completed. Result type: {type(result)}, Result: {result}")
         if hasattr(result, 'selected_action'):

@@ -6,7 +6,7 @@ Consolidates both service correlations AND graph nodes of type TSDB_DATA.
 
 import logging
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 from collections import defaultdict
 
 from ciris_engine.schemas.services.nodes import TSDBSummary
@@ -207,7 +207,7 @@ class MetricsConsolidator:
         summary_node: GraphNode,
         tsdb_nodes: List[GraphNode],
         metric_correlations: List[MetricCorrelationData]
-    ) -> List[Tuple[GraphNode, GraphNode, str, Dict[str, Any]]]:
+    ) -> List[Tuple[GraphNode, GraphNode, str, dict]]:
         """
         Get edges to create for metrics summary.
         

@@ -1260,7 +1260,8 @@ class DreamProcessor(BaseProcessor):
 
         # Return dream result
         duration = metrics.get("duration_seconds", 0.0)
-        if duration == 0.0:
+        # Use small epsilon for floating point comparison
+        if abs(duration) < 1e-9:
             # Calculate if not in metrics
             start_time = self.metrics.start_time or self.time_service.now()
             duration = (self.time_service.now() - start_time).total_seconds()
