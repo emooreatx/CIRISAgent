@@ -9,7 +9,8 @@ from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
 from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.logic import persistence
 import logging
-from typing import Optional, Dict, Any
+from ciris_engine.schemas.handlers.memory_schemas import RecalledNodeInfo, ConnectedNodeInfo, RecallResult
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -99,16 +100,25 @@ class RecallHandler(BaseActionHandler):
         success = bool(nodes)
 
         if success:
+            # Build descriptive query string
+            query_desc = params.node_id or params.query or "recall request"
+            if params.node_type and params.query:
+                query_desc = f"{params.node_type} {query_desc}"
+            
             # Format the recalled nodes with enhanced information
-            import json
-            enhanced_data = {}
+            recall_result = RecallResult(
+                success=True,
+                query_description=query_desc,
+                total_results=len(nodes)
+            )
             
             for n in nodes:
-                node_info: Dict[str, Any] = {
-                    "type": n.type,
-                    "scope": n.scope,
-                    "attributes": n.attributes if isinstance(n.attributes, dict) else {}
-                }
+                # Create typed node info
+                node_info = RecalledNodeInfo(
+                    type=n.type,
+                    scope=n.scope,
+                    attributes=n.attributes if isinstance(n.attributes, dict) else {}
+                )
                 
                 # Get connected nodes for each recalled node
                 try:
@@ -134,45 +144,45 @@ class RecallHandler(BaseActionHandler):
                                 if connected_results:
                                     connected_node = connected_results[0]
                                     connected_attrs = connected_node.attributes if isinstance(connected_node.attributes, dict) else {}
-                                    connected_nodes.append({
-                                        'node_id': connected_node.id,
-                                        'node_type': connected_node.type,
-                                        'relationship': edge.relationship,
-                                        'direction': 'outgoing' if edge.source == n.id else 'incoming',
-                                        'attributes': connected_attrs
-                                    })
+                                    connected_node_info = ConnectedNodeInfo(
+                                        node_id=connected_node.id,
+                                        node_type=connected_node.type,
+                                        relationship=edge.relationship,
+                                        direction='outgoing' if edge.source == n.id else 'incoming',
+                                        attributes=connected_attrs
+                                    )
+                                    connected_nodes.append(connected_node_info)
                             except Exception as e:
                                 logger.debug(f"Failed to get connected node {connected_node_id}: {e}")
                         
                         if connected_nodes:
-                            node_info["connected_nodes"] = connected_nodes
+                            node_info.connected_nodes = connected_nodes
                             
                 except Exception as e:
                     logger.warning(f"Failed to get edges for node {n.id}: {e}")
                 
-                enhanced_data[n.id] = node_info
+                recall_result.nodes[n.id] = node_info
 
-            # Build descriptive query string
-            query_desc = params.node_id or params.query or "recall request"
-            if params.node_type:
-                query_desc = f"{params.node_type} {query_desc}"
-
-            # Convert data to string and check length
-            data_str = json.dumps(enhanced_data, indent=2, default=str)
+            # Check if results need truncation
+            import json
+            data_str = json.dumps({k: v.model_dump() for k, v in recall_result.nodes.items()}, indent=2, default=str)
             if len(data_str) > 10000:
-                # Truncate to first 10k characters
-                truncated_data = data_str[:10000]
-                follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: Memory query '{query_desc}' returned over {len(data_str)} characters, first 10000 characters: {truncated_data}"
-            else:
-                follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: Memory query '{query_desc}' returned: {data_str}"
+                recall_result.truncated = True
+            
+            follow_up_content = recall_result.to_follow_up_content()
         else:
             # Build descriptive query string
             query_desc = params.node_id or params.query or "recall request"
             if params.node_type:
                 query_desc = f"{params.node_type} {query_desc}"
-            scope_str = (params.scope or GraphScope.LOCAL).value
-
-            follow_up_content = f"CIRIS_FOLLOW_UP_THOUGHT: No memories found for query '{query_desc}' in scope {scope_str}"
+            
+            recall_result = RecallResult(
+                success=False,
+                query_description=query_desc,
+                total_results=0
+            )
+            
+            follow_up_content = recall_result.to_follow_up_content()
         # Use centralized method to complete thought and create follow-up
         follow_up_id = await self.complete_thought_and_create_followup(
             thought=thought,

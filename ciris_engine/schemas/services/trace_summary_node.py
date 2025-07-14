@@ -163,7 +163,7 @@ class TraceSummaryNode(TypedGraphNode):
             "consolidation_timestamp": self.consolidation_timestamp.isoformat(),
             
             # Type hint
-            "_node_class": "TraceSummaryNode"
+            "node_class": "TraceSummaryNode"
         }
         
         return GraphNode(

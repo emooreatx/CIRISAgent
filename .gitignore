@@ -42,3 +42,8 @@ node_modules
 *.pem
 data/*
 *.db-journal
+*.gz
+*.tar
+*.tar.gz
+data_backup_*
+

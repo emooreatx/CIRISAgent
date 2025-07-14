@@ -202,7 +202,7 @@ class DatabaseMaintenanceService(BaseScheduledService, DatabaseMaintenanceServic
                 if invalid_thought_ids:
                     # Delete these invalid thoughts
                     placeholders = ",".join("?" * len(invalid_thought_ids))
-                    delete_sql = f"DELETE FROM thoughts WHERE thought_id IN ({placeholders})"
+                    delete_sql = f"DELETE FROM thoughts WHERE thought_id IN ({placeholders})"  # nosec B608 - placeholders are '?' strings, not user input
                     cursor.execute(delete_sql, invalid_thought_ids)
                     conn.commit()
 

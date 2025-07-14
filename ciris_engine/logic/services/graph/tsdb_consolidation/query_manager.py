@@ -12,8 +12,21 @@ from collections import defaultdict
 
 from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
 from ciris_engine.schemas.services.operations import MemoryQuery
+from ciris_engine.schemas.services.graph.query_results import (
+    ServiceCorrelationQueryResult,
+    TSDBNodeQueryResult,
+    EdgeQueryResult,
+    ConsolidationSummary
+)
+from ciris_engine.schemas.services.graph.consolidation import (
+    ServiceInteractionData,
+    MetricCorrelationData,
+    TraceSpanData,
+    TaskCorrelationData
+)
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.persistence.db.core import get_db_connection
+from ciris_engine.logic.services.graph.tsdb_consolidation.data_converter import TSDBDataConverter
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +47,7 @@ class QueryManager:
         self,
         period_start: datetime,
         period_end: datetime
-    ) -> Dict[str, List[GraphNode]]:
+    ) -> Dict[str, TSDBNodeQueryResult]:
         """
         Query ALL graph nodes created or updated within a period.
         
@@ -43,7 +56,7 @@ class QueryManager:
             period_end: Period end time
             
         Returns:
-            Dictionary mapping node types to lists of nodes
+            Dictionary mapping node types to TSDBNodeQueryResult objects
         """
         nodes_by_type = defaultdict(list)
         
@@ -106,13 +119,22 @@ class QueryManager:
         except Exception as e:
             logger.error(f"Failed to query nodes for period: {e}")
         
-        return dict(nodes_by_type)
+        # Convert to TSDBNodeQueryResult for each node type
+        result = {}
+        for node_type, nodes in nodes_by_type.items():
+            result[node_type] = TSDBNodeQueryResult(
+                nodes=nodes,
+                period_start=period_start,
+                period_end=period_end
+            )
+        
+        return result
     
     async def query_tsdb_data_nodes(
         self,
         period_start: datetime,
         period_end: datetime
-    ) -> List[GraphNode]:
+    ) -> TSDBNodeQueryResult:
         """
         Query TSDB_DATA nodes specifically for a period.
         
@@ -121,7 +143,7 @@ class QueryManager:
             period_end: Period end time
             
         Returns:
-            List of TSDB_DATA nodes
+            TSDBNodeQueryResult containing TSDB_DATA nodes
         """
         nodes = []
         
@@ -171,14 +193,18 @@ class QueryManager:
         except Exception as e:
             logger.error(f"Failed to query TSDB data nodes: {e}")
         
-        return nodes
+        return TSDBNodeQueryResult(
+            nodes=nodes,
+            period_start=period_start,
+            period_end=period_end
+        )
     
     async def query_service_correlations(
         self,
         period_start: datetime,
         period_end: datetime,
         correlation_types: Optional[List[str]] = None
-    ) -> Dict[str, List[Dict[str, Any]]]:
+    ) -> ServiceCorrelationQueryResult:
         """
         Query service correlations for a period.
         
@@ -188,9 +214,12 @@ class QueryManager:
             correlation_types: Optional list of correlation types to filter
             
         Returns:
-            Dictionary mapping correlation types to correlation data
+            ServiceCorrelationQueryResult with typed correlation data
         """
-        correlations_by_type = defaultdict(list)
+        service_interactions = []
+        metric_correlations = []
+        trace_spans = []
+        task_correlations = []
         
         try:
             with get_db_connection() as conn:
@@ -254,7 +283,8 @@ class QueryManager:
                     else:
                         tags = {}
                     
-                    correlation = {
+                    # Create raw correlation dict for converter
+                    raw_correlation = {
                         'correlation_id': row['correlation_id'],
                         'correlation_type': row['correlation_type'],
                         'service_type': row['service_type'],
@@ -268,23 +298,45 @@ class QueryManager:
                         'tags': tags
                     }
                     
-                    correlations_by_type[row['correlation_type']].append(correlation)
+                    # Convert to typed models based on correlation type
+                    correlation_type = row['correlation_type']
+                    
+                    if correlation_type == 'service_interaction':
+                        converted = TSDBDataConverter.convert_service_interaction(raw_correlation)
+                        if converted:
+                            service_interactions.append(converted)
+                    elif correlation_type == 'metric_datapoint':
+                        converted = TSDBDataConverter.convert_metric_correlation(raw_correlation)
+                        if converted:
+                            metric_correlations.append(converted)
+                    elif correlation_type == 'trace_span':
+                        converted = TSDBDataConverter.convert_trace_span(raw_correlation)
+                        if converted:
+                            trace_spans.append(converted)
+                    elif correlation_type == 'task_correlation':
+                        # For task correlations, we'll query the tasks separately
+                        pass
                 
-                total = sum(len(corrs) for corrs in correlations_by_type.values())
-                logger.info(f"Found {total} correlations across {len(correlations_by_type)} types for period {period_start}")
+                total = len(service_interactions) + len(metric_correlations) + len(trace_spans) + len(task_correlations)
+                logger.info(f"Found {total} correlations for period {period_start}")
         
         except Exception as e:
             logger.error(f"Failed to query service correlations: {e}")
             import traceback
             traceback.print_exc()
         
-        return dict(correlations_by_type)
+        return ServiceCorrelationQueryResult(
+            service_interactions=service_interactions,
+            metric_correlations=metric_correlations,
+            trace_spans=trace_spans,
+            task_correlations=task_correlations
+        )
     
     async def query_tasks_in_period(
         self,
         period_start: datetime,
         period_end: datetime
-    ) -> List[Dict[str, Any]]:
+    ) -> List[TaskCorrelationData]:
         """
         Query tasks completed or updated in a period.
         
@@ -293,9 +345,9 @@ class QueryManager:
             period_end: Period end time
             
         Returns:
-            List of task data with outcomes
+            List of TaskCorrelationData objects
         """
-        tasks = []
+        task_correlations = []
         
         try:
             with get_db_connection() as conn:
@@ -312,6 +364,7 @@ class QueryManager:
                     ORDER BY updated_at
                 """, (period_start.isoformat(), period_end.isoformat()))
                 
+                raw_tasks = []
                 for row in cursor.fetchall():
                     task = {
                         'task_id': row['task_id'],
@@ -326,11 +379,11 @@ class QueryManager:
                         'outcome': row['outcome_json'],
                         'retry_count': row['retry_count']
                     }
-                    tasks.append(task)
+                    raw_tasks.append(task)
                 
                 # Also get thoughts for these tasks
-                if tasks:
-                    task_ids = [t['task_id'] for t in tasks]
+                if raw_tasks:
+                    task_ids = [t['task_id'] for t in raw_tasks]
                     placeholders = ','.join('?' * len(task_ids))
                     
                     cursor.execute(f"""
@@ -352,16 +405,21 @@ class QueryManager:
                             'final_action': row['final_action_json']
                         })
                     
-                    # Add thoughts to tasks
-                    for task in tasks:
+                    # Add thoughts to tasks and convert to typed models
+                    for task in raw_tasks:
                         task['thoughts'] = thoughts_by_task.get(task['task_id'], [])
+                        
+                        # Convert to TaskCorrelationData
+                        converted = TSDBDataConverter.convert_task(task)
+                        if converted:
+                            task_correlations.append(converted)
                 
-                logger.info(f"Found {len(tasks)} tasks for period {period_start}")
+                logger.info(f"Found {len(task_correlations)} tasks for period {period_start}")
         
         except Exception as e:
             logger.error(f"Failed to query tasks: {e}")
         
-        return tasks
+        return task_correlations
     
     async def get_special_node_types(self) -> Set[str]:
         """
@@ -400,21 +458,83 @@ class QueryManager:
             return False
         
         try:
-            # Query for any summary node for this period
-            period_id = period_start.strftime('%Y%m%d_%H')
+            # Query the database directly to check for ANY tsdb_summary nodes for this period
+            # This prevents duplicates from test runs or other sources
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Check for any tsdb_summary nodes with matching period_start
+                cursor.execute("""
+                    SELECT COUNT(*) as count
+                    FROM graph_nodes
+                    WHERE node_type = 'tsdb_summary'
+                      AND json_extract(attributes_json, '$.period_start') = ?
+                      AND json_extract(attributes_json, '$.consolidation_level') = 'basic'
+                """, (period_start.isoformat(),))
+                
+                row = cursor.fetchone()
+                count = row['count'] if row else 0
+                
+                if count > 0:
+                    logger.info(f"Period {period_start} already has {count} consolidation(s)")
+                
+                return count > 0
             
-            # Check for TSDB summary as indicator
+        except Exception as e:
+            logger.error(f"Failed to check consolidation status: {e}")
+            return False
+    
+    async def get_last_consolidated_period(self) -> Optional[datetime]:
+        """
+        Get the timestamp of the last successfully consolidated period.
+        
+        Returns:
+            Datetime of the last consolidated period start, or None if no consolidation found
+        """
+        if not self._memory_bus:
+            return None
+        
+        try:
+            # Query for TSDB summary nodes using wildcard
             query = MemoryQuery(
-                node_id=f"tsdb_summary_{period_id}",
-                type=NodeType.TSDB_SUMMARY,
+                node_id="tsdb_summary_*",  # Wildcard to match all TSDB summaries
                 scope=GraphScope.LOCAL,
+                type=NodeType.TSDB_SUMMARY,
                 include_edges=False,
                 depth=1
             )
             
             summaries = await self._memory_bus.recall(query, handler_name="tsdb_consolidation")
-            return len(summaries) > 0
+            
+            if not summaries:
+                return None
+            
+            # Extract period timestamps from node IDs
+            periods = []
+            for summary in summaries:
+                # Node ID format: tsdb_summary_YYYYMMDD_HH
+                if summary.id.startswith('tsdb_summary_'):
+                    period_str = summary.id.replace('tsdb_summary_', '')
+                    try:
+                        # Parse format YYYYMMDD_HH
+                        date_part, hour_part = period_str.split('_')
+                        year = int(date_part[:4])
+                        month = int(date_part[4:6])
+                        day = int(date_part[6:8])
+                        hour = int(hour_part)
+                        
+                        period_dt = datetime(year, month, day, hour, tzinfo=timezone.utc)
+                        periods.append(period_dt)
+                    except (ValueError, IndexError) as e:
+                        logger.warning(f"Failed to parse period from summary ID {summary.id}: {e}")
+                        continue
+            
+            # Return the most recent period
+            if periods:
+                return max(periods)
+            
+            return None
             
         except Exception as e:
-            logger.error(f"Failed to check consolidation status: {e}")
-            return False
+            logger.error(f"Failed to get last consolidated period: {e}")
+            return None

@@ -82,7 +82,7 @@ def get_thoughts_by_ids(thought_ids: List[str], db_path: Optional[str] = None) -
         return {}
     
     placeholders = ','.join(['?'] * len(thought_ids))
-    sql = f"SELECT * FROM thoughts WHERE thought_id IN ({placeholders})"
+    sql = f"SELECT * FROM thoughts WHERE thought_id IN ({placeholders})"  # nosec B608 - placeholders are '?' strings, not user input
     
     result = {}
     try:
@@ -144,7 +144,7 @@ def delete_thoughts_by_ids(thought_ids: List[str], db_path: Optional[str] = None
     import traceback
     logger.warning(f"DELETE_OPERATION: Called from: {''.join(traceback.format_stack()[-3:-1])}")
     
-    sql = f"DELETE FROM thoughts WHERE thought_id IN ({','.join(['?']*len(thought_ids))})"
+    sql = f"DELETE FROM thoughts WHERE thought_id IN ({','.join(['?']*len(thought_ids))})"  # nosec B608 - placeholders are '?' strings, not user input
     try:
         with get_db_connection(db_path=db_path) as conn:
             cursor = conn.execute(sql, thought_ids)
@@ -200,7 +200,7 @@ def update_thought_status(thought_id: str, status: ThoughtStatus, db_path: Optio
 
             params.append(thought_id)
 
-            sql = f"UPDATE thoughts SET {', '.join(updates)} WHERE thought_id = ?"
+            sql = f"UPDATE thoughts SET {', '.join(updates)} WHERE thought_id = ?"  # nosec B608 - updates are hardcoded strings like 'status = ?', not user input
             cursor.execute(sql, params)
             conn.commit()
 

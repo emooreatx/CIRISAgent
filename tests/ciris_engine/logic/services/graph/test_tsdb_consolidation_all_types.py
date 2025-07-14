@@ -521,6 +521,7 @@ def datapoints_to_correlations(datapoints: List[TimeSeriesDataPoint], correlatio
     # Map from uppercase tags to lowercase enum values
     type_mapping = {
         "SERVICE_INTERACTION": CorrelationType.SERVICE_INTERACTION,
+        "METRIC_DATAPOINT": CorrelationType.METRIC_DATAPOINT,
         "TRACE_SPAN": CorrelationType.TRACE_SPAN,
         "AUDIT_EVENT": CorrelationType.AUDIT_EVENT
     }
@@ -701,10 +702,12 @@ async def test_end_to_end_consolidation_all_types(consolidation_service, mock_me
                 'thought_id': f'thought_{thought_idx}_{int(dp.timestamp.timestamp())}',
                 'component_type': ['agent_processor', 'thought_processor', 'handler'][i % 3],
                 'trace_depth': str((i % 3) + 1),
-                'thought_type': 'standard',
-                'action_type': 'SPEAK' if i % 3 == 2 else None,
-                'task_status': 'completed' if i % 3 == 2 else None
+                'thought_type': 'standard'
             }
+            # Only add non-None values
+            if i % 3 == 2:
+                trace_tags['action_type'] = 'SPEAK'
+                trace_tags['task_status'] = 'completed'
             # Merge with existing tags
             trace_tags.update(dp.tags)
             
@@ -752,7 +755,7 @@ async def test_end_to_end_consolidation_all_types(consolidation_service, mock_me
                         'outcome': 'success'
                     }
                 },
-                '_node_class': 'AuditEntry'
+                'node_class': 'AuditEntry'
             }
             
             cursor.execute("""
@@ -877,6 +880,12 @@ async def test_end_to_end_consolidation_all_types(consolidation_service, mock_me
     
     # Check each summary type from stored summaries
     stored_nodes = stored_summaries
+    
+    # Debug: print all stored nodes
+    print(f"\nStored {len(stored_nodes)} nodes:")
+    for node in stored_nodes:
+        if hasattr(node, 'id') and hasattr(node, 'type'):
+            print(f"  - {node.id} (type: {node.type})")
     
     # Find each summary type
     tsdb_summary = None

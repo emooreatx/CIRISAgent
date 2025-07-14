@@ -117,10 +117,25 @@ class ThoughtProcessor:
 
         # 1. Fetch the full Thought object (or use prefetched)
         prefetched_thought = context.get("prefetched_thought") if context else None
-        if prefetched_thought and prefetched_thought.thought_id == thought_item.thought_id:
-            thought = prefetched_thought
-            logger.debug(f"Using prefetched thought {thought_item.thought_id}")
+        if prefetched_thought:
+            # Handle both dict and Thought object cases
+            if isinstance(prefetched_thought, dict):
+                # It's a dict from model_dump(), reconstruct the Thought object
+                from ciris_engine.schemas.runtime.models import Thought
+                thought = Thought(**prefetched_thought)
+                if thought.thought_id == thought_item.thought_id:
+                    logger.debug(f"Using prefetched thought {thought_item.thought_id}")
+                else:
+                    thought = None
+            elif hasattr(prefetched_thought, 'thought_id') and prefetched_thought.thought_id == thought_item.thought_id:
+                thought = prefetched_thought
+                logger.debug(f"Using prefetched thought {thought_item.thought_id}")
+            else:
+                thought = None
         else:
+            thought = None
+        
+        if not thought:
             logger.debug(f"About to fetch thought {thought_item.thought_id}")
             thought = await self._fetch_thought(thought_item.thought_id)
             logger.debug(f"Fetched thought {thought_item.thought_id}")

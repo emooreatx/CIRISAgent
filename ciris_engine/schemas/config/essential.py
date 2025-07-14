@@ -138,6 +138,29 @@ class WorkflowConfig(BaseModel):
 
     model_config = ConfigDict(extra = "forbid")
 
+class GraphConfig(BaseModel):
+    """Graph service configuration."""
+    # TSDB Consolidation settings
+    # Note: Consolidation intervals are FIXED for calendar alignment:
+    # - Basic: Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC)
+    # - Extensive: Every Monday at 00:00 UTC
+    # - Profound: 1st of each month at 00:00 UTC
+    
+    tsdb_profound_target_mb_per_day: float = Field(
+        20.0,
+        description="Target size in MB per day after profound consolidation"
+    )
+    tsdb_raw_retention_hours: int = Field(
+        24,
+        description="How long to keep raw TSDB data before basic consolidation"
+    )
+    consolidation_timezone: str = Field(
+        "UTC",
+        description="Timezone for consolidation scheduling (default: UTC)"
+    )
+    
+    model_config = ConfigDict(extra = "forbid")
+
 class EssentialConfig(BaseModel):
     """
     Mission-critical configuration for CIRIS bootstrap.
@@ -151,6 +174,7 @@ class EssentialConfig(BaseModel):
     limits: OperationalLimitsConfig = Field(default_factory=lambda: OperationalLimitsConfig())
     telemetry: TelemetryConfig = Field(default_factory=lambda: TelemetryConfig())
     workflow: WorkflowConfig = Field(default_factory=lambda: WorkflowConfig())
+    graph: GraphConfig = Field(default_factory=lambda: GraphConfig())
 
     # Runtime settings
     log_level: str = Field(

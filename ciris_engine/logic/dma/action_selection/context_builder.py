@@ -69,7 +69,8 @@ class ActionSelectionContextBuilder:
         _startup_guidance = self._build_startup_guidance(original_thought)
 
         # Build conscience feedback guidance if available
-        _conscience_guidance = self._build_conscience_guidance(triaged_inputs.conscience_feedback)
+        conscience_feedback = getattr(triaged_inputs, 'conscience_feedback', None)
+        _conscience_guidance = self._build_conscience_guidance(conscience_feedback)
         
         # Get reject thought guidance
         _reject_thought_guidance = self._get_reject_thought_guidance()

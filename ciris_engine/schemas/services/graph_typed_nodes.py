@@ -72,7 +72,7 @@ class TypedGraphNode(GraphNode, ABC):
                     extra_data[field_name] = field_value
 
         # Add type hint for deserialization
-        extra_data['_node_class'] = self.__class__.__name__
+        extra_data['node_class'] = self.__class__.__name__
 
         return extra_data
 
@@ -125,7 +125,7 @@ class NodeTypeRegistry:
         node_class = cls._registry.get(node.type)
         if node_class and hasattr(node.attributes, 'get'):
             # Check if this was serialized from a typed node
-            class_name = node.attributes.get('_node_class')
+            class_name = node.attributes.get('node_class')
             if class_name:
                 # Try to deserialize to typed node
                 try:

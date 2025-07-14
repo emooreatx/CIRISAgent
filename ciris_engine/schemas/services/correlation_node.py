@@ -74,7 +74,7 @@ class CorrelationNode(TypedGraphNode, ServiceCorrelation):
             "child_correlation_ids": self.child_correlation_ids,
             
             # Type hint for deserialization
-            "_node_class": "CorrelationNode"
+            "node_class": "CorrelationNode"
         }
         
         # Remove None values to save space

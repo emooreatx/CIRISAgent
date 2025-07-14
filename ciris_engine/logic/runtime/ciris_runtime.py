@@ -512,7 +512,7 @@ class CIRISRuntime:
 
             required_tables = ['tasks', 'thoughts', 'graph_nodes', 'graph_edges']
             for table in required_tables:
-                cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table}'")
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
                 if not cursor.fetchone():
                     raise RuntimeError(f"Required table '{table}' missing from database")
 

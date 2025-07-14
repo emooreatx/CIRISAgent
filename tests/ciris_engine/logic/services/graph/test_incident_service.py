@@ -471,7 +471,7 @@ async def test_incident_node_serialization() -> None:
     assert graph_node.type == NodeType.AUDIT_ENTRY
     assert graph_node.scope == GraphScope.LOCAL
     assert isinstance(graph_node.attributes, dict)
-    assert graph_node.attributes["_node_class"] == "IncidentNode"
+    assert graph_node.attributes["node_class"] == "IncidentNode"
     assert graph_node.attributes["incident_type"] == "ERROR"
     assert graph_node.attributes["severity"] == "HIGH"
     assert graph_node.attributes["status"] == "OPEN"
@@ -524,7 +524,7 @@ async def test_problem_node_serialization() -> None:
     assert graph_node.type == NodeType.CONCEPT
     assert graph_node.scope == GraphScope.IDENTITY
     assert isinstance(graph_node.attributes, dict)
-    assert graph_node.attributes["_node_class"] == "ProblemNode"
+    assert graph_node.attributes["node_class"] == "ProblemNode"
 
     # Reconstruct from GraphNode
     reconstructed = ProblemNode.from_graph_node(graph_node)
@@ -577,7 +577,7 @@ async def test_incident_insight_node_serialization() -> None:
     assert graph_node.type == NodeType.CONCEPT
     assert graph_node.scope == GraphScope.LOCAL
     assert isinstance(graph_node.attributes, dict)
-    assert graph_node.attributes["_node_class"] == "IncidentInsightNode"
+    assert graph_node.attributes["node_class"] == "IncidentInsightNode"
 
     # Reconstruct from GraphNode
     reconstructed = IncidentInsightNode.from_graph_node(graph_node)

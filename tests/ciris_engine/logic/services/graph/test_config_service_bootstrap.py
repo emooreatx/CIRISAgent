@@ -204,7 +204,7 @@ async def test_config_node_serialization_fix(time_service):
     assert "key" in attrs, "Missing 'key' in attributes after to_graph_node()"
     assert attrs["key"] == "test.key"
     assert "value" in attrs
-    assert "_node_class" in attrs
+    assert "node_class" in attrs
 
     # Now test deserialization
     reconstructed = ConfigNode.from_graph_node(graph_node)
@@ -229,7 +229,7 @@ async def test_direct_graph_node_creation(time_service):
         "key": "limits.max_active_tasks",
         "value": {"int_value": 10},
         "previous_version": None,
-        "_node_class": "ConfigNode"
+        "node_class": "ConfigNode"
     }
 
     # Create GraphNode as stored in DB

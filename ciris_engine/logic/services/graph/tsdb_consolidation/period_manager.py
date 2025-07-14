@@ -49,6 +49,19 @@ class PeriodManager:
         
         return period_start, period_end
     
+    def get_period_start(self, timestamp: datetime) -> datetime:
+        """
+        Get the start of the consolidation period containing the given timestamp.
+        
+        Args:
+            timestamp: The timestamp to align
+            
+        Returns:
+            Period start time
+        """
+        period_start, _ = self.get_period_boundaries(timestamp)
+        return period_start
+    
     def get_next_period_start(self, current_time: datetime) -> datetime:
         """
         Calculate the next consolidation period start time.

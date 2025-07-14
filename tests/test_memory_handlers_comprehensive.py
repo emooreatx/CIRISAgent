@@ -744,7 +744,6 @@ class TestRecallHandler:
         follow_up_thought = mock_persistence.add_thought.call_args[0][0]
         assert "No memories found" in follow_up_thought.content
         assert "nonexistent query" in follow_up_thought.content
-        assert "scope environment" in follow_up_thought.content
 
     @pytest.mark.asyncio
     async def test_recall_invalid_parameters(self, monkeypatch: Any) -> None:

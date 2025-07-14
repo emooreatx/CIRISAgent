@@ -477,7 +477,26 @@ This directory contains critical cryptographic keys for the CIRIS system.
         await self.task_scheduler_service.start()
         logger.info("Task scheduler service initialized")
 
-        # Initialize maintenance service
+        # Initialize TSDB consolidation service BEFORE maintenance
+        # This ensures we consolidate any missed windows before maintenance runs
+        from ciris_engine.logic.services.graph.tsdb_consolidation import TSDBConsolidationService
+        assert self.bus_manager is not None
+        assert self.time_service is not None
+        
+        # Get configuration from essential config
+        config = self.essential_config
+        graph_config = config.graph if hasattr(config, 'graph') else None
+        
+        self.tsdb_consolidation_service = TSDBConsolidationService(
+            memory_bus=self.bus_manager.memory,  # Use memory bus, not direct service
+            time_service=self.time_service,   # Pass time service
+            consolidation_interval_hours=6,  # Fixed for calendar alignment
+            raw_retention_hours=graph_config.tsdb_raw_retention_hours if graph_config else 24
+        )
+        await self.tsdb_consolidation_service.start()
+        logger.info("TSDB consolidation service initialized - consolidating missed windows and starting periodic consolidation")
+
+        # Initialize maintenance service AFTER consolidation
         archive_dir = getattr(config, "data_archive_dir", "data_archive")
         archive_hours = getattr(config, "archive_older_than_hours", 24)
         assert self.time_service is not None
@@ -490,17 +509,6 @@ This directory contains critical cryptographic keys for the CIRIS system.
         )
         await self.maintenance_service.start()
         logger.info("Database maintenance service initialized and started")
-
-        # Initialize TSDB consolidation service
-        from ciris_engine.logic.services.graph.tsdb_consolidation import TSDBConsolidationService
-        assert self.bus_manager is not None
-        assert self.time_service is not None
-        self.tsdb_consolidation_service = TSDBConsolidationService(
-            memory_bus=self.bus_manager.memory,  # Use memory bus, not direct service
-            time_service=self.time_service   # Pass time service
-        )
-        await self.tsdb_consolidation_service.start()
-        logger.info("TSDB consolidation service initialized - creating permanent memory summaries every 6 hours")
         
         # Initialize self observation service
         from ciris_engine.logic.services.adaptation.self_observation import SelfObservationService

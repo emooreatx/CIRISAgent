@@ -108,6 +108,30 @@ class UpdatePermissionsRequest(BaseModel):
         }
 
 
+class WAKeyCheckResponse(BaseModel):
+    """Response for WA key existence check."""
+    exists: bool = Field(..., description="Whether the key file exists")
+    filename: str = Field(..., description="The filename that was checked")
+    error: Optional[str] = Field(None, description="Error message if any")
+    valid_size: Optional[bool] = Field(None, description="Whether the key has valid size (if exists)")
+    size: Optional[int] = Field(None, description="File size in bytes (if exists)")
+
+
+class DeactivateUserResponse(BaseModel):
+    """Response for user deactivation."""
+    message: str = Field(..., description="Success message")
+
+
+class APIKeyInfo(BaseModel):
+    """Information about an API key (masked for security)."""
+    key_id: str = Field(..., description="Unique key identifier")
+    masked_key: str = Field(..., description="Masked version of the key (e.g., 'ciris_****')")
+    created_at: datetime = Field(..., description="When the key was created")
+    last_used: Optional[datetime] = Field(None, description="When the key was last used")
+    is_active: bool = Field(..., description="Whether the key is currently active")
+    name: Optional[str] = Field(None, description="Optional name for the key")
+
+
 @router.get("", response_model=PaginatedResponse[UserSummary])
 async def list_users(
     page: int = Query(1, ge=1),
@@ -451,12 +475,12 @@ async def mint_wise_authority(
     return await get_user(user_id, auth, auth_service, None)
 
 
-@router.get("/wa/key-check")
+@router.get("/wa/key-check", response_model=WAKeyCheckResponse)
 async def check_wa_key_exists(
     path: str = Query(..., description="Filename of private key to check"),
     auth: AuthContext = Depends(get_auth_context),
     _: None = Depends(check_permissions(["wa.mint"]))  # SYSTEM_ADMIN only
-) -> Dict[str, Any]:
+) -> WAKeyCheckResponse:
     """
     Check if a WA private key exists at the given filename.
     
@@ -473,10 +497,11 @@ async def check_wa_key_exists(
         # Extract just the filename, no path components allowed
         filename = os.path.basename(path)
         if not re.match(r'^[a-zA-Z0-9._-]+$', filename):
-            return {
-                "exists": False,
-                "error": "Invalid filename. Only alphanumeric characters, dots, dashes, and underscores are allowed"
-            }
+            return WAKeyCheckResponse(
+                exists=False,
+                filename=filename,
+                error="Invalid filename. Only alphanumeric characters, dots, dashes, and underscores are allowed"
+            )
         
         # Construct the safe path - no user input in directory path
         allowed_base = os.path.expanduser("~/.ciris/wa_keys/")
@@ -486,10 +511,11 @@ async def check_wa_key_exists(
         resolved_path = os.path.realpath(safe_path)
         allowed_base_resolved = os.path.realpath(allowed_base)
         if not resolved_path.startswith(allowed_base_resolved):
-            return {
-                "exists": False,
-                "error": "Access denied: path traversal detected"
-            }
+            return WAKeyCheckResponse(
+                exists=False,
+                filename=filename,
+                error="Access denied: path traversal detected"
+            )
         
         # Check if file exists and is readable
         exists = os.path.isfile(resolved_path) and os.access(resolved_path, os.R_OK)
@@ -499,34 +525,34 @@ async def check_wa_key_exists(
             file_size = os.path.getsize(resolved_path)
             valid_size = file_size == 32  # Ed25519 private key is 32 bytes
             
-            return {
-                "exists": True,
-                "valid_size": valid_size,
-                "size": file_size,
-                "filename": filename
-            }
+            return WAKeyCheckResponse(
+                exists=True,
+                valid_size=valid_size,
+                size=file_size,
+                filename=filename
+            )
         else:
-            return {
-                "exists": False,
-                "filename": filename
-            }
+            return WAKeyCheckResponse(
+                exists=False,
+                filename=filename
+            )
             
     except Exception as e:
         logger.error(f"Error checking key file {filename}: {e}")
-        return {
-            "exists": False,
-            "error": "Failed to check key file",
-            "filename": filename
-        }
+        return WAKeyCheckResponse(
+            exists=False,
+            error="Failed to check key file",
+            filename=filename
+        )
 
 
-@router.delete("/{user_id}")
+@router.delete("/{user_id}", response_model=DeactivateUserResponse)
 async def deactivate_user(
     user_id: str,
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service),
     _: None = Depends(check_permissions(["users.delete"]))
-) -> Dict[str, str]:
+) -> DeactivateUserResponse:
     """
     Deactivate a user account.
     
@@ -544,15 +570,15 @@ async def deactivate_user(
     if not success:
         raise HTTPException(status_code=404, detail="User not found")
     
-    return {"message": "User deactivated successfully"}
+    return DeactivateUserResponse(message="User deactivated successfully")
 
 
-@router.get("/{user_id}/api-keys")
+@router.get("/{user_id}/api-keys", response_model=List[APIKeyInfo])
 async def list_user_api_keys(
     user_id: str,
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service)
-) -> List[Dict[str, Any]]:
+) -> List[APIKeyInfo]:
     """
     List API keys for a user.
     
@@ -567,14 +593,14 @@ async def list_user_api_keys(
     
     # Mask the actual key values for security
     return [
-        {
-            "key_id": key.key_id,
-            "key_prefix": key.key_value[:8] + "...",
-            "created_at": key.created_at,
-            "last_used": key.last_used,
-            "expires_at": key.expires_at,
-            "is_active": key.is_active
-        }
+        APIKeyInfo(
+            key_id=key.key_id,
+            masked_key=key.key_value[:8] + "****" if len(key.key_value) > 8 else "****",
+            created_at=key.created_at,
+            last_used=key.last_used,
+            is_active=key.is_active,
+            name=getattr(key, 'name', None)
+        )
         for key in keys
     ]
 

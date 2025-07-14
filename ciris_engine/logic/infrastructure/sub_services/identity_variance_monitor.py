@@ -6,7 +6,7 @@ This implements the patent's requirement for bounded identity evolution.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional, Dict
 from datetime import datetime, timezone
 
 from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
@@ -14,7 +14,8 @@ from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.infrastructure.identity_variance import (
     VarianceImpact, IdentityDiff, VarianceReport,
-    WAReviewRequest, VarianceCheckMetadata
+    WAReviewRequest, VarianceCheckMetadata,
+    CurrentIdentityData, ServiceStatusMetrics, NodeAttributes
 )
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType, ConfigNodeType, CONFIG_SCOPE_MAP
 from ciris_engine.schemas.services.operations import MemoryQuery
@@ -245,18 +246,18 @@ class IdentityVarianceMonitor(BaseScheduledService):
                 identity_root=None,  # No identity root for re-baseline
                 snapshot_id=baseline_id,
                 timestamp=self._time_service.now() if self._time_service else datetime.now(),
-                agent_id=current_identity.get("agent_id", "unknown"),
-                identity_hash=current_identity.get("identity_hash", "unknown"),
-                core_purpose=current_identity.get("core_purpose", "unknown"),
-                role=current_identity.get("role", "unknown"),
-                permitted_actions=current_identity.get("permitted_actions", []),
-                restricted_capabilities=current_identity.get("restricted_capabilities", []),
-                ethical_boundaries=current_identity.get("ethical_boundaries", []),
+                agent_id=current_identity.agent_id,
+                identity_hash=current_identity.identity_hash,
+                core_purpose=current_identity.core_purpose,
+                role=current_identity.role,
+                permitted_actions=current_identity.permitted_actions,
+                restricted_capabilities=current_identity.restricted_capabilities,
+                ethical_boundaries=current_identity.ethical_boundaries,
                 trust_parameters=trust_params,
-                personality_traits=current_identity.get("personality_traits", []),
-                communication_style=current_identity.get("communication_style", "standard"),
-                learning_enabled=current_identity.get("learning_enabled", True),
-                adaptation_rate=current_identity.get("adaptation_rate", 0.1),
+                personality_traits=current_identity.personality_traits,
+                communication_style=current_identity.communication_style,
+                learning_enabled=current_identity.learning_enabled,
+                adaptation_rate=current_identity.adaptation_rate,
                 is_baseline=True,  # Mark as baseline
                 behavioral_patterns=behavioral_patterns_dict,
                 reason=f"Re-baselined with WA approval: {wa_approval_token}",
@@ -407,18 +408,18 @@ class IdentityVarianceMonitor(BaseScheduledService):
             identity_root=None,  # No identity root for snapshots
             snapshot_id=snapshot_id,
             timestamp=self._time_service.now(),
-            agent_id=current_identity.get("agent_id", "unknown"),
-            identity_hash=current_identity.get("identity_hash", "unknown"),
-            core_purpose=current_identity.get("core_purpose", "unknown"),
-            role=current_identity.get("role", "unknown"),
-            permitted_actions=current_identity.get("permitted_actions", []),
-            restricted_capabilities=current_identity.get("restricted_capabilities", []),
-            ethical_boundaries=current_identity.get("ethical_boundaries", []),
+            agent_id=current_identity.agent_id,
+            identity_hash=current_identity.identity_hash,
+            core_purpose=current_identity.core_purpose,
+            role=current_identity.role,
+            permitted_actions=current_identity.permitted_actions,
+            restricted_capabilities=current_identity.restricted_capabilities,
+            ethical_boundaries=current_identity.ethical_boundaries,
             trust_parameters=trust_params,
-            personality_traits=current_identity.get("personality_traits", []),
-            communication_style=current_identity.get("communication_style", "standard"),
-            learning_enabled=current_identity.get("learning_enabled", True),
-            adaptation_rate=current_identity.get("adaptation_rate", 0.1),
+            personality_traits=current_identity.personality_traits,
+            communication_style=current_identity.communication_style,
+            learning_enabled=current_identity.learning_enabled,
+            adaptation_rate=current_identity.adaptation_rate,
             is_baseline=False,  # This is a regular snapshot, not baseline
             behavioral_patterns=behavioral_patterns_dict,
             reason="Periodic variance check",
@@ -918,53 +919,45 @@ class IdentityVarianceMonitor(BaseScheduledService):
         """Check if the monitor is healthy."""
         return self._memory_bus is not None
 
-    async def _extract_current_identity(self, identity_nodes: List[GraphNode]) -> Dict[str, Any]:
+    async def _extract_current_identity(self, identity_nodes: List[GraphNode]) -> CurrentIdentityData:
         """Extract current identity data from identity nodes."""
         # Look for the main identity node
         for node in identity_nodes:
             node_attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump() if hasattr(node.attributes, 'model_dump') else {}
-            if node.id == "agent/identity" or node_attrs.get("_node_class") == "IdentityNode":
+            if node.id == "agent/identity" or node_attrs.get("node_class") == "IdentityNode":
                 attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump() if hasattr(node.attributes, 'model_dump') else {}
-                return {
-                    "agent_id": attrs.get("agent_id", "unknown"),
-                    "identity_hash": attrs.get("identity_hash", "unknown"),
-                    "core_purpose": attrs.get("description", "unknown"),
-                    "role": attrs.get("role_description", "unknown"),
-                    "permitted_actions": attrs.get("permitted_actions", []),
-                    "restricted_capabilities": attrs.get("restricted_capabilities", []),
-                    "ethical_boundaries": self._extract_ethical_boundaries_from_attrs(attrs),
-                    "personality_traits": attrs.get("areas_of_expertise", []),
-                    "communication_style": attrs.get("startup_instructions", "standard"),
-                    "learning_enabled": True,
-                    "adaptation_rate": 0.1
-                }
+                # Parse attrs into NodeAttributes for type safety
+                parsed_attrs = NodeAttributes(**attrs) if isinstance(attrs, dict) else NodeAttributes()
+                
+                return CurrentIdentityData(
+                    agent_id=parsed_attrs.agent_id or "unknown",
+                    identity_hash=parsed_attrs.identity_hash or "unknown",
+                    core_purpose=parsed_attrs.description or "unknown",
+                    role=parsed_attrs.role_description or "unknown",
+                    permitted_actions=parsed_attrs.permitted_actions or [],
+                    restricted_capabilities=parsed_attrs.restricted_capabilities or [],
+                    ethical_boundaries=self._extract_ethical_boundaries_from_node_attrs(parsed_attrs),
+                    personality_traits=parsed_attrs.areas_of_expertise or [],
+                    communication_style=parsed_attrs.startup_instructions or "standard",
+                    learning_enabled=True,
+                    adaptation_rate=0.1
+                )
         
         # Fallback if no identity node found
-        return {
-            "agent_id": "unknown",
-            "identity_hash": "unknown",
-            "core_purpose": "unknown",
-            "role": "unknown",
-            "permitted_actions": [],
-            "restricted_capabilities": [],
-            "ethical_boundaries": [],
-            "personality_traits": [],
-            "communication_style": "standard",
-            "learning_enabled": True,
-            "adaptation_rate": 0.1
-        }
+        return CurrentIdentityData()
     
-    def _extract_ethical_boundaries_from_attrs(self, attrs: Dict[str, Any]) -> List[str]:
+    def _extract_ethical_boundaries_from_node_attrs(self, attrs: NodeAttributes) -> List[str]:
         """Extract ethical boundaries from node attributes."""
         boundaries = []
         
         # Extract from restricted capabilities
-        for cap in attrs.get("restricted_capabilities", []):
-            boundaries.append(f"restricted:{cap}")
+        if attrs.restricted_capabilities:
+            for cap in attrs.restricted_capabilities:
+                boundaries.append(f"restricted:{cap}")
         
         # Extract from any ethical-related fields
-        if "ethical_boundaries" in attrs:
-            boundaries.extend(attrs["ethical_boundaries"])
+        if attrs.ethical_boundaries:
+            boundaries.extend(attrs.ethical_boundaries)
             
         return boundaries
     
@@ -974,13 +967,13 @@ class IdentityVarianceMonitor(BaseScheduledService):
         status = super().get_status()
         
         # Add our custom metrics
-        custom_metrics: Dict[str, Any] = {
-            "has_baseline": float(self._baseline_snapshot_id is not None),
-            "last_variance_check": self._last_check.isoformat() if self._last_check else None,
-            "variance_threshold": self._variance_threshold
-        }
+        custom_metrics = ServiceStatusMetrics(
+            has_baseline=float(self._baseline_snapshot_id is not None),
+            last_variance_check=self._last_check.isoformat() if self._last_check else None,
+            variance_threshold=self._variance_threshold
+        )
         if hasattr(status, 'custom_metrics') and isinstance(status.custom_metrics, dict):
-            status.custom_metrics.update(custom_metrics)
+            status.custom_metrics.update(custom_metrics.model_dump())
         
         return status
     

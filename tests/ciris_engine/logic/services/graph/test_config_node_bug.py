@@ -50,7 +50,7 @@ def test_config_node_from_graph_node_with_dict():
             "tags": ["config:test"],
             "key": "test.key",
             "value": {"string_value": "test_value"},
-            "_node_class": "ConfigNode"
+            "node_class": "ConfigNode"
         },
         version=1,
         updated_by="test_user",

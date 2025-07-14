@@ -11,6 +11,9 @@ services:
     volumes:
       - ../data:/app/data
       - ../logs:/app/logs
+    # Note: --host 0.0.0.0 is required in Docker containers to bind to all interfaces
+    # within the container, allowing access from the Docker host. The host's firewall
+    # and Docker's port mapping provide security. For non-Docker deployments, use 127.0.0.1
     command: ["python", "main.py", "--adapter", "api", "--host", "0.0.0.0", "--port", "8080"]
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]

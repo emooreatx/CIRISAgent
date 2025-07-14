@@ -30,6 +30,7 @@ from ..actions import (
     TaskCompleteParams as TaskCompleteParameters
 )
 from ..services.metadata import ServiceMetadata
+from ..secrets.service import DecapsulationContext
 
 # Union types for contexts and parameters
 ActionContext = Union[
@@ -76,4 +77,12 @@ class HandlerResult(BaseModel):
     )
     error: Optional[str] = Field(None, description="Error message if failed")
 
+    model_config = ConfigDict(extra = "forbid")
+
+class HandlerDecapsulatedParams(BaseModel):
+    """Schema for decapsulated handler parameters."""
+    action_type: str = Field(..., description="Type of action being handled")
+    action_params: Dict[str, Union[str, int, float, bool, list, dict]] = Field(..., description="Decapsulated action parameters")
+    context: DecapsulationContext = Field(..., description="Decapsulation context")
+    
     model_config = ConfigDict(extra = "forbid")

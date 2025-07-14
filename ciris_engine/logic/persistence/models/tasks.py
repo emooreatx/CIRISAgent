@@ -173,10 +173,10 @@ def delete_tasks_by_ids(task_ids: List[str], db_path: Optional[str] = None) -> b
 
     placeholders = ','.join('?' for _ in task_ids)
 
-    sql_get_thought_ids = f"SELECT thought_id FROM thoughts WHERE source_task_id IN ({placeholders})"
+    sql_get_thought_ids = f"SELECT thought_id FROM thoughts WHERE source_task_id IN ({placeholders})"  # nosec B608 - placeholders are '?' strings
     sql_delete_feedback_mappings = "DELETE FROM feedback_mappings WHERE target_thought_id IN ({})"
-    sql_delete_thoughts = f"DELETE FROM thoughts WHERE source_task_id IN ({placeholders})"
-    sql_delete_tasks = f"DELETE FROM tasks WHERE task_id IN ({placeholders})"
+    sql_delete_thoughts = f"DELETE FROM thoughts WHERE source_task_id IN ({placeholders})"  # nosec B608 - placeholders are '?' strings
+    sql_delete_tasks = f"DELETE FROM tasks WHERE task_id IN ({placeholders})"  # nosec B608 - placeholders are '?' strings
 
     deleted_count = 0
     try:
@@ -189,7 +189,7 @@ def delete_tasks_by_ids(task_ids: List[str], db_path: Optional[str] = None) -> b
 
             if thought_ids_to_delete:
                 feedback_placeholders = ','.join('?' for _ in thought_ids_to_delete)
-                current_sql_delete_feedback_mappings = sql_delete_feedback_mappings.format(feedback_placeholders)
+                current_sql_delete_feedback_mappings = sql_delete_feedback_mappings.format(feedback_placeholders)  # nosec B608 - placeholders are '?' strings
                 cursor.execute(current_sql_delete_feedback_mappings, thought_ids_to_delete)
                 logger.info(f"Deleted {cursor.rowcount} associated feedback mappings for thought IDs: {thought_ids_to_delete}.")
             else:

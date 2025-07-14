@@ -118,7 +118,7 @@ def _update_correlation_impl(update_request: CorrelationUpdateRequest, time_serv
     params.append(time_service.now().isoformat())
     params.append(update_request.correlation_id)
 
-    sql = f"UPDATE service_correlations SET {', '.join(updates)} WHERE correlation_id = ?"
+    sql = f"UPDATE service_correlations SET {', '.join(updates)} WHERE correlation_id = ?"  # nosec B608 - updates are hardcoded strings like 'status = ?'
     try:
         with get_db_connection(db_path=db_path) as conn:
             cursor = conn.execute(sql, params)
@@ -327,12 +327,12 @@ def get_correlations_by_type_and_time(
 
     if metric_names:
         placeholders = ",".join("?" * len(metric_names))
-        sql += f" AND metric_name IN ({placeholders})"
+        sql += f" AND metric_name IN ({placeholders})"  # nosec B608 - placeholders are '?' strings, not user input
         params.extend(metric_names)
 
     if log_levels:
         placeholders = ",".join("?" * len(log_levels))
-        sql += f" AND log_level IN ({placeholders})"
+        sql += f" AND log_level IN ({placeholders})"  # nosec B608 - placeholders are '?' strings, not user input
         params.extend(log_levels)
 
     sql += " ORDER BY timestamp DESC LIMIT ?"

@@ -44,10 +44,118 @@ def mock_time_service():
 @pytest.fixture
 def tsdb_service(mock_memory_bus, mock_time_service):
     """Create a TSDB consolidation service for testing."""
-    return TSDBConsolidationService(
+    # Create temporary test database
+    import tempfile
+    import sqlite3
+    import os
+    
+    fd, db_path = tempfile.mkstemp(suffix='_test.db')
+    os.close(fd)
+    
+    # Initialize database with required tables
+    conn = sqlite3.connect(db_path)
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS graph_nodes (
+            node_id TEXT PRIMARY KEY,
+            node_type TEXT NOT NULL,
+            scope TEXT NOT NULL,
+            attributes_json TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            updated_by TEXT,
+            version INTEGER DEFAULT 1
+        );
+        
+        CREATE TABLE IF NOT EXISTS graph_edges (
+            edge_id TEXT PRIMARY KEY,
+            source_node_id TEXT NOT NULL,
+            target_node_id TEXT NOT NULL,
+            relationship TEXT NOT NULL,
+            scope TEXT NOT NULL,
+            attributes_json TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            updated_by TEXT,
+            version INTEGER DEFAULT 1
+        );
+        
+        CREATE TABLE IF NOT EXISTS service_correlations (
+            correlation_id TEXT PRIMARY KEY,
+            service_type TEXT NOT NULL,
+            handler_name TEXT,
+            action_type TEXT,
+            request_data TEXT,
+            response_data TEXT,
+            status TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            correlation_type TEXT,
+            timestamp TEXT,
+            metric_name TEXT,
+            metric_value REAL,
+            trace_id TEXT,
+            span_id TEXT,
+            parent_span_id TEXT,
+            tags TEXT
+        );
+        
+        CREATE TABLE IF NOT EXISTS thoughts (
+            thought_id TEXT PRIMARY KEY,
+            channel_id TEXT NOT NULL,
+            agent_id TEXT NOT NULL,
+            content TEXT NOT NULL,
+            thought_type TEXT NOT NULL,
+            processing_status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            processed_at TEXT,
+            parent_thought_id TEXT,
+            metadata_json TEXT,
+            action_result TEXT
+        );
+        
+        CREATE TABLE IF NOT EXISTS tasks (
+            task_id TEXT PRIMARY KEY,
+            thought_id TEXT,
+            action TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            completed_at TEXT,
+            result TEXT,
+            error TEXT,
+            metadata_json TEXT
+        );
+    """)
+    conn.commit()
+    conn.close()
+    
+    # Monkey patch get_db_connection to use our test database
+    import ciris_engine.logic.persistence.db.core
+    import ciris_engine.logic.services.graph.tsdb_consolidation.query_manager
+    
+    original_get_db = ciris_engine.logic.persistence.db.core.get_db_connection
+    def get_test_db_connection():
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+    
+    # Patch in both places
+    ciris_engine.logic.persistence.db.core.get_db_connection = get_test_db_connection
+    ciris_engine.logic.services.graph.tsdb_consolidation.query_manager.get_db_connection = get_test_db_connection
+    
+    service = TSDBConsolidationService(
         memory_bus=mock_memory_bus,
         time_service=mock_time_service
     )
+    
+    yield service
+    
+    # Cleanup
+    ciris_engine.logic.persistence.db.core.get_db_connection = original_get_db
+    ciris_engine.logic.services.graph.tsdb_consolidation.query_manager.get_db_connection = original_get_db
+    try:
+        os.unlink(db_path)
+    except:
+        pass
 
 
 @pytest.mark.asyncio
@@ -65,20 +173,22 @@ async def test_tsdb_service_lifecycle(tsdb_service):
 @pytest.mark.asyncio
 async def test_tsdb_service_consolidate_period(tsdb_service, mock_memory_bus):
     """Test consolidating TSDB data for a period."""
-    # Create mock TSDB nodes
-    now = datetime.now(timezone.utc)
-    start_time = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    end_time = start_time + timedelta(hours=6)
+    # Mock the database access method
+    with patch.object(tsdb_service, '_find_oldest_unconsolidated_period', return_value=None):
+        # Create mock TSDB nodes
+        now = datetime.now(timezone.utc)
+        start_time = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_time = start_time + timedelta(hours=6)
 
-    # Create mock datapoints that match what the implementation expects
-    class MockDataPoint:
-        def __init__(self, timestamp, metric_name, value, correlation_type, tags):
-            # Keep timestamp as datetime object - the service expects datetime, not string
-            self.timestamp = timestamp
-            self.metric_name = metric_name
-            self.value = value
-            self.correlation_type = correlation_type
-            self.tags = tags
+        # Create mock datapoints that match what the implementation expects
+        class MockDataPoint:
+            def __init__(self, timestamp, metric_name, value, correlation_type, tags):
+                # Keep timestamp as datetime object - the service expects datetime, not string
+                self.timestamp = timestamp
+                self.metric_name = metric_name
+                self.value = value
+                self.correlation_type = correlation_type
+                self.tags = tags
 
     mock_datapoints = [
         MockDataPoint(
@@ -297,8 +407,40 @@ async def test_tsdb_service_resource_aggregation(tsdb_service, mock_memory_bus):
         return resource_datapoints  # Return resource metrics
     mock_memory_bus.recall_timeseries.side_effect = test_recall_timeseries
 
-    # Consolidate with resource aggregation
-    summaries = await tsdb_service._consolidate_period(start_time, end_time)
+    # Mock the query manager methods - metrics consolidator needs metric correlations
+    from ciris_engine.schemas.services.graph.consolidation import MetricCorrelationData
+    from ciris_engine.schemas.services.graph.query_results import TSDBNodeQueryResult
+    
+    # Convert mock datapoints to MetricCorrelationData
+    metric_correlations = [
+        MetricCorrelationData(
+            correlation_id=f"corr_{i}",
+            metric_name=dp.metric_name,
+            value=dp.value,
+            timestamp=dp.timestamp,
+            tags=dp.tags,
+            source='test'
+        ) for i, dp in enumerate(resource_datapoints)
+    ]
+    
+    with patch.object(tsdb_service._query_manager, 'check_period_consolidated', return_value=False), \
+         patch.object(tsdb_service._query_manager, 'query_all_nodes_in_period', return_value={}), \
+         patch.object(tsdb_service._query_manager, 'query_service_correlations', return_value=Mock(
+             service_interactions=[],
+             metric_correlations=metric_correlations,
+             trace_spans=[],
+             task_correlations=[]
+         )), \
+         patch.object(tsdb_service._query_manager, 'query_tasks_in_period', return_value=[]):
+        # Consolidate with resource aggregation
+        summaries = await tsdb_service._consolidate_period(start_time, end_time)
+
+    # Debug output if test fails
+    if not summaries:
+        print(f"DEBUG: No summaries returned")
+        print(f"DEBUG: recall_timeseries call count: {mock_memory_bus.recall_timeseries.call_count}")
+        if mock_memory_bus.recall_timeseries.called:
+            print(f"DEBUG: recall_timeseries calls: {mock_memory_bus.recall_timeseries.call_args_list}")
 
     assert summaries is not None
     assert len(summaries) > 0
@@ -482,8 +624,39 @@ async def test_tsdb_service_action_summary(tsdb_service, mock_memory_bus):
         return action_datapoints  # Return action metrics
     mock_memory_bus.recall_timeseries.side_effect = test_recall_timeseries
 
-    # Consolidate with action aggregation
-    summaries = await tsdb_service._consolidate_period(start_time, end_time)
+    # Mock the query manager methods - metrics consolidator needs metric correlations  
+    from ciris_engine.schemas.services.graph.consolidation import MetricCorrelationData
+    
+    # Convert mock datapoints to MetricCorrelationData
+    metric_correlations = [
+        MetricCorrelationData(
+            correlation_id=f"corr_{i}",
+            metric_name=dp.metric_name,
+            value=dp.value,
+            timestamp=dp.timestamp,
+            tags=dp.tags,
+            source='test'
+        ) for i, dp in enumerate(action_datapoints)
+    ]
+    
+    with patch.object(tsdb_service._query_manager, 'check_period_consolidated', return_value=False), \
+         patch.object(tsdb_service._query_manager, 'query_all_nodes_in_period', return_value={}), \
+         patch.object(tsdb_service._query_manager, 'query_service_correlations', return_value=Mock(
+             service_interactions=[],
+             metric_correlations=metric_correlations,
+             trace_spans=[],
+             task_correlations=[]
+         )), \
+         patch.object(tsdb_service._query_manager, 'query_tasks_in_period', return_value=[]):
+        # Consolidate with action aggregation
+        summaries = await tsdb_service._consolidate_period(start_time, end_time)
+
+    # Debug output if test fails
+    if not summaries:
+        print(f"DEBUG: No summaries returned")
+        print(f"DEBUG: recall_timeseries call count: {mock_memory_bus.recall_timeseries.call_count}")
+        if mock_memory_bus.recall_timeseries.called:
+            print(f"DEBUG: recall_timeseries calls: {mock_memory_bus.recall_timeseries.call_args_list}")
 
     assert summaries is not None
     assert len(summaries) > 0
@@ -565,7 +738,7 @@ async def test_tsdb_service_typed_node_conversion(tsdb_service):
     assert isinstance(graph_node.attributes, dict)
     assert graph_node.attributes["period_label"] == "2024-12-22-night"
     assert graph_node.attributes["total_tokens"] == 5000
-    assert graph_node.attributes["_node_class"] == "TSDBSummary"
+    assert graph_node.attributes["node_class"] == "TSDBSummary"
 
     # Convert back from GraphNode
     reconstructed = TSDBSummary.from_graph_node(graph_node)

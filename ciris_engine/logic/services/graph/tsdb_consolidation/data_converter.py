@@ -1,12 +1,14 @@
 """
 Data converter for TSDB consolidation.
 
-Converts raw Dict[str, Any] data to typed Pydantic schemas.
+Converts raw database rows (represented as typed models or dicts) to typed Pydantic schemas.
+The converter accepts both dictionary inputs (for backward compatibility) and typed RawData models.
 """
 import json
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Union
+from pydantic import BaseModel, Field
 
 from ciris_engine.schemas.services.graph.consolidation import (
     ServiceInteractionData,
@@ -24,16 +26,63 @@ from ciris_engine.schemas.services.graph.consolidation import (
 logger = logging.getLogger(__name__)
 
 
+# Raw data models representing database rows
+class RawCorrelationData(BaseModel):
+    """Raw correlation data from database row."""
+    correlation_id: str
+    correlation_type: str
+    service_type: str
+    action_type: str
+    trace_id: Optional[str] = None
+    span_id: Optional[str] = None
+    parent_span_id: Optional[str] = None
+    timestamp: datetime
+    request_data: Dict[str, Any] = Field(default_factory=dict)
+    response_data: Dict[str, Any] = Field(default_factory=dict)
+    tags: Dict[str, Any] = Field(default_factory=dict)
+    context: Optional[Dict[str, Any]] = Field(default=None)
+
+
+class RawTaskData(BaseModel):
+    """Raw task data from database row."""
+    task_id: str
+    status: str
+    created_at: Union[str, datetime]
+    updated_at: Union[str, datetime]
+    channel_id: Optional[str] = None
+    user_id: Optional[str] = None
+    description: Optional[str] = None
+    retry_count: int = 0
+    error_message: Optional[str] = None
+    thoughts: List[Dict[str, Any]] = Field(default_factory=list)
+    metadata: Optional[Dict[str, Any]] = None
+
+
+class RawThoughtData(BaseModel):
+    """Raw thought data from database row."""
+    thought_id: str = 'unknown'
+    thought_type: str = 'standard'
+    status: str = 'unknown'
+    created_at: str = ''
+    content: Optional[str] = None
+    final_action: Optional[Union[str, Dict[str, Any]]] = None
+    round_number: int = 0
+    depth: int = 0
+
+
 class TSDBDataConverter:
     """Converts raw dictionary data to typed schemas."""
     
     @staticmethod
-    def convert_service_interaction(raw_data: Dict[str, Any]) -> Optional[ServiceInteractionData]:
+    def convert_service_interaction(raw_data: Union[Dict[str, Any], RawCorrelationData]) -> Optional[ServiceInteractionData]:
         """Convert raw correlation data to ServiceInteractionData."""
         try:
+            # Convert dict to typed model if needed
+            if isinstance(raw_data, dict):
+                raw_data = RawCorrelationData(**raw_data)
             # Extract raw request/response data
-            raw_request = raw_data.get('request_data', {})
-            raw_response = raw_data.get('response_data', {})
+            raw_request = raw_data.request_data
+            raw_response = raw_data.response_data
             parameters = raw_request.get('parameters', {})
             
             # Build typed request data
@@ -64,7 +113,7 @@ class TSDBDataConverter:
             
             # Build interaction context if available
             context = None
-            context_data = raw_data.get('context', {})
+            context_data = raw_data.context
             if context_data:
                 context = InteractionContext(
                     trace_id=context_data.get('trace_id'),
@@ -78,10 +127,10 @@ class TSDBDataConverter:
             
             # Create ServiceInteractionData
             return ServiceInteractionData(
-                correlation_id=raw_data['correlation_id'],
-                action_type=raw_data.get('action_type', 'unknown'),
-                service_type=raw_data.get('service_type', 'unknown'),
-                timestamp=raw_data['timestamp'],
+                correlation_id=raw_data.correlation_id,
+                action_type=raw_data.action_type,
+                service_type=raw_data.service_type,
+                timestamp=raw_data.timestamp,
                 channel_id=raw_request.get('channel_id', 'unknown'),
                 request_data=request_data,
                 author_id=request_data.author_id if request_data else None,
@@ -98,11 +147,15 @@ class TSDBDataConverter:
             return None
     
     @staticmethod
-    def convert_metric_correlation(raw_data: Dict[str, Any]) -> Optional[MetricCorrelationData]:
+    def convert_metric_correlation(raw_data: Union[Dict[str, Any], RawCorrelationData]) -> Optional[MetricCorrelationData]:
         """Convert raw correlation data to MetricCorrelationData."""
         try:
-            raw_request = raw_data.get('request_data', {})
-            raw_response = raw_data.get('response_data', {})
+            # Convert dict to typed model if needed
+            if isinstance(raw_data, dict):
+                raw_data = RawCorrelationData(**raw_data)
+            
+            raw_request = raw_data.request_data
+            raw_response = raw_data.response_data
             
             # Build typed request/response data
             request_data = None
@@ -126,13 +179,13 @@ class TSDBDataConverter:
                 )
             
             return MetricCorrelationData(
-                correlation_id=raw_data['correlation_id'],
+                correlation_id=raw_data.correlation_id,
                 metric_name=raw_request.get('metric_name', 'unknown'),
                 value=float(raw_request.get('value', 0)),
-                timestamp=raw_data['timestamp'],
+                timestamp=raw_data.timestamp,
                 request_data=request_data,
                 response_data=response_data,
-                tags=raw_data.get('tags', {}),
+                tags=raw_data.tags,
                 source='correlation',
                 unit=raw_request.get('unit'),
                 aggregation_type=raw_request.get('aggregation_type')
@@ -142,12 +195,16 @@ class TSDBDataConverter:
             return None
     
     @staticmethod
-    def convert_trace_span(raw_data: Dict[str, Any]) -> Optional[TraceSpanData]:
+    def convert_trace_span(raw_data: Union[Dict[str, Any], RawCorrelationData]) -> Optional[TraceSpanData]:
         """Convert raw correlation data to TraceSpanData."""
         try:
-            raw_tags = raw_data.get('tags', {})
-            raw_request = raw_data.get('request_data', {})
-            raw_response = raw_data.get('response_data', {})
+            # Convert dict to typed model if needed
+            if isinstance(raw_data, dict):
+                raw_data = RawCorrelationData(**raw_data)
+            
+            raw_tags = raw_data.tags
+            raw_request = raw_data.request_data
+            raw_response = raw_data.response_data
             
             # Build typed span tags
             tags = None
@@ -155,7 +212,7 @@ class TSDBDataConverter:
                 tags = SpanTags(
                     task_id=raw_tags.get('task_id') or raw_request.get('task_id'),
                     thought_id=raw_tags.get('thought_id') or raw_request.get('thought_id'),
-                    component_type=raw_tags.get('component_type') or raw_data.get('service_type'),
+                    component_type=raw_tags.get('component_type') or raw_data.service_type,
                     handler_name=raw_tags.get('handler_name'),
                     user_id=raw_tags.get('user_id'),
                     channel_id=raw_tags.get('channel_id'),
@@ -164,17 +221,17 @@ class TSDBDataConverter:
                     additional_tags={k: v for k, v in raw_tags.items() 
                                    if k not in ['task_id', 'thought_id', 'component_type', 
                                               'handler_name', 'user_id', 'channel_id', 
-                                              'environment', 'version']}
+                                              'environment', 'version'] and v is not None}
                 )
             
             return TraceSpanData(
-                trace_id=raw_data.get('trace_id', ''),
-                span_id=raw_data.get('span_id', ''),
-                parent_span_id=raw_data.get('parent_span_id'),
-                timestamp=raw_data['timestamp'],
+                trace_id=raw_data.trace_id or '',
+                span_id=raw_data.span_id or '',
+                parent_span_id=raw_data.parent_span_id,
+                timestamp=raw_data.timestamp,
                 duration_ms=raw_response.get('duration_ms', 0.0),
-                operation_name=raw_data.get('action_type', 'unknown'),
-                service_name=raw_data.get('service_type', 'unknown'),
+                operation_name=raw_data.action_type,
+                service_name=raw_data.service_type,
                 status='ok' if raw_response.get('success', True) else 'error',
                 tags=tags,
                 task_id=tags.task_id if tags else None,
@@ -191,15 +248,18 @@ class TSDBDataConverter:
             return None
     
     @staticmethod
-    def convert_task(raw_task: Dict[str, Any]) -> Optional[TaskCorrelationData]:
+    def convert_task(raw_task: Union[Dict[str, Any], RawTaskData]) -> Optional[TaskCorrelationData]:
         """Convert raw task data to TaskCorrelationData."""
         try:
+            # Convert dict to typed model if needed
+            if isinstance(raw_task, dict):
+                raw_task = RawTaskData(**raw_task)
             # Extract handlers from thoughts
             handlers_used = []
             final_handler = None
             thoughts = []
             
-            for raw_thought in raw_task.get('thoughts', []):
+            for raw_thought in raw_task.thoughts:
                 # Convert thought to ThoughtSummary
                 thought_summary = TSDBDataConverter._convert_thought(raw_thought)
                 if thought_summary:
@@ -209,13 +269,13 @@ class TSDBDataConverter:
                         final_handler = thought_summary.handler  # Last one is final
             
             # Parse dates
-            created_at = TSDBDataConverter._parse_datetime(raw_task.get('created_at'))
-            updated_at = TSDBDataConverter._parse_datetime(raw_task.get('updated_at'))
+            created_at = TSDBDataConverter._parse_datetime(raw_task.created_at if isinstance(raw_task.created_at, str) else raw_task.created_at.isoformat())
+            updated_at = TSDBDataConverter._parse_datetime(raw_task.updated_at if isinstance(raw_task.updated_at, str) else raw_task.updated_at.isoformat())
             
             # Build task metadata
             metadata = None
-            if raw_task.get('metadata'):
-                raw_meta = raw_task['metadata']
+            if raw_task.metadata:
+                raw_meta = raw_task.metadata
                 metadata = TaskMetadata(
                     priority=raw_meta.get('priority'),
                     tags=raw_meta.get('tags', []),
@@ -228,21 +288,21 @@ class TSDBDataConverter:
                 )
             
             return TaskCorrelationData(
-                task_id=raw_task['task_id'],
-                status=raw_task['status'],
+                task_id=raw_task.task_id,
+                status=raw_task.status,
                 created_at=created_at,
                 updated_at=updated_at,
-                channel_id=raw_task.get('channel_id'),
-                user_id=raw_task.get('user_id'),
-                task_type=raw_task.get('description', '').split()[0] if raw_task.get('description') else None,
-                retry_count=raw_task.get('retry_count', 0),
+                channel_id=raw_task.channel_id,
+                user_id=raw_task.user_id,
+                task_type=raw_task.description.split()[0] if raw_task.description else None,
+                retry_count=raw_task.retry_count,
                 duration_ms=(updated_at - created_at).total_seconds() * 1000,
                 thoughts=thoughts,
                 handlers_used=handlers_used,
                 final_handler=final_handler,
-                success=raw_task['status'] in ['completed', 'success'],
-                error_message=raw_task.get('error_message'),
-                result_summary=raw_task.get('description'),
+                success=raw_task.status in ['completed', 'success'],
+                error_message=raw_task.error_message,
+                result_summary=raw_task.description,
                 metadata=metadata
             )
         except Exception as e:
@@ -250,40 +310,47 @@ class TSDBDataConverter:
             return None
     
     @staticmethod
-    def _convert_thought(raw_thought: Dict[str, Any]) -> Optional[ThoughtSummary]:
+    def _convert_thought(raw_thought: Union[Dict[str, Any], RawThoughtData]) -> Optional[ThoughtSummary]:
         """Convert raw thought data to ThoughtSummary."""
         try:
+            # Convert dict to typed model if needed
+            if isinstance(raw_thought, dict):
+                raw_thought = RawThoughtData(**raw_thought)
             final_action = None
             handler = None
             
-            if raw_thought.get('final_action'):
+            if raw_thought.final_action:
                 try:
-                    action_data = json.loads(raw_thought['final_action']) if isinstance(raw_thought['final_action'], str) else raw_thought['final_action']
+                    action_data = json.loads(raw_thought.final_action) if isinstance(raw_thought.final_action, str) else raw_thought.final_action
                     final_action = action_data
                     handler = action_data.get('handler')
                 except (json.JSONDecodeError, TypeError):
                     pass
             
             return ThoughtSummary(
-                thought_id=raw_thought.get('thought_id', 'unknown'),
-                thought_type=raw_thought.get('thought_type', 'standard'),
-                status=raw_thought.get('status', 'unknown'),
-                created_at=raw_thought.get('created_at', ''),
-                content=raw_thought.get('content'),
+                thought_id=raw_thought.thought_id,
+                thought_type=raw_thought.thought_type,
+                status=raw_thought.status,
+                created_at=raw_thought.created_at,
+                content=raw_thought.content,
                 final_action=final_action,
                 handler=handler,
-                round_number=raw_thought.get('round_number', 0),
-                depth=raw_thought.get('depth', 0)
+                round_number=raw_thought.round_number,
+                depth=raw_thought.depth
             )
         except Exception as e:
             logger.warning(f"Failed to convert thought data: {e}")
             return None
     
     @staticmethod
-    def _parse_datetime(date_str: Optional[str]) -> datetime:
+    def _parse_datetime(date_str: Optional[Union[str, datetime]]) -> datetime:
         """Parse datetime string to datetime object."""
         if not date_str:
             return datetime.now(timezone.utc)
+        
+        # If already a datetime, return it
+        if isinstance(date_str, datetime):
+            return date_str
         
         try:
             # Handle ISO format with Z suffix
@@ -294,4 +361,4 @@ class TSDBDataConverter:
             return datetime.now(timezone.utc)
 
 
-__all__ = ["TSDBDataConverter"]
+__all__ = ["TSDBDataConverter", "RawCorrelationData", "RawTaskData", "RawThoughtData"]

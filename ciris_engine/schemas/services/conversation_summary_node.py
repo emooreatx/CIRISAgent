@@ -144,7 +144,7 @@ class ConversationSummaryNode(TypedGraphNode):
             "consolidation_timestamp": self.consolidation_timestamp.isoformat(),
             
             # Type hint
-            "_node_class": "ConversationSummaryNode"
+            "node_class": "ConversationSummaryNode"
         }
         
         return GraphNode(

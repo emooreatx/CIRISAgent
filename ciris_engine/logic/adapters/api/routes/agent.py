@@ -231,7 +231,7 @@ async def get_history(
     channels_to_query = [channel_id]
     if auth.role in ['ADMIN', 'AUTHORITY', 'SYSTEM_ADMIN']:
         # Get default API channel from config
-        api_host = getattr(request.app.state, 'api_host', '0.0.0.0')
+        api_host = getattr(request.app.state, 'api_host', '127.0.0.1')
         api_port = getattr(request.app.state, 'api_port', '8080')
         default_channel = f"api_{api_host}_{api_port}"
         channels_to_query.append(default_channel)
@@ -728,7 +728,7 @@ async def get_channels(
                 logger.warning("Control service has no adapter_manager")
         
         # Also check if there's a default API channel
-        api_host = getattr(request.app.state, 'api_host', '0.0.0.0')
+        api_host = getattr(request.app.state, 'api_host', '127.0.0.1')
         api_port = getattr(request.app.state, 'api_port', '8080')
         api_channel_id = f"api_{api_host}_{api_port}"
         
