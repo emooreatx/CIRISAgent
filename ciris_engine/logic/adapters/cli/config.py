@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field
 from typing import Optional
 import os
 import uuid
+import socket
+import getpass
 
 class CLIAdapterConfig(BaseModel):
     """Configuration for the CLI adapter."""
@@ -21,24 +23,35 @@ class CLIAdapterConfig(BaseModel):
     word_wrap: bool = Field(default=True, description="Enable word wrapping for long lines")
 
     default_channel_id: Optional[str] = Field(
-        default_factory=lambda: f"cli_{os.getpid()}_{uuid.uuid4().hex[:8]}", 
+        default=None,  # Will be set in get_home_channel_id() 
         description="Default channel ID for CLI messages"
     )
 
     enable_cli_tools: bool = Field(default=True, description="Enable CLI-specific tools")
 
     def get_home_channel_id(self) -> str:
-        """Get the home channel ID for this CLI adapter instance."""
+        """Get the home channel ID for this CLI adapter instance.
+        
+        Uses a deterministic ID based on username and hostname so that
+        users can see their conversation history across sessions.
+        """
         if self.default_channel_id:
             return self.default_channel_id
 
-        # Generate unique channel ID for this connection
+        # Generate deterministic channel ID based on user and host
         try:
-            import uuid
-            import os
-            return f"cli_{os.getpid()}_{uuid.uuid4().hex[:8]}"
+            username = getpass.getuser()
+            hostname = socket.gethostname()
+            # Create a deterministic ID that's consistent across sessions
+            # but unique per user/host combination
+            return f"cli_{username}_{hostname}".replace(" ", "_").replace(".", "_")
         except Exception:
-            return "cli_default"
+            # Fallback to a simpler deterministic ID
+            try:
+                username = getpass.getuser()
+                return f"cli_{username}_local"
+            except Exception:
+                return "cli_default"
 
     def load_env_vars(self) -> None:
         """Load configuration from environment variables if present."""

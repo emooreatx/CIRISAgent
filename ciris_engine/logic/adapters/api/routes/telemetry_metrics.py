@@ -1,20 +1,40 @@
 """
 Additional telemetry metrics endpoints.
 """
-from typing import Dict, Any
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Request, HTTPException, Depends, Path
+from pydantic import BaseModel, Field
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ..dependencies.auth import require_observer, AuthContext
 
 router = APIRouter()
 
-@router.get("/metrics/{metric_name}", response_model=SuccessResponse[Dict[str, Any]])
+
+class MetricHistoryPoint(BaseModel):
+    """A single point in metric history."""
+    timestamp: str = Field(..., description="ISO timestamp of the measurement")
+    value: float = Field(..., description="Metric value at this time")
+
+
+class MetricDetail(BaseModel):
+    """Detailed information about a specific metric."""
+    metric_name: str = Field(..., description="Name of the metric")
+    current: float = Field(..., description="Current value of the metric")
+    unit: str = Field(..., description="Unit of measurement")
+    description: str = Field(..., description="Human-readable description of the metric")
+    trend: str = Field(..., description="Trend direction: up, down, or stable")
+    hourly_rate: float = Field(..., description="Rate per hour")
+    daily_total: float = Field(..., description="Total for the day")
+    history: List[MetricHistoryPoint] = Field(default_factory=list, description="Recent history points")
+    timestamp: str = Field(..., description="When this data was collected")
+
+@router.get("/metrics/{metric_name}", response_model=SuccessResponse[MetricDetail])
 async def get_metric_detail(
     request: Request,
     metric_name: str = Path(..., description="Name of the metric"),
     auth: AuthContext = Depends(require_observer)
-) -> SuccessResponse[Dict[str, Any]]:
+) -> SuccessResponse[MetricDetail]:
     """
     Get detailed information about a specific metric.
     
@@ -39,7 +59,7 @@ async def get_metric_detail(
                 "hourly_rate": 64.3,
                 "daily_total": 1543,
                 "history": [
-                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 1543 - i*10}
+                    MetricHistoryPoint(timestamp=(now - timedelta(minutes=i*10)).isoformat(), value=1543 - i*10)
                     for i in range(6)
                 ]
             },
@@ -51,7 +71,7 @@ async def get_metric_detail(
                 "hourly_rate": 37.2,
                 "daily_total": 892,
                 "history": [
-                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 892 - i*5}
+                    MetricHistoryPoint(timestamp=(now - timedelta(minutes=i*10)).isoformat(), value=892 - i*5)
                     for i in range(6)
                 ]
             },
@@ -63,7 +83,7 @@ async def get_metric_detail(
                 "hourly_rate": 1876,
                 "daily_total": 45023,
                 "history": [
-                    {"timestamp": (now - timedelta(minutes=i*10)).isoformat(), "value": 45023 - i*300}
+                    MetricHistoryPoint(timestamp=(now - timedelta(minutes=i*10)).isoformat(), value=45023 - i*300)
                     for i in range(6)
                 ]
             }
@@ -71,21 +91,31 @@ async def get_metric_detail(
         
         # Return specific metric data or default
         if metric_name in metric_data:
-            response = metric_data[metric_name]
+            data = metric_data[metric_name]
+            response = MetricDetail(
+                metric_name=metric_name,
+                current=data["current"],
+                unit=data["unit"],
+                description=data["description"],
+                trend=data["trend"],
+                hourly_rate=data["hourly_rate"],
+                daily_total=data["daily_total"],
+                history=data["history"],
+                timestamp=now.isoformat()
+            )
         else:
             # Generic response for unknown metrics
-            response = {
-                "current": 0,
-                "unit": "unknown",
-                "description": f"Metric {metric_name}",
-                "trend": "stable",
-                "hourly_rate": 0,
-                "daily_total": 0,
-                "history": []
-            }
-        
-        response["metric_name"] = metric_name
-        response["timestamp"] = now.isoformat()
+            response = MetricDetail(
+                metric_name=metric_name,
+                current=0,
+                unit="unknown",
+                description=f"Metric {metric_name}",
+                trend="stable",
+                hourly_rate=0,
+                daily_total=0,
+                history=[],
+                timestamp=now.isoformat()
+            )
         
         return SuccessResponse(data=response)
         

@@ -21,6 +21,7 @@ from ciris_engine.schemas.telemetry.core import (
     TraceContext
 )
 from datetime import datetime, timezone
+from ciris_engine.schemas.adapters.tool_execution import ToolExecutionArgs, ToolHandlerContext
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
@@ -100,19 +101,29 @@ class DiscordToolHandler:
                 correlation_id=str(uuid.uuid4())
             )
 
-        correlation_id = tool_args.get("correlation_id", str(uuid.uuid4()))
+        # Convert dict to typed args
+        typed_args = ToolExecutionArgs(
+            correlation_id=tool_args.get("correlation_id", str(uuid.uuid4())),
+            thought_id=tool_args.get('thought_id'),
+            task_id=tool_args.get('task_id'),
+            channel_id=tool_args.get('channel_id'),
+            timeout_seconds=tool_args.get('timeout_seconds', 30.0),
+            tool_specific_params={k: v for k, v in tool_args.items() if k not in ['correlation_id', 'thought_id', 'task_id', 'channel_id', 'timeout_seconds']}
+        )
+        
+        correlation_id = str(typed_args.correlation_id or uuid.uuid4())
         
         # Create properly typed request data
         now = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
         request_data = ServiceRequestData(
             service_type="discord",
             method_name=tool_name,
-            parameters={k: str(v) for k, v in tool_args.items()},
+            parameters={k: str(v) for k, v in typed_args.get_all_params().items()},
             request_timestamp=now,
-            thought_id=tool_args.get('thought_id'),
-            task_id=tool_args.get('task_id'),
-            channel_id=tool_args.get('channel_id'),
-            timeout_seconds=30.0
+            thought_id=typed_args.thought_id,
+            task_id=typed_args.task_id,
+            channel_id=typed_args.channel_id,
+            timeout_seconds=typed_args.timeout_seconds
         )
 
         persistence.add_correlation(
@@ -141,7 +152,15 @@ class DiscordToolHandler:
         try:
             import time
             start_time = time.time()
-            tool_args_with_bot = {**tool_args, "bot": self.client}
+            # Create context for tool handler
+            handler_context = ToolHandlerContext(
+                tool_name=tool_name,
+                handler_name="DiscordAdapter",
+                bot_instance=self.client
+            )
+            
+            # Merge all params with bot
+            tool_args_with_bot = {**typed_args.get_all_params(), "bot": self.client}
             result = await handler(tool_args_with_bot)
             _execution_time = (time.time() - start_time) * 1000
 

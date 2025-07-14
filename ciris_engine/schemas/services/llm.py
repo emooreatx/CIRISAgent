@@ -7,6 +7,17 @@ from typing import Optional, List, Literal, Dict
 from datetime import datetime, timezone
 from pydantic import BaseModel, Field
 
+
+class TokenUsageStats(BaseModel):
+    """Token usage statistics from LLM API."""
+    prompt_tokens: int = Field(0, description="Number of tokens in the prompt")
+    completion_tokens: int = Field(0, description="Number of tokens in the completion")
+    total_tokens: int = Field(0, description="Total tokens used")
+    
+    class Config:
+        extra = "forbid"
+
+
 class CircuitBreakerStats(BaseModel):
     """Circuit breaker statistics."""
     state: str = Field(..., description="Current state: closed, open, or half-open")
@@ -32,7 +43,7 @@ class LLMResponse(BaseModel):
     """Standard LLM response structure."""
     content: str = Field(..., description="Response content")
     model: str = Field(..., description="Model that generated response")
-    usage: Dict[str, int] = Field(default_factory=dict, description="Token usage stats")
+    usage: TokenUsageStats = Field(default_factory=TokenUsageStats, description="Token usage stats")
     finish_reason: Optional[str] = Field(None, description="Why generation stopped")
 
 

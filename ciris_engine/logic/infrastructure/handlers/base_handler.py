@@ -4,7 +4,7 @@ Base action handler - clean architecture with BusManager
 
 import asyncio
 import logging
-from typing import Any, Callable, Optional, Type, TypeVar, Dict
+from typing import Any, Callable, Optional, Type, TypeVar
 from abc import ABC, abstractmethod
 from datetime import datetime
 
@@ -26,6 +26,7 @@ from pydantic import BaseModel, ValidationError
 from ciris_engine.logic import persistence
 from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, TraceContext, ServiceCorrelationStatus
 from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
+from ciris_engine.schemas.handlers.schemas import HandlerDecapsulatedParams
 
 T = TypeVar('T', bound=BaseModel)
 
@@ -267,19 +268,21 @@ class BaseActionHandler(ABC):
             # Decapsulate secrets in action parameters
             if result.action_parameters:
                 # Convert parameters to dict if needed
-                params_dict: Dict[str, Any]
                 if hasattr(result.action_parameters, 'model_dump'):
                     params_dict = result.action_parameters.model_dump()
                 else:
                     params_dict = dict(result.action_parameters)
 
+                # Create typed parameters object
+                decapsulation_context = DecapsulationContext(
+                    action_type=action_name,
+                    thought_id=thought_id
+                )
+                
                 decapsulated_params = await self.dependencies.secrets_service.decapsulate_secrets_in_parameters(
                     action_type=action_name,
                     action_params=params_dict,
-                    context=DecapsulationContext(
-                        action_type=action_name,
-                        thought_id=thought_id
-                    )
+                    context=decapsulation_context
                 )
                 
                 # Recreate the proper parameter object from the decapsulated dict

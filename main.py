@@ -160,7 +160,7 @@ async def _run_runtime(runtime: CIRISRuntime, timeout: Optional[int], num_rounds
 @click.option("--timeout", type=int, help="Maximum runtime duration in seconds")
 @click.option("--handler", help="Direct handler to execute and exit")
 @click.option("--params", help="JSON parameters for handler execution")
-@click.option("--host", "api_host", default=None, help="API host (default: 0.0.0.0)")
+@click.option("--host", "api_host", default=None, help="API host (default: 127.0.0.1 for security, use 0.0.0.0 for all interfaces)")
 @click.option("--port", "api_port", default=None, type=int, help="API port (default: 8080)")
 @click.option("--debug/--no-debug", default=False, help="Enable debug logging")
 @click.option("--no-interactive/--interactive", "cli_interactive", default=True, help="Enable/disable interactive CLI input")

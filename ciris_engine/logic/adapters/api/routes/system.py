@@ -134,6 +134,15 @@ class AdapterActionRequest(BaseModel):
     force: bool = Field(False, description="Force the operation")
 
 
+class ToolInfo(BaseModel):
+    """Information about an available tool."""
+    name: str = Field(..., description="Tool name")
+    description: str = Field(..., description="Tool description")
+    provider: str = Field(..., description="Provider service name")
+    schema: Dict[str, Any] = Field(default_factory=dict, description="Tool parameter schema")
+    category: str = Field("general", description="Tool category")
+
+
 # Endpoints
 
 @router.get("/health", response_model=SuccessResponse[SystemHealthResponse])
@@ -933,11 +942,11 @@ async def reload_adapter(
 
 
 # Tool endpoints
-@router.get("/tools", response_model=SuccessResponse[List[dict]])
+@router.get("/tools", response_model=SuccessResponse[List[ToolInfo]])
 async def get_available_tools(
     request: Request,
     auth: AuthContext = Depends(require_observer)
-) -> SuccessResponse[List[dict]]:
+) -> SuccessResponse[List[ToolInfo]]:
     """
     Get list of all available tools from all tool providers.
     
@@ -971,24 +980,24 @@ async def get_available_tools(
                             # Modern interface with ToolInfo objects
                             tool_infos = await provider.get_all_tool_info()
                             for info in tool_infos:
-                                all_tools.append({
-                                    "name": info.name,
-                                    "description": info.description,
-                                    "provider": provider_name,
-                                    "schema": info.parameters.model_dump() if info.parameters else {},
-                                    "category": getattr(info, 'category', 'general')
-                                })
+                                all_tools.append(ToolInfo(
+                                    name=info.name,
+                                    description=info.description,
+                                    provider=provider_name,
+                                    schema=info.parameters.model_dump() if info.parameters else {},
+                                    category=getattr(info, 'category', 'general')
+                                ))
                         elif hasattr(provider, 'list_tools'):
                             # Legacy interface
                             tool_names = await provider.list_tools()
                             for name in tool_names:
-                                all_tools.append({
-                                    "name": name,
-                                    "description": f"{name} tool",
-                                    "provider": provider_name,
-                                    "schema": {},
-                                    "category": "general"
-                                })
+                                all_tools.append(ToolInfo(
+                                    name=name,
+                                    description=f"{name} tool",
+                                    provider=provider_name,
+                                    schema={},
+                                    category="general"
+                                ))
                     except Exception as e:
                         logger.warning(f"Failed to get tools from provider: {e}")
         
@@ -996,16 +1005,16 @@ async def get_available_tools(
         seen_tools = {}
         unique_tools = []
         for tool in all_tools:
-            if tool['name'] not in seen_tools:
-                seen_tools[tool['name']] = tool
+            if tool.name not in seen_tools:
+                seen_tools[tool.name] = tool
                 unique_tools.append(tool)
             else:
                 # If we see the same tool from multiple providers, add provider info
-                existing = seen_tools[tool['name']]
-                if existing['provider'] != tool['provider']:
-                    existing['provider'] = f"{existing['provider']}, {tool['provider']}"
+                existing = seen_tools[tool.name]
+                if existing.provider != tool.provider:
+                    existing.provider = f"{existing.provider}, {tool.provider}"
         
-        return SuccessResponse[List[dict]](
+        return SuccessResponse[List[ToolInfo]](
             data=unique_tools
         )
         

@@ -121,5 +121,9 @@ def create_app(runtime: Any = None, adapter_config: Any = None) -> FastAPI:
 # For running standalone (development)
 if __name__ == "__main__":
     import uvicorn
+    import os
     app = create_app()
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    # Use environment variable or secure default (localhost only)
+    host = os.environ.get("CIRIS_API_HOST", "127.0.0.1")
+    port = int(os.environ.get("CIRIS_API_PORT", "8000"))
+    uvicorn.run(app, host=host, port=port)

@@ -63,3 +63,39 @@ class VarianceCheckMetadata(BaseModel):
     check_reason: Optional[str] = Field(None, description="Reason for check if triggered")
     previous_check: Optional[datetime] = Field(None, description="Previous check timestamp")
     baseline_established: datetime = Field(..., description="When baseline was established")
+
+
+class CurrentIdentityData(BaseModel):
+    """Structured representation of current identity state extracted from nodes."""
+    agent_id: str = Field("unknown", description="Agent ID")
+    identity_hash: str = Field("unknown", description="Identity hash")
+    core_purpose: str = Field("unknown", description="Core purpose description")
+    role: str = Field("unknown", description="Role description")
+    permitted_actions: List[str] = Field(default_factory=list, description="List of permitted actions")
+    restricted_capabilities: List[str] = Field(default_factory=list, description="List of restricted capabilities")
+    ethical_boundaries: List[str] = Field(default_factory=list, description="List of ethical boundaries")
+    personality_traits: List[str] = Field(default_factory=list, description="List of personality traits")
+    communication_style: str = Field("standard", description="Communication style")
+    learning_enabled: bool = Field(True, description="Whether learning is enabled")
+    adaptation_rate: float = Field(0.1, description="Rate of adaptation")
+
+
+class ServiceStatusMetrics(BaseModel):
+    """Custom metrics for service status reporting."""
+    has_baseline: float = Field(0.0, description="1.0 if baseline exists, 0.0 otherwise")
+    last_variance_check: Optional[str] = Field(None, description="ISO timestamp of last variance check")
+    variance_threshold: float = Field(0.20, description="Variance threshold for triggering WA review")
+
+
+class NodeAttributes(BaseModel):
+    """Generic node attributes for parsing."""
+    agent_id: Optional[str] = Field(None, description="Agent ID from node")
+    identity_hash: Optional[str] = Field(None, description="Identity hash from node")
+    description: Optional[str] = Field(None, description="Description field")
+    role_description: Optional[str] = Field(None, description="Role description")
+    permitted_actions: Optional[List[str]] = Field(None, description="Permitted actions")
+    restricted_capabilities: Optional[List[str]] = Field(None, description="Restricted capabilities")
+    areas_of_expertise: Optional[List[str]] = Field(None, description="Areas of expertise")
+    startup_instructions: Optional[str] = Field(None, description="Startup instructions")
+    ethical_boundaries: Optional[List[str]] = Field(None, description="Ethical boundaries")
+    node_class: Optional[str] = Field(None, description="Node class type")

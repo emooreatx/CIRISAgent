@@ -137,7 +137,7 @@ class AuditSummaryNode(TypedGraphNode):
             "consolidation_timestamp": self.consolidation_timestamp.isoformat(),
             
             # Type hint
-            "_node_class": "AuditSummaryNode"
+            "node_class": "AuditSummaryNode"
         }
         
         return GraphNode(

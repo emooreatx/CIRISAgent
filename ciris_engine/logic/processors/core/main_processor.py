@@ -11,6 +11,7 @@ from ciris_engine.logic.config import ConfigAccessor
 from ciris_engine.schemas.runtime.core import AgentIdentityRoot
 from ciris_engine.schemas.processors.states import AgentState
 from ciris_engine.schemas.processors.state import StateTransitionRecord
+from ciris_engine.schemas.processors.context import ProcessorContext
 from ciris_engine.logic import persistence
 from ciris_engine.schemas.runtime.models import Thought, ThoughtStatus
 from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, TraceContext, ServiceRequestData, ServiceResponseData, ServiceCorrelationStatus
@@ -497,12 +498,12 @@ class AgentProcessor:
             # Use fallback-aware process_thought_item
             try:
                 logger.info(f"[DEBUG TIMING] Calling processor.process_thought_item for thought {thought.thought_id}")
-                context: Dict[str, Any] = {"origin": "wakeup_async"}
-                if prefetched:
-                    context["prefetched_thought"] = thought  # Pass the full thought object
-                if batch_context:
-                    context["batch_context"] = batch_context
-                result = await processor.process_thought_item(item, context=context)
+                context = ProcessorContext(
+                    origin="wakeup_async",
+                    prefetched_thought=thought if prefetched else None,
+                    batch_context=batch_context
+                )
+                result = await processor.process_thought_item(item, context=context.model_dump())
             except Exception as e:
                 logger.error(f"Error in processor.process_thought_item for thought {thought.thought_id}: {e}", exc_info=True)
                 persistence.update_thought_status(

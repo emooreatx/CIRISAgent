@@ -98,7 +98,7 @@ class IncidentNode(TypedGraphNode):
     def from_graph_node(cls, node: GraphNode) -> 'IncidentNode':
         """Reconstruct from GraphNode."""
         attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
-        attrs.pop("_node_class", None)
+        attrs.pop("node_class", None)
 
         # Handle datetime deserialization
         if "detected_at" in attrs:
@@ -180,7 +180,7 @@ class ProblemNode(TypedGraphNode):
     def from_graph_node(cls, node: GraphNode) -> 'ProblemNode':
         """Reconstruct from GraphNode."""
         attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
-        attrs.pop("_node_class", None)
+        attrs.pop("node_class", None)
 
         # Handle datetime deserialization
         if "first_occurrence" in attrs:
@@ -254,7 +254,7 @@ class IncidentInsightNode(TypedGraphNode):
     def from_graph_node(cls, node: GraphNode) -> 'IncidentInsightNode':
         """Reconstruct from GraphNode."""
         attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
-        attrs.pop("_node_class", None)
+        attrs.pop("node_class", None)
 
         # Handle datetime deserialization
         if "analysis_timestamp" in attrs:

@@ -4,7 +4,7 @@ import json
 import re
 import logging
 import psutil
-from typing import List, Optional, Tuple, Type, cast, Dict, Any, Callable, Awaitable, Protocol
+from typing import List, Optional, Tuple, Type, cast, Dict, Callable, Awaitable, Protocol
 
 from pydantic import BaseModel, Field
 from openai import AsyncOpenAI, APIConnectionError, RateLimitError, APIStatusError, InternalServerError
@@ -15,7 +15,7 @@ from ciris_engine.protocols.services.runtime.llm import MessageDict
 from ciris_engine.protocols.services.graph.telemetry import TelemetryServiceProtocol
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.runtime.resources import ResourceUsage
-from ciris_engine.schemas.runtime.protocols_core import LLMStatus
+from ciris_engine.schemas.runtime.protocols_core import LLMStatus, LLMUsageStatistics
 from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.services.llm import JSONExtractionResult
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
@@ -425,11 +425,11 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
         return LLMStatus(
             available=self.circuit_breaker.is_available(),
             model=self.model_name,
-            usage={
-                "total_calls": cb_stats.get("call_count", 0),
-                "failed_calls": cb_stats.get("failure_count", 0),
-                "success_rate": cb_stats.get("success_rate", 1.0)
-            },
+            usage=LLMUsageStatistics(
+                total_calls=cb_stats.get("call_count", 0),
+                failed_calls=cb_stats.get("failure_count", 0),
+                success_rate=cb_stats.get("success_rate", 1.0)
+            ),
             rate_limit_remaining=None,  # Would need to track from API responses
             response_time_avg=avg_response_time
         )

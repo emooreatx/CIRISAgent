@@ -1010,7 +1010,7 @@ class DreamProcessor(BaseProcessor):
             future_time = self._time_service.now() + timedelta(hours=hours_ahead)
             # Use description hash to ensure unique IDs
             import hashlib
-            desc_hash = hashlib.md5(description.encode()).hexdigest()[:8]
+            desc_hash = hashlib.md5(description.encode(), usedforsecurity=False).hexdigest()[:8]
 
             task = GraphNode(
                 id=f"future_task_{int(future_time.timestamp())}_{desc_hash}",

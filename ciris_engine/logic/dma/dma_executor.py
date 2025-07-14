@@ -419,7 +419,7 @@ async def run_dsdma(
 
 async def run_action_selection_pdma(
     evaluator: ActionSelectionPDMAEvaluator, 
-    triaged_inputs: Dict[str, Any],
+    triaged_inputs: Union[Dict[str, Any], "EnhancedDMAInputs"],
     time_service: Optional["TimeServiceProtocol"] = None,
 ) -> ActionSelectionDMAResult:
     """Select the next handler action using the triaged DMA results."""
@@ -429,8 +429,12 @@ async def run_action_selection_pdma(
         raise RuntimeError("TimeService is required for DMA execution")
     start_time = time_service.now()
     
-    # Extract thought info for tracing
-    original_thought = triaged_inputs.get('original_thought', {})
+    # Handle both dict and EnhancedDMAInputs
+    if isinstance(triaged_inputs, EnhancedDMAInputs):
+        original_thought = triaged_inputs.original_thought
+    else:
+        original_thought = triaged_inputs.get('original_thought', {})
+    
     thought_id = original_thought.thought_id if hasattr(original_thought, 'thought_id') else 'unknown'
     task_id = original_thought.source_task_id if hasattr(original_thought, 'source_task_id') else 'unknown'
     
@@ -486,22 +490,26 @@ async def run_action_selection_pdma(
         persistence.add_correlation(correlation, time_service)
     
     try:
-        # Convert dict to EnhancedDMAInputs
-        enhanced_inputs = EnhancedDMAInputs(
-            original_thought=triaged_inputs["original_thought"],
-            ethical_pdma_result=triaged_inputs["ethical_pdma_result"],
-            csdma_result=triaged_inputs["csdma_result"],
-            dsdma_result=triaged_inputs.get("dsdma_result"),
-            current_thought_depth=triaged_inputs["current_thought_depth"],
-            max_rounds=triaged_inputs["max_rounds"],
-            processing_context=triaged_inputs.get("processing_context"),
-            permitted_actions=triaged_inputs.get("permitted_actions", []),
-            agent_identity=triaged_inputs.get("agent_identity", {}),
-            faculty_evaluations=triaged_inputs.get("faculty_evaluations"),
-            faculty_enhanced=triaged_inputs.get("faculty_enhanced", False),
-            recursive_evaluation=triaged_inputs.get("recursive_evaluation", False),
-            conscience_feedback=triaged_inputs.get("conscience_feedback")
-        )
+        # Handle both dict and EnhancedDMAInputs
+        if isinstance(triaged_inputs, EnhancedDMAInputs):
+            enhanced_inputs = triaged_inputs
+        else:
+            # Convert dict to EnhancedDMAInputs
+            enhanced_inputs = EnhancedDMAInputs(
+                original_thought=triaged_inputs["original_thought"],
+                ethical_pdma_result=triaged_inputs["ethical_pdma_result"],
+                csdma_result=triaged_inputs["csdma_result"],
+                dsdma_result=triaged_inputs.get("dsdma_result"),
+                current_thought_depth=triaged_inputs["current_thought_depth"],
+                max_rounds=triaged_inputs["max_rounds"],
+                processing_context=triaged_inputs.get("processing_context"),
+                permitted_actions=triaged_inputs.get("permitted_actions", []),
+                agent_identity=triaged_inputs.get("agent_identity", {}),
+                faculty_evaluations=triaged_inputs.get("faculty_evaluations"),
+                faculty_enhanced=triaged_inputs.get("faculty_enhanced", False),
+                recursive_evaluation=triaged_inputs.get("recursive_evaluation", False),
+                conscience_feedback=triaged_inputs.get("conscience_feedback")
+            )
         
         result = await evaluator.evaluate(enhanced_inputs)
 

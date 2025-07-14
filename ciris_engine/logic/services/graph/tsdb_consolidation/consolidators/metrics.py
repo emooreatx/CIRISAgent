@@ -184,7 +184,8 @@ class MetricsConsolidator:
                 "unique_metrics": len(metrics_by_name),
                 "metrics_count": len(all_metrics),
                 "service_correlations_count": len(metric_correlations),
-                "total_data_points": len(all_metrics)
+                "total_data_points": len(all_metrics),
+                "consolidation_level": "basic"
             }
         )
         

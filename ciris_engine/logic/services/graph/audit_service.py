@@ -1138,7 +1138,7 @@ class GraphAuditService(BaseGraphService, AuditServiceProtocol):
         attrs = data.attributes if isinstance(data.attributes, dict) else {}
 
         # If it's an AuditEntryNode stored with to_graph_node(), convert back
-        if attrs.get("_node_class") == "AuditEntry":
+        if attrs.get("node_class") == "AuditEntry":
             try:
                 audit_node = AuditEntryNode.from_graph_node(data)
                 # Convert from AuditEntryNode to runtime AuditRequest

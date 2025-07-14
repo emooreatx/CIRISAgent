@@ -507,3 +507,100 @@ The mock LLM extracts commands from user context in this order:
 - Single point of control for Discord client lifecycle
 
 This fix ensures robust Discord connectivity for both boot-time and runtime adapter loading.
+
+## Type Safety Best Practices
+
+### Overview
+CIRIS follows strict type safety principles to ensure code reliability and maintainability. These practices align with our "No Dicts, No Strings, No Kings" philosophy.
+
+### Key Principles
+
+1. **Always Use Pydantic Models**
+   - Replace `Dict[str, Any]` with specific Pydantic models
+   - Define clear schemas for all data structures
+   - Use field validators for business logic constraints
+
+2. **Strict MyPy Configuration**
+   - Enable `strict = True` in mypy.ini
+   - Run mypy checks before committing code
+   - Fix type errors immediately, don't use `# type: ignore`
+
+3. **Type-Safe Patterns**
+   ```python
+   # ❌ Bad - Using Dict[str, Any]
+   def process_data(data: Dict[str, Any]) -> Dict[str, Any]:
+       return {"result": data.get("value", 0) * 2}
+   
+   # ✅ Good - Using Pydantic models
+   class ProcessInput(BaseModel):
+       value: float = Field(default=0.0)
+   
+   class ProcessOutput(BaseModel):
+       result: float
+   
+   def process_data(data: ProcessInput) -> ProcessOutput:
+       return ProcessOutput(result=data.value * 2)
+   ```
+
+4. **API Route Type Safety**
+   - Always define request/response models
+   - Use FastAPI's automatic validation
+   - Document models with Field descriptions
+
+5. **Database Query Results**
+   - Create typed result models for complex queries
+   - Use data converters to transform raw results
+   - Avoid passing raw database rows around
+
+### Migration Guide
+
+When encountering `Dict[str, Any]`:
+
+1. **Identify the structure** - What fields does this dict contain?
+2. **Create a Pydantic model** - Define fields with proper types
+3. **Add validation** - Use validators for business rules
+4. **Update signatures** - Replace Dict with the new model
+5. **Test thoroughly** - Ensure backward compatibility
+
+### Common Patterns
+
+1. **Configuration Objects**
+   ```python
+   class ServiceConfig(BaseModel):
+       host: str = Field(default="127.0.0.1")
+       port: int = Field(default=8080, ge=1, le=65535)
+       timeout: float = Field(default=30.0, gt=0)
+   ```
+
+2. **API Responses**
+   ```python
+   class APIResponse(BaseModel, Generic[T]):
+       success: bool
+       data: Optional[T] = None
+       error: Optional[str] = None
+   ```
+
+3. **Event Data**
+   ```python
+   class EventData(BaseModel):
+       event_type: str
+       timestamp: datetime
+       payload: BaseModel  # Specific payload model
+   ```
+
+### Tools and Automation
+
+- **ciris_mypy_toolkit** - Run compliance analysis
+- **mypy** - Static type checking
+- **pydantic** - Runtime validation
+- **FastAPI** - Automatic API documentation
+
+### Security Benefits
+
+Type safety provides security benefits:
+- Prevents injection attacks through validation
+- Ensures data integrity
+- Makes code behavior predictable
+- Reduces attack surface
+
+Remember: Every `Dict[str, Any]` is a potential bug. Replace them with proper types!

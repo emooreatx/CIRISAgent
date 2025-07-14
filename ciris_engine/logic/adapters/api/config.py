@@ -4,9 +4,19 @@ from pydantic import BaseModel, Field
 from ciris_engine.constants import DEFAULT_API_HOST, DEFAULT_API_PORT
 
 class APIAdapterConfig(BaseModel):
-    """Configuration for the API adapter."""
+    """Configuration for the API adapter.
     
-    host: str = Field(default=DEFAULT_API_HOST, description="API server host")
+    Security Note:
+    - Default host is 127.0.0.1 (localhost only) for security
+    - Set host to 0.0.0.0 only when you need external access
+    - Always use proper firewall rules when binding to all interfaces
+    - Consider using a reverse proxy (nginx, etc.) for production deployments
+    """
+    
+    host: str = Field(
+        default=DEFAULT_API_HOST, 
+        description="API server host (127.0.0.1 for localhost only, 0.0.0.0 for all interfaces)"
+    )
     port: int = Field(default=DEFAULT_API_PORT, description="API server port")
     
     cors_enabled: bool = Field(default=True, description="Enable CORS support")

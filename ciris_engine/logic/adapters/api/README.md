@@ -2,6 +2,8 @@
 
 The CIRIS API Adapter provides HTTP REST endpoints for interacting with the CIRIS Agent. Following the core philosophy: **The API exposes agent capabilities and observability, not internal handlers.**
 
+> **Security Note**: Please read [SECURITY.md](./SECURITY.md) for important network binding and security configuration guidelines.
+
 ## Design Philosophy
 
 The API provides:
@@ -201,7 +203,9 @@ curl http://localhost:8080/v1/telemetry/resources
 ## Configuration
 
 ### Environment Variables
-- `CIRIS_API_HOST` - API server host (default: 0.0.0.0)
+- `CIRIS_API_HOST` - API server host (default: 127.0.0.1 for security - localhost only)
+  - Set to `0.0.0.0` to bind to all interfaces (use only in trusted networks/production with proper firewall rules)
+  - Security recommendation: Use `127.0.0.1` for development, configure proper host binding for production
 - `CIRIS_API_PORT` - API server port (default: 8080)
 - `NEXT_PUBLIC_CIRIS_API_URL` - Frontend API URL for CIRISGui
 

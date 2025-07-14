@@ -65,7 +65,7 @@ class AuditEntry(TypedGraphNode):
             "context": self.context.model_dump(),
             "signature": self.signature,
             "hash_chain": self.hash_chain,
-            "_node_class": "AuditEntry"
+            "node_class": "AuditEntry"
         }
 
         return GraphNode(
@@ -174,7 +174,7 @@ class ConfigNode(TypedGraphNode):
             "value": self.value.model_dump(),
             # Don't duplicate version in attributes - it's already in GraphNode.version
             "previous_version": self.previous_version,
-            "_node_class": "ConfigNode"
+            "node_class": "ConfigNode"
         }
 
         return GraphNode(
@@ -297,7 +297,7 @@ class IdentitySnapshot(TypedGraphNode):
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "tags": self.tags or [],
             "identity_root": self.identity_root,
-            "_node_class": "IdentitySnapshot"
+            "node_class": "IdentitySnapshot"
         }
 
         return GraphNode(
@@ -412,7 +412,7 @@ class TSDBSummary(TypedGraphNode):
             "source_node_count": self.source_node_count,
             "consolidation_timestamp": self.consolidation_timestamp.isoformat(),
             "raw_data_expired": self.raw_data_expired,
-            "_node_class": "TSDBSummary"
+            "node_class": "TSDBSummary"
         }
 
         return GraphNode(
@@ -538,7 +538,7 @@ class IdentityNode(TypedGraphNode):
             "approval_required": self.approval_required,
             "approved_by": self.approved_by,
             "approval_timestamp": self.approval_timestamp.isoformat() if self.approval_timestamp else None,
-            "_node_class": "IdentityNode"
+            "node_class": "IdentityNode"
         }
 
         return GraphNode(

@@ -160,8 +160,8 @@ async def test_config_node_required_fields(services):
     assert isinstance(attrs, dict)
     assert "key" in attrs
     assert "value" in attrs
-    assert "_node_class" in attrs
-    assert attrs["_node_class"] == "ConfigNode"
+    assert "node_class" in attrs
+    assert attrs["node_class"] == "ConfigNode"
 
     # Verify we can reconstruct it
     reconstructed = ConfigNode.from_graph_node(graph_node)

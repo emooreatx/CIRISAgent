@@ -22,6 +22,7 @@ from ciris_engine.schemas.dma.results import (
     CSDMAResult,
     DSDMAResult,
 )
+from ciris_engine.schemas.dma.faculty import EnhancedDMAInputs
 from ciris_engine.schemas.processors.core import DMAResults
 from ciris_engine.logic.registries.circuit_breaker import CircuitBreaker
 from ciris_engine.logic.utils.channel_utils import extract_channel_id
@@ -250,17 +251,22 @@ class DMAOrchestrator:
         profile_name: str
     ) -> ActionSelectionDMAResult:
         """Run ActionSelectionPDMAEvaluator sequentially after DMAs."""
-        triaged: Dict[str, Any] = {}
-
-        triaged["original_thought"] = actual_thought
-        triaged["processing_context"] = processing_context
-        triaged["ethical_pdma_result"] = dma_results.ethical_pdma
-        triaged["csdma_result"] = dma_results.csdma
-        triaged["dsdma_result"] = dma_results.dsdma
+        # Create properly typed EnhancedDMAInputs
+        triaged = EnhancedDMAInputs(
+            original_thought=actual_thought,
+            processing_context=processing_context,
+            ethical_pdma_result=dma_results.ethical_pdma,
+            csdma_result=dma_results.csdma,
+            dsdma_result=dma_results.dsdma,
+            current_thought_depth=getattr(actual_thought, 'thought_depth', 0),
+            max_rounds=5,  # Default max rounds
+            faculty_enhanced=False,
+            recursive_evaluation=False
+        )
 
         # Check if this is a conscience retry from the context
         if hasattr(processing_context, 'is_conscience_retry') and processing_context.is_conscience_retry:
-            triaged["retry_with_guidance"] = True
+            triaged.recursive_evaluation = True
 
         channel_id = None
 
@@ -274,19 +280,22 @@ class DMAOrchestrator:
                 channel_id = extract_channel_id(channel_context)
 
 
-        triaged.setdefault("current_thought_depth", actual_thought.thought_depth)
+        # Update fields on the Pydantic model directly
+        if triaged.current_thought_depth == 0:  # Only set if not already set
+            triaged.current_thought_depth = actual_thought.thought_depth
 
         if self.app_config and hasattr(self.app_config, 'workflow'):
-            triaged.setdefault("max_rounds", self.app_config.workflow.max_rounds)
+            if triaged.max_rounds == 5:  # Only update if still default
+                triaged.max_rounds = self.app_config.workflow.max_rounds
         else:
-            triaged.setdefault("max_rounds", 5)
-            logger.warning("DMAOrchestrator: app_config or workflow config not found for max_rounds, using fallback.")
+            logger.warning("DMAOrchestrator: app_config or workflow config not found for max_rounds, using default.")
 
         # Get identity from persistence tier
         from ciris_engine.logic.persistence.models import get_identity_for_context
 
         identity_info = get_identity_for_context()
-        triaged["agent_identity"] = identity_info.model_dump()  # Convert to dict for backward compatibility
+        # Use attribute assignment for Pydantic model
+        triaged.agent_identity = identity_info.model_dump()  # Convert to dict for backward compatibility
 
         logger.debug(f"Using identity '{identity_info.agent_name}' for thought {thought_item.thought_id}")
 
@@ -294,11 +303,11 @@ class DMAOrchestrator:
         permitted_actions = identity_info.permitted_actions
 
         # Identity MUST have permitted actions - no defaults in a mission critical system
-        triaged["permitted_actions"] = permitted_actions
+        triaged.permitted_actions = permitted_actions
 
         # Pass through conscience feedback if available
         if hasattr(thought_item, 'conscience_feedback') and thought_item.conscience_feedback:
-            triaged["conscience_feedback"] = thought_item.conscience_feedback
+            triaged.conscience_feedback = thought_item.conscience_feedback
 
         try:
             result = await run_dma_with_retries(

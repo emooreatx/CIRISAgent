@@ -2,6 +2,11 @@
 Audit consolidation for security and compliance tracking.
 
 Consolidates AUDIT_ENTRY nodes into AuditSummaryNode with hash chain verification.
+
+IMPORTANT: This consolidator ONLY creates graph summaries for efficient querying.
+The original audit entries in the SQLite audit_log table with cryptographic 
+hash chains and signatures are NEVER deleted or modified. This ensures 
+absolute reputability in perpetuity - every action can be verified forever.
 """
 
 import logging

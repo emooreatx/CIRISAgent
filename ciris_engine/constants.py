@@ -16,5 +16,8 @@ DEFAULT_PROMPT_TEMPLATE = "default_prompt"
 DEFAULT_NUM_ROUNDS = 10
 
 # API defaults
-DEFAULT_API_HOST = "0.0.0.0"
+# Security Note: 127.0.0.1 binds to localhost only (recommended for security)
+# Use 0.0.0.0 to bind to all interfaces (only for trusted networks/production deployments)
+# Configure via CIRIS_API_HOST environment variable
+DEFAULT_API_HOST = "127.0.0.1"  # Secure default - localhost only
 DEFAULT_API_PORT = 8080

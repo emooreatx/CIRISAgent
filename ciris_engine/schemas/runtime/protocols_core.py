@@ -7,12 +7,22 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field, ConfigDict
 
+
+class LLMUsageStatistics(BaseModel):
+    """Token usage statistics for LLM service."""
+    total_calls: int = Field(0, description="Total number of calls made")
+    failed_calls: int = Field(0, description="Number of failed calls")
+    success_rate: float = Field(1.0, ge=0.0, le=1.0, description="Success rate (0-1)")
+    
+    model_config = ConfigDict(extra="forbid")
+
+
 class LLMStatus(BaseModel):
     """Status information from LLM service."""
     available: bool = Field(..., description="Whether service is available")
     model: str = Field(..., description="Current model name")
-    usage: Dict[str, int] = Field(
-        default_factory=dict,
+    usage: LLMUsageStatistics = Field(
+        default_factory=LLMUsageStatistics,
         description="Token usage statistics"
     )
     rate_limit_remaining: Optional[int] = Field(None, description="Remaining API calls")
