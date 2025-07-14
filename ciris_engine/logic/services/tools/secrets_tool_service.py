@@ -295,14 +295,19 @@ class SecretsToolService(BaseService, ToolService):
             return tool_info.parameters
         return None
 
-    def _get_metadata(self) -> Dict[str, Any]:
-        """Get service-specific metadata."""
-        metadata = super()._get_metadata()
-        metadata.update({
-            "adapter": self.adapter_name,
-            "tool_count": 3
-        })
-        return metadata
+    def get_capabilities(self) -> ServiceCapabilities:
+        """Get service capabilities with custom metadata."""
+        # Get base capabilities
+        capabilities = super().get_capabilities()
+        
+        # Add custom metadata
+        if capabilities.metadata:
+            capabilities.metadata.update({
+                "adapter": self.adapter_name,
+                "tool_count": 3
+            })
+        
+        return capabilities
     
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """Collect service-specific metrics."""

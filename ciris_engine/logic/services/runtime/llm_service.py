@@ -4,7 +4,7 @@ import json
 import re
 import logging
 import psutil
-from typing import List, Optional, Tuple, Type, cast, Dict, Any, Callable, Awaitable
+from typing import List, Optional, Tuple, Type, cast, Dict, Any, Callable, Awaitable, Protocol
 
 from pydantic import BaseModel, Field
 from openai import AsyncOpenAI, APIConnectionError, RateLimitError, APIStatusError, InternalServerError
@@ -33,6 +33,12 @@ class OpenAIConfig(BaseModel):
     timeout_seconds: int = Field(default=30)
 
 logger = logging.getLogger(__name__)
+
+# Type for structured call functions that can be retried
+StructuredCallFunc = Callable[
+    [List[dict], Type[BaseModel], int, float],
+    Awaitable[Tuple[BaseModel, ResourceUsage]]
+]
 
 class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
     """Client for interacting with OpenAI-compatible APIs with circuit breaker protection."""
@@ -169,15 +175,22 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
         # Also check circuit breaker status
         return base_healthy and self.circuit_breaker.is_available()
 
-    def _get_metadata(self) -> Dict[str, Any]:
-        """Get service-specific metadata."""
-        return {
-            "model": self.model_name,
-            "instructor_mode": getattr(self.openai_config, 'instructor_mode', 'JSON'),
-            "timeout_seconds": getattr(self.openai_config, 'timeout_seconds', 30),
-            "max_retries": self.max_retries,
-            "circuit_breaker_state": self.circuit_breaker.get_stats().get("state", "unknown")
-        }
+    def get_capabilities(self) -> ServiceCapabilities:
+        """Get service capabilities with custom metadata."""
+        # Get base capabilities
+        capabilities = super().get_capabilities()
+        
+        # Add custom metadata
+        if capabilities.metadata:
+            capabilities.metadata.update({
+                "model": self.model_name,
+                "instructor_mode": getattr(self.openai_config, 'instructor_mode', 'JSON'),
+                "timeout_seconds": getattr(self.openai_config, 'timeout_seconds', 30),
+                "max_retries": self.max_retries,
+                "circuit_breaker_state": self.circuit_breaker.get_stats().get("state", "unknown")
+            })
+        
+        return capabilities
 
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """Collect service-specific metrics."""
@@ -388,7 +401,7 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
         try:
             return await self._retry_with_backoff(
                 _make_structured_call,
-                messages,
+                cast(List[dict], messages),
                 response_model,
                 max_tokens,
                 temperature,
@@ -426,15 +439,17 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
 
     async def _retry_with_backoff(
         self,
-        func: Callable[..., Awaitable[Tuple[BaseModel, ResourceUsage]]],
-        *args: Any,
-        **kwargs: Any
+        func: StructuredCallFunc,
+        messages: List[dict],
+        response_model: Type[BaseModel],
+        max_tokens: int,
+        temperature: float
     ) -> Tuple[BaseModel, ResourceUsage]:
         """Retry with exponential backoff (private method)."""
         last_exception = None
         for attempt in range(self.max_retries):
             try:
-                return await func(*args, **kwargs)
+                return await func(messages, response_model, max_tokens, temperature)
             except self.retryable_exceptions as e:
                 last_exception = e
                 if attempt < self.max_retries - 1:

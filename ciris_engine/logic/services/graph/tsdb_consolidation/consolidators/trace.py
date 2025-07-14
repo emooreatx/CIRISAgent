@@ -6,7 +6,7 @@ Consolidates TRACE_SPAN correlations into TraceSummaryNode.
 
 import logging
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, Set, TypedDict
 from collections import defaultdict
 
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
@@ -15,6 +15,25 @@ from ciris_engine.schemas.services.graph.consolidation import TraceSpanData
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 
 logger = logging.getLogger(__name__)
+
+
+class ThoughtInfo(TypedDict):
+    """Information about a thought in a task."""
+    thought_id: str
+    handler: str
+    timestamp: Optional[str]
+
+
+class TaskSummaryData(TypedDict, total=False):
+    """Summary data for a task (using total=False for optional fields)."""
+    task_id: str
+    status: str
+    thoughts: List[Dict[str, Any]]  # List of thought info dicts
+    start_time: datetime
+    end_time: datetime
+    handlers_selected: List[str]
+    trace_ids: Set[str]
+    duration_ms: float
 
 
 class TraceConsolidator:
@@ -54,14 +73,14 @@ class TraceConsolidator:
         logger.info(f"Consolidating {len(trace_spans)} trace spans")
         
         # Initialize tracking structures
-        task_summaries = {}  # task_id -> summary data
-        unique_tasks = set()
-        unique_thoughts = set()
+        task_summaries: Dict[str, Dict[str, Any]] = {}  # task_id -> summary data
+        unique_tasks: Set[str] = set()
+        unique_thoughts: Set[str] = set()
         tasks_by_status: Dict[str, int] = defaultdict(int)
         thoughts_by_type: Dict[str, int] = defaultdict(int)
         component_calls: Dict[str, int] = defaultdict(int)
         component_failures: Dict[str, int] = defaultdict(int)
-        component_latencies = defaultdict(list)
+        component_latencies: Dict[str, List[float]] = defaultdict(list)
         handler_actions: Dict[str, int] = defaultdict(int)
         errors_by_component: Dict[str, int] = defaultdict(int)
         total_errors = 0

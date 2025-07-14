@@ -213,8 +213,8 @@ class ConversationConsolidator:
                     user_node,
                     'INVOLVED_USER',
                     {
-                        'message_count': data['message_count'],
-                        'channels': list(data['channels'])
+                        'message_count': str(data['message_count']),
+                        'channels': str(list(data['channels']))
                     }
                 ))
         
@@ -242,8 +242,8 @@ class ConversationConsolidator:
                 channel_node,
                 'OCCURRED_IN_CHANNEL',
                 {
-                    'message_count': len([i for i in service_interactions 
-                                        if i.channel_id == channel_id])
+                    'message_count': str(len([i for i in service_interactions 
+                                        if i.channel_id == channel_id]))
                 }
             ))
         

@@ -27,7 +27,8 @@ from ciris_engine.schemas.services.shutdown import (
 if TYPE_CHECKING:
     from ciris_engine.schemas.services.runtime_control import (
         ServicePriorityUpdateResponse,
-        CircuitBreakerResetResponse
+        CircuitBreakerResetResponse,
+        CircuitBreakerStatus
     )
 
 class RuntimeControlServiceProtocol(ServiceProtocol, Protocol):
@@ -192,6 +193,14 @@ class RuntimeControlServiceProtocol(ServiceProtocol, Protocol):
         service_type: Optional[str] = None
     ) -> "CircuitBreakerResetResponse":
         """Reset circuit breakers for services."""
+        ...
+
+    @abstractmethod
+    async def get_circuit_breaker_status(
+        self,
+        service_type: Optional[str] = None
+    ) -> Dict[str, "CircuitBreakerStatus"]:
+        """Get circuit breaker status for services."""
         ...
 
     @abstractmethod

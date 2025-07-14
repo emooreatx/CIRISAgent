@@ -7,7 +7,7 @@ This replaces the old config_manager_service and agent_config_service.
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Union, TYPE_CHECKING, Callable, Any
+from typing import Dict, List, Optional, Union, TYPE_CHECKING, Callable, Any, cast
 
 # Optional import for psutil
 try:
@@ -199,8 +199,7 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
         await self.store_in_graph(new_config)
         
         # Notify listeners of the change
-        old_value = current.value.value if current else None
-        await self._notify_listeners(key, old_value, value)
+        await self._notify_listeners(key, current.value if current else None, config_value)
 
 
     async def list_configs(self, prefix: Optional[str] = None) -> Dict[str, Union[str, int, float, bool, List, Dict]]:
@@ -226,7 +225,8 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
         for key, node in config_map.items():
             val = node.value.value
             if val is not None:  # Skip None values to match return type
-                result[key] = val
+                # Cast to the expected type since we know it's not None
+                result[key] = cast(Union[str, int, float, bool, List, Dict], val)
         return result
 
     def register_config_listener(self, key_pattern: str, callback: Callable) -> None:
@@ -248,7 +248,7 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
             if not self._config_listeners[key_pattern]:
                 del self._config_listeners[key_pattern]
     
-    async def _notify_listeners(self, key: str, old_value: Any, new_value: Any) -> None:
+    async def _notify_listeners(self, key: str, old_value: Optional[ConfigValue], new_value: ConfigValue) -> None:
         """Notify registered listeners of config changes."""
         import fnmatch
         

@@ -52,8 +52,11 @@ class IncidentManagementService(BaseGraphService):
         self._started = False
         self._start_time: Optional[datetime] = None
 
-    async def _get_time_service(self) -> Any:
+    async def _get_time_service(self) -> "TimeServiceProtocol":
         """Get time service for consistent timestamps."""
+        from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+        if self._time_service is None:
+            raise RuntimeError("Time service not initialized")
         return self._time_service
 
     async def process_recent_incidents(self, hours: int = 24) -> IncidentInsightNode:
@@ -623,5 +626,5 @@ class IncidentManagementService(BaseGraphService):
     
     def get_service_type(self) -> ServiceType:
         """Get the service type."""
-        return ServiceType.INCIDENT_MANAGEMENT
+        return ServiceType.AUDIT
 

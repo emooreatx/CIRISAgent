@@ -147,7 +147,7 @@ class GraphTelemetryService(BaseGraphService, TelemetryServiceProtocol):
         value: float = 1.0,
         tags: Optional[Dict[str, str]] = None,
         handler_name: Optional[str] = None,  # Accept extra parameter
-        **kwargs: Any  # Accept any other extra parameters
+        **kwargs: Any  # Accept telemetry-specific parameters
     ) -> None:
         """
         Record a metric by storing it as a memory in the graph.
@@ -593,17 +593,29 @@ class GraphTelemetryService(BaseGraphService, TelemetryServiceProtocol):
         """Store resource usage as operational memories."""
         if resources.llm:
             # Extract only the fields that ResourceUsage expects
-            usage_data: Dict[str, Any] = {}
-            if isinstance(resources.llm, dict):
-                for field in ['tokens_used', 'tokens_input', 'tokens_output']:
-                    if field in resources.llm and isinstance(resources.llm[field], (int, float)):
-                        usage_data[field] = int(resources.llm[field])
-                for field in ['cost_cents', 'carbon_grams', 'energy_kwh']:
-                    if field in resources.llm and isinstance(resources.llm[field], (int, float)):
-                        usage_data[field] = float(resources.llm[field])
-                if 'model_used' in resources.llm and isinstance(resources.llm[field], str):
-                    usage_data['model_used'] = resources.llm['model_used']
-            usage = ResourceUsage(**usage_data)
+            from ciris_engine.schemas.services.graph.telemetry import LLMUsageData
+            
+            # Convert dict to LLMUsageData first
+            llm_data = LLMUsageData(
+                tokens_used=resources.llm.get('tokens_used') if isinstance(resources.llm.get('tokens_used'), (int, float)) else None,
+                tokens_input=resources.llm.get('tokens_input') if isinstance(resources.llm.get('tokens_input'), (int, float)) else None,
+                tokens_output=resources.llm.get('tokens_output') if isinstance(resources.llm.get('tokens_output'), (int, float)) else None,
+                cost_cents=resources.llm.get('cost_cents') if isinstance(resources.llm.get('cost_cents'), (int, float)) else None,
+                carbon_grams=resources.llm.get('carbon_grams') if isinstance(resources.llm.get('carbon_grams'), (int, float)) else None,
+                energy_kwh=resources.llm.get('energy_kwh') if isinstance(resources.llm.get('energy_kwh'), (int, float)) else None,
+                model_used=resources.llm.get('model_used') if isinstance(resources.llm.get('model_used'), str) else None
+            )
+            
+            # Create ResourceUsage directly with proper types
+            usage = ResourceUsage(
+                tokens_used=int(llm_data.tokens_used) if llm_data.tokens_used is not None else 0,
+                tokens_input=int(llm_data.tokens_input) if llm_data.tokens_input is not None else 0,
+                tokens_output=int(llm_data.tokens_output) if llm_data.tokens_output is not None else 0,
+                cost_cents=float(llm_data.cost_cents) if llm_data.cost_cents is not None else 0.0,
+                carbon_grams=float(llm_data.carbon_grams) if llm_data.carbon_grams is not None else 0.0,
+                energy_kwh=float(llm_data.energy_kwh) if llm_data.energy_kwh is not None else 0.0,
+                model_used=llm_data.model_used if llm_data.model_used is not None else None
+            )
             await self._record_resource_usage("llm_service", usage)
 
     async def _store_behavioral_data(

@@ -36,7 +36,7 @@ class ConfigValueMap(BaseModel):
         description="Configuration key-value pairs with typed values"
     )
     
-    def get(self, key: str, default: Any = None) -> Any:
+    def get(self, key: str, default: Optional[Union[str, int, float, bool, list, dict]] = None) -> Optional[Union[str, int, float, bool, list, dict]]:
         """Get a configuration value with optional default."""
         return self.configs.get(key, default)
     
@@ -57,12 +57,23 @@ class ConfigValueMap(BaseModel):
         return list(self.configs.items())
 
 
+class ServiceProviderUpdate(BaseModel):
+    """Details of a service provider update."""
+    service_type: str = Field(..., description="Type of service")
+    old_priority: str = Field(..., description="Previous priority")
+    new_priority: str = Field(..., description="New priority")
+    old_priority_group: int = Field(..., description="Previous priority group")
+    new_priority_group: int = Field(..., description="New priority group")
+    old_strategy: str = Field(..., description="Previous selection strategy")
+    new_strategy: str = Field(..., description="New selection strategy")
+
+
 class ServicePriorityUpdateResponse(BaseModel):
     """Response from service priority update operation."""
     success: bool = Field(..., description="Whether the update succeeded")
     message: Optional[str] = Field(None, description="Success or error message")
     provider_name: str = Field(..., description="Name of the service provider")
-    changes: Optional[Dict[str, Any]] = Field(None, description="Details of changes made")
+    changes: Optional[ServiceProviderUpdate] = Field(None, description="Details of changes made")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     error: Optional[str] = Field(None, description="Error message if operation failed")
 
@@ -77,15 +88,26 @@ class CircuitBreakerResetResponse(BaseModel):
     error: Optional[str] = Field(None, description="Error message if operation failed")
 
 
+class ServiceProviderInfo(BaseModel):
+    """Information about a registered service provider."""
+    name: str = Field(..., description="Provider name")
+    priority: str = Field(..., description="Priority level name")
+    priority_group: int = Field(..., description="Priority group number")
+    strategy: str = Field(..., description="Selection strategy")
+    capabilities: Optional[Dict[str, Union[str, int, float, bool, list]]] = Field(None, description="Provider capabilities")
+    metadata: Optional[Dict[str, Union[str, int, float, bool]]] = Field(None, description="Provider metadata")
+    circuit_breaker_state: Optional[str] = Field(None, description="Circuit breaker state if available")
+
+
 class ServiceRegistryInfoResponse(BaseModel):
     """Enhanced service registry information response."""
     total_services: int = Field(0, description="Total registered services")
     services_by_type: Dict[str, int] = Field(default_factory=dict, description="Count by service type")
-    handlers: Dict[str, Dict[str, List[Dict[str, Any]]]] = Field(
+    handlers: Dict[str, Dict[str, List[ServiceProviderInfo]]] = Field(
         default_factory=dict,
         description="Handlers and their services with details"
     )
-    global_services: Optional[Dict[str, List[Dict[str, Any]]]] = Field(
+    global_services: Optional[Dict[str, List[ServiceProviderInfo]]] = Field(
         None,
         description="Global services not tied to specific handlers"
     )
@@ -158,15 +180,6 @@ class ConfigBackupData(BaseModel):
         )
 
 
-class ServiceProviderUpdate(BaseModel):
-    """Details of a service provider update."""
-    service_type: str = Field(..., description="Type of service")
-    old_priority: str = Field(..., description="Previous priority")
-    new_priority: str = Field(..., description="New priority")
-    old_priority_group: int = Field(..., description="Previous priority group")
-    new_priority_group: int = Field(..., description="New priority group")
-    old_strategy: str = Field(..., description="Previous selection strategy")
-    new_strategy: str = Field(..., description="New selection strategy")
 
 
 class ProcessingQueueItem(BaseModel):
@@ -181,4 +194,4 @@ class ProcessingQueueItem(BaseModel):
     started_at: Optional[datetime] = Field(None, description="When processing started")
     status: str = Field("pending", description="Item status: pending, processing, completed, failed")
     source: Optional[str] = Field(None, description="Source of the queue item")
-    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional item metadata")
+    metadata: Dict[str, Union[str, int, float, bool]] = Field(default_factory=dict, description="Additional item metadata")

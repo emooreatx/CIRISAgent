@@ -229,7 +229,7 @@ class MetricsConsolidator:
                         node,
                         'HIGH_COST_METRIC',
                         {
-                            'cost_cents': cost,
+                            'cost_cents': str(cost),
                             'metric_name': attrs.get('metric_name', 'unknown')
                         }
                     ))

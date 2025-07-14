@@ -22,7 +22,8 @@ from ciris_engine.schemas.services.special.self_observation import (
     ObservationCycleResult, CycleEventData, ObservationStatus,
     ReviewOutcome, ObservabilityAnalysis,
     ObservationOpportunity, ObservationEffectiveness,
-    PatternLibrarySummary, ServiceImprovementReport
+    PatternLibrarySummary, ServiceImprovementReport,
+    PatternInsight, LearningSummary, PatternEffectiveness, AnalysisStatus
 )
 from ciris_engine.schemas.runtime.core import AgentIdentityRoot
 from ciris_engine.schemas.infrastructure.feedback_loop import (
@@ -31,7 +32,7 @@ from ciris_engine.schemas.infrastructure.feedback_loop import (
 from ciris_engine.schemas.infrastructure.behavioral_patterns import (
     ActionFrequency, TemporalPattern
 )
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass
 from enum import Enum
 
@@ -121,6 +122,9 @@ class SelfObservationService(BaseScheduledService, SelfObservationServiceProtoco
         self._max_failures = 3
         self._pattern_history: List[DetectedPattern] = []  # Add missing attribute for tracking pattern history
         self._last_variance_report = 0.0  # Store last variance for status reporting
+        self._start_time = self._time_service.now() if self._time_service else datetime.now(timezone.utc)  # Track when service started
+        self._adaptation_errors = 0  # Track adaptation errors
+        self._last_error: Optional[str] = None  # Store last error message
 
     def _set_service_registry(self, registry: "ServiceRegistry") -> None:
         """Set the service registry and initialize component services."""
@@ -855,11 +859,11 @@ class SelfObservationService(BaseScheduledService, SelfObservationServiceProtoco
             
         return action_frequencies
 
-    async def get_pattern_insights(self, limit: int = 50) -> List[Dict[str, Any]]:
+    async def get_pattern_insights(self, limit: int = 50) -> List[PatternInsight]:
         """
         Get stored pattern insights from graph memory.
         """
-        insights: List[Dict[str, Any]] = []
+        insights: List[PatternInsight] = []
         
         if not self._memory_bus:
             return insights
@@ -877,25 +881,35 @@ class SelfObservationService(BaseScheduledService, SelfObservationServiceProtoco
         try:
             insight_nodes = await self._memory_bus.recall(query, handler_name="self_observation")
             
-            # Convert to dicts and sort by timestamp
+            # Convert to PatternInsight objects
             for node in insight_nodes[:limit]:
                 if isinstance(node.attributes, dict):
-                    insights.append({
-                        "id": node.id,
-                        "pattern_type": node.attributes.get("pattern_type", "unknown"),
-                        "description": node.attributes.get("description", ""),
-                        "detected_at": node.attributes.get("detected_at", ""),
-                        "confidence": node.attributes.get("confidence", 0.0),
-                        "actionable": node.attributes.get("actionable", False),
-                        "metadata": node.attributes.get("metadata", {})
-                    })
+                    # Map detected_at to last_seen for schema compatibility
+                    last_seen = node.attributes.get("detected_at", "")
+                    if isinstance(last_seen, str) and last_seen:
+                        try:
+                            last_seen = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+                        except:
+                            last_seen = datetime.now()
+                    else:
+                        last_seen = datetime.now()
+                    
+                    insights.append(PatternInsight(
+                        pattern_id=node.id,
+                        pattern_type=node.attributes.get("pattern_type", "unknown"),
+                        description=node.attributes.get("description", ""),
+                        confidence=node.attributes.get("confidence", 0.0),
+                        occurrences=node.attributes.get("occurrences", 1),  # Default to 1 if not tracked
+                        last_seen=last_seen,
+                        metadata=node.attributes.get("metadata", {})
+                    ))
                 
         except Exception as e:
             logger.error(f"Failed to get pattern insights: {e}")
             
         return insights
 
-    async def get_learning_summary(self) -> Dict[str, Any]:
+    async def get_learning_summary(self) -> LearningSummary:
         """
         Get summary of what the system has learned.
         """
@@ -917,21 +931,39 @@ class SelfObservationService(BaseScheduledService, SelfObservationServiceProtoco
         most_used = [name for name, _ in sorted_actions[:5]]
         least_used = [name for name, _ in sorted_actions[-5:] if _.count > 0]
         
-        return {
-            "total_patterns_detected": len(patterns),
-            "patterns_by_type": dict(patterns_by_type),
-            "total_insights_stored": len(insights),
-            "most_recent_insights": insights[:3],
-            "action_statistics": {
-                "total_unique_actions": len(action_freq),
-                "most_frequent_actions": most_used,
-                "rarely_used_actions": least_used
-            },
-            "adaptation_cycles_completed": len(self._adaptation_history),
-            "current_variance": self._last_variance_report if hasattr(self, '_last_variance_report') else 0.0,
-            "learning_enabled": not self._emergency_stop,
-            "last_analysis": self._last_adaptation.isoformat() if self._last_adaptation else None
+        action_frequencies = {
+            name: freq.count
+            for name, freq in action_freq.items()
         }
+        
+        recent_insight_descriptions = [
+            insight.description for insight in insights[:5]
+        ]
+        
+        current_time = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
+        # Ensure both datetimes are timezone-aware for subtraction
+        if hasattr(self, '_start_time') and self._start_time is not None:
+            if self._start_time.tzinfo is None:
+                self._start_time = self._start_time.replace(tzinfo=timezone.utc)
+            if current_time.tzinfo is None:
+                current_time = current_time.replace(tzinfo=timezone.utc)
+            days_running = max(1, (current_time - self._start_time).days)
+        else:
+            # Fallback if _start_time is not set
+            days_running = 1
+        learning_rate = len(patterns) / days_running
+        
+        return LearningSummary(
+            total_patterns=len(patterns),
+            patterns_by_type=dict(patterns_by_type),
+            action_frequencies=action_frequencies,
+            most_used_actions=most_used,
+            least_used_actions=least_used,
+            insights_count=len(insights),
+            recent_insights=recent_insight_descriptions,
+            learning_rate=learning_rate,
+            recommendation="continue" if len(patterns) > 10 else "gather more data"
+        )
 
     async def get_temporal_patterns(self, hours: int = 168) -> List[TemporalPattern]:
         """
@@ -964,10 +996,11 @@ class SelfObservationService(BaseScheduledService, SelfObservationServiceProtoco
             
         return temporal_patterns
 
-    async def get_pattern_effectiveness(self, pattern_id: str) -> Optional[Dict[str, Any]]:
+    async def get_pattern_effectiveness(self, pattern_id: str) -> Optional[PatternEffectiveness]:
         """
         Get effectiveness metrics for a specific pattern.
         """
+        
         # This would need to track whether acting on patterns improved outcomes
         # For now, return a simple structure
         
@@ -975,19 +1008,20 @@ class SelfObservationService(BaseScheduledService, SelfObservationServiceProtoco
         if self._pattern_loop and pattern_id in self._pattern_loop._detected_patterns:
             pattern = self._pattern_loop._detected_patterns[pattern_id]
             
-            return {
-                "pattern_id": pattern_id,
-                "pattern_type": pattern.pattern_type.value,
-                "times_applied": 0,  # Would need to track this
-                "success_rate": 0.0,  # Would need to track outcomes
-                "average_improvement": 0.0,  # Would need metrics
-                "last_applied": None,
-                "recommendation": "monitor"  # or "apply", "ignore"
-            }
+            return PatternEffectiveness(
+                pattern_id=pattern_id,
+                pattern_type=pattern.pattern_type.value,
+                times_applied=0,  # Would need to track this
+                success_rate=0.0,  # Would need to track outcomes
+                average_improvement=0.0,  # Would need metrics
+                last_applied=None,
+                recommendation="monitor",  # or "apply", "ignore"
+                confidence_score=0.0
+            )
             
         return None
 
-    async def get_analysis_status(self) -> Dict[str, Any]:
+    async def get_analysis_status(self) -> AnalysisStatus:
         """
         Get current analysis status.
         """
@@ -997,17 +1031,20 @@ class SelfObservationService(BaseScheduledService, SelfObservationServiceProtoco
             self._observation_interval.total_seconds() - time_since_last.total_seconds()
         )
         
-        return {
-            "service_active": not self._emergency_stop,
-            "last_analysis": self._last_adaptation.isoformat(),
-            "next_analysis_in_seconds": next_analysis_in,
-            "patterns_in_buffer": len(self._pattern_loop._detected_patterns) if self._pattern_loop else 0,
-            "total_patterns_detected": len(self._pattern_history),
-            "variance_monitor_healthy": await self._variance_monitor.is_healthy() if self._variance_monitor else False,
-            "pattern_loop_healthy": await self._pattern_loop.is_healthy() if self._pattern_loop else False,
-            "current_state": self._current_state.value,
-            "consecutive_failures": self._consecutive_failures
-        }
+        # Get total patterns and insights
+        patterns_detected = len(self._pattern_history)
+        insights = await self.get_pattern_insights()
+        
+        return AnalysisStatus(
+            is_running=not self._emergency_stop,
+            last_analysis=self._last_adaptation,
+            next_analysis_in_seconds=next_analysis_in,
+            patterns_detected=patterns_detected,
+            insights_generated=len(insights),
+            analysis_interval_seconds=self._observation_interval.total_seconds(),
+            error_count=self._adaptation_errors,
+            last_error=self._last_error
+        )
     
     def get_service_type(self) -> "ServiceType":
         """Get the service type enum value."""

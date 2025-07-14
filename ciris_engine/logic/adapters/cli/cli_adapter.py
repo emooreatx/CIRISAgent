@@ -682,9 +682,6 @@ Tools available:
             last_health_check=self._get_time_service().now() if self._time_service else None
         )
 
-    def get_service_type(self) -> ServiceType:
-        """Get the service type."""
-        return ServiceType.ADAPTER
     
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""

@@ -13,8 +13,14 @@ def map_row_to_task(row: Any) -> Task:
         try:
             ctx_data = json.loads(row_dict["context_json"])
             if isinstance(ctx_data, dict):
-                # Don't set default system_snapshot - let the model validation handle the data as-is
-                row_dict["context"] = TaskContext.model_validate(ctx_data)
+                # Extract only the fields that TaskContext expects
+                # This makes us resilient to schema changes
+                row_dict["context"] = TaskContext(
+                    channel_id=ctx_data.get("channel_id"),
+                    user_id=ctx_data.get("user_id"),
+                    correlation_id=ctx_data.get("correlation_id", str(uuid.uuid4())),
+                    parent_task_id=ctx_data.get("parent_task_id")
+                )
             else:
                 # Provide required fields for TaskContext
                 row_dict["context"] = TaskContext(
@@ -70,8 +76,24 @@ def map_row_to_thought(row: Any) -> Thought:
         try:
             ctx_data = json.loads(row_dict["context_json"])
             if isinstance(ctx_data, dict) and ctx_data:  # Check if dict is not empty
-                # Don't set default system_snapshot - let the model validation handle the data as-is
-                row_dict["context"] = ThoughtContext.model_validate(ctx_data)
+                # Extract only the fields that ThoughtContext expects
+                # This makes us resilient to schema changes
+                # Note: task_id and correlation_id are required fields
+                task_id = ctx_data.get("task_id")
+                correlation_id = ctx_data.get("correlation_id")
+                
+                if task_id and correlation_id:
+                    row_dict["context"] = ThoughtContext(
+                        task_id=task_id,
+                        channel_id=ctx_data.get("channel_id"),
+                        round_number=ctx_data.get("round_number", 0),
+                        depth=ctx_data.get("depth", 0),
+                        parent_thought_id=ctx_data.get("parent_thought_id"),
+                        correlation_id=correlation_id
+                    )
+                else:
+                    # Missing required fields, set to None
+                    row_dict["context"] = None
             else:
                 # For empty or invalid context, set to None instead of trying to create invalid ThoughtContext
                 row_dict["context"] = None

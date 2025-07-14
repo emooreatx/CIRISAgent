@@ -470,15 +470,20 @@ class TaskSchedulerService(BaseScheduledService, TaskSchedulerServiceProtocol):
                 "Tasks will resume at that time."
             )
 
-    def _get_metadata(self) -> Dict[str, Any]:
-        """Get service-specific metadata."""
-        metadata = super()._get_metadata()
-        metadata.update({
-            "features": ["cron_scheduling", "one_time_defer", "task_persistence"],
-            "cron_support": CRONITER_AVAILABLE,
-            "description": "Task scheduling and deferral service"
-        })
-        return metadata
+    def get_capabilities(self) -> ServiceCapabilities:
+        """Get service capabilities with custom metadata."""
+        # Get base capabilities
+        capabilities = super().get_capabilities()
+        
+        # Add custom metadata
+        if capabilities.metadata:
+            capabilities.metadata.update({
+                "features": ["cron_scheduling", "one_time_defer", "task_persistence"],
+                "cron_support": CRONITER_AVAILABLE,
+                "description": "Task scheduling and deferral service"
+            })
+        
+        return capabilities
     
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """Collect service-specific metrics."""
