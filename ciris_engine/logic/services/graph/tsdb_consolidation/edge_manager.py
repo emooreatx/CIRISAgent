@@ -52,15 +52,26 @@ class EdgeManager:
             Number of edges created
         """
         if not target_nodes:
+            logger.warning(f"No target nodes provided for create_summary_to_nodes_edges")
             return 0
         
+        logger.debug(f"Creating SUMMARIZES edges from {summary_node.id} to {len(target_nodes)} nodes")
         edges_created = 0
         
         try:
             with get_db_connection() as conn:
                 cursor = conn.cursor()
                 
-                # First, ensure all target nodes exist
+                # First, ensure the summary node exists
+                cursor.execute("""
+                    SELECT node_id FROM graph_nodes WHERE node_id = ?
+                """, (summary_node.id,))
+                
+                if not cursor.fetchone():
+                    logger.error(f"Summary node {summary_node.id} does not exist in database!")
+                    return 0
+                
+                # Then ensure all target nodes exist
                 target_node_ids = [node.id for node in target_nodes]
                 placeholders = ','.join(['?'] * len(target_node_ids))
                 cursor.execute(f"""
@@ -131,6 +142,17 @@ class EdgeManager:
                 conn.commit()
                 
                 logger.info(f"Created {edges_created} edges from {summary_node.id} to target nodes")
+                
+                # Debug: Check if edges were actually created
+                if edges_created == 0 and len(edge_data) > 0:
+                    logger.warning(f"No edges created despite {len(edge_data)} edge data entries. Checking for duplicates...")
+                    # Check if edges already exist
+                    cursor.execute(f"""
+                        SELECT COUNT(*) as count FROM graph_edges 
+                        WHERE source_node_id = ? AND relationship = ?
+                    """, (summary_node.id, relationship))
+                    existing = cursor.fetchone()['count']
+                    logger.warning(f"Found {existing} existing {relationship} edges from {summary_node.id}")
         
         except Exception as e:
             logger.error(f"Failed to create summary edges: {e}")

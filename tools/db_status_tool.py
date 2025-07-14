@@ -35,7 +35,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from ciris_engine.logic.config import get_sqlite_db_full_path
 from ciris_engine.logic.audit.hash_chain import AuditHashChain
 from ciris_engine.logic.audit.verifier import AuditVerifier
-from ciris_engine.schemas.services.graph.audit import VerificationReport
+from ciris_engine.schemas.services.graph.audit import VerificationReport as GraphVerificationReport
+from ciris_engine.schemas.audit.verification import CompleteVerificationResult, RangeVerificationResult
 
 
 class DBStatusTool:
@@ -441,13 +442,26 @@ class DBStatusTool:
             
         return status
     
-    def verify_audit_integrity(self, sample_size: Optional[int] = None) -> VerificationReport:
+    def verify_audit_integrity(self, sample_size: Optional[int] = None):
         """Run comprehensive audit verification."""
-        verifier = AuditVerifier(str(self.audit_db_path))
+        # Get the key path from the parent directory of db_path
+        key_path = Path(self.db_path).parent / "audit_keys"
+        
+        # Create a simple time service
+        from datetime import datetime, timezone
+        class SimpleTimeService:
+            def now(self):
+                return datetime.now(timezone.utc)
+        
+        verifier = AuditVerifier(
+            db_path=str(self.audit_db_path),
+            key_path=str(key_path),
+            time_service=SimpleTimeService()
+        )
         
         if sample_size:
-            # Verify a sample
-            return verifier.verify_range(limit=sample_size)
+            # Verify a sample - verify the first N entries
+            return verifier.verify_range(1, sample_size)
         else:
             # Full verification
             return verifier.verify_complete_chain()
@@ -1094,19 +1108,25 @@ class DBStatusTool:
         try:
             report = self.verify_audit_integrity(sample_size)
             
-            # Print results
-            print(f"Verification {'PASSED ✓' if report.is_valid else 'FAILED ✗'}")
-            print(f"Entries Verified: {report.entries_verified:,}")
-            print(f"Time Taken: {report.verification_time:.2f} seconds")
+            # Print results based on report type
+            if hasattr(report, 'valid'):  # Both CompleteVerificationResult and RangeVerificationResult have 'valid'
+                print(f"Verification {'PASSED ✓' if report.valid else 'FAILED ✗'}")
+            else:
+                print(f"Verification {'PASSED ✓' if report.is_valid else 'FAILED ✗'}")
             
-            if report.errors:
+            print(f"Entries Verified: {report.entries_verified:,}")
+            
+            if hasattr(report, 'verification_time'):
+                print(f"Time Taken: {report.verification_time:.2f} seconds")
+            
+            if hasattr(report, 'errors') and report.errors:
                 self.print_subsection("Errors Found")
                 for error in report.errors[:10]:  # Show first 10 errors
                     print(f"  - {error}")
                 if len(report.errors) > 10:
                     print(f"  ... and {len(report.errors) - 10} more errors")
                     
-            if report.warnings:
+            if hasattr(report, 'warnings') and report.warnings:
                 self.print_subsection("Warnings")
                 for warning in report.warnings[:5]:
                     print(f"  - {warning}")
@@ -1217,12 +1237,88 @@ class DBStatusTool:
             else:
                 print("✓ No daily summaries older than 30 days")
     
+    def get_critical_issues(self) -> List[Dict[str, str]]:
+        """Check for critical issues that need immediate attention."""
+        issues = []
+        
+        # Check for orphaned nodes in consolidated periods
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Find nodes without edges in consolidated periods
+            cursor.execute("""
+                WITH consolidated_periods AS (
+                    SELECT DISTINCT 
+                        json_extract(attributes_json, '$.period_start') as period_start,
+                        json_extract(attributes_json, '$.period_end') as period_end,
+                        node_id as summary_id
+                    FROM graph_nodes 
+                    WHERE node_type = 'tsdb_summary'
+                )
+                SELECT COUNT(*) as orphaned_count
+                FROM graph_nodes n
+                INNER JOIN consolidated_periods p
+                    ON datetime(n.created_at) >= datetime(p.period_start)
+                    AND datetime(n.created_at) < datetime(p.period_end)
+                WHERE n.scope = 'local'
+                    AND n.node_type != 'tsdb_data'
+                    AND NOT EXISTS (
+                        SELECT 1 FROM graph_edges e
+                        WHERE e.source_node_id = p.summary_id
+                            AND e.target_node_id = n.node_id
+                            AND e.relationship = 'SUMMARIZES'
+                    )
+            """)
+            
+            orphaned_count = cursor.fetchone()["orphaned_count"]
+            if orphaned_count > 0:
+                issues.append({
+                    "severity": "CRITICAL",
+                    "issue": f"{orphaned_count} orphaned nodes in consolidated periods",
+                    "detail": "Nodes exist in same scope as summaries but have no SUMMARIZES edges",
+                    "action": "Run edge recalculation for affected periods"
+                })
+        
+        # Check TSDB node age
+        age_analysis = self.get_tsdb_node_age_analysis()
+        if age_analysis["tsdb_data_nodes"]["over_36h"] > 0:
+            issues.append({
+                "severity": "HIGH",
+                "issue": f"{age_analysis['tsdb_data_nodes']['over_36h']} TSDB nodes older than 36 hours",
+                "detail": "These nodes should have been consolidated",
+                "action": "Check consolidation service health"
+            })
+        
+        # Check basic summaries age
+        if age_analysis["basic_summaries"]["over_15d"] > 0:
+            issues.append({
+                "severity": "HIGH",
+                "issue": f"{age_analysis['basic_summaries']['over_15d']} basic summaries older than 15 days",
+                "detail": "These should have been consolidated to daily summaries",
+                "action": "Check extensive consolidation service"
+            })
+        
+        return issues
+
     def print_full_report(self):
         """Print complete status report."""
         print("\n" + "=" * 80)
         print("CIRIS COMPREHENSIVE DATABASE REPORT".center(80))
         print(f"Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}".center(80))
         print("=" * 80)
+        
+        # Check for critical issues first
+        issues = self.get_critical_issues()
+        if issues:
+            print("\n" + "🚨 CRITICAL ISSUES DETECTED 🚨".center(80))
+            print("-" * 80)
+            for issue in issues:
+                print(f"\n[{issue['severity']}] {issue['issue']}")
+                print(f"  Details: {issue['detail']}")
+                print(f"  Action: {issue['action']}")
+            print("\n" + "-" * 80)
+            print("See 'ciris_db_tools comprehensive' for detailed analysis")
+            print("-" * 80)
         
         self.print_status_report()
         self.print_tsdb_report()
