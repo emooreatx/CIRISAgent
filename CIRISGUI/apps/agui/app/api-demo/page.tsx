@@ -156,7 +156,7 @@ export default function ApiDemoPage() {
         },
         {
           title: 'Service Status',
-          description: 'Status of all 19 CIRIS services',
+          description: 'Status of all CIRIS services',
           endpoint: 'GET /v1/system/services',
           method: 'GET' as const,
           execute: () => cirisClient.system.getServices()
@@ -600,7 +600,7 @@ export default function ApiDemoPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">CIRIS API Explorer</h1>
           <p className="mt-2 text-lg text-gray-600">
-            Interactive demonstration of all 76+ API endpoints across 12 modules
+            Interactive demonstration of all 78+ API endpoints across 12 modules
           </p>
         </div>
 

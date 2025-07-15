@@ -2,7 +2,7 @@
 
 ## Overview
 
-CIRIS provides a comprehensive REST API with 76+ endpoints across 12 modules for agent interaction, system management, and observability.
+CIRIS provides a comprehensive REST API with 78 endpoints across 12 modules for agent interaction, system management, and observability.
 
 **Base URL**: `http://localhost:8080`  
 **API Version**: `v1` (stable)  

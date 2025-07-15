@@ -333,12 +333,12 @@ class MyDMA(EthicalDMAInterface):
 
 ## Configuration Integration
 
-### Profile-Based Configuration
+### Template-Based Configuration
 
-Protocols integrate with the agent profile system:
+Protocols use configuration templates (formerly profiles) for initial setup:
 
 ```python
-# Profile definition
+# Template definition (used only during agent creation)
 {
     "name": "production",
     "discord_config": {

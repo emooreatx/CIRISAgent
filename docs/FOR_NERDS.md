@@ -491,7 +491,7 @@ pytest tests/unit/ -v
 pytest tests/integration/ -v --mock-llm
 
 # E2E tests with full stack
-pytest tests/e2e/ -v --profile=test
+pytest tests/e2e/ -v
 ```
 
 ### 3. Local Development
@@ -500,7 +500,7 @@ pytest tests/e2e/ -v --profile=test
 python main.py --mock-llm --debug --no-interactive
 
 # Run with full telemetry
-python main.py --profile=dev --telemetry-verbose
+python main.py --telemetry-verbose
 
 # Run in API mode for testing
 python main.py --modes api --host 0.0.0.0 --port 8000

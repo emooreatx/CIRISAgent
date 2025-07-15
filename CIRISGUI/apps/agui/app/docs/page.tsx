@@ -25,7 +25,7 @@ export default function DocsPage() {
   const documentation: Record<string, CategoryDoc> = {
     overview: {
       title: 'API Overview',
-      description: 'CIRIS provides a comprehensive REST API with 76+ endpoints across 12 modules for agent interaction, system management, and observability.',
+      description: 'CIRIS provides a comprehensive REST API with 78+ endpoints across 12 modules for agent interaction, system management, and observability.',
       baseUrl: 'http://localhost:8080',
       endpoints: [
         {
@@ -126,7 +126,7 @@ export default function DocsPage() {
         {
           method: 'GET',
           path: '/services',
-          description: 'Status of all 19 CIRIS services',
+          description: 'Status of all CIRIS services',
           auth: 'Required (OBSERVER+)',
           response: {
             services: [{
@@ -550,7 +550,7 @@ export default function DocsPage() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">CIRIS API Documentation</h1>
           <p className="mt-2 text-lg text-gray-600">
-            Complete reference for all 76+ endpoints across 12 API modules
+            Complete reference for all 78+ endpoints across 12 API modules
           </p>
         </div>
 

@@ -106,7 +106,7 @@ This ensures type safety, validation, and clear contracts throughout the system.
    - **Total at runtime**: 22 (CLI), 24 (API), 24 (Discord)
 
 3. **API v1.0**: Fully Operational
-   - All 56 endpoints implemented and tested across 11 modules
+   - All 78 endpoints implemented and tested across 12 modules
    - 100% test pass rate with comprehensive coverage ✅
    - Role-based access control (OBSERVER/ADMIN/AUTHORITY/SYSTEM_ADMIN)
    - Emergency shutdown with Ed25519 signatures
@@ -118,7 +118,7 @@ This ensures type safety, validation, and clear contracts throughout the system.
      - Service health monitoring and circuit breaker management
      - Service priority and selection strategy configuration
      - Processor state information (6 cognitive states)
-   - Complete TypeScript SDK with 76+ methods
+   - Complete TypeScript SDK with 78+ methods
    - No TODO comments or stub implementations
 
 4. **Typed Graph Node System**
@@ -141,8 +141,8 @@ This ensures type safety, validation, and clear contracts throughout the system.
    - SelfConfiguration renamed to SelfObservation (complete refactor)
 
 7. **Test Suite Health**
-   - 661 tests passing (was 658)
-   - Only 12 warnings (down from 128)
+   - 1,161 tests passing
+   - 100 warnings (acceptable for beta)
    - Fixed Pydantic v2 deprecations
    - Fixed SQLite datetime adapter warnings
    - All SDK endpoint tests passing
@@ -379,7 +379,7 @@ show_handler_metrics()                # Display handler execution counts and tim
 
 ### API v1.0 Complete Endpoint Reference
 
-The API provides 56 endpoints across 11 modules:
+The API provides 78 endpoints across 12 modules:
 
 1. **Agent** (`/v1/agent/*`) - 7 endpoints
    - `POST /interact` - Send message to agent
@@ -421,7 +421,7 @@ The API provides 56 endpoints across 11 modules:
 ### SDK Implementation
 
 Complete TypeScript SDK with:
-- 76+ methods across 9 resource modules
+- 78+ methods across 9 resource modules
 - Full type safety with TypeScript
 - Automatic token management
 - WebSocket support

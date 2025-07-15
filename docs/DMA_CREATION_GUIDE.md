@@ -111,7 +111,7 @@ ETHICAL_DMA_REGISTRY: Dict[str, Type[EthicalDMAInterface]] = {
 Add to your deployment configuration:
 
 ```python
-# In your agent profile or configuration
+# In your agent configuration (not profile - profiles are only templates)
 dma_config = {
     "ethical_dmas": ["BaseEthicalDMA", "PatientSafetyDMA"],
     "csdmas": ["CommonSenseDMA"],
