@@ -93,10 +93,11 @@ class TestDiscordAdapterCore:
         # Initialize the database with all required tables
         initialize_database(test_db_path)
         
-        # Patch get_db_connection to use our test database
+        # Patch get_db_connection at both import locations to use our test database
         # Need to patch it in multiple places where it's imported
         with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn, \
-             patch('ciris_engine.logic.persistence.models.correlations.get_db_connection') as mock_get_conn2:
+             patch('ciris_engine.logic.persistence.models.correlations.get_db_connection') as mock_get_conn2, \
+             patch('ciris_engine.logic.persistence.db.core.get_db_connection') as mock_get_conn3:
             import sqlite3
             # Return a context manager that yields a connection
             from contextlib import contextmanager
@@ -106,6 +107,7 @@ class TestDiscordAdapterCore:
                 # Use the test db_path from outer scope, ignore the argument
                 conn = sqlite3.connect(test_db_path)
                 conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA foreign_keys = ON;")
                 try:
                     yield conn
                 finally:
@@ -113,6 +115,7 @@ class TestDiscordAdapterCore:
             
             mock_get_conn.side_effect = get_test_connection
             mock_get_conn2.side_effect = get_test_connection
+            mock_get_conn3.side_effect = get_test_connection
             
             yield test_db_path
         
@@ -479,10 +482,11 @@ class TestDiscordAuditLogging:
         # Initialize the database with all required tables
         initialize_database(test_db_path)
         
-        # Patch get_db_connection to use our test database
+        # Patch get_db_connection at both import locations to use our test database
         # Need to patch it in multiple places where it's imported
         with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn, \
-             patch('ciris_engine.logic.persistence.models.correlations.get_db_connection') as mock_get_conn2:
+             patch('ciris_engine.logic.persistence.models.correlations.get_db_connection') as mock_get_conn2, \
+             patch('ciris_engine.logic.persistence.db.core.get_db_connection') as mock_get_conn3:
             import sqlite3
             # Return a context manager that yields a connection
             from contextlib import contextmanager
@@ -492,6 +496,7 @@ class TestDiscordAuditLogging:
                 # Use the test db_path from outer scope, ignore the argument
                 conn = sqlite3.connect(test_db_path)
                 conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA foreign_keys = ON;")
                 try:
                     yield conn
                 finally:
@@ -499,6 +504,7 @@ class TestDiscordAuditLogging:
             
             mock_get_conn.side_effect = get_test_connection
             mock_get_conn2.side_effect = get_test_connection
+            mock_get_conn3.side_effect = get_test_connection
             
             yield test_db_path
         
