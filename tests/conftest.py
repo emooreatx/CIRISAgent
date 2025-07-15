@@ -46,6 +46,9 @@ except ImportError:
 # Import API fixtures to ensure port randomization
 from .fixtures_api import randomize_api_port, api_port
 
+# Import database fixtures to ensure test database is available
+from .fixtures.database import test_db, clean_db
+
 import gc
 import time
 
