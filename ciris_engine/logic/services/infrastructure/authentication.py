@@ -132,8 +132,15 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             pubkey_str += '=' * padding
         return base64.urlsafe_b64decode(pubkey_str)
 
-    def _derive_encryption_key(self) -> bytes:
-        """Derive an encryption key from machine-specific data."""
+    def _derive_encryption_key(self, salt: bytes) -> bytes:
+        """Derive an encryption key from machine-specific data.
+        
+        Args:
+            salt: Random salt for key derivation
+            
+        Returns:
+            32-byte derived encryption key
+        """
         # Use machine ID and hostname as key material
         machine_id = ""
         hostname = ""
@@ -150,22 +157,29 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
         except Exception:
             hostname = "default"
         
-        # Combine with a fixed salt for this purpose
+        # Combine machine-specific data with purpose identifier
         key_material = f"{machine_id}:{hostname}:gateway-secret-encryption".encode()
         
-        # Use PBKDF2 to derive a 32-byte key
+        # Use PBKDF2 to derive a 32-byte key with the provided salt
         kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
-            salt=b"ciris-gateway-encryption-salt",
+            salt=salt,
             iterations=100000,
             backend=default_backend()
         )
         return kdf.derive(key_material)
     
     def _encrypt_secret(self, secret: bytes) -> bytes:
-        """Encrypt a secret using AES-GCM."""
-        key = self._derive_encryption_key()
+        """Encrypt a secret using AES-GCM with random salt.
+        
+        Format: salt (32 bytes) + nonce (12 bytes) + ciphertext + tag (16 bytes)
+        """
+        # Generate random salt for key derivation
+        salt = os.urandom(32)
+        
+        # Derive encryption key with the salt
+        key = self._derive_encryption_key(salt)
         
         # Generate a random 96-bit nonce for GCM
         nonce = os.urandom(12)
@@ -181,17 +195,45 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
         # Encrypt and get tag
         ciphertext = encryptor.update(secret) + encryptor.finalize()
         
-        # Return nonce + ciphertext + tag
-        return nonce + ciphertext + encryptor.tag
+        # Return salt + nonce + ciphertext + tag
+        return salt + nonce + ciphertext + encryptor.tag
     
     def _decrypt_secret(self, encrypted: bytes) -> bytes:
-        """Decrypt a secret using AES-GCM."""
-        key = self._derive_encryption_key()
+        """Decrypt a secret using AES-GCM.
         
-        # Extract components
-        nonce = encrypted[:12]
+        Expected format: salt (32 bytes) + nonce (12 bytes) + ciphertext + tag (16 bytes)
+        """
+        # Check minimum length: salt(32) + nonce(12) + tag(16) = 60 bytes minimum
+        if len(encrypted) < 60:
+            # Handle legacy format without salt for backward compatibility
+            # Legacy format: nonce (12 bytes) + ciphertext + tag (16 bytes)
+            try:
+                # Try legacy decryption with hardcoded salt
+                legacy_salt = b"ciris-gateway-encryption-salt"
+                key = self._derive_encryption_key(legacy_salt)
+                
+                nonce = encrypted[:12]
+                tag = encrypted[-16:]
+                ciphertext = encrypted[12:-16]
+                
+                cipher = Cipher(
+                    algorithms.AES(key),
+                    modes.GCM(nonce, tag),
+                    backend=default_backend()
+                )
+                decryptor = cipher.decryptor()
+                return decryptor.update(ciphertext) + decryptor.finalize()
+            except Exception:
+                raise ValueError("Invalid encrypted data format")
+        
+        # Extract components for new format
+        salt = encrypted[:32]
+        nonce = encrypted[32:44]
         tag = encrypted[-16:]
-        ciphertext = encrypted[12:-16]
+        ciphertext = encrypted[44:-16]
+        
+        # Derive key with extracted salt
+        key = self._derive_encryption_key(salt)
         
         # Create cipher
         cipher = Cipher(

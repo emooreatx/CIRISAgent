@@ -4,12 +4,15 @@ Base class and utilities for typed graph nodes.
 This module provides the foundation for type-safe graph nodes that can be
 stored generically while maintaining full type information.
 """
-from typing import Dict, Any, Type, TypeVar, Optional, List, Union, Callable
+from typing import Dict, Any, Type, TypeVar, Optional, List, Union, Callable, TYPE_CHECKING
 from datetime import datetime
 from abc import ABC, abstractmethod
 from pydantic import BaseModel
 
 from ciris_engine.schemas.services.graph_core import GraphNode
+
+if TYPE_CHECKING:
+    from ciris_engine.schemas.services.graph_core import NodeType
 
 T = TypeVar('T', bound='TypedGraphNode')
 
@@ -99,8 +102,9 @@ class NodeTypeRegistry:
     @classmethod
     def register(cls, node_type: str, node_class: Type[TypedGraphNode]) -> None:
         """Register a node class for a type string."""
-        if node_type in cls._registry:
-            raise ValueError(f"Node type {node_type} already registered")
+        # Allow re-registration with the same class (for multiple keys pointing to same class)
+        if node_type in cls._registry and cls._registry[node_type] != node_class:
+            raise ValueError(f"Node type {node_type} already registered with a different class")
 
         # Validate the class has required methods
         if not hasattr(node_class, 'to_graph_node'):
@@ -122,21 +126,36 @@ class NodeTypeRegistry:
 
         Falls back to returning the GraphNode if type not registered.
         """
-        node_class = cls._registry.get(node.type)
-        if node_class and hasattr(node.attributes, 'get'):
-            # Check if this was serialized from a typed node
-            class_name = node.attributes.get('node_class')
-            if class_name:
-                # Try to deserialize to typed node
-                try:
-                    return node_class.from_graph_node(node)
-                except Exception:
-                    # Fall back to generic if deserialization fails
-                    pass
+        # node.type is a NodeType enum, so we need to check both the enum value
+        # and the enum name for backward compatibility
+        node_type_key = node.type if isinstance(node.type, str) else node.type.value
+        node_class = cls._registry.get(node_type_key)
+        
+        # Also check by enum name (e.g., "USER" for NodeType.USER)
+        if not node_class and hasattr(node.type, 'name'):
+            node_class = cls._registry.get(node.type.name)
+        
+        # Also check by uppercase version of the enum value
+        if not node_class:
+            node_class = cls._registry.get(node_type_key.upper())
+        
+        if node_class:
+            # Check if attributes is a dict or has a get method
+            if isinstance(node.attributes, dict) or hasattr(node.attributes, 'get'):
+                # Check if this was serialized from a typed node
+                attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump() if hasattr(node.attributes, 'model_dump') else {}
+                class_name = attrs.get('node_class') if isinstance(attrs, dict) else None
+                if class_name:
+                    # Try to deserialize to typed node
+                    try:
+                        return node_class.from_graph_node(node)
+                    except Exception:
+                        # Fall back to generic if deserialization fails
+                        pass
 
         return node
 
-def register_node_type(node_type: str) -> Callable[[Type[TypedGraphNode]], Type[TypedGraphNode]]:
+def register_node_type(node_type: Union[str, 'NodeType']) -> Callable[[Type[TypedGraphNode]], Type[TypedGraphNode]]:
     """
     Decorator to automatically register a node type.
 
@@ -144,9 +163,24 @@ def register_node_type(node_type: str) -> Callable[[Type[TypedGraphNode]], Type[
         @register_node_type("CONFIG")
         class ConfigNode(TypedGraphNode):
             ...
+        
+        # Or using enum:
+        @register_node_type(NodeType.CONFIG)
+        class ConfigNode(TypedGraphNode):
+            ...
     """
     def decorator(cls: Type[TypedGraphNode]) -> Type[TypedGraphNode]:
-        NodeTypeRegistry.register(node_type, cls)
+        # Handle both string and enum inputs
+        if hasattr(node_type, 'value'):
+            # It's an enum, register by multiple keys for flexibility
+            NodeTypeRegistry.register(node_type.value, cls)  # e.g., "config"
+            NodeTypeRegistry.register(node_type.name, cls)   # e.g., "CONFIG"
+            NodeTypeRegistry.register(node_type.value.upper(), cls)  # e.g., "CONFIG"
+        else:
+            # It's a string, register as-is and also lowercase version
+            NodeTypeRegistry.register(node_type, cls)
+            if node_type.lower() != node_type:
+                NodeTypeRegistry.register(node_type.lower(), cls)
         return cls
 
     return decorator

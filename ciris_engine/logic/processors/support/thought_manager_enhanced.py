@@ -19,9 +19,6 @@ def generate_seed_thought_enhanced(self: Any, task: Task, round_number: int = 0)
     
     # Check if this is an observation task
     if "Respond to message from" in task.description:
-        # This is an observation task
-        thought_type = ThoughtType.OBSERVATION
-        
         # Extract info from task description
         # Format: "Respond to message from @{author} (ID: {id}) in #{channel}: '{content}'"
         import re
@@ -31,15 +28,17 @@ def generate_seed_thought_enhanced(self: Any, task: Task, round_number: int = 0)
         )
         
         if match:
+            # This is a properly formatted observation task
+            thought_type = ThoughtType.OBSERVATION
             author_name = match.group(1)
             author_id = match.group(2)
-            channel_id = match.group(3)
+            channel_name = match.group(3)  # This is the channel name from description
             message_content = match.group(4)
             
-            # Get conversation history from correlations
+            # Get conversation history from correlations using the task's channel_id
             from ciris_engine.logic.persistence import get_correlations_by_channel
             correlations = get_correlations_by_channel(
-                channel_id=channel_id,
+                channel_id=task.channel_id,  # Use task's channel_id, not the extracted channel name
                 limit=10  # Last 10 messages
             )
             
@@ -48,24 +47,21 @@ def generate_seed_thought_enhanced(self: Any, task: Task, round_number: int = 0)
             for i, corr in enumerate(correlations, 1):
                 if corr.action_type == "speak" and corr.request_data:
                     # Agent message
-                    content = ""
-                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
-                        content = corr.request_data.parameters.get("content", "")
+                    content = corr.request_data.parameters.get("content", "")
                     history_lines.append(f"{i}. @CIRIS (ID: ciris): {content}")
                     
                 elif corr.action_type == "observe" and corr.request_data:
                     # User message
-                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
-                        params = corr.request_data.parameters
-                        author = params.get("author_name", "User")
-                        author_id = params.get("author_id", "unknown")
-                        content = params.get("content", "")
-                        history_lines.append(f"{i}. @{author} (ID: {author_id}): {content}")
+                    params = corr.request_data.parameters
+                    author = params.get("author_name", "User")
+                    author_id = params.get("author_id", "unknown")
+                    content = params.get("content", "")
+                    history_lines.append(f"{i}. @{author} (ID: {author_id}): {content}")
             
             # Build the thought content in the format you suggested
-            adapter_type = channel_id.split('_')[0] if '_' in channel_id else 'unknown'
+            adapter_type = task.channel_id.split('_')[0] if '_' in task.channel_id else 'unknown'
             
-            thought_content = f"""You observed user @{author_name} (ID: {author_id}) in Channel {channel_id} on Adapter {adapter_type} say: "{message_content}"
+            thought_content = f"""You observed user @{author_name} (ID: {author_id}) in Channel {task.channel_id} on Adapter {adapter_type} say: "{message_content}"
 
 Evaluate if or how you should respond based on your role.
 

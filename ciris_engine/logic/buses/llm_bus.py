@@ -154,7 +154,7 @@ class LLMBus(BaseBus[LLMService]):
             if not selected_service:
                 continue
 
-            service_name = type(selected_service).__name__
+            service_name = f"{type(selected_service).__name__}_{id(selected_service)}"
 
             # Check circuit breaker
             if not self._check_circuit_breaker(service_name):
@@ -243,17 +243,34 @@ class LLMBus(BaseBus[LLMService]):
         """Get all available LLM services with their priorities"""
         services = []
 
-        # For now, just get a single service from the registry
-        # In the future, we could enhance the registry to return multiple services
-        service = await self.service_registry.get_service(
-            handler=handler_name,
-            service_type=ServiceType.LLM,
-            required_capabilities=[LLMCapabilities.CALL_LLM_STRUCTURED.value]
-        )
-
-        if service and await self._is_service_healthy(service):
-            # Default priority for now
-            services.append((service, 0))
+        # Get all registered LLM services
+        all_llm_services = self.service_registry.get_services_by_type(ServiceType.LLM)
+        
+        # For each service, check capabilities and health
+        for service in all_llm_services:
+            # Check if service has required capabilities
+            has_capabilities = True
+            if hasattr(service, 'get_capabilities'):
+                caps = service.get_capabilities()
+                if hasattr(caps, 'supports_operation_list'):
+                    has_capabilities = LLMCapabilities.CALL_LLM_STRUCTURED.value in caps.supports_operation_list
+                elif hasattr(caps, 'actions'):
+                    has_capabilities = LLMCapabilities.CALL_LLM_STRUCTURED.value in caps.actions
+            
+            if has_capabilities and await self._is_service_healthy(service):
+                # Get the provider info to determine priority
+                provider_info = self.service_registry.get_provider_info(service_type=ServiceType.LLM)
+                
+                # Find this service's priority
+                priority_value = 0  # Default to highest priority
+                for providers in provider_info.get("services", {}).get(ServiceType.LLM, []):
+                    if providers["name"].endswith(str(id(service))):
+                        # Convert priority name to value
+                        priority_map = {"CRITICAL": 0, "HIGH": 1, "NORMAL": 2, "LOW": 3, "FALLBACK": 9}
+                        priority_value = priority_map.get(providers["priority"], 2)
+                        break
+                
+                services.append((service, priority_value))
 
         return services
 
@@ -292,7 +309,7 @@ class LLMBus(BaseBus[LLMService]):
             best_latency = float('inf')
 
             for service in services:
-                service_name = type(service).__name__
+                service_name = f"{type(service).__name__}_{id(service)}"
                 metrics = self.service_metrics[service_name]
 
                 # New services get a chance
@@ -316,7 +333,7 @@ class LLMBus(BaseBus[LLMService]):
             # For now, use the one with fewest total requests
             return min(
                 services,
-                key=lambda s: self.service_metrics[type(s).__name__].total_requests
+                key=lambda s: self.service_metrics[f"{type(s).__name__}_{id(s)}"].total_requests
             )
 
     async def _is_service_healthy(self, service: object) -> bool:

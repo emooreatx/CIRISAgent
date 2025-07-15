@@ -56,6 +56,23 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
         # because _register_dependencies is called in the base constructor
         self.telemetry_service = telemetry_service
         
+        # Initialize config BEFORE calling super().__init__
+        # This ensures openai_config exists when _check_dependencies is called
+        if config is None:
+            # Use default config - should be injected
+            self.openai_config = OpenAIConfig()
+        else:
+            self.openai_config = config
+            
+        # Initialize circuit breaker BEFORE calling super().__init__
+        circuit_config = CircuitBreakerConfig(
+            failure_threshold=5,        # Open after 5 consecutive failures
+            recovery_timeout=10.0,      # Wait 10 seconds before testing recovery
+            success_threshold=2,        # Close after 2 successful calls
+            timeout_duration=30.0       # 30 second API timeout
+        )
+        self.circuit_breaker = CircuitBreaker("llm_service", circuit_config)
+        
         # Initialize base service
         super().__init__(
             time_service=time_service,
@@ -72,27 +89,15 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
                 "This should never happen - the mock LLM module should prevent this initialization.\n"
                 "Stack trace will show where this is being called from."
             )
-        
-        if config is None:
-            # Use default config - should be injected
-            self.openai_config = OpenAIConfig()
-        else:
-            self.openai_config = config
 
         # Initialize retry configuration
         self.max_retries = min(getattr(self.openai_config, 'max_retries', 3), 3)
         self.base_delay = 1.0
         self.max_delay = 30.0
         self.retryable_exceptions = (APIConnectionError, RateLimitError)
-        self.non_retryable_exceptions = (APIStatusError, instructor.exceptions.InstructorRetryException)  # type: ignore[attr-defined]
-
-        circuit_config = CircuitBreakerConfig(
-            failure_threshold=5,        # Open after 5 consecutive failures
-            recovery_timeout=10.0,      # Wait 10 seconds before testing recovery
-            success_threshold=2,        # Close after 2 successful calls
-            timeout_duration=30.0       # 30 second API timeout
-        )
-        self.circuit_breaker = CircuitBreaker("llm_service", circuit_config)
+        # Note: We can't check for instructor.exceptions.InstructorRetryException at import time
+        # because it might not exist. We'll check it at runtime instead.
+        self.non_retryable_exceptions = (APIStatusError,)
 
         api_key = self.openai_config.api_key
         base_url = self.openai_config.base_url
@@ -380,18 +385,22 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
 
                 return response, usage_obj
 
-            except (APIConnectionError, RateLimitError, InternalServerError, instructor.exceptions.InstructorRetryException) as e:  # type: ignore[attr-defined]
+            except (APIConnectionError, RateLimitError, InternalServerError) as e:
                 # Record failure with circuit breaker
                 self.circuit_breaker.record_failure()
                 # Track error in base service
                 self._track_error(e)
-
-                # Special handling for timeout cascades
-                if isinstance(e, instructor.exceptions.InstructorRetryException) and "timed out" in str(e):  # type: ignore[attr-defined]
-                    logger.error(f"LLM structured timeout detected, circuit breaker recorded failure: {e}")
-                    raise TimeoutError("LLM API timeout in structured call - circuit breaker activated") from e
-
                 logger.warning(f"LLM structured API error recorded by circuit breaker: {e}")
+                raise
+            except Exception as e:
+                # Check if this is an instructor timeout exception
+                if hasattr(instructor, 'exceptions') and hasattr(instructor.exceptions, 'InstructorRetryException'):
+                    if isinstance(e, instructor.exceptions.InstructorRetryException) and "timed out" in str(e):
+                        logger.error(f"LLM structured timeout detected, circuit breaker recorded failure: {e}")
+                        self.circuit_breaker.record_failure()
+                        self._track_error(e)
+                        raise TimeoutError("LLM API timeout in structured call - circuit breaker activated") from e
+                # Re-raise other exceptions
                 raise
 
         # Implement retry logic with OpenAI-specific error handling
