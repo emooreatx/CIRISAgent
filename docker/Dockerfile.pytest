@@ -34,17 +34,23 @@ RUN pip install pytest pytest-cov
 # Cache bust arg to force rebuild
 ARG CACHEBUST=1
 
-# Copy the entire application
-COPY . .
+# Copy only source code and tests (not data files)
+COPY ciris_engine/ ./ciris_engine/
+COPY tests/ ./tests/
+COPY pytest.ini ./
+COPY mypy.ini ./
+COPY README.md ./
 
-# Clean up any cached files and test databases (matching CI cleanup)
-RUN find . -type d -name __pycache__ -exec rm -rf {} + || true && \
+# Ensure no database files exist
+RUN find . -type f -name "*.db" -delete || true && \
+    find . -type d -name __pycache__ -exec rm -rf {} + || true && \
     find . -type f -name "*.pyc" -delete || true && \
     find . -type f -name "*.pyo" -delete || true && \
     rm -rf .pytest_cache || true && \
-    rm -f test_*.db || true && \
-    rm -f ciris_engine.db || true && \
-    rm -rf data/*.db || true
+    rm -rf .coverage* || true && \
+    rm -rf htmlcov || true && \
+    rm -rf data || true && \
+    mkdir -p data
 
 # Default command runs pytest with coverage (same as CI)
 CMD ["pytest", "--cov=./", "--cov-report=xml:coverage.xml"]
