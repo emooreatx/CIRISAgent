@@ -170,21 +170,21 @@ class DiscordPlatform(Service):
             AdapterServiceRegistration(
                 service_type=ServiceType.COMMUNICATION,
                 provider=self.discord_adapter,
-                priority=Priority.HIGH,
+                priority=Priority.NORMAL,
                 handlers=comm_handlers,
                 capabilities=["send_message", "fetch_messages"]
             ),
             AdapterServiceRegistration(
                 service_type=ServiceType.WISE_AUTHORITY,
                 provider=self.discord_adapter,
-                priority=Priority.HIGH,
+                priority=Priority.NORMAL,
                 handlers=wa_handlers,
                 capabilities=["fetch_guidance", "send_deferral"]
             ),
             AdapterServiceRegistration(
                 service_type=ServiceType.TOOL,
                 provider=self.tool_service,
-                priority=Priority.HIGH,
+                priority=Priority.NORMAL,
                 handlers=["ToolHandler"],
                 capabilities=["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters", "get_tool_info", "get_all_tool_info"]
             ),
