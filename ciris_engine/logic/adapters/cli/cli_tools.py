@@ -276,6 +276,98 @@ class CLIToolService(ToolService):
         }
         return schemas.get(tool_name)
     
+    async def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
+        """Get detailed information about a specific tool."""
+        if tool_name not in self._tools:
+            return None
+        
+        # Tool information for each built-in tool
+        tool_infos = {
+            "list_files": ToolInfo(
+                name="list_files",
+                description="List files in a directory",
+                parameters=ToolParameterSchema(
+                    type="object",
+                    properties={
+                        "path": {"type": "string", "description": "Directory path to list files from", "default": "."}
+                    },
+                    required=[]
+                ),
+                category="filesystem",
+                cost=0.0,
+                when_to_use="Use when you need to see what files are in a directory"
+            ),
+            "read_file": ToolInfo(
+                name="read_file",
+                description="Read the contents of a file",
+                parameters=ToolParameterSchema(
+                    type="object",
+                    properties={
+                        "path": {"type": "string", "description": "File path to read"}
+                    },
+                    required=["path"]
+                ),
+                category="filesystem",
+                cost=0.0,
+                when_to_use="Use when you need to read file contents"
+            ),
+            "write_file": ToolInfo(
+                name="write_file",
+                description="Write content to a file",
+                parameters=ToolParameterSchema(
+                    type="object",
+                    properties={
+                        "path": {"type": "string", "description": "File path to write"},
+                        "content": {"type": "string", "description": "Content to write to file"}
+                    },
+                    required=["path", "content"]
+                ),
+                category="filesystem",
+                cost=0.0,
+                when_to_use="Use when you need to create or modify a file"
+            ),
+            "shell_command": ToolInfo(
+                name="shell_command",
+                description="Execute a shell command",
+                parameters=ToolParameterSchema(
+                    type="object",
+                    properties={
+                        "command": {"type": "string", "description": "Shell command to execute"}
+                    },
+                    required=["command"]
+                ),
+                category="system",
+                cost=0.0,
+                when_to_use="Use when you need to run system commands"
+            ),
+            "search_text": ToolInfo(
+                name="search_text",
+                description="Search for text patterns in files",
+                parameters=ToolParameterSchema(
+                    type="object",
+                    properties={
+                        "path": {"type": "string", "description": "Directory path to search in"},
+                        "pattern": {"type": "string", "description": "Text pattern to search for"}
+                    },
+                    required=["path", "pattern"]
+                ),
+                category="filesystem",
+                cost=0.0,
+                when_to_use="Use when you need to find specific text in files"
+            )
+        }
+        
+        return tool_infos.get(tool_name)
+    
+    async def get_all_tool_info(self) -> List[ToolInfo]:
+        """Get detailed information about all available tools."""
+        tool_infos = []
+        for tool_name in self._tools.keys():
+            tool_info = await self.get_tool_info(tool_name)
+            if tool_info:
+                tool_infos.append(tool_info)
+        return tool_infos
+    
     async def is_healthy(self) -> bool:
         """Check if the service is healthy."""
         return True

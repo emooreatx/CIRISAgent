@@ -228,8 +228,8 @@ class TaskManager:
 
     def cleanup_old_completed_tasks(self, days_old: int = 7) -> int:
         """Clean up completed tasks older than specified days."""
-        cutoff_date = self.time_service.now()
-        cutoff_date = cutoff_date.replace(day=cutoff_date.day - days_old)
+        from datetime import timedelta
+        cutoff_date = self.time_service.now() - timedelta(days=days_old)
 
         old_tasks = persistence.get_tasks_older_than(cutoff_date.isoformat())
         completed_old = [t for t in old_tasks if t.status == TaskStatus.COMPLETED]

@@ -381,6 +381,14 @@ class ApiPlatform(Service):
         
         return channels
     
+    def is_healthy(self) -> bool:
+        """Check if the API server is healthy and running."""
+        if self._server is None or self._server_task is None:
+            return False
+        
+        # Check if the server task is still running
+        return not self._server_task.done()
+    
     async def run_lifecycle(self, agent_run_task: asyncio.Task) -> None:
         """Run the adapter lifecycle - API runs until agent stops."""
         logger.info("API adapter running lifecycle")
