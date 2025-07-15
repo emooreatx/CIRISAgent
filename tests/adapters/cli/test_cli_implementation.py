@@ -18,13 +18,17 @@ import io
 import sys
 
 from ciris_engine.logic.adapters.cli.cli_adapter import CLIAdapter
-
-
-# Use the test_db fixture for all tests in this module
-pytestmark = pytest.mark.usefixtures("test_db")
 from ciris_engine.logic.adapters.cli.config import CLIAdapterConfig
 from ciris_engine.schemas.runtime.messages import IncomingMessage
 from ciris_engine.schemas.adapters.tools import ToolExecutionResult, ToolExecutionStatus
+
+
+# Mock persistence.add_correlation for all tests to avoid database issues
+@pytest.fixture(autouse=True)
+def mock_add_correlation():
+    with patch('ciris_engine.logic.persistence.add_correlation') as mock:
+        mock.return_value = "test-correlation-id"
+        yield mock
 
 
 @pytest.fixture
