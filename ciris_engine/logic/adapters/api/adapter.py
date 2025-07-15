@@ -88,7 +88,7 @@ class ApiPlatform(Service):
             AdapterServiceRegistration(
                 service_type=ServiceType.COMMUNICATION,
                 provider=self.communication,
-                priority=Priority.NORMAL,
+                priority=Priority.CRITICAL,
                 capabilities=['send_message', 'fetch_messages']
             )
         )
@@ -98,7 +98,7 @@ class ApiPlatform(Service):
             AdapterServiceRegistration(
                 service_type=ServiceType.RUNTIME_CONTROL,
                 provider=self.runtime_control,
-                priority=Priority.HIGH,
+                priority=Priority.CRITICAL,
                 capabilities=['pause_processing', 'resume_processing', 'request_state_transition', 'get_runtime_status']
             )
         )
@@ -108,7 +108,7 @@ class ApiPlatform(Service):
             AdapterServiceRegistration(
                 service_type=ServiceType.TOOL,
                 provider=self.tool_service,
-                priority=Priority.NORMAL,
+                priority=Priority.CRITICAL,
                 capabilities=['execute_tool', 'get_available_tools', 'get_tool_result', 'validate_parameters', 'get_tool_info', 'get_all_tool_info']
             )
         )

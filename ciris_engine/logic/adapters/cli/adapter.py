@@ -93,21 +93,21 @@ class CliPlatform(Service):
             AdapterServiceRegistration(
                 service_type=ServiceType.COMMUNICATION,
                 provider=self.cli_adapter,  # The actual service instance
-                priority=Priority.HIGH,
+                priority=Priority.LOW,
                 handlers=["SpeakHandler", "ObserveHandler"],  # Specific handlers
                 capabilities=["send_message", "fetch_messages"]
             ),
             AdapterServiceRegistration(
                 service_type=ServiceType.TOOL,
                 provider=self.cli_adapter,  # CLI adapter handles tools too
-                priority=Priority.HIGH,
+                priority=Priority.LOW,
                 handlers=["ToolHandler"],
                 capabilities=["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"]
             ),
             AdapterServiceRegistration(
                 service_type=ServiceType.WISE_AUTHORITY,
                 provider=self.cli_adapter,  # CLI adapter can handle WA too
-                priority=Priority.HIGH,
+                priority=Priority.LOW,
                 handlers=["DeferHandler", "SpeakHandler"],
                 capabilities=["fetch_guidance", "send_deferral"]
             ),
