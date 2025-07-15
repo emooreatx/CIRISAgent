@@ -22,6 +22,14 @@ from ciris_engine.schemas.telemetry.core import (
 )
 
 
+# Mock persistence.add_correlation for all tests to avoid database issues
+@pytest.fixture(autouse=True)
+def mock_add_correlation():
+    with patch('ciris_engine.logic.persistence.add_correlation') as mock:
+        mock.return_value = "test-correlation-id"
+        yield mock
+
+
 @pytest.fixture
 def time_service():
     """Create mock time service."""

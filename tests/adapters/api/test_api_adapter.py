@@ -30,6 +30,14 @@ from ciris_engine.logic.registries.base import Priority
 logger = logging.getLogger(__name__)
 
 
+# Mock persistence.add_correlation for all tests to avoid database issues
+@pytest.fixture(autouse=True)
+def mock_add_correlation():
+    with patch('ciris_engine.logic.persistence.add_correlation') as mock:
+        mock.return_value = "test-correlation-id"
+        yield mock
+
+
 @pytest.fixture
 def mock_runtime():
     """Create a mock runtime with necessary services."""
