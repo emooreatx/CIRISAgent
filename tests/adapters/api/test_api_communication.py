@@ -22,6 +22,10 @@ from ciris_engine.schemas.telemetry.core import (
 )
 
 
+# Use the test_db fixture for all tests in this module
+pytestmark = pytest.mark.usefixtures("test_db")
+
+
 @pytest.fixture
 def time_service():
     """Create mock time service."""

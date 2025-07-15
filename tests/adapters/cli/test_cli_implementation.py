@@ -18,6 +18,10 @@ import io
 import sys
 
 from ciris_engine.logic.adapters.cli.cli_adapter import CLIAdapter
+
+
+# Use the test_db fixture for all tests in this module
+pytestmark = pytest.mark.usefixtures("test_db")
 from ciris_engine.logic.adapters.cli.config import CLIAdapterConfig
 from ciris_engine.schemas.runtime.messages import IncomingMessage
 from ciris_engine.schemas.adapters.tools import ToolExecutionResult, ToolExecutionStatus
