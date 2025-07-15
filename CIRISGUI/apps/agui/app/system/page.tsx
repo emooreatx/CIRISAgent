@@ -465,7 +465,7 @@ export default function SystemPage() {
       <div className="bg-white shadow rounded-lg">
         <div className="px-4 py-5 sm:p-6">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-medium text-gray-900">Services Health (19 Services)</h3>
+            <h3 className="text-lg font-medium text-gray-900">Services Health{services?.services ? ` (${services.services.length} Services)` : ''}</h3>
             <div className="flex items-center space-x-4 text-sm">
               <span className="flex items-center">
                 <StatusDot status="green" className="mr-1" />

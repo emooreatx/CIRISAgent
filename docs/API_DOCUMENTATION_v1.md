@@ -317,23 +317,24 @@ const client = new CIRISClient({
   apiKey: 'your-api-key'
 });
 
-// All 76+ methods available
+// All 78+ methods available
 const status = await client.agent.getStatus();
 const health = await client.system.getServiceHealthDetails();
 ```
 
 ## Complete Endpoint List
 
-Total: 56 endpoints across 11 modules
+Total: 78 endpoints across 12 modules
 
-1. **Agent** (7 endpoints)
-2. **Auth** (4 endpoints)  
-3. **Memory** (6 endpoints)
-4. **System** (18 endpoints)
-5. **Config** (5 endpoints)
-6. **Telemetry** (8 endpoints)
+1. **Agent** (6 endpoints)
+2. **Auth** (8 endpoints)  
+3. **Memory** (10 endpoints)
+4. **System** (19 endpoints including extensions)
+5. **Config** (4 endpoints)
+6. **Telemetry** (9 endpoints including metrics)
 7. **Audit** (5 endpoints)
 8. **Wise Authority** (5 endpoints)
-9. **Emergency** (2 endpoints)
-10. **WebSocket** (1 endpoint)
-11. **OpenAPI** (1 endpoint at `/openapi.json`)
+9. **Users** (10 endpoints)
+10. **Emergency** (2 endpoints)
+11. **WebSocket** (1 endpoint)
+12. **OpenAPI** (1 endpoint at `/openapi.json`)

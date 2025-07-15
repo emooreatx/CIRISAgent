@@ -8,6 +8,8 @@
 
 **A type-safe, auditable AI agent framework with built-in ethical reasoning**
 
+🎉 **BETA RELEASE 1.0.0-beta.1** - [Release Notes](RELEASE_NOTES_BETA.md) | [Status Report](BETA_STATUS_REPORT.md)
+
 CIRIS lets you run AI agents that explain their decisions, defer to humans when uncertain, and maintain complete audit trails. Currently powering Discord community moderation, designed to scale to healthcare and education.
 
 ## What It Actually Does
@@ -32,12 +34,12 @@ Most AI systems are black boxes that can't explain their decisions. CIRIS makes 
 3. **[Building trust](BETA_TRANSPARENCY.md)** - Communities can see exactly how decisions are made
 4. **[Learning locally](ciris_engine/logic/services/memory_service/README.md)** - Each deployment builds its own knowledge graph
 
-It's technically sophisticated ([19 microservices](docs/ARCHITECTURE.md#services), [graph memory](FSD/GRAPH_NODE_TYPE_SYSTEM.md), [distributed consensus](ciris_engine/logic/services/README.md)) to solve something simple: helping communities make better decisions together.
+It's technically sophisticated ([21 microservices](docs/ARCHITECTURE.md#services), [graph memory](FSD/GRAPH_NODE_TYPE_SYSTEM.md), [distributed consensus](ciris_engine/logic/services/README.md)) to solve something simple: helping communities make better decisions together.
 
 ## For Developers
 
 **Architecture Highlights:**
-- **[19 loosely-coupled services](docs/ARCHITECTURE.md#services)** (use what you need)
+- **[21 core services](docs/ARCHITECTURE.md#services)** (all required for proper operation)
 - **[Graph-based memory](ciris_engine/logic/services/memory_service/README.md)** (Neo4j-compatible)  
 - **[Multiple LLM providers](ciris_engine/logic/services/README.md#llm-service)** (OpenAI, Anthropic, Llama)
 - **[Full async Python](docs/ARCHITECTURE.md#async-design)** with type hints
@@ -79,12 +81,12 @@ It's technically sophisticated ([19 microservices](docs/ARCHITECTURE.md#services
   - Logic implementation in `logic/`
   - Schemas for data models in `schemas/`
   - Perfect navigational determinism across the codebase
-- **Exactly 19 Services**: Locked service count with clear responsibilities
-  - 6 Graph Services: memory, audit, config, telemetry, incident_management, tsdb_consolidation
-  - 2 Core Services: llm, secrets
-  - 7 Infrastructure Services: time, shutdown, initialization, visibility, authentication, resource_monitor, runtime_control
-  - 1 Governance Service: wise_authority
-  - 3 Special Services: self_configuration, adaptive_filter, task_scheduler
+- **Exactly 21 Services**: All required with clear responsibilities
+  - 6 Graph Services: memory, config, telemetry, audit, incident_management, tsdb_consolidation
+  - 7 Infrastructure Services: time, shutdown, initialization, authentication, resource_monitor, database_maintenance, secrets
+  - 4 Governance Services: wise_authority, adaptive_filter, visibility, self_observation
+  - 3 Runtime Services: llm, runtime_control, task_scheduler
+  - 1 Tool Service: secrets_tool
 - **6 Message Buses**: Future-proof architecture for multi-provider services
   - MemoryBus, LLMBus, WiseBus, ToolBus, CommunicationBus, RuntimeControlBus
 - **8 Typed Node Classes**: All graph nodes use typed patterns with full validation
