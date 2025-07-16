@@ -184,7 +184,7 @@ class TestCLIServiceRegistration:
         # Check communication service
         comm_reg = next(r for r in registrations if r.service_type == ServiceType.COMMUNICATION)
         assert comm_reg.provider == cli_platform.cli_adapter
-        assert comm_reg.priority == Priority.HIGH
+        assert comm_reg.priority == Priority.LOW
         assert 'send_message' in comm_reg.capabilities
         assert 'fetch_messages' in comm_reg.capabilities
         assert 'SpeakHandler' in comm_reg.handlers
@@ -193,7 +193,7 @@ class TestCLIServiceRegistration:
         # Check tool service
         tool_reg = next(r for r in registrations if r.service_type == ServiceType.TOOL)
         assert tool_reg.provider == cli_platform.cli_adapter
-        assert tool_reg.priority == Priority.HIGH
+        assert tool_reg.priority == Priority.LOW
         assert 'execute_tool' in tool_reg.capabilities
         assert 'get_available_tools' in tool_reg.capabilities
         assert 'ToolHandler' in tool_reg.handlers
@@ -201,7 +201,7 @@ class TestCLIServiceRegistration:
         # Check WA service
         wa_reg = next(r for r in registrations if r.service_type == ServiceType.WISE_AUTHORITY)
         assert wa_reg.provider == cli_platform.cli_adapter
-        assert wa_reg.priority == Priority.HIGH
+        assert wa_reg.priority == Priority.LOW
         assert 'fetch_guidance' in wa_reg.capabilities
         assert 'send_deferral' in wa_reg.capabilities
 

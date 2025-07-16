@@ -48,6 +48,7 @@ async def test_filter_config_bug(temp_db, time_service):
             version INTEGER DEFAULT 1,
             updated_by TEXT,
             updated_at TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (node_id, scope)
         )
     ''')
@@ -179,6 +180,7 @@ async def test_old_node_format_compatibility(temp_db, time_service):
             version INTEGER DEFAULT 1,
             updated_by TEXT,
             updated_at TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (node_id, scope)
         )
     ''')

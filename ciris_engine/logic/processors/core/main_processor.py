@@ -54,8 +54,9 @@ class AgentProcessor:
         runtime: Optional[Any] = None,
     ) -> None:
         """Initialize the agent processor with v1 configuration."""
-        if not startup_channel_id:
-            raise ValueError("startup_channel_id is required for agent processor")
+        # Allow empty string for startup_channel_id - will be resolved dynamically
+        if startup_channel_id is None:
+            raise ValueError("startup_channel_id cannot be None (empty string is allowed)")
         self.app_config = app_config
         self.agent_identity = agent_identity
         self.thought_processor = thought_processor

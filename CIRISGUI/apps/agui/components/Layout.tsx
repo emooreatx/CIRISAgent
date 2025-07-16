@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useAuth } from "../contexts/AuthContext";
 import { useAgent } from "../contexts/AgentContext";
 import { useRouter } from "next/navigation";
-import AgentSelector from "./AgentSelector";
-import React, { useState } from "react";
+// import AgentSelector from "./AgentSelector"; // Removed - agents require separate auth
+import React, { useState, useEffect } from "react";
 import {
   HoveredLink,
   Menu,
@@ -121,6 +121,13 @@ export function Layout({ children }: LayoutProps) {
   const { user, logout, hasRole } = useAuth();
   const { currentAgent, currentAgentRole } = useAgent();
   const router = useRouter();
+  const [agentName, setAgentName] = useState<string>('');
+
+  // Get agent name from localStorage on mount
+  useEffect(() => {
+    const storedName = localStorage.getItem('selectedAgentName') || 'Dev-Datum';
+    setAgentName(storedName);
+  }, []);
 
   const navigation = [
     { name: "Dashboard", href: "/dashboard", minRole: "OBSERVER" },
@@ -156,7 +163,14 @@ export function Layout({ children }: LayoutProps) {
                 </div>
                 <div className="min-w-[250px]">
                   <p className="text-xs text-gray-400 mb-1">Current Agent:</p>
-                  <AgentSelector />
+                  <div className="bg-white rounded-lg shadow-sm px-3 py-2">
+                    <p className="text-sm font-medium text-gray-900">
+                      {agentName}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      To switch agents, please logout and login again
+                    </p>
+                  </div>
                 </div>
               </div>
 

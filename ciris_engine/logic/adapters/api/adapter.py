@@ -59,7 +59,7 @@ class ApiPlatform(Service):
         self.message_observer: Optional[APIObserver] = None
         
         # Communication service for API responses
-        self.communication = APICommunicationService()
+        self.communication = APICommunicationService(config=self.config)
         # Pass time service if available
         if hasattr(runtime, 'time_service'):
             self.communication._time_service = runtime.time_service
@@ -275,6 +275,23 @@ class ApiPlatform(Service):
         if hasattr(runtime, 'self_observation_service') and runtime.self_observation_service is not None:
             self.app.state.self_observation_service = runtime.self_observation_service
             logger.info("Injected self_observation_service")
+        
+        # Inject missing services
+        if hasattr(runtime, 'database_maintenance') and runtime.database_maintenance is not None:
+            self.app.state.database_maintenance = runtime.database_maintenance
+            logger.info("Injected database_maintenance")
+        if hasattr(runtime, 'database_maintenance_service') and runtime.database_maintenance_service is not None:
+            self.app.state.database_maintenance_service = runtime.database_maintenance_service
+            logger.info("Injected database_maintenance_service")
+        if hasattr(runtime, 'secrets_tool') and runtime.secrets_tool is not None:
+            self.app.state.secrets_tool = runtime.secrets_tool
+            logger.info("Injected secrets_tool")
+        if hasattr(runtime, 'secrets_tool_service') and runtime.secrets_tool_service is not None:
+            self.app.state.secrets_tool_service = runtime.secrets_tool_service
+            logger.info("Injected secrets_tool_service")
+        if hasattr(runtime, 'llm_service') and runtime.llm_service is not None:
+            self.app.state.llm_service = runtime.llm_service
+            logger.info("Injected llm_service")
 
     async def start(self) -> None:
         """Start the API server."""

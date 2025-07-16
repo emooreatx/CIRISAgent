@@ -36,7 +36,10 @@ class CliPlatform(Service):
                 self.config = CLIAdapterConfig(**kwargs["adapter_config"])
             else:
                 self.config = CLIAdapterConfig()
-            logger.info(f"CLI adapter using provided config: interactive={self.config.interactive}")
+            
+            # ALWAYS load environment variables to fill in any missing values
+            self.config.load_env_vars()
+            logger.info(f"CLI adapter using provided config with env vars loaded: interactive={self.config.interactive}")
         else:
             self.config = CLIAdapterConfig()
             if "interactive" in kwargs:

@@ -370,18 +370,18 @@ class TestDiscordServiceRegistration:
         # Check communication service
         comm_reg = next(r for r in registrations if r.service_type == ServiceType.COMMUNICATION)
         assert comm_reg.provider == discord_platform.discord_adapter
-        assert comm_reg.priority == Priority.HIGH
+        assert comm_reg.priority == Priority.NORMAL
         assert 'send_message' in comm_reg.capabilities
         
         # Check WA service
         wa_reg = next(r for r in registrations if r.service_type == ServiceType.WISE_AUTHORITY)
         assert wa_reg.provider is not None
-        assert wa_reg.priority == Priority.HIGH
+        assert wa_reg.priority == Priority.NORMAL
         
         # Check tool service
         tool_reg = next(r for r in registrations if r.service_type == ServiceType.TOOL)
         assert tool_reg.provider is not None
-        assert tool_reg.priority == Priority.HIGH
+        assert tool_reg.priority == Priority.NORMAL
 
 
 class TestDiscordErrorRecovery:

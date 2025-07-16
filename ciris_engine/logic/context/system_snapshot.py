@@ -558,7 +558,7 @@ async def build_system_snapshot(
                                 recent_messages.append({
                                     'channel': msg_channel,
                                     'content': msg_content,
-                                    'timestamp': row['created_at']
+                                    'timestamp': row['created_at'].isoformat() if hasattr(row['created_at'], 'isoformat') else str(row['created_at'])
                                 })
                             except (json.JSONDecodeError, TypeError, AttributeError, KeyError):
                                 # JSONDecodeError: malformed JSON in tags or request_data

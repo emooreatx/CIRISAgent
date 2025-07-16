@@ -660,15 +660,29 @@ async def get_channels(
                     
                     for ch in adapter_channels:
                         # Convert adapter channel info to our format
-                        channel_info = ChannelInfo(
-                            channel_id=ch.get('channel_id', ''),
-                            channel_type=ch.get('channel_type', adapter.__class__.__name__.lower().replace('platform', '')),
-                            display_name=ch.get('display_name', ch.get('channel_id', '')),
-                            is_active=ch.get('is_active', True),
-                            created_at=ch.get('created_at'),
-                            last_activity=ch.get('last_activity'),
-                            message_count=ch.get('message_count', 0)
-                        )
+                        # Handle both dict and Pydantic model formats
+                        if hasattr(ch, 'channel_id'):
+                            # Pydantic model (e.g., DiscordChannelInfo)
+                            channel_info = ChannelInfo(
+                                channel_id=ch.channel_id,
+                                channel_type=getattr(ch, 'channel_type', adapter.__class__.__name__.lower().replace('platform', '')),
+                                display_name=getattr(ch, 'display_name', ch.channel_id),
+                                is_active=getattr(ch, 'is_active', True),
+                                created_at=getattr(ch, 'created_at', None),
+                                last_activity=getattr(ch, 'last_activity', None),
+                                message_count=getattr(ch, 'message_count', 0)
+                            )
+                        else:
+                            # Dict format (legacy)
+                            channel_info = ChannelInfo(
+                                channel_id=ch.get('channel_id', ''),
+                                channel_type=ch.get('channel_type', adapter.__class__.__name__.lower().replace('platform', '')),
+                                display_name=ch.get('display_name', ch.get('channel_id', '')),
+                                is_active=ch.get('is_active', True),
+                                created_at=ch.get('created_at'),
+                                last_activity=ch.get('last_activity'),
+                                message_count=ch.get('message_count', 0)
+                            )
                         channels.append(channel_info)
         
         # Also check RuntimeControlService's adapter_manager for dynamically loaded adapters
@@ -710,17 +724,33 @@ async def get_channels(
                                 logger.info(f"Adapter {adapter_id} returned {len(adapter_channels)} channels")
                                 
                                 for ch in adapter_channels:
+                                    # Handle both dict and Pydantic model formats
+                                    ch_id = ch.channel_id if hasattr(ch, 'channel_id') else ch.get('channel_id', '')
+                                    
                                     # Avoid duplicates
-                                    if not any(existing.channel_id == ch.get('channel_id', '') for existing in channels):
-                                        channel_info = ChannelInfo(
-                                            channel_id=ch.get('channel_id', ''),
-                                            channel_type=ch.get('channel_type', instance.adapter_type),
-                                            display_name=ch.get('display_name', ch.get('channel_id', '')),
-                                            is_active=ch.get('is_active', True),
-                                            created_at=ch.get('created_at'),
-                                            last_activity=ch.get('last_activity'),
-                                            message_count=ch.get('message_count', 0)
-                                        )
+                                    if not any(existing.channel_id == ch_id for existing in channels):
+                                        if hasattr(ch, 'channel_id'):
+                                            # Pydantic model
+                                            channel_info = ChannelInfo(
+                                                channel_id=ch.channel_id,
+                                                channel_type=getattr(ch, 'channel_type', instance.adapter_type),
+                                                display_name=getattr(ch, 'display_name', ch.channel_id),
+                                                is_active=getattr(ch, 'is_active', True),
+                                                created_at=getattr(ch, 'created_at', None),
+                                                last_activity=getattr(ch, 'last_activity', None),
+                                                message_count=getattr(ch, 'message_count', 0)
+                                            )
+                                        else:
+                                            # Dict format
+                                            channel_info = ChannelInfo(
+                                                channel_id=ch.get('channel_id', ''),
+                                                channel_type=ch.get('channel_type', instance.adapter_type),
+                                                display_name=ch.get('display_name', ch.get('channel_id', '')),
+                                                is_active=ch.get('is_active', True),
+                                                created_at=ch.get('created_at'),
+                                                last_activity=ch.get('last_activity'),
+                                                message_count=ch.get('message_count', 0)
+                                            )
                                         channels.append(channel_info)
                             except Exception as e:
                                 logger.error(f"Error getting channels from adapter {adapter_id}: {e}", exc_info=True)

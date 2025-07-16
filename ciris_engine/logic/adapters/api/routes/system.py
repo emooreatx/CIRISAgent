@@ -221,7 +221,7 @@ async def get_system_health(request: Request) -> SuccessResponse[SystemHealthRes
 
     response = SystemHealthResponse(
         status=status,
-        version="3.0.0",
+        version="1.0.2",
         uptime_seconds=uptime_seconds,
         services=services,
         initialization_complete=init_complete,
@@ -428,168 +428,110 @@ async def get_services_status(
     Returns status of all system services including health,
     availability, and basic metrics.
     """
-    services = []
-
-    # Collect direct services (not in registry)
-    direct_services = [
-        ('time_service', 'TimeService', 'infrastructure'),
-        ('shutdown_service', 'ShutdownService', 'infrastructure'),
-        ('initialization_service', 'InitializationService', 'infrastructure'),
-        ('resource_monitor', 'ResourceMonitor', 'infrastructure'),
-        ('audit_service', 'AuditService', 'graph'),
-        ('config_service', 'ConfigService', 'graph'),
-        ('telemetry_service', 'TelemetryService', 'graph'),
-        ('incident_management_service', 'IncidentManagement', 'graph'),
-        ('tsdb_service', 'TSDBConsolidation', 'graph'),
-        ('secrets_service', 'SecretsService', 'core'),
-        ('visibility_service', 'VisibilityService', 'infrastructure'),
-        ('auth_service', 'AuthenticationService', 'infrastructure'),
-        ('self_observation_service', 'SelfObservation', 'special'),
-        ('adaptive_filter', 'AdaptiveFilter', 'special'),
-        ('task_scheduler', 'TaskScheduler', 'special'),
-    ]
-
-    for attr_name, service_name, service_type in direct_services:
-        service = getattr(request.app.state, attr_name, None)
-        if service:
-            try:
-                # Check health
-                is_healthy = True
-                if hasattr(service, 'is_healthy'):
-                    if asyncio.iscoroutinefunction(service.is_healthy):
-                        is_healthy = await service.is_healthy()
-                    else:
-                        is_healthy = service.is_healthy()
-
-                # Get metrics if available
-                metrics = ServiceMetrics(
-                    uptime_seconds=None,
-                    requests_handled=None,
-                    error_count=None,
-                    avg_response_time_ms=None,
-                    memory_mb=None,
-                    custom_metrics=None
-                )
-                if hasattr(service, 'get_status'):
-                    status = service.get_status()
-                    if hasattr(status, 'metrics'):
-                        # Convert dict metrics to ServiceMetrics
-                        m = status.metrics
-                        if isinstance(m, dict):
-                            metrics.uptime_seconds = m.get('uptime_seconds')
-                            metrics.requests_handled = m.get('requests_handled')
-                            metrics.error_count = m.get('error_count')
-                            metrics.avg_response_time_ms = m.get('avg_response_time_ms')
-                            metrics.memory_mb = m.get('memory_mb')
-                            # Use status.custom_metrics if available, otherwise use metrics dict
-                            if hasattr(status, 'custom_metrics') and status.custom_metrics:
-                                metrics.custom_metrics = status.custom_metrics
-                            else:
-                                metrics.custom_metrics = m
-                        else:
-                            metrics = m
-
-                # Calculate uptime if possible
-                uptime = None
-                if hasattr(service, '_start_time'):
-                    start_time = getattr(service, '_start_time')
-                    if start_time:
-                        uptime = (datetime.now(timezone.utc) - start_time).total_seconds()
-
-                services.append(ServiceStatus(
-                    name=service_name,
-                    type=service_type,
-                    healthy=is_healthy,
-                    available=True,
-                    uptime_seconds=uptime,
-                    metrics=metrics
-                ))
-            except Exception as e:
-                logger.error(f"Error checking service {service_name}: {e}")
-                services.append(ServiceStatus(
-                    name=service_name,
-                    type=service_type,
-                    healthy=False,
-                    available=True,
-                    uptime_seconds=None,
-                    metrics=ServiceMetrics(
-                        uptime_seconds=None,
-                        requests_handled=None,
-                        error_count=None,
-                        avg_response_time_ms=None,
-                        memory_mb=None,
-                        custom_metrics={"error": str(e)}
-                    )
-                ))
-
-    # Collect registry services
-    if hasattr(request.app.state, 'service_registry'):
-        service_registry = request.app.state.service_registry
-        registry_services = [
-            (ServiceType.MEMORY, 'MemoryService', 'graph'),
-            (ServiceType.LLM, 'LLMService', 'core'),
-            (ServiceType.WISE_AUTHORITY, 'WiseAuthority', 'governance'),
-            (ServiceType.RUNTIME_CONTROL, 'RuntimeControl', 'infrastructure')
-        ]
-
-        for service_type, service_name, category in registry_services:
-            try:
-                providers = service_registry.get_services_by_type(service_type)
-                for provider in providers:
-                    # Check health
-                    is_healthy = True
-                    if hasattr(provider, 'is_healthy'):
-                        if asyncio.iscoroutinefunction(provider.is_healthy):
-                            is_healthy = await provider.is_healthy()
-                        else:
-                            is_healthy = provider.is_healthy()
-
-                    # Get metrics if available
-                    metrics = ServiceMetrics(
-                    uptime_seconds=None,
-                    requests_handled=None,
-                    error_count=None,
-                    avg_response_time_ms=None,
-                    memory_mb=None,
-                    custom_metrics=None
-                )
-                    if hasattr(provider, 'get_status'):
-                        status = provider.get_status()
-                        if hasattr(status, 'metrics'):
-                            # Convert dict metrics to ServiceMetrics
-                            m = status.metrics
-                            if isinstance(m, dict):
-                                metrics.uptime_seconds = m.get('uptime_seconds')
-                                metrics.requests_handled = m.get('requests_handled')
-                                metrics.error_count = m.get('error_count')
-                                metrics.avg_response_time_ms = m.get('avg_response_time_ms')
-                                metrics.memory_mb = m.get('memory_mb')
-                                metrics.custom_metrics = m
-                            else:
-                                metrics = m
-
-                    services.append(ServiceStatus(
-                        name=service_name,
-                        type=category,
-                        healthy=is_healthy,
-                        available=True,
-                        uptime_seconds=None,
-                        metrics=metrics
-                    ))
-            except Exception as e:
-                logger.error(f"Error checking registry service {service_name}: {e}")
-
-    # Count healthy services
-    healthy_count = sum(1 for s in services if s.healthy)
-
-    response = ServicesStatusResponse(
-        services=services,
-        total_services=len(services),
-        healthy_services=healthy_count,
-        timestamp=datetime.now(timezone.utc)
-    )
-
-    return SuccessResponse(data=response)
+    # Use the runtime control service to get all services
+    runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
+    if not runtime_control:
+        runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    
+    if not runtime_control:
+        return SuccessResponse(
+            data=ServicesStatusResponse(
+                services=[],
+                total_services=0,
+                healthy_services=0,
+                timestamp=datetime.now(timezone.utc)
+            )
+        )
+    
+    # Get service health status from runtime control
+    try:
+        health_status = await runtime_control.get_service_health_status()
+        
+        # Convert service details to ServiceStatus list
+        services = []
+        service_summary = {}
+        
+        # Include ALL services (both direct and registry)
+        for service_key, details in health_status.service_details.items():
+            # Parse service key to get type and name
+            parts = service_key.split('.')
+            
+            # Handle direct services (format: direct.service_type.service_name)
+            if service_key.startswith('direct.') and len(parts) >= 3:
+                source = parts[0]  # 'direct'
+                service_type = parts[1]  # 'graph', 'infrastructure', etc.
+                service_name = parts[2]  # 'memory_service', 'time_service', etc.
+                
+                # Convert snake_case to PascalCase for display
+                service_name = ''.join(word.capitalize() for word in service_name.split('_'))
+                
+            # Handle registry services (format: registry.ServiceType.ENUM.ServiceName_id)
+            elif service_key.startswith('registry.') and len(parts) >= 3:
+                source = parts[0]  # 'registry'
+                service_type_enum = parts[1]  # 'ServiceType.COMMUNICATION', etc.
+                service_name = parts[2]  # 'APICommunicationService_127803015745648', etc.
+                
+                # Clean up service name (remove instance ID)
+                if '_' in service_name:
+                    service_name = service_name.split('_')[0]
+                
+                # Map ServiceType enum to category
+                service_type = 'unknown'
+                if 'COMMUNICATION' in service_type_enum:
+                    service_type = 'adapter'
+                elif 'MEMORY' in service_type_enum:
+                    service_type = 'graph'
+                elif 'LLM' in service_type_enum:
+                    service_type = 'runtime'
+                elif 'TIME' in service_type_enum:
+                    service_type = 'infrastructure'
+                elif 'TOOL' in service_type_enum:
+                    service_type = 'tool'
+                elif 'WISE_AUTHORITY' in service_type_enum:
+                    service_type = 'governance'
+                elif 'RUNTIME_CONTROL' in service_type_enum:
+                    service_type = 'runtime'
+            else:
+                source = 'unknown'
+                service_type = 'unknown'
+                service_name = service_key
+            
+            # Create ServiceStatus
+            status = ServiceStatus(
+                name=service_name,
+                type=service_type,
+                healthy=details.get('healthy', False),
+                available=details.get('healthy', False),  # Use healthy as available
+                uptime_seconds=None,  # Not available in simplified view
+                metrics=ServiceMetrics()
+            )
+            services.append(status)
+            
+            # Update service summary
+            if service_type not in service_summary:
+                service_summary[service_type] = {'total': 0, 'healthy': 0}
+            service_summary[service_type]['total'] += 1
+            if details.get('healthy', False):
+                service_summary[service_type]['healthy'] += 1
+        
+        return SuccessResponse(
+            data=ServicesStatusResponse(
+                services=services,
+                total_services=len(services),
+                healthy_services=sum(1 for s in services if s.healthy),
+                timestamp=datetime.now(timezone.utc)
+            )
+        )
+    except Exception as e:
+        logger.error(f"Error getting service status: {e}")
+        return SuccessResponse(
+            data=ServicesStatusResponse(
+                services=[],
+                total_services=0,
+                healthy_services=0,
+                timestamp=datetime.now(timezone.utc)
+            )
+        )
 
 
 @router.post("/shutdown", response_model=SuccessResponse[ShutdownResponse])

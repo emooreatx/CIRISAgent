@@ -1209,6 +1209,22 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         """Get the type of this service."""
         return ServiceType.ADAPTER
     
+    def get_home_channel_id(self) -> Optional[str]:
+        """Get the home channel ID for this Discord adapter.
+        
+        Returns:
+            The formatted channel ID (e.g., 'discord_123456789')
+            or None if no home channel is configured.
+        """
+        # Get the raw channel ID from config
+        raw_channel_id = self.discord_config.get_home_channel_id()
+        if not raw_channel_id:
+            return None
+            
+        # Format it with discord_ prefix
+        # The guild ID will be added by the platform when available
+        return self.discord_config.get_formatted_startup_channel_id()
+    
     def get_channel_list(self) -> List[DiscordChannelInfo]:
         """
         Get list of available Discord channels.

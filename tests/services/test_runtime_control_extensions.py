@@ -247,7 +247,7 @@ class TestServiceHealthStatus:
         # Verify
         assert isinstance(result, ServiceHealthStatus)
         assert result.overall_health == "critical"
-        assert "Service registry not available" in result.recommendations[0]
+        assert "Runtime not available" in result.recommendations[0]
 
 
 class TestServiceSelectionExplanation:

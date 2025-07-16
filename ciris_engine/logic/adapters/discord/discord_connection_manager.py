@@ -115,7 +115,12 @@ class DiscordConnectionManager:
         self.reconnect_attempts = 0
         self.last_connected = self._time_service.now()
 
-        logger.info(f"Discord connected successfully. Guilds: {len(self.client.guilds) if self.client else 0}")
+        if self.client:
+            logger.info(f"Discord connected successfully! User: {self.client.user}, Guilds: {len(self.client.guilds)}")
+            for guild in self.client.guilds:
+                logger.info(f"  - Guild: {guild.name} (ID: {guild.id})")
+        else:
+            logger.error("Discord on_ready called but client is None!")
 
         if self.on_connected:
             try:
@@ -259,7 +264,20 @@ class DiscordConnectionManager:
             return False
 
         try:
-            await asyncio.wait_for(self.client.wait_until_ready(), timeout=timeout)
-            return True
+            # First wait for the client to start connecting
+            # Discord.py's wait_until_ready() only works after connection has begun
+            start_time = asyncio.get_event_loop().time()
+            while asyncio.get_event_loop().time() - start_time < timeout:
+                # Check if client has started (is_closed() returns False when connecting/connected)
+                if not self.client.is_closed():
+                    # Now we can use wait_until_ready()
+                    remaining_timeout = timeout - (asyncio.get_event_loop().time() - start_time)
+                    await asyncio.wait_for(self.client.wait_until_ready(), timeout=remaining_timeout)
+                    return True
+                # Client hasn't started connecting yet, wait a bit
+                await asyncio.sleep(0.1)
+            
+            # Timeout waiting for client to start
+            return False
         except asyncio.TimeoutError:
             return False

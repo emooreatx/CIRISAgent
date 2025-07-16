@@ -24,3 +24,13 @@ class CommunicationServiceProtocol(ServiceProtocol, Protocol):
     ) -> List[Dict[str, Any]]:
         """Retrieve messages from a channel."""
         ...
+
+    @abstractmethod
+    def get_home_channel_id(self) -> Optional[str]:
+        """Get the home channel ID for this communication adapter.
+        
+        Returns:
+            The formatted channel ID (e.g., 'discord_123456', 'cli_user@host', 'api_0.0.0.0_8080')
+            or None if no home channel is configured.
+        """
+        ...
