@@ -312,11 +312,19 @@ class WakeupProcessor(BaseProcessor):
         
         default_channel = await comm_bus.get_default_channel()
         if not default_channel:
+            # Get more diagnostic info
+            from ciris_engine.logic.registries.base import ServiceRegistry
+            registry = ServiceRegistry.get_instance()
+            provider_info = registry.get_provider_info(service_type="communication") if registry else {}
+            num_providers = len(provider_info.get("providers", []))
+            
             # This should never happen if adapters are properly initialized
             raise RuntimeError(
-                "No communication adapter has a home channel configured. "
+                f"No communication adapter has a home channel configured. "
+                f"Found {num_providers} communication provider(s) in registry. "
                 "At least one adapter must provide a home channel for wakeup tasks. "
-                "Check adapter configurations and ensure they specify a home_channel_id."
+                "Check adapter configurations and ensure they specify a home_channel_id. "
+                "For Discord, ensure the adapter has connected and registered its services."
             )
         
         logger.info(f"Using default channel for wakeup: {default_channel}")

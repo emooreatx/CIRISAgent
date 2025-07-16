@@ -835,10 +835,10 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
         
         return metrics
     
-    def is_healthy(self) -> bool:
+    async def is_healthy(self) -> bool:
         """Check if service is healthy."""
-        # First check parent health
-        if not super().is_healthy():
+        # Check if service is started
+        if not hasattr(self, '_started') or not self._started:
             return False
             
         try:

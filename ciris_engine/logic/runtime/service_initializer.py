@@ -279,7 +279,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
                 return False
 
             # Clean up
-            await self.memory_service.forget(test_node)
+            self.memory_service.forget(test_node)
 
             logger.info("✓ Memory service verified")
             return True

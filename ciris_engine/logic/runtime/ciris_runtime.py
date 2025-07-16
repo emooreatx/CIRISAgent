@@ -458,7 +458,7 @@ class CIRISRuntime:
             critical=True
         )
 
-    def _initialize_infrastructure(self) -> None:
+    async def _initialize_infrastructure(self) -> None:
         """Initialize infrastructure services that all other services depend on."""
         # Infrastructure services already initialized in initialize() method
         # This is now just a no-op placeholder for the initialization step
@@ -486,7 +486,7 @@ class CIRISRuntime:
                 time_service=self.service_initializer.time_service
             )
 
-    def _verify_infrastructure(self) -> bool:
+    async def _verify_infrastructure(self) -> bool:
         """Verify infrastructure services are operational."""
         # Check that all infrastructure services are running
         if not self.service_initializer.time_service:
@@ -500,7 +500,7 @@ class CIRISRuntime:
             return False
         return True
 
-    def _init_database(self) -> None:
+    async def _init_database(self) -> None:
         """Initialize database and run migrations."""
         # Pass the db path from our config
         db_path = persistence.get_sqlite_db_full_path()
@@ -512,7 +512,7 @@ class CIRISRuntime:
             self.essential_config = EssentialConfig()
             logger.warning("No config provided, using defaults")
 
-    def _verify_database_integrity(self) -> bool:
+    async def _verify_database_integrity(self) -> bool:
         """Verify database integrity before proceeding."""
         try:
             # Check core tables exist
@@ -578,7 +578,7 @@ class CIRISRuntime:
                 self.runtime_control_service.runtime = self
             logger.info("Updated runtime control service with runtime reference")
 
-    def _verify_core_services(self) -> bool:
+    async def _verify_core_services(self) -> bool:
         """Verify all core services are operational."""
         return self.service_initializer.verify_core_services()
 
@@ -705,7 +705,7 @@ class CIRISRuntime:
             except Exception as e:
                 logger.error(f"Failed to migrate adapter config for {adapter_type}: {e}")
 
-    def _final_verification(self) -> None:
+    async def _final_verification(self) -> None:
         """Perform final system verification."""
         # Don't check initialization status here - we're still IN the initialization process
         # Just verify the critical components are ready
@@ -850,7 +850,7 @@ class CIRISRuntime:
                 logger.error(f"Error registering services for adapter {adapter.__class__.__name__}: {e}", exc_info=True)
 
 
-    def _build_components(self) -> None:
+    async def _build_components(self) -> None:
         """Build all processing components."""
         self.component_builder = ComponentBuilder(self)
         self.agent_processor = self.component_builder.build_all_components()
@@ -910,28 +910,29 @@ class CIRISRuntime:
             for adapter in self.adapters:
                 adapter_name = adapter.__class__.__name__
                 if "Discord" in adapter_name:
-                    if hasattr(adapter, 'discord_adapter') and adapter.discord_adapter:
-                        if hasattr(adapter.discord_adapter, 'is_healthy'):
-                            try:
-                                is_healthy = await adapter.discord_adapter.is_healthy()
-                                if not is_healthy:
-                                    all_adapters_ready = False
-                                    logger.debug(f"  ⏳ {adapter_name} not yet healthy, waiting...")
-                                else:
-                                    logger.info(f"  ✓ {adapter_name} is healthy and connected")
-                            except Exception as e:
+                    # Check health directly on the adapter (DiscordPlatform)
+                    if hasattr(adapter, 'is_healthy'):
+                        try:
+                            is_healthy = await adapter.is_healthy()
+                            if not is_healthy:
                                 all_adapters_ready = False
-                                logger.debug(f"  ⏳ {adapter_name} health check failed: {e}")
-                        else:
+                                logger.debug(f"  ⏳ {adapter_name} not yet healthy, waiting...")
+                            else:
+                                logger.info(f"  ✓ {adapter_name} is healthy and connected")
+                        except Exception as e:
                             all_adapters_ready = False
+                            logger.debug(f"  ⏳ {adapter_name} health check failed: {e}")
                     else:
                         all_adapters_ready = False
+                        logger.warning(f"  ⚠️  {adapter_name} has no is_healthy method")
             
             if all_adapters_ready and not services_registered:
                 # Register adapter services once adapters are ready
                 logger.info("  → Registering adapter services...")
                 await self._register_adapter_services()
                 services_registered = True
+                # Give services a moment to settle after registration
+                await asyncio.sleep(0.1)
                 # Continue to wait for services to be available in registry
             
             if services_registered:
@@ -1106,12 +1107,83 @@ class CIRISRuntime:
             return
 
         logger.info("Shutting down CIRIS Runtime...")
+        
+        # Set flag to indicate we're in shutdown mode
+        # This prevents services from being marked unhealthy during shutdown
+        if self.service_registry:
+            self.service_registry._shutdown_mode = True
 
         # Import and use the graceful shutdown manager
         from ciris_engine.logic.utils.shutdown_manager import get_shutdown_manager
         shutdown_manager = get_shutdown_manager()
 
-        # Execute any registered async shutdown handlers first
+        # First, stop all scheduled services and feedback loops
+        # This prevents them from trying to use services during shutdown
+        logger.info("Stopping scheduled services and feedback loops...")
+        scheduled_services = []
+        if self.service_registry:
+            all_services = self.service_registry.get_all_services()
+            for service in all_services:
+                # Check if it's a scheduled service (has _task attribute from BaseScheduledService)
+                # or has _scheduler attribute (other scheduled services)
+                if hasattr(service, '_task') or hasattr(service, '_scheduler'):
+                    scheduled_services.append(service)
+        
+        # Stop all scheduled services first
+        for service in scheduled_services:
+            try:
+                service_name = service.__class__.__name__
+                logger.info(f"Stopping scheduled tasks for {service_name}")
+                if hasattr(service, '_task') and service._task:
+                    # Cancel the task directly
+                    service._task.cancel()
+                    try:
+                        await service._task
+                    except asyncio.CancelledError:
+                        pass
+                elif hasattr(service, 'stop_scheduler'):
+                    await service.stop_scheduler()
+            except Exception as e:
+                logger.error(f"Error stopping scheduled tasks for {service.__class__.__name__}: {e}")
+        
+        # Give scheduled tasks a moment to stop
+        if scheduled_services:
+            logger.info(f"Stopped {len(scheduled_services)} scheduled services, waiting for tasks to complete...")
+            await asyncio.sleep(0.5)
+        
+        # Register our final maintenance as a shutdown handler
+        async def run_final_maintenance() -> None:
+            """Run final maintenance and consolidation before services stop."""
+            logger.info("=" * 60)
+            logger.info("Running final maintenance tasks...")
+            
+            # 1. Run final database maintenance
+            if hasattr(self, 'maintenance_service') and self.maintenance_service:
+                try:
+                    logger.info("Running final database maintenance before shutdown...")
+                    await self.maintenance_service.perform_startup_cleanup()
+                    logger.info("Final database maintenance completed")
+                except Exception as e:
+                    logger.error(f"Failed to run final database maintenance: {e}")
+            
+            # 2. Run final TSDB consolidation
+            if hasattr(self, 'service_initializer') and self.service_initializer:
+                tsdb_service = getattr(self.service_initializer, 'tsdb_consolidation_service', None)
+                if tsdb_service:
+                    try:
+                        logger.info("Running final TSDB consolidation before shutdown...")
+                        await tsdb_service._run_consolidation()
+                        logger.info("Final TSDB consolidation completed")
+                    except Exception as e:
+                        logger.error(f"Failed to run final TSDB consolidation: {e}")
+            
+            logger.info("Final maintenance tasks completed")
+            logger.info("=" * 60)
+        
+        # First run our maintenance handler
+        await run_final_maintenance()
+
+        # Execute any other registered async shutdown handlers
         try:
             await shutdown_manager.execute_async_handlers()
         except Exception as e:
@@ -1311,9 +1383,16 @@ class CIRISRuntime:
         service_names = []
         for service in services_to_stop:
             if service and hasattr(service, 'stop'):
-                # Create tasks so we can check their status
-                task = asyncio.create_task(service.stop())
-                stop_tasks.append(task)
+                # Check if stop is async or sync
+                stop_method = service.stop()
+                if asyncio.iscoroutine(stop_method):
+                    # Async stop method
+                    task = asyncio.create_task(stop_method)
+                    stop_tasks.append(task)
+                else:
+                    # Sync stop method - already completed
+                    # No need to add to tasks
+                    pass
                 service_names.append(service.__class__.__name__)
 
         if stop_tasks:

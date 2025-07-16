@@ -9,6 +9,7 @@ Consolidates functionality from:
 - AdapterTelemetryService (system snapshots)
 """
 
+import asyncio
 import logging
 from typing import Dict, List, Optional, Tuple, Union, Any
 from datetime import datetime, timedelta, timezone
@@ -728,15 +729,24 @@ class GraphTelemetryService(BaseGraphService, TelemetryServiceProtocol):
 
     async def stop(self) -> None:
         """Stop the telemetry service."""
-        # Store a final metric about service shutdown
-        await self.record_metric(
-            "telemetry_service.shutdown",
-            1.0,
-            {"event": "service_stop", "timestamp": self._now().isoformat()}
-        )
-        logger.info("GraphTelemetryService stopped")
-        # Don't call super() as BaseService has async stop
+        # Mark as stopped first to prevent new operations
         self._started = False
+        
+        # Try to store a final metric, but don't block shutdown if it fails
+        try:
+            # Use a short timeout to avoid hanging
+            await asyncio.wait_for(
+                self.record_metric(
+                    "telemetry_service.shutdown",
+                    1.0,
+                    {"event": "service_stop", "timestamp": self._now().isoformat()}
+                ),
+                timeout=1.0
+            )
+        except (asyncio.TimeoutError, Exception) as e:
+            logger.debug(f"Could not record shutdown metric: {e}")
+        
+        logger.info("GraphTelemetryService stopped")
 
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """Collect telemetry-specific metrics."""

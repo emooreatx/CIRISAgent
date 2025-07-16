@@ -57,6 +57,7 @@ class CommunicationBus(BaseBus[CommunicationService]):
         """
         # Get all communication services sorted by priority
         all_services = self.service_registry.get_services_by_type(ServiceType.COMMUNICATION)
+        logger.debug(f"get_default_channel: Found {len(all_services)} COMMUNICATION services in registry")
         
         # Get provider metadata for priority sorting
         providers_with_priority = []
@@ -75,12 +76,18 @@ class CommunicationBus(BaseBus[CommunicationService]):
         providers_with_priority.sort(key=lambda x: x[0])
         
         # Try each adapter in priority order
+        logger.debug(f"Checking {len(providers_with_priority)} providers for home channel")
         for _, service in providers_with_priority:
+            logger.debug(f"Checking provider: {service.__class__.__name__}")
             if hasattr(service, 'get_home_channel_id'):
+                logger.debug(f"Provider {service.__class__.__name__} has get_home_channel_id method")
                 home_channel = service.get_home_channel_id()
+                logger.debug(f"Provider {service.__class__.__name__} returned home_channel: {home_channel}")
                 if home_channel:
                     logger.debug(f"Found home channel '{home_channel}' from {service.__class__.__name__}")
                     return home_channel
+            else:
+                logger.debug(f"Provider {service.__class__.__name__} does not have get_home_channel_id method")
         
         logger.warning("No communication adapter has a home channel configured")
         return None

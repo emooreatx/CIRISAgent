@@ -160,13 +160,19 @@ class TSDBConsolidationService(BaseGraphService):
         """Stop the consolidation service gracefully."""
         self._running = False
         
-        # Run one final basic consolidation
+        # Cancel any ongoing consolidation task
         if self._consolidation_task and not self._consolidation_task.done():
-            logger.info("Running final consolidation before shutdown...")
+            logger.info("Cancelling ongoing consolidation task...")
+            self._consolidation_task.cancel()
             try:
-                await self._run_consolidation()
+                await self._consolidation_task
+            except asyncio.CancelledError:
+                logger.debug("Consolidation task cancelled successfully")
             except Exception as e:
-                logger.error(f"Final consolidation failed: {e}")
+                logger.error(f"Error cancelling consolidation task: {e}")
+        
+        # Note: Final consolidation should be run explicitly by runtime BEFORE
+        # stopping services, not during stop() to avoid dependency issues
         
         # Cancel all tasks
         tasks_to_cancel = [
@@ -260,8 +266,15 @@ class TSDBConsolidationService(BaseGraphService):
     
     async def _run_consolidation(self) -> None:
         """Run a single consolidation cycle."""
+        consolidation_start = self._now()
+        total_records_processed = 0
+        total_summaries_created = 0
+        cleanup_stats = {"nodes_deleted": 0, "edges_deleted": 0}
+        
         try:
+            logger.info("=" * 60)
             logger.info("Starting TSDB consolidation cycle")
+            logger.info(f"Started at: {consolidation_start.isoformat()}")
             
             # Find periods that need consolidation
             now = self._now()
@@ -270,8 +283,11 @@ class TSDBConsolidationService(BaseGraphService):
             # Get oldest unconsolidated data
             oldest_data = self._find_oldest_unconsolidated_period()
             if not oldest_data:
-                logger.info("No unconsolidated data found")
+                logger.info("No unconsolidated data found - nothing to consolidate")
                 return
+            
+            logger.info(f"Oldest unconsolidated data from: {oldest_data.isoformat()}")
+            logger.info(f"Will consolidate up to: {cutoff_time.isoformat()}")
             
             # Process periods
             current_start, _ = self._period_manager.get_period_boundaries(oldest_data)
@@ -283,28 +299,63 @@ class TSDBConsolidationService(BaseGraphService):
                 
                 # Check if already consolidated
                 if not self._query_manager.check_period_consolidated(current_start):
-                    logger.info(f"Consolidating period: {current_start} to {current_end}")
+                    period_start_time = self._now()
+                    logger.info(f"Consolidating period: {current_start.isoformat()} to {current_end.isoformat()}")
+                    
+                    # Count records in this period before consolidation
+                    period_records = len(self._query_manager.query_all_nodes_in_period(current_start, current_end))
+                    total_records_processed += period_records
                     
                     summaries = await self._consolidate_period(current_start, current_end)
                     if summaries:
-                        logger.info(f"Created {len(summaries)} summaries for period")
+                        total_summaries_created += len(summaries)
+                        period_duration = (self._now() - period_start_time).total_seconds()
+                        logger.info(f"  ✓ Created {len(summaries)} summaries from {period_records} records in {period_duration:.2f}s")
                         periods_consolidated += 1
+                    else:
+                        logger.info(f"  - No summaries created for period (no data)")
                 
                 current_start = current_end
             
             if periods_consolidated > 0:
-                logger.info(f"Consolidated {periods_consolidated} periods")
+                logger.info(f"Consolidation complete: {periods_consolidated} periods processed")
+                logger.info(f"  - Total records processed: {total_records_processed}")
+                logger.info(f"  - Total summaries created: {total_summaries_created}")
+                if total_records_processed > 0:
+                    compression_ratio = total_records_processed / max(total_summaries_created, 1)
+                    logger.info(f"  - Compression ratio: {compression_ratio:.1f}:1")
             
             # Cleanup old data
-            self._cleanup_old_data()
+            cleanup_start = self._now()
+            logger.info("Starting cleanup of old consolidated data...")
+            nodes_before_cleanup = len(self._query_manager.query_all_nodes_in_period(
+                now - timedelta(days=30), now
+            ))
+            
+            nodes_deleted = self._cleanup_old_data()
+            cleanup_stats["nodes_deleted"] = nodes_deleted
             
             # Cleanup orphaned edges
-            self._edge_manager.cleanup_orphaned_edges()
+            edges_deleted = self._edge_manager.cleanup_orphaned_edges()
+            cleanup_stats["edges_deleted"] = edges_deleted
+            
+            cleanup_duration = (self._now() - cleanup_start).total_seconds()
+            if nodes_deleted > 0 or edges_deleted > 0:
+                logger.info(f"Cleanup complete in {cleanup_duration:.2f}s:")
+                logger.info(f"  - Nodes deleted: {nodes_deleted}")
+                logger.info(f"  - Edges deleted: {edges_deleted}")
             
             self._last_consolidation = now
             
+            # Final summary
+            total_duration = (self._now() - consolidation_start).total_seconds()
+            logger.info(f"TSDB consolidation cycle completed in {total_duration:.2f}s")
+            logger.info("=" * 60)
+            
         except Exception as e:
-            logger.error(f"Consolidation failed: {e}", exc_info=True)
+            duration = (self._now() - consolidation_start).total_seconds()
+            logger.error(f"Consolidation failed after {duration:.2f}s: {e}", exc_info=True)
+            logger.error(f"Partial progress - Records: {total_records_processed}, Summaries: {total_summaries_created}")
     
     async def _consolidate_missed_windows(self) -> None:
         """
@@ -1106,8 +1157,14 @@ class TSDBConsolidationService(BaseGraphService):
         This reduces data volume by creating daily summaries (4 basic summaries → 1 daily summary).
         Creates 7 daily summaries for each node type.
         """
+        consolidation_start = self._now()
+        total_basic_summaries = 0
+        daily_summaries_created = 0
+        
         try:
+            logger.info("=" * 60)
             logger.info("Starting extensive (weekly) consolidation")
+            logger.info(f"Started at: {consolidation_start.isoformat()}")
             
             now = self._now()
             # Calculate the previous Monday-Sunday period
@@ -1126,7 +1183,8 @@ class TSDBConsolidationService(BaseGraphService):
             period_start = datetime.combine(week_start, datetime.min.time(), tzinfo=timezone.utc)
             period_end = datetime.combine(week_end, datetime.max.time(), tzinfo=timezone.utc)
             
-            logger.info(f"Consolidating week {week_start} to {week_end}")
+            logger.info(f"Consolidating week: {week_start} to {week_end}")
+            logger.info(f"Period: {period_start.isoformat()} to {period_end.isoformat()}")
             
             # Query all basic summaries from the past week
             from ciris_engine.logic.persistence.db.core import get_db_connection
@@ -1161,6 +1219,9 @@ class TSDBConsolidationService(BaseGraphService):
                     if not summaries:
                         logger.info(f"No {summary_type} summaries found for consolidation")
                         continue
+                    
+                    logger.info(f"Found {len(summaries)} {summary_type} summaries to consolidate")
+                    total_basic_summaries += len(summaries)
                     
                     # Group summaries by day
                     summaries_by_day = defaultdict(list)
@@ -1301,7 +1362,15 @@ class TSDBConsolidationService(BaseGraphService):
                                 # Don't create edges to source summaries - they'll be deleted!
                                 # We'll create edges after all daily summaries are created
                 
-                logger.info(f"Extensive consolidation complete: created {daily_summaries_created} daily summaries")
+                # Final summary
+                total_duration = (self._now() - consolidation_start).total_seconds()
+                logger.info(f"Extensive consolidation complete in {total_duration:.2f}s:")
+                logger.info(f"  - Basic summaries processed: {total_basic_summaries}")
+                logger.info(f"  - Daily summaries created: {daily_summaries_created}")
+                if total_basic_summaries > 0:
+                    compression_ratio = total_basic_summaries / max(daily_summaries_created, 1)
+                    logger.info(f"  - Compression ratio: {compression_ratio:.1f}:1")
+                logger.info("=" * 60)
                 
                 # CRITICAL: Maintain temporal chain between 6-hour and daily summaries
                 # Find the last 6-hour summary before the first daily summary
@@ -1484,8 +1553,16 @@ class TSDBConsolidationService(BaseGraphService):
         This process compresses daily summaries to meet storage targets without
         creating new nodes. Future versions will handle multimedia compression.
         """
+        consolidation_start = self._now()
+        total_daily_summaries = 0
+        summaries_compressed = 0
+        storage_before_mb = 0
+        storage_after_mb = 0
+        
         try:
+            logger.info("=" * 60)
             logger.info("Starting profound (monthly) consolidation")
+            logger.info(f"Started at: {consolidation_start.isoformat()}")
             
             now = self._now()
             # Calculate the previous month period
@@ -1531,10 +1608,13 @@ class TSDBConsolidationService(BaseGraphService):
                 """, (month_start.isoformat(), month_end.isoformat()))
                 
                 summaries = cursor.fetchall()
+                total_daily_summaries = len(summaries)
                 
                 if len(summaries) < 7:  # Less than a week's worth
-                    logger.info("Not enough daily summaries for profound consolidation")
+                    logger.info(f"Not enough daily summaries for profound consolidation (found {len(summaries)}, need at least 7)")
                     return
+                
+                logger.info(f"Found {total_daily_summaries} daily summaries to compress")
                 
                 # Calculate current storage usage
                 days_in_period = (month_end - month_start).days + 1
@@ -1544,7 +1624,9 @@ class TSDBConsolidationService(BaseGraphService):
                     summary_attrs_list.append(attrs)
                 
                 current_daily_mb = compressor.estimate_daily_size(summary_attrs_list, days_in_period)
-                logger.info(f"Current daily storage: {current_daily_mb:.2f}MB/day (target: {self._profound_target_mb_per_day}MB/day)")
+                storage_before_mb = current_daily_mb * days_in_period
+                logger.info(f"Current storage: {current_daily_mb:.2f}MB/day ({storage_before_mb:.2f}MB total)")
+                logger.info(f"Target: {self._profound_target_mb_per_day}MB/day")
                 
                 # Check if compression is needed
                 if not compressor.needs_compression(summary_attrs_list, days_in_period):
@@ -1583,6 +1665,7 @@ class TSDBConsolidationService(BaseGraphService):
                     
                     if cursor.rowcount > 0:
                         compressed_count += 1
+                        summaries_compressed += 1
                         total_reduction += reduction_ratio
                         logger.debug(f"Compressed {node_id} by {reduction_ratio:.1%}")
                 
@@ -1603,13 +1686,18 @@ class TSDBConsolidationService(BaseGraphService):
                     compressed_attrs_list.append(attrs)
                 
                 new_daily_mb = compressor.estimate_daily_size(compressed_attrs_list, days_in_period)
+                storage_after_mb = new_daily_mb * days_in_period
                 avg_reduction = total_reduction / compressed_count if compressed_count > 0 else 0
                 
-                logger.info(
-                    f"Profound consolidation complete: compressed {compressed_count} summaries, "
-                    f"average reduction {avg_reduction:.1%}, "
-                    f"new daily storage: {new_daily_mb:.2f}MB/day"
-                )
+                # Final summary
+                total_duration = (self._now() - consolidation_start).total_seconds()
+                logger.info(f"Profound consolidation complete in {total_duration:.2f}s:")
+                logger.info(f"  - Daily summaries processed: {total_daily_summaries}")
+                logger.info(f"  - Summaries compressed: {summaries_compressed}")
+                logger.info(f"  - Average compression: {avg_reduction:.1%}")
+                logger.info(f"  - Storage before: {storage_before_mb:.2f}MB ({storage_before_mb/days_in_period:.2f}MB/day)")
+                logger.info(f"  - Storage after: {storage_after_mb:.2f}MB ({new_daily_mb:.2f}MB/day)")
+                logger.info(f"  - Total reduction: {((storage_before_mb - storage_after_mb) / storage_before_mb * 100):.1f}%")
                 
                 # Clean up old basic summaries (> 30 days old)
                 cleanup_cutoff = now - timedelta(days=30)

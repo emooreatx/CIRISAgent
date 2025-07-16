@@ -85,7 +85,7 @@ async def services(temp_db, time_service):
         llm_service=llm_service,
         config_service=config_service
     )
-    filter_service.start()
+    await filter_service.start()
 
     yield {
         'memory': memory_service,
@@ -96,7 +96,7 @@ async def services(temp_db, time_service):
     }
 
     # Cleanup
-    filter_service.stop()
+    await filter_service.stop()
     await config_service.stop()
     memory_service.stop()
     await secrets_service.stop()

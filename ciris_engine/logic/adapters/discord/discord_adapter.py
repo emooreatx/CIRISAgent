@@ -116,7 +116,17 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                 max_retries=retry_cfg.get("max_retries", 3),
                 base_delay=retry_cfg.get("base_delay", 2.0),
                 max_delay=retry_cfg.get("max_delay", 30.0),
-                retryable_exceptions=retry_cfg.get("retryable_exceptions", (HTTPException, ConnectionClosed, asyncio.TimeoutError)),
+                # Include all connection-related errors as retryable
+                retryable_exceptions=retry_cfg.get("retryable_exceptions", (
+                    HTTPException,           # Discord API errors
+                    ConnectionClosed,        # WebSocket closed
+                    asyncio.TimeoutError,    # Timeout errors
+                    RuntimeError,            # Session closed errors
+                    OSError,                 # SSL and network errors
+                    ConnectionError,         # Base connection errors
+                    ConnectionResetError,    # Connection reset by peer
+                    ConnectionAbortedError,  # Connection aborted
+                )),
                 **kwargs
             )
             return result
@@ -164,9 +174,9 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
 
     async def send_message(self, channel_id: str, content: str) -> bool:
         """Implementation of CommunicationService.send_message"""
-        # Check if Discord client is connected before attempting to send
-        if not self._client or not self._connection_manager.is_connected():
-            logger.warning(f"Discord adapter not connected, cannot send message to channel {channel_id}")
+        # Check if client exists, but let retry logic handle connection state
+        if not self._client:
+            logger.warning(f"Discord client not initialized, cannot send message to channel {channel_id}")
             return False
 
         correlation_id = str(uuid.uuid4())
@@ -177,6 +187,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         start_time = time_service.now()
 
         try:
+            # The retry logic will handle connection issues and wait for reconnection
             await self._retry_discord_operation(
                 self._message_handler.send_message_to_channel,
                 channel_id, content,
@@ -231,12 +242,21 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             )
 
             return True
-        except Exception as e:
-            # Handle message errors
+        except (HTTPException, ConnectionClosed, asyncio.TimeoutError, RuntimeError, OSError, ConnectionError) as e:
+            # These are retryable exceptions - let them propagate so retry logic can handle them
+            # But first log the error for debugging
             error_info = self._error_handler.handle_message_error(
                 e, content, channel_id
             )
             logger.error(f"Failed to send message via Discord: {error_info}")
+            # Re-raise the exception so retry logic can handle it
+            raise
+        except Exception as e:
+            # Handle non-retryable errors
+            error_info = self._error_handler.handle_message_error(
+                e, content, channel_id
+            )
+            logger.error(f"Failed to send message via Discord (non-retryable): {error_info}")
             return False
 
     async def fetch_messages(self, channel_id: str, *, limit: int = 50, before: Optional[datetime] = None) -> List[DiscordMessageData]:
@@ -1074,19 +1094,16 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
 
     def attach_to_client(self, client: discord.Client) -> None:
         """Attach message handlers to a Discord client."""
+        logger.info("DiscordAdapter.attach_to_client: Attaching to Discord client")
         self._channel_manager.set_client(client)
         self._message_handler.set_client(client)
         self._guidance_handler.set_client(client)
         self._reaction_handler.set_client(client)
         self._tool_handler.set_client(client)
 
-        self._channel_manager.attach_to_client(client)
+        # Note: Event handlers are now managed by CIRISDiscordClient
         self._connection_manager.set_client(client)
-
-        # Attach reaction event handler
-        @client.event
-        async def on_raw_reaction_add(payload: discord.RawReactionActionEvent) -> None:
-            await self.on_raw_reaction_add(payload)
+        logger.info("DiscordAdapter.attach_to_client: All handlers attached")
 
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
         """Handle raw reaction add events.
@@ -1141,8 +1158,10 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                 "has_client": str(client is not None)
             })
 
-            # Note: Don't connect here - the platform will handle the connection in run_lifecycle
+            # Set up connection monitoring
             if client:
+                logger.info("Discord adapter setting up connection monitoring")
+                await self._connection_manager.connect()
                 logger.info("Discord adapter will wait for platform to establish connection")
             else:
                 logger.warning("No Discord client attached - connection will be established later")
@@ -1198,11 +1217,14 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         except Exception as e:
             logger.error(f"Error stopping Discord adapter: {e}")
 
-    def is_healthy(self) -> bool:
+    async def is_healthy(self) -> bool:
         """Check if the Discord adapter is healthy"""
         try:
-            return self._connection_manager.is_connected()
-        except Exception:
+            result = self._connection_manager.is_connected()
+            logger.debug(f"DiscordAdapter.is_healthy: connection_manager.is_connected() returned {result}")
+            return result
+        except Exception as e:
+            logger.warning(f"DiscordAdapter.is_healthy: Exception checking health: {e}")
             return False
     
     def get_service_type(self) -> ServiceType:
@@ -1218,12 +1240,16 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         """
         # Get the raw channel ID from config
         raw_channel_id = self.discord_config.get_home_channel_id()
+        logger.debug(f"DiscordAdapter.get_home_channel_id: raw_channel_id = {raw_channel_id}")
         if not raw_channel_id:
+            logger.warning("DiscordAdapter: No home channel ID found in config")
             return None
             
         # Format it with discord_ prefix
         # The guild ID will be added by the platform when available
-        return self.discord_config.get_formatted_startup_channel_id()
+        formatted_id = self.discord_config.get_formatted_startup_channel_id()
+        logger.debug(f"DiscordAdapter.get_home_channel_id: formatted_id = {formatted_id}")
+        return formatted_id
     
     def get_channel_list(self) -> List[DiscordChannelInfo]:
         """

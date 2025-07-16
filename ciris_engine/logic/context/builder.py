@@ -52,7 +52,7 @@ class ContextBuilder:
         task_history_data = getattr(system_snapshot_data, 'recently_completed_tasks_summary', None) or []
 
         # Get identity context from memory service
-        identity_context_str = await self.memory_service.export_identity_context() if self.memory_service else None
+        identity_context_str = self.memory_service.export_identity_context() if self.memory_service else None
 
         # --- Mission-Critical Channel ID Resolution ---
         channel_id = None

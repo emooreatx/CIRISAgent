@@ -214,10 +214,7 @@ class DiscordChannelManager:
             client: Discord client to attach to
         """
         self.client = client
-
-        @client.event
-        async def on_message(message: discord.Message) -> None:
-            await self.on_message(message)
+        # Event handling is now done by CIRISDiscordClient
 
     def get_client_info(self) -> dict:
         """Get information about the Discord client.

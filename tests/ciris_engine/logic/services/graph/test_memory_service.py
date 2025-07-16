@@ -131,7 +131,7 @@ async def test_memory_service_forget(memory_service):
     await memory_service.memorize(node)
 
     # Forget the node
-    result = await memory_service.forget(node)
+    result = memory_service.forget(node)
     assert result.status == MemoryOpStatus.OK
 
     # Try to recall - should get empty list

@@ -77,46 +77,32 @@ class DiscordConnectionManager:
 
     def _setup_event_handlers(self) -> None:
         """Set up Discord event handlers for connection management."""
+        logger.info("DiscordConnectionManager._setup_event_handlers: Event handlers now managed by CIRISDiscordClient")
+        
         if not self.client:
+            logger.error("DiscordConnectionManager._setup_event_handlers: No client available!")
             return
 
-        # Store original handlers if they exist
-        original_on_ready = getattr(self.client, 'on_ready', None)
-        original_on_disconnect = getattr(self.client, 'on_disconnect', None)
-        original_on_error = getattr(self.client, 'on_error', None)
-
-        @self.client.event
-        async def on_ready() -> None:
-            """Handle successful connection."""
-            await self._handle_connected()
-            # Call original handler if it exists
-            if original_on_ready:
-                await original_on_ready()
-
-        @self.client.event
-        async def on_disconnect() -> None:
-            """Handle disconnection."""
-            await self._handle_disconnected(None)
-            # Call original handler if it exists
-            if original_on_disconnect:
-                await original_on_disconnect()
-
-        @self.client.event
-        async def on_error(event: str, *args: Any, **kwargs: Any) -> None:
-            """Handle errors."""
-            logger.error(f"Discord error in {event}: {args} {kwargs}")
-            # Call original handler if it exists
-            if original_on_error:
-                await original_on_error(event, *args, **kwargs)
+        # Event handlers are now managed by the CIRISDiscordClient class
+        # This avoids overriding Discord.py's internal handlers
 
     async def _handle_connected(self) -> None:
         """Handle successful connection."""
+        logger.info("DiscordConnectionManager._handle_connected: on_ready event triggered!")
+        previous_state = self.state
         self.state = ConnectionState.CONNECTED
         self.reconnect_attempts = 0
         self.last_connected = self._time_service.now()
 
         if self.client:
             logger.info(f"Discord connected successfully! User: {self.client.user}, Guilds: {len(self.client.guilds)}")
+            logger.info(f"Discord client is_ready: {self.client.is_ready()}, is_closed: {self.client.is_closed()}")
+            logger.info(f"Connection state transition: {previous_state.value} -> {self.state.value}")
+            
+            # Log reconnection if this was not the initial connection
+            if previous_state == ConnectionState.DISCONNECTED:
+                logger.info("Discord successfully reconnected after disconnection")
+                
             for guild in self.client.guilds:
                 logger.info(f"  - Guild: {guild.name} (ID: {guild.id})")
         else:
@@ -225,7 +211,14 @@ class DiscordConnectionManager:
         """
         # If we have a client, check its actual state
         if self.client is not None:
-            return not self.client.is_closed() and self.client.is_ready()
+            is_closed = self.client.is_closed()
+            is_ready = self.client.is_ready()
+            # During startup, consider the adapter healthy if the client exists and is not closed
+            # This prevents the circuit breaker from opening while Discord is connecting
+            result = not is_closed
+            logger.debug(f"DiscordConnectionManager.is_connected: client exists, is_closed={is_closed}, is_ready={is_ready}, result={result}")
+            return result
+        logger.debug("DiscordConnectionManager.is_connected: client is None, returning False")
         return False
 
     def get_connection_info(self) -> dict:
@@ -260,24 +253,41 @@ class DiscordConnectionManager:
         Returns:
             True if ready, False if timeout
         """
+        logger.info(f"DiscordConnectionManager.wait_until_ready: Starting wait with timeout={timeout}s")
+        
         if not self.client:
+            logger.error("DiscordConnectionManager.wait_until_ready: No client available!")
             return False
 
         try:
             # First wait for the client to start connecting
             # Discord.py's wait_until_ready() only works after connection has begun
             start_time = asyncio.get_event_loop().time()
+            logger.info(f"DiscordConnectionManager.wait_until_ready: Waiting for client to start connecting...")
+            
             while asyncio.get_event_loop().time() - start_time < timeout:
+                is_closed = self.client.is_closed()
+                is_ready = self.client.is_ready()
+                logger.debug(f"DiscordConnectionManager.wait_until_ready: is_closed={is_closed}, is_ready={is_ready}")
+                
                 # Check if client has started (is_closed() returns False when connecting/connected)
-                if not self.client.is_closed():
+                if not is_closed:
+                    logger.info(f"DiscordConnectionManager.wait_until_ready: Client is not closed, calling wait_until_ready()")
                     # Now we can use wait_until_ready()
                     remaining_timeout = timeout - (asyncio.get_event_loop().time() - start_time)
+                    logger.info(f"DiscordConnectionManager.wait_until_ready: Remaining timeout: {remaining_timeout:.1f}s")
                     await asyncio.wait_for(self.client.wait_until_ready(), timeout=remaining_timeout)
+                    logger.info(f"DiscordConnectionManager.wait_until_ready: Client is ready! is_ready={self.client.is_ready()}")
                     return True
                 # Client hasn't started connecting yet, wait a bit
                 await asyncio.sleep(0.1)
             
             # Timeout waiting for client to start
+            logger.error(f"DiscordConnectionManager.wait_until_ready: Timeout after {timeout}s - client never started")
             return False
         except asyncio.TimeoutError:
+            logger.error(f"DiscordConnectionManager.wait_until_ready: TimeoutError waiting for client to be ready")
+            return False
+        except Exception as e:
+            logger.error(f"DiscordConnectionManager.wait_until_ready: Unexpected error: {e}", exc_info=True)
             return False
