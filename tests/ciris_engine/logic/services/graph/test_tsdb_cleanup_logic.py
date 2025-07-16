@@ -162,7 +162,7 @@ class TestRawDataCleanup:
                 mock_db_connection.commit()
                 
                 # Run cleanup
-                deleted = await tsdb_service._cleanup_old_data()
+                deleted = tsdb_service._cleanup_old_data()
                 
                 # The cleanup should have deleted exactly 100 nodes
                 assert deleted == 100
@@ -196,7 +196,7 @@ class TestRawDataCleanup:
                 mock_db_connection.commit()
                 
                 # Run cleanup
-                deleted = await tsdb_service._cleanup_old_data()
+                deleted = tsdb_service._cleanup_old_data()
                 
                 # Should not delete anything due to count mismatch
                 assert deleted == 0
@@ -261,7 +261,7 @@ class TestAuditNodeCleanup:
                 mock_db_connection.commit()
                 
                 # Run cleanup
-                deleted = await tsdb_service._cleanup_old_data()
+                deleted = tsdb_service._cleanup_old_data()
                 
                 assert deleted == 50  # Only graph nodes deleted
 
@@ -307,7 +307,7 @@ class TestCorrelationCleanup:
                 mock_db_connection.commit()
                 
                 # Run cleanup
-                deleted = await tsdb_service._cleanup_old_data()
+                deleted = tsdb_service._cleanup_old_data()
                 
                 assert deleted == 75
 
@@ -343,7 +343,7 @@ class TestCleanupEdgeCases:
                 mock_db_connection.commit()
                 
                 # Run cleanup
-                deleted = await tsdb_service._cleanup_old_data()
+                deleted = tsdb_service._cleanup_old_data()
                 
                 # Nothing should be deleted (within 24 hour retention)
                 assert deleted == 0
@@ -382,7 +382,7 @@ class TestCleanupEdgeCases:
                 mock_db_connection.commit()
                 
                 # Run cleanup - should handle gracefully
-                deleted = await tsdb_service._cleanup_old_data()
+                deleted = tsdb_service._cleanup_old_data()
                 
                 assert deleted == 0  # Nothing deleted due to bad summary
     
@@ -415,7 +415,7 @@ class TestCleanupEdgeCases:
                 mock_db_connection.commit()
                 
                 # Run cleanup
-                deleted = await tsdb_service._cleanup_old_data()
+                deleted = tsdb_service._cleanup_old_data()
                 
                 # Nothing deleted (count mismatch: 0 != 10)
                 assert deleted == 0

@@ -235,7 +235,7 @@ class SecretsFilter:
         logger.info(f"Imported secrets detection config with {len(patterns)} patterns")
 
     # Implement SecretsFilterInterface methods
-    async def filter_content(self, content: str, source_id: Optional[str] = None) -> SecretsFilterResult:
+    def filter_content(self, content: str, source_id: Optional[str] = None) -> SecretsFilterResult:
         """Filter content for secrets using the text filtering method."""
         filtered_text, detected_secrets = self.filter_text(content)
 
@@ -259,7 +259,7 @@ class SecretsFilter:
             patterns_matched=[s.pattern_name for s in detected_secrets]
         )
 
-    async def add_pattern(self, pattern: ConfigSecretPattern) -> bool:
+    def add_pattern(self, pattern: ConfigSecretPattern) -> bool:
         """Add a new secret detection pattern."""
         try:
             # Pattern is already a ConfigSecretPattern, just add it
@@ -269,11 +269,11 @@ class SecretsFilter:
             logger.error(f"Failed to add pattern: {e}")
             return False
 
-    async def remove_pattern(self, pattern_name: str) -> bool:
+    def remove_pattern(self, pattern_name: str) -> bool:
         """Remove a secret detection pattern."""
         return self.remove_custom_pattern(pattern_name)
 
-    async def get_filter_config(self) -> ConfigExport:  # pragma: no cover - thin wrapper
+    def get_filter_config(self) -> ConfigExport:  # pragma: no cover - thin wrapper
         """Get the current filter configuration."""
         # Convert detection config to schema format
         # Note: SecretsDetectionConfig just has 'patterns', not separate builtin/custom lists
@@ -296,7 +296,7 @@ class SecretsFilter:
             auto_decrypt_for_actions=["speak", "tool"]  # Default
         )
 
-    async def update_filter_config(self, updates: dict) -> bool:  # pragma: no cover - rarely used
+    def update_filter_config(self, updates: dict) -> bool:  # pragma: no cover - rarely used
         """Update filter configuration settings."""
         try:
             for key, value in updates.items():

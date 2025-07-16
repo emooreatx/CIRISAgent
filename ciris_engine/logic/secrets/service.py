@@ -153,7 +153,7 @@ class SecretsService(BaseService, SecretsServiceProtocol):
             return None
 
         if decrypt:
-            decrypted_value = await self.store.decrypt_secret_value(secret_record)
+            decrypted_value = self.store.decrypt_secret_value(secret_record)
             result = SecretRecallResult(
                 found=True,
                 value=decrypted_value,
@@ -247,7 +247,7 @@ class SecretsService(BaseService, SecretsServiceProtocol):
                 continue  # Leave original reference
 
             if action_type in secret_record.auto_decapsulate_for_actions:
-                decrypted_value = await self.store.decrypt_secret_value(secret_record)
+                decrypted_value = self.store.decrypt_secret_value(secret_record)
                 if decrypted_value:
                     logger.info(
                         f"Auto-decapsulated {secret_record.sensitivity_level} secret "
@@ -453,7 +453,7 @@ class SecretsService(BaseService, SecretsServiceProtocol):
         try:
             secret_record = await self.store.retrieve_secret(key, decrypt=True)
             if secret_record:
-                decrypted = await self.store.decrypt_secret_value(secret_record)
+                decrypted = self.store.decrypt_secret_value(secret_record)
                 return decrypted
             return None
         except Exception:
@@ -462,7 +462,7 @@ class SecretsService(BaseService, SecretsServiceProtocol):
     async def get_filter_config(self) -> dict:
         """Get current filter configuration."""
         # Wrap the filter's get_filter_config to prevent direct access
-        config_export = await self.filter.get_filter_config()
+        config_export = self.filter.get_filter_config()
         # Convert ConfigExport to dict
         return config_export.model_dump()
 

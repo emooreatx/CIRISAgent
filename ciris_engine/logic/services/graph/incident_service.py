@@ -52,7 +52,7 @@ class IncidentManagementService(BaseGraphService):
         self._started = False
         self._start_time: Optional[datetime] = None
 
-    async def _get_time_service(self) -> "TimeServiceProtocol":
+    def _get_time_service(self) -> "TimeServiceProtocol":
         """Get time service for consistent timestamps."""
         from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
         if self._time_service is None:
@@ -72,7 +72,7 @@ class IncidentManagementService(BaseGraphService):
         """
         try:
             # Get time service
-            time_service = await self._get_time_service()
+            time_service = self._get_time_service()
             if not time_service:
                 raise RuntimeError("CRITICAL: TimeService not available")
 
@@ -84,7 +84,7 @@ class IncidentManagementService(BaseGraphService):
 
             if not incidents:
                 logger.info("No incidents found in the last %d hours", hours)
-                return await self._create_no_incidents_insight(current_time)
+                return self._create_no_incidents_insight(current_time)
 
             # Analyze incidents
             patterns = self._detect_patterns(incidents)
@@ -526,7 +526,7 @@ class IncidentManagementService(BaseGraphService):
             distribution[hour_key] += 1
         return dict(distribution)
 
-    async def _create_no_incidents_insight(self, current_time: datetime) -> IncidentInsightNode:
+    def _create_no_incidents_insight(self, current_time: datetime) -> IncidentInsightNode:
         """Create insight when no incidents found."""
         return IncidentInsightNode(
             id=f"incident_insight_{current_time.strftime('%Y%m%d_%H%M%S')}",
@@ -574,15 +574,15 @@ class IncidentManagementService(BaseGraphService):
         """Get the type of nodes this service manages."""
         return "INCIDENT"
 
-    async def start(self) -> None:
+    def start(self) -> None:
         """Start the service."""
-        await super().start()
+        super().start()
         self._start_time = self._time_service.now() if self._time_service else datetime.now()
         logger.info("IncidentManagementService started")
 
-    async def stop(self) -> None:
+    def stop(self) -> None:
         """Stop the service."""
-        await super().stop()
+        super().stop()
         logger.info("IncidentManagementService stopped")
 
     def get_capabilities(self) -> ServiceCapabilities:
@@ -620,7 +620,7 @@ class IncidentManagementService(BaseGraphService):
             last_health_check=current_time
         )
 
-    async def is_healthy(self) -> bool:
+    def is_healthy(self) -> bool:
         """Check if service is healthy."""
         return self._started and self._memory_bus is not None
     

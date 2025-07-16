@@ -83,7 +83,7 @@ class TestDiscordErrorHandler:
         """Test handling channel not found error."""
         error = discord.NotFound(Mock(), "Channel not found")
 
-        result = await error_handler.handle_channel_error(
+        result = error_handler.handle_channel_error(
             "123456789", error, "send_message"
         )
 
@@ -97,7 +97,7 @@ class TestDiscordErrorHandler:
         """Test handling permission denied error."""
         error = discord.Forbidden(Mock(), "Missing permissions")
 
-        result = await error_handler.handle_channel_error(
+        result = error_handler.handle_channel_error(
             "123456789", error, "send_message"
         )
 
@@ -113,7 +113,7 @@ class TestDiscordErrorHandler:
         mock_response.status = 429
         error = discord.HTTPException(mock_response, "Rate limited")
 
-        result = await error_handler.handle_channel_error(
+        result = error_handler.handle_channel_error(
             "123456789", error, "send_message"
         )
 
@@ -128,7 +128,7 @@ class TestDiscordErrorHandler:
 
         # Generate multiple errors
         for i in range(6):
-            await error_handler.handle_channel_error("123", error)
+            error_handler.handle_channel_error("123", error)
 
         # Check error count
         assert error_handler._error_counts.get("channel_123_HTTPException", 0) >= 5

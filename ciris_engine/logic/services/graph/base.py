@@ -49,12 +49,12 @@ class BaseGraphService(ABC, GraphServiceProtocol):
         """Set the time service for timestamps."""
         self._time_service = time_service
 
-    async def start(self) -> None:
+    def start(self) -> None:
         """Start the service."""
         self._started = True
         logger.info(f"{self.service_name} started")
 
-    async def stop(self) -> None:
+    def stop(self) -> None:
         """Stop the service."""
         self._started = False
         logger.info(f"{self.service_name} stopped")
@@ -84,7 +84,7 @@ class BaseGraphService(ABC, GraphServiceProtocol):
             }
         )
 
-    async def is_healthy(self) -> bool:
+    def is_healthy(self) -> bool:
         """Check if service is healthy."""
         return self._started and self._memory_bus is not None
 

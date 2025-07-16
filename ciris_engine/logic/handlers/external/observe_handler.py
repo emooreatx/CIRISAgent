@@ -90,12 +90,12 @@ class ObserveHandler(BaseActionHandler):
         follow_up_info = f"OBSERVE action for thought {thought_id}"
 
         try:
-            params: ObserveParams = await self._validate_and_convert_params(raw_params, ObserveParams)
+            params: ObserveParams = self._validate_and_convert_params(raw_params, ObserveParams)
             assert isinstance(params, ObserveParams)  # Type assertion after validation
         except Exception as e:
             await self._handle_error(HandlerActionType.OBSERVE, dispatch_context, thought_id, e)
             # Mark thought as failed and create error follow-up
-            return await self.complete_thought_and_create_followup(
+            return self.complete_thought_and_create_followup(
                 thought=thought,
                 follow_up_content=f"OBSERVE action failed: {e}",
                 action_result=result
@@ -156,7 +156,7 @@ class ObserveHandler(BaseActionHandler):
         )
         
         # Use centralized method to complete thought and create follow-up
-        follow_up_id = await self.complete_thought_and_create_followup(
+        follow_up_id = self.complete_thought_and_create_followup(
             thought=thought,
             follow_up_content=follow_up_text,
             action_result=result

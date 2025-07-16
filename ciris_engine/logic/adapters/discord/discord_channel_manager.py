@@ -97,7 +97,7 @@ class DiscordChannelManager:
 
         return True
 
-    async def is_client_ready(self) -> bool:
+    def is_client_ready(self) -> bool:
         """Check if the Discord client is ready and connected.
 
         Returns:
@@ -127,7 +127,7 @@ class DiscordChannelManager:
             if hasattr(self.client, 'wait_until_ready'):
                 await self.client.wait_until_ready()
                 return True
-            return await self.is_client_ready()
+            return self.is_client_ready()
         except Exception as e:
             logger.exception(f"Error waiting for Discord client: {e}")
             return False

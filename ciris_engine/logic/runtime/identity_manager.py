@@ -56,7 +56,7 @@ class IdentityManager:
                 raise RuntimeError("No template available for initial identity creation")
 
             # Create identity from template and save to graph
-            self.agent_identity = await self._create_identity_from_template(initial_template)
+            self.agent_identity = self._create_identity_from_template(initial_template)
             await self._save_identity_to_graph(self.agent_identity)
 
         return self.agent_identity
@@ -95,7 +95,7 @@ class IdentityManager:
             logger.error(f"Failed to save identity to persistence: {e}")
             raise
 
-    async def _create_identity_from_template(self, template: AgentTemplate) -> AgentIdentityRoot:
+    def _create_identity_from_template(self, template: AgentTemplate) -> AgentIdentityRoot:
         """Create initial identity from template (first run only)."""
         # Generate deterministic identity hash
         identity_string = f"{template.name}:{template.description}:{template.role_description}"
@@ -162,7 +162,7 @@ class IdentityManager:
             ]
         )
 
-    async def verify_identity_integrity(self) -> bool:
+    def verify_identity_integrity(self) -> bool:
         """Verify identity has been properly loaded."""
         if not self.agent_identity:
             logger.error("No agent identity loaded")

@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from ciris_engine.schemas.api.auth import AuthContext, UserRole, ROLE_PERMISSIONS
 from ..services.auth_service import APIAuthService
 
-async def get_auth_service(request: Request) -> APIAuthService:
+def get_auth_service(request: Request) -> APIAuthService:
     """Get auth service from app state."""
     if not hasattr(request.app.state, 'auth_service'):
         raise HTTPException(
@@ -49,7 +49,7 @@ async def get_auth_context(
     api_key = authorization[7:]  # Remove "Bearer " prefix
 
     # Validate API key
-    key_info = await auth_service.validate_api_key(api_key)
+    key_info = auth_service.validate_api_key(api_key)
     if not key_info:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -57,7 +57,7 @@ async def get_auth_context(
         )
 
     # Get user to check for custom permissions
-    user = await auth_service.get_user(key_info.user_id)
+    user = auth_service.get_user(key_info.user_id)
     
     # Start with role-based permissions
     permissions = set(ROLE_PERMISSIONS.get(key_info.role, set()))
@@ -111,7 +111,7 @@ def require_role(minimum_role: UserRole) -> Callable:
     Returns:
         Dependency function that validates role
     """
-    async def check_role(
+    def check_role(
         auth: AuthContext = Depends(get_auth_context)
     ) -> AuthContext:
         """Validate user has required role."""
@@ -150,7 +150,7 @@ def check_permissions(permissions: list[str]) -> Callable:
     ) -> None:
         """Validate user has required permissions."""
         # Get the user from auth service to get their API role
-        user = await auth_service.get_user(auth.user_id)
+        user = auth_service.get_user(auth.user_id)
         if not user:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

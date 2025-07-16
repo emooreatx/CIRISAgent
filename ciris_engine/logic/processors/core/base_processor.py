@@ -76,7 +76,7 @@ class BaseProcessor(ABC):
         Returns metrics/results from the processing.
         """
 
-    async def initialize(self) -> bool:
+    def initialize(self) -> bool:
         """
         Initialize the processor.
         Override in subclasses for specific initialization.
@@ -84,7 +84,7 @@ class BaseProcessor(ABC):
         self.metrics.start_time = self.time_service.now()
         return True
 
-    async def cleanup(self) -> bool:
+    def cleanup(self) -> bool:
         """
         Clean up processor resources.
         Override in subclasses for specific cleanup.
@@ -179,18 +179,18 @@ class BaseProcessor(ABC):
             if hasattr(e, "is_dma_failure") and getattr(e, "is_dma_failure", False):
                 if hasattr(self, "force_ponder"):
                     logger.warning(f"DMA failure for {item.thought_id}, forcing PONDER fallback.")
-                    return await self.force_ponder(item, context)
+                    return self.force_ponder(item, context)
                 elif hasattr(self, "force_defer"):
                     logger.warning(f"DMA failure for {item.thought_id}, forcing DEFER fallback.")
-                    return await self.force_defer(item, context)
+                    return self.force_defer(item, context)
             raise
 
-    async def force_ponder(self, item: ProcessingQueueItem, context: Optional[dict] = None) -> None:
+    def force_ponder(self, item: ProcessingQueueItem, context: Optional[dict] = None) -> None:
         """Force a PONDER action for the given thought item. Override in subclass for custom logic."""
         logger.info(f"Forcing PONDER for thought {item.thought_id}")
         # Implement actual logic in subclass
 
-    async def force_defer(self, item: ProcessingQueueItem, context: Optional[dict] = None) -> None:
+    def force_defer(self, item: ProcessingQueueItem, context: Optional[dict] = None) -> None:
         """Force a DEFER action for the given thought item. Override in subclass for custom logic."""
         logger.info(f"Forcing DEFER for thought {item.thought_id}")
 

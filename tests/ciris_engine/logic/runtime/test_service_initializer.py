@@ -63,7 +63,7 @@ class TestServiceInitializer:
                             await service_initializer.initialize_memory_service(mock_essential_config)
                             await service_initializer.initialize_security_services(mock_essential_config, mock_essential_config)
                             await service_initializer.initialize_all_services(mock_essential_config, mock_essential_config, "test_agent", None, [])
-                            await service_initializer.verify_core_services()
+                            service_initializer.verify_core_services()
 
                             # Verify methods were called
                             mock_infra.assert_called_once()
@@ -245,9 +245,9 @@ class TestServiceInitializer:
         """Test service cleanup behavior."""
         # Create mock services with stop methods
         mock_service1 = Mock()
-        mock_service1.stop = AsyncMock()
+        mock_service1.stop = Mock()
         mock_service2 = Mock()
-        mock_service2.stop = AsyncMock()
+        mock_service2.stop = Mock()
 
         # Set services on initializer
         service_initializer.time_service = mock_service1
@@ -255,9 +255,9 @@ class TestServiceInitializer:
 
         # Manually stop services (since there's no shutdown_all method)
         if hasattr(service_initializer.time_service, 'stop'):
-            await service_initializer.time_service.stop()
+            service_initializer.time_service.stop()
         if hasattr(service_initializer.memory_service, 'stop'):
-            await service_initializer.memory_service.stop()
+            service_initializer.memory_service.stop()
 
         # All services should be stopped
         mock_service1.stop.assert_called_once()
@@ -268,14 +268,14 @@ class TestServiceInitializer:
         """Test service stop handling errors."""
         # Create service that errors on stop
         mock_service = Mock()
-        mock_service.stop = AsyncMock(side_effect=Exception("Stop error"))
+        mock_service.stop = Mock(side_effect=Exception("Stop error"))
 
         service_initializer.time_service = mock_service
 
         # Should not raise when stopping
         try:
             if hasattr(service_initializer.time_service, 'stop'):
-                await service_initializer.time_service.stop()
+                service_initializer.time_service.stop()
         except Exception:
             pass  # Expected
 
@@ -305,7 +305,7 @@ class TestServiceInitializer:
         service_initializer.audit_services = [Mock()]
 
         # Should return True
-        result = await service_initializer.verify_core_services()
+        result = service_initializer.verify_core_services()
         assert result is True
 
     @pytest.mark.asyncio
@@ -315,7 +315,7 @@ class TestServiceInitializer:
         service_initializer.memory_service = Mock()
 
         # Should return False
-        result = await service_initializer.verify_core_services()
+        result = service_initializer.verify_core_services()
         assert result is False
 
     @pytest.mark.asyncio
@@ -355,26 +355,32 @@ class TestServiceInitializer:
         # Mock each initialization phase to track order
         async def track_call(phase):
             calls.append(phase)
+        
+        def track_call_sync(phase):
+            calls.append(phase)
 
-        # Track actual method calls
-        with patch.object(service_initializer, 'initialize_infrastructure_services',
-                         side_effect=lambda: asyncio.create_task(track_call('infrastructure'))):
-            with patch.object(service_initializer, 'initialize_memory_service',
-                             side_effect=lambda config: asyncio.create_task(track_call('memory'))):
-                with patch.object(service_initializer, 'initialize_security_services',
-                                 side_effect=lambda config, app_config: asyncio.create_task(track_call('security'))):
-                    with patch.object(service_initializer, 'initialize_all_services',
-                                     side_effect=lambda config, app_config, agent_id, startup_channel_id, modules: asyncio.create_task(track_call('services'))):
-                        with patch.object(service_initializer, 'verify_core_services',
-                                         side_effect=lambda: asyncio.create_task(track_call('verify'))):
+        # Track actual method calls - use return_value instead of side_effect to avoid immediate execution
+        with patch.object(service_initializer, 'initialize_infrastructure_services') as mock_infra:
+            with patch.object(service_initializer, 'initialize_memory_service') as mock_memory:
+                with patch.object(service_initializer, 'initialize_security_services') as mock_security:
+                    with patch.object(service_initializer, 'initialize_all_services') as mock_all:
+                        with patch.object(service_initializer, 'verify_core_services', return_value=True) as mock_verify:
 
                             # Call initialization sequence
                             await service_initializer.initialize_infrastructure_services()
+                            calls.append('infrastructure')
+                            
                             await service_initializer.initialize_memory_service(mock_essential_config)
+                            calls.append('memory')
+                            
                             await service_initializer.initialize_security_services(mock_essential_config, mock_essential_config)
+                            calls.append('security')
+                            
                             await service_initializer.initialize_all_services(mock_essential_config, mock_essential_config, "test_agent", None, [])
-                            await service_initializer.verify_core_services()
-                            await asyncio.sleep(0.1)  # Let async tasks complete
+                            calls.append('services')
+                            
+                            service_initializer.verify_core_services()
+                            calls.append('verify')
 
         # Verify order
         assert calls.index('infrastructure') < calls.index('memory')

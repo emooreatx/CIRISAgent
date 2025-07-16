@@ -43,7 +43,7 @@ class QueryManager:
         """
         self._memory_bus = memory_bus
     
-    async def query_all_nodes_in_period(
+    def query_all_nodes_in_period(
         self,
         period_start: datetime,
         period_end: datetime
@@ -131,7 +131,7 @@ class QueryManager:
         
         return result
     
-    async def query_tsdb_data_nodes(
+    def query_tsdb_data_nodes(
         self,
         period_start: datetime,
         period_end: datetime
@@ -200,7 +200,7 @@ class QueryManager:
             period_end=period_end
         )
     
-    async def query_service_correlations(
+    def query_service_correlations(
         self,
         period_start: datetime,
         period_end: datetime,
@@ -333,7 +333,7 @@ class QueryManager:
             task_correlations=task_correlations
         )
     
-    async def query_tasks_in_period(
+    def query_tasks_in_period(
         self,
         period_start: datetime,
         period_end: datetime
@@ -422,7 +422,7 @@ class QueryManager:
         
         return task_correlations
     
-    async def get_special_node_types(self) -> Set[str]:
+    def get_special_node_types(self) -> Set[str]:
         """
         Get the list of special node types to track in summaries.
         
@@ -442,7 +442,7 @@ class QueryManager:
             'observation'
         }
     
-    async def check_period_consolidated(
+    def check_period_consolidated(
         self,
         period_start: datetime
     ) -> bool:

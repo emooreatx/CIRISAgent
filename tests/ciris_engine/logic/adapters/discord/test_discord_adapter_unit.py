@@ -270,7 +270,7 @@ class TestDiscordAdapter:
         discord_adapter._channel_manager.client.is_closed = Mock(return_value=False)
 
         # Test is_client_ready method
-        is_ready = await discord_adapter._channel_manager.is_client_ready()
+        is_ready = discord_adapter._channel_manager.is_client_ready()
 
         assert is_ready is True
 
@@ -281,7 +281,7 @@ class TestDiscordAdapter:
         test_error = Exception("Test message error")
 
         # Use the error handler
-        error_info = await discord_adapter._error_handler.handle_message_error(
+        error_info = discord_adapter._error_handler.handle_message_error(
             test_error, "Test message", "test_channel"
         )
 
@@ -521,7 +521,7 @@ class TestDiscordObserver:
     async def test_start(self, discord_observer):
         """Test observer start."""
         # The start method just logs that it's ready
-        await discord_observer.start()
+        discord_observer.start()
 
         # No assertions needed - just verify it doesn't raise
 
@@ -529,7 +529,7 @@ class TestDiscordObserver:
     async def test_stop(self, discord_observer):
         """Test observer stop."""
         # The stop method just logs that it's stopped
-        await discord_observer.stop()
+        discord_observer.stop()
 
         # No assertions needed - just verify it doesn't raise
 
@@ -549,7 +549,7 @@ class TestDiscordErrorHandler:
         from ciris_engine.schemas.adapters.discord import ErrorSeverity
         
         error = commands.CommandNotFound("unknown")
-        result = await error_handler.handle_api_error(error, "command")
+        result = error_handler.handle_api_error(error, "command")
 
         assert hasattr(result, 'severity')
         assert result.severity == ErrorSeverity.MEDIUM
@@ -561,7 +561,7 @@ class TestDiscordErrorHandler:
         mock_ctx.send = AsyncMock()
 
         error = commands.MissingPermissions(['manage_messages'])
-        result = await error_handler.handle_api_error(error, "command")
+        result = error_handler.handle_api_error(error, "command")
 
         assert hasattr(result, 'severity')
         assert hasattr(result, 'message')
@@ -576,7 +576,7 @@ class TestDiscordErrorHandler:
         from ciris_engine.schemas.adapters.discord import ErrorSeverity
         
         error = Exception("Something went wrong")
-        result = await error_handler.handle_api_error(error, "test")
+        result = error_handler.handle_api_error(error, "test")
 
         assert hasattr(result, 'severity')
         assert result.severity == ErrorSeverity.MEDIUM
@@ -590,4 +590,4 @@ class TestDiscordErrorHandler:
         # It returns structured error info instead
         result = error_handler.handle_api_error(error, "test")
 
-        assert asyncio.run(result) is not None
+        assert result is not None

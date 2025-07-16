@@ -63,7 +63,7 @@ async def services(temp_db, time_service):
         secrets_service=secrets_service,
         time_service=time_service
     )
-    await memory_service.start()
+    memory_service.start()
 
     config_service = GraphConfigService(
         graph_memory_service=memory_service,
@@ -85,7 +85,7 @@ async def services(temp_db, time_service):
         llm_service=llm_service,
         config_service=config_service
     )
-    await filter_service.start()
+    filter_service.start()
 
     yield {
         'memory': memory_service,
@@ -96,9 +96,9 @@ async def services(temp_db, time_service):
     }
 
     # Cleanup
-    await filter_service.stop()
+    filter_service.stop()
     await config_service.stop()
-    await memory_service.stop()
+    memory_service.stop()
     await secrets_service.stop()
 
     if os.path.exists(secrets_db):

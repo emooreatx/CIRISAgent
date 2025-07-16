@@ -101,7 +101,7 @@ class APIRuntimeControlService(Service):
             logger.error(f"State transition failed: {e}")
             return False
     
-    async def get_runtime_status(self) -> Dict[str, Any]:
+    def get_runtime_status(self) -> Dict[str, Any]:
         """Get current runtime status."""
         status = {
             "paused": self._paused,
@@ -166,7 +166,7 @@ class APIRuntimeControlService(Service):
         """Stop the runtime control service."""
         logger.info("API Runtime Control Service stopped")
     
-    async def is_healthy(self) -> bool:
+    def is_healthy(self) -> bool:
         """Check if service is healthy."""
         return True
     

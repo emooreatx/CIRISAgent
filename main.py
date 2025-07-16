@@ -397,7 +397,7 @@ def main(
                 async def flush_handler(handler):
                     """Flush a single handler."""
                     try:
-                        handler.flush()
+                        await asyncio.to_thread(handler.flush)
                     except Exception:
                         pass  # Ignore flush errors during shutdown
                 
@@ -409,7 +409,7 @@ def main(
                 
                 # Add tasks for each log handler
                 for handler in logging.getLogger().handlers:
-                    flush_tasks.append(asyncio.create_task(asyncio.to_thread(flush_handler, handler)))
+                    flush_tasks.append(asyncio.create_task(flush_handler(handler)))
                 
                 # Wait for all flush operations to complete
                 await asyncio.gather(*flush_tasks, return_exceptions=True)
@@ -445,7 +445,7 @@ def main(
             async def flush_handler(handler):
                 """Flush a single handler."""
                 try:
-                    handler.flush()
+                    await asyncio.to_thread(handler.flush)
                 except Exception:
                     pass  # Ignore flush errors during shutdown
             
@@ -457,7 +457,7 @@ def main(
             
             # Add tasks for each log handler
             for handler in logging.getLogger().handlers:
-                flush_tasks.append(asyncio.create_task(asyncio.to_thread(flush_handler, handler)))
+                flush_tasks.append(asyncio.create_task(flush_handler(handler)))
             
             # Wait for all flush operations to complete
             await asyncio.gather(*flush_tasks, return_exceptions=True)

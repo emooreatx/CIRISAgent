@@ -995,7 +995,7 @@ async def test_consolidation_idempotency(consolidation_service, mock_memory_bus,
     conn.close()
     
     # Check if period is consolidated
-    is_consolidated = await consolidation_service._is_period_consolidated(period_start, period_end)
+    is_consolidated = consolidation_service._is_period_consolidated(period_start, period_end)
     assert is_consolidated is True
     
     # Now test direct consolidation - it will still create summaries for other types

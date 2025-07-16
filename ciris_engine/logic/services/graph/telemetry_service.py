@@ -446,7 +446,7 @@ class GraphTelemetryService(BaseGraphService, TelemetryServiceProtocol):
             else:
                 return {}
 
-    async def _get_resource_limits(self) -> ResourceLimits:
+    def _get_resource_limits(self) -> ResourceLimits:
         """Get resource limits configuration (internal method)."""
         return self._resource_limits
 
@@ -722,7 +722,8 @@ class GraphTelemetryService(BaseGraphService, TelemetryServiceProtocol):
 
     async def start(self) -> None:
         """Start the telemetry service."""
-        await super().start()
+        # Don't call super() as BaseService has async start
+        self._started = True
         logger.info("GraphTelemetryService started - routing all metrics through memory graph")
 
     async def stop(self) -> None:
@@ -734,7 +735,8 @@ class GraphTelemetryService(BaseGraphService, TelemetryServiceProtocol):
             {"event": "service_stop", "timestamp": self._now().isoformat()}
         )
         logger.info("GraphTelemetryService stopped")
-        await super().stop()
+        # Don't call super() as BaseService has async stop
+        self._started = False
 
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """Collect telemetry-specific metrics."""

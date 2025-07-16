@@ -32,7 +32,7 @@ class ForgetHandler(BaseActionHandler):
                 follow_up_content = f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action failed: Invalid parameters. {e}. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
                 
                 # Use the proper method to complete thought and create follow-up
-                follow_up_id = await self.complete_thought_and_create_followup(
+                follow_up_id = self.complete_thought_and_create_followup(
                     thought=thought,
                     follow_up_content=follow_up_content,
                     action_result=result,
@@ -46,7 +46,7 @@ class ForgetHandler(BaseActionHandler):
             follow_up_content = f"This is a follow-up thought from a FORGET action performed on parent task {thought.source_task_id}. FORGET action was not permitted. If the task is now resolved, the next step may be to mark the parent task complete with COMPLETE_TASK."
             
             # Use the proper method to complete thought and create follow-up
-            follow_up_id = await self.complete_thought_and_create_followup(
+            follow_up_id = self.complete_thought_and_create_followup(
                 thought=thought,
                 follow_up_content=follow_up_content,
                 action_result=result,
@@ -67,7 +67,7 @@ class ForgetHandler(BaseActionHandler):
             follow_up_content = "FORGET action denied: WA authorization required"
             
             # Use the proper method to complete thought and create follow-up
-            follow_up_id = await self.complete_thought_and_create_followup(
+            follow_up_id = self.complete_thought_and_create_followup(
                 thought=thought,
                 follow_up_content=follow_up_content,
                 action_result=result,
@@ -98,7 +98,7 @@ class ForgetHandler(BaseActionHandler):
             )
         
         # Use the proper method to complete thought and create follow-up
-        follow_up_id = await self.complete_thought_and_create_followup(
+        follow_up_id = self.complete_thought_and_create_followup(
             thought=thought,
             follow_up_content=follow_up_content,
             action_result=result,

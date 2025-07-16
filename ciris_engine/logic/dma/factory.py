@@ -41,7 +41,7 @@ try:
 except ImportError:
     pass
 
-async def create_dma(
+def create_dma(
     dma_type: str,
     dma_identifier: str,
     service_registry: ServiceRegistry,
@@ -100,7 +100,7 @@ async def create_dma(
         logger.error(f"Failed to create {dma_type} DMA {dma_identifier}: {e}")
         return None
 
-async def create_dsdma_from_identity(
+def create_dsdma_from_identity(
     identity: Optional[AgentTemplate],
     service_registry: ServiceRegistry,
     *,
@@ -129,7 +129,7 @@ async def create_dsdma_from_identity(
         domain_knowledge = None
 
     # Always use BaseDSDMA now
-    dma_result = await create_dma(
+    dma_result = create_dma(
         dma_type='dsdma',
         dma_identifier='BaseDSDMA',  # Always use BaseDSDMA
         service_registry=service_registry,

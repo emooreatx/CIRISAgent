@@ -55,9 +55,9 @@ async def memory_service(temp_db, secrets_service, time_service):
         secrets_service=secrets_service,
         time_service=time_service
     )
-    await service.start()
+    service.start()
     yield service
-    await service.stop()
+    service.stop()
 
 
 @pytest.mark.asyncio

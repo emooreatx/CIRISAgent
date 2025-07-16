@@ -46,11 +46,11 @@ class DiscordToolService(ToolService):
         """Update the Discord client instance."""
         self._client = client
 
-    async def start(self) -> None:
+    def start(self) -> None:
         """Start the Discord tool service."""
         logger.info("Discord tool service started")
 
-    async def stop(self) -> None:
+    def stop(self) -> None:
         """Stop the Discord tool service."""
         logger.info("Discord tool service stopped")
 
@@ -465,16 +465,16 @@ class DiscordToolService(ToolService):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def get_available_tools(self) -> List[str]:
+    def get_available_tools(self) -> List[str]:
         """Get list of available Discord tools."""
         return list(self._tools.keys())
 
-    async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[ToolExecutionResult]:
+    def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[ToolExecutionResult]:
         """Get result of a tool execution by correlation ID."""
         # All Discord tools are synchronous, so results are available immediately
         return self._results.get(correlation_id)
 
-    async def validate_parameters(self, tool_name: str, parameters: dict) -> bool:
+    def validate_parameters(self, tool_name: str, parameters: dict) -> bool:
         """Validate parameters for a Discord tool."""
         required_params = {
             "discord_send_message": ["channel_id", "content"],
@@ -494,7 +494,7 @@ class DiscordToolService(ToolService):
         
         return all(param in parameters for param in required_params[tool_name])
 
-    async def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
+    def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
         """Get detailed information about a specific Discord tool."""
         tool_schemas = {
             "discord_send_message": ToolParameterSchema(
@@ -621,16 +621,16 @@ class DiscordToolService(ToolService):
             category="discord"
         )
 
-    async def get_all_tool_info(self) -> List[ToolInfo]:
+    def get_all_tool_info(self) -> List[ToolInfo]:
         """Get detailed information about all available Discord tools."""
         infos = []
         for tool_name in self._tools:
-            info = await self.get_tool_info(tool_name)
+            info = self.get_tool_info(tool_name)
             if info:
                 infos.append(info)
         return infos
 
-    async def is_healthy(self) -> bool:
+    def is_healthy(self) -> bool:
         """Check if the Discord tool service is healthy."""
         return self._client is not None and not self._client.is_closed()
 
@@ -676,13 +676,13 @@ class DiscordToolService(ToolService):
             last_health_check=datetime.now(timezone.utc) if self._time_service is None else self._time_service.now()
         )
 
-    async def list_tools(self) -> List[str]:
+    def list_tools(self) -> List[str]:
         """List available tools - required by ToolServiceProtocol."""
         return list(self._tools.keys())
 
-    async def get_tool_schema(self, tool_name: str) -> Optional[ToolParameterSchema]:
+    def get_tool_schema(self, tool_name: str) -> Optional[ToolParameterSchema]:
         """Get parameter schema for a specific tool - required by ToolServiceProtocol."""
-        tool_info = await self.get_tool_info(tool_name)
+        tool_info = self.get_tool_info(tool_name)
         if tool_info:
             return tool_info.parameters
         return None

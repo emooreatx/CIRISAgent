@@ -218,7 +218,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
             time_service=self.time_service,
             secrets_service=self.secrets_service
         )
-        await self.memory_service.start()
+        self.memory_service.start()
 
         logger.info("Memory service initialized")
 
@@ -717,10 +717,10 @@ This directory contains critical cryptographic keys for the CIRIS system.
             memory_bus=self.bus_manager.memory,
             time_service=self.time_service
         )
-        await self.incident_management_service.start()
+        self.incident_management_service.start()
         logger.info("Incident management service initialized")
 
-    async def verify_core_services(self) -> bool:
+    def verify_core_services(self) -> bool:
         """Verify all core services are operational."""
         try:
             # Check service registry

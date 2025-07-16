@@ -71,7 +71,7 @@ class DiscordGuidanceHandler:
 
         # If no memory service, check Discord roles
         if not self._memory_service:
-            return await self._check_discord_roles(discord_id)
+            return self._check_discord_roles(discord_id)
 
         try:
             # Query memory for Discord WA node
@@ -87,9 +87,9 @@ class DiscordGuidanceHandler:
         except Exception as e:
             logger.error(f"Failed to check WA status for {discord_id}: {e}")
             # Fall back to Discord role check
-            return await self._check_discord_roles(discord_id)
+            return self._check_discord_roles(discord_id)
 
-    async def _check_discord_roles(self, discord_id: str) -> bool:
+    def _check_discord_roles(self, discord_id: str) -> bool:
         """Check if user has AUTHORITY or OBSERVER role in Discord.
 
         Args:

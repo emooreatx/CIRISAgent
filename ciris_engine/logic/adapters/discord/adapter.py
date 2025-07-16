@@ -225,9 +225,9 @@ class DiscordPlatform(Service):
 
         if hasattr(self.discord_observer, 'start'):
             if self.discord_observer:
-                await self.discord_observer.start()
-        if hasattr(self.tool_service, 'start'):
-            await self.tool_service.start()
+                self.discord_observer.start()
+        if self.tool_service and hasattr(self.tool_service, 'start'):
+            self.tool_service.start()
         if hasattr(self.discord_adapter, 'start'):
             await self.discord_adapter.start()
         logger.info("DiscordPlatform: Internal components started. Discord client connection deferred to run_lifecycle.")
@@ -480,9 +480,9 @@ class DiscordPlatform(Service):
         # Stop observer, tool service and adapter first
         if hasattr(self.discord_observer, 'stop'):
             if self.discord_observer:
-                await self.discord_observer.stop()
+                self.discord_observer.stop()
         if hasattr(self.tool_service, 'stop'):
-            await self.tool_service.stop()
+            self.tool_service.stop()
         if hasattr(self.discord_adapter, 'stop'):
             await self.discord_adapter.stop()
 
@@ -523,7 +523,7 @@ class DiscordPlatform(Service):
                 
             # Also check if the Discord adapter reports healthy
             if hasattr(self.discord_adapter, 'is_healthy'):
-                return await self.discord_adapter.is_healthy()
+                return self.discord_adapter.is_healthy()
                 
             return True
         except Exception as e:

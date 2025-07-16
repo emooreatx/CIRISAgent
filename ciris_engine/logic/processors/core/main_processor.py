@@ -144,7 +144,7 @@ class AgentProcessor:
 
         logger.info("AgentProcessor initialized with v1 schemas and modular processors")
 
-    async def _load_preload_tasks(self) -> None:
+    def _load_preload_tasks(self) -> None:
         """Load preload tasks after successful WORK state transition."""
         try:
             if self.runtime and hasattr(self.runtime, "get_preload_tasks"):
@@ -225,7 +225,7 @@ class AgentProcessor:
                 logger.error(f"Failed to transition from {self.state_manager.get_state()} to WAKEUP state")
                 return
 
-        await self.wakeup_processor.initialize()
+        self.wakeup_processor.initialize()
 
         wakeup_complete = False
         wakeup_round = 0
@@ -275,7 +275,7 @@ class AgentProcessor:
 
         self.state_manager.update_state_metadata("wakeup_complete", True)
 
-        await self._load_preload_tasks()
+        self._load_preload_tasks()
 
         # Schedule first dream session
         await self._schedule_initial_dream()
@@ -287,7 +287,7 @@ class AgentProcessor:
             except Exception as e:
                 logger.error(f"Error initializing interactive console: {e}")
 
-        await self.work_processor.initialize()
+        self.work_processor.initialize()
 
         self._processing_task = asyncio.create_task(self._processing_loop(num_rounds))
 
@@ -670,7 +670,7 @@ class AgentProcessor:
 
         for processor in self.state_processors.values():
             try:
-                await processor.cleanup()
+                processor.cleanup()
             except Exception as e:
                 logger.error(f"Error cleaning up {processor}: {e}")
 
@@ -901,7 +901,7 @@ class AgentProcessor:
 
         if target_state in self.state_processors:
             processor = self.state_processors[target_state]
-            await processor.initialize()
+            processor.initialize()
 
     async def process(self, round_number: int) -> dict:
         """Execute one round of processing based on current state."""

@@ -60,7 +60,7 @@ class SpeakHandler(BaseActionHandler):
                 if hasattr(channel_ctx, 'keys'):
                     logger.info(f"SPEAK: channel_context dict contains: {channel_ctx}")
 
-            params: SpeakParams = await self._validate_and_convert_params(processed_result.action_parameters, SpeakParams)
+            params: SpeakParams = self._validate_and_convert_params(processed_result.action_parameters, SpeakParams)
         except Exception as e:
             await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, e)
             persistence.update_thought_status(
@@ -95,7 +95,7 @@ class SpeakHandler(BaseActionHandler):
         
         # Fall back to thought/task context if not in params
         if not channel_id:
-            channel_id = await self._get_channel_id(thought, dispatch_context)
+            channel_id = self._get_channel_id(thought, dispatch_context)
             if channel_id:
                 logger.info(f"SPEAK: Using channel_id '{channel_id}' from thought/task context")
         
@@ -173,7 +173,7 @@ class SpeakHandler(BaseActionHandler):
         )
 
         # Use centralized method for both success and failure cases
-        follow_up_thought_id = await self.complete_thought_and_create_followup(
+        follow_up_thought_id = self.complete_thought_and_create_followup(
             thought=thought,
             follow_up_content=follow_up_text,
             action_result=result,

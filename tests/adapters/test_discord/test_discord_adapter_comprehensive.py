@@ -249,7 +249,7 @@ class TestDiscordWiseAuthority:
         discord_adapter._channel_manager.client.guilds = [mock_guild]
 
         # Check authorization
-        result = await discord_adapter.check_authorization("123456", "any_action")
+        result = discord_adapter.check_authorization("123456", "any_action")
 
         assert result is True
 
@@ -269,11 +269,11 @@ class TestDiscordWiseAuthority:
         discord_adapter._channel_manager.client.guilds = [mock_guild]
 
         # Check read action - should pass
-        result = await discord_adapter.check_authorization("123456", "read")
+        result = discord_adapter.check_authorization("123456", "read")
         assert result is True
 
         # Check write action - should fail
-        result = await discord_adapter.check_authorization("123456", "write")
+        result = discord_adapter.check_authorization("123456", "write")
         assert result is False
 
     @pytest.mark.asyncio
@@ -393,11 +393,11 @@ class TestDiscordToolExecution:
     async def test_list_tools(self, discord_adapter):
         """Test listing available tools."""
         # Mock tool list
-        discord_adapter._tool_handler.get_available_tools = AsyncMock(
+        discord_adapter._tool_handler.get_available_tools = Mock(
             return_value=["tool1", "tool2", "tool3"]
         )
 
-        tools = await discord_adapter.list_tools()
+        tools = discord_adapter.list_tools()
 
         assert len(tools) == 3
         assert "tool1" in tools
@@ -427,12 +427,12 @@ class TestDiscordConnectionResilience:
         # Mock healthy connection
         discord_adapter._connection_manager.is_connected = Mock(return_value=True)
 
-        assert await discord_adapter.is_healthy() is True
+        assert discord_adapter.is_healthy() is True
 
         # Mock unhealthy connection
         discord_adapter._connection_manager.is_connected = Mock(return_value=False)
 
-        assert await discord_adapter.is_healthy() is False
+        assert discord_adapter.is_healthy() is False
 
 
 class TestDiscordErrorHandling:

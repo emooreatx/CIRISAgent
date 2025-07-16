@@ -103,7 +103,7 @@ class PlayProcessor(WorkProcessor):
 
         return min((experiments_ratio + novel_ratio) / 2, 1.0)
 
-    async def _prioritize_creative_tasks(self, tasks: List[Any]) -> List[Any]:
+    def _prioritize_creative_tasks(self, tasks: List[Any]) -> List[Any]:
         """
         Prioritize tasks that are marked as creative or experimental.
 

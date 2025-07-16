@@ -151,7 +151,7 @@ async def list_users(
     Requires: users.read permission (ADMIN or higher)
     """
     # Get all WA certificates from the auth service
-    users = await auth_service.list_users(
+    users = auth_service.list_users(
         search=search,
         auth_type=auth_type,
         api_role=api_role,
@@ -203,7 +203,7 @@ async def create_user(
     Requires: users.write permission (SYSTEM_ADMIN only)
     """
     # Check if username already exists
-    existing = await auth_service.get_user_by_username(request.username)
+    existing = auth_service.get_user_by_username(request.username)
     if existing:
         raise HTTPException(
             status_code=400,
@@ -239,7 +239,7 @@ async def get_user(
     
     Requires: users.read permission (ADMIN or higher)
     """
-    user = await auth_service.get_user(user_id)
+    user = auth_service.get_user(user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -247,7 +247,7 @@ async def get_user(
     permissions = auth_service.get_permissions_for_role(user.api_role)
     
     # Count API keys
-    api_keys = await auth_service.list_user_api_keys(user_id)
+    api_keys = auth_service.list_user_api_keys(user_id)
     
     return UserDetail(
         user_id=user.wa_id,
@@ -589,7 +589,7 @@ async def list_user_api_keys(
     if user_id != auth.user_id:
         await check_permissions(["users.read"])(auth)
     
-    keys = await auth_service.list_user_api_keys(user_id)
+    keys = auth_service.list_user_api_keys(user_id)
     
     # Mask the actual key values for security
     return [

@@ -196,7 +196,7 @@ class TestDiscordHealthCheck:
         discord_platform.discord_adapter._connection_manager.is_connected = Mock(return_value=True)
         
         # Also mock the discord_adapter's is_healthy to return True
-        discord_platform.discord_adapter.is_healthy = AsyncMock(return_value=True)
+        discord_platform.discord_adapter.is_healthy = Mock(return_value=True)
         
         # The platform's is_healthy method is async
         result = await discord_platform.is_healthy()
@@ -213,7 +213,7 @@ class TestDiscordHealthCheck:
         discord_platform.discord_adapter._connection_manager.is_connected = Mock(return_value=False)
         
         # Mock the discord_adapter's is_healthy to return False
-        discord_platform.discord_adapter.is_healthy = AsyncMock(return_value=False)
+        discord_platform.discord_adapter.is_healthy = Mock(return_value=False)
         
         result = await discord_platform.is_healthy()
         assert result is False
@@ -229,7 +229,7 @@ class TestDiscordHealthCheck:
         discord_platform.discord_adapter._connection_manager.is_connected = Mock(return_value=False)
         
         # Mock the discord_adapter's is_healthy to return False
-        discord_platform.discord_adapter.is_healthy = AsyncMock(return_value=False)
+        discord_platform.discord_adapter.is_healthy = Mock(return_value=False)
         
         result = await discord_platform.is_healthy()
         assert result is False
@@ -240,7 +240,7 @@ class TestDiscordHealthCheck:
         discord_platform.client = None
         
         # When there's no client, the adapter should report unhealthy
-        discord_platform.discord_adapter.is_healthy = AsyncMock(return_value=False)
+        discord_platform.discord_adapter.is_healthy = Mock(return_value=False)
         
         result = await discord_platform.is_healthy()
         assert result is False
@@ -332,7 +332,7 @@ class TestDiscordReconnectionScenarios:
         
         # Mock the connection manager and adapter health checks
         discord_platform.discord_adapter._connection_manager.is_connected = Mock(return_value=True)
-        discord_platform.discord_adapter.is_healthy = AsyncMock(return_value=True)
+        discord_platform.discord_adapter.is_healthy = Mock(return_value=True)
         
         # Should report as healthy when connected
         is_healthy = await discord_platform.is_healthy()
@@ -341,7 +341,7 @@ class TestDiscordReconnectionScenarios:
         # Simulate disconnect by marking client as not ready
         mock_discord_client.is_ready.return_value = False
         discord_platform.discord_adapter._connection_manager.is_connected = Mock(return_value=False)
-        discord_platform.discord_adapter.is_healthy = AsyncMock(return_value=False)
+        discord_platform.discord_adapter.is_healthy = Mock(return_value=False)
         
         # Should report as not healthy when disconnected  
         is_healthy = await discord_platform.is_healthy()
@@ -350,7 +350,7 @@ class TestDiscordReconnectionScenarios:
         # Simulate reconnect by marking client as ready again
         mock_discord_client.is_ready.return_value = True
         discord_platform.discord_adapter._connection_manager.is_connected = Mock(return_value=True)
-        discord_platform.discord_adapter.is_healthy = AsyncMock(return_value=True)
+        discord_platform.discord_adapter.is_healthy = Mock(return_value=True)
         
         # Should report as healthy again
         is_healthy = await discord_platform.is_healthy()
@@ -431,7 +431,7 @@ class TestDiscordErrorRecovery:
         # Simulate connection ready
         mock_discord_client.is_ready.return_value = True
         discord_platform.discord_adapter._connection_manager.is_connected = Mock(return_value=True)
-        discord_platform.discord_adapter.is_healthy = AsyncMock(return_value=True)
+        discord_platform.discord_adapter.is_healthy = Mock(return_value=True)
         
         is_healthy = await discord_platform.is_healthy()
         assert is_healthy is True
@@ -439,7 +439,7 @@ class TestDiscordErrorRecovery:
         # Simulate client closed
         mock_discord_client.is_closed.return_value = True
         discord_platform.discord_adapter._connection_manager.is_connected = Mock(return_value=False)
-        discord_platform.discord_adapter.is_healthy = AsyncMock(return_value=False)
+        discord_platform.discord_adapter.is_healthy = Mock(return_value=False)
         
         is_healthy = await discord_platform.is_healthy()
         assert is_healthy is False

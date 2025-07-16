@@ -89,7 +89,7 @@ async def test_filter_config_bug(temp_db, time_service):
         secrets_service=secrets_service,
         time_service=time_service
     )
-    await memory_service.start()
+    memory_service.start()
 
     # Note: We skip creating GraphConfigService because it has a broken query_graph implementation
     # that doesn't match the abstract method signature. This test focuses on verifying
@@ -158,7 +158,7 @@ async def test_filter_config_bug(temp_db, time_service):
         print(f"Error in config service test: {e}")
 
     # Cleanup
-    await memory_service.stop()
+    memory_service.stop()
     await secrets_service.stop()
 
     secrets_db_path = secrets_db
@@ -219,7 +219,7 @@ async def test_old_node_format_compatibility(temp_db, time_service):
         secrets_service=secrets_service,
         time_service=time_service
     )
-    await memory_service.start()
+    memory_service.start()
 
     # Note: We skip creating GraphConfigService because it has a broken query_graph implementation
     # that doesn't match the abstract method signature. This test focuses on verifying
@@ -255,7 +255,7 @@ async def test_old_node_format_compatibility(temp_db, time_service):
         print(f"Error during malformed node handling test: {e}")
 
     # Cleanup
-    await memory_service.stop()
+    memory_service.stop()
     await secrets_service.stop()
 
     if os.path.exists(secrets_db):

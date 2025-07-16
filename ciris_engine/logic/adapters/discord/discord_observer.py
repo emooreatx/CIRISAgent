@@ -83,11 +83,11 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         except Exception as e:
             logger.error(f"Failed to send deferral message: {e}")
 
-    async def start(self) -> None:
+    def start(self) -> None:
         """Start the observer - no polling needed since we receive messages directly."""
         logger.info("DiscordObserver started - ready to receive messages directly from Discord adapter")
 
-    async def stop(self) -> None:
+    def stop(self) -> None:
         """Stop the observer - no background tasks to clean up."""
         logger.info("DiscordObserver stopped")
 
@@ -99,7 +99,7 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
             return parts[2]  # Return just the channel ID part
         return full_channel_id  # Return as-is if not in expected format
     
-    async def _should_process_message(self, msg: DiscordMessage) -> bool:
+    def _should_process_message(self, msg: DiscordMessage) -> bool:
         """Check if Discord observer should process this message."""
         # Extract the raw channel ID from the formatted channel_id
         raw_channel_id = self._extract_channel_id(msg.channel_id) if msg.channel_id else ""

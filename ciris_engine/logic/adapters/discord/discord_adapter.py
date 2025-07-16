@@ -123,7 +123,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         except Exception as e:
             # Handle errors with the error handler
             if isinstance(e, (HTTPException, ConnectionClosed)):
-                error_info = await self._error_handler.handle_channel_error(
+                error_info = self._error_handler.handle_channel_error(
                     kwargs.get('channel_id', 'unknown'),
                     e,
                     operation_name
@@ -233,7 +233,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             return True
         except Exception as e:
             # Handle message errors
-            error_info = await self._error_handler.handle_message_error(
+            error_info = self._error_handler.handle_message_error(
                 e, content, channel_id
             )
             logger.error(f"Failed to send message via Discord: {error_info}")
@@ -386,7 +386,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             logger.exception(f"Failed to fetch guidance from Discord: {e}")
             raise
 
-    async def check_authorization(self, wa_id: str, action: str, resource: Optional[str] = None) -> bool:
+    def check_authorization(self, wa_id: str, action: str, resource: Optional[str] = None) -> bool:
         """Check if a Discord user is authorized for an action."""
         # In Discord, authorization is based on roles:
         # - AUTHORITY role can do anything
@@ -455,7 +455,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             # Create approval result container
             approval_result = None
 
-            async def handle_approval(approval: ApprovalRequest) -> None:
+            def handle_approval(approval: ApprovalRequest) -> None:
                 nonlocal approval_result
                 approval_result = approval
 
@@ -721,7 +721,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
             logger.exception(f"Failed to revoke permission: {e}")
             return False
 
-    async def get_active_channels(self) -> List[DiscordChannelInfo]:
+    def get_active_channels(self) -> List[DiscordChannelInfo]:
         """Get list of active Discord channels."""
         channels: List[DiscordChannelInfo] = []
         
@@ -785,11 +785,11 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         
         return result
     
-    async def list_tools(self) -> List[str]:
+    def list_tools(self) -> List[str]:
         """List available tools through the tool handler."""
-        return await self._tool_handler.get_available_tools()
+        return self._tool_handler.get_available_tools()
 
-    async def list_permissions(self, wa_id: str) -> List[WAPermission]:
+    def list_permissions(self, wa_id: str) -> List[WAPermission]:
         """List all permissions for a Discord user."""
         permissions: List[WAPermission] = []
 
@@ -1198,7 +1198,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
         except Exception as e:
             logger.error(f"Error stopping Discord adapter: {e}")
 
-    async def is_healthy(self) -> bool:
+    def is_healthy(self) -> bool:
         """Check if the Discord adapter is healthy"""
         try:
             return self._connection_manager.is_connected()

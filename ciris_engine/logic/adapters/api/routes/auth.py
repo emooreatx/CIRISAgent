@@ -77,7 +77,7 @@ async def login(
     }
     
     # Store API key
-    await auth_service.store_api_key(
+    auth_service.store_api_key(
         key=api_key,
         user_id=user.wa_id,
         role=user_role_map[user.api_role],
@@ -108,7 +108,7 @@ async def logout(
     effectively logging out the user.
     """
     if auth.api_key_id:
-        await auth_service.revoke_api_key(auth.api_key_id)
+        auth_service.revoke_api_key(auth.api_key_id)
         logger.info(f"User {auth.user_id} logged out, API key {auth.api_key_id} revoked")
 
     return None
@@ -180,7 +180,7 @@ async def refresh_token(
         expires_in = 2592000  # 30 days
 
     # Store new API key
-    await auth_service.store_api_key(
+    auth_service.store_api_key(
         key=new_api_key,
         user_id=auth.user_id,
         role=auth.role,
@@ -190,7 +190,7 @@ async def refresh_token(
 
     # Revoke old API key if it exists
     if auth.api_key_id:
-        await auth_service.revoke_api_key(auth.api_key_id)
+        auth_service.revoke_api_key(auth.api_key_id)
 
     logger.info(f"Token refreshed for user {auth.user_id}")
 
@@ -598,7 +598,7 @@ async def oauth_callback(
                 )
         
         # Create or update OAuth user
-        oauth_user = await auth_service.create_oauth_user(
+        oauth_user = auth_service.create_oauth_user(
             provider=provider,
             external_id=external_id,
             email=email,
@@ -610,7 +610,7 @@ async def oauth_callback(
         api_key = f"ciris_observer_{secrets.token_urlsafe(32)}"
         expires_at = datetime.now(timezone.utc) + timedelta(days=30)
         
-        await auth_service.store_api_key(
+        auth_service.store_api_key(
             key=api_key,
             user_id=oauth_user.user_id,
             role=oauth_user.role,

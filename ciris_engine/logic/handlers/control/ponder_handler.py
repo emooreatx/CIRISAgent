@@ -68,7 +68,7 @@ class PonderHandler(BaseActionHandler):
         )
         
         # Use centralized method to complete thought and create follow-up
-        follow_up_id = await self.complete_thought_and_create_followup(
+        follow_up_id = self.complete_thought_and_create_followup(
             thought=thought,
             follow_up_content=follow_up_content,
             action_result=result

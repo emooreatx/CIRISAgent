@@ -30,7 +30,7 @@ class RejectHandler(BaseActionHandler):
         follow_up_content_key_info = f"REJECT action for thought {thought_id}"
 
         try:
-            params: RejectParams = await self._validate_and_convert_params(raw_params, RejectParams)
+            params: RejectParams = self._validate_and_convert_params(raw_params, RejectParams)
         except Exception as e:
             await self._handle_error(HandlerActionType.REJECT, dispatch_context, thought_id, e)
             await self._audit_log(HandlerActionType.REJECT, dispatch_context, outcome="failed")

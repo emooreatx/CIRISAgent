@@ -144,7 +144,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
             
             instance.is_running = True
 
-            await self._register_adapter_services(instance)
+            self._register_adapter_services(instance)
             
             # Save adapter config to graph
             await self._save_adapter_config_to_graph(adapter_id, adapter_type, adapter_kwargs)
@@ -239,7 +239,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 await instance.adapter.stop()
                 instance.is_running = False
 
-            await self._unregister_adapter_services(instance)
+            self._unregister_adapter_services(instance)
 
             # Remove adapter from runtime adapters list (if it was added there)
             # Note: Dynamically loaded adapters are no longer added to runtime.adapters
@@ -597,7 +597,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
                 details={}
             )
 
-    async def _register_adapter_services(self, instance: AdapterInstance) -> None:
+    def _register_adapter_services(self, instance: AdapterInstance) -> None:
         """Register services for an adapter instance"""
         try:
             if not self.runtime.service_registry:
@@ -650,7 +650,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
         except Exception as e:
             logger.error(f"Error registering services for adapter {instance.adapter_id}: {e}", exc_info=True)
 
-    async def _unregister_adapter_services(self, instance: AdapterInstance) -> None:
+    def _unregister_adapter_services(self, instance: AdapterInstance) -> None:
         """Unregister services for an adapter instance"""
         try:
             if not self.runtime.service_registry:
@@ -665,7 +665,7 @@ class RuntimeAdapterManager(AdapterManagerInterface):
         except Exception as e:
             logger.error(f"Error unregistering services for adapter {instance.adapter_id}: {e}", exc_info=True)
 
-    async def get_adapter_info(self, adapter_id: str) -> dict:
+    def get_adapter_info(self, adapter_id: str) -> dict:
         """Get detailed information about a specific adapter."""
         if adapter_id not in self.loaded_adapters:
             return {}

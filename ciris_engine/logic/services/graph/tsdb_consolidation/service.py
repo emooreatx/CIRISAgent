@@ -143,7 +143,7 @@ class TSDBConsolidationService(BaseGraphService):
             logger.warning("TSDBConsolidationService already running")
             return
         
-        await super().start()
+        super().start()
         self._running = True
         self._start_time = self._now()
         
@@ -183,7 +183,7 @@ class TSDBConsolidationService(BaseGraphService):
                 except asyncio.CancelledError:
                     pass  # NOSONAR - Expected when stopping the service in stop()
         
-        await super().stop()
+        super().stop()
         logger.info("TSDBConsolidationService stopped")
     
     async def _consolidation_loop(self) -> None:
@@ -268,7 +268,7 @@ class TSDBConsolidationService(BaseGraphService):
             cutoff_time = now - timedelta(hours=24)
             
             # Get oldest unconsolidated data
-            oldest_data = await self._find_oldest_unconsolidated_period()
+            oldest_data = self._find_oldest_unconsolidated_period()
             if not oldest_data:
                 logger.info("No unconsolidated data found")
                 return
@@ -282,7 +282,7 @@ class TSDBConsolidationService(BaseGraphService):
                 current_end = current_start + self._consolidation_interval
                 
                 # Check if already consolidated
-                if not await self._query_manager.check_period_consolidated(current_start):
+                if not self._query_manager.check_period_consolidated(current_start):
                     logger.info(f"Consolidating period: {current_start} to {current_end}")
                     
                     summaries = await self._consolidate_period(current_start, current_end)
@@ -296,10 +296,10 @@ class TSDBConsolidationService(BaseGraphService):
                 logger.info(f"Consolidated {periods_consolidated} periods")
             
             # Cleanup old data
-            await self._cleanup_old_data()
+            self._cleanup_old_data()
             
             # Cleanup orphaned edges
-            await self._edge_manager.cleanup_orphaned_edges()
+            self._edge_manager.cleanup_orphaned_edges()
             
             self._last_consolidation = now
             
@@ -326,7 +326,7 @@ class TSDBConsolidationService(BaseGraphService):
                 logger.info(f"Last consolidated period: {last_consolidated}, starting from: {start_from}")
             else:
                 # No previous consolidation found, check for oldest data
-                oldest_data = await self._find_oldest_unconsolidated_period()
+                oldest_data = self._find_oldest_unconsolidated_period()
                 if not oldest_data:
                     logger.info("No unconsolidated data found")
                     return
@@ -349,7 +349,7 @@ class TSDBConsolidationService(BaseGraphService):
                 period_end = period_start + self._consolidation_interval
                 
                 # Check if this period needs consolidation
-                if not await self._query_manager.check_period_consolidated(period_start):
+                if not self._query_manager.check_period_consolidated(period_start):
                     logger.info(f"Consolidating missed period: {period_start} to {period_end}")
                     
                     summaries = await self._consolidate_period(period_start, period_end)
@@ -407,17 +407,17 @@ class TSDBConsolidationService(BaseGraphService):
         logger.info(f"Querying all data for period {period_label}")
         
         # Get all graph nodes in the period
-        nodes_by_type = await self._query_manager.query_all_nodes_in_period(
+        nodes_by_type = self._query_manager.query_all_nodes_in_period(
             period_start, period_end
         )
         
         # Get all correlations in the period
-        correlations = await self._query_manager.query_service_correlations(
+        correlations = self._query_manager.query_service_correlations(
             period_start, period_end
         )
         
         # Get tasks completed in the period
-        tasks = await self._query_manager.query_tasks_in_period(
+        tasks = self._query_manager.query_tasks_in_period(
             period_start, period_end
         )
         
@@ -472,7 +472,7 @@ class TSDBConsolidationService(BaseGraphService):
                         service_interactions
                     )
                     if participant_data:
-                        user_edges = await self._edge_manager.create_user_participation_edges(
+                        user_edges = self._edge_manager.create_user_participation_edges(
                             conversation_summary,
                             participant_data,
                             period_label
@@ -585,7 +585,7 @@ class TSDBConsolidationService(BaseGraphService):
         # Get memory edges (links from summaries to memory nodes)
         # Convert TSDBNodeQueryResult back to dict format for memory consolidator
         nodes_by_type_dict = {node_type: result.nodes for node_type, result in nodes_by_type.items()}
-        memory_edges = await self._memory_consolidator.consolidate(
+        memory_edges = self._memory_consolidator.consolidate(
             period_start, period_start + self._consolidation_interval,
             period_label, nodes_by_type_dict, summaries
         )
@@ -593,7 +593,7 @@ class TSDBConsolidationService(BaseGraphService):
         
         # Create all edges in batch
         if all_edges:
-            edges_created = await self._edge_manager.create_edges(all_edges)
+            edges_created = self._edge_manager.create_edges(all_edges)
             logger.info(f"Created {edges_created} edges for period {period_label}")
         
         # CRITICAL: Create edges from summaries to ALL nodes in the period
@@ -622,7 +622,7 @@ class TSDBConsolidationService(BaseGraphService):
             
             if primary_summary:
                 logger.info(f"Creating edges from {primary_summary.id} to {len(all_nodes_in_period)} nodes in period")
-                edges_created = await self._edge_manager.create_summary_to_nodes_edges(
+                edges_created = self._edge_manager.create_summary_to_nodes_edges(
                     primary_summary,
                     all_nodes_in_period,
                     "SUMMARIZES",
@@ -632,7 +632,7 @@ class TSDBConsolidationService(BaseGraphService):
         
         # Create cross-summary edges (same period relationships)
         if len(summaries) > 1:
-            cross_edges = await self._edge_manager.create_cross_summary_edges(
+            cross_edges = self._edge_manager.create_cross_summary_edges(
                 summaries, period_start
             )
             logger.info(f"Created {cross_edges} cross-summary edges for period {period_label}")
@@ -642,26 +642,26 @@ class TSDBConsolidationService(BaseGraphService):
             # Extract summary type from ID
             summary_type = summary.id.split('_')[0] + '_' + summary.id.split('_')[1]
             previous_period = period_start - self._consolidation_interval
-            previous_id = await self._edge_manager.get_previous_summary_id(
+            previous_id = self._edge_manager.get_previous_summary_id(
                 summary_type,
                 previous_period.strftime('%Y%m%d_%H')
             )
             
             if previous_id:
-                created = await self._edge_manager.create_temporal_edges(
+                created = self._edge_manager.create_temporal_edges(
                     summary, previous_id
                 )
                 if created:
                     logger.debug(f"Created {created} temporal edges for {summary.id}")
         
         # Also check if there's a next period already consolidated and link to it
-        edges_to_next = await self._edge_manager.update_next_period_edges(
+        edges_to_next = self._edge_manager.update_next_period_edges(
             period_start, summaries
         )
         if edges_to_next > 0:
             logger.info(f"Created {edges_to_next} edges to next period summaries")
     
-    async def _find_oldest_unconsolidated_period(self) -> Optional[datetime]:
+    def _find_oldest_unconsolidated_period(self) -> Optional[datetime]:
         """Find the oldest data that needs consolidation."""
         try:
             from ciris_engine.logic.persistence.db.core import get_db_connection
@@ -695,7 +695,7 @@ class TSDBConsolidationService(BaseGraphService):
         
         return None
     
-    async def _cleanup_old_data(self) -> int:
+    def _cleanup_old_data(self) -> int:
         """
         Clean up old consolidated data that has been successfully summarized.
         
@@ -827,7 +827,7 @@ class TSDBConsolidationService(BaseGraphService):
             logger.error(f"Error during cleanup: {e}", exc_info=True)
             return 0
     
-    async def is_healthy(self) -> bool:
+    def is_healthy(self) -> bool:
         """Check if the service is healthy."""
         return (
             self._running and
@@ -893,7 +893,7 @@ class TSDBConsolidationService(BaseGraphService):
         """Get the node type this service manages."""
         return NodeType.TSDB_SUMMARY
     
-    async def _is_period_consolidated(self, period_start: datetime, period_end: datetime) -> bool:
+    def _is_period_consolidated(self, period_start: datetime, period_end: datetime) -> bool:
         """Check if a period has already been consolidated."""
         try:
             # Query for existing TSDB summary for this exact period
@@ -958,7 +958,7 @@ class TSDBConsolidationService(BaseGraphService):
             logger.warning(f"Period {period_label} has NO SUMMARIZES edges! Creating them now...")
             
             # Query all nodes in the period
-            nodes_by_type = await self._query_manager.query_all_nodes_in_period(
+            nodes_by_type = self._query_manager.query_all_nodes_in_period(
                 period_start, period_end
             )
             
@@ -981,7 +981,7 @@ class TSDBConsolidationService(BaseGraphService):
             
             if all_nodes_in_period:
                 logger.info(f"Creating SUMMARIZES edges from {summary_id} to {len(all_nodes_in_period)} nodes")
-                edges_created = await self._edge_manager.create_summary_to_nodes_edges(
+                edges_created = self._edge_manager.create_summary_to_nodes_edges(
                     summary_node,
                     all_nodes_in_period,
                     "SUMMARIZES",
@@ -1042,12 +1042,12 @@ class TSDBConsolidationService(BaseGraphService):
             
         return next_month_date.replace(hour=0, minute=0, second=0, microsecond=0)
     
-    async def _cleanup_old_nodes(self) -> int:
+    def _cleanup_old_nodes(self) -> int:
         """Legacy method name - calls _cleanup_old_data."""
-        result = await self._cleanup_old_data()
+        result = self._cleanup_old_data()
         return result if result is not None else 0
     
-    async def get_summary_for_period(self, period_start: datetime, period_end: datetime) -> Optional[TSDBPeriodSummary]:
+    def get_summary_for_period(self, period_start: datetime, period_end: datetime) -> Optional[TSDBPeriodSummary]:
         """Get the summary for a specific period."""
         try:
             # Use direct DB query since MemoryQuery doesn't support field conditions
@@ -1427,7 +1427,7 @@ class TSDBConsolidationService(BaseGraphService):
         """
         try:
             # Create same-day edges using EdgeManager
-            edges_created = await self._edge_manager.create_cross_summary_edges(summaries, date)
+            edges_created = self._edge_manager.create_cross_summary_edges(summaries, date)
             logger.info(f"Created {edges_created} same-day edges for {date}")
             
             # Create temporal edges to previous day's summaries
@@ -1440,13 +1440,13 @@ class TSDBConsolidationService(BaseGraphService):
                     previous_id = f"{summary_type}_{previous_date.strftime('%Y%m%d')}"
                     
                     # Check if previous day's summary exists
-                    previous_exists = await self._edge_manager.get_previous_summary_id(
+                    previous_exists = self._edge_manager.get_previous_summary_id(
                         summary_type,
                         previous_date.strftime('%Y%m%d')
                     )
                     
                     if previous_exists:
-                        temporal_edges = await self._edge_manager.create_temporal_edges(
+                        temporal_edges = self._edge_manager.create_temporal_edges(
                             summary, previous_id
                         )
                         logger.info(f"Created {temporal_edges} temporal edges for {summary.id}")
@@ -1468,7 +1468,7 @@ class TSDBConsolidationService(BaseGraphService):
                         
                         if not has_prev:
                             # No previous link, so mark as latest by pointing to itself
-                            temporal_edges = await self._edge_manager.create_temporal_edges(
+                            temporal_edges = self._edge_manager.create_temporal_edges(
                                 first_daily_summary, None
                             )
                             logger.info(f"Created self-referencing edge for first daily summary {first_daily_summary.id}")
@@ -1476,7 +1476,7 @@ class TSDBConsolidationService(BaseGraphService):
         except Exception as e:
             logger.error(f"Failed to create daily summary edges: {e}", exc_info=True)
     
-    async def _run_profound_consolidation(self) -> None:
+    def _run_profound_consolidation(self) -> None:
         """
         Run profound consolidation - compresses existing daily summaries in-place.
         Target: Configurable MB per day of data retention.

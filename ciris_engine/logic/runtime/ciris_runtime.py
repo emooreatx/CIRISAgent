@@ -297,8 +297,8 @@ class CIRISRuntime:
         from ciris_engine.logic.utils.shutdown_manager import request_global_shutdown
         request_global_shutdown(f"Runtime: {reason}")
 
-    async def _request_shutdown(self, reason: str = "Shutdown requested") -> None:
-        """Async wrapper used during initialization failures."""
+    def _request_shutdown(self, reason: str = "Shutdown requested") -> None:
+        """Wrapper used during initialization failures."""
         self.request_shutdown(reason)
 
     def set_preload_tasks(self, tasks: List[str]) -> None:
@@ -327,7 +327,7 @@ class CIRISRuntime:
                 raise RuntimeError("InitializationService not available from ServiceInitializer")
 
             # Register all initialization steps with proper phases
-            await self._register_initialization_steps(init_manager)
+            self._register_initialization_steps(init_manager)
 
             # Run the initialization sequence
             await init_manager.initialize()
@@ -356,7 +356,7 @@ class CIRISRuntime:
 
 
 
-    async def _register_initialization_steps(self, init_manager: Any) -> None:
+    def _register_initialization_steps(self, init_manager: Any) -> None:
         """Register all initialization steps with the initialization manager."""
 
         # Phase 0: INFRASTRUCTURE (NEW - must be first)
@@ -458,7 +458,7 @@ class CIRISRuntime:
             critical=True
         )
 
-    async def _initialize_infrastructure(self) -> None:
+    def _initialize_infrastructure(self) -> None:
         """Initialize infrastructure services that all other services depend on."""
         # Infrastructure services already initialized in initialize() method
         # This is now just a no-op placeholder for the initialization step
@@ -486,7 +486,7 @@ class CIRISRuntime:
                 time_service=self.service_initializer.time_service
             )
 
-    async def _verify_infrastructure(self) -> bool:
+    def _verify_infrastructure(self) -> bool:
         """Verify infrastructure services are operational."""
         # Check that all infrastructure services are running
         if not self.service_initializer.time_service:
@@ -500,7 +500,7 @@ class CIRISRuntime:
             return False
         return True
 
-    async def _init_database(self) -> None:
+    def _init_database(self) -> None:
         """Initialize database and run migrations."""
         # Pass the db path from our config
         db_path = persistence.get_sqlite_db_full_path()
@@ -512,7 +512,7 @@ class CIRISRuntime:
             self.essential_config = EssentialConfig()
             logger.warning("No config provided, using defaults")
 
-    async def _verify_database_integrity(self) -> bool:
+    def _verify_database_integrity(self) -> bool:
         """Verify database integrity before proceeding."""
         try:
             # Check core tables exist
@@ -578,9 +578,9 @@ class CIRISRuntime:
                 self.runtime_control_service.runtime = self
             logger.info("Updated runtime control service with runtime reference")
 
-    async def _verify_core_services(self) -> bool:
+    def _verify_core_services(self) -> bool:
         """Verify all core services are operational."""
-        return await self.service_initializer.verify_core_services()
+        return self.service_initializer.verify_core_services()
 
     async def _initialize_maintenance_service(self) -> None:
         """Initialize the maintenance service and perform startup cleanup."""
@@ -705,7 +705,7 @@ class CIRISRuntime:
             except Exception as e:
                 logger.error(f"Failed to migrate adapter config for {adapter_type}: {e}")
 
-    async def _final_verification(self) -> None:
+    def _final_verification(self) -> None:
         """Perform final system verification."""
         # Don't check initialization status here - we're still IN the initialization process
         # Just verify the critical components are ready
@@ -741,12 +741,12 @@ class CIRISRuntime:
             except Exception as e:
                 logger.critical(f"CRITICAL ERROR: Database maintenance failed during startup: {e}")
                 logger.critical("Database integrity cannot be guaranteed - initiating graceful shutdown")
-                await self._request_shutdown(f"Critical database maintenance failure: {e}")
+                self._request_shutdown(f"Critical database maintenance failure: {e}")
                 raise RuntimeError(f"Database maintenance failure: {e}") from e
         else:
             logger.critical("CRITICAL ERROR: No maintenance service available during startup")
             logger.critical("Database integrity cannot be guaranteed - initiating graceful shutdown")
-            await self._request_shutdown("No maintenance service available")
+            self._request_shutdown("No maintenance service available")
             raise RuntimeError("No maintenance service available")
     
     async def _clean_runtime_configs(self) -> None:
@@ -850,13 +850,13 @@ class CIRISRuntime:
                 logger.error(f"Error registering services for adapter {adapter.__class__.__name__}: {e}", exc_info=True)
 
 
-    async def _build_components(self) -> None:
+    def _build_components(self) -> None:
         """Build all processing components."""
         self.component_builder = ComponentBuilder(self)
-        self.agent_processor = await self.component_builder.build_all_components()
+        self.agent_processor = self.component_builder.build_all_components()
 
         # Register core services after components are built
-        await self._register_core_services()
+        self._register_core_services()
         
     async def _start_adapter_connections(self) -> None:
         """Start adapter connections and wait for them to be ready."""
@@ -959,11 +959,11 @@ class CIRISRuntime:
         # Final verification with the existing wait method
         await self._wait_for_critical_services(timeout=5.0)
 
-    async def _register_core_services(self) -> None:
+    def _register_core_services(self) -> None:
         """Register core services in the service registry."""
         self.service_initializer.register_core_services()
 
-    async def _build_action_dispatcher(self, dependencies: Any) -> ActionDispatcher:
+    def _build_action_dispatcher(self, dependencies: Any) -> ActionDispatcher:
         """Build action dispatcher. Override in subclasses for custom sinks."""
         config = self._ensure_config()
         # Create BusManager for action handlers

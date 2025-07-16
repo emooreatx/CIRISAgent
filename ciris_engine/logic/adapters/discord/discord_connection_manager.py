@@ -167,7 +167,7 @@ class DiscordConnectionManager:
             except Exception as e:
                 logger.error(f"Error in on_failed callback: {e}")
 
-    async def _reconnect(self) -> None:
+    def _reconnect(self) -> None:
         """Note: Discord.py handles reconnection automatically when using start() with reconnect=True.
         This method is deprecated and should not be called."""
         logger.warning("_reconnect() called but Discord.py handles reconnection automatically")
