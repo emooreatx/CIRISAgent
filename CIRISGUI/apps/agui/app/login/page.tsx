@@ -6,10 +6,12 @@ import { cirisClient } from "../../lib/ciris-sdk";
 import type { OAuthProvider } from "../../lib/ciris-sdk";
 import LogoIcon from "../../components/ui/floating/LogoIcon";
 import CButton from "components/ui/Buttons";
+import { AGENTS } from "../../config/agents";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [selectedAgent, setSelectedAgent] = useState(AGENTS[0].id);
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
 
@@ -19,11 +21,33 @@ export default function LoginPage() {
     { provider: "discord", name: "Discord" }
   ];
 
+  // Update client baseURL when agent selection changes
+  useEffect(() => {
+    const agent = AGENTS.find(a => a.id === selectedAgent);
+    if (agent) {
+      // For development, we only have one API running
+      const baseURL = process.env.NODE_ENV === 'development' 
+        ? process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost:8080'
+        : agent.apiUrl;
+      
+      cirisClient.setConfig({ baseURL });
+      
+      // Store selected agent for use after login
+      localStorage.setItem('selectedAgentId', agent.id);
+      localStorage.setItem('selectedAgentName', agent.name);
+    }
+  }, [selectedAgent]);
+
   const handleOAuthLogin = async (provider: string) => {
     try {
+      const agent = AGENTS.find(a => a.id === selectedAgent);
+      if (!agent) return;
+      
       // Direct navigation to OAuth login endpoint (no auth required)
       const redirectUri = encodeURIComponent(window.location.origin + "/oauth/callback");
-      const apiUrl = process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost:8080';
+      const apiUrl = process.env.NODE_ENV === 'development' 
+        ? process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost:8080'
+        : agent.apiUrl;
       window.location.href = `${apiUrl}/v1/auth/oauth/${provider}/login?redirect_uri=${redirectUri}`;
     } catch (error) {
       console.error("OAuth login error:", error);
@@ -73,11 +97,36 @@ export default function LoginPage() {
             Sign in to CIRIS
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Use your credentials to access the CIRIS management interface
+            Select an agent and enter your credentials
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <input type="hidden" name="remember" value="true" />
+          
+          {/* Agent Selector */}
+          <div>
+            <label htmlFor="agent" className="block text-sm font-medium text-gray-700">
+              Select Agent
+            </label>
+            <select
+              id="agent"
+              name="agent"
+              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+              value={selectedAgent}
+              onChange={(e) => setSelectedAgent(e.target.value)}
+              disabled={loading}
+            >
+              {AGENTS.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name} - {agent.description}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-500">
+              Each agent has separate authentication. You'll need to login individually to each agent.
+            </p>
+          </div>
+
           <div className="rounded-md shadow-sm -space-y-px">
             <div>
               <label htmlFor="username" className="sr-only">
@@ -115,13 +164,12 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="flex items-center   justify-center mt-6">
+          <div className="flex items-center justify-center mt-6">
             <button
               type="submit"
-              variant="secondary"
               disabled={loading}
-              className=" focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed bg-brand-primary transition-all hover:bg-black cursor-pointer text-white border px-12 py-4 rounded-sm"
-              text={loading ? "Signing in..." : "Sign in"}>
+              className="focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed bg-brand-primary transition-all hover:bg-black cursor-pointer text-white border px-12 py-4 rounded-sm"
+            >
               {loading ? "Signing in..." : "Sign in"}
             </button>
           </div>

@@ -301,11 +301,7 @@ def main(
                 if api_port:
                     api_config.port = api_port
                 
-                # Load environment variables with instance-specific support
-                if instance_id:
-                    api_config.load_env_vars_with_instance(instance_id)
-                else:
-                    api_config.load_env_vars()
+                # Environment variables are loaded by global configuration bootstrap
                 
                 adapter_configs[adapter_type] = api_config
                 api_channel_id = api_config.get_home_channel_id(api_config.host, api_config.port)
@@ -320,16 +316,14 @@ def main(
                 if discord_bot_token:
                     discord_config.bot_token = discord_bot_token
                 
-                # Load environment variables with instance-specific support
-                if instance_id:
-                    discord_config.load_env_vars_with_instance(instance_id)
-                else:
-                    discord_config.load_env_vars()
+                # Environment variables are loaded by global configuration bootstrap
                 
                 adapter_configs[adapter_type] = discord_config
                 discord_channel_id = discord_config.get_home_channel_id()
                 if discord_channel_id and not startup_channel_id:
-                    startup_channel_id = discord_channel_id
+                    # For Discord, use formatted channel ID with discord_ prefix
+                    # Guild ID will be added by the adapter when it connects
+                    startup_channel_id = discord_config.get_formatted_startup_channel_id()
                     
             elif adapter_type.startswith("cli"):
                 base_adapter_type, instance_id = (adapter_type.split(":", 1) + [None])[:2]
@@ -337,11 +331,7 @@ def main(
                 
                 cli_config = CLIAdapterConfig()
                 
-                # Load environment variables first, then override with CLI args
-                if instance_id:
-                    cli_config.load_env_vars_with_instance(instance_id)
-                else:
-                    cli_config.load_env_vars()
+                # Environment variables are loaded by global configuration bootstrap
                 
                 # CLI arguments take precedence over environment variables
                 if not cli_interactive:

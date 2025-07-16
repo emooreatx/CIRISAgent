@@ -468,25 +468,32 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
             # Query TSDB_DATA nodes directly from graph_nodes table
             data_points: List[TimeSeriesDataPoint] = []
             
-            with get_db_connection(db_path=self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Query for TSDB_DATA nodes in the time range
-                # ORDER BY DESC to get most recent metrics first
-                cursor.execute("""
-                    SELECT node_id, attributes_json, created_at
-                    FROM graph_nodes
-                    WHERE node_type = 'tsdb_data'
-                      AND scope = ?
-                      AND datetime(created_at) >= datetime(?)
-                      AND datetime(created_at) <= datetime(?)
-                    ORDER BY created_at DESC
-                    LIMIT 1000
-                """, (scope, start_time.isoformat(), end_time.isoformat()))
-                
-                rows = cursor.fetchall()
-                
-                for row in rows:
+            # Run database query in thread pool to avoid blocking event loop
+            import asyncio
+            loop = asyncio.get_event_loop()
+            
+            def _query_tsdb_nodes():
+                with get_db_connection(db_path=self.db_path) as conn:
+                    cursor = conn.cursor()
+                    
+                    # Query for TSDB_DATA nodes in the time range
+                    # ORDER BY DESC to get most recent metrics first
+                    cursor.execute("""
+                        SELECT node_id, attributes_json, created_at
+                        FROM graph_nodes
+                        WHERE node_type = 'tsdb_data'
+                          AND scope = ?
+                          AND datetime(created_at) >= datetime(?)
+                          AND datetime(created_at) <= datetime(?)
+                        ORDER BY created_at DESC
+                        LIMIT 1000
+                    """, (scope, start_time.isoformat(), end_time.isoformat()))
+                    
+                    return cursor.fetchall()
+            
+            rows = await loop.run_in_executor(None, _query_tsdb_nodes)
+            
+            for row in rows:
                     try:
                         # Parse attributes
                         attrs = json.loads(row['attributes_json']) if row['attributes_json'] else {}

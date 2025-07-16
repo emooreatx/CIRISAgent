@@ -34,7 +34,10 @@ class DiscordPlatform(Service):
             else:
                 logger.warning(f"Invalid adapter_config type: {type(adapter_config)}. Creating default config.")
                 self.config = DiscordAdapterConfig()
-            logger.info(f"Discord adapter using provided config: channels={self.config.monitored_channel_ids}")
+            
+            # ALWAYS load environment variables to fill in any missing values
+            self.config.load_env_vars()
+            logger.info(f"Discord adapter using provided config with env vars loaded: channels={self.config.monitored_channel_ids}")
         else:
             # Check if config values are passed directly as kwargs (from API load_adapter)
             if "bot_token" in kwargs or "channel_id" in kwargs or "server_id" in kwargs:
@@ -256,16 +259,24 @@ class DiscordPlatform(Service):
                 agent_run_task.cancel()
             return
 
+        # Store the initial agent task (might be placeholder)
+        current_agent_task = agent_run_task
+        is_placeholder = agent_run_task.get_name() == "AgentPlaceholderTask"
+        
+        # Keep a reference to prevent garbage collection
+        self._current_agent_task = current_agent_task
+        
         try:
             # Start Discord client with reconnect=True to enable automatic reconnection
+            logger.info(f"DiscordPlatform: Starting Discord client with token ending in ...{self.token[-10:]}")
             self._discord_client_task = asyncio.create_task(
                 self.client.start(self.token, reconnect=True), 
                 name="DiscordClientTask"
             )
             logger.info("DiscordPlatform: Discord client start initiated.")
 
-            # Give the client a moment to initialize before waiting
-            await asyncio.sleep(1.0)
+            # Give the client more time to initialize before waiting
+            await asyncio.sleep(3.0)
             
             # Wait for Discord client to be ready with timeout
             logger.info("DiscordPlatform: Waiting for Discord client to be ready...")
@@ -273,8 +284,8 @@ class DiscordPlatform(Service):
 
             if not ready:
                 logger.error("DiscordPlatform: Discord client failed to become ready within timeout")
-                if not agent_run_task.done():
-                    agent_run_task.cancel()
+                if not current_agent_task.done():
+                    current_agent_task.cancel()
                 return
 
             logger.info(f"DiscordPlatform: Discord client ready! Logged in as: {self.client.user}")
@@ -282,16 +293,50 @@ class DiscordPlatform(Service):
             # Reset reconnect attempts on successful connection
             self._reconnect_attempts = 0
 
+            # If this is a placeholder task, wait for it to complete (transition signal)
+            if is_placeholder:
+                logger.info("DiscordPlatform: Waiting for transition from placeholder to real agent task...")
+                try:
+                    await current_agent_task
+                    logger.info("DiscordPlatform: Placeholder completed, transitioning to monitor real agent task")
+                    # After placeholder completes, we need to find the real agent task
+                    # Look for AgentProcessorTask in current tasks
+                    # Add a small delay to ensure the real task is created
+                    await asyncio.sleep(0.1)
+                    
+                    found_real_task = False
+                    for attempt in range(10):  # Try up to 10 times with delays
+                        for task in asyncio.all_tasks():
+                            if task.get_name() == "AgentProcessorTask" and not task.done():
+                                current_agent_task = task
+                                logger.info("DiscordPlatform: Now monitoring real agent task")
+                                found_real_task = True
+                                break
+                        if found_real_task:
+                            break
+                        await asyncio.sleep(0.5)  # Wait before retrying
+                    
+                    if not found_real_task:
+                        logger.error("DiscordPlatform: Could not find AgentProcessorTask after placeholder completed")
+                        return
+                        
+                except asyncio.CancelledError:
+                    logger.info("DiscordPlatform: Placeholder task was cancelled")
+                    raise
+                except Exception as e:
+                    logger.error(f"DiscordPlatform: Error during placeholder transition: {e}")
+                    raise
+
             # Now wait for either the agent task or Discord client task to complete
             # Keep retrying Discord connection on transient errors
-            while not agent_run_task.done():
+            while not current_agent_task.done():
                 done, pending = await asyncio.wait(
-                    [agent_run_task, self._discord_client_task],
+                    [current_agent_task, self._discord_client_task],
                     return_when=asyncio.FIRST_COMPLETED
                 )
 
                 # Check if agent task completed
-                if agent_run_task in done:
+                if current_agent_task in done:
                     # Agent is shutting down, cancel Discord task
                     if self._discord_client_task and not self._discord_client_task.done():
                         self._discord_client_task.cancel()

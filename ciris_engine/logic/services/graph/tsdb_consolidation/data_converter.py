@@ -83,11 +83,11 @@ class TSDBDataConverter:
             # Extract raw request/response data
             raw_request = raw_data.request_data
             raw_response = raw_data.response_data
-            parameters = raw_request.get('parameters', {})
             
             # Build typed request data
             request_data = None
             if raw_request:
+                parameters = raw_request.get('parameters', {})
                 request_data = RequestData(
                     channel_id=raw_request.get('channel_id'),
                     author_id=parameters.get('author_id') or raw_request.get('author_id'),
@@ -131,7 +131,7 @@ class TSDBDataConverter:
                 action_type=raw_data.action_type,
                 service_type=raw_data.service_type,
                 timestamp=raw_data.timestamp,
-                channel_id=raw_request.get('channel_id', 'unknown'),
+                channel_id=raw_request.get('channel_id', 'unknown') if raw_request else 'unknown',
                 request_data=request_data,
                 author_id=request_data.author_id if request_data else None,
                 author_name=request_data.author_name if request_data else None,

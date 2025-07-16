@@ -602,8 +602,9 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
             # Check if this is a follow-up from SPEAK handler (usually contains specific patterns)
             # Most follow-ups from other handlers contain operation results that should be spoken
             is_speak_followup = any(pattern in thought_content for pattern in [
-                "Message sent successfully",
-                "CIRIS_FOLLOW_UP_THOUGHT: Message sent successfully",
+                "Message sent successfully to channel",
+                "CIRIS_FOLLOW_UP_THOUGHT: Message sent successfully to channel",
+                "NEXT ACTION IS ALMOST CERTAINLY TASK COMPLETE",
                 "spoke in channel",
                 "message delivered",
                 "response sent"

@@ -16,6 +16,7 @@ from ciris_engine.logic.utils.constants import DEFAULT_NUM_ROUNDS
 from ciris_engine.logic.adapters import load_adapter
 from ciris_engine.protocols.runtime.base import BaseAdapterProtocol
 from ciris_engine.schemas.adapters import AdapterServiceRegistration
+from ciris_engine.schemas.runtime.enums import ServiceType
 
 from .identity_manager import IdentityManager
 from .service_initializer import ServiceInitializer
@@ -62,8 +63,8 @@ class CIRISRuntime:
                 "Call prevent_sideeffects.allow_runtime_creation() before creating runtime."
             )
         self.essential_config = essential_config
-        # Ensure we always have a startup_channel_id
-        self.startup_channel_id = startup_channel_id or "default"
+        # Store startup_channel_id, may be None or empty string
+        self.startup_channel_id = startup_channel_id or ""
         self.adapter_configs = adapter_configs or {}
         self.adapters: List[BaseAdapterProtocol] = []
         self.modules_to_load = kwargs.get('modules', [])
@@ -80,6 +81,7 @@ class CIRISRuntime:
         self.service_initializer = ServiceInitializer(essential_config=essential_config)
         self.component_builder: Optional[ComponentBuilder] = None
         self.agent_processor: Optional['AgentProcessor'] = None
+        self._adapter_tasks: List[asyncio.Task] = []
 
         for adapter_name in adapter_types:
             try:
@@ -411,7 +413,7 @@ class CIRISRuntime:
             critical=True
         )
 
-        # Start adapters BEFORE registering their services
+        # Start adapters and wait for critical services
         init_manager.register_step(
             phase=InitializationPhase.SERVICES,
             name="Start Adapters",
@@ -419,12 +421,7 @@ class CIRISRuntime:
             critical=True
         )
 
-        init_manager.register_step(
-            phase=InitializationPhase.SERVICES,
-            name="Register Adapter Services",
-            handler=self._register_adapter_services,
-            critical=False
-        )
+        # Adapter connections will be started in COMPONENTS phase after services are ready
 
         # Phase 6: COMPONENTS
         init_manager.register_step(
@@ -433,6 +430,18 @@ class CIRISRuntime:
             handler=self._build_components,
             critical=True
         )
+        
+        # Start adapter connections FIRST to establish Discord connection
+        init_manager.register_step(
+            phase=InitializationPhase.COMPONENTS,
+            name="Start Adapter Connections",
+            handler=self._start_adapter_connections,
+            critical=True,
+            timeout=45.0
+        )
+        
+        # Adapter services are now registered inside _start_adapter_connections
+        # after waiting for adapters to be healthy
 
         init_manager.register_step(
             phase=InitializationPhase.COMPONENTS,
@@ -591,6 +600,69 @@ class CIRISRuntime:
         # Migrate adapter configurations to graph config
         await self._migrate_adapter_configs_to_graph()
     
+    
+    async def _wait_for_critical_services(self, timeout: float) -> None:
+        """Wait for services required for agent operation."""
+        from ciris_engine.schemas.runtime.enums import ServiceType
+        
+        start_time = asyncio.get_event_loop().time()
+        last_report_time = start_time
+        
+        required_services = [
+            (ServiceType.COMMUNICATION, ["send_message"], "Communication (Discord/API/CLI)"),
+        ]
+        
+        while (asyncio.get_event_loop().time() - start_time) < timeout:
+            all_ready = True
+            missing_services = []
+            
+            for service_type, capabilities, name in required_services:
+                if self.service_registry:
+                    service = await self.service_registry.get_service(
+                        handler="SpeakHandler",  # Use a handler that requires communication
+                        service_type=service_type,
+                        required_capabilities=capabilities
+                    )
+                    if not service:
+                        all_ready = False
+                        missing_services.append(name)
+                    else:
+                        # Check if service is actually healthy (connected)
+                        if hasattr(service, 'is_healthy'):
+                            is_healthy = await service.is_healthy()
+                            if not is_healthy:
+                                all_ready = False
+                                missing_services.append(f"{name} (registered but not connected)")
+                            else:
+                                # Report Discord connection details
+                                service_name = service.__class__.__name__ if service else "Unknown"
+                                if "Discord" in service_name and not hasattr(self, '_discord_connected_reported'):
+                                    # Get Discord client info
+                                    if hasattr(service, 'client') and service.client and hasattr(service.client, 'user'):
+                                        user = service.client.user
+                                        guilds = service.client.guilds if hasattr(service.client, 'guilds') else []
+                                        logger.info(f"    ✓ Discord connected as {user} to {len(guilds)} guild(s)")
+                                        for guild in guilds[:3]:  # Show first 3 guilds
+                                            logger.info(f"      - {guild.name} (ID: {guild.id})")
+                                        if len(guilds) > 3:
+                                            logger.info(f"      ... and {len(guilds) - 3} more guild(s)")
+                                        self._discord_connected_reported = True
+            
+            if all_ready:
+                return
+            
+            # Report progress every 3 seconds
+            current_time = asyncio.get_event_loop().time()
+            if current_time - last_report_time >= 3.0:
+                elapsed = current_time - start_time
+                logger.info(f"    ⏳ Still waiting for: {', '.join(missing_services)} ({elapsed:.1f}s elapsed)")
+                last_report_time = current_time
+            
+            await asyncio.sleep(0.5)
+        
+        # Timeout reached
+        raise TimeoutError(f"Critical services not available after {timeout}s. Missing: {', '.join(missing_services)}")
+    
     async def _migrate_adapter_configs_to_graph(self) -> None:
         """Migrate adapter configurations to graph config service."""
         if not self.service_initializer or not self.service_initializer.config_service:
@@ -652,12 +724,8 @@ class CIRISRuntime:
         service_count = 0
         if self.service_registry:
             registry_info = self.service_registry.get_provider_info()
-            # Count handler-specific services
-            for handler_services in registry_info.get('handlers', {}).values():
-                for service_list in handler_services.values():
-                    service_count += len(service_list)
-            # Count global services
-            for service_list in registry_info.get('global_services', {}).values():
+            # Count services from the 'services' key (new structure)
+            for service_list in registry_info.get('services', {}).values():
                 service_count += len(service_list)
 
         logger.info(f"Services: {service_count} registered")
@@ -789,6 +857,107 @@ class CIRISRuntime:
 
         # Register core services after components are built
         await self._register_core_services()
+        
+    async def _start_adapter_connections(self) -> None:
+        """Start adapter connections and wait for them to be ready."""
+        logger.info("Starting adapter connections...")
+        
+        # Report adapter configuration details
+        for adapter in self.adapters:
+            adapter_name = adapter.__class__.__name__
+            
+            # Report adapter details for Discord
+            if adapter_name == "DiscordPlatform" and hasattr(adapter, 'config'):
+                config = adapter.config
+                if hasattr(config, 'monitored_channel_ids'):
+                    logger.info(f"  → {adapter_name} configuration:")
+                    logger.info(f"    Monitored channels: {config.monitored_channel_ids}")
+                if hasattr(config, 'server_id'):
+                    logger.info(f"    Target server: {config.server_id}")
+                if hasattr(config, 'bot_token') and config.bot_token:
+                    logger.info(f"    Bot token: ...{config.bot_token[-10:]}")
+        
+        # Create a dummy agent task that represents the future agent processor
+        # This allows adapters to start their lifecycle properly
+        self._agent_placeholder = asyncio.Event()
+        agent_placeholder_task = asyncio.create_task(
+            self._agent_placeholder.wait(),
+            name="AgentPlaceholderTask"
+        )
+        
+        # Start adapter lifecycles
+        self._adapter_tasks = []
+        for adapter in self.adapters:
+            adapter_name = adapter.__class__.__name__
+            
+            if hasattr(adapter, 'run_lifecycle'):
+                lifecycle_task = asyncio.create_task(
+                    adapter.run_lifecycle(agent_placeholder_task),
+                    name=f"{adapter_name}LifecycleTask"
+                )
+                self._adapter_tasks.append(lifecycle_task)
+                logger.info(f"  → Starting {adapter_name} lifecycle...")
+        
+        # Wait for adapters to connect and register services with retries
+        logger.info("  ⏳ Waiting for adapter connections to establish...")
+        start_time = asyncio.get_event_loop().time()
+        timeout = 30.0
+        services_registered = False
+        
+        while (asyncio.get_event_loop().time() - start_time) < timeout:
+            # Check if Discord adapters are ready
+            all_adapters_ready = True
+            for adapter in self.adapters:
+                adapter_name = adapter.__class__.__name__
+                if "Discord" in adapter_name:
+                    if hasattr(adapter, 'discord_adapter') and adapter.discord_adapter:
+                        if hasattr(adapter.discord_adapter, 'is_healthy'):
+                            try:
+                                is_healthy = await adapter.discord_adapter.is_healthy()
+                                if not is_healthy:
+                                    all_adapters_ready = False
+                                    logger.debug(f"  ⏳ {adapter_name} not yet healthy, waiting...")
+                                else:
+                                    logger.info(f"  ✓ {adapter_name} is healthy and connected")
+                            except Exception as e:
+                                all_adapters_ready = False
+                                logger.debug(f"  ⏳ {adapter_name} health check failed: {e}")
+                        else:
+                            all_adapters_ready = False
+                    else:
+                        all_adapters_ready = False
+            
+            if all_adapters_ready and not services_registered:
+                # Register adapter services once adapters are ready
+                logger.info("  → Registering adapter services...")
+                await self._register_adapter_services()
+                services_registered = True
+                # Continue to wait for services to be available in registry
+            
+            if services_registered:
+                # Check if services are actually available
+                service_available = False
+                if self.service_registry:
+                    test_service = await self.service_registry.get_service(
+                        handler="test",
+                        service_type=ServiceType.COMMUNICATION,
+                        required_capabilities=["send_message"]
+                    )
+                    if test_service:
+                        service_available = True
+                
+                if service_available:
+                    logger.info("  ✅ All adapters connected and services registered!")
+                    break
+            
+            # Wait a bit before checking again
+            await asyncio.sleep(0.5)
+        
+        if not services_registered:
+            raise RuntimeError("Failed to establish adapter connections within timeout")
+        
+        # Final verification with the existing wait method
+        await self._wait_for_critical_services(timeout=5.0)
 
     async def _register_core_services(self) -> None:
         """Register core services in the service registry."""
@@ -843,41 +1012,26 @@ class CIRISRuntime:
             if not self.agent_processor:
                 raise RuntimeError("Agent processor not initialized")
 
-            # Wait for at least one communication service to be available
-            logger.info("Waiting for communication service to be available...")
-            max_wait = 30.0  # Wait up to 30 seconds for adapters to connect
-            start_time = asyncio.get_event_loop().time()
-
-            while (asyncio.get_event_loop().time() - start_time) < max_wait:
-                # Check if any communication service is available
-                from ciris_engine.schemas.runtime.enums import ServiceType
-                if self.service_registry is not None:
-                    comm_service = await self.service_registry.get_service(
-                        handler="SpeakHandler",
-                        service_type=ServiceType.COMMUNICATION,
-                        required_capabilities=["send_message"]
-                    )
-                else:
-                    comm_service = None
-                if comm_service:
-                    logger.info("Communication service available, starting agent processor")
-                    break
-                await asyncio.sleep(0.5)
-            else:
-                logger.warning(f"No communication service available after {max_wait} seconds, starting anyway")
-
             effective_num_rounds = num_rounds if num_rounds is not None else DEFAULT_NUM_ROUNDS
             logger.info(f"Starting agent processing (num_rounds={effective_num_rounds if effective_num_rounds != -1 else 'infinite'})...")
 
+            # Services are already initialized and adapters are connected from initialization phase
+            # Now start the agent processor
+            logger.info("Starting agent processor...")
             agent_task = asyncio.create_task(
                 self.agent_processor.start_processing(effective_num_rounds),
                 name="AgentProcessorTask"
             )
-
-            adapter_tasks = [
-                asyncio.create_task(adapter.run_lifecycle(agent_task), name=f"{adapter.__class__.__name__}LifecycleTask")
-                for adapter in self.adapters
-            ]
+            
+            # Use existing adapter tasks from initialization
+            adapter_tasks = getattr(self, '_adapter_tasks', [])
+            if adapter_tasks:
+                logger.info(f"Using {len(adapter_tasks)} existing adapter lifecycle tasks from initialization")
+                
+                # Signal the placeholder to complete, transitioning adapters to monitor the real agent task
+                if hasattr(self, '_agent_placeholder'):
+                    logger.info("Transitioning adapters from placeholder to real agent task...")
+                    self._agent_placeholder.set()
 
             # Monitor agent_task, all adapter_tasks, and shutdown events
             self._ensure_shutdown_event()

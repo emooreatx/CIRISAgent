@@ -1,4 +1,5 @@
 """Runtime control service for processor and adapter management."""
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List, TYPE_CHECKING, Dict, Any, cast, Union
@@ -1375,27 +1376,99 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
     async def get_service_health_status(self) -> ServiceHealthStatus:
         """Get health status of all registered services."""
         try:
-            if not self.runtime or not hasattr(self.runtime, 'service_registry') or self.runtime.service_registry is None:
+            if not self.runtime:
                 return ServiceHealthStatus(
                     overall_health="critical",
                     healthy_services=0,
                     unhealthy_services=0,
                     service_details={},
-                    recommendations=["Service registry not available - check runtime initialization"]
+                    recommendations=["Runtime not available"]
                 )
 
-            registry_info = self.runtime.service_registry.get_provider_info()
-            
+            service_details = {}
             healthy_count = 0
             unhealthy_count = 0
-            service_details = {}
-            unhealthy_services_list = []
-            healthy_services_list = []
+            
+            # First, get all direct services from runtime properties
+            direct_services = [
+                # Graph Services (6)
+                ('memory_service', 'graph', 'MemoryService'),
+                ('config_service', 'graph', 'ConfigService'),
+                ('telemetry_service', 'graph', 'TelemetryService'),
+                ('audit_service', 'graph', 'AuditService'),
+                ('incident_management_service', 'graph', 'IncidentManagementService'),
+                ('tsdb_consolidation_service', 'graph', 'TSDBConsolidationService'),
+                # Infrastructure Services (7)
+                ('time_service', 'infrastructure', 'TimeService'),
+                ('shutdown_service', 'infrastructure', 'ShutdownService'),
+                ('initialization_service', 'infrastructure', 'InitializationService'),
+                ('authentication_service', 'infrastructure', 'AuthenticationService'),
+                ('resource_monitor', 'infrastructure', 'ResourceMonitorService'),
+                ('maintenance_service', 'infrastructure', 'DatabaseMaintenanceService'),
+                ('secrets_service', 'infrastructure', 'SecretsService'),
+                # Governance Services (4)
+                ('wa_auth_system', 'governance', 'WiseAuthorityService'),
+                ('adaptive_filter_service', 'governance', 'AdaptiveFilterService'),
+                ('visibility_service', 'governance', 'VisibilityService'),
+                ('self_observation_service', 'governance', 'SelfObservationService'),
+                # Runtime Services (3)
+                ('llm_service', 'runtime', 'LLMService'),
+                ('runtime_control_service', 'runtime', 'RuntimeControlService'),
+                ('task_scheduler', 'runtime', 'TaskSchedulerService'),
+                # Tool Services (1)
+                ('core_tool_service', 'tool', 'SecretsToolService'),
+            ]
+            
+            # Check each direct service
+            for attr_name, category, display_name in direct_services:
+                service = getattr(self.runtime, attr_name, None)
+                if service:
+                    service_key = f"direct.{category}.{display_name}"
+                    try:
+                        # Check if service has is_healthy method
+                        if hasattr(service, 'is_healthy'):
+                            is_healthy = await service.is_healthy() if asyncio.iscoroutinefunction(service.is_healthy) else service.is_healthy()
+                        elif hasattr(service, '_started'):
+                            is_healthy = service._started
+                        else:
+                            is_healthy = True  # Assume healthy if no health check
+                        
+                        service_details[service_key] = {
+                            "healthy": is_healthy,
+                            "circuit_breaker_state": "closed",  # Direct services don't use circuit breakers
+                            "priority": "DIRECT",  # Direct call, no priority
+                            "priority_group": -1,  # Not applicable
+                            "strategy": "DIRECT"  # Direct call
+                        }
+                        
+                        if is_healthy:
+                            healthy_count += 1
+                        else:
+                            unhealthy_count += 1
+                    except Exception as e:
+                        logger.error(f"Error checking health of {display_name}: {e}")
+                        service_details[service_key] = {
+                            "healthy": False,
+                            "circuit_breaker_state": "error",
+                            "priority": "DIRECT",
+                            "priority_group": -1,
+                            "strategy": "DIRECT",
+                            "error": str(e)
+                        }
+                        unhealthy_count += 1
+            
+            # Then get registry services (bus-based services)
+            if hasattr(self.runtime, 'service_registry') and self.runtime.service_registry:
+                registry_info = self.runtime.service_registry.get_provider_info()
+                logger.debug(f"Registry info keys: {list(registry_info.keys())}")
+                
+                unhealthy_services_list = []
+                healthy_services_list = []
 
-            for handler, services in registry_info.get("handlers", {}).items():
-                for service_type, providers in services.items():
+                # New format: all services are under "services" key
+                for service_type, providers in registry_info.get("services", {}).items():
                     for provider in providers:
-                        service_key = f"{handler}.{service_type}.{provider['name']}"
+                        service_key = f"registry.{service_type}.{provider['name']}"
                         cb_state = provider.get('circuit_breaker_state', 'closed')
                         is_healthy = cb_state == 'closed'
 
@@ -1414,26 +1487,6 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                             unhealthy_count += 1
                             unhealthy_services_list.append(service_key)
 
-            for service_type, providers in registry_info.get("global_services", {}).items():
-                for provider in providers:
-                    service_key = f"global.{service_type}.{provider['name']}"
-                    cb_state = provider.get('circuit_breaker_state', 'closed')
-                    is_healthy = cb_state == 'closed'
-
-                    service_details[service_key] = {
-                        "healthy": is_healthy,
-                        "circuit_breaker_state": cb_state,
-                        "priority": provider.get('priority', 'NORMAL'),
-                        "priority_group": provider.get('priority_group', 0),
-                        "strategy": provider.get('strategy', 'FALLBACK')
-                    }
-                    
-                    if is_healthy:
-                        healthy_count += 1
-                        healthy_services_list.append(service_key)
-                    else:
-                        unhealthy_count += 1
-                        unhealthy_services_list.append(service_key)
 
             # Determine overall health
             overall_health = "healthy"

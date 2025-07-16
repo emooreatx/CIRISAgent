@@ -253,6 +253,8 @@ class ComponentBuilder:
                 "telemetry_service": self.runtime.telemetry_service,
                 "app_config": self.runtime.essential_config,
                 "graphql_provider": graphql_provider,
+                "bus_manager": self.runtime.bus_manager,  # Add bus manager for access to buses
+                "communication_bus": self.runtime.bus_manager.communication,  # Direct access to communication bus
             },
             startup_channel_id=self.runtime.startup_channel_id,
             time_service=self.runtime.time_service,  # Add missing parameter

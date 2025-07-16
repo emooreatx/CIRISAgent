@@ -54,6 +54,7 @@ async def memory_service_factory(temp_db, time_service):
                 version INTEGER DEFAULT 1,
                 updated_by TEXT,
                 updated_at TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (node_id, scope)
             )
         ''')
@@ -309,6 +310,7 @@ if __name__ == "__main__":
                         version INTEGER DEFAULT 1,
                         updated_by TEXT,
                         updated_at TEXT,
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         PRIMARY KEY (node_id, scope)
                     )
                 ''')

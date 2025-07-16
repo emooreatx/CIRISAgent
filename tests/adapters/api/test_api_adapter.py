@@ -192,21 +192,21 @@ class TestAPIServiceRegistration:
         # Check communication service
         comm_reg = next(r for r in registrations if r.service_type == ServiceType.COMMUNICATION)
         assert comm_reg.provider == api_platform.communication
-        assert comm_reg.priority == Priority.NORMAL
+        assert comm_reg.priority == Priority.CRITICAL
         assert 'send_message' in comm_reg.capabilities
         assert 'fetch_messages' in comm_reg.capabilities
         
         # Check runtime control service
         runtime_reg = next(r for r in registrations if r.service_type == ServiceType.RUNTIME_CONTROL)
         assert runtime_reg.provider == api_platform.runtime_control
-        assert runtime_reg.priority == Priority.HIGH
+        assert runtime_reg.priority == Priority.CRITICAL
         assert 'pause_processing' in runtime_reg.capabilities
         assert 'resume_processing' in runtime_reg.capabilities
         
         # Check tool service
         tool_reg = next(r for r in registrations if r.service_type == ServiceType.TOOL)
         assert tool_reg.provider == api_platform.tool_service
-        assert tool_reg.priority == Priority.NORMAL
+        assert tool_reg.priority == Priority.CRITICAL
         assert 'execute_tool' in tool_reg.capabilities
         assert 'get_available_tools' in tool_reg.capabilities
 

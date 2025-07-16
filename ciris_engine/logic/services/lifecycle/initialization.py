@@ -242,6 +242,7 @@ class InitializationService(BaseInfrastructureService, InitializationServiceProt
         logger.info("-" * 60)
 
         self._phase_status[phase] = "running"
+        phase_start = self.time_service.now()
 
         for step in steps:
             await self._execute_step(step)
@@ -250,8 +251,9 @@ class InitializationService(BaseInfrastructureService, InitializationServiceProt
                 self._phase_status[phase] = "failed"
                 return
 
+        phase_duration = (self.time_service.now() - phase_start).total_seconds()
         self._phase_status[phase] = "completed"
-        logger.info(f"✓ Phase {phase.value} completed successfully")
+        logger.info(f"✓ Phase {phase.value} completed successfully ({phase_duration:.1f}s)")
 
     async def _execute_step(self, step: InitializationStep) -> None:
         """Execute a single initialization step with timeout and verification."""

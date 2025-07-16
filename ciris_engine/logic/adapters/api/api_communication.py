@@ -18,11 +18,12 @@ logger = logging.getLogger(__name__)
 class APICommunicationService(CommunicationServiceProtocol):
     """Communication service for API responses."""
     
-    def __init__(self) -> None:
+    def __init__(self, config: Optional[Any] = None) -> None:
         """Initialize API communication service."""
         self._response_queue: asyncio.Queue = asyncio.Queue()
         self._websocket_clients: Dict[str, Any] = {}
         self._is_started = False
+        self._config = config  # Store the API adapter config
         
         # Metrics tracking
         self._requests_handled = 0
@@ -240,6 +241,22 @@ class APICommunicationService(CommunicationServiceProtocol):
     def get_service_type(self) -> ServiceType:
         """Get the type of this service."""
         return ServiceType.ADAPTER
+    
+    def get_home_channel_id(self) -> Optional[str]:
+        """Get the home channel ID for this API adapter.
+        
+        Returns:
+            The formatted channel ID (e.g., 'api_0.0.0.0_8080')
+            or None if no home channel is configured.
+        """
+        if self._config and hasattr(self._config, 'get_home_channel_id'):
+            # Use the config method if available
+            host = getattr(self._config, 'host', '0.0.0.0')
+            port = getattr(self._config, 'port', 8080)
+            return self._config.get_home_channel_id(host, port)
+        
+        # Default fallback
+        return "api_0.0.0.0_8080"
     
     def get_status(self) -> "ServiceStatus":
         """Get the service status."""

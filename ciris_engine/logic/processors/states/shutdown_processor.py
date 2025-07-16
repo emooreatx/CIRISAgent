@@ -221,10 +221,21 @@ class ShutdownProcessor(BaseProcessor):
         elif self.runtime and hasattr(self.runtime, 'get_primary_channel_id'):
             channel_id = self.runtime.get_primary_channel_id()
 
-        # If no channel ID available, use a system channel
+        # If no channel ID available, try to get from communication bus
         if not channel_id:
-            channel_id = "system"
-            logger.warning("No channel ID available for shutdown task, using 'system'")
+            comm_bus = self.services.get('communication_bus')
+            if comm_bus:
+                try:
+                    channel_id = await comm_bus.get_default_channel()
+                    if channel_id:
+                        logger.info(f"Using default channel from communication bus: {channel_id}")
+                except Exception as e:
+                    logger.warning(f"Failed to get default channel from communication bus: {e}")
+            
+            # Final fallback - empty string (will be handled by communication bus routing)
+            if not channel_id:
+                channel_id = ""
+                logger.warning("No channel ID available for shutdown task, using empty string for adapter routing")
 
         # Create proper TaskContext for the shutdown task
         context = TaskContext(

@@ -14,6 +14,7 @@ from ciris_engine.schemas.runtime.messages import FetchedMessage
 from ciris_engine.protocols.services import CommunicationService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.logic.registries.base import Priority, ServiceProvider
 from .base_bus import BaseBus, BusMessage
 
 logger = logging.getLogger(__name__)
@@ -46,9 +47,47 @@ class CommunicationBus(BaseBus[CommunicationService]):
         )
         self._time_service = time_service
 
+    async def get_default_channel(self) -> Optional[str]:
+        """Get home channel from highest priority communication adapter.
+        
+        This is used when no channel_id is specified, such as during wakeup.
+        
+        Returns:
+            Home channel ID or None if no adapter has a home channel
+        """
+        # Get all communication services sorted by priority
+        all_services = self.service_registry.get_services_by_type(ServiceType.COMMUNICATION)
+        
+        # Get provider metadata for priority sorting
+        providers_with_priority = []
+        for service in all_services:
+            # Find the provider info for this service
+            provider_info = self.service_registry.get_provider_info(service_type=ServiceType.COMMUNICATION.value)
+            if "services" in provider_info and ServiceType.COMMUNICATION.value in provider_info["services"]:
+                for provider in provider_info["services"][ServiceType.COMMUNICATION.value]:
+                    # Match by class name since we can't directly compare instances
+                    if provider["name"].startswith(service.__class__.__name__):
+                        priority_value = Priority[provider["priority"]].value
+                        providers_with_priority.append((priority_value, service))
+                        break
+        
+        # Sort by priority (lower value = higher priority)
+        providers_with_priority.sort(key=lambda x: x[0])
+        
+        # Try each adapter in priority order
+        for _, service in providers_with_priority:
+            if hasattr(service, 'get_home_channel_id'):
+                home_channel = service.get_home_channel_id()
+                if home_channel:
+                    logger.debug(f"Found home channel '{home_channel}' from {service.__class__.__name__}")
+                    return home_channel
+        
+        logger.warning("No communication adapter has a home channel configured")
+        return None
+
     async def send_message(
         self,
-        channel_id: str,
+        channel_id: Optional[str],
         content: str,
         handler_name: str,
         metadata: Optional[dict] = None
@@ -74,7 +113,7 @@ class CommunicationBus(BaseBus[CommunicationService]):
 
     async def send_message_sync(
         self,
-        channel_id: str,
+        channel_id: Optional[str],
         content: str,
         handler_name: str,
         metadata: Optional[dict] = None
@@ -84,31 +123,42 @@ class CommunicationBus(BaseBus[CommunicationService]):
 
         This bypasses the queue for immediate operations.
         Routes based on channel_id prefix for cross-adapter communication.
+        If channel_id is None, uses the highest priority adapter's home channel.
         """
         service = None
+        resolved_channel_id = channel_id
+        
+        # If no channel_id provided or empty string, find highest priority adapter's home channel
+        if not channel_id or channel_id == "":
+            resolved_channel_id = await self.get_default_channel()
+            if not resolved_channel_id:
+                logger.error("No channel_id provided and no adapter with home channel available")
+                return False
+            logger.debug(f"Using default channel from highest priority adapter: {resolved_channel_id}")
         
         # Get all available communication services for routing
         all_services = self.service_registry.get_services_by_type(ServiceType.COMMUNICATION)
         
-        if all_services and channel_id:
+        if all_services and resolved_channel_id:
             # Route based on channel prefix
-            if channel_id.startswith('discord_'):
+            if resolved_channel_id.startswith('discord_'):
+                # Handles both discord_channelid and discord_guildid_channelid formats
                 for svc in all_services:
                     if 'Discord' in type(svc).__name__:
                         service = svc
-                        logger.debug(f"Sync routing to Discord adapter for channel {channel_id}")
+                        logger.debug(f"Sync routing to Discord adapter for channel {resolved_channel_id}")
                         break
-            elif channel_id.startswith('api_') or channel_id.startswith('ws:'):
+            elif resolved_channel_id.startswith('api_') or resolved_channel_id.startswith('ws:'):
                 for svc in all_services:
                     if 'API' in type(svc).__name__:
                         service = svc
-                        logger.debug(f"Sync routing to API adapter for channel {channel_id}")
+                        logger.debug(f"Sync routing to API adapter for channel {resolved_channel_id}")
                         break
-            elif channel_id.startswith('cli_'):
+            elif resolved_channel_id.startswith('cli_'):
                 for svc in all_services:
                     if 'CLI' in type(svc).__name__:
                         service = svc
-                        logger.debug(f"Sync routing to CLI adapter for channel {channel_id}")
+                        logger.debug(f"Sync routing to CLI adapter for channel {resolved_channel_id}")
                         break
         
         # Fallback to original logic
@@ -119,11 +169,11 @@ class CommunicationBus(BaseBus[CommunicationService]):
             )
 
         if not service:
-            logger.error(f"No communication service available for channel {channel_id}")
+            logger.error(f"No communication service available for channel {resolved_channel_id}")
             return False
 
         try:
-            result = await service.send_message(channel_id, content)
+            result = await service.send_message(resolved_channel_id, content)
             return bool(result)
         except Exception as e:
             logger.error(f"Failed to send message: {e}", exc_info=True)
@@ -180,32 +230,41 @@ class CommunicationBus(BaseBus[CommunicationService]):
         # First, try to find the right service based on channel_id prefix
         service = None
         channel_id = request.channel_id
+        resolved_channel_id = channel_id
+        
+        # If no channel_id provided or empty string, find highest priority adapter's home channel
+        if not channel_id or channel_id == "":
+            resolved_channel_id = await self.get_default_channel()
+            if not resolved_channel_id:
+                raise RuntimeError("No channel_id provided and no adapter with home channel available")
+            logger.debug(f"Using default channel from highest priority adapter: {resolved_channel_id}")
         
         # Get all available communication services
         all_services = self.service_registry.get_services_by_type(ServiceType.COMMUNICATION)
         
-        if all_services and channel_id:
+        if all_services and resolved_channel_id:
             # Route based on channel prefix
-            if channel_id.startswith('discord_'):
+            if resolved_channel_id.startswith('discord_'):
+                # Handles both discord_channelid and discord_guildid_channelid formats
                 # Find Discord communication service
                 for svc in all_services:
                     if 'Discord' in type(svc).__name__:
                         service = svc
-                        logger.debug(f"Routing to Discord adapter for channel {channel_id}")
+                        logger.debug(f"Routing to Discord adapter for channel {resolved_channel_id}")
                         break
-            elif channel_id.startswith('api_') or channel_id.startswith('ws:'):
+            elif resolved_channel_id.startswith('api_') or resolved_channel_id.startswith('ws:'):
                 # Find API communication service
                 for svc in all_services:
                     if 'API' in type(svc).__name__:
                         service = svc
-                        logger.debug(f"Routing to API adapter for channel {channel_id}")
+                        logger.debug(f"Routing to API adapter for channel {resolved_channel_id}")
                         break
-            elif channel_id.startswith('cli_'):
+            elif resolved_channel_id.startswith('cli_'):
                 # Find CLI communication service
                 for svc in all_services:
                     if 'CLI' in type(svc).__name__:
                         service = svc
-                        logger.debug(f"Routing to CLI adapter for channel {channel_id}")
+                        logger.debug(f"Routing to CLI adapter for channel {resolved_channel_id}")
                         break
         
         # Fallback to original logic if no specific routing found
@@ -217,22 +276,22 @@ class CommunicationBus(BaseBus[CommunicationService]):
 
         if not service:
             raise RuntimeError(
-                f"No communication service available for channel {channel_id}"
+                f"No communication service available for channel {resolved_channel_id}"
             )
 
         # Send the message
         success = await service.send_message(
-            request.channel_id,
+            resolved_channel_id,
             request.content
         )
 
         if success:
             logger.debug(
-                f"Successfully sent message to {request.channel_id} "
+                f"Successfully sent message to {resolved_channel_id} "
                 f"via {type(service).__name__}"
             )
         else:
             logger.warning(
-                f"Failed to send message to {request.channel_id} "
+                f"Failed to send message to {resolved_channel_id} "
                 f"via {type(service).__name__}"
             )

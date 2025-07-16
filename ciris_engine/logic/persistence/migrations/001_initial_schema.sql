@@ -60,6 +60,10 @@ CREATE TABLE IF NOT EXISTS graph_nodes (
     PRIMARY KEY (node_id, scope)
 );
 CREATE INDEX IF NOT EXISTS idx_graph_nodes_scope ON graph_nodes(scope);
+CREATE INDEX IF NOT EXISTS idx_graph_nodes_type ON graph_nodes(node_type);
+CREATE INDEX IF NOT EXISTS idx_graph_nodes_created ON graph_nodes(created_at);
+CREATE INDEX IF NOT EXISTS idx_graph_nodes_type_scope_created ON graph_nodes(node_type, scope, created_at);
+CREATE INDEX IF NOT EXISTS idx_graph_nodes_tsdb_lookup ON graph_nodes(node_type, scope, created_at DESC);
 
 -- Graph edges table
 CREATE TABLE IF NOT EXISTS graph_edges (

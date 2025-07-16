@@ -55,12 +55,16 @@ class WakeupProcessor(BaseProcessor):
         ]
 
     def __init__(self, *args: Any, startup_channel_id: str, time_service: TimeServiceProtocol, auth_service: Optional[Any] = None, **kwargs: Any) -> None:
-        """Initialize wakeup processor with required startup channel."""
+        """Initialize wakeup processor.
+        
+        Note: startup_channel_id is kept for backward compatibility but not used.
+        Wakeup tasks will not specify a channel, allowing the communication bus
+        to route to the highest priority adapter's home channel.
+        """
         super().__init__(*args, **kwargs)
         self.time_service = time_service
         self.auth_service = auth_service
-        if not startup_channel_id:
-            raise ValueError("startup_channel_id is required for wakeup processor")
+        # Keep startup_channel_id for compatibility but don't use it
         self.startup_channel_id = startup_channel_id
         self.wakeup_tasks: List[Task] = []
         self.wakeup_complete = False
@@ -300,15 +304,28 @@ class WakeupProcessor(BaseProcessor):
         from ciris_engine.logic.persistence.models.tasks import add_system_task
 
         now_iso = self.time_service.now().isoformat()
+        
+        # Get the communication bus to find the default channel
+        comm_bus = self.services.get('communication_bus')
+        if not comm_bus:
+            raise RuntimeError("Communication bus not available - cannot create wakeup tasks without communication channel")
+        
+        default_channel = await comm_bus.get_default_channel()
+        if not default_channel:
+            # This should never happen if adapters are properly initialized
+            raise RuntimeError(
+                "No communication adapter has a home channel configured. "
+                "At least one adapter must provide a home channel for wakeup tasks. "
+                "Check adapter configurations and ensure they specify a home_channel_id."
+            )
+        
+        logger.info(f"Using default channel for wakeup: {default_channel}")
 
-        # Create proper TaskContext with channel_id
+        # Create proper TaskContext with the resolved channel_id
         from ciris_engine.schemas.runtime.models import TaskContext as ModelTaskContext
 
-        if not self.startup_channel_id:
-            raise ValueError("Cannot create wakeup tasks without startup_channel_id")
-
         task_context = ModelTaskContext(
-            channel_id=self.startup_channel_id,
+            channel_id=default_channel,
             user_id="system",
             correlation_id=f"wakeup_{uuid.uuid4().hex[:8]}",
             parent_task_id=None
@@ -316,7 +333,7 @@ class WakeupProcessor(BaseProcessor):
 
         root_task = Task(
             task_id="WAKEUP_ROOT",
-            channel_id=self.startup_channel_id,
+            channel_id=default_channel,
             description="Wakeup ritual",
             status=TaskStatus.ACTIVE,
             priority=1,
@@ -329,12 +346,11 @@ class WakeupProcessor(BaseProcessor):
         else:
             persistence.update_task_status(root_task.task_id, TaskStatus.ACTIVE, self.time_service)
         self.wakeup_tasks = [root_task]
-        _channel_id = self.startup_channel_id  # Use the startup_channel_id directly, it's already set
         wakeup_sequence = self._get_wakeup_sequence()
         for step_type, content in wakeup_sequence:
-            # Create task with proper context including channel_id
+            # Create task with proper context using the default channel
             step_context = ModelTaskContext(
-                channel_id=self.startup_channel_id,
+                channel_id=default_channel,
                 user_id="system",
                 correlation_id=f"wakeup_{step_type}_{uuid.uuid4().hex[:8]}",
                 parent_task_id=root_task.task_id
@@ -342,7 +358,7 @@ class WakeupProcessor(BaseProcessor):
 
             step_task = Task(
                 task_id=f"{step_type}_{uuid.uuid4()}",
-                channel_id=self.startup_channel_id,
+                channel_id=default_channel,
                 description=content,
                 status=TaskStatus.ACTIVE,
                 priority=0,
@@ -420,10 +436,10 @@ class WakeupProcessor(BaseProcessor):
         # Create a new Thought object for this step
         now_iso = self.time_service.now().isoformat()
 
-        # Create the simple ThoughtContext for the Thought model with channel_id
+        # Create the simple ThoughtContext for the Thought model using task's channel_id
         simple_context = ThoughtContext(
             task_id=step_task.task_id,
-            channel_id=self.startup_channel_id,  # Set channel_id directly
+            channel_id=step_task.channel_id,  # Use the channel from the task
             round_number=round_number,
             depth=0,
             parent_thought_id=None,
@@ -569,6 +585,5 @@ class WakeupProcessor(BaseProcessor):
             "supported_states": [state.value for state in self.get_supported_states()],
             "progress": progress,
             "metrics": getattr(self, 'metrics', {}),
-            "startup_channel_id": self.startup_channel_id,
             "total_tasks": len(self.wakeup_tasks) if self.wakeup_tasks else 0
         }

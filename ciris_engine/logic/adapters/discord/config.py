@@ -82,6 +82,30 @@ class DiscordAdapterConfig(BaseModel):
         if self.monitored_channel_ids:
             return self.monitored_channel_ids[0]  # Default to first monitored channel if no explicit home channel
         return None
+    
+    def get_formatted_startup_channel_id(self, guild_id: Optional[str] = None) -> Optional[str]:
+        """Get the formatted startup channel ID with discord_ prefix.
+        
+        Args:
+            guild_id: Optional guild ID to include in format
+            
+        Returns:
+            Formatted channel ID like 'discord_channelid' or 'discord_guildid_channelid'
+        """
+        home_channel = self.get_home_channel_id()
+        if not home_channel:
+            return None
+            
+        # If already formatted, return as-is
+        if home_channel.startswith('discord_'):
+            return home_channel
+            
+        # Format with guild ID if provided
+        if guild_id:
+            return f"discord_{guild_id}_{home_channel}"
+        else:
+            # Just add discord_ prefix for now
+            return f"discord_{home_channel}"
 
     def load_env_vars(self) -> None:
         """Load configuration from environment variables if present."""
