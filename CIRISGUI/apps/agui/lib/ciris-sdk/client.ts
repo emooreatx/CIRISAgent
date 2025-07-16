@@ -37,8 +37,13 @@ export class CIRISClient {
   public readonly users: UsersResource;
 
   constructor(options: CIRISClientOptions = {}) {
+    // Use environment variable if available, otherwise fall back to window location for browser
+    const defaultBaseURL = typeof window !== 'undefined'
+      ? `${window.location.protocol}//${window.location.host}`
+      : process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost:8080';
+    
     const transportOptions: TransportOptions = {
-      baseURL: options.baseURL || 'http://localhost:8080',
+      baseURL: options.baseURL || defaultBaseURL,
       timeout: options.timeout,
       maxRetries: options.maxRetries,
       enableRateLimiting: options.enableRateLimiting !== false, // Default true

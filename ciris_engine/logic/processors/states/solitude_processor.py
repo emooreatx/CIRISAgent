@@ -53,7 +53,7 @@ class SolitudeProcessor(BaseProcessor):
         """Solitude processor only handles SOLITUDE state."""
         return [AgentState.SOLITUDE]
 
-    async def can_process(self, state: AgentState) -> bool:
+    def can_process(self, state: AgentState) -> bool:
         """Check if we can process the given state."""
         return state == AgentState.SOLITUDE
 
@@ -73,7 +73,7 @@ class SolitudeProcessor(BaseProcessor):
         start_time = self.time_service.now()
 
         try:
-            critical_count = await self._check_critical_tasks()
+            critical_count = self._check_critical_tasks()
 
             if critical_count > 0:
                 logger.info(f"Found {critical_count} critical tasks - exiting solitude")
@@ -113,7 +113,7 @@ class SolitudeProcessor(BaseProcessor):
             duration_seconds=duration
         )
 
-    async def _check_critical_tasks(self) -> int:
+    def _check_critical_tasks(self) -> int:
         """Check for critical tasks that require immediate attention."""
         # Get pending tasks ordered by priority
         pending_tasks = persistence.get_pending_tasks_for_activation(limit=20)
@@ -129,7 +129,7 @@ class SolitudeProcessor(BaseProcessor):
 
         return critical_count
 
-    async def _perform_maintenance(self) -> MaintenanceResult:
+    def _perform_maintenance(self) -> MaintenanceResult:
         """Perform system maintenance tasks."""
         logger.info("Performing maintenance tasks")
 
@@ -162,7 +162,7 @@ class SolitudeProcessor(BaseProcessor):
 
         return maintenance_result
 
-    async def _reflect_and_learn(self) -> ReflectionResult:
+    def _reflect_and_learn(self) -> ReflectionResult:
         """
         Perform reflection and learning activities.
         This could include analyzing patterns, consolidating memories, etc.
@@ -200,7 +200,7 @@ class SolitudeProcessor(BaseProcessor):
 
         return reflection_result
 
-    async def _check_exit_conditions(self) -> ExitConditions:
+    def _check_exit_conditions(self) -> ExitConditions:
         """
         Check if conditions warrant exiting solitude state.
 
@@ -246,7 +246,7 @@ class SolitudeProcessor(BaseProcessor):
 
             await asyncio.sleep(2)  # Slower pace in solitude
 
-    async def stop_processing(self) -> None:
+    def stop_processing(self) -> None:
         """Stop solitude processing and clean up resources."""
         self._running = False
         logger.info("Solitude processor stopped")

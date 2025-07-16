@@ -250,7 +250,7 @@ class DiscordToolHandler:
         logger.warning(f"Tool result for correlation_id {correlation_id} not found after {timeout}s")
         return None
 
-    async def get_available_tools(self) -> List[str]:
+    def get_available_tools(self) -> List[str]:
         """Return names of registered Discord tools.
 
         Returns:
@@ -267,7 +267,7 @@ class DiscordToolHandler:
             logger.warning("Tool registry interface not recognized")
             return []
 
-    async def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
+    def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
         """Get detailed information about a specific tool."""
         if not self.tool_registry:
             return None
@@ -309,7 +309,7 @@ class DiscordToolHandler:
                 )
 
         # Fallback to basic info if tool exists
-        if tool_name in await self.get_available_tools():
+        if tool_name in self.get_available_tools():
             return ToolInfo(
                 name=tool_name,
                 description=f"Discord tool: {tool_name}",
@@ -325,16 +325,16 @@ class DiscordToolHandler:
 
         return None
 
-    async def get_all_tool_info(self) -> List[ToolInfo]:
+    def get_all_tool_info(self) -> List[ToolInfo]:
         """Get detailed information about all available tools."""
         tools = []
-        for tool_name in await self.get_available_tools():
-            tool_info = await self.get_tool_info(tool_name)
+        for tool_name in self.get_available_tools():
+            tool_info = self.get_tool_info(tool_name)
             if tool_info:
                 tools.append(tool_info)
         return tools
 
-    async def validate_tool_parameters(self, tool_name: str, parameters: Dict[str, Any]) -> bool:
+    def validate_tool_parameters(self, tool_name: str, parameters: Dict[str, Any]) -> bool:
         """Basic parameter validation using tool registry schemas.
 
         Args:

@@ -165,11 +165,11 @@ class TestTemporalEdgeCreation:
                 # Simulate edge creation from consolidation service
                 if i == 0:
                     # First day - no previous
-                    await edge_manager.create_temporal_edges(summary, None)
+                    edge_manager.create_temporal_edges(summary, None)
                 else:
                     # Later days - link to previous
                     prev_id = f"tsdb_summary_daily_{dates[i-1].strftime('%Y%m%d')}"
-                    await edge_manager.create_temporal_edges(summary, prev_id)
+                    edge_manager.create_temporal_edges(summary, prev_id)
             
             mock_db_connection.commit()
             
@@ -255,11 +255,11 @@ class TestTemporalEdgeCreation:
                 ))
                 
                 if i == 0:
-                    await edge_manager.create_temporal_edges(summary, None)
+                    edge_manager.create_temporal_edges(summary, None)
                 else:
                     # Link to actual previous day (not necessarily consecutive)
                     prev_id = f"tsdb_summary_daily_{dates[i-1].strftime('%Y%m%d')}"
-                    await edge_manager.create_temporal_edges(summary, prev_id)
+                    edge_manager.create_temporal_edges(summary, prev_id)
             
             mock_db_connection.commit()
             
@@ -384,7 +384,7 @@ class TestSameDayEdgeCreation:
             mock_db_connection.commit()
             
             # Create cross-summary edges
-            await edge_manager.create_cross_summary_edges(summaries, date)
+            edge_manager.create_cross_summary_edges(summaries, date)
             
             # Should have C(3,2) = 3 edges
             cursor.execute("""
@@ -440,7 +440,7 @@ class TestDuplicatePrevention:
             
             # Try to create the same edge multiple times
             for _ in range(3):
-                edges_created = await edge_manager.create_summary_to_nodes_edges(
+                edges_created = edge_manager.create_summary_to_nodes_edges(
                     summary1,
                     [summary2],
                     "TEST_RELATIONSHIP"
@@ -489,8 +489,8 @@ class TestDuplicatePrevention:
                 ))
             
             # Create initial edges (day1 -> day3)
-            await edge_manager.create_temporal_edges(summary1, None)
-            await edge_manager.create_temporal_edges(summary3, summary1.id)
+            edge_manager.create_temporal_edges(summary1, None)
+            edge_manager.create_temporal_edges(summary3, summary1.id)
             
             # Now insert day 2
             day2 = datetime(2025, 7, 8, tzinfo=timezone.utc)
@@ -528,7 +528,7 @@ class TestDuplicatePrevention:
             """, (summary3.id, summary1.id))
             
             # Create new edges
-            await edge_manager.create_temporal_edges(summary2, summary1.id)
+            edge_manager.create_temporal_edges(summary2, summary1.id)
             
             # Update day3 to point back to day2 instead of day1
             cursor.execute("""
@@ -601,7 +601,7 @@ class TestEdgeAttributes:
             mock_db_connection.commit()
             
             # Create temporal edge with attributes
-            await edge_manager.create_temporal_edges(summary, None)
+            edge_manager.create_temporal_edges(summary, None)
             
             # Verify attributes are valid JSON
             cursor.execute("""
@@ -751,7 +751,7 @@ class TestCleanupOrphanedEdges:
             mock_db_connection.commit()
             
             # Cleanup orphaned edges
-            deleted = await edge_manager.cleanup_orphaned_edges()
+            deleted = edge_manager.cleanup_orphaned_edges()
             
             assert deleted == 1  # Only the orphaned edge should be deleted
             

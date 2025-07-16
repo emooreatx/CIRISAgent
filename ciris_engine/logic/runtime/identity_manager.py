@@ -56,7 +56,7 @@ class IdentityManager:
                 raise RuntimeError("No template available for initial identity creation")
 
             # Create identity from template and save to graph
-            self.agent_identity = await self._create_identity_from_template(initial_template)
+            self.agent_identity = self._create_identity_from_template(initial_template)
             await self._save_identity_to_graph(self.agent_identity)
 
         return self.agent_identity
@@ -71,7 +71,7 @@ class IdentityManager:
         try:
             from ciris_engine.logic.persistence.models.identity import retrieve_agent_identity
 
-            identity = await retrieve_agent_identity()
+            identity = retrieve_agent_identity()
             if identity:
                 return identity.model_dump()
 
@@ -85,7 +85,7 @@ class IdentityManager:
         try:
             from ciris_engine.logic.persistence.models.identity import store_agent_identity
 
-            success = await store_agent_identity(identity, self.time_service)
+            success = store_agent_identity(identity, self.time_service)
             if success:
                 logger.info("Agent identity saved to persistence tier")
             else:
@@ -95,7 +95,7 @@ class IdentityManager:
             logger.error(f"Failed to save identity to persistence: {e}")
             raise
 
-    async def _create_identity_from_template(self, template: AgentTemplate) -> AgentIdentityRoot:
+    def _create_identity_from_template(self, template: AgentTemplate) -> AgentIdentityRoot:
         """Create initial identity from template (first run only)."""
         # Generate deterministic identity hash
         identity_string = f"{template.name}:{template.description}:{template.role_description}"
@@ -129,8 +129,8 @@ class IdentityManager:
                 role_description=template.role_description,
                 domain_specific_knowledge=domain_knowledge,
                 dsdma_prompt_template=dsdma_prompt_template,
-                csdma_overrides=template.csdma_overrides.__dict__ if template.csdma_overrides else {},
-                action_selection_pdma_overrides=template.action_selection_pdma_overrides.__dict__ if template.action_selection_pdma_overrides else {},
+                csdma_overrides={k: v for k, v in (template.csdma_overrides.__dict__ if template.csdma_overrides else {}).items() if v is not None},
+                action_selection_pdma_overrides={k: v for k, v in (template.action_selection_pdma_overrides.__dict__ if template.action_selection_pdma_overrides else {}).items() if v is not None},
                 last_shutdown_memory=None
             ),
             identity_metadata=IdentityMetadata(

@@ -107,7 +107,7 @@ class BusManager:
         """Get total messages queued across all buses"""
         return sum(bus.get_queue_size() for bus in self._buses.values())
 
-    async def health_check(self) -> Dict[str, bool]:
+    def health_check(self) -> Dict[str, bool]:
         """Check health of all buses"""
         health = {}
         for name, bus in self._buses.items():

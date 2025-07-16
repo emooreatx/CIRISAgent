@@ -86,7 +86,7 @@ class BaseActionHandler(ABC):
         self._current_correlation: Optional[ServiceCorrelation] = None
         self._trace_start_time: Optional[datetime] = None
 
-    async def complete_thought_and_create_followup(
+    def complete_thought_and_create_followup(
         self,
         thought: Thought,
         follow_up_content: str = "",
@@ -228,7 +228,7 @@ class BaseActionHandler(ABC):
             outcome=f"error:{type(error).__name__}"
         )
 
-    async def _validate_and_convert_params(
+    def _validate_and_convert_params(
         self,
         params: Any,
         param_class: Type[T]
@@ -305,7 +305,7 @@ class BaseActionHandler(ABC):
             self.logger.error(f"Error decapsulating secrets: {e}")
             return result
 
-    async def _get_channel_id(
+    def _get_channel_id(
         self,
         thought: Thought,
         dispatch_context: DispatchContext

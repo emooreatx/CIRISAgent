@@ -43,7 +43,7 @@ class ComponentBuilder:
         self.runtime = runtime
         self.agent_processor: Optional[AgentProcessor] = None
 
-    async def build_all_components(self) -> AgentProcessor:
+    def build_all_components(self) -> AgentProcessor:
         """Build all processing components and return the agent processor."""
         if not self.runtime.llm_service:
             raise RuntimeError("LLM service not initialized")
@@ -117,7 +117,7 @@ class ComponentBuilder:
             action_selection_pdma_overrides=self.runtime.agent_identity.core_profile.action_selection_pdma_overrides
         )
 
-        dsdma = await create_dsdma_from_identity(
+        dsdma = create_dsdma_from_identity(
             identity_config,
             self.runtime.service_registry,
             model_name=self.runtime.llm_service.model_name,
@@ -194,7 +194,7 @@ class ComponentBuilder:
 
 
         # Register core services before building action dispatcher
-        await self.runtime._register_core_services()
+        self.runtime._register_core_services()
 
         # Build action handler dependencies
         # Use the BusManager from runtime instead of creating a new one
@@ -229,7 +229,7 @@ class ComponentBuilder:
         )
 
         # Build action dispatcher
-        action_dispatcher = await self._build_action_dispatcher(dependencies)
+        action_dispatcher = self._build_action_dispatcher(dependencies)
 
         # Build agent processor
         if not self.runtime.essential_config:
@@ -263,7 +263,7 @@ class ComponentBuilder:
 
         return self.agent_processor
 
-    async def _build_action_dispatcher(self, dependencies: Any) -> Any:
+    def _build_action_dispatcher(self, dependencies: Any) -> Any:
         """Build action dispatcher. Override in subclasses for custom sinks."""
         _config = self.runtime._ensure_config()
         return build_action_dispatcher(

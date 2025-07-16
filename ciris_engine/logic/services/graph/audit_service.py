@@ -163,8 +163,8 @@ class GraphAuditService(BaseGraphService, AuditServiceProtocol):
 
     async def start(self) -> None:
         """Start the audit service."""
-        # Call parent start method
-        await super().start()
+        # Don't call super() as BaseService has async start
+        self._started = True
         
         logger.info("Starting consolidated GraphAuditService")
         
@@ -228,8 +228,8 @@ class GraphAuditService(BaseGraphService, AuditServiceProtocol):
 
         logger.info("GraphAuditService stopped")
         
-        # Call parent stop method
-        await super().stop()
+        # Don't call super() as BaseService has async stop
+        self._started = False
 
     async def log_action(
         self,

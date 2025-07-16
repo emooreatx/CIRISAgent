@@ -235,6 +235,14 @@ async def get_history(
         api_port = getattr(request.app.state, 'api_port', '8080')
         default_channel = f"api_{api_host}_{api_port}"
         channels_to_query.append(default_channel)
+        
+        # Also add common variations of the API channel
+        # This ensures we catch messages regardless of how the channel was recorded
+        channels_to_query.extend([
+            f"api_0.0.0.0_{api_port}",      # Bind address
+            f"api_127.0.0.1_{api_port}",    # Localhost
+            f"api_localhost_{api_port}",     # Hostname variant
+        ])
     
     logger.info(f"History query for user {auth.user_id} with role {auth.role}, channels: {channels_to_query}")
     
@@ -847,7 +855,7 @@ async def websocket_stream(
     api_key = authorization[7:]  # Remove "Bearer " prefix
     
     # Validate API key
-    key_info = await auth_service.validate_api_key(api_key)
+    key_info = auth_service.validate_api_key(api_key)
     if not key_info:
         await websocket.close(code=1008, reason="Invalid API key")
         return

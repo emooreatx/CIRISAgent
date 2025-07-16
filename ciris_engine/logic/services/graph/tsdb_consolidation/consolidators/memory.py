@@ -40,7 +40,7 @@ class MemoryConsolidator:
         """
         self._memory_bus = memory_bus
     
-    async def consolidate(
+    def consolidate(
         self,
         period_start: datetime,
         period_end: datetime,

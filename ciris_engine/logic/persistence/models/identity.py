@@ -21,7 +21,7 @@ from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
 
-async def store_agent_identity(
+def store_agent_identity(
     identity: AgentIdentityRoot,
     time_service: TimeServiceProtocol,
     db_path: Optional[str] = None
@@ -55,7 +55,7 @@ async def store_agent_identity(
         logger.error(f"Failed to store agent identity: {e}", exc_info=True)
         return False
 
-async def retrieve_agent_identity(
+def retrieve_agent_identity(
     db_path: Optional[str] = None
 ) -> Optional[AgentIdentityRoot]:
     """
@@ -95,7 +95,7 @@ async def retrieve_agent_identity(
         logger.error(f"Failed to retrieve agent identity: {e}", exc_info=True)
         return None
 
-async def update_agent_identity(
+def update_agent_identity(
     identity: AgentIdentityRoot,
     updated_by: str,
     time_service: TimeServiceProtocol,
@@ -157,7 +157,7 @@ async def update_agent_identity(
         logger.error(f"Failed to update agent identity: {e}", exc_info=True)
         return False
 
-async def store_creation_ceremony(
+def store_creation_ceremony(
     ceremony_request: CreationCeremonyRequest,
     new_agent_id: str,
     ceremony_id: str,

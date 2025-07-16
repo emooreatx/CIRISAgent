@@ -34,6 +34,9 @@ class TestDiscordMessageHandler:
         mock_channel = Mock()
         mock_channel.send = AsyncMock(return_value=Mock(id=123))
         mock_bot.get_channel.return_value = mock_channel
+        
+        # Mock the client as not closed for the new check
+        mock_bot.is_closed.return_value = False
 
         # send_message_to_channel returns None on success, raises exception on failure
         await handler.send_message_to_channel("123456789", "Hello world")
@@ -44,6 +47,9 @@ class TestDiscordMessageHandler:
         """Test sending message when channel not found."""
         mock_bot.get_channel.return_value = None
         mock_bot.fetch_channel = AsyncMock(side_effect=discord.NotFound(Mock(), "Channel not found"))
+        
+        # Mock the client as not closed for the new check
+        mock_bot.is_closed.return_value = False
 
         with pytest.raises(RuntimeError, match="Discord channel.*not found"):
             await handler.send_message_to_channel("999999999", "Hello")
@@ -54,6 +60,9 @@ class TestDiscordMessageHandler:
         mock_channel = Mock()
         mock_channel.send = AsyncMock(side_effect=Exception("Send failed"))
         mock_bot.get_channel.return_value = mock_channel
+        
+        # Mock the client as not closed for the new check
+        mock_bot.is_closed.return_value = False
 
         # send_message_to_channel propagates exceptions
         with pytest.raises(Exception, match="Send failed"):

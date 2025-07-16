@@ -287,7 +287,7 @@ class SecretsStore:
                 )
                 return None
 
-    async def decrypt_secret_value(self, secret_record: SecretRecord) -> Optional[str]:
+    def decrypt_secret_value(self, secret_record: SecretRecord) -> Optional[str]:
         """
         Decrypt the actual secret value.
 

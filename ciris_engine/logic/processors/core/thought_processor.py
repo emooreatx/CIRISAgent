@@ -473,7 +473,7 @@ class ThoughtProcessor:
 
         # 7. Handle special cases (PONDER, DEFER overrides)
         logger.info(f"ThoughtProcessor: Handling special cases for {thought.thought_id}")
-        final_result = await self._handle_special_cases(
+        final_result = self._handle_special_cases(
             conscience_result, thought, thought_context
         )
 
@@ -798,7 +798,7 @@ class ThoughtProcessor:
             resource_usage=None
         )
 
-    async def _handle_special_cases(self, result: Any, thought: Thought, context: Any) -> Optional[ActionSelectionDMAResult]:
+    def _handle_special_cases(self, result: Any, thought: Thought, context: Any) -> Optional[ActionSelectionDMAResult]:
         """Handle special cases like PONDER and DEFER overrides."""
         # Handle both ConscienceResult and ActionSelectionDMAResult
         selected_action = None
@@ -880,7 +880,7 @@ class ThoughtProcessor:
         # No special processing needed here - just return the result for normal dispatch
         return final_result  # type: ignore[no-any-return]
 
-    async def _update_thought_status(self, thought: Thought, result: Any) -> None:
+    def _update_thought_status(self, thought: Thought, result: Any) -> None:
         from ciris_engine.logic import persistence
         # Update the thought status in persistence
         # Support ConscienceResult as well as ActionSelectionDMAResult

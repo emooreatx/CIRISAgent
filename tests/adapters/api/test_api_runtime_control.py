@@ -213,7 +213,7 @@ class TestAPIRuntimeControlDebugging:
         """Test getting queue status."""
         # get_queue_status is not implemented in APIRuntimeControlService
         # Using get_runtime_status instead
-        status = await runtime_control_service.get_runtime_status()
+        status = runtime_control_service.get_runtime_status()
         
         assert status is not None
         assert "paused" in status
@@ -224,7 +224,7 @@ class TestAPIRuntimeControlDebugging:
         runtime_control_service.runtime.processor = None
         
         # get_queue_status is not implemented in APIRuntimeControlService
-        status = await runtime_control_service.get_runtime_status()
+        status = runtime_control_service.get_runtime_status()
         
         assert status is not None
 
@@ -235,7 +235,7 @@ class TestAPIRuntimeControlStatus:
     @pytest.mark.asyncio
     async def test_get_runtime_status(self, runtime_control_service, mock_runtime):
         """Test getting comprehensive runtime status."""
-        status = await runtime_control_service.get_runtime_status()
+        status = runtime_control_service.get_runtime_status()
         
         assert status["paused"] is False
         assert status["cognitive_state"] == "WORK"
@@ -248,7 +248,7 @@ class TestAPIRuntimeControlStatus:
         # First pause the service
         await runtime_control_service.pause_processing("Test pause")
         
-        status = await runtime_control_service.get_runtime_status()
+        status = runtime_control_service.get_runtime_status()
         
         assert status["paused"] is True
         assert status["pause_reason"] == "Test pause"
@@ -258,7 +258,7 @@ class TestAPIRuntimeControlStatus:
         """Test runtime status with error conditions."""
         mock_runtime.telemetry_service.get_error_count = Mock(return_value=5)
         
-        status = await runtime_control_service.get_runtime_status()
+        status = runtime_control_service.get_runtime_status()
         
         assert status["paused"] is False
         # Errors are not included in runtime status
@@ -266,7 +266,7 @@ class TestAPIRuntimeControlStatus:
     @pytest.mark.asyncio
     async def test_get_processor_info(self, runtime_control_service, mock_runtime):
         """Test getting processor information."""
-        status = await runtime_control_service.get_runtime_status()
+        status = runtime_control_service.get_runtime_status()
         
         assert status["cognitive_state"] == "WORK"
         assert status["paused"] is False
@@ -343,7 +343,7 @@ class TestAPIRuntimeControlConcurrency:
         )
         
         # Get status while pausing
-        status = await runtime_control_service.get_runtime_status()
+        status = runtime_control_service.get_runtime_status()
         assert status is not None
         
         # Wait for pause to complete

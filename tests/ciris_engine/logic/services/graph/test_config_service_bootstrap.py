@@ -72,7 +72,7 @@ async def memory_service_factory(temp_db, time_service):
             secrets_service=secrets_service,
             time_service=time_service
         )
-        await service.start()
+        service.start()
         created_services.append((service, secrets_service))
         return service
 
@@ -80,7 +80,7 @@ async def memory_service_factory(temp_db, time_service):
 
     # Cleanup
     for memory_service, secrets_service in created_services:
-        await memory_service.stop()
+        memory_service.stop()
         await secrets_service.stop()
 
 

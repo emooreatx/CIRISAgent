@@ -65,7 +65,7 @@ class RateLimiter:
             self.buckets[client_id] = (tokens, now)
             return False
     
-    async def _cleanup_old_entries(self) -> None:
+    def _cleanup_old_entries(self) -> None:
         """Remove entries that haven't been used in over an hour."""
         now = datetime.now()
         cutoff = now - timedelta(hours=1)

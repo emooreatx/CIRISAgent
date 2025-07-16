@@ -109,13 +109,13 @@ class TestDreamProcessor:
     @pytest.mark.asyncio
     async def test_can_process_dream_state(self, dream_processor):
         """Test that DreamProcessor can process DREAM state."""
-        assert await dream_processor.can_process(AgentState.DREAM) is True
-        assert await dream_processor.can_process(AgentState.WORK) is False
+        assert dream_processor.can_process(AgentState.DREAM) is True
+        assert dream_processor.can_process(AgentState.WORK) is False
 
     @pytest.mark.asyncio
     async def test_initialize(self, dream_processor):
         """Test DreamProcessor initialization."""
-        result = await dream_processor.initialize()
+        result = dream_processor.initialize()
         assert result is True
         # current_session is created when processing starts, not during initialization
         assert dream_processor.current_session is None
@@ -123,7 +123,7 @@ class TestDreamProcessor:
     @pytest.mark.asyncio
     async def test_process_entering_phase(self, dream_processor):
         """Test processing during ENTERING phase."""
-        await dream_processor.initialize()
+        dream_processor.initialize()
 
         # Patch persistence functions
         with patch('ciris_engine.logic.persistence.get_tasks_by_status') as mock_get_tasks:
@@ -147,7 +147,7 @@ class TestDreamProcessor:
     @pytest.mark.asyncio
     async def test_process_consolidating_phase(self, dream_processor):
         """Test processing during CONSOLIDATING phase."""
-        await dream_processor.initialize()
+        dream_processor.initialize()
         # Start dreaming to create session
         await dream_processor.start_dreaming(duration=60)
         dream_processor.current_session.phase = DreamPhase.CONSOLIDATING
@@ -161,7 +161,7 @@ class TestDreamProcessor:
     @pytest.mark.asyncio
     async def test_process_analyzing_phase(self, dream_processor):
         """Test processing during ANALYZING phase."""
-        await dream_processor.initialize()
+        dream_processor.initialize()
         # Start dreaming to create session
         await dream_processor.start_dreaming(duration=60)
         dream_processor.current_session.phase = DreamPhase.ANALYZING
@@ -174,7 +174,7 @@ class TestDreamProcessor:
     @pytest.mark.asyncio
     async def test_process_configuring_phase(self, dream_processor):
         """Test processing during CONFIGURING phase."""
-        await dream_processor.initialize()
+        dream_processor.initialize()
         # Start dreaming to create session
         await dream_processor.start_dreaming(duration=60)
         dream_processor.current_session.phase = DreamPhase.CONFIGURING
@@ -187,7 +187,7 @@ class TestDreamProcessor:
     @pytest.mark.asyncio
     async def test_process_planning_phase(self, dream_processor):
         """Test processing during PLANNING phase."""
-        await dream_processor.initialize()
+        dream_processor.initialize()
         # Start dreaming to create session
         await dream_processor.start_dreaming(duration=60)
         dream_processor.current_session.phase = DreamPhase.PLANNING
@@ -200,7 +200,7 @@ class TestDreamProcessor:
     @pytest.mark.asyncio
     async def test_process_exiting_phase(self, dream_processor):
         """Test processing during EXITING phase."""
-        await dream_processor.initialize()
+        dream_processor.initialize()
         # Start dreaming to create session
         await dream_processor.start_dreaming(duration=60)
         dream_processor.current_session.phase = DreamPhase.EXITING
@@ -214,21 +214,21 @@ class TestDreamProcessor:
     @pytest.mark.asyncio
     async def test_cleanup(self, dream_processor):
         """Test DreamProcessor cleanup."""
-        await dream_processor.initialize()
+        dream_processor.initialize()
         # Start dreaming to create session
         await dream_processor.start_dreaming(duration=60)
 
         # Stop dreaming first
         await dream_processor.stop_dreaming()
 
-        result = await dream_processor.cleanup()
+        result = dream_processor.cleanup()
 
         assert result is True
 
     @pytest.mark.asyncio
     async def test_memory_consolidation_task(self, dream_processor):
         """Test memory consolidation happens through tasks."""
-        await dream_processor.initialize()
+        dream_processor.initialize()
 
         # Start dreaming which creates tasks
         await dream_processor.start_dreaming(duration=60)
@@ -271,7 +271,7 @@ class TestDreamProcessor:
     @pytest.mark.asyncio
     async def test_self_configuration_task(self, dream_processor):
         """Test self-configuration happens through tasks."""
-        await dream_processor.initialize()
+        dream_processor.initialize()
 
         # Start dreaming which creates tasks
         await dream_processor.start_dreaming(duration=60)
@@ -287,7 +287,7 @@ class TestDreamProcessor:
     @pytest.mark.asyncio
     async def test_dream_session_tracking(self, dream_processor):
         """Test dream session is properly tracked."""
-        await dream_processor.initialize()
+        dream_processor.initialize()
 
         # Start dreaming
         await dream_processor.start_dreaming(duration=60)
@@ -309,7 +309,7 @@ class TestDreamProcessor:
     @pytest.mark.asyncio
     async def test_minimum_dream_duration(self, dream_processor):
         """Test that dream respects minimum duration."""
-        await dream_processor.initialize()
+        dream_processor.initialize()
         # Start dreaming to create session
         await dream_processor.start_dreaming(duration=60)
 
@@ -325,7 +325,7 @@ class TestDreamProcessor:
     @pytest.mark.asyncio
     async def test_maximum_dream_duration(self, dream_processor):
         """Test that dream respects maximum duration."""
-        await dream_processor.initialize()
+        dream_processor.initialize()
         # Start dreaming to create session with max duration
         await dream_processor.start_dreaming(duration=dream_processor.max_dream_duration * 60)
 
@@ -337,7 +337,7 @@ class TestDreamProcessor:
     @pytest.mark.asyncio
     async def test_error_handling_in_phase(self, dream_processor):
         """Test error handling during phase processing."""
-        await dream_processor.initialize()
+        dream_processor.initialize()
         # Start dreaming to create session
         await dream_processor.start_dreaming(duration=60)
 
@@ -358,7 +358,7 @@ class TestDreamProcessor:
     @pytest.mark.asyncio
     async def test_pulse_activity_tracking(self, dream_processor):
         """Test that activities are tracked correctly."""
-        await dream_processor.initialize()
+        dream_processor.initialize()
         # Start dreaming to create session
         await dream_processor.start_dreaming(duration=60)
 
@@ -372,7 +372,7 @@ class TestDreamProcessor:
     @pytest.mark.asyncio
     async def test_benchmarking_mode(self, dream_processor):
         """Test benchmarking mode setup."""
-        await dream_processor.initialize()
+        dream_processor.initialize()
 
         # Enable CIRISNode
         dream_processor.cirisnode_enabled = True

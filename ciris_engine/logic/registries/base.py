@@ -59,6 +59,7 @@ class ServiceRegistry:
     def __init__(self, required_services: Optional[List[ServiceType]] = None) -> None:
         # Only global services now - no handler-specific registration
         self._services: Dict[ServiceType, List[ServiceProvider]] = {}
+        self._shutdown_mode: bool = False  # Flag to skip health checks during shutdown
         self._circuit_breakers: Dict[str, CircuitBreaker] = {}
         self._rr_state: Dict[str, int] = {}
         self._required_service_types: List[ServiceType] = required_services or [
@@ -162,8 +163,10 @@ class ServiceRegistry:
                     f"capabilities={required_capabilities}")
 
         # All services are global now
+        # Debug: log all keys in _services
+        logger.debug(f"ServiceRegistry._services keys: {list(self._services.keys())}")
         providers = self._services.get(service_type, [])
-        logger.debug(f"ServiceRegistry: Found {len(providers)} providers for {service_type}")
+        logger.debug(f"ServiceRegistry: Looking for {service_type} (type: {type(service_type)}), found {len(providers)} providers")
         
         if service_type in self._services:
             for provider in self._services[service_type]:
@@ -238,9 +241,19 @@ class ServiceRegistry:
             return None
 
         try:
-            if hasattr(provider.instance, "is_healthy"):
-                if not await provider.instance.is_healthy():
-                    logger.debug(f"Provider '{provider.name}' failed health check")
+            # Skip health checks during shutdown to prevent false failures
+            if hasattr(self, '_shutdown_mode') and self._shutdown_mode:
+                logger.debug(f"Skipping health check for '{provider.name}' during shutdown")
+            elif hasattr(provider.instance, "is_healthy"):
+                try:
+                    is_healthy_result = await provider.instance.is_healthy()
+                    if not is_healthy_result:
+                        logger.debug(f"Provider '{provider.name}' failed health check (returned {is_healthy_result})")
+                        if provider.circuit_breaker:
+                            provider.circuit_breaker.record_failure()
+                        return None
+                except Exception as health_error:
+                    logger.warning(f"Provider '{provider.name}' health check raised exception: {health_error}")
                     if provider.circuit_breaker:
                         provider.circuit_breaker.record_failure()
                     return None

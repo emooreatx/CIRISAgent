@@ -82,8 +82,46 @@ class DiscordPlatform(Service):
         self.token = self.config.bot_token
         intents = self.config.get_intents()
 
+        # Create a custom client class to handle events properly
+        class CIRISDiscordClient(discord.Client):
+            def __init__(self, platform: 'DiscordPlatform', *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.platform = platform
+            
+            async def on_ready(self):
+                """Called when the client is ready."""
+                logger.info("Discord client on_ready event")
+                # Let the connection manager know
+                if hasattr(self.platform, 'discord_adapter') and self.platform.discord_adapter:
+                    conn_mgr = self.platform.discord_adapter._connection_manager
+                    if conn_mgr and hasattr(conn_mgr, '_handle_connected'):
+                        await conn_mgr._handle_connected()
+            
+            async def on_disconnect(self):
+                """Called when the client disconnects."""
+                logger.warning("Discord client on_disconnect event")
+                # Let the connection manager know
+                if hasattr(self.platform, 'discord_adapter') and self.platform.discord_adapter:
+                    conn_mgr = self.platform.discord_adapter._connection_manager
+                    if conn_mgr and hasattr(conn_mgr, '_handle_disconnected'):
+                        await conn_mgr._handle_disconnected(None)
+            
+            async def on_message(self, message: discord.Message):
+                """Called when a message is received."""
+                # Let the channel manager handle it
+                if hasattr(self.platform, 'discord_adapter') and self.platform.discord_adapter:
+                    channel_mgr = self.platform.discord_adapter._channel_manager
+                    if channel_mgr and hasattr(channel_mgr, 'on_message'):
+                        await channel_mgr.on_message(message)
+            
+            async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+                """Called when a reaction is added."""
+                # Let the discord adapter handle it
+                if hasattr(self.platform, 'discord_adapter') and self.platform.discord_adapter:
+                    await self.platform.discord_adapter.on_raw_reaction_add(payload)
+
         # Create Discord client without explicit loop (discord.py will manage it)
-        self.client = discord.Client(intents=intents)
+        self.client = CIRISDiscordClient(platform=self, intents=intents)
 
         # Generate adapter_id - will be updated with actual guild_id when bot connects
         # The adapter_id is used by AuthenticationService for observer persistence
@@ -225,9 +263,9 @@ class DiscordPlatform(Service):
 
         if hasattr(self.discord_observer, 'start'):
             if self.discord_observer:
-                await self.discord_observer.start()
-        if hasattr(self.tool_service, 'start'):
-            await self.tool_service.start()
+                self.discord_observer.start()
+        if self.tool_service and hasattr(self.tool_service, 'start'):
+            self.tool_service.start()
         if hasattr(self.discord_adapter, 'start'):
             await self.discord_adapter.start()
         logger.info("DiscordPlatform: Internal components started. Discord client connection deferred to run_lifecycle.")
@@ -293,39 +331,61 @@ class DiscordPlatform(Service):
             # Reset reconnect attempts on successful connection
             self._reconnect_attempts = 0
 
-            # If this is a placeholder task, wait for it to complete (transition signal)
+            # If this is a placeholder task, we need to handle the transition specially
+            transition_complete = asyncio.Event()
+            real_agent_task_found = asyncio.Event()
+            
             if is_placeholder:
-                logger.info("DiscordPlatform: Waiting for transition from placeholder to real agent task...")
-                try:
-                    await current_agent_task
-                    logger.info("DiscordPlatform: Placeholder completed, transitioning to monitor real agent task")
-                    # After placeholder completes, we need to find the real agent task
-                    # Look for AgentProcessorTask in current tasks
-                    # Add a small delay to ensure the real task is created
-                    await asyncio.sleep(0.1)
-                    
-                    found_real_task = False
-                    for attempt in range(10):  # Try up to 10 times with delays
-                        for task in asyncio.all_tasks():
-                            if task.get_name() == "AgentProcessorTask" and not task.done():
-                                current_agent_task = task
-                                logger.info("DiscordPlatform: Now monitoring real agent task")
-                                found_real_task = True
-                                break
-                        if found_real_task:
-                            break
-                        await asyncio.sleep(0.5)  # Wait before retrying
-                    
-                    if not found_real_task:
-                        logger.error("DiscordPlatform: Could not find AgentProcessorTask after placeholder completed")
-                        return
+                logger.info("DiscordPlatform: Setting up placeholder transition handler...")
+                
+                async def handle_placeholder_transition():
+                    nonlocal current_agent_task
+                    logger.info("DiscordPlatform: Waiting for transition from placeholder to real agent task...")
+                    try:
+                        # Wait for placeholder to complete
+                        await current_agent_task
+                        logger.info("DiscordPlatform: Placeholder completed, searching for real agent task")
                         
-                except asyncio.CancelledError:
-                    logger.info("DiscordPlatform: Placeholder task was cancelled")
-                    raise
-                except Exception as e:
-                    logger.error(f"DiscordPlatform: Error during placeholder transition: {e}")
-                    raise
+                        # After placeholder completes, find the real agent task
+                        # Add a small delay to ensure the real task is created
+                        await asyncio.sleep(0.1)
+                        
+                        found_real_task = False
+                        for attempt in range(20):  # Try up to 20 times with delays (10 seconds total)
+                            for task in asyncio.all_tasks():
+                                if task.get_name() == "AgentProcessorTask" and not task.done():
+                                    current_agent_task = task
+                                    self._current_agent_task = current_agent_task
+                                    logger.info(f"DiscordPlatform: Found real agent task on attempt {attempt + 1}")
+                                    found_real_task = True
+                                    real_agent_task_found.set()
+                                    break
+                            if found_real_task:
+                                break
+                            await asyncio.sleep(0.5)  # Wait before retrying
+                        
+                        if not found_real_task:
+                            logger.error("DiscordPlatform: Could not find AgentProcessorTask after placeholder completed")
+                            # Set the event anyway to avoid hanging
+                            real_agent_task_found.set()
+                    except asyncio.CancelledError:
+                        logger.info("DiscordPlatform: Placeholder transition task was cancelled")
+                        real_agent_task_found.set()  # Ensure we don't hang
+                        raise
+                    except Exception as e:
+                        logger.error(f"DiscordPlatform: Error during placeholder transition: {e}")
+                        real_agent_task_found.set()  # Ensure we don't hang
+                    finally:
+                        transition_complete.set()
+                
+                # Create the transition handler task
+                transition_task = asyncio.create_task(handle_placeholder_transition())
+                transition_task.set_name("DiscordPlaceholderTransition")
+                
+                # Wait for the real task to be found before continuing
+                logger.info("DiscordPlatform: Waiting for real agent task to be found...")
+                await real_agent_task_found.wait()
+                logger.info("DiscordPlatform: Continuing with lifecycle management")
 
             # Now wait for either the agent task or Discord client task to complete
             # Keep retrying Discord connection on transient errors
@@ -469,10 +529,28 @@ class DiscordPlatform(Service):
             if not agent_run_task.done():
                 agent_run_task.cancel()
         finally:
-            logger.info("DiscordPlatform: Lifecycle ending. Ensuring Discord client is properly closed.")
+            logger.info("DiscordPlatform: Lifecycle ending. Cleaning up Discord connection.")
+            
+            # Cancel Discord client task if it's still running
+            if self._discord_client_task and not self._discord_client_task.done():
+                logger.info("DiscordPlatform: Cancelling Discord client task")
+                self._discord_client_task.cancel()
+                try:
+                    await self._discord_client_task
+                except asyncio.CancelledError:
+                    pass
+                except Exception as e:
+                    logger.error(f"Error while cancelling Discord client task: {e}")
+            
+            # Close the client if it's still open
             if self.client and not self.client.is_closed():
-                await self.client.close()
-            logger.info("DiscordPlatform: Discord client closed.")
+                logger.info("DiscordPlatform: Closing Discord client")
+                try:
+                    await self.client.close()
+                except Exception as e:
+                    logger.error(f"Error while closing Discord client: {e}")
+            
+            logger.info("DiscordPlatform: Discord lifecycle complete")
 
     async def stop(self) -> None:
         logger.info("DiscordPlatform: Stopping...")
@@ -480,9 +558,9 @@ class DiscordPlatform(Service):
         # Stop observer, tool service and adapter first
         if hasattr(self.discord_observer, 'stop'):
             if self.discord_observer:
-                await self.discord_observer.stop()
+                self.discord_observer.stop()
         if hasattr(self.tool_service, 'stop'):
-            await self.tool_service.stop()
+            self.tool_service.stop()
         if hasattr(self.discord_adapter, 'stop'):
             await self.discord_adapter.stop()
 
@@ -503,8 +581,8 @@ class DiscordPlatform(Service):
                 await self._discord_client_task
             except asyncio.CancelledError:
                 logger.info("DiscordPlatform: Discord client task successfully cancelled.")
-                # Re-raise CancelledError to maintain cancellation chain
-                raise
+                # Don't re-raise during stop - we're already shutting down
+                pass
 
         logger.info("DiscordPlatform: Stopped.")
     
@@ -518,13 +596,9 @@ class DiscordPlatform(Service):
             if self.client.is_closed():
                 return False
                 
-            if not self.client.is_ready():
-                return False
-                
-            # Also check if the Discord adapter reports healthy
-            if hasattr(self.discord_adapter, 'is_healthy'):
-                return await self.discord_adapter.is_healthy()
-                
+            # If client exists and is not closed, we're healthy
+            # The client.is_ready() check happens during connection
+            # and we log "Discord client ready!" when it's true
             return True
         except Exception as e:
             logger.warning(f"Discord health check failed: {e}")

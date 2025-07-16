@@ -62,7 +62,7 @@ class WorkProcessor(BaseProcessor):
         """Work processor handles WORK and PLAY states."""
         return [AgentState.WORK, AgentState.PLAY]
 
-    async def can_process(self, state: AgentState) -> bool:
+    def can_process(self, state: AgentState) -> bool:
         """Check if we can process the given state."""
         return state in self.get_supported_states()
 
@@ -210,7 +210,7 @@ class WorkProcessor(BaseProcessor):
                 f"Dispatch failed: {str(e)}"
             )
 
-    async def _handle_idle_state(self, round_number: int) -> None:
+    def _handle_idle_state(self, round_number: int) -> None:
         """Handle idle state when no thoughts are pending."""
         logger.info(f"Round {round_number}: No thoughts to process (idle rounds: {self.idle_rounds})")
 
@@ -264,7 +264,7 @@ class WorkProcessor(BaseProcessor):
 
             await asyncio.sleep(1)  # Brief pause between rounds
 
-    async def stop_processing(self) -> None:
+    def stop_processing(self) -> None:
         """Stop work processing and clean up resources."""
         self._running = False
         logger.info("Work processor stopped")

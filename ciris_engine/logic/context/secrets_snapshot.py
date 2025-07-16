@@ -16,7 +16,7 @@ async def build_secrets_snapshot(secrets_service: SecretsService) -> dict:
         detected_secrets: List[SecretReference] = recent_secrets
 
         # Get filter version
-        filter_config = await secrets_service.filter.get_filter_config()
+        filter_config = secrets_service.filter.get_filter_config()
         filter_version = filter_config.version
 
         # Get total count

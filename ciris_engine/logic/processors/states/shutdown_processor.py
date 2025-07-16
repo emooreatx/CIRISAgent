@@ -63,7 +63,7 @@ class ShutdownProcessor(BaseProcessor):
         """We only handle SHUTDOWN state."""
         return [AgentState.SHUTDOWN]
 
-    async def can_process(self, state: AgentState) -> bool:
+    def can_process(self, state: AgentState) -> bool:
         """We can always process shutdown state."""
         return state == AgentState.SHUTDOWN
 
@@ -271,7 +271,7 @@ class ShutdownProcessor(BaseProcessor):
         await add_system_task(self.shutdown_task, auth_service=self.auth_service)
         logger.info(f"Created {'emergency' if is_emergency else 'normal'} shutdown task: {self.shutdown_task.task_id}")
 
-    async def _check_failure_reason(self, task: Task) -> dict:
+    def _check_failure_reason(self, task: Task) -> dict:
         """Check why the task failed - could be REJECT or actual error."""
         # Look at the final thought to determine reason
         thoughts = persistence.get_thoughts_by_task_id(task.task_id)
@@ -362,7 +362,7 @@ class ShutdownProcessor(BaseProcessor):
                     final_action={"error": str(e)}
                 )
 
-    async def cleanup(self) -> bool:
+    def cleanup(self) -> bool:
         """Cleanup when transitioning out of SHUTDOWN state."""
         logger.info("Cleaning up shutdown processor")
         # Clear runtime shutdown context

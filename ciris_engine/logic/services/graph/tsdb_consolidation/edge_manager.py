@@ -32,7 +32,7 @@ class EdgeManager:
         pass
     
     
-    async def create_summary_to_nodes_edges(
+    def create_summary_to_nodes_edges(
         self,
         summary_node: GraphNode,
         target_nodes: List[GraphNode],
@@ -159,7 +159,7 @@ class EdgeManager:
         
         return edges_created
     
-    async def create_cross_summary_edges(
+    def create_cross_summary_edges(
         self,
         summaries: List[GraphNode],
         period_start: datetime
@@ -226,7 +226,7 @@ class EdgeManager:
         
         return edges_created
     
-    async def create_temporal_edges(
+    def create_temporal_edges(
         self,
         current_summary: GraphNode,
         previous_summary_id: Optional[str]
@@ -327,7 +327,7 @@ class EdgeManager:
             logger.error(f"Failed to create temporal edges: {e}")
             return 0
     
-    async def create_concept_edges(
+    def create_concept_edges(
         self,
         summary_nodes: List[GraphNode],
         concept_nodes: List[GraphNode],
@@ -388,7 +388,7 @@ class EdgeManager:
         
         return edges_created
     
-    async def get_previous_summary_id(
+    def get_previous_summary_id(
         self,
         node_type_prefix: str,
         previous_period_id: str
@@ -460,7 +460,7 @@ class EdgeManager:
             "TEMPORAL_CORRELATION"
         )
     
-    async def create_user_participation_edges(
+    def create_user_participation_edges(
         self,
         conversation_summary: GraphNode,
         participant_data: Dict[str, ParticipantData],
@@ -578,7 +578,7 @@ class EdgeManager:
         
         return edges_created
     
-    async def cleanup_orphaned_edges(self) -> int:
+    def cleanup_orphaned_edges(self) -> int:
         """
         Remove edges where source or target nodes no longer exist.
         
@@ -608,7 +608,7 @@ class EdgeManager:
             logger.error(f"Failed to cleanup orphaned edges: {e}")
             return 0
     
-    async def create_edges(
+    def create_edges(
         self,
         edges: Union[List[EdgeSpecification], List[Tuple[GraphNode, GraphNode, str, Dict[str, Any]]]]
     ) -> int:
@@ -773,7 +773,7 @@ class EdgeManager:
         
         return edges_created
     
-    async def update_next_period_edges(
+    def update_next_period_edges(
         self,
         period_start: datetime,
         summaries: List[GraphNode]

@@ -201,7 +201,7 @@ class APIAuthService:
         # Key ID is first 8 chars of the hash
         return self._hash_key(api_key)[:8]
 
-    async def store_api_key(
+    def store_api_key(
         self,
         key: str,
         user_id: str,
@@ -228,7 +228,7 @@ class APIAuthService:
         )
         self._api_keys[key_hash] = stored_key
 
-    async def validate_api_key(self, api_key: str) -> Optional[StoredAPIKey]:
+    def validate_api_key(self, api_key: str) -> Optional[StoredAPIKey]:
         """Validate an API key and return its info."""
         key_hash = self._hash_key(api_key)
         stored_key = self._api_keys.get(key_hash)
@@ -261,7 +261,7 @@ class APIAuthService:
         return stored_key
 
 
-    async def revoke_api_key(self, key_id: str) -> None:
+    def revoke_api_key(self, key_id: str) -> None:
         """Revoke an API key."""
         # Find key by partial hash
         for key_hash, stored_key in self._api_keys.items():
@@ -269,7 +269,7 @@ class APIAuthService:
                 stored_key.is_active = False
                 return
 
-    async def create_oauth_user(
+    def create_oauth_user(
         self,
         provider: str,
         external_id: str,
@@ -324,7 +324,7 @@ class APIAuthService:
     
     async def verify_user_password(self, username: str, password: str) -> Optional[User]:
         """Verify a user's password and return the user if valid."""
-        user = await self.get_user_by_username(username)
+        user = self.get_user_by_username(username)
         if not user:
             return None
         
@@ -332,7 +332,7 @@ class APIAuthService:
             return user
         return None
     
-    async def get_user_by_username(self, username: str) -> Optional[User]:
+    def get_user_by_username(self, username: str) -> Optional[User]:
         """Get a user by username."""
         for user in self._users.values():
             if user.name == username:
@@ -347,7 +347,7 @@ class APIAuthService:
     ) -> Optional[User]:
         """Create a new user account."""
         # Check if username already exists
-        existing = await self.get_user_by_username(username)
+        existing = self.get_user_by_username(username)
         if existing:
             return None
         
@@ -416,7 +416,7 @@ class APIAuthService:
         
         return user
     
-    async def list_users(
+    def list_users(
         self,
         search: Optional[str] = None,
         auth_type: Optional[str] = None,
@@ -488,7 +488,7 @@ class APIAuthService:
         }
         return mapping.get(role, APIRole.OBSERVER)
     
-    async def get_user(self, user_id: str) -> Optional[User]:
+    def get_user(self, user_id: str) -> Optional[User]:
         """Get a specific user by ID."""
         # Check stored users first
         if user_id in self._users:
@@ -519,7 +519,7 @@ class APIAuthService:
         is_active: Optional[bool] = None
     ) -> Optional[User]:
         """Update user information."""
-        user = await self.get_user(user_id)
+        user = self.get_user(user_id)
         if not user:
             return None
         
@@ -587,7 +587,7 @@ class APIAuthService:
         skip_current_check: bool = False
     ) -> bool:
         """Change user password."""
-        user = await self.get_user(user_id)
+        user = self.get_user(user_id)
         if not user or user.auth_type != "password":
             return False
         
@@ -616,7 +616,7 @@ class APIAuthService:
     
     async def deactivate_user(self, user_id: str) -> bool:
         """Deactivate a user account."""
-        user = await self.get_user(user_id)
+        user = self.get_user(user_id)
         if not user:
             return False
         
@@ -698,7 +698,7 @@ class APIAuthService:
     
     async def update_user_permissions(self, user_id: str, permissions: List[str]) -> Optional[User]:
         """Update a user's custom permissions."""
-        user = await self.get_user(user_id)
+        user = self.get_user(user_id)
         if not user:
             return None
         
@@ -722,7 +722,7 @@ class APIAuthService:
         
         return user
     
-    async def list_user_api_keys(self, user_id: str) -> List[StoredAPIKey]:
+    def list_user_api_keys(self, user_id: str) -> List[StoredAPIKey]:
         """List all API keys for a specific user."""
         keys = []
         for stored_key in self._api_keys.values():
@@ -822,7 +822,7 @@ class APIAuthService:
         minted_by: str
     ) -> Optional[User]:
         """Mint a user as a Wise Authority."""
-        user = await self.get_user(user_id)
+        user = self.get_user(user_id)
         if not user:
             return None
         

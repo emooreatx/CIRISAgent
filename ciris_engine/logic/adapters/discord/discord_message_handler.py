@@ -40,7 +40,11 @@ class DiscordMessageHandler:
         if not self.client:
             raise RuntimeError("Discord client is not initialized")
 
+        # Wait for client to be ready - this will wait through reconnections
+        # wait_until_ready() handles the case where the client is closed and reconnecting
         if hasattr(self.client, 'wait_until_ready'):
+            # This method waits until the client's internal cache is ready
+            # It will wait through disconnections and reconnections
             await self.client.wait_until_ready()
 
         channel = await self._resolve_channel(channel_id)

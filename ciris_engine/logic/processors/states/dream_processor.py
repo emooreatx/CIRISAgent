@@ -175,7 +175,7 @@ class DreamProcessor(BaseProcessor):
             except RuntimeError:
                 logger.warning("Cannot create stop event outside of async context")
 
-    async def _create_all_dream_tasks(self) -> None:
+    def _create_all_dream_tasks(self) -> None:
         """Create all dream tasks upfront for maximum parallelism."""
         from ciris_engine.logic.processors.support.task_manager import TaskManager
         from ciris_engine.logic.processors.support.thought_manager import ThoughtManager
@@ -393,7 +393,7 @@ class DreamProcessor(BaseProcessor):
         logger.info(f"Starting dream cycle (duration: {duration}s)")
 
         # Create all dream tasks upfront for maximum parallelism
-        await self._create_all_dream_tasks()
+        self._create_all_dream_tasks()
 
         self._dream_task = asyncio.create_task(self._dream_loop(duration))
 
@@ -530,7 +530,7 @@ class DreamProcessor(BaseProcessor):
 
         return round_metrics
 
-    async def _process_dream_thought(self, item: ProcessingQueueItem) -> Optional[Any]:
+    def _process_dream_thought(self, item: ProcessingQueueItem) -> Optional[Any]:
         """Process a single dream thought through the thought processor."""
         # The thought processor handles everything - context building, DMAs, actions
         # We just need to ensure dream-specific context is available
@@ -562,7 +562,7 @@ class DreamProcessor(BaseProcessor):
                 round_start = self._time_service.now()
 
                 # Update phase based on active tasks
-                await self._update_current_phase()
+                self._update_current_phase()
 
                 # Process a round
                 metrics = await self.process_round(round_number)
@@ -601,7 +601,7 @@ class DreamProcessor(BaseProcessor):
             if self._stop_event:
                 self._stop_event.set()
 
-    async def _update_current_phase(self) -> None:
+    def _update_current_phase(self) -> None:
         """Update current phase based on active task types."""
         if not self.current_session:
             return
@@ -1223,14 +1223,14 @@ class DreamProcessor(BaseProcessor):
         return summary
 
     # BaseProcessor interface implementation
-    async def initialize(self) -> bool:
+    def initialize(self) -> bool:
         """Initialize the processor with TimeService awareness."""
         # Use our time service instead of time_utils
         if self._time_service:
             self.metrics.start_time = self._time_service.now()
         return True
 
-    async def cleanup(self) -> bool:
+    def cleanup(self) -> bool:
         """Clean up processor resources with TimeService awareness."""
         # Use our time service instead of time_utils
         if self._time_service:
@@ -1241,7 +1241,7 @@ class DreamProcessor(BaseProcessor):
         """Return list of states this processor can handle."""
         return [AgentState.DREAM]
 
-    async def can_process(self, state: AgentState) -> bool:
+    def can_process(self, state: AgentState) -> bool:
         """Check if this processor can handle the current state."""
         return state == AgentState.DREAM
 

@@ -97,7 +97,7 @@ class DiscordChannelManager:
 
         return True
 
-    async def is_client_ready(self) -> bool:
+    def is_client_ready(self) -> bool:
         """Check if the Discord client is ready and connected.
 
         Returns:
@@ -127,7 +127,7 @@ class DiscordChannelManager:
             if hasattr(self.client, 'wait_until_ready'):
                 await self.client.wait_until_ready()
                 return True
-            return await self.is_client_ready()
+            return self.is_client_ready()
         except Exception as e:
             logger.exception(f"Error waiting for Discord client: {e}")
             return False
@@ -214,10 +214,7 @@ class DiscordChannelManager:
             client: Discord client to attach to
         """
         self.client = client
-
-        @client.event
-        async def on_message(message: discord.Message) -> None:
-            await self.on_message(message)
+        # Event handling is now done by CIRISDiscordClient
 
     def get_client_info(self) -> dict:
         """Get information about the Discord client.

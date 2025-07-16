@@ -85,10 +85,10 @@ class TestAgentProcessor:
         for state in ['wakeup', 'work', 'play', 'solitude', 'dream', 'shutdown']:
             processor = Mock()
             processor.get_supported_states = Mock(return_value=[getattr(AgentState, state.upper())])
-            processor.can_process = AsyncMock(return_value=True)
-            processor.initialize = AsyncMock(return_value=True)
+            processor.can_process = Mock(return_value=True)
+            processor.initialize = Mock(return_value=True)
             processor.process = AsyncMock(return_value=result_types[state])
-            processor.cleanup = AsyncMock(return_value=True)
+            processor.cleanup = Mock(return_value=True)
             processor.get_metrics = Mock(return_value=ProcessorMetrics())
             processors[state] = processor
         return processors
@@ -163,7 +163,7 @@ class TestAgentProcessor:
         main_processor._process_pending_thoughts_async = AsyncMock(return_value=0)
         
         # Mock _load_preload_tasks and _schedule_initial_dream to avoid delays
-        main_processor._load_preload_tasks = AsyncMock()
+        main_processor._load_preload_tasks = Mock()
         main_processor._schedule_initial_dream = AsyncMock()
         
         # Mock _processing_loop to complete immediately
@@ -404,7 +404,7 @@ class TestAgentProcessor:
         """Test processing stops at round limit."""
         # Mock the internal methods to avoid delays
         main_processor._process_pending_thoughts_async = AsyncMock(return_value=0)
-        main_processor._load_preload_tasks = AsyncMock()
+        main_processor._load_preload_tasks = Mock()
         main_processor._schedule_initial_dream = AsyncMock()
         
         # Mock the processing loop to simulate reaching max rounds

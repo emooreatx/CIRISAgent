@@ -97,7 +97,7 @@ def _convert_audit_entry(entry: AuditEntry) -> AuditEntryResponse:
         hash_chain=entry.hash_chain
     )
 
-async def _get_audit_service(request: Request) -> AuditServiceProtocol:
+def _get_audit_service(request: Request) -> AuditServiceProtocol:
     """Get audit service from app state."""
     audit_service = getattr(request.app.state, 'audit_service', None)
     if not audit_service:
@@ -133,7 +133,7 @@ async def query_audit_entries(
 
     Requires OBSERVER role or higher.
     """
-    audit_service = await _get_audit_service(request)
+    audit_service = _get_audit_service(request)
 
     # Build unified query
     query = AuditQuery(
@@ -194,7 +194,7 @@ async def get_audit_entry(
 
     Requires OBSERVER role or higher.
     """
-    audit_service = await _get_audit_service(request)
+    audit_service = _get_audit_service(request)
 
     try:
         # Get the specific entry (implementation would use a proper lookup)
@@ -322,7 +322,7 @@ async def verify_audit_entry(
 
     Requires ADMIN role or higher.
     """
-    audit_service = await _get_audit_service(request)
+    audit_service = _get_audit_service(request)
 
     try:
         # Get the full verification report
@@ -353,7 +353,7 @@ async def export_audit_data(
 
     Requires ADMIN role or higher.
     """
-    audit_service = await _get_audit_service(request)
+    audit_service = _get_audit_service(request)
 
     try:
         # Export data

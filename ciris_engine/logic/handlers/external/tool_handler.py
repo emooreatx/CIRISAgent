@@ -40,7 +40,7 @@ class ToolHandler(BaseActionHandler):
             
             self.logger.debug(f"After decapsulation: {processed_result.action_parameters}")
 
-            params = await self._validate_and_convert_params(processed_result.action_parameters, ToolParams)
+            params = self._validate_and_convert_params(processed_result.action_parameters, ToolParams)
         except Exception as e:
             await self._handle_error(HandlerActionType.TOOL, dispatch_context, thought_id, e)
             final_thought_status = ThoughtStatus.FAILED
@@ -104,7 +104,7 @@ class ToolHandler(BaseActionHandler):
             follow_up_id: Optional[str] = follow_up.thought_id
         else:
             # Use centralized method for successful cases
-            follow_up_id = await self.complete_thought_and_create_followup(
+            follow_up_id = self.complete_thought_and_create_followup(
                 thought=thought,
                 follow_up_content=follow_up_text,
                 action_result=result

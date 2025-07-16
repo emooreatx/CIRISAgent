@@ -20,7 +20,7 @@ class RecallHandler(BaseActionHandler):
         thought_id = thought.thought_id
         await self._audit_log(HandlerActionType.RECALL, dispatch_context, outcome="start")
         try:
-            params: RecallParams = await self._validate_and_convert_params(raw_params, RecallParams)
+            params: RecallParams = self._validate_and_convert_params(raw_params, RecallParams)
         except Exception as e:
             await self._handle_error(HandlerActionType.RECALL, dispatch_context, thought_id, e)
             # Mark thought as failed and create error follow-up
@@ -29,7 +29,7 @@ class RecallHandler(BaseActionHandler):
                 status=ThoughtStatus.FAILED
             )
             error_content = f"RECALL action failed: {str(e)}"
-            follow_up_id = await self.complete_thought_and_create_followup(
+            follow_up_id = self.complete_thought_and_create_followup(
                 thought=thought,
                 follow_up_content=error_content,
                 action_result=result
@@ -184,7 +184,7 @@ class RecallHandler(BaseActionHandler):
             
             follow_up_content = recall_result.to_follow_up_content()
         # Use centralized method to complete thought and create follow-up
-        follow_up_id = await self.complete_thought_and_create_followup(
+        follow_up_id = self.complete_thought_and_create_followup(
             thought=thought,
             follow_up_content=follow_up_content,
             action_result=result

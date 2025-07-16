@@ -73,7 +73,7 @@ class WakeupProcessor(BaseProcessor):
         """Wakeup processor only handles WAKEUP state."""
         return [AgentState.WAKEUP]
 
-    async def can_process(self, state: AgentState) -> bool:
+    def can_process(self, state: AgentState) -> bool:
         """Check if we can process the given state."""
         return state == AgentState.WAKEUP and not self.wakeup_complete
     """
@@ -154,12 +154,12 @@ class WakeupProcessor(BaseProcessor):
 
                     if existing_thoughts and current_task.status == TaskStatus.ACTIVE:
                         logger.debug(f"Step {i+1} has {len(existing_thoughts)} existing thoughts but task is ACTIVE - creating new thought")
-                        thought, processing_context = await self._create_step_thought(step_task, round_number)
+                        thought, processing_context = self._create_step_thought(step_task, round_number)
                         logger.debug(f"Created new thought {thought.thought_id} for active step {i+1}")
                         processed_any = True
                     elif not existing_thoughts:
                         logger.debug(f"Creating thought for step {i+1} (no existing thoughts)")
-                        thought, processing_context = await self._create_step_thought(step_task, round_number)
+                        thought, processing_context = self._create_step_thought(step_task, round_number)
                         logger.debug(f"Created thought {thought.thought_id} for wakeup step {i+1}")
                         processed_any = True
                     else:
@@ -242,7 +242,7 @@ class WakeupProcessor(BaseProcessor):
                 "error": str(e)
             }
 
-    async def _process_wakeup_steps_non_blocking(self, round_number: int) -> None:
+    def _process_wakeup_steps_non_blocking(self, round_number: int) -> None:
         """Process wakeup steps without blocking - creates thoughts and returns immediately."""
         if not self.wakeup_tasks or len(self.wakeup_tasks) < 2:
             return
@@ -261,7 +261,7 @@ class WakeupProcessor(BaseProcessor):
                     logger.debug(f"Step {i+1} already has active thoughts, skipping")
                     continue
 
-                thought, processing_context = await self._create_step_thought(step_task, round_number)
+                thought, processing_context = self._create_step_thought(step_task, round_number)
                 logger.debug(f"Created thought {thought.thought_id} for step {i+1}/{len(self.wakeup_tasks)-1}")
 
                 _item = ProcessingQueueItem.from_thought(thought, initial_ctx=processing_context)
@@ -274,7 +274,7 @@ class WakeupProcessor(BaseProcessor):
                 if thought.status in [ThoughtStatus.PENDING, ThoughtStatus.PROCESSING]:
                     logger.debug(f"Found existing thought {thought.thought_id} for processing")
 
-    async def _check_all_steps_complete(self) -> bool:
+    def _check_all_steps_complete(self) -> bool:
         """Check if all wakeup steps are complete without blocking."""
         if not self.wakeup_tasks or len(self.wakeup_tasks) < 2:
             return False
@@ -312,11 +312,19 @@ class WakeupProcessor(BaseProcessor):
         
         default_channel = await comm_bus.get_default_channel()
         if not default_channel:
+            # Get more diagnostic info
+            from ciris_engine.logic.registries.base import ServiceRegistry
+            registry = ServiceRegistry.get_instance()
+            provider_info = registry.get_provider_info(service_type="communication") if registry else {}
+            num_providers = len(provider_info.get("providers", []))
+            
             # This should never happen if adapters are properly initialized
             raise RuntimeError(
-                "No communication adapter has a home channel configured. "
+                f"No communication adapter has a home channel configured. "
+                f"Found {num_providers} communication provider(s) in registry. "
                 "At least one adapter must provide a home channel for wakeup tasks. "
-                "Check adapter configurations and ensure they specify a home_channel_id."
+                "Check adapter configurations and ensure they specify a home_channel_id. "
+                "For Discord, ensure the adapter has connected and registered its services."
             )
         
         logger.info(f"Using default channel for wakeup: {default_channel}")
@@ -385,7 +393,7 @@ class WakeupProcessor(BaseProcessor):
             if any(t.status in [ThoughtStatus.PROCESSING, ThoughtStatus.PENDING] for t in existing_thoughts):
                 logger.debug(f"Skipping creation of new thought for step {step_type} (task_id={step_task.task_id}) because an active thought already exists.")
                 continue
-            thought, processing_context = await self._create_step_thought(step_task, round_number)
+            thought, processing_context = self._create_step_thought(step_task, round_number)
             if non_blocking:
                 continue
             result = await self._process_step_thought(thought, processing_context)
@@ -424,7 +432,7 @@ class WakeupProcessor(BaseProcessor):
                 return False
         return True
 
-    async def _create_step_thought(self, step_task: Task, round_number: int) -> Tuple[Thought, Any]:
+    def _create_step_thought(self, step_task: Task, round_number: int) -> Tuple[Thought, Any]:
         """Create a thought for a wakeup step with minimal context.
         
         Processing context will be built later during thought processing to enable
@@ -555,7 +563,7 @@ class WakeupProcessor(BaseProcessor):
             if not self.wakeup_complete:
                 await asyncio.sleep(0.1)  # Brief pause between rounds
 
-    async def stop_processing(self) -> None:
+    def stop_processing(self) -> None:
         """Stop wakeup processing and clean up resources."""
         self.wakeup_complete = True
         logger.info("Wakeup processor stopped")

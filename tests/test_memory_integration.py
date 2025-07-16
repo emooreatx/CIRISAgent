@@ -26,7 +26,7 @@ async def test_memory_operations():
         mock_time_service.now = Mock(return_value=datetime.now(timezone.utc))
 
         memory = LocalGraphMemoryService(db_path, secrets_service=mock_secrets_service, time_service=mock_time_service)
-        await memory.start()
+        memory.start()
 
         # Test memorize
         node = GraphNode(
@@ -53,10 +53,10 @@ async def test_memory_operations():
 
         # Test forget - forget takes a GraphNode
         forget_node = GraphNode(id="test_key", type=NodeType.CONCEPT, scope=GraphScope.LOCAL, attributes={})
-        result = await memory.forget(forget_node)
+        result = memory.forget(forget_node)
         assert result.status.value == "ok"
 
-        await memory.stop()
+        memory.stop()
     finally:
         # Clean up the temporary file
         if os.path.exists(db_path):

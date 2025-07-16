@@ -192,7 +192,7 @@ class WACLIBootstrapService:
                 "error": str(e)
             }
 
-    async def generate_mint_request(
+    def generate_mint_request(
         self,
         name: str,
         requested_role: str = "authority",
@@ -241,7 +241,7 @@ class WACLIBootstrapService:
                 "error": str(e)
             }
 
-    async def approve_mint_request(
+    def approve_mint_request(
         self,
         code: str,
         approver_wa_id: str,

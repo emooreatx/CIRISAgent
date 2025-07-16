@@ -292,14 +292,14 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
             logger.exception("Error recalling nodes for query %s: %s", recall_query.node_id, e)
             return []
 
-    async def forget(self, node: GraphNode) -> MemoryOpResult:
+    def forget(self, node: GraphNode) -> MemoryOpResult:
         """Forget a node and clean up any associated secrets."""
         try:
             # First retrieve the node to check for secrets
             from ciris_engine.logic.persistence.models import graph as persistence
             stored = persistence.get_graph_node(node.id, node.scope, db_path=self.db_path)
             if stored:
-                await self._process_secrets_for_forget(stored.attributes)
+                self._process_secrets_for_forget(stored.attributes)
 
             from ciris_engine.logic.persistence.models import graph as persistence
             persistence.delete_graph_node(node.id, node.scope, db_path=self.db_path)
@@ -308,7 +308,7 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
             logger.exception("Error forgetting node %s: %s", node.id, e)
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
-    async def export_identity_context(self) -> str:
+    def export_identity_context(self) -> str:
         lines: List[str] = []
         with get_db_connection(db_path=self.db_path) as conn:
             cursor = conn.cursor()
@@ -407,7 +407,7 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
 
         return attributes_dict
 
-    async def _process_secrets_for_forget(self, attributes: Union[AnyNodeAttributes, GraphNodeAttributes, dict]) -> None:
+    def _process_secrets_for_forget(self, attributes: Union[AnyNodeAttributes, GraphNodeAttributes, dict]) -> None:
         """Clean up secrets when forgetting a node."""
         if not attributes:
             return
@@ -607,7 +607,7 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
             logger.exception(f"Error memorizing metric {metric_name}: {e}")
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
 
-    async def create_edge(self, edge: GraphEdge) -> MemoryOpResult:
+    def create_edge(self, edge: GraphEdge) -> MemoryOpResult:
         """Create an edge between two nodes in the memory graph."""
         try:
             from ciris_engine.logic.persistence.models.graph import add_graph_edge
@@ -620,7 +620,7 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
             logger.exception(f"Error creating edge: {e}")
             return MemoryOpResult(status=MemoryOpStatus.DENIED, error=str(e))
     
-    async def get_node_edges(self, node_id: str, scope: GraphScope) -> List[GraphEdge]:
+    def get_node_edges(self, node_id: str, scope: GraphScope) -> List[GraphEdge]:
         """Get all edges connected to a node."""
         try:
             from ciris_engine.logic.persistence.models.graph import get_edges_for_node
@@ -796,17 +796,20 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
     # SERVICE PROTOCOL METHODS
     # ============================================================================
 
-    async def start(self) -> None:
+    def start(self) -> None:
         """Start the memory service."""
-        await super().start()
+        # Don't call super() as BaseService has async start
+        self._started = True
+        self._initialized = True
         if self._time_service:
             self._start_time = self._time_service.now()
         logger.info("LocalGraphMemoryService started")
 
-    async def stop(self) -> None:
+    def stop(self) -> None:
         """Stop the memory service."""
         logger.info("LocalGraphMemoryService stopped")
-        await super().stop()
+        # Don't call super() as BaseService has async stop
+        self._started = False
 
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """Collect memory-specific metrics."""
@@ -834,8 +837,8 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
     
     async def is_healthy(self) -> bool:
         """Check if service is healthy."""
-        # First check parent health
-        if not await super().is_healthy():
+        # Check if service is started
+        if not hasattr(self, '_started') or not self._started:
             return False
             
         try:

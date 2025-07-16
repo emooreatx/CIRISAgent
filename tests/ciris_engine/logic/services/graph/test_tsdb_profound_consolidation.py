@@ -247,7 +247,7 @@ class TestProfoundConsolidation:
             before_size = sum(len(row[0]) for row in cursor.fetchall())
             
             # Run profound consolidation
-            await tsdb_service._run_profound_consolidation()
+            tsdb_service._run_profound_consolidation()
             
             # Check that nodes were updated, not created
             cursor.execute("SELECT COUNT(*) as count FROM graph_nodes")
@@ -317,7 +317,7 @@ class TestProfoundConsolidation:
             mock_db_connection.commit()
             
             # Run profound consolidation
-            await tsdb_service._run_profound_consolidation()
+            tsdb_service._run_profound_consolidation()
             
             # Check that nodes were NOT compressed
             cursor.execute("""
@@ -388,7 +388,7 @@ class TestProfoundConsolidation:
             assert basic_before == 36  # 9 days * 4 summaries per day
             
             # Run profound consolidation
-            await tsdb_service._run_profound_consolidation()
+            tsdb_service._run_profound_consolidation()
             
             # Count basic summaries after
             cursor.execute("""
@@ -431,7 +431,7 @@ class TestProfoundConsolidation:
             mock_db_connection.commit()
             
             # Run consolidation
-            await tsdb_service._run_profound_consolidation()
+            tsdb_service._run_profound_consolidation()
             
             # Verify only August summaries were compressed
             cursor.execute("""

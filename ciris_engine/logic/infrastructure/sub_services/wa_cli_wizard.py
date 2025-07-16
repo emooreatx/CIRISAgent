@@ -54,7 +54,7 @@ class WACLIWizardService:
             )
 
             if choice == "1":
-                return await self._join_wa_tree()
+                return self._join_wa_tree()
             elif choice == "3":
                 return await self._configure_oauth()
             else:
@@ -147,7 +147,7 @@ class WACLIWizardService:
             self.console.print(f"❌ Error importing certificate: {e}")
             return WizardResult(status="error", error=str(e))
 
-    async def _join_wa_tree(self) -> JoinRequestResult:
+    def _join_wa_tree(self) -> JoinRequestResult:
         """Wizard flow for joining existing WA tree."""
         self.console.print("\n🤝 [bold]Join Existing WA Tree[/bold]\n")
 
@@ -155,7 +155,7 @@ class WACLIWizardService:
         role = Prompt.ask("Requested role", choices=["authority", "observer"], default="observer")
 
         # Generate join request
-        result = await self.bootstrap_service.generate_mint_request(
+        result = self.bootstrap_service.generate_mint_request(
             name=name,
             requested_role=role
         )

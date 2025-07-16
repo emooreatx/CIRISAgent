@@ -32,7 +32,7 @@ class DiscordErrorHandler:
         self._error_threshold = 5  # Errors before escalation
         self._error_window = timedelta(minutes=5)  # Time window for error counting
 
-    async def handle_channel_error(self, channel_id: str, error: Exception,
+    def handle_channel_error(self, channel_id: str, error: Exception,
                                   operation: str = "unknown") -> DiscordErrorInfo:
         """Handle channel-related errors.
 
@@ -75,7 +75,7 @@ class DiscordErrorHandler:
             message = f"Unexpected error with channel {channel_id}: {str(error)}"
 
         # Track error frequency
-        await self._track_error(error_key, severity)
+        self._track_error(error_key, severity)
 
         result = DiscordErrorInfo(
             severity=severity,
@@ -90,7 +90,7 @@ class DiscordErrorHandler:
         logger.error(f"Channel error: {result.model_dump()}")
         return result
 
-    async def handle_message_error(self, error: Exception, message_content: Optional[str] = None,
+    def handle_message_error(self, error: Exception, message_content: Optional[str] = None,
                                  channel_id: Optional[str] = None) -> DiscordErrorInfo:
         """Handle message-related errors.
 
@@ -127,7 +127,7 @@ class DiscordErrorHandler:
         else:
             message = f"Message send error: {str(error)}"
 
-        await self._track_error(error_key, severity)
+        self._track_error(error_key, severity)
 
         result = DiscordErrorInfo(
             severity=severity,
@@ -167,7 +167,7 @@ class DiscordErrorHandler:
         else:
             message = f"Connection error: {str(error)}"
 
-        await self._track_error(error_key, severity)
+        self._track_error(error_key, severity)
 
         # Notify critical error handler if available
         if severity == ErrorSeverity.CRITICAL and self.on_critical_error:
@@ -184,7 +184,7 @@ class DiscordErrorHandler:
         logger.critical(f"Connection error: {result.model_dump()}")
         return result
 
-    async def handle_api_error(self, error: Exception, endpoint: str) -> DiscordErrorInfo:
+    def handle_api_error(self, error: Exception, endpoint: str) -> DiscordErrorInfo:
         """Handle Discord API errors.
 
         Args:
@@ -213,7 +213,7 @@ class DiscordErrorHandler:
         else:
             message = f"API error on {endpoint}: {str(error)}"
 
-        await self._track_error(error_key, severity)
+        self._track_error(error_key, severity)
 
         result = DiscordErrorInfo(
             severity=severity,
@@ -227,7 +227,7 @@ class DiscordErrorHandler:
         logger.error(f"API error: {result.model_dump()}")
         return result
 
-    async def _track_error(self, error_key: str, severity: ErrorSeverity) -> None:
+    def _track_error(self, error_key: str, severity: ErrorSeverity) -> None:
         """Track error frequency and escalate if needed.
 
         Args:
