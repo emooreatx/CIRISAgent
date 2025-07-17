@@ -468,8 +468,18 @@ async def get_services_status(
             # Handle registry services (format: registry.ServiceType.ENUM.ServiceName_id)
             elif service_key.startswith('registry.') and len(parts) >= 3:
                 source = parts[0]  # 'registry'
-                service_type_enum = parts[1]  # 'ServiceType.COMMUNICATION', etc.
-                service_name = parts[2]  # 'APICommunicationService_127803015745648', etc.
+                
+                # Handle both 3-part and 4-part keys
+                if len(parts) >= 4 and parts[1] == 'ServiceType':
+                    # Format: registry.ServiceType.ENUM.ServiceName_id
+                    service_type_enum = f"{parts[1]}.{parts[2]}"  # 'ServiceType.TOOL'
+                    service_name = parts[3]  # 'APIToolService_127803015745648'
+                    logger.debug(f"4-part key: {service_key}, service_name: {service_name}")
+                else:
+                    # Fallback: registry.ENUM.ServiceName
+                    service_type_enum = parts[1]  # 'ServiceType.COMMUNICATION', etc.
+                    service_name = parts[2]  # Service name or enum value
+                    logger.debug(f"3-part key: {service_key}, service_name: {service_name}")
                 
                 # Clean up service name (remove instance ID)
                 original_service_name = service_name
