@@ -163,7 +163,7 @@ export default function ConfigPage() {
         sections[sectionName] = {
           name: sectionName,
           items: [],
-          category
+          category: category || undefined
         };
       }
 
