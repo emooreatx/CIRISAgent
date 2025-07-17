@@ -325,7 +325,7 @@ class DiscordToolHandler:
 
         return None
 
-    def get_all_tool_info(self) -> List[ToolInfo]:
+    async def get_all_tool_info(self) -> List[ToolInfo]:
         """Get detailed information about all available tools."""
         tools = []
         for tool_name in self.get_available_tools():

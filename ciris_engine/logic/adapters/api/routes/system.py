@@ -696,6 +696,9 @@ async def get_adapter_status(
         if not adapter_info:
             raise HTTPException(status_code=404, detail=f"Adapter '{adapter_id}' not found")
         
+        # Debug logging
+        logger.info(f"Adapter info type: {type(adapter_info)}, value: {adapter_info}")
+        
         # Convert to response format
         metrics_dict = None
         if adapter_info.messages_processed > 0 or adapter_info.error_count > 0:
@@ -941,7 +944,7 @@ async def get_available_tools(
                                     category="general"
                                 ))
                     except Exception as e:
-                        logger.warning(f"Failed to get tools from provider: {e}")
+                        logger.warning(f"Failed to get tools from provider {provider_name}: {e}", exc_info=True)
         
         # Deduplicate tools by name (in case multiple providers offer the same tool)
         seen_tools = {}

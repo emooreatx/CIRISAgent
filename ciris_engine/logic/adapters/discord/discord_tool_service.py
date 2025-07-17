@@ -621,7 +621,7 @@ class DiscordToolService(ToolService):
             category="discord"
         )
 
-    def get_all_tool_info(self) -> List[ToolInfo]:
+    async def get_all_tool_info(self) -> List[ToolInfo]:
         """Get detailed information about all available Discord tools."""
         infos = []
         for tool_name in self._tools:

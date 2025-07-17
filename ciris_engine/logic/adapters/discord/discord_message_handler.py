@@ -38,7 +38,7 @@ class DiscordMessageHandler:
             RuntimeError: If client is not initialized or channel not found
         """
         if not self.client:
-            raise RuntimeError("Discord client is not initialized")
+            raise ValueError("Discord client is not initialized")
 
         # Wait for client to be ready - this will wait through reconnections
         # wait_until_ready() handles the case where the client is closed and reconnecting
@@ -49,7 +49,7 @@ class DiscordMessageHandler:
 
         channel = await self._resolve_channel(channel_id)
         if not channel:
-            raise RuntimeError(f"Discord channel {channel_id} not found")
+            raise ValueError(f"Discord channel {channel_id} not found")
 
         chunks = self._split_message(content)
 
@@ -81,7 +81,7 @@ class DiscordMessageHandler:
             RuntimeError: If client is not initialized
         """
         if not self.client:
-            raise RuntimeError("Discord client is not initialized")
+            raise ValueError("Discord client is not initialized")
 
         channel = await self._resolve_channel(channel_id)
         if not channel or not hasattr(channel, 'history'):

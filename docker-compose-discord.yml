@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  ciris-discord:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ciris-discord
+    environment:
+      - CIRIS_ADAPTER=discord
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_SERVER_ID=${DISCORD_SERVER_ID}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
+      - DISCORD_DEFERRAL_CHANNEL_ID=${DISCORD_DEFERRAL_CHANNEL_ID}
+      - WA_USER_ID=${WA_USER_ID}
+      - SNORE_CHANNEL_ID=${SNORE_CHANNEL_ID}
+      # Use OpenAI if available, otherwise mock LLM
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-LOCAL}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    command: ["python", "main.py", "--adapter", "discord"]
