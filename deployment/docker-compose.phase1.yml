@@ -16,16 +16,10 @@ services:
       - CIRIS_ADAPTER=api
       - CIRIS_ADAPTER_DISCORD=discord
       - CIRIS_MOCK_LLM=true  # Enable mock LLM for Phase 1
-      # Discord configuration from ciris_student.env
-      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
-      - DISCORD_SERVER_ID=${DISCORD_SERVER_ID}
-      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
-      - DISCORD_DEFERRAL_CHANNEL_ID=${DISCORD_DEFERRAL_CHANNEL_ID}
-      - WA_USER_ID=${WA_USER_ID}
-      - SNORE_CHANNEL_ID=${SNORE_CHANNEL_ID}
+      # Discord configuration loaded from .env.datum file
       # API configuration
-      - API_HOST=0.0.0.0
-      - API_PORT=8080
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8080
     volumes:
       - datum_data:/app/data
       - datum_logs:/app/logs

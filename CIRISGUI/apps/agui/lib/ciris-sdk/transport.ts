@@ -29,7 +29,7 @@ export class Transport {
 
   constructor(options: TransportOptions) {
     this.baseURL = options.baseURL.replace(/\/$/, ''); // Remove trailing slash
-    this.timeout = options.timeout || 30000; // 30 seconds default
+    this.timeout = options.timeout || 60000; // 60 seconds default
     this.maxRetries = options.maxRetries || 3;
     this.onAuthError = options.onAuthError;
 

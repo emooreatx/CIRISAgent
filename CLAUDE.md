@@ -488,6 +488,49 @@ The mock LLM extracts commands from user context in this order:
 - **Parallel testing**: Use multiple containers (ports 8080-8089)
 - **Incident logs are gold**: Every error reveals system behavior
 
+### Production Deployment - agents.ciris.ai
+
+**Server Access**:
+- **IP**: 108.61.119.117 (Cloudflare proxied - must use IP for SSH, not domain)
+- **SSH Key**: `~/.ssh/ciris_deploy`
+- **User**: root
+- **Example**: `ssh -i ~/.ssh/ciris_deploy root@108.61.119.117`
+
+**Repository Location**:
+- **Path**: `/home/ciris/CIRISAgent`
+- **Upstream**: CIRISAI/CIRISAgent (not emooreatx fork)
+- **GUI Path**: `/home/ciris/CIRISAgent/CIRISGUI`
+
+**Deployment Process**:
+1. **Create PR to upstream**: `gh pr create --repo CIRISAI/CIRISAgent`
+2. **Merge PR**: `gh pr merge <PR#> --repo CIRISAI/CIRISAgent --merge --admin`
+3. **SSH to server**: `ssh -i ~/.ssh/ciris_deploy root@108.61.119.117`
+4. **Pull updates**: `cd /home/ciris/CIRISAgent && git pull origin main`
+5. **Restart services**: `docker-compose -f deployment/docker-compose.phase1.yml up -d --build`
+
+**Important Environment Variables**:
+- `CIRIS_API_HOST=0.0.0.0` - Required for API to bind to all interfaces (default is 127.0.0.1)
+- `CIRIS_API_PORT=8080` - API port (default is 8080)
+- The API adapter uses `CIRIS_API_HOST` not `API_HOST`
+
+**Current Setup (Phase 1)**:
+- Single Datum agent with Mock LLM
+- GUI on port 3000
+- API on port 8080
+- Using `deployment/docker-compose.phase1.yml`
+- Container names: `ciris-agent-datum`, `ciris-gui`
+
+**Monitoring**:
+```bash
+# Check status
+docker ps
+# View logs
+docker logs ciris-agent-datum
+docker logs ciris-gui
+# Check health
+curl http://localhost:8080/v1/system/health
+```
+
 ### Discord Adapter Fix (July 9, 2025)
 
 **Issue**: Discord adapter crashed with "Concurrent call to receive() is not allowed" when receiving messages.

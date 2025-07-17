@@ -221,10 +221,10 @@ export default function ApiDemoPage() {
           endpoint: 'PUT /v1/system/services/{provider}/priority',
           method: 'PUT' as const,
           execute: () => cirisClient.system.updateServicePriority('memory_provider', {
-            priority: 1,
+            priority: 'HIGH',
             priority_group: 0
           }),
-          params: { provider: 'memory_provider', priority: 1, priority_group: 0 }
+          params: { provider: 'memory_provider', priority: 'HIGH', priority_group: 0 }
         },
         {
           title: 'Circuit Breakers',
