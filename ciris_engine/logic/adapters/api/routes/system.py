@@ -472,13 +472,27 @@ async def get_services_status(
                 service_name = parts[2]  # 'APICommunicationService_127803015745648', etc.
                 
                 # Clean up service name (remove instance ID)
+                original_service_name = service_name
                 if '_' in service_name:
                     service_name = service_name.split('_')[0]
                 
-                # Map ServiceType enum to category
+                # Extract adapter type from service name and create display name
+                adapter_prefix = ''
+                display_name = service_name
+                
+                if 'Discord' in service_name:
+                    adapter_prefix = 'DISCORD'
+                elif 'API' in service_name:
+                    adapter_prefix = 'API'
+                elif 'CLI' in service_name:
+                    adapter_prefix = 'CLI'
+                
+                # Map ServiceType enum to category and set display name
                 service_type = 'unknown'
                 if 'COMMUNICATION' in service_type_enum:
                     service_type = 'adapter'
+                    if adapter_prefix:
+                        display_name = f"{adapter_prefix}-COMM"
                 elif 'MEMORY' in service_type_enum:
                     service_type = 'graph'
                 elif 'LLM' in service_type_enum:
@@ -487,10 +501,20 @@ async def get_services_status(
                     service_type = 'infrastructure'
                 elif 'TOOL' in service_type_enum:
                     service_type = 'tool'
+                    if adapter_prefix:
+                        display_name = f"{adapter_prefix}-TOOL"
                 elif 'WISE_AUTHORITY' in service_type_enum:
                     service_type = 'governance'
+                    if adapter_prefix:
+                        display_name = f"{adapter_prefix}-WISE"
                 elif 'RUNTIME_CONTROL' in service_type_enum:
                     service_type = 'runtime'
+                    if adapter_prefix:
+                        display_name = f"{adapter_prefix}-RUNTIME"
+                
+                # Use display name for adapter services
+                if adapter_prefix and display_name != service_name:
+                    service_name = display_name
             else:
                 source = 'unknown'
                 service_type = 'unknown'
