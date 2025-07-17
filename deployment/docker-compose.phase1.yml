@@ -24,8 +24,8 @@ services:
       - WA_USER_ID=${WA_USER_ID}
       - SNORE_CHANNEL_ID=${SNORE_CHANNEL_ID}
       # API configuration
-      - API_HOST=0.0.0.0
-      - API_PORT=8080
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8080
     volumes:
       - datum_data:/app/data
       - datum_logs:/app/logs

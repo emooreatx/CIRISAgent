@@ -506,8 +506,12 @@ The mock LLM extracts commands from user context in this order:
 2. **Merge PR**: `gh pr merge <PR#> --repo CIRISAI/CIRISAgent --merge --admin`
 3. **SSH to server**: `ssh -i ~/.ssh/ciris_deploy root@108.61.119.117`
 4. **Pull updates**: `cd /home/ciris/CIRISAgent && git pull origin main`
-5. **Rebuild GUI**: `cd CIRISGUI && docker build -t ciris-gui .`
-6. **Restart services**: `docker-compose -f deployment/docker-compose.phase1.yml up -d --build`
+5. **Restart services**: `docker-compose -f deployment/docker-compose.phase1.yml up -d --build`
+
+**Important Environment Variables**:
+- `CIRIS_API_HOST=0.0.0.0` - Required for API to bind to all interfaces (default is 127.0.0.1)
+- `CIRIS_API_PORT=8080` - API port (default is 8080)
+- The API adapter uses `CIRIS_API_HOST` not `API_HOST`
 
 **Current Setup (Phase 1)**:
 - Single Datum agent with Mock LLM
