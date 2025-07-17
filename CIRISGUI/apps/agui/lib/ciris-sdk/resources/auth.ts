@@ -124,18 +124,16 @@ export class AuthResource extends BaseResource {
     clientSecret: string,
     metadata?: Record<string, string>
   ): Promise<OAuthProviderConfig> {
-    const params = new URLSearchParams({
+    const body = {
       provider,
       client_id: clientId,
-      client_secret: clientSecret
-    });
-    
-    if (metadata) {
-      params.append('metadata', JSON.stringify(metadata));
-    }
+      client_secret: clientSecret,
+      metadata: metadata || undefined
+    };
 
     return this.transport.post<OAuthProviderConfig>(
-      `/v1/auth/oauth/providers?${params.toString()}`
+      '/v1/auth/oauth/providers',
+      body
     );
   }
 
