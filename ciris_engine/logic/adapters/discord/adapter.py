@@ -186,12 +186,15 @@ class DiscordPlatform(Service):
     def get_channel_info(self) -> dict:
         """Provide guild info for authentication."""
         # Get first guild if connected
-        if self.client.guilds:
-            guild_id = str(self.client.guilds[0].id)
-            # Update adapter_id with actual guild for observer persistence
-            self.adapter_id = f"discord_{guild_id}"
-            logger.info(f"Discord adapter updated with guild-specific adapter_id: {self.adapter_id}")
-            return {'guild_id': guild_id}
+        try:
+            if self.client and hasattr(self.client, 'guilds') and self.client.guilds:
+                guild_id = str(self.client.guilds[0].id)
+                # Update adapter_id with actual guild for observer persistence
+                self.adapter_id = f"discord_{guild_id}"
+                logger.info(f"Discord adapter updated with guild-specific adapter_id: {self.adapter_id}")
+                return {'guild_id': guild_id}
+        except (AttributeError, IndexError, TypeError) as e:
+            logger.debug(f"Could not get guild info: {e}")
         return {'guild_id': 'unknown'}
 
     async def _handle_discord_message_event(self, msg: DiscordMessage) -> None:
@@ -609,7 +612,7 @@ class DiscordPlatform(Service):
         logger.info("[DISCORD_PLATFORM] get_active_channels called on wrapper")
         if hasattr(self.discord_adapter, 'get_active_channels'):
             logger.info("[DISCORD_PLATFORM] Calling discord_adapter.get_active_channels")
-            result = await self.discord_adapter.get_active_channels()
+            result = self.discord_adapter.get_active_channels()
             logger.info(f"[DISCORD_PLATFORM] Got {len(result)} channels from adapter")
             return result
         logger.warning("[DISCORD_PLATFORM] discord_adapter doesn't have get_active_channels")

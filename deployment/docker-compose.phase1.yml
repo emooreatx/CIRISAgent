@@ -29,6 +29,8 @@ services:
     volumes:
       - datum_data:/app/data
       - datum_logs:/app/logs
+      # Mount the .env file into the container
+      - ../.env.datum:/app/.env:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
       interval: 30s

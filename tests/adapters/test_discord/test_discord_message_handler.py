@@ -51,7 +51,7 @@ class TestDiscordMessageHandler:
         # Mock the client as not closed for the new check
         mock_bot.is_closed.return_value = False
 
-        with pytest.raises(RuntimeError, match="Discord channel.*not found"):
+        with pytest.raises(ValueError, match="Discord channel.*not found"):
             await handler.send_message_to_channel("999999999", "Hello")
 
     @pytest.mark.asyncio

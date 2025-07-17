@@ -352,6 +352,7 @@ class TestDiscordReconnectionScenarios:
         
         # Simulate reconnect by marking client as ready again
         mock_discord_client.is_ready.return_value = True
+        mock_discord_client.is_closed.return_value = False  # Reset closed state for reconnect
         discord_platform.discord_adapter._connection_manager.is_connected = Mock(return_value=True)
         discord_platform.discord_adapter.is_healthy = Mock(return_value=True)
         

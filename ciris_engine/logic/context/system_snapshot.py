@@ -328,7 +328,7 @@ async def build_system_snapshot(
                 
                 # Get available tools from this service
                 if hasattr(tool_service, 'get_available_tools'):
-                    tools = await tool_service.get_available_tools()
+                    tools = tool_service.get_available_tools()
                     
                     # Get detailed info for each tool
                     tool_infos = []
@@ -341,7 +341,7 @@ async def build_system_snapshot(
                         # Try to get additional info
                         if hasattr(tool_service, 'get_tool_info'):
                             try:
-                                detailed_info = await tool_service.get_tool_info(tool_name)
+                                detailed_info = tool_service.get_tool_info(tool_name)
                                 if detailed_info:
                                     tool_info['description'] = getattr(detailed_info, 'description', '')
                             except Exception:
