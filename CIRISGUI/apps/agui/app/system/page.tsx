@@ -22,6 +22,56 @@ export default function SystemPage() {
   const [adapterConfigModal, setAdapterConfigModal] = useState<{ type: string; adapterId?: string; isEdit?: boolean } | null>(null);
   const [adapterConfig, setAdapterConfig] = useState<any>({});
   
+  // Helper function to parse service names and extract adapter-specific prefixes
+  const parseServiceName = (serviceName: string): string => {
+    // Handle registry services
+    if (serviceName.startsWith('registry.ServiceType.')) {
+      const parts = serviceName.split('.');
+      if (parts.length >= 4) {
+        const serviceType = parts[2]; // e.g., "WISE_AUTHORITY", "TOOL", etc.
+        const implementation = parts[3].split('_')[0]; // e.g., "DiscordAdapter", "APIToolService"
+        
+        // Map implementation names to adapter types
+        if (implementation === 'DiscordAdapter') {
+          if (serviceType === 'WISE_AUTHORITY') return 'DISCORD-WISE';
+          if (serviceType === 'COMMUNICATION') return 'DISCORD-COMM';
+        } else if (implementation === 'APICommunicationService') {
+          return 'API-COMM';
+        } else if (implementation === 'APIToolService') {
+          return 'API-TOOL';
+        } else if (implementation === 'APIRuntimeControlService') {
+          return 'API-RUNTIME';
+        } else if (implementation === 'DiscordToolService') {
+          return 'DISCORD-TOOL';
+        } else if (implementation === 'MockLLMService') {
+          return 'MOCK-LLM';
+        } else if (implementation === 'WiseAuthorityService') {
+          return 'CORE-WISE';
+        } else if (implementation === 'SecretsToolService') {
+          return 'CORE-TOOL';
+        } else if (implementation === 'LocalGraphMemoryService') {
+          return 'MEMORY';
+        } else if (implementation === 'TimeService') {
+          return 'TIME';
+        } else {
+          // For other registry services, just return the service type
+          return serviceType.replace(/_/g, '-');
+        }
+      }
+    }
+    
+    // Handle direct services - extract the last part of the name
+    if (serviceName.startsWith('direct.')) {
+      const parts = serviceName.split('.');
+      const lastName = parts[parts.length - 1];
+      // Remove "Service" suffix and convert to uppercase with hyphens
+      return lastName.replace(/Service$/, '').replace(/([A-Z])/g, '-$1').toUpperCase().replace(/^-/, '').replace(/-+/g, '-');
+    }
+    
+    // Fallback - return the original name
+    return serviceName;
+  };
+  
   // Debug logging - only log when modals change
   if (confirmDialog || adapterConfigModal) {
     console.log('Modal states:', { confirmDialog, adapterConfigModal });
@@ -484,9 +534,9 @@ export default function SystemPage() {
           
           {services?.services ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {services.services.map((service: any) => (
+              {services.services.map((service: any, index: number) => (
                 <div
-                  key={service.name}
+                  key={`${service.name}-${index}`}
                   className={`relative p-4 rounded-lg border-2 transition-all duration-200 hover:shadow-md ${
                     service.healthy === true
                       ? 'border-green-200 bg-green-50 hover:border-green-300'
@@ -498,7 +548,7 @@ export default function SystemPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <h4 className="text-sm font-semibold text-gray-900 truncate">
-                        {service.name}
+                        {parseServiceName(service.name)}
                       </h4>
                       <p className="text-xs text-gray-500 mt-1">
                         {service.service_type}
