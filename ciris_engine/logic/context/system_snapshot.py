@@ -328,7 +328,12 @@ async def build_system_snapshot(
                 
                 # Get available tools from this service
                 if hasattr(tool_service, 'get_available_tools'):
-                    tools = tool_service.get_available_tools()
+                    # Check if it's a coroutine function
+                    import inspect
+                    if inspect.iscoroutinefunction(tool_service.get_available_tools):
+                        tools = await tool_service.get_available_tools()
+                    else:
+                        tools = tool_service.get_available_tools()
                     
                     # Get detailed info for each tool
                     tool_infos = []
@@ -341,7 +346,10 @@ async def build_system_snapshot(
                         # Try to get additional info
                         if hasattr(tool_service, 'get_tool_info'):
                             try:
-                                detailed_info = tool_service.get_tool_info(tool_name)
+                                if inspect.iscoroutinefunction(tool_service.get_tool_info):
+                                    detailed_info = await tool_service.get_tool_info(tool_name)
+                                else:
+                                    detailed_info = tool_service.get_tool_info(tool_name)
                                 if detailed_info:
                                     tool_info['description'] = getattr(detailed_info, 'description', '')
                             except Exception:
