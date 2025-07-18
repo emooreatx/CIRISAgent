@@ -80,10 +80,10 @@ export default function UsersPage() {
 
   const getWARoleBadgeColor = (role: WARole) => {
     switch (role) {
-      case 'root':
-        return 'bg-red-100 text-red-800 ring-2 ring-red-600';
-      case 'authority':
+      case 'AUTHORITY':
         return 'bg-purple-100 text-purple-800 ring-2 ring-purple-600';
+      case 'ADMIN':
+        return 'bg-blue-100 text-blue-800 ring-2 ring-blue-600';
       default:
         return 'bg-green-100 text-green-800';
     }
