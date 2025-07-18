@@ -199,7 +199,7 @@ export default function ConfigPage() {
         // Add adapter config as a pseudo-config item
         sections[sectionName].items.push({
           key: `${adapter.adapter_id}.config`,
-          value: adapter.config_params || {},
+          value: adapter.config || {},
           updated_at: adapter.loaded_at || new Date().toISOString(),
           updated_by: 'system',
           is_sensitive: false
