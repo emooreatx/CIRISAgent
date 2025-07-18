@@ -13,7 +13,7 @@ interface WAMintModalProps {
 }
 
 export function WAMintModal({ user, onClose, onSuccess }: WAMintModalProps) {
-  const [waRole, setWARole] = useState<WARole>('observer');
+  const [waRole, setWARole] = useState<WARole>('OBSERVER');
   const [rootKey, setRootKey] = useState('');
   const [privateKeyPath, setPrivateKeyPath] = useState('~/.ciris/wa_keys/root_wa.key');
   const [minting, setMinting] = useState(false);
@@ -31,7 +31,7 @@ export function WAMintModal({ user, onClose, onSuccess }: WAMintModalProps) {
       setCheckingKey(true);
       try {
         const response = await cirisClient.users.checkWAKeyExists(privateKeyPath);
-        setKeyExists(response.exists && response.valid_size);
+        setKeyExists(!!response.exists && !!response.valid_size);
         if (response.exists && response.valid_size) {
           setUseAutoSign(true);
         }
@@ -152,11 +152,11 @@ export function WAMintModal({ user, onClose, onSuccess }: WAMintModalProps) {
                       onChange={(e) => setWARole(e.target.value as WARole)}
                       className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                     >
-                      <option value="observer">Observer</option>
-                      <option value="authority">Authority</option>
+                      <option value="OBSERVER">Observer</option>
+                      <option value="AUTHORITY">Authority</option>
                     </select>
                     <p className="mt-1 text-xs text-gray-500">
-                      {waRole === 'authority' 
+                      {waRole === 'AUTHORITY' 
                         ? 'Can approve deferrals and provide guidance' 
                         : 'Can observe and monitor the system'}
                     </p>

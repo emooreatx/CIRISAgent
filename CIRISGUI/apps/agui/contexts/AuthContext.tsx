@@ -79,7 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   const setToken = useCallback((token: string) => {
-    cirisClient.setAccessToken(token);
+    cirisClient.setConfig({ authToken: token });
   }, []);
 
   return (

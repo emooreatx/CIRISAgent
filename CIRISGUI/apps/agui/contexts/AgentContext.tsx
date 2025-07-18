@@ -30,7 +30,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [currentAgent, setCurrentAgent] = useState<AgentConfig | null>(null);
   const [agentRoles, setAgentRoles] = useState<Map<string, AgentRole>>(new Map());
   const [isLoadingRoles, setIsLoadingRoles] = useState(false);
-  const { user, token } = useAuth();
+  const { user } = useAuth();
 
   // Initialize with first agent
   useEffect(() => {
@@ -41,13 +41,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
 
   // Load agent roles when user logs in
   useEffect(() => {
-    if (user && token) {
+    if (user) {
       refreshAgentRoles();
     }
-  }, [user, token]);
+  }, [user]);
 
   const refreshAgentRoles = async () => {
-    if (!user || !token) return;
+    if (!user) return;
     
     setIsLoadingRoles(true);
     const newRoles = new Map<string, AgentRole>();
@@ -57,20 +57,21 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       try {
         // Create a temporary client for this specific agent
         const agentClient = cirisClient.withConfig({
-          baseURL: agent.apiUrl,
-          authToken: token
+          baseURL: agent.apiUrl
         });
 
         // Get current user info from this agent
-        const userInfo = await agentClient.auth.getCurrentUser();
+        const userInfo = await agentClient.auth.getMe() as any;
         
-        newRoles.set(agent.id, {
-          agentId: agent.id,
-          apiRole: userInfo.role as unknown as APIRole,
-          waRole: userInfo.wa_role,
-          isAuthority: userInfo.wa_role === 'authority' || userInfo.wa_role === 'root',
-          lastChecked: new Date()
-        });
+        if (userInfo) {
+          newRoles.set(agent.id, {
+            agentId: agent.id,
+            apiRole: userInfo.api_role || userInfo.role,
+            waRole: userInfo.wa_role,
+            isAuthority: userInfo.wa_role === 'AUTHORITY' || userInfo.wa_role === 'ADMIN',
+            lastChecked: new Date()
+          });
+        }
       } catch (error) {
         console.error(`Failed to get role for agent ${agent.name}:`, error);
         // Default to observer if we can't reach the agent
@@ -95,8 +96,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     
     // Update the SDK to use the new agent's API
     cirisClient.setConfig({
-      baseURL: agent.apiUrl,
-      authToken: token || undefined
+      baseURL: agent.apiUrl
     });
 
     // Refresh roles for this agent if needed
