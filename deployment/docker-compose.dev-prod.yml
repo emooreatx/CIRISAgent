@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # Phase 1: Single Datum agent with Mock LLM for initial testing
+  # Development: Single Datum agent with Mock LLM for testing
   agent-datum:
     image: ciris-agent:latest  # Will be pulled from ghcr.io and tagged locally
     container_name: ciris-agent-datum

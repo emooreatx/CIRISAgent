@@ -207,9 +207,9 @@ jobs:
               echo "# DISCORD_BOT_TOKEN=your_token_here" >> .env.datum
             fi
             
-            # Use the production phase1 compose file that expects images
-            if [ ! -f "deployment/docker-compose.phase1-prod.yml" ]; then
-              cp deployment/docker-compose.phase1.yml deployment/docker-compose.phase1-prod.yml
+            # Use the production dev compose file that expects images
+            if [ ! -f "deployment/docker-compose.dev-prod.yml" ]; then
+              cp deployment/docker-compose.dev.yml deployment/docker-compose.dev-prod.yml
             fi
             
             # Pull new images from GitHub Container Registry
@@ -221,19 +221,19 @@ jobs:
             docker tag ghcr.io/cirisai/ciris-gui:latest ciris-gui:latest
             
             # Stop existing containers
-            docker-compose -f deployment/docker-compose.phase1-prod.yml down || true
+            docker-compose -f deployment/docker-compose.dev-prod.yml down || true
             
-            # Start Phase 1 deployment with mock LLM
-            docker-compose -f deployment/docker-compose.phase1-prod.yml up -d
+            # Start development deployment with mock LLM
+            docker-compose -f deployment/docker-compose.dev-prod.yml up -d
             
             # Clean up old images
             docker image prune -f
             
             # Create systemd service for auto-start if it doesn't exist
-            if [ ! -f "/etc/systemd/system/ciris-phase1.service" ]; then
-              cat > /etc/systemd/system/ciris-phase1.service << 'EOF'
+            if [ ! -f "/etc/systemd/system/ciris-dev.service" ]; then
+              cat > /etc/systemd/system/ciris-dev.service << 'EOF'
             [Unit]
-            Description=CIRIS Phase 1 Deployment
+            Description=CIRIS Development Deployment
             After=docker.service
             Requires=docker.service
             
@@ -241,8 +241,8 @@ jobs:
             Type=oneshot
             RemainAfterExit=yes
             WorkingDirectory=/home/ciris/CIRISAgent
-            ExecStart=/usr/local/bin/docker-compose -f deployment/docker-compose.phase1-prod.yml up -d
-            ExecStop=/usr/local/bin/docker-compose -f deployment/docker-compose.phase1-prod.yml down
+            ExecStart=/usr/local/bin/docker-compose -f deployment/docker-compose.dev-prod.yml up -d
+            ExecStop=/usr/local/bin/docker-compose -f deployment/docker-compose.dev-prod.yml down
             User=root
             Group=root
             
@@ -250,7 +250,7 @@ jobs:
             WantedBy=multi-user.target
             EOF
               systemctl daemon-reload
-              systemctl enable ciris-phase1
+              systemctl enable ciris-dev
             fi
 
       - name: Verify deployment
