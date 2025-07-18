@@ -17,6 +17,7 @@ from ciris_engine.schemas.api.telemetry import (
     MetricTags, ServiceMetricValue, ThoughtStep, LogContext,
     TelemetryQueryFilters, QueryResult, TimeSyncStatus, ServiceMetrics
 )
+from ..constants import ERROR_TELEMETRY_SERVICE_NOT_AVAILABLE, DESC_START_TIME, DESC_END_TIME, DESC_CURRENT_COGNITIVE_STATE
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,7 @@ class SystemOverview(BaseModel):
     """System overview combining all observability data."""
     # Core metrics
     uptime_seconds: float = Field(..., description="System uptime")
-    cognitive_state: str = Field(..., description="Current cognitive state")
+    cognitive_state: str = Field(..., description=DESC_CURRENT_COGNITIVE_STATE)
     messages_processed_24h: int = Field(0, description="Messages in last 24 hours")
     thoughts_processed_24h: int = Field(0, description="Thoughts in last 24 hours")
     tasks_completed_24h: int = Field(0, description="Tasks completed in last 24 hours")
@@ -496,7 +497,7 @@ async def get_detailed_metrics(
     """
     telemetry_service = getattr(request.app.state, 'telemetry_service', None)
     if not telemetry_service:
-        raise HTTPException(status_code=503, detail="Telemetry service not available")
+        raise HTTPException(status_code=503, detail=ERROR_TELEMETRY_SERVICE_NOT_AVAILABLE)
 
     try:
         # Common metrics to query
@@ -606,8 +607,8 @@ async def get_reasoning_traces(
     request: Request,
     auth: AuthContext = Depends(require_observer),
     limit: int = Query(10, ge=1, le=100, description="Maximum traces to return"),
-    start_time: Optional[datetime] = Query(None, description="Start of time range"),
-    end_time: Optional[datetime] = Query(None, description="End of time range")
+    start_time: Optional[datetime] = Query(None, description=DESC_START_TIME),
+    end_time: Optional[datetime] = Query(None, description=DESC_END_TIME)
 ) -> SuccessResponse[TracesResponse]:
     """
     Reasoning traces.
@@ -752,8 +753,8 @@ async def get_reasoning_traces(
 async def get_system_logs(
     request: Request,
     auth: AuthContext = Depends(require_observer),
-    start_time: Optional[datetime] = Query(None, description="Start of time range"),
-    end_time: Optional[datetime] = Query(None, description="End of time range"),
+    start_time: Optional[datetime] = Query(None, description=DESC_START_TIME),
+    end_time: Optional[datetime] = Query(None, description=DESC_END_TIME),
     level: Optional[str] = Query(None, description="Log level filter"),
     service: Optional[str] = Query(None, description="Service filter"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum logs to return")
@@ -1069,7 +1070,7 @@ async def get_detailed_metric(
     """
     telemetry_service = getattr(request.app.state, 'telemetry_service', None)
     if not telemetry_service:
-        raise HTTPException(status_code=503, detail="Telemetry service not available")
+        raise HTTPException(status_code=503, detail=ERROR_TELEMETRY_SERVICE_NOT_AVAILABLE)
     
     try:
         now = datetime.now(timezone.utc)
@@ -1196,7 +1197,7 @@ async def get_resource_history(
     """
     telemetry_service = getattr(request.app.state, 'telemetry_service', None)
     if not telemetry_service:
-        raise HTTPException(status_code=503, detail="Telemetry service not available")
+        raise HTTPException(status_code=503, detail=ERROR_TELEMETRY_SERVICE_NOT_AVAILABLE)
     
     try:
         now = datetime.now(timezone.utc)

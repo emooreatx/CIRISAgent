@@ -21,6 +21,7 @@ from ciris_engine.schemas.api.wa import (
 from ciris_engine.schemas.services.authority_core import DeferralResponse
 from ciris_engine.protocols.services.governance.wise_authority import WiseAuthorityServiceProtocol
 from ..dependencies.auth import require_authority, require_observer, AuthContext
+from ..constants import ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ async def get_deferrals(
             detail=ErrorResponse(
                 error=ErrorDetail(
                     code=ErrorCode.SERVICE_UNAVAILABLE,
-                    message="Wise Authority service not available"
+                    message=ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
                 )
             ).model_dump(mode='json')
         )
@@ -122,7 +123,7 @@ async def resolve_deferral(
             detail=ErrorResponse(
                 error=ErrorDetail(
                     code=ErrorCode.SERVICE_UNAVAILABLE,
-                    message="Wise Authority service not available"
+                    message=ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
                 )
             ).model_dump(mode='json')
         )
@@ -214,7 +215,7 @@ async def get_permissions(
             detail=ErrorResponse(
                 error=ErrorDetail(
                     code=ErrorCode.SERVICE_UNAVAILABLE,
-                    message="Wise Authority service not available"
+                    message=ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
                 )
             ).model_dump(mode='json')
         )
@@ -279,7 +280,7 @@ async def get_wa_status(
             detail=ErrorResponse(
                 error=ErrorDetail(
                     code=ErrorCode.SERVICE_UNAVAILABLE,
-                    message="Wise Authority service not available"
+                    message=ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
                 )
             ).model_dump(mode='json')
         )
@@ -352,7 +353,7 @@ async def request_guidance(
             detail=ErrorResponse(
                 error=ErrorDetail(
                     code=ErrorCode.SERVICE_UNAVAILABLE,
-                    message="Wise Authority service not available"
+                    message=ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
                 )
             ).model_dump(mode='json')
         )

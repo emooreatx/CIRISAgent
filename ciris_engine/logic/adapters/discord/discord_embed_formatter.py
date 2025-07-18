@@ -3,6 +3,21 @@ import discord
 from typing import List, Optional
 from datetime import datetime, timezone
 from enum import Enum
+from .constants import (
+    FIELD_NAME_TASK_ID, FIELD_NAME_THOUGHT_ID, FIELD_NAME_DEFERRAL_ID,
+    FIELD_NAME_DEFER_UNTIL, FIELD_NAME_CONTEXT, FIELD_NAME_REQUESTER,
+    FIELD_NAME_ACTION_TYPE, FIELD_NAME_PARAMETERS, FIELD_NAME_OUTPUT,
+    FIELD_NAME_ERROR, FIELD_NAME_EXECUTION_TIME, FIELD_NAME_PRIORITY,
+    FIELD_NAME_PROGRESS, FIELD_NAME_CREATED, FIELD_NAME_SUBTASKS,
+    FIELD_NAME_ACTOR, FIELD_NAME_SERVICE, FIELD_NAME_TIME,
+    FIELD_NAME_RESULT, FIELD_NAME_OPERATION, FIELD_NAME_SEVERITY,
+    FIELD_NAME_RETRYABLE, FIELD_NAME_SUGGESTED_FIX, EMBED_HOW_TO_RESPOND,
+    EMBED_RESPOND_INSTRUCTIONS, STATUS_MESSAGE_EXECUTING, STATUS_MESSAGE_COMPLETED,
+    STATUS_MESSAGE_FAILED, STATUS_MESSAGE_SUCCESS, STATUS_MESSAGE_FAILED_WITH_ICON,
+    STATUS_EMOJI_PENDING, STATUS_EMOJI_IN_PROGRESS, STATUS_EMOJI_COMPLETED,
+    STATUS_EMOJI_FAILED, STATUS_EMOJI_DEFERRED, STATUS_EMOJI_UNKNOWN,
+    DEFAULT_PAGE_SIZE
+)
 from ciris_engine.schemas.adapters.discord import (
     DiscordGuidanceData, DiscordApprovalData, DiscordToolResult,
     DiscordTaskData, DiscordAuditData, DiscordErrorInfo
@@ -66,15 +81,15 @@ class DiscordEmbedFormatter:
         )
 
         # Add context fields
-        embed.add_field(name="Thought ID", value=f"`{context.thought_id}`", inline=True)
-        embed.add_field(name="Task ID", value=f"`{context.task_id}`", inline=True)
+        embed.add_field(name=FIELD_NAME_THOUGHT_ID, value=f"`{context.thought_id}`", inline=True)
+        embed.add_field(name=FIELD_NAME_TASK_ID, value=f"`{context.task_id}`", inline=True)
         
         if context.defer_until:
-            embed.add_field(name="Defer Until", value=f"<t:{int(context.defer_until.timestamp())}:R>", inline=True)
+            embed.add_field(name=FIELD_NAME_DEFER_UNTIL, value=f"<t:{int(context.defer_until.timestamp())}:R>", inline=True)
         
         if context.context:
             context_str = "\n".join(f"**{k}**: {v}" for k, v in list(context.context.items())[:5])
-            embed.add_field(name="Context", value=context_str[:1024], inline=False)
+            embed.add_field(name=FIELD_NAME_CONTEXT, value=context_str[:1024], inline=False)
 
         embed.set_footer(text="Please provide your guidance")
         return embed
@@ -96,16 +111,16 @@ class DiscordEmbedFormatter:
         )
 
         # Add deferral details
-        embed.add_field(name="Deferral ID", value=f"`{deferral.deferral_id}`", inline=True)
-        embed.add_field(name="Task ID", value=f"`{deferral.task_id}`", inline=True)
-        embed.add_field(name="Thought ID", value=f"`{deferral.thought_id}`", inline=True)
+        embed.add_field(name=FIELD_NAME_DEFERRAL_ID, value=f"`{deferral.deferral_id}`", inline=True)
+        embed.add_field(name=FIELD_NAME_TASK_ID, value=f"`{deferral.task_id}`", inline=True)
+        embed.add_field(name=FIELD_NAME_THOUGHT_ID, value=f"`{deferral.thought_id}`", inline=True)
 
         if deferral.defer_until:
-            embed.add_field(name="Defer Until", value=f"<t:{int(deferral.defer_until.timestamp())}:R>", inline=True)
+            embed.add_field(name=FIELD_NAME_DEFER_UNTIL, value=f"<t:{int(deferral.defer_until.timestamp())}:R>", inline=True)
 
         if deferral.context:
             context_str = "\n".join(f"**{k}**: {v}" for k, v in list(deferral.context.items())[:5])
-            embed.add_field(name="Context", value=context_str[:1024], inline=False)
+            embed.add_field(name=FIELD_NAME_CONTEXT, value=context_str[:1024], inline=False)
 
         return embed
 
@@ -127,24 +142,24 @@ class DiscordEmbedFormatter:
         )
 
         # Add context
-        embed.add_field(name="Requester", value=context.requester_id, inline=True)
+        embed.add_field(name=FIELD_NAME_REQUESTER, value=context.requester_id, inline=True)
 
         if context.task_id:
-            embed.add_field(name="Task", value=f"`{context.task_id}`", inline=True)
+            embed.add_field(name=FIELD_NAME_TASK_ID.replace(" ID", ""), value=f"`{context.task_id}`", inline=True)
 
         if context.thought_id:
-            embed.add_field(name="Thought", value=f"`{context.thought_id}`", inline=True)
+            embed.add_field(name=FIELD_NAME_THOUGHT_ID.replace(" ID", ""), value=f"`{context.thought_id}`", inline=True)
 
         if context.action_name:
-            embed.add_field(name="Action Type", value=context.action_name, inline=True)
+            embed.add_field(name=FIELD_NAME_ACTION_TYPE, value=context.action_name, inline=True)
 
         if context.action_params:
             params_str = "\n".join(f"• **{k}**: {v}" for k, v in list(context.action_params.items())[:5])
-            embed.add_field(name="Parameters", value=params_str[:1024], inline=False)
+            embed.add_field(name=FIELD_NAME_PARAMETERS, value=params_str[:1024], inline=False)
 
         embed.add_field(
-            name="How to Respond",
-            value="React with ✅ to approve or ❌ to deny",
+            name=EMBED_HOW_TO_RESPOND,
+            value=EMBED_RESPOND_INSTRUCTIONS,
             inline=False
         )
 
@@ -165,13 +180,13 @@ class DiscordEmbedFormatter:
         """
         if result is None:
             embed_type = EmbedType.TOOL
-            status = "Executing..."
+            status = STATUS_MESSAGE_EXECUTING
         elif result.success:
             embed_type = EmbedType.SUCCESS
-            status = "Completed"
+            status = STATUS_MESSAGE_COMPLETED
         else:
             embed_type = EmbedType.ERROR
-            status = "Failed"
+            status = STATUS_MESSAGE_FAILED
 
         embed = cls.create_base_embed(
             embed_type,
@@ -182,19 +197,19 @@ class DiscordEmbedFormatter:
         # Add parameters
         if parameters:
             params_str = "\n".join(f"• **{k}**: `{v}`" for k, v in list(parameters.items())[:5])
-            embed.add_field(name="Parameters", value=params_str[:1024], inline=False)
+            embed.add_field(name=FIELD_NAME_PARAMETERS, value=params_str[:1024], inline=False)
 
         # Add result if available
         if result:
             if result.output:
                 output = str(result.output)[:1024]
-                embed.add_field(name="Output", value=f"```\n{output}\n```", inline=False)
+                embed.add_field(name=FIELD_NAME_OUTPUT, value=f"```\n{output}\n```", inline=False)
 
             if result.error:
-                embed.add_field(name="Error", value=result.error[:1024], inline=False)
+                embed.add_field(name=FIELD_NAME_ERROR, value=result.error[:1024], inline=False)
 
             if result.execution_time:
-                embed.add_field(name="Execution Time", value=f"{result.execution_time:.2f}ms", inline=True)
+                embed.add_field(name=FIELD_NAME_EXECUTION_TIME, value=f"{result.execution_time:.2f}ms", inline=True)
 
         return embed
 
@@ -209,12 +224,12 @@ class DiscordEmbedFormatter:
             Formatted embed
         """
         status_emoji = {
-            "pending": "⏳",
-            "in_progress": "🔄",
-            "completed": "✅",
-            "failed": "❌",
-            "deferred": "⏸️"
-        }.get(task.status, "❓")
+            "pending": STATUS_EMOJI_PENDING,
+            "in_progress": STATUS_EMOJI_IN_PROGRESS,
+            "completed": STATUS_EMOJI_COMPLETED,
+            "failed": STATUS_EMOJI_FAILED,
+            "deferred": STATUS_EMOJI_DEFERRED
+        }.get(task.status, STATUS_EMOJI_UNKNOWN)
 
         embed = cls.create_base_embed(
             EmbedType.TASK,
@@ -223,21 +238,21 @@ class DiscordEmbedFormatter:
         )
 
         # Add task details
-        embed.add_field(name="Task ID", value=f"`{task.id}`", inline=True)
-        embed.add_field(name="Priority", value=task.priority.upper(), inline=True)
+        embed.add_field(name=FIELD_NAME_TASK_ID, value=f"`{task.id}`", inline=True)
+        embed.add_field(name=FIELD_NAME_PRIORITY, value=task.priority.upper(), inline=True)
 
         if task.progress is not None:
-            embed.add_field(name="Progress", value=f"{task.progress}%", inline=True)
+            embed.add_field(name=FIELD_NAME_PROGRESS, value=f"{task.progress}%", inline=True)
 
         if task.created_at:
-            embed.add_field(name="Created", value=f"<t:{int(task.created_at.timestamp())}:R>", inline=True)
+            embed.add_field(name=FIELD_NAME_CREATED, value=f"<t:{int(task.created_at.timestamp())}:R>", inline=True)
 
         if task.subtasks:
             subtask_str = "\n".join(
                 f"{'✅' if st.get('completed') else '⬜'} {st.get('name', 'Subtask')}"
                 for st in task.subtasks[:5]
             )
-            embed.add_field(name="Subtasks", value=subtask_str, inline=False)
+            embed.add_field(name=FIELD_NAME_SUBTASKS, value=subtask_str, inline=False)
 
         return embed
 
@@ -258,18 +273,18 @@ class DiscordEmbedFormatter:
         )
 
         # Add audit details
-        embed.add_field(name="Actor", value=audit.actor, inline=True)
-        embed.add_field(name="Service", value=audit.service, inline=True)
+        embed.add_field(name=FIELD_NAME_ACTOR, value=audit.actor, inline=True)
+        embed.add_field(name=FIELD_NAME_SERVICE, value=audit.service, inline=True)
 
         if audit.timestamp:
-            embed.add_field(name="Time", value=f"<t:{int(audit.timestamp.timestamp())}:F>", inline=True)
+            embed.add_field(name=FIELD_NAME_TIME, value=f"<t:{int(audit.timestamp.timestamp())}:F>", inline=True)
 
         if audit.context:
             context_str = "\n".join(f"• **{k}**: {v}" for k, v in list(audit.context.items())[:5])
-            embed.add_field(name="Context", value=context_str[:1024], inline=False)
+            embed.add_field(name=FIELD_NAME_CONTEXT, value=context_str[:1024], inline=False)
 
         if audit.success is not None:
-            embed.add_field(name="Result", value="✅ Success" if audit.success else "❌ Failed", inline=True)
+            embed.add_field(name=FIELD_NAME_RESULT, value=STATUS_MESSAGE_SUCCESS if audit.success else STATUS_MESSAGE_FAILED_WITH_ICON, inline=True)
 
         return embed
 
@@ -298,19 +313,19 @@ class DiscordEmbedFormatter:
 
         # Add error details
         if error_info.operation:
-            embed.add_field(name="Operation", value=error_info.operation, inline=True)
+            embed.add_field(name=FIELD_NAME_OPERATION, value=error_info.operation, inline=True)
 
-        embed.add_field(name="Severity", value=error_info.severity.value.upper(), inline=True)
-        embed.add_field(name="Retryable", value="Yes" if error_info.can_retry else "No", inline=True)
+        embed.add_field(name=FIELD_NAME_SEVERITY, value=error_info.severity.value.upper(), inline=True)
+        embed.add_field(name=FIELD_NAME_RETRYABLE, value="Yes" if error_info.can_retry else "No", inline=True)
 
         if error_info.suggested_fix:
-            embed.add_field(name="Suggested Fix", value=error_info.suggested_fix, inline=False)
+            embed.add_field(name=FIELD_NAME_SUGGESTED_FIX, value=error_info.suggested_fix, inline=False)
 
         return embed
 
     @classmethod
     def create_paginated_embed(cls, title: str, items: List[str],
-                             page: int = 1, per_page: int = 10,
+                             page: int = 1, per_page: int = DEFAULT_PAGE_SIZE,
                              embed_type: EmbedType = EmbedType.INFO) -> discord.Embed:
         """Create a paginated embed for lists.
 

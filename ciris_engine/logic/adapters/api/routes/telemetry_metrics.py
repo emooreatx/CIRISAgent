@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request, HTTPException, Depends, Path
 from pydantic import BaseModel, Field
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ..dependencies.auth import require_observer, AuthContext
+from ..constants import ERROR_TELEMETRY_SERVICE_NOT_AVAILABLE
 
 router = APIRouter()
 
@@ -42,7 +43,7 @@ async def get_metric_detail(
     """
     telemetry_service = getattr(request.app.state, 'telemetry_service', None)
     if not telemetry_service:
-        raise HTTPException(status_code=503, detail="Telemetry service not available")
+        raise HTTPException(status_code=503, detail=ERROR_TELEMETRY_SERVICE_NOT_AVAILABLE)
     
     try:
         # Get current value and recent history

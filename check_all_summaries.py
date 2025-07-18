@@ -73,7 +73,7 @@ with get_db_connection() as conn:
         try:
             start_dt = datetime.fromisoformat(period_start.replace('Z', '+00:00'))
             period_str = start_dt.strftime('%Y-%m-%d %H:%M')
-        except:
+        except (ValueError, TypeError):
             period_str = period_start[:16]
         
         print(f"{period_str} | {summary_id}")

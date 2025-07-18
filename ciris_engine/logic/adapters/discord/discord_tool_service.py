@@ -153,7 +153,7 @@ class DiscordToolService(ToolService):
         fields = params.get("fields", [])
         
         if not channel_id:
-            return {"success": False, "error": "channel_id is required"}
+            return {"success": False, "error": ERROR_CHANNEL_ID_REQUIRED}
         
         try:
             if not self._client:
@@ -436,7 +436,7 @@ class DiscordToolService(ToolService):
         channel_id = params.get("channel_id")
         
         if not channel_id:
-            return {"success": False, "error": "channel_id is required"}
+            return {"success": False, "error": ERROR_CHANNEL_ID_REQUIRED}
         
         try:
             if not self._client:

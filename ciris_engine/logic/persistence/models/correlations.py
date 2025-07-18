@@ -7,6 +7,7 @@ from ciris_engine.logic.persistence import get_db_connection
 from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, CorrelationType
 from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest, MetricsQuery
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.constants import UTC_TIMEZONE_SUFFIX
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +144,7 @@ def get_correlation(correlation_id: str, db_path: Optional[str] = None) -> Optio
                         # Handle both 'Z' and '+00:00' formats
                         timestamp_str = row["timestamp"]
                         if timestamp_str.endswith('Z'):
-                            timestamp_str = timestamp_str[:-1] + '+00:00'
+                            timestamp_str = timestamp_str[:-1] + UTC_TIMEZONE_SUFFIX
                         timestamp = datetime.fromisoformat(timestamp_str)
                     except (ValueError, AttributeError):
                         timestamp = None
@@ -237,7 +238,7 @@ def get_correlations_by_task_and_action(task_id: str, action_type: str, status: 
                         # Handle both 'Z' and '+00:00' formats
                         timestamp_str = row["timestamp"]
                         if timestamp_str.endswith('Z'):
-                            timestamp_str = timestamp_str[:-1] + '+00:00'
+                            timestamp_str = timestamp_str[:-1] + UTC_TIMEZONE_SUFFIX
                         timestamp = datetime.fromisoformat(timestamp_str)
                     except (ValueError, AttributeError):
                         timestamp = None
@@ -352,7 +353,7 @@ def get_correlations_by_type_and_time(
                         # Handle both 'Z' and '+00:00' formats
                         timestamp_str = row["timestamp"]
                         if timestamp_str.endswith('Z'):
-                            timestamp_str = timestamp_str[:-1] + '+00:00'
+                            timestamp_str = timestamp_str[:-1] + UTC_TIMEZONE_SUFFIX
                         timestamp = datetime.fromisoformat(timestamp_str)
                     except (ValueError, AttributeError):
                         timestamp = None
@@ -461,7 +462,7 @@ def get_correlations_by_channel(
                         # Handle both 'Z' and '+00:00' formats
                         timestamp_str = row["timestamp"]
                         if timestamp_str.endswith('Z'):
-                            timestamp_str = timestamp_str[:-1] + '+00:00'
+                            timestamp_str = timestamp_str[:-1] + UTC_TIMEZONE_SUFFIX
                         timestamp = datetime.fromisoformat(timestamp_str)
                     except (ValueError, AttributeError):
                         timestamp = None
@@ -539,7 +540,7 @@ def get_metrics_timeseries(
                         # Handle both 'Z' and '+00:00' formats
                         timestamp_str = row["timestamp"]
                         if timestamp_str.endswith('Z'):
-                            timestamp_str = timestamp_str[:-1] + '+00:00'
+                            timestamp_str = timestamp_str[:-1] + UTC_TIMEZONE_SUFFIX
                         timestamp = datetime.fromisoformat(timestamp_str)
                     except (ValueError, AttributeError):
                         timestamp = None
@@ -677,7 +678,7 @@ def get_active_channels_by_adapter(
                         try:
                             timestamp_str = row[1]
                             if timestamp_str.endswith('Z'):
-                                timestamp_str = timestamp_str[:-1] + '+00:00'
+                                timestamp_str = timestamp_str[:-1] + UTC_TIMEZONE_SUFFIX
                             last_activity = datetime.fromisoformat(timestamp_str)
                         except (ValueError, AttributeError):
                             last_activity = cutoff_time
@@ -781,7 +782,7 @@ def get_channel_last_activity(
                 try:
                     timestamp_str = row[0]
                     if timestamp_str.endswith('Z'):
-                        timestamp_str = timestamp_str[:-1] + '+00:00'
+                        timestamp_str = timestamp_str[:-1] + UTC_TIMEZONE_SUFFIX
                     last_activity = datetime.fromisoformat(timestamp_str)
                 except (ValueError, AttributeError):
                     pass

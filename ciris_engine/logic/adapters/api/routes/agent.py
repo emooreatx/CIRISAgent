@@ -18,6 +18,7 @@ from ciris_engine.schemas.api.auth import UserRole, ROLE_PERMISSIONS, Permission
 from ciris_engine.schemas.api.agent import (
     MessageContext, AgentLineage, ServiceAvailability
 )
+from ..constants import ERROR_MEMORY_SERVICE_NOT_AVAILABLE, DESC_CURRENT_COGNITIVE_STATE
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,7 @@ class AgentStatus(BaseModel):
     name: str = Field(..., description="Agent name")
 
     # State information
-    cognitive_state: str = Field(..., description="Current cognitive state")
+    cognitive_state: str = Field(..., description=DESC_CURRENT_COGNITIVE_STATE)
     uptime_seconds: float = Field(..., description="Time since startup")
 
     # Activity metrics
@@ -530,7 +531,7 @@ async def get_identity(
     # Get memory service to query identity
     memory_service = getattr(request.app.state, 'memory_service', None)
     if not memory_service:
-        raise HTTPException(status_code=503, detail="Memory service not available")
+        raise HTTPException(status_code=503, detail=ERROR_MEMORY_SERVICE_NOT_AVAILABLE)
 
     try:
         # Query identity from graph

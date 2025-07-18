@@ -25,6 +25,7 @@ from ciris_engine.logic.persistence import (
 from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus, ServiceType
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.protocols.services.infrastructure.database_maintenance import DatabaseMaintenanceServiceProtocol
+from ciris_engine.constants import UTC_TIMEZONE_SUFFIX
 
 logger = logging.getLogger(__name__)
 
@@ -293,7 +294,7 @@ class DatabaseMaintenanceService(BaseScheduledService, DatabaseMaintenanceServic
                 # Convert string timestamp to datetime if needed
                 if isinstance(task.created_at, str):
                     from datetime import datetime
-                    task_created = datetime.fromisoformat(task.created_at.replace('Z', '+00:00'))
+                    task_created = datetime.fromisoformat(task.created_at.replace('Z', UTC_TIMEZONE_SUFFIX))
                 else:
                     task_created = task.created_at
                     

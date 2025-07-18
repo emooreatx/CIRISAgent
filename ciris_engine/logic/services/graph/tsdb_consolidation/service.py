@@ -14,6 +14,8 @@ from uuid import uuid4
 if TYPE_CHECKING:
     from ciris_engine.logic.registries.base import ServiceRegistry
 
+from ciris_engine.constants import UTC_TIMEZONE_SUFFIX
+
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.services.graph_core import GraphNode, NodeType
 from ciris_engine.schemas.services.operations import MemoryQuery, MemoryOpStatus
@@ -733,7 +735,7 @@ class TSDBConsolidationService(BaseGraphService):
                 row = cursor.fetchone()
                 
                 if row and row['oldest']:
-                    return datetime.fromisoformat(row['oldest'].replace('Z', '+00:00'))
+                    return datetime.fromisoformat(row['oldest'].replace('Z', UTC_TIMEZONE_SUFFIX))
                 
                 # Check for oldest correlation
                 cursor.execute("""
@@ -743,7 +745,7 @@ class TSDBConsolidationService(BaseGraphService):
                 row = cursor.fetchone()
                 
                 if row and row['oldest']:
-                    return datetime.fromisoformat(row['oldest'].replace('Z', '+00:00'))
+                    return datetime.fromisoformat(row['oldest'].replace('Z', UTC_TIMEZONE_SUFFIX))
                     
         except Exception as e:
             logger.error(f"Failed to find oldest data: {e}")
@@ -1231,7 +1233,7 @@ class TSDBConsolidationService(BaseGraphService):
                     summaries_by_day = defaultdict(list)
                     for node_id, attrs_json, period_start_str in summaries:
                         if period_start_str:
-                            period_dt = datetime.fromisoformat(period_start_str.replace('Z', '+00:00'))
+                            period_dt = datetime.fromisoformat(period_start_str.replace('Z', UTC_TIMEZONE_SUFFIX))
                             day_key = period_dt.date()
                             summaries_by_day[day_key].append((node_id, attrs_json))
                     
@@ -1461,7 +1463,7 @@ class TSDBConsolidationService(BaseGraphService):
                     
                     for node_id, node_type, period_start_str in all_daily_summaries:
                         if period_start_str:
-                            period_dt = datetime.fromisoformat(period_start_str.replace('Z', '+00:00'))
+                            period_dt = datetime.fromisoformat(period_start_str.replace('Z', UTC_TIMEZONE_SUFFIX))
                             date_key = period_dt.date()
                             
                             # Create a minimal GraphNode for edge creation

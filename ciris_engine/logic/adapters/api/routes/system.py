@@ -22,6 +22,7 @@ from ciris_engine.schemas.runtime.adapter_management import (
     AdapterOperationResult, AdapterListResponse,
     AdapterStatus as AdapterStatusSchema, AdapterConfig, AdapterMetrics
 )
+from ..constants import ERROR_RUNTIME_CONTROL_SERVICE_NOT_AVAILABLE, ERROR_TIME_SERVICE_NOT_AVAILABLE, ERROR_RESOURCE_MONITOR_NOT_AVAILABLE, ERROR_SHUTDOWN_SERVICE_NOT_AVAILABLE, DESC_HUMAN_READABLE_STATUS, DESC_CURRENT_COGNITIVE_STATE
 
 router = APIRouter(prefix="/system", tags=["system"])
 logger = logging.getLogger(__name__)
@@ -73,9 +74,9 @@ class RuntimeAction(BaseModel):
 class RuntimeControlResponse(BaseModel):
     """Response to runtime control actions."""
     success: bool = Field(..., description="Whether action succeeded")
-    message: str = Field(..., description="Human-readable status message")
+    message: str = Field(..., description=DESC_HUMAN_READABLE_STATUS)
     processor_state: str = Field(..., description="Current processor state")
-    cognitive_state: Optional[str] = Field(None, description="Current cognitive state")
+    cognitive_state: Optional[str] = Field(None, description=DESC_CURRENT_COGNITIVE_STATE)
     queue_depth: int = Field(0, description="Number of items in processing queue")
 
 
@@ -118,7 +119,7 @@ class ShutdownRequest(BaseModel):
 class ShutdownResponse(BaseModel):
     """Response to shutdown request."""
     status: str = Field(..., description="Shutdown status")
-    message: str = Field(..., description="Human-readable status message")
+    message: str = Field(..., description=DESC_HUMAN_READABLE_STATUS)
     shutdown_initiated: bool = Field(..., description="Whether shutdown was initiated")
     timestamp: datetime = Field(..., description="When shutdown was initiated")
 
@@ -246,7 +247,7 @@ async def get_system_time(
     # Get time service
     time_service: Optional[TimeServiceProtocol] = getattr(request.app.state, 'time_service', None)
     if not time_service:
-        raise HTTPException(status_code=503, detail="Time service not available")
+        raise HTTPException(status_code=503, detail=ERROR_TIME_SERVICE_NOT_AVAILABLE)
 
     try:
         # Get system time (actual OS time)
@@ -299,7 +300,7 @@ async def get_resource_usage(
     """
     resource_monitor = getattr(request.app.state, 'resource_monitor', None)
     if not resource_monitor:
-        raise HTTPException(status_code=503, detail="Resource monitor service not available")
+        raise HTTPException(status_code=503, detail=ERROR_RESOURCE_MONITOR_NOT_AVAILABLE)
 
     try:
         # Get current snapshot and budget
@@ -348,7 +349,7 @@ async def control_runtime(
     """
     runtime_control = getattr(request.app.state, 'runtime_control_service', None)
     if not runtime_control:
-        raise HTTPException(status_code=503, detail="Runtime control service not available")
+        raise HTTPException(status_code=503, detail=ERROR_RUNTIME_CONTROL_SERVICE_NOT_AVAILABLE)
 
     try:
         # Validate action
@@ -596,7 +597,7 @@ async def shutdown_system(
 
     shutdown_service = getattr(runtime, 'shutdown_service', None)
     if not shutdown_service:
-        raise HTTPException(status_code=503, detail="Shutdown service not available")
+        raise HTTPException(status_code=503, detail=ERROR_SHUTDOWN_SERVICE_NOT_AVAILABLE)
 
     try:
         # Check if already shutting down
@@ -654,7 +655,7 @@ async def list_adapters(
     """
     runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
     if not runtime_control:
-        raise HTTPException(status_code=503, detail="Runtime control service not available")
+        raise HTTPException(status_code=503, detail=ERROR_RUNTIME_CONTROL_SERVICE_NOT_AVAILABLE)
     
     try:
         # Get adapter list from runtime control service
@@ -721,7 +722,7 @@ async def get_adapter_status(
     """
     runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
     if not runtime_control:
-        raise HTTPException(status_code=503, detail="Runtime control service not available")
+        raise HTTPException(status_code=503, detail=ERROR_RUNTIME_CONTROL_SERVICE_NOT_AVAILABLE)
     
     try:
         # Get adapter info from runtime control service
@@ -787,7 +788,7 @@ async def load_adapter(
     """
     runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
     if not runtime_control:
-        raise HTTPException(status_code=503, detail="Runtime control service not available")
+        raise HTTPException(status_code=503, detail=ERROR_RUNTIME_CONTROL_SERVICE_NOT_AVAILABLE)
     
     try:
         # Generate adapter ID if not provided
@@ -838,7 +839,7 @@ async def unload_adapter(
     """
     runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
     if not runtime_control:
-        raise HTTPException(status_code=503, detail="Runtime control service not available")
+        raise HTTPException(status_code=503, detail=ERROR_RUNTIME_CONTROL_SERVICE_NOT_AVAILABLE)
     
     try:
         # Unload adapter through runtime control service
@@ -880,7 +881,7 @@ async def reload_adapter(
     """
     runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
     if not runtime_control:
-        raise HTTPException(status_code=503, detail="Runtime control service not available")
+        raise HTTPException(status_code=503, detail=ERROR_RUNTIME_CONTROL_SERVICE_NOT_AVAILABLE)
     
     try:
         # Get current adapter info to preserve type

@@ -7,7 +7,14 @@ from datetime import datetime
 import logging
 import aiofiles
 
-from ..services.auth_service import APIAuthService
+from ..services.auth_service import (
+    APIAuthService,
+    PERMISSION_USERS_READ,
+    PERMISSION_USERS_WRITE,
+    PERMISSION_USERS_DELETE,
+    PERMISSION_WA_MINT,
+    PERMISSION_MANAGE_USER_PERMISSIONS
+)
 from ciris_engine.schemas.runtime.api import (
     APIRole
 )
@@ -18,6 +25,18 @@ from ..dependencies.auth import (
     check_permissions
 )
 from ciris_engine.schemas.api.auth import AuthContext
+
+# Error message constants
+ERROR_USER_NOT_FOUND = "User not found"
+ERROR_USERNAME_EXISTS = "Username already exists"
+ERROR_CREATE_USER_FAILED = "Failed to create user"
+ERROR_CHANGE_PASSWORD_FAILED = "Failed to change password. Check current password."
+ERROR_CANNOT_DEMOTE_SELF = "Cannot demote your own role"
+ERROR_CANNOT_DEACTIVATE_SELF = "Cannot deactivate your own account"
+ERROR_ONLY_ADMIN_MINT_WA = "Only SYSTEM_ADMIN can mint Wise Authorities"
+ERROR_CANNOT_MINT_ROOT = "Cannot mint new ROOT authorities. ROOT is singular."
+ERROR_INVALID_SIGNATURE = "Invalid ROOT signature"
+ERROR_SIGNATURE_OR_KEY_REQUIRED = "Either signature or private_key_path must be provided"
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -143,7 +162,7 @@ async def list_users(
     is_active: Optional[bool] = None,
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service),
-    _: None = Depends(check_permissions(["users.read"]))
+    _: None = Depends(check_permissions([PERMISSION_USERS_READ]))
 ) -> PaginatedResponse[UserSummary]:
     """
     List all users with optional filtering.
@@ -195,7 +214,7 @@ async def create_user(
     request: CreateUserRequest,
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service),
-    _: None = Depends(check_permissions(["users.write"]))
+    _: None = Depends(check_permissions([PERMISSION_USERS_WRITE]))
 ) -> UserDetail:
     """
     Create a new user account.
@@ -207,7 +226,7 @@ async def create_user(
     if existing:
         raise HTTPException(
             status_code=400,
-            detail="Username already exists"
+            detail=ERROR_USERNAME_EXISTS
         )
     
     # Create the user
@@ -220,7 +239,7 @@ async def create_user(
     if not user:
         raise HTTPException(
             status_code=500,
-            detail="Failed to create user"
+            detail=ERROR_CREATE_USER_FAILED
         )
     
     # Return the created user details
@@ -232,7 +251,7 @@ async def get_user(
     user_id: str,
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service),
-    _: None = Depends(check_permissions(["users.read"]))
+    _: None = Depends(check_permissions([PERMISSION_USERS_READ]))
 ) -> UserDetail:
     """
     Get detailed information about a specific user.
@@ -241,7 +260,7 @@ async def get_user(
     """
     user = auth_service.get_user(user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=ERROR_USER_NOT_FOUND)
     
     # Get permissions based on role
     permissions = auth_service.get_permissions_for_role(user.api_role)
@@ -276,7 +295,7 @@ async def update_user(
     request: UpdateUserRequest,
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service),
-    _: None = Depends(check_permissions(["users.write"]))
+    _: None = Depends(check_permissions([PERMISSION_USERS_WRITE]))
 ) -> UserDetail:
     """
     Update user information (role, active status).
@@ -288,7 +307,7 @@ async def update_user(
         if request.api_role.value < auth.role.value:
             raise HTTPException(
                 status_code=400, 
-                detail="Cannot demote your own role"
+                detail=ERROR_CANNOT_DEMOTE_SELF
             )
     
     # Update user
@@ -299,7 +318,7 @@ async def update_user(
     )
     
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=ERROR_USER_NOT_FOUND)
     
     # Return updated user details
     return await get_user(user_id, auth, auth_service, None)
@@ -321,7 +340,7 @@ async def change_password(
     # Check permissions
     if user_id != auth.user_id:
         # Only SYSTEM_ADMIN can change other users' passwords
-        await check_permissions(["users.write"])(auth)
+        await check_permissions([PERMISSION_USERS_WRITE])(auth)
         # SYSTEM_ADMIN doesn't need to provide current password
         success = await auth_service.change_password(
             user_id=user_id,
@@ -339,7 +358,7 @@ async def change_password(
     if not success:
         raise HTTPException(
             status_code=400, 
-            detail="Failed to change password. Check current password."
+            detail=ERROR_CHANGE_PASSWORD_FAILED
         )
     
     return {"message": "Password changed successfully"}
@@ -367,14 +386,14 @@ async def mint_wise_authority(
     if auth.role != APIRole.SYSTEM_ADMIN:
         raise HTTPException(
             status_code=403,
-            detail="Only SYSTEM_ADMIN can mint Wise Authorities"
+            detail=ERROR_ONLY_ADMIN_MINT_WA
         )
     
     # Validate that request.wa_role is not ROOT
     if request.wa_role == WARole.ROOT:  # type: ignore[unreachable]
         raise HTTPException(
             status_code=400,
-            detail="Cannot mint new ROOT authorities. ROOT is singular."
+            detail=ERROR_CANNOT_MINT_ROOT
         )
     
     # If no signature provided but private key path is given, try to auto-sign
@@ -445,7 +464,7 @@ async def mint_wise_authority(
     if not signature:
         raise HTTPException(
             status_code=400,
-            detail="Either signature or private_key_path must be provided"
+            detail=ERROR_SIGNATURE_OR_KEY_REQUIRED
         )
     
     # Verify the ROOT signature
@@ -458,7 +477,7 @@ async def mint_wise_authority(
     if not verified:
         raise HTTPException(
             status_code=401,
-            detail="Invalid ROOT signature"
+            detail=ERROR_INVALID_SIGNATURE
         )
     
     # Mint the user as WA
@@ -469,7 +488,7 @@ async def mint_wise_authority(
     )
     
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=ERROR_USER_NOT_FOUND)
     
     # Return updated user details
     return await get_user(user_id, auth, auth_service, None)
@@ -479,7 +498,7 @@ async def mint_wise_authority(
 async def check_wa_key_exists(
     path: str = Query(..., description="Filename of private key to check"),
     auth: AuthContext = Depends(get_auth_context),
-    _: None = Depends(check_permissions(["wa.mint"]))  # SYSTEM_ADMIN only
+    _: None = Depends(check_permissions([PERMISSION_WA_MINT]))  # SYSTEM_ADMIN only
 ) -> WAKeyCheckResponse:
     """
     Check if a WA private key exists at the given filename.
@@ -551,7 +570,7 @@ async def deactivate_user(
     user_id: str,
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service),
-    _: None = Depends(check_permissions(["users.delete"]))
+    _: None = Depends(check_permissions([PERMISSION_USERS_DELETE]))
 ) -> DeactivateUserResponse:
     """
     Deactivate a user account.
@@ -562,13 +581,13 @@ async def deactivate_user(
     if user_id == auth.user_id:
         raise HTTPException(
             status_code=400,
-            detail="Cannot deactivate your own account"
+            detail=ERROR_CANNOT_DEACTIVATE_SELF
         )
     
     success = await auth_service.deactivate_user(user_id)
     
     if not success:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=ERROR_USER_NOT_FOUND)
     
     return DeactivateUserResponse(message="User deactivated successfully")
 
@@ -587,7 +606,7 @@ async def list_user_api_keys(
     """
     # Check permissions
     if user_id != auth.user_id:
-        await check_permissions(["users.read"])(auth)
+        await check_permissions([PERMISSION_USERS_READ])(auth)
     
     keys = auth_service.list_user_api_keys(user_id)
     
@@ -611,7 +630,7 @@ async def update_user_permissions(
     request: UpdatePermissionsRequest,
     auth: AuthContext = Depends(get_auth_context),
     auth_service: APIAuthService = Depends(get_auth_service),
-    _: None = Depends(check_permissions(["manage_user_permissions"]))
+    _: None = Depends(check_permissions([PERMISSION_MANAGE_USER_PERMISSIONS]))
 ) -> UserDetail:
     """
     Update user's custom permissions.
@@ -628,7 +647,7 @@ async def update_user_permissions(
     )
     
     if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+        raise HTTPException(status_code=404, detail=ERROR_USER_NOT_FOUND)
     
     # Return updated user details
     return await get_user(user_id, auth, auth_service, None)

@@ -9,6 +9,7 @@ from ciris_engine.logic.adapters.base import Service
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.logic.runtime.adapter_manager import RuntimeAdapterManager
+from .constants import ERROR_ADAPTER_MANAGER_NOT_AVAILABLE, ERROR_TIME_SERVICE_NOT_AVAILABLE
 
 logger = logging.getLogger(__name__)
 
@@ -158,7 +159,7 @@ class APIRuntimeControlService(Service):
             self.adapter_manager = RuntimeAdapterManager(self.runtime, self.runtime.time_service)
             logger.info("Initialized RuntimeAdapterManager for API runtime control")
         else:
-            logger.warning("Time service not available, adapter manager will not be initialized")
+            logger.warning(f"{ERROR_TIME_SERVICE_NOT_AVAILABLE}, adapter manager will not be initialized")
         
         logger.info("API Runtime Control Service started")
     
@@ -207,7 +208,7 @@ class APIRuntimeControlService(Service):
     async def list_adapters(self) -> List[Any]:
         """List all loaded adapters."""
         if not self.adapter_manager:
-            logger.warning("Adapter manager not available")
+            logger.warning(ERROR_ADAPTER_MANAGER_NOT_AVAILABLE)
             return []
         
         return await self.adapter_manager.list_adapters()
@@ -215,7 +216,7 @@ class APIRuntimeControlService(Service):
     async def get_adapter_info(self, adapter_id: str) -> Optional[Any]:
         """Get detailed information about a specific adapter."""
         if not self.adapter_manager:
-            logger.warning("Adapter manager not available")
+            logger.warning(ERROR_ADAPTER_MANAGER_NOT_AVAILABLE)
             return None
         
         status = await self.adapter_manager.get_adapter_status(adapter_id)
@@ -256,7 +257,7 @@ class APIRuntimeControlService(Service):
                 adapter_id=adapter_id,
                 adapter_type=adapter_type,
                 status=AdapterStatus.ERROR,
-                error="Adapter manager not available"
+                error=ERROR_ADAPTER_MANAGER_NOT_AVAILABLE
             )
         
         # Generate adapter ID if not provided
@@ -291,7 +292,7 @@ class APIRuntimeControlService(Service):
                 adapter_id=adapter_id,
                 adapter_type="unknown",
                 status=AdapterStatus.ERROR,
-                error="Adapter manager not available"
+                error=ERROR_ADAPTER_MANAGER_NOT_AVAILABLE
             )
         
         result = await self.adapter_manager.unload_adapter(adapter_id)
