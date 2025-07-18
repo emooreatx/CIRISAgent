@@ -588,11 +588,11 @@ class DiscordPlatform(Service):
             except asyncio.CancelledError:
                 logger.info("DiscordPlatform: Discord client task successfully cancelled.")
                 # Don't re-raise during stop - we're already shutting down
-                pass
+                pass  # NOSONAR: Intentionally not re-raising during shutdown
 
         logger.info("DiscordPlatform: Stopped.")
     
-    async def is_healthy(self) -> bool:
+    async def is_healthy(self) -> bool:  # NOSONAR: Protocol requires async signature
         """Check if the Discord adapter is healthy"""
         try:
             # Check if Discord client is connected and ready
@@ -610,7 +610,7 @@ class DiscordPlatform(Service):
             logger.warning(f"Discord health check failed: {e}")
             return False
 
-    async def get_active_channels(self) -> List[DiscordChannelInfo]:
+    async def get_active_channels(self) -> List[DiscordChannelInfo]:  # NOSONAR: Protocol requires async signature
         """Get list of active Discord channels."""
         logger.info("[DISCORD_PLATFORM] get_active_channels called on wrapper")
         if hasattr(self.discord_adapter, 'get_active_channels'):

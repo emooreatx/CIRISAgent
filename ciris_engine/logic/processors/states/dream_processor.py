@@ -613,7 +613,7 @@ class DreamProcessor(BaseProcessor):
         active_tasks = persistence.get_tasks_by_status(TaskStatus.ACTIVE)
 
         # Count tasks by phase
-        phase_counts = {phase: 0 for phase in DreamPhase}
+        phase_counts = dict.fromkeys(DreamPhase, 0)
 
         for task in active_tasks:
             if task.context and hasattr(task.context, 'phase'):
@@ -748,7 +748,7 @@ class DreamProcessor(BaseProcessor):
             "relationships": ["user", "help", "serve", "together"]
         }
 
-        theme_counts = {theme: 0 for theme in themes}
+        theme_counts = dict.fromkeys(themes, 0)
 
         for question in questions:
             q_lower = question.lower()

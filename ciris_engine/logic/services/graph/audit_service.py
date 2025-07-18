@@ -1116,7 +1116,7 @@ class GraphAuditService(BaseGraphService, AuditServiceProtocol):
 
         # Action type filter
         tags = data.attributes.tags if hasattr(data.attributes, 'tags') else []
-        _tag_dict = {tag: True for tag in tags}  # Convert list to dict for lookup
+        _tag_dict = dict.fromkeys(tags, True)  # Convert list to dict for lookup
 
         # Check attributes dict as well
         attrs = data.attributes.model_dump() if hasattr(data.attributes, 'model_dump') else {}
