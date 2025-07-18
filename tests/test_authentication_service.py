@@ -261,17 +261,39 @@ class TestAuthenticationServiceUnit:
         assert all(c in '0123456789abcdef' for c in key1)
     
     def test_wa_id_generation(self, auth_service):
-        """Test WA ID generation format."""
+        """Test WA ID generation format and uniqueness."""
         timestamp = datetime(2025, 7, 14, 12, 0, 0, tzinfo=timezone.utc)
         
         wa_id = auth_service._generate_wa_id(timestamp)
         
-        # Check format
+        # Check format: wa-YYYY-MM-DD-XXXXXX
         assert wa_id.startswith("wa-2025-07-14-")
         parts = wa_id.split('-')
         assert len(parts) == 5
-        assert len(parts[4]) == 6  # Random suffix
-        assert parts[4].isupper()
+        assert parts[0] == "wa"
+        assert parts[1] == "2025"
+        assert parts[2] == "07"
+        assert parts[3] == "14"
+        assert len(parts[4]) == 6  # Random suffix (6 hex chars)
+        # Should be uppercase hexadecimal (from token_hex)
+        assert all(c in '0123456789ABCDEF' for c in parts[4])
+        
+        # Test uniqueness - generate multiple IDs
+        ids = set()
+        for _ in range(100):
+            new_id = auth_service._generate_wa_id(timestamp)
+            assert new_id not in ids, "Generated duplicate WA ID"
+            ids.add(new_id)
+        
+        # Test different timestamps
+        timestamp2 = datetime(2025, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+        wa_id2 = auth_service._generate_wa_id(timestamp2)
+        assert wa_id2.startswith("wa-2025-12-31-")
+        
+        # Test timestamp without timezone (should still work)
+        timestamp3 = datetime(2025, 1, 1, 0, 0, 0)
+        wa_id3 = auth_service._generate_wa_id(timestamp3)
+        assert wa_id3.startswith("wa-2025-01-01-")
     
     def test_ed25519_operations(self, auth_service):
         """Test Ed25519 key generation, signing, and verification."""
