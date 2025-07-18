@@ -141,7 +141,7 @@ export default function ConfigPage() {
     // Group by sections
     filteredConfigs.forEach(item => {
       const parts = item.key.split('.');
-      let sectionName = parts[0];
+      let sectionName = parts[0] || 'default';
       let category = null;
 
       // Determine category
@@ -163,7 +163,7 @@ export default function ConfigPage() {
         sections[sectionName] = {
           name: sectionName,
           items: [],
-          category: category || undefined
+          category: category ?? undefined
         };
       }
 
