@@ -231,23 +231,23 @@ jobs:
             # Create systemd service for auto-start if it doesn't exist
             if [ ! -f "/etc/systemd/system/ciris-phase1.service" ]; then
               cat > /etc/systemd/system/ciris-phase1.service << 'EOF'
-[Unit]
-Description=CIRIS Phase 1 Deployment
-After=docker.service
-Requires=docker.service
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-WorkingDirectory=/home/ciris/CIRISAgent
-ExecStart=/usr/local/bin/docker-compose -f deployment/docker-compose.phase1-prod.yml up -d
-ExecStop=/usr/local/bin/docker-compose -f deployment/docker-compose.phase1-prod.yml down
-User=root
-Group=root
-
-[Install]
-WantedBy=multi-user.target
-EOF
+            [Unit]
+            Description=CIRIS Phase 1 Deployment
+            After=docker.service
+            Requires=docker.service
+            
+            [Service]
+            Type=oneshot
+            RemainAfterExit=yes
+            WorkingDirectory=/home/ciris/CIRISAgent
+            ExecStart=/usr/local/bin/docker-compose -f deployment/docker-compose.phase1-prod.yml up -d
+            ExecStop=/usr/local/bin/docker-compose -f deployment/docker-compose.phase1-prod.yml down
+            User=root
+            Group=root
+            
+            [Install]
+            WantedBy=multi-user.target
+            EOF
               systemctl daemon-reload
               systemctl enable ciris-phase1
             fi
