@@ -23,7 +23,7 @@ class DiscordVisionHelper:
             logger.warning("No OpenAI Vision API key found. Image processing will be disabled.")
 
         self.api_url = "https://api.openai.com/v1/chat/completions"
-        self.model = "gpt-4-vision-preview"
+        self.model = "gpt-4o"  # Updated to current vision-capable model
         self.max_image_size = 20 * 1024 * 1024  # 20MB limit
 
     async def process_message_images(self, message: discord.Message) -> Optional[str]:
