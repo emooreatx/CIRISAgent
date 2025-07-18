@@ -325,7 +325,7 @@ class DiscordToolHandler:
 
         return None
 
-    async def get_all_tool_info(self) -> List[ToolInfo]:
+    async def get_all_tool_info(self) -> List[ToolInfo]:  # NOSONAR: ToolService protocol requires async signature
         """Get detailed information about all available tools."""
         tools = []
         for tool_name in self.get_available_tools():

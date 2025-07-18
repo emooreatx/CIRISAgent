@@ -458,7 +458,7 @@ class CIRISRuntime:
             critical=True
         )
 
-    async def _initialize_infrastructure(self) -> None:
+    async def _initialize_infrastructure(self) -> None:  # NOSONAR: Part of async initialization chain
         """Initialize infrastructure services that all other services depend on."""
         # Infrastructure services already initialized in initialize() method
         # This is now just a no-op placeholder for the initialization step

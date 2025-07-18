@@ -30,49 +30,65 @@ def is_retryable_error(error: Exception) -> bool:
 
 
 def with_retry(
-    func: Callable[..., T],
+    func: Callable[..., T] | None = None,
+    *,
     max_retries: int = DEFAULT_MAX_RETRIES,
     base_delay: float = DEFAULT_BASE_DELAY,
     max_delay: float = DEFAULT_MAX_DELAY
-) -> Callable[..., T]:
+) -> Callable[..., T] | Callable[[Callable[..., T]], Callable[..., T]]:
     """
     Decorator for retrying database operations on busy errors.
     
+    Can be used as:
+        @with_retry
+        def my_func(): ...
+        
+        @with_retry(max_retries=5, base_delay=0.5)
+        def my_func(): ...
+    
     Args:
-        func: Function to retry
+        func: Function to retry (None when used with parameters)
         max_retries: Maximum number of retry attempts
         base_delay: Initial delay between retries (exponential backoff)
         max_delay: Maximum delay between retries
         
     Returns:
-        Wrapped function with retry logic
+        Wrapped function with retry logic or decorator
     """
-    @functools.wraps(func)
-    def wrapper(*args: Any, **kwargs: Any) -> T:
-        last_error = None
+    def decorator(f: Callable[..., T]) -> Callable[..., T]:
+        @functools.wraps(f)
+        def wrapper(*args: Any, **kwargs: Any) -> T:
+            last_error = None
+            
+            for attempt in range(max_retries + 1):  # +1 for initial attempt
+                try:
+                    return f(*args, **kwargs)
+                except Exception as e:
+                    if not is_retryable_error(e) or attempt == max_retries:
+                        # Not retryable or last attempt - re-raise
+                        raise
+                    
+                    last_error = e
+                    delay = min(base_delay * (2 ** attempt), max_delay)
+                    
+                    logger.debug(
+                        f"Database busy error on attempt {attempt + 1}/{max_retries + 1}, "
+                        f"retrying in {delay:.2f}s: {e}"
+                    )
+                    
+                    time.sleep(delay)
+            
+            # Should not reach here, but just in case
+            raise last_error if last_error else RuntimeError("Unexpected retry loop exit")
         
-        for attempt in range(max_retries + 1):  # +1 for initial attempt
-            try:
-                return func(*args, **kwargs)
-            except Exception as e:
-                if not is_retryable_error(e) or attempt == max_retries:
-                    # Not retryable or last attempt - re-raise
-                    raise
-                
-                last_error = e
-                delay = min(base_delay * (2 ** attempt), max_delay)
-                
-                logger.debug(
-                    f"Database busy error on attempt {attempt + 1}/{max_retries + 1}, "
-                    f"retrying in {delay:.2f}s: {e}"
-                )
-                
-                time.sleep(delay)
-        
-        # Should not reach here, but just in case
-        raise last_error if last_error else RuntimeError("Unexpected retry loop exit")
+        return wrapper
     
-    return wrapper
+    # If func is provided, we're being used as @with_retry
+    if func is not None:
+        return decorator(func)
+    
+    # Otherwise, we're being used as @with_retry(...) and need to return decorator
+    return decorator
 
 
 @contextmanager

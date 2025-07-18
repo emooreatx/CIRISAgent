@@ -38,7 +38,7 @@ class BasicTelemetryCollector(Service):
         await super().stop()
         logger.info("Telemetry service stopped")
 
-    async def record_metric(
+    async def record_metric(  # NOSONAR: Async for future compatibility with async backends
         self,
         metric_name: str,
         value: float = 1.0,
