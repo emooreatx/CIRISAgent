@@ -27,6 +27,7 @@ from ciris_engine.schemas.services.graph.consolidation import (
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.persistence.db.core import get_db_connection
 from ciris_engine.logic.services.graph.tsdb_consolidation.data_converter import TSDBDataConverter
+from ciris_engine.constants import UTC_TIMEZONE_SUFFIX
 
 logger = logging.getLogger(__name__)
 
@@ -250,7 +251,7 @@ class QueryManager:
                     # Parse timestamp
                     ts_str = row['timestamp']
                     if ts_str:
-                        ts = datetime.fromisoformat(ts_str.replace('Z', '+00:00'))
+                        ts = datetime.fromisoformat(ts_str.replace('Z', UTC_TIMEZONE_SUFFIX))
                     else:
                         ts = None
                     

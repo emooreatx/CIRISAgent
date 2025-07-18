@@ -17,6 +17,7 @@ from ciris_engine.schemas.services.graph.audit import AuditQuery, VerificationRe
 from ..dependencies.auth import require_observer, require_admin, AuthContext
 from ciris_engine.protocols.services.graph.audit import AuditServiceProtocol
 from ciris_engine.schemas.api.audit import AuditContext, EntryVerification
+from ..constants import DESC_RESULTS_OFFSET, ERROR_AUDIT_SERVICE_NOT_AVAILABLE, DESC_START_TIME, DESC_END_TIME
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 
@@ -48,7 +49,7 @@ class AuditEntriesResponse(BaseModel):
     """List of audit entries."""
     entries: List[AuditEntryResponse] = Field(..., description="Audit entries")
     total: int = Field(..., description="Total matching entries")
-    offset: int = Field(0, description="Results offset")
+    offset: int = Field(0, description=DESC_RESULTS_OFFSET)
     limit: int = Field(100, description="Results limit")
 
 class AuditExportResponse(BaseModel):
@@ -101,7 +102,7 @@ def _get_audit_service(request: Request) -> AuditServiceProtocol:
     """Get audit service from app state."""
     audit_service = getattr(request.app.state, 'audit_service', None)
     if not audit_service:
-        raise HTTPException(status_code=503, detail="Audit service not available")
+        raise HTTPException(status_code=503, detail=ERROR_AUDIT_SERVICE_NOT_AVAILABLE)
     return audit_service  # type: ignore[no-any-return]
 
 # Endpoints
@@ -111,8 +112,8 @@ async def query_audit_entries(
     request: Request,
     auth: AuthContext = Depends(require_observer),
     # Time range filters
-    start_time: Optional[datetime] = Query(None, description="Start of time range"),
-    end_time: Optional[datetime] = Query(None, description="End of time range"),
+    start_time: Optional[datetime] = Query(None, description=DESC_START_TIME),
+    end_time: Optional[datetime] = Query(None, description=DESC_END_TIME),
     # Entity filters
     actor: Optional[str] = Query(None, description="Filter by actor"),
     event_type: Optional[str] = Query(None, description="Filter by event type"),
@@ -123,7 +124,7 @@ async def query_audit_entries(
     outcome: Optional[str] = Query(None, description="Filter by outcome (success, failure)"),
     # Pagination
     limit: int = Query(100, ge=1, le=1000, description="Maximum results"),
-    offset: int = Query(0, ge=0, description="Results offset")
+    offset: int = Query(0, ge=0, description=DESC_RESULTS_OFFSET)
 ) -> SuccessResponse[AuditEntriesResponse]:
     """
     Query audit entries with flexible filtering.
@@ -282,7 +283,7 @@ async def search_audit_trails(
     severity: Optional[str] = Query(None, description="Filter by severity"),
     outcome: Optional[str] = Query(None, description="Filter by outcome"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum results"),
-    offset: int = Query(0, ge=0, description="Results offset")
+    offset: int = Query(0, ge=0, description=DESC_RESULTS_OFFSET)
 ) -> SuccessResponse[AuditEntriesResponse]:
     """
     Search audit trails with text search and filters.

@@ -11,7 +11,7 @@ T = TypeVar('T')
 class Service(ABC):
     """Abstract base class for pluggable services within the CIRIS Engine."""
 
-    def __init__(self, config: Optional[dict] = None) -> None:
+    def __init__(self, config: Optional[dict[str, Any]] = None) -> None:
         """
         Initialize the service.
 
@@ -42,8 +42,8 @@ class Service(ABC):
         max_delay: float = 60.0,
         backoff_multiplier: float = 2.0,
         jitter_range: float = 0.25,
-        retryable_exceptions: tuple = (Exception,),
-        non_retryable_exceptions: tuple = (),
+        retryable_exceptions: tuple[type[Exception], ...] = (Exception,),
+        non_retryable_exceptions: tuple[type[Exception], ...] = (),
         **kwargs: Any
     ) -> T:
         """
@@ -106,7 +106,7 @@ class Service(ABC):
         # If we get here, all retries failed
         raise last_exception if last_exception else RuntimeError(f"{self.service_name}: All retry attempts failed")
 
-    def get_retry_config(self, operation_type: str = "default") -> dict:
+    def get_retry_config(self, operation_type: str = "default") -> dict[str, Any]:
         """
         Get retry configuration from service config.
 

@@ -8,7 +8,7 @@ disabling failing services to prevent cascading failures.
 import time
 import logging
 from enum import Enum
-from typing import Optional
+from typing import Optional, Any
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -114,7 +114,7 @@ class CircuitBreaker:
         self.success_count = 0
         logger.info(f"Circuit breaker '{self.name}' closed - service recovered")
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict[str, Any]:
         """Get current circuit breaker statistics"""
         return {
             "name": self.name,

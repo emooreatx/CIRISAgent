@@ -17,6 +17,25 @@ from ciris_engine.schemas.runtime.api import APIRole
 from ciris_engine.schemas.services.authority.wise_authority import WAUpdate
 from ciris_engine.protocols.services.infrastructure.authentication import AuthenticationServiceProtocol
 
+# Permission constants to avoid duplication
+PERMISSION_SYSTEM_READ = "system.read"
+PERMISSION_SYSTEM_WRITE = "system.write"
+PERMISSION_MEMORY_READ = "memory.read"
+PERMISSION_MEMORY_WRITE = "memory.write"
+PERMISSION_TELEMETRY_READ = "telemetry.read"
+PERMISSION_CONFIG_READ = "config.read"
+PERMISSION_CONFIG_WRITE = "config.write"
+PERMISSION_AUDIT_READ = "audit.read"
+PERMISSION_AUDIT_WRITE = "audit.write"
+PERMISSION_USERS_READ = "users.read"
+PERMISSION_USERS_WRITE = "users.write"
+PERMISSION_USERS_DELETE = "users.delete"
+PERMISSION_WA_READ = "wa.read"
+PERMISSION_WA_WRITE = "wa.write"
+PERMISSION_WA_MINT = "wa.mint"
+PERMISSION_EMERGENCY_SHUTDOWN = "emergency.shutdown"
+PERMISSION_MANAGE_USER_PERMISSIONS = "manage_user_permissions"
+
 @dataclass
 class StoredAPIKey:
     """Internal representation of an API key."""
@@ -642,55 +661,55 @@ class APIAuthService:
         # Define role permissions
         permissions = {
             APIRole.OBSERVER: [
-                "system.read",
-                "memory.read",
-                "telemetry.read",
-                "config.read",
-                "audit.read"
+                PERMISSION_SYSTEM_READ,
+                PERMISSION_MEMORY_READ,
+                PERMISSION_TELEMETRY_READ,
+                PERMISSION_CONFIG_READ,
+                PERMISSION_AUDIT_READ
             ],
             APIRole.ADMIN: [
-                "system.read",
-                "system.write",
-                "memory.read",
-                "memory.write",
-                "telemetry.read",
-                "config.read",
-                "config.write",
-                "audit.read",
-                "audit.write",
-                "users.read"
+                PERMISSION_SYSTEM_READ,
+                PERMISSION_SYSTEM_WRITE,
+                PERMISSION_MEMORY_READ,
+                PERMISSION_MEMORY_WRITE,
+                PERMISSION_TELEMETRY_READ,
+                PERMISSION_CONFIG_READ,
+                PERMISSION_CONFIG_WRITE,
+                PERMISSION_AUDIT_READ,
+                PERMISSION_AUDIT_WRITE,
+                PERMISSION_USERS_READ
             ],
             APIRole.AUTHORITY: [
-                "system.read",
-                "system.write",
-                "memory.read",
-                "memory.write",
-                "telemetry.read",
-                "config.read",
-                "config.write",
-                "audit.read",
-                "audit.write",
-                "users.read",
-                "wa.read",
-                "wa.write"
+                PERMISSION_SYSTEM_READ,
+                PERMISSION_SYSTEM_WRITE,
+                PERMISSION_MEMORY_READ,
+                PERMISSION_MEMORY_WRITE,
+                PERMISSION_TELEMETRY_READ,
+                PERMISSION_CONFIG_READ,
+                PERMISSION_CONFIG_WRITE,
+                PERMISSION_AUDIT_READ,
+                PERMISSION_AUDIT_WRITE,
+                PERMISSION_USERS_READ,
+                PERMISSION_WA_READ,
+                PERMISSION_WA_WRITE
             ],
             APIRole.SYSTEM_ADMIN: [
-                "system.read",
-                "system.write",
-                "memory.read",
-                "memory.write",
-                "telemetry.read",
-                "config.read",
-                "config.write",
-                "audit.read",
-                "audit.write",
-                "users.read",
-                "users.write",
-                "users.delete",
-                "wa.read",
-                "wa.write",
-                "wa.mint",
-                "emergency.shutdown"
+                PERMISSION_SYSTEM_READ,
+                PERMISSION_SYSTEM_WRITE,
+                PERMISSION_MEMORY_READ,
+                PERMISSION_MEMORY_WRITE,
+                PERMISSION_TELEMETRY_READ,
+                PERMISSION_CONFIG_READ,
+                PERMISSION_CONFIG_WRITE,
+                PERMISSION_AUDIT_READ,
+                PERMISSION_AUDIT_WRITE,
+                PERMISSION_USERS_READ,
+                PERMISSION_USERS_WRITE,
+                PERMISSION_USERS_DELETE,
+                PERMISSION_WA_READ,
+                PERMISSION_WA_WRITE,
+                PERMISSION_WA_MINT,
+                PERMISSION_EMERGENCY_SHUTDOWN
             ]
         }
         

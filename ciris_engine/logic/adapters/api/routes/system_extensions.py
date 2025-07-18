@@ -13,6 +13,7 @@ from ..dependencies.auth import require_observer, require_admin, AuthContext
 from ciris_engine.schemas.services.core.runtime import (
     ProcessorQueueStatus, ServiceHealthStatus, ServiceSelectionExplanation
 )
+from ..constants import ERROR_RUNTIME_CONTROL_SERVICE_NOT_AVAILABLE, DESC_HUMAN_READABLE_STATUS, DESC_CURRENT_COGNITIVE_STATE
 
 router = APIRouter(prefix="/system", tags=["system-extensions"])
 logger = logging.getLogger(__name__)
@@ -35,7 +36,7 @@ async def get_processing_queue_status(
     if not runtime_control:
         runtime_control = getattr(request.app.state, 'runtime_control_service', None)
     if not runtime_control:
-        raise HTTPException(status_code=503, detail="Runtime control service not available")
+        raise HTTPException(status_code=503, detail=ERROR_RUNTIME_CONTROL_SERVICE_NOT_AVAILABLE)
     
     try:
         queue_status = await runtime_control.get_processor_queue_status()
@@ -48,9 +49,9 @@ async def get_processing_queue_status(
 class RuntimeControlResponse(BaseModel):
     """Response to runtime control actions."""
     success: bool = Field(..., description="Whether action succeeded")
-    message: str = Field(..., description="Human-readable status message")
+    message: str = Field(..., description=DESC_HUMAN_READABLE_STATUS)
     processor_state: str = Field(..., description="Current processor state")
-    cognitive_state: Optional[str] = Field(None, description="Current cognitive state")
+    cognitive_state: Optional[str] = Field(None, description=DESC_CURRENT_COGNITIVE_STATE)
     queue_depth: int = Field(0, description="Number of items in processing queue")
 
 
@@ -71,7 +72,7 @@ async def single_step_processor(
     if not runtime_control:
         runtime_control = getattr(request.app.state, 'runtime_control_service', None)
     if not runtime_control:
-        raise HTTPException(status_code=503, detail="Runtime control service not available")
+        raise HTTPException(status_code=503, detail=ERROR_RUNTIME_CONTROL_SERVICE_NOT_AVAILABLE)
     
     try:
         result = await runtime_control.single_step()
@@ -116,7 +117,7 @@ async def get_service_health_details(
     if not runtime_control:
         runtime_control = getattr(request.app.state, 'runtime_control_service', None)
     if not runtime_control:
-        raise HTTPException(status_code=503, detail="Runtime control service not available")
+        raise HTTPException(status_code=503, detail=ERROR_RUNTIME_CONTROL_SERVICE_NOT_AVAILABLE)
     
     try:
         health_status = await runtime_control.get_service_health_status()
@@ -155,7 +156,7 @@ async def update_service_priority(
     if not runtime_control:
         runtime_control = getattr(request.app.state, 'runtime_control_service', None)
     if not runtime_control:
-        raise HTTPException(status_code=503, detail="Runtime control service not available")
+        raise HTTPException(status_code=503, detail=ERROR_RUNTIME_CONTROL_SERVICE_NOT_AVAILABLE)
     
     try:
         result = await runtime_control.update_service_priority(
@@ -211,7 +212,7 @@ async def reset_service_circuit_breakers(
     if not runtime_control:
         runtime_control = getattr(request.app.state, 'runtime_control_service', None)
     if not runtime_control:
-        raise HTTPException(status_code=503, detail="Runtime control service not available")
+        raise HTTPException(status_code=503, detail=ERROR_RUNTIME_CONTROL_SERVICE_NOT_AVAILABLE)
     
     try:
         result = await runtime_control.reset_circuit_breakers(body.service_type)
@@ -244,7 +245,7 @@ async def get_service_selection_explanation(
     if not runtime_control:
         runtime_control = getattr(request.app.state, 'runtime_control_service', None)
     if not runtime_control:
-        raise HTTPException(status_code=503, detail="Runtime control service not available")
+        raise HTTPException(status_code=503, detail=ERROR_RUNTIME_CONTROL_SERVICE_NOT_AVAILABLE)
     
     try:
         explanation = await runtime_control.get_service_selection_explanation()

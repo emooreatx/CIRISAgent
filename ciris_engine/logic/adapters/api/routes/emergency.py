@@ -26,6 +26,7 @@ from ciris_engine.schemas.services.shutdown import (
     EmergencyCommandType
 )
 from ciris_engine.schemas.api.responses import SuccessResponse
+from ..constants import ERROR_SHUTDOWN_SERVICE_NOT_AVAILABLE
 
 logger = logging.getLogger(__name__)
 
@@ -259,7 +260,7 @@ async def emergency_shutdown(
 
         shutdown_service = getattr(runtime, 'shutdown_service', None)
         if not shutdown_service:
-            raise HTTPException(status_code=503, detail="Shutdown service not available")
+            raise HTTPException(status_code=503, detail=ERROR_SHUTDOWN_SERVICE_NOT_AVAILABLE)
 
         # Mark shutdown initiated
         status.shutdown_initiated = datetime.now(timezone.utc)

@@ -42,6 +42,7 @@ from ciris_engine.schemas.adapters.discord import (
 )
 from .discord_tool_handler import DiscordToolHandler
 from .config import DiscordAdapterConfig
+from .constants import ACTION_OBSERVE, ACTION_SPEAK
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
@@ -288,7 +289,7 @@ class DiscordAdapter(Service, CommunicationService, WiseAuthorityService):
                         channel_id=channel_id,
                         is_bot=True
                     ))
-                elif corr.action_type == "observe" and corr.request_data:
+                elif corr.action_type == ACTION_OBSERVE and corr.request_data:
                     # This is an incoming message from a user
                     content = ""
                     author_id = "unknown"

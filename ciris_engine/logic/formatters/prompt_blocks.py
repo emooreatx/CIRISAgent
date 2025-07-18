@@ -1,8 +1,8 @@
 """Utilities for assembling canonical prompt blocks."""
 
-from typing import List, Optional
+from typing import List, Optional, Any
 
-def format_parent_task_chain(parent_tasks: List[dict]) -> str:
+def format_parent_task_chain(parent_tasks: List[dict[str, Any]]) -> str:
     """Formats the parent task chain, root first, for the prompt."""
     if not parent_tasks:
         return "=== Parent Task Chain ===\nNone"
@@ -19,7 +19,7 @@ def format_parent_task_chain(parent_tasks: List[dict]) -> str:
         lines.append(f"{prefix}: {desc} (Task ID: {tid})")
     return "\n".join(lines)
 
-def format_thoughts_chain(thoughts: List[dict]) -> str:
+def format_thoughts_chain(thoughts: List[dict[str, Any]]) -> str:
     """Formats all thoughts under consideration, active thought last."""
     if not thoughts:
         return "=== Thoughts Under Consideration ===\nNone"

@@ -947,23 +947,25 @@ class TestAuthenticationServiceErrorHandling:
     @pytest.mark.asyncio
     async def test_database_corruption_handling(self, auth_service):
         """Test handling of database errors."""
-        # Corrupt the database by closing the connection
-        import sqlite3
-        conn = sqlite3.connect(auth_service.db_path)
-        conn.close()
+        # In Docker containers running as root, file permissions don't prevent writes
+        # Instead, we'll test by temporarily moving the database file
+        import shutil
         
-        # Make database file read-only
-        os.chmod(auth_service.db_path, 0o444)
+        db_backup = auth_service.db_path + ".backup"
+        shutil.move(auth_service.db_path, db_backup)
         
         try:
-            # Try to create a WA - should handle error gracefully
-            with pytest.raises(Exception):  # SQLite will raise an error
+            # Try to create a WA - should raise sqlite3.OperationalError
+            with pytest.raises(sqlite3.OperationalError) as exc_info:
                 wa = await auth_service.create_wa(
                     "Test", "test@test.com", ["read"], WARole.OBSERVER
                 )
+            
+            # Verify it's the expected error
+            assert "no such table" in str(exc_info.value).lower() or "unable to open" in str(exc_info.value).lower()
         finally:
-            # Restore permissions
-            os.chmod(auth_service.db_path, 0o644)
+            # Restore database
+            shutil.move(db_backup, auth_service.db_path)
     
     @pytest.mark.asyncio
     async def test_health_check_with_db_issues(self, auth_service):

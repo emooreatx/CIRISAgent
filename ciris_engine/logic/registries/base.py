@@ -271,7 +271,7 @@ class ServiceRegistry:
                 provider.circuit_breaker.record_failure()
             return None
 
-    def get_provider_info(self, handler: Optional[str] = None, service_type: Optional[str] = None) -> dict:
+    def get_provider_info(self, handler: Optional[str] = None, service_type: Optional[str] = None) -> dict[str, Any]:
         """
         Get information about registered providers.
 
@@ -282,7 +282,7 @@ class ServiceRegistry:
         Returns:
             Dictionary containing provider information
         """
-        info: dict = {
+        info: dict[str, Any] = {
             "services": {},
             "circuit_breaker_stats": {}
         }
@@ -353,7 +353,7 @@ class ServiceRegistry:
                 return []
         else:
             # mypy doesn't understand the Union narrowing here, but this is safe
-            resolved_type = cast(ServiceType, service_type)  # type: ignore[unreachable]
+            resolved_type = cast(ServiceType, service_type)
 
         all_services = []
 

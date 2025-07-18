@@ -12,6 +12,7 @@ from ciris_engine.schemas.api.responses import SuccessResponse
 from ciris_engine.schemas.api.config_security import ConfigSecurity
 from ciris_engine.schemas.api.auth import UserRole
 from ..dependencies.auth import require_observer, require_admin, AuthContext, get_auth_context
+from ..constants import DESC_CONFIGURATION_KEY, ERROR_CONFIG_SERVICE_NOT_AVAILABLE
 
 router = APIRouter(prefix="/config", tags=["config"])
 
@@ -19,7 +20,7 @@ router = APIRouter(prefix="/config", tags=["config"])
 
 class ConfigItemResponse(BaseModel):
     """Configuration item in API response."""
-    key: str = Field(..., description="Configuration key")
+    key: str = Field(..., description=DESC_CONFIGURATION_KEY)
     value: Any = Field(..., description="Configuration value (may be redacted)")
     updated_at: datetime = Field(..., description="Last update time")
     updated_by: str = Field(..., description="Who updated this config")
@@ -54,7 +55,7 @@ async def list_configs(
     """
     config_service = getattr(request.app.state, 'config_service', None)
     if not config_service:
-        raise HTTPException(status_code=503, detail="Config service not available")
+        raise HTTPException(status_code=503, detail=ERROR_CONFIG_SERVICE_NOT_AVAILABLE)
 
     try:
         # Get all configs
@@ -94,7 +95,7 @@ async def list_configs(
 @router.get("/{key:path}", response_model=SuccessResponse[ConfigItemResponse])
 async def get_config(
     request: Request,
-    key: str = Path(..., description="Configuration key"),
+    key: str = Path(..., description=DESC_CONFIGURATION_KEY),
     auth: AuthContext = Depends(require_observer)
 ) -> SuccessResponse[ConfigItemResponse]:
     """
@@ -104,7 +105,7 @@ async def get_config(
     """
     config_service = getattr(request.app.state, 'config_service', None)
     if not config_service:
-        raise HTTPException(status_code=503, detail="Config service not available")
+        raise HTTPException(status_code=503, detail=ERROR_CONFIG_SERVICE_NOT_AVAILABLE)
 
     try:
         # Get config node
@@ -139,7 +140,7 @@ async def get_config(
 async def update_config(
     request: Request,
     body: ConfigUpdate,
-    key: str = Path(..., description="Configuration key"),
+    key: str = Path(..., description=DESC_CONFIGURATION_KEY),
     auth: AuthContext = Depends(get_auth_context)
 ) -> SuccessResponse[ConfigItemResponse]:
     """
@@ -149,7 +150,7 @@ async def update_config(
     """
     config_service = getattr(request.app.state, 'config_service', None)
     if not config_service:
-        raise HTTPException(status_code=503, detail="Config service not available")
+        raise HTTPException(status_code=503, detail=ERROR_CONFIG_SERVICE_NOT_AVAILABLE)
 
     # Check permissions
     is_sensitive = ConfigSecurity.is_sensitive(key)
@@ -202,7 +203,7 @@ async def update_config(
 @router.delete("/{key:path}", response_model=SuccessResponse[Dict[str, str]])
 async def delete_config(
     request: Request,
-    key: str = Path(..., description="Configuration key"),
+    key: str = Path(..., description=DESC_CONFIGURATION_KEY),
     auth: AuthContext = Depends(require_admin)
 ) -> SuccessResponse[Dict[str, str]]:
     """
@@ -212,7 +213,7 @@ async def delete_config(
     """
     config_service = getattr(request.app.state, 'config_service', None)
     if not config_service:
-        raise HTTPException(status_code=503, detail="Config service not available")
+        raise HTTPException(status_code=503, detail=ERROR_CONFIG_SERVICE_NOT_AVAILABLE)
 
     try:
         # Check if it's a sensitive key

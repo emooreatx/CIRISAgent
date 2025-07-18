@@ -1,7 +1,7 @@
 
-from typing import List, Optional
+from typing import List, Optional, Any
 
-def format_user_profiles(profiles: Optional[dict]) -> str:
+def format_user_profiles(profiles: Optional[dict[str, Any]]) -> str:
     """Copy of format_user_profiles_for_prompt with new module path."""
     # *** copied logic – do not modify yet ***
     if not profiles or not isinstance(profiles, dict):

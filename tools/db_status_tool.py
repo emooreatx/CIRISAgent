@@ -37,6 +37,7 @@ from ciris_engine.logic.audit.hash_chain import AuditHashChain
 from ciris_engine.logic.audit.verifier import AuditVerifier
 from ciris_engine.schemas.services.graph.audit import VerificationReport as GraphVerificationReport
 from ciris_engine.schemas.audit.verification import CompleteVerificationResult, RangeVerificationResult
+from ciris_engine.constants import UTC_TIMEZONE_SUFFIX
 
 
 class DBStatusTool:
@@ -902,7 +903,7 @@ class DBStatusTool:
                 
                 # Parse timestamps
                 if 'Z' in oldest_str:
-                    oldest = datetime.fromisoformat(oldest_str.replace('Z', '+00:00'))
+                    oldest = datetime.fromisoformat(oldest_str.replace('Z', UTC_TIMEZONE_SUFFIX))
                 elif '+' in oldest_str or 'T' in oldest_str:
                     oldest = datetime.fromisoformat(oldest_str)
                 else:
@@ -910,7 +911,7 @@ class DBStatusTool:
                     oldest = datetime.fromisoformat(oldest_str).replace(tzinfo=timezone.utc)
                     
                 if 'Z' in newest_str:
-                    newest = datetime.fromisoformat(newest_str.replace('Z', '+00:00'))
+                    newest = datetime.fromisoformat(newest_str.replace('Z', UTC_TIMEZONE_SUFFIX))
                 elif '+' in newest_str or 'T' in newest_str:
                     newest = datetime.fromisoformat(newest_str)
                 else:
@@ -976,7 +977,7 @@ class DBStatusTool:
                 
                 # Parse timestamp
                 if 'Z' in last_run_str:
-                    last_run = datetime.fromisoformat(last_run_str.replace('Z', '+00:00'))
+                    last_run = datetime.fromisoformat(last_run_str.replace('Z', UTC_TIMEZONE_SUFFIX))
                 elif '+' in last_run_str or 'T' in last_run_str:
                     last_run = datetime.fromisoformat(last_run_str)
                 else:
@@ -1049,14 +1050,14 @@ class DBStatusTool:
             newest_str = trail["newest_entry"]
             
             if 'Z' in oldest_str:
-                oldest = datetime.fromisoformat(oldest_str.replace('Z', '+00:00'))
+                oldest = datetime.fromisoformat(oldest_str.replace('Z', UTC_TIMEZONE_SUFFIX))
             elif '+' in oldest_str or 'T' in oldest_str:
                 oldest = datetime.fromisoformat(oldest_str)
             else:
                 oldest = datetime.fromisoformat(oldest_str).replace(tzinfo=timezone.utc)
                 
             if 'Z' in newest_str:
-                newest = datetime.fromisoformat(newest_str.replace('Z', '+00:00'))
+                newest = datetime.fromisoformat(newest_str.replace('Z', UTC_TIMEZONE_SUFFIX))
             elif '+' in newest_str or 'T' in newest_str:
                 newest = datetime.fromisoformat(newest_str)
             else:

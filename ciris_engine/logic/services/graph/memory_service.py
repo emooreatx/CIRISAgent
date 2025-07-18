@@ -45,6 +45,7 @@ from ciris_engine.schemas.services.graph.attributes import (
     AnyNodeAttributes,
     create_node_attributes
 )
+from ciris_engine.constants import UTC_TIMEZONE_SUFFIX
 
 logger = logging.getLogger(__name__)
 
@@ -510,7 +511,7 @@ class LocalGraphMemoryService(BaseGraphService, MemoryService, GraphMemoryServic
                         if isinstance(timestamp_str, str):
                             # Handle both timezone-aware and naive timestamps
                             if 'Z' in timestamp_str:
-                                timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+                                timestamp = datetime.fromisoformat(timestamp_str.replace('Z', UTC_TIMEZONE_SUFFIX))
                             elif '+' in timestamp_str or '-' in timestamp_str[-6:]:
                                 timestamp = datetime.fromisoformat(timestamp_str)
                             else:

@@ -54,6 +54,7 @@ from ciris_engine.logic.audit.hash_chain import AuditHashChain
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.logic.audit.verifier import AuditVerifier
 from ciris_engine.schemas.audit.verification import CompleteVerificationResult
+from ciris_engine.constants import UTC_TIMEZONE_SUFFIX
 
 logger = logging.getLogger(__name__)
 
@@ -505,7 +506,7 @@ class GraphAuditService(BaseGraphService, AuditServiceProtocol):
             timestamp = attrs.get("timestamp", self._time_service.now() if self._time_service else datetime.now())
             if isinstance(timestamp, str):
                 try:
-                    timestamp = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+                    timestamp = datetime.fromisoformat(timestamp.replace('Z', UTC_TIMEZONE_SUFFIX))
                 except (ValueError, TypeError):
                     timestamp = self._time_service.now() if self._time_service else datetime.now()
             

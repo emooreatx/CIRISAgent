@@ -21,3 +21,6 @@ DEFAULT_NUM_ROUNDS = 10
 # Configure via CIRIS_API_HOST environment variable
 DEFAULT_API_HOST = "127.0.0.1"  # Secure default - localhost only
 DEFAULT_API_PORT = 8080
+
+# Timezone and datetime parsing constants
+UTC_TIMEZONE_SUFFIX = '+00:00'

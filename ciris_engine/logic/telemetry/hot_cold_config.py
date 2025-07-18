@@ -5,7 +5,7 @@ Defines which code paths are HOT (mission-critical, high-frequency) vs COLD (bac
 and enforces telemetry requirements based on the ciris_mypy_toolkit analysis.
 """
 
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Any
 from dataclasses import dataclass, field
 
 @dataclass
@@ -117,7 +117,7 @@ def is_critical_function(module: str, function_name: str) -> bool:
             return function_name in config.critical_functions
     return False
 
-def get_telemetry_requirements(module: str, operation: str) -> dict:
+def get_telemetry_requirements(module: str, operation: str) -> dict[str, Any]:
     """Get telemetry requirements for a module operation."""
     path_config = get_path_config(operation)
 

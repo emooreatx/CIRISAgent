@@ -18,6 +18,7 @@ from ciris_engine.schemas.services.operations import MemoryQuery, MemoryOpResult
 from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
 from ..dependencies.auth import require_observer, require_admin, AuthContext
 from ciris_engine.logic.persistence.db.core import get_db_connection
+from ciris_engine.constants import UTC_TIMEZONE_SUFFIX
 
 if TYPE_CHECKING:
     import networkx as nx
@@ -25,6 +26,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/memory", tags=["memory"])
+
+# SQL Query Constants
+SQL_SELECT_NODES = "SELECT node_id, scope, node_type, attributes_json, version, updated_by, updated_at, created_at"
+SQL_FROM_NODES = "FROM graph_nodes"
+SQL_WHERE_TIME_RANGE = "WHERE updated_at >= ? AND updated_at < ?"
+SQL_EXCLUDE_METRICS = "AND NOT (node_type = 'tsdb_data' AND node_id LIKE 'metric_%')"
+SQL_WHERE_SCOPE = "AND scope = ?"
+SQL_WHERE_NODE_TYPE = "AND node_type = ?"
+SQL_ORDER_RANDOM = "ORDER BY RANDOM()"
+SQL_LIMIT = "LIMIT ?"
+
+# Common String Constants
+MEMORY_SERVICE_NOT_AVAILABLE = "Memory service not available"
+TIMEZONE_SUFFIX = '+00:00'
+MARKER_END = '</marker>'
 
 # Request/Response schemas for simplified API
 
@@ -127,7 +143,7 @@ async def store_memory(
     """
     memory_service = getattr(request.app.state, 'memory_service', None)
     if not memory_service:
-        raise HTTPException(status_code=503, detail="Memory service not available")
+        raise HTTPException(status_code=503, detail=MEMORY_SERVICE_NOT_AVAILABLE)
 
     try:
         result = await memory_service.memorize(body.node)
@@ -163,7 +179,7 @@ async def query_memory(
     """
     memory_service = getattr(request.app.state, 'memory_service', None)
     if not memory_service:
-        raise HTTPException(status_code=503, detail="Memory service not available")
+        raise HTTPException(status_code=503, detail=MEMORY_SERVICE_NOT_AVAILABLE)
 
     try:
         nodes = []
@@ -234,7 +250,7 @@ async def query_memory(
                     node_time = node.attributes.created_at
                 if node_time:
                     if isinstance(node_time, str):
-                        node_time = datetime.fromisoformat(node_time.replace('Z', '+00:00'))
+                        node_time = datetime.fromisoformat(node_time.replace('Z', UTC_TIMEZONE_SUFFIX))
 
                     if body.since and node_time < body.since:
                         continue
@@ -276,7 +292,7 @@ async def forget_memory(
     """
     memory_service = getattr(request.app.state, 'memory_service', None)
     if not memory_service:
-        raise HTTPException(status_code=503, detail="Memory service not available")
+        raise HTTPException(status_code=503, detail=MEMORY_SERVICE_NOT_AVAILABLE)
 
     try:
         # First get the node
@@ -329,7 +345,7 @@ async def get_timeline(
     """
     memory_service = getattr(request.app.state, 'memory_service', None)
     if not memory_service:
-        raise HTTPException(status_code=503, detail="Memory service not available")
+        raise HTTPException(status_code=503, detail=MEMORY_SERVICE_NOT_AVAILABLE)
 
     try:
         # Calculate time range
@@ -381,27 +397,27 @@ async def get_timeline(
                     
                     # Build query for this day
                     query_parts = [
-                        "SELECT node_id, scope, node_type, attributes_json, version, updated_by, updated_at, created_at",
-                        "FROM graph_nodes",
-                        "WHERE updated_at >= ? AND updated_at < ?",
-                        "AND NOT (node_type = 'tsdb_data' AND node_id LIKE 'metric_%')"
+                        SQL_SELECT_NODES,
+                        SQL_FROM_NODES,
+                        SQL_WHERE_TIME_RANGE,
+                        SQL_EXCLUDE_METRICS
                     ]
                     params: List[Any] = [day_start.isoformat(), day_end.isoformat()]
                     
                     # Add scope filter
                     if scope:
-                        query_parts.append("AND scope = ?")
+                        query_parts.append(SQL_WHERE_SCOPE)
                         params.append(scope.value)
                     
                     # Add type filter
                     if type:
-                        query_parts.append("AND node_type = ?")
+                        query_parts.append(SQL_WHERE_NODE_TYPE)
                         params.append(type.value)
                     
                     # Random sampling for better distribution
                     query_parts.extend([
-                        "ORDER BY RANDOM()",
-                        "LIMIT ?"
+                        SQL_ORDER_RANDOM,
+                        SQL_LIMIT
                     ])
                     params.append(nodes_per_day * 2)  # Get extra to allow for filtering
                 
@@ -422,7 +438,7 @@ async def get_timeline(
                                 attributes=attributes,
                                 version=row['version'],
                                 updated_by=row['updated_by'],
-                                updated_at=datetime.fromisoformat(row['updated_at'].replace('Z', '+00:00'))
+                                updated_at=datetime.fromisoformat(row['updated_at'].replace('Z', UTC_TIMEZONE_SUFFIX))
                             )
                             all_db_nodes.append(node)
                         except Exception as e:
@@ -486,7 +502,7 @@ async def get_timeline(
                 
                 if node_time:
                     if isinstance(node_time, str):
-                        node_time = datetime.fromisoformat(node_time.replace('Z', '+00:00'))
+                        node_time = datetime.fromisoformat(node_time.replace('Z', UTC_TIMEZONE_SUFFIX))
 
                     if start_time <= node_time <= now:
                         nodes.append(node)
@@ -528,7 +544,7 @@ async def get_timeline(
             
             if node_time:
                 if isinstance(node_time, str):
-                    node_time = datetime.fromisoformat(node_time.replace('Z', '+00:00'))
+                    node_time = datetime.fromisoformat(node_time.replace('Z', UTC_TIMEZONE_SUFFIX))
 
                 bucket_key = node_time.strftime("%Y-%m-%d %H:00" if bucket_size == "hour" else "%Y-%m-%d")
                 if bucket_key in buckets:
@@ -678,9 +694,9 @@ async def get_memory_stats(
             """)
             row = cursor.fetchone()
             if row and row['oldest']:
-                stats.oldest_node_date = datetime.fromisoformat(row['oldest'].replace('Z', '+00:00'))
+                stats.oldest_node_date = datetime.fromisoformat(row['oldest'].replace('Z', UTC_TIMEZONE_SUFFIX))
             if row and row['newest']:
-                stats.newest_node_date = datetime.fromisoformat(row['newest'].replace('Z', '+00:00'))
+                stats.newest_node_date = datetime.fromisoformat(row['newest'].replace('Z', UTC_TIMEZONE_SUFFIX))
         
         return SuccessResponse(
             data=stats,
@@ -718,7 +734,7 @@ async def get_memory(
     """
     memory_service = getattr(request.app.state, 'memory_service', None)
     if not memory_service:
-        raise HTTPException(status_code=503, detail="Memory service not available")
+        raise HTTPException(status_code=503, detail=MEMORY_SERVICE_NOT_AVAILABLE)
 
     try:
         query = MemoryQuery(
@@ -776,7 +792,7 @@ async def visualize_memory_graph(
     """
     memory_service = getattr(request.app.state, 'memory_service', None)
     if not memory_service:
-        raise HTTPException(status_code=503, detail="Memory service not available")
+        raise HTTPException(status_code=503, detail=MEMORY_SERVICE_NOT_AVAILABLE)
     
     try:
         # Import visualization dependencies
@@ -821,30 +837,30 @@ async def visualize_memory_graph(
                                 
                                 # Build query for this bucket
                                 query_parts = [
-                                    "SELECT node_id, scope, node_type, attributes_json, version, updated_by, updated_at, created_at",
-                                    "FROM graph_nodes",
-                                    "WHERE updated_at >= ? AND updated_at < ?",
+                                    SQL_SELECT_NODES,
+                                    SQL_FROM_NODES,
+                                    SQL_WHERE_TIME_RANGE,
                                 ]
                                 params: List[Any] = [bucket_start.isoformat(), bucket_end.isoformat()]
                                 
                                 # Add metric filter
                                 if not include_metrics:
-                                    query_parts.append("AND NOT (node_type = 'tsdb_data' AND node_id LIKE 'metric_%')")
+                                    query_parts.append(SQL_EXCLUDE_METRICS)
                                 
                                 # Add scope filter
                                 if scope:
-                                    query_parts.append("AND scope = ?")
+                                    query_parts.append(SQL_WHERE_SCOPE)
                                     params.append(scope.value)
                                 
                                 # Add type filter
                                 if node_type:
-                                    query_parts.append("AND node_type = ?")
+                                    query_parts.append(SQL_WHERE_NODE_TYPE)
                                     params.append(node_type.value)
                                 
                                 # Random sampling for better distribution
                                 query_parts.extend([
-                                    "ORDER BY RANDOM()",
-                                    "LIMIT ?"
+                                    SQL_ORDER_RANDOM,
+                                    SQL_LIMIT
                                 ])
                                 params.append(nodes_per_bucket * 2)  # Get extra to allow for filtering
                             
@@ -865,7 +881,7 @@ async def visualize_memory_graph(
                                             attributes=attributes,
                                             version=row['version'],
                                             updated_by=row['updated_by'],
-                                            updated_at=datetime.fromisoformat(row['updated_at'].replace('Z', '+00:00'))
+                                            updated_at=datetime.fromisoformat(row['updated_at'].replace('Z', UTC_TIMEZONE_SUFFIX))
                                         )
                                         all_db_nodes.append(node)
                                     except Exception as e:
@@ -896,30 +912,30 @@ async def visualize_memory_graph(
                                 
                                 # Build query for this day
                                 query_parts = [
-                                    "SELECT node_id, scope, node_type, attributes_json, version, updated_by, updated_at, created_at",
-                                    "FROM graph_nodes",
-                                    "WHERE updated_at >= ? AND updated_at < ?",
+                                    SQL_SELECT_NODES,
+                                    SQL_FROM_NODES,
+                                    SQL_WHERE_TIME_RANGE,
                                 ]
                                 day_params: List[Any] = [day_start.isoformat(), day_end.isoformat()]
                                 
                                 # Add metric filter
                                 if not include_metrics:
-                                    query_parts.append("AND NOT (node_type = 'tsdb_data' AND node_id LIKE 'metric_%')")
+                                    query_parts.append(SQL_EXCLUDE_METRICS)
                                 
                                 # Add scope filter
                                 if scope:
-                                    query_parts.append("AND scope = ?")
+                                    query_parts.append(SQL_WHERE_SCOPE)
                                     day_params.append(scope.value)
                                 
                                 # Add type filter
                                 if node_type:
-                                    query_parts.append("AND node_type = ?")
+                                    query_parts.append(SQL_WHERE_NODE_TYPE)
                                     day_params.append(node_type.value)
                                 
                                 # Random sampling for better distribution
                                 query_parts.extend([
-                                    "ORDER BY RANDOM()",
-                                    "LIMIT ?"
+                                    SQL_ORDER_RANDOM,
+                                    SQL_LIMIT
                                 ])
                                 day_params.append(nodes_per_day * 2)  # Get extra to allow for filtering
                                 
@@ -940,7 +956,7 @@ async def visualize_memory_graph(
                                             attributes=attributes,
                                             version=row['version'],
                                             updated_by=row['updated_by'],
-                                            updated_at=datetime.fromisoformat(row['updated_at'].replace('Z', '+00:00'))
+                                            updated_at=datetime.fromisoformat(row['updated_at'].replace('Z', UTC_TIMEZONE_SUFFIX))
                                         )
                                         all_db_nodes.append(node)
                                     except Exception as e:
@@ -993,7 +1009,7 @@ async def visualize_memory_graph(
                     
                     if node_time:
                         if isinstance(node_time, str):
-                            node_time = datetime.fromisoformat(node_time.replace('Z', '+00:00'))
+                            node_time = datetime.fromisoformat(node_time.replace('Z', UTC_TIMEZONE_SUFFIX))
                         
                         # Ensure node_time has timezone info for comparison
                         if isinstance(node_time, datetime):
@@ -1020,7 +1036,7 @@ async def visualize_memory_graph(
                     
                     if time_val:
                         if isinstance(time_val, str):
-                            return datetime.fromisoformat(time_val.replace('Z', '+00:00'))
+                            return datetime.fromisoformat(time_val.replace('Z', UTC_TIMEZONE_SUFFIX))
                         elif isinstance(time_val, datetime):
                             # Ensure datetime is timezone-aware
                             if time_val.tzinfo is None:
@@ -1060,30 +1076,30 @@ async def visualize_memory_graph(
                             
                             # Build query for this day
                             query_parts = [
-                                "SELECT node_id, scope, node_type, attributes_json, version, updated_by, updated_at, created_at",
-                                "FROM graph_nodes",
-                                "WHERE updated_at >= ? AND updated_at < ?",
+                                SQL_SELECT_NODES,
+                                SQL_FROM_NODES,
+                                SQL_WHERE_TIME_RANGE,
                             ]
                             day_params2: List[Any] = [day_start.isoformat(), day_end.isoformat()]
                             
                             # Add metric filter
                             if not include_metrics:
-                                query_parts.append("AND NOT (node_type = 'tsdb_data' AND node_id LIKE 'metric_%')")
+                                query_parts.append(SQL_EXCLUDE_METRICS)
                             
                             # Add scope filter
                             if scope:
-                                query_parts.append("AND scope = ?")
+                                query_parts.append(SQL_WHERE_SCOPE)
                                 day_params2.append(scope.value)
                             
                             # Add type filter
                             if node_type:
-                                query_parts.append("AND node_type = ?")
+                                query_parts.append(SQL_WHERE_NODE_TYPE)
                                 day_params2.append(node_type.value)
                             
                             # Random sampling for better distribution
                             query_parts.extend([
-                                "ORDER BY RANDOM()",
-                                "LIMIT ?"
+                                SQL_ORDER_RANDOM,
+                                SQL_LIMIT
                             ])
                             day_params2.append(nodes_per_day * 2)  # Get extra to allow for filtering
                         
@@ -1104,7 +1120,7 @@ async def visualize_memory_graph(
                                         attributes=attributes,
                                         version=row['version'],
                                         updated_by=row['updated_by'],
-                                        updated_at=datetime.fromisoformat(row['updated_at'].replace('Z', '+00:00'))
+                                        updated_at=datetime.fromisoformat(row['updated_at'].replace('Z', UTC_TIMEZONE_SUFFIX))
                                     )
                                     all_db_nodes.append(node)
                                 except Exception as e:
@@ -1440,7 +1456,7 @@ def _calculate_timeline_layout(G: "nx.DiGraph", nodes: List[GraphNode], width: i
                 # Convert string to datetime if needed
                 if isinstance(node_time, str):
                     # Handle ISO format with Z suffix
-                    node_time = datetime.fromisoformat(node_time.replace('Z', '+00:00'))
+                    node_time = datetime.fromisoformat(node_time.replace('Z', UTC_TIMEZONE_SUFFIX))
                 
                 # Ensure we have a datetime object
                 if isinstance(node_time, datetime):
@@ -1763,7 +1779,7 @@ async def create_edge(
     """
     memory_service = getattr(request.app.state, 'memory_service', None)
     if not memory_service:
-        raise HTTPException(status_code=503, detail="Memory service not available")
+        raise HTTPException(status_code=503, detail=MEMORY_SERVICE_NOT_AVAILABLE)
     
     try:
         result = await memory_service.create_edge(body.edge)
@@ -1792,7 +1808,7 @@ async def get_node_edges(
     """
     memory_service = getattr(request.app.state, 'memory_service', None)
     if not memory_service:
-        raise HTTPException(status_code=503, detail="Memory service not available")
+        raise HTTPException(status_code=503, detail=MEMORY_SERVICE_NOT_AVAILABLE)
     
     try:
         edges = await memory_service.get_node_edges(node_id, scope)
