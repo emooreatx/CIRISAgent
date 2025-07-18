@@ -21,6 +21,8 @@ export default function WAPage() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'resolved'>('pending');
   const [sortBy, setSortBy] = useState<'timestamp' | 'urgency' | 'type'>('timestamp');
   const [userDetail, setUserDetail] = useState<UserDetail | null>(null);
+  const [showSignatureHelp, setShowSignatureHelp] = useState(false);
+  const [signature, setSignature] = useState('');
 
   // Check access - allow admins or authorities to view
   useEffect(() => {
@@ -55,7 +57,7 @@ export default function WAPage() {
   });
 
   // Check if user can resolve deferrals (must be a minted WA)
-  const canResolve = userDetail?.wa_role === 'authority' || userDetail?.wa_role === 'root';
+  const canResolve = userDetail?.wa_role === 'AUTHORITY' || userDetail?.wa_role === 'ADMIN';
 
   // Resolve deferral mutation
   const resolveMutation = useMutation({
