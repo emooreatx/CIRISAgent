@@ -541,7 +541,10 @@ class DiscordPlatform(Service):
                 try:
                     await self._discord_client_task
                 except asyncio.CancelledError:
-                    pass
+                    # Only re-raise if we're being cancelled ourselves
+                    if asyncio.current_task() and asyncio.current_task().cancelled():
+                        raise
+                    # Otherwise, this is a normal stop - don't propagate the cancellation
                 except Exception as e:
                     logger.error(f"Error while cancelling Discord client task: {e}")
             

@@ -1140,7 +1140,10 @@ class CIRISRuntime:
                     try:
                         await service._task
                     except asyncio.CancelledError:
-                        pass
+                        # Only re-raise if we're being cancelled ourselves
+                        if asyncio.current_task() and asyncio.current_task().cancelled():
+                            raise
+                        # Otherwise, this is a normal stop - don't propagate the cancellation
                 elif hasattr(service, 'stop_scheduler'):
                     await service.stop_scheduler()
             except Exception as e:

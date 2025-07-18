@@ -168,6 +168,10 @@ class TSDBConsolidationService(BaseGraphService):
                 await self._consolidation_task
             except asyncio.CancelledError:
                 logger.debug("Consolidation task cancelled successfully")
+                # Only re-raise if we're being cancelled ourselves
+                if asyncio.current_task() and asyncio.current_task().cancelled():
+                    raise
+                # Otherwise, this is a normal stop - don't propagate the cancellation
             except Exception as e:
                 logger.error(f"Error cancelling consolidation task: {e}")
         

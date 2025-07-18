@@ -44,8 +44,16 @@ def _ensure_adapters_registered() -> None:
         _adapters_registered = True
 
 
-def get_db_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
-    """Establishes a connection to the SQLite database with foreign key support."""
+def get_db_connection(db_path: Optional[str] = None, busy_timeout: Optional[int] = None) -> sqlite3.Connection:
+    """Establishes a connection to the SQLite database with foreign key support.
+    
+    Args:
+        db_path: Optional path to database file
+        busy_timeout: Optional busy timeout in milliseconds (e.g., 5000 for 5 seconds)
+    
+    Returns:
+        SQLite connection with row factory and foreign keys enabled
+    """
     # Ensure adapters are registered before creating connection
     _ensure_adapters_registered()
     
@@ -54,6 +62,11 @@ def get_db_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path, check_same_thread=False, detect_types=sqlite3.PARSE_DECLTYPES)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
+    
+    # Set busy timeout if specified
+    if busy_timeout is not None:
+        conn.execute(f"PRAGMA busy_timeout = {busy_timeout};")
+    
     return conn
 
 # Removed unused schema getter functions - only graph schemas are used
