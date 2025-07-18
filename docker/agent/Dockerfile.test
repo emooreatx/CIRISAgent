@@ -1,0 +1,39 @@
+# Testing Dockerfile for pytest CI emulation
+# Closely matches GitHub Actions ubuntu-latest with Python 3.12
+FROM python:3.12-slim
+
+# Install system dependencies similar to ubuntu-latest environment
+RUN apt-get update && apt-get install -y \
+    curl \
+    gcc \
+    g++ \
+    python3-dev \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Upgrade pip to match CI behavior
+RUN pip install --upgrade pip
+
+# Install typing_extensions first (as done in CI)
+RUN pip install typing_extensions>=4.0.0
+
+# Copy requirements file and install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefer-binary -r requirements.txt
+
+# Install pytest and coverage tools
+RUN pip install pytest pytest-cov pytest-asyncio pytest-timeout
+
+# Copy test configuration if it exists
+COPY pytest.ini* ./
+COPY .coveragerc* ./
+
+# Copy application code
+COPY . .
+
+# Run tests by default
+CMD ["pytest", "-v"]

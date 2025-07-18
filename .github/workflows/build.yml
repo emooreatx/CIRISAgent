@@ -1,4 +1,4 @@
-name: Build
+name: Build and Deploy
 
 on:
   push:
@@ -8,7 +8,8 @@ on:
     types: [opened, synchronize, reopened]
 
 permissions:
-  contents: write
+  contents: read
+  packages: write
   pull-requests: read
 
 jobs:
@@ -20,25 +21,21 @@ jobs:
         with:
           fetch-depth: 0  # Essential for accurate SonarQube results
       
-      # Step to set up Python (example: Python 3.12)
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      # Clean up any cached files and test databases
       - name: Clean Python Cache and Test Artifacts
         run: |
           find . -type d -name __pycache__ -exec rm -rf {} + || true
           find . -type f -name "*.pyc" -delete || true
           find . -type f -name "*.pyo" -delete || true
           rm -rf .pytest_cache || true
-          # Clean up test databases
           rm -f test_*.db || true
           rm -f ciris_engine.db || true
           rm -rf data/*.db || true
 
-      # Install dependencies (pytest and coverage)
       - name: Install Dependencies
         run: |
           pip install --upgrade pip
@@ -46,7 +43,6 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-cov
 
-      # Run tests and generate coverage.xml
       - name: Run tests and coverage
         env:
           CI: true
@@ -60,88 +56,225 @@ jobs:
           python version.py
           cat BUILD_INFO.txt || echo "No BUILD_INFO.txt created"
 
-      # Verify coverage file (for debugging)
-      - name: Debug Coverage File
-        run: |
-          ls -l coverage.xml
-
-      # Check if we should run SonarQube
-      # Only run on the main CIRISai/CIRISAgent repository when SONAR_TOKEN is available
+      # SonarQube scan (only on main repo)
       - name: Check SonarQube conditions
         id: check_sonar
         run: |
           echo "Repository: ${{ github.repository }}"
-          echo "Event: ${{ github.event_name }}"
-          # Convert to lowercase for case-insensitive comparison
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           if [[ "$REPO_LOWER" == "cirisai/cirisagent" ]] && [[ -n "${{ secrets.SONAR_TOKEN }}" ]]; then
             echo "should_run=true" >> $GITHUB_OUTPUT
-            echo "SonarQube scan will run"
           else
             echo "should_run=false" >> $GITHUB_OUTPUT
-            echo "SonarQube scan will be skipped (not in main repo or no token)"
           fi
 
-      # SonarQube scan using the generated coverage.xml
       - name: SonarQube Scan
         if: steps.check_sonar.outputs.should_run == 'true'
         uses: SonarSource/sonarqube-scan-action@v5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
-      # Commit BUILD_INFO.txt if on main branch (only in repos without branch protection)
-      - name: Commit version info
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.repository != 'CIRISai/CIRISAgent'
-        continue-on-error: true  # Don't fail the workflow if commit fails
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          
-          # Check if BUILD_INFO.txt exists and has changed
-          if [ -f BUILD_INFO.txt ]; then
-            git add BUILD_INFO.txt
-            if git diff --staged --quiet; then
-              echo "BUILD_INFO.txt has not changed, skipping commit"
-            else
-              git commit -m "chore: Update BUILD_INFO.txt [skip ci]"
-              # Try to push, but don't fail if it doesn't work (e.g., in forks)
-              if git push; then
-                echo "BUILD_INFO.txt has been committed"
-              else
-                echo "::warning::Could not push BUILD_INFO.txt (this is normal in forks or with restricted permissions)"
-                echo "BUILD_INFO.txt changes:"
-                git show --name-status
-              fi
-            fi
-          else
-            echo "BUILD_INFO.txt was not created"
-          fi
-      
-      # For CIRISai/CIRISAgent, just display the BUILD_INFO.txt content
-      - name: Display version info for protected branch
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.repository == 'CIRISai/CIRISAgent'
-        run: |
-          echo "BUILD_INFO.txt content (not committed due to branch protection):"
-          cat BUILD_INFO.txt || echo "No BUILD_INFO.txt created"
-          echo ""
-          echo "To commit this file, it must be added through a pull request."
+  build:
+    name: Build Docker Images
+    needs: test
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - uses: actions/checkout@v4
 
-      # Summary of what ran
-      - name: Summary
-        if: always()
-        run: |
-          echo "### Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- ✅ Tests completed" >> $GITHUB_STEP_SUMMARY
-          if [[ "${{ steps.check_sonar.outputs.should_run }}" == "true" ]]; then
-            echo "- ✅ SonarQube scan completed" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "- ⏭️ SonarQube scan skipped (running in fork or no token)" >> $GITHUB_STEP_SUMMARY
-          fi
-          if [[ "${{ github.ref }}" == "refs/heads/main" ]] && [[ "${{ github.event_name }}" == "push" ]]; then
-            if [[ "${{ github.repository }}" == "CIRISai/CIRISAgent" ]]; then
-              echo "- 📝 Version info generated (not committed due to branch protection)" >> $GITHUB_STEP_SUMMARY
-            else
-              echo "- 📝 Version info commit attempted (may be skipped in forks)" >> $GITHUB_STEP_SUMMARY
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/ciris-agent
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/agent/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Build GUI Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./CIRISGUI
+          file: ./docker/gui/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/ciris-gui:latest
+            ghcr.io/${{ github.repository_owner }}/ciris-gui:${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+  deploy:
+    name: Deploy to Production
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.repository == 'CIRISai/CIRISAgent'
+    environment: production
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: 108.61.119.117
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            # Initialize server if needed (idempotent)
+            if [ ! -f "/home/ciris/.initialized" ]; then
+              echo "First time deployment - initializing server..."
+              
+              # Update system
+              apt-get update
+              apt-get upgrade -y
+              
+              # Install required packages
+              apt-get install -y curl git ca-certificates gnupg lsb-release ufw
+              
+              # Install Docker if needed
+              if ! command -v docker &> /dev/null; then
+                curl -fsSL https://get.docker.com | sh
+                systemctl enable docker
+                systemctl start docker
+              fi
+              
+              # Install Docker Compose if needed
+              if ! command -v docker-compose &> /dev/null; then
+                curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+                chmod +x /usr/local/bin/docker-compose
+              fi
+              
+              # Create ciris user if needed
+              if ! id -u ciris &>/dev/null; then
+                useradd -m -s /bin/bash ciris
+                usermod -aG docker ciris
+              fi
+              
+              # Setup directory structure
+              mkdir -p /home/ciris
+              chown ciris:ciris /home/ciris
+              
+              # Configure firewall
+              ufw allow 22/tcp    # SSH
+              ufw allow 80/tcp    # HTTP
+              ufw allow 443/tcp   # HTTPS
+              ufw allow 3000/tcp  # GUI
+              ufw allow 8080/tcp  # API
+              ufw --force enable
+              
+              # Mark as initialized
+              touch /home/ciris/.initialized
             fi
-          fi
+            
+            # Ensure base directories exist
+            mkdir -p /home/ciris
+            cd /home/ciris
+            
+            # Clone or update repository
+            if [ ! -d "CIRISAgent" ]; then
+              git clone https://github.com/CIRISAI/CIRISAgent.git
+            fi
+            cd CIRISAgent
+            git pull origin main
+            
+            # Create .env.datum file for Phase 1 if it doesn't exist
+            if [ ! -f ".env.datum" ]; then
+              echo "# Phase 1 Mock LLM Environment" > .env.datum
+              echo "CIRIS_MOCK_LLM=true" >> .env.datum
+              echo "# Discord credentials should be added manually if needed" >> .env.datum
+              echo "# DISCORD_BOT_TOKEN=your_token_here" >> .env.datum
+            fi
+            
+            # Use the production dev compose file that expects images
+            if [ ! -f "deployment/docker-compose.dev-prod.yml" ]; then
+              cp deployment/docker-compose.dev.yml deployment/docker-compose.dev-prod.yml
+            fi
+            
+            # Pull new images from GitHub Container Registry
+            docker pull ghcr.io/cirisai/ciris-agent:latest
+            docker pull ghcr.io/cirisai/ciris-gui:latest
+            
+            # Tag images for local use
+            docker tag ghcr.io/cirisai/ciris-agent:latest ciris-agent:latest
+            docker tag ghcr.io/cirisai/ciris-gui:latest ciris-gui:latest
+            
+            # Stop existing containers
+            docker-compose -f deployment/docker-compose.dev-prod.yml down || true
+            
+            # Start development deployment with mock LLM
+            docker-compose -f deployment/docker-compose.dev-prod.yml up -d
+            
+            # Clean up old images
+            docker image prune -f
+            
+            # Create systemd service for auto-start if it doesn't exist
+            if [ ! -f "/etc/systemd/system/ciris-dev.service" ]; then
+              cat > /etc/systemd/system/ciris-dev.service << 'EOF'
+            [Unit]
+            Description=CIRIS Development Deployment
+            After=docker.service
+            Requires=docker.service
+            
+            [Service]
+            Type=oneshot
+            RemainAfterExit=yes
+            WorkingDirectory=/home/ciris/CIRISAgent
+            ExecStart=/usr/local/bin/docker-compose -f deployment/docker-compose.dev-prod.yml up -d
+            ExecStop=/usr/local/bin/docker-compose -f deployment/docker-compose.dev-prod.yml down
+            User=root
+            Group=root
+            
+            [Install]
+            WantedBy=multi-user.target
+            EOF
+              systemctl daemon-reload
+              systemctl enable ciris-dev
+            fi
+
+      - name: Verify deployment
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: 108.61.119.117
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            # Wait for containers to be healthy
+            echo "Waiting for containers to start..."
+            sleep 30
+            
+            # Check API health
+            echo "Checking API health..."
+            if ! curl -f http://localhost:8080/v1/system/health; then
+              echo "API health check failed!"
+              docker logs ciris-agent-datum
+              exit 1
+            fi
+            
+            # Verify containers are running
+            echo "\nRunning containers:"
+            docker ps | grep ciris
+            
+            echo "\nDeployment successful! Phase 1 with Mock LLM is running."

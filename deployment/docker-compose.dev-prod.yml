@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # Development: Single Datum agent with Mock LLM for testing
+  agent-datum:
+    image: ciris-agent:latest  # Will be pulled from ghcr.io and tagged locally
+    container_name: ciris-agent-datum
+    ports:
+      - "8080:8080"
+    environment:
+      - CIRIS_AGENT_NAME=Datum
+      - CIRIS_AGENT_ID=agent-datum
+      - CIRIS_PORT=8080
+      - CIRIS_ADAPTER=api
+      - CIRIS_ADAPTER_DISCORD=discord
+      - CIRIS_MOCK_LLM=true  # Enable mock LLM for Phase 1
+      # Discord configuration loaded from .env.datum file
+      # API configuration
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8080
+    volumes:
+      - datum_data:/app/data
+      - datum_logs:/app/logs
+      # Mount the .env file into the container
+      - /home/ciris/CIRISAgent/.env.datum:/app/.env:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    command: ["python", "main.py", "--adapter", "api", "--adapter", "discord", "--mock-llm"]
+
+  # GUI Application
+  ciris-gui:
+    image: ciris-gui:latest  # Will be pulled from ghcr.io and tagged locally
+    container_name: ciris-gui
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_CIRIS_API_URL=https://agents.ciris.ai
+    restart: unless-stopped
+
+volumes:
+  datum_data:
+  datum_logs:

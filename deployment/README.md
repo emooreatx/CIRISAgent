@@ -1,10 +1,22 @@
-# CIRIS Multi-Agent Deployment
+# CIRIS Deployment
 
-This directory contains the deployment configuration for the CIRIS multi-agent system.
+This directory contains the deployment configuration for the CIRIS system.
 
-## Architecture
+## Deployment Environments
 
-The system consists of 5 CIRIS agents, each with a specific role:
+### Development (Mock LLM)
+- Single Datum agent with mock LLM for testing
+- No external API dependencies
+- Ideal for development and testing
+
+### Production (Multi-Agent)
+- 5 specialized CIRIS agents working in concert
+- Real LLM integration (OpenAI, Anthropic, etc.)
+- Full Discord and API capabilities
+
+## Production Architecture
+
+The production system consists of 5 CIRIS agents, each with a specific role:
 
 1. **Datum** (port 8080) - Primary decision-making agent
 2. **Sage** (port 8081) - Wisdom and deep analysis
@@ -39,21 +51,28 @@ SNORE_CHANNEL_ID=...
 CIRIS_AGENT_NAME=Datum  # Or Sage, Scout, etc.
 ```
 
-## Deployment Phases
+## Deployment Commands
 
-### Phase 1: Testing with Mock LLM
+### Development Environment
 ```bash
-# Load the environment and deploy with mock LLM
-docker-compose -f docker-compose.phase1.yml --env-file datum.env up -d
+# Deploy single agent with mock LLM
+docker-compose -f docker-compose.dev.yml up -d
 ```
 
-### Phase 2: Production with Real LLM
+### Production Environment
 ```bash
-# Deploy all 5 agents with their respective env files
-# Note: You'll need to modify docker-compose.multi-agent.yml to use
-# separate env files per service, or load them manually
-./deploy-agents.sh
+# Deploy all 5 agents with real LLM
+docker-compose -f docker-compose.production.yml up -d
 ```
+
+## Automated CI/CD
+
+Production deployment is fully automated via GitHub Actions:
+1. Push to main branch triggers the pipeline
+2. Tests run in Docker containers
+3. Docker images built and pushed to ghcr.io
+4. Automatic deployment to production server
+5. Health checks verify successful deployment
 
 ## Adapter Priority Configuration
 
@@ -74,23 +93,17 @@ The production NGINX configuration (`nginx/agents.ciris.ai.conf`) routes:
 - `/api/echo-core/*` → Echo-Core agent on port 8083
 - `/api/echo-speculative/*` → Echo-Speculative agent on port 8084
 
-## Testing Multi-Adapter Setup Locally
+## Local Development
 
-To test the multi-adapter configuration locally:
+For local development and testing:
 
 ```bash
-# Export environment variables from ciris_student.env
-export $(cat ../ciris_student.env | grep -v '^#' | xargs)
-
-# Run with mock LLM, API and Discord adapters
+# Run with mock LLM
 python main.py --adapter api --adapter discord --mock-llm --timeout 60
-```
 
-This will:
-1. Start both API and Discord adapters
-2. Use the mock LLM for testing
-3. Send WAKEUP to API channel (due to higher priority)
-4. Allow interaction via both API and Discord
+# Or use Docker
+docker-compose -f docker-compose.dev.yml up -d
+```
 
 ## Monitoring
 
