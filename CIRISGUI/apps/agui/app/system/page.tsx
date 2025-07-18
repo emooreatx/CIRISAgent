@@ -373,16 +373,16 @@ export default function SystemPage() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">CPU Usage</span>
-                  <span className={`text-lg font-bold ${resources?.current_usage?.cpu_percent > 80 ? 'text-red-600' : resources?.current_usage?.cpu_percent > 60 ? 'text-yellow-600' : 'text-green-600'}`}>
-                    {resources?.current_usage?.cpu_percent?.toFixed(1) || 0}%
+                  <span className={`text-lg font-bold ${resources?.cpu_percent > 80 ? 'text-red-600' : resources?.cpu_percent > 60 ? 'text-yellow-600' : 'text-green-600'}`}>
+                    {resources?.cpu_percent?.toFixed(1) || 0}%
                   </span>
                 </div>
                 <div className="relative">
                   <div className="overflow-hidden h-4 text-xs flex rounded-full bg-gray-200">
                     <div
-                      style={{ width: `${resources?.current_usage?.cpu_percent || 0}%` }}
+                      style={{ width: `${resources?.cpu_percent || 0}%` }}
                       className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-300 ${
-                        resources?.current_usage?.cpu_percent > 80 ? 'bg-red-500' : resources?.current_usage?.cpu_percent > 60 ? 'bg-yellow-500' : 'bg-blue-500'
+                        resources?.cpu_percent > 80 ? 'bg-red-500' : resources?.cpu_percent > 60 ? 'bg-yellow-500' : 'bg-blue-500'
                       }`}
                     />
                   </div>
@@ -392,22 +392,22 @@ export default function SystemPage() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">Memory Usage</span>
-                  <span className={`text-lg font-bold ${resources?.current_usage?.memory_percent > 80 ? 'text-red-600' : resources?.current_usage?.memory_percent > 60 ? 'text-yellow-600' : 'text-green-600'}`}>
-                    {resources?.current_usage?.memory_mb ? resources.current_usage.memory_mb.toFixed(1) : 0} MB
+                  <span className={`text-lg font-bold ${resources?.memory_percent > 80 ? 'text-red-600' : resources?.memory_percent > 60 ? 'text-yellow-600' : 'text-green-600'}`}>
+                    {resources?.memory_mb ? resources.memory_mb.toFixed(1) : 0} MB
                   </span>
                 </div>
                 <div className="relative">
                   <div className="overflow-hidden h-4 text-xs flex rounded-full bg-gray-200">
                     <div
-                      style={{ width: `${resources?.current_usage?.memory_percent || 0}%` }}
+                      style={{ width: `${resources?.memory_percent || 0}%` }}
                       className={`shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center transition-all duration-300 ${
-                        resources?.current_usage?.memory_percent > 80 ? 'bg-red-500' : resources?.current_usage?.memory_percent > 60 ? 'bg-yellow-500' : 'bg-green-500'
+                        resources?.memory_percent > 80 ? 'bg-red-500' : resources?.memory_percent > 60 ? 'bg-yellow-500' : 'bg-green-500'
                       }`}
                     />
                   </div>
                 </div>
                 <p className="text-xs text-gray-500">
-                  {resources?.current_usage?.memory_percent?.toFixed(1) || 0}% utilized
+                  {resources?.memory_percent?.toFixed(1) || 0}% utilized
                 </p>
               </div>
               
@@ -415,7 +415,7 @@ export default function SystemPage() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">Disk Usage</span>
                   <span className="text-lg font-bold text-green-600">
-                    {resources?.current_usage?.disk_used_mb ? `${(resources.current_usage.disk_used_mb / 1024).toFixed(1)} GB` : 'N/A'}
+                    {resources?.disk_usage_gb ? `${resources.disk_usage_gb.toFixed(1)} GB` : 'N/A'}
                   </span>
                 </div>
               </div>
