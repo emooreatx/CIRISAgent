@@ -354,7 +354,7 @@ export default function SystemPage() {
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
                 <dt className="text-sm font-medium text-gray-500">CPU Usage</dt>
                 <dd className="mt-2 text-2xl font-semibold text-gray-900">
-                  {resources?.current_usage?.cpu_percent ? `${resources.current_usage.cpu_percent.toFixed(1)}%` : 'N/A'}
+                  {resources?.cpu_percent ? `${resources.cpu_percent.toFixed(1)}%` : 'N/A'}
                 </dd>
               </div>
             </div>
