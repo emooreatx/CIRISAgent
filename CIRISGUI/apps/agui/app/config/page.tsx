@@ -182,7 +182,7 @@ export default function ConfigPage() {
           if (
             !adapter.adapter_id.toLowerCase().includes(searchLower) &&
             !adapter.adapter_type.toLowerCase().includes(searchLower) &&
-            !JSON.stringify(adapter.config_params).toLowerCase().includes(searchLower)
+            !JSON.stringify(adapter.config || {}).toLowerCase().includes(searchLower)
           ) {
             return;
           }
