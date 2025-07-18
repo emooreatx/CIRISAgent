@@ -5,7 +5,7 @@ import {
   useScroll,
   useMotionValueEvent,
 } from "framer-motion";
-import { cn } from "@/app/lib/utils";
+import { cn } from "../../../lib/utils";
 import Link from "next/link";
 import Image from "next/image";
 import { GithubLogoIcon } from "@phosphor-icons/react";

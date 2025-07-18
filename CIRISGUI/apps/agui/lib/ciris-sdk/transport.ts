@@ -324,10 +324,17 @@ export class Transport {
    * Update the auth token
    */
   setAuthToken(token: string | null): void {
-    AuthStore.setToken(token ? {
-      access_token: token,
-      token_type: 'Bearer',
-      expires_in: 86400
-    } : null);
+    if (token) {
+      AuthStore.saveToken({
+        access_token: token,
+        token_type: 'Bearer',
+        expires_in: 86400,
+        user_id: '',
+        role: '',
+        created_at: Date.now()
+      });
+    } else {
+      AuthStore.clearToken();
+    }
   }
 }
