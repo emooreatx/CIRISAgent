@@ -38,17 +38,13 @@ export default function OAuthCallbackPage() {
       // Extract provider from state (we'll encode it in the state parameter)
       const provider = state.split(':')[0];
       
-      const response = await cirisClient.auth.handleOAuthCallback(provider, code, state);
+      const user = await cirisClient.auth.handleOAuthCallback(provider, code, state);
       
       // Set the authentication state
-      setUser(response);
-      setToken(response.access_token);
+      setUser(user);
       
-      // Store token for future requests
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('authToken', response.access_token);
-        localStorage.setItem('user', JSON.stringify(response));
-      }
+      // The handleOAuthCallback method already stores the token internally
+      // No need to manually set token or localStorage as the SDK handles it
       
       // Redirect to dashboard
       router.push('/dashboard');
