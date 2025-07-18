@@ -5,7 +5,7 @@ services:
   agent-datum:
     build:
       context: ..
-      dockerfile: Dockerfile
+      dockerfile: docker/agent/Dockerfile.dev
     container_name: ciris-agent-datum
     ports:
       - "8080:8080"
@@ -38,7 +38,7 @@ services:
   ciris-gui:
     build:
       context: ../CIRISGUI
-      dockerfile: Dockerfile
+      dockerfile: ../docker/gui/Dockerfile
     container_name: ciris-gui
     ports:
       - "3000:3000"

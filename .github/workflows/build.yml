@@ -107,6 +107,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./docker/agent/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -118,7 +119,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: ./CIRISGUI
-          file: ./CIRISGUI/docker/Dockerfile.agui
+          file: ./docker/gui/Dockerfile
           push: true
           tags: |
             ghcr.io/${{ github.repository_owner }}/ciris-gui:latest

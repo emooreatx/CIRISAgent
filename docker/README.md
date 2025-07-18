@@ -1,91 +1,65 @@
-# CIRIS Agent Docker Deployment
+# CIRIS Docker Images
 
-## Port Assignments
+This directory contains all Dockerfiles for the CIRIS system, organized by component.
 
-Each CIRIS agent runs on a unique API port to allow simultaneous deployment:
+## Structure
 
-| Agent | Container Name | API Port | Profile |
-|-------|---------------|----------|---------|
-| Default/Teacher | cirisagent/teacher | 8000/8001 | teacher |
-| Student | student | 8002 | student |
-| Echo Core | echo-core | 8003 | echo-core |
-| Echo Speculative | echo-speculative | 8004 | echo-speculative |
+```
+docker/
+├── agent/           # Core CIRIS agent
+├── gui/             # Web GUI interface
+├── voice/           # Voice components
+└── compose/         # Docker Compose files
+```
 
-## Usage
+## Agent Images
 
-### Run a Single Agent
+### Production (`agent/Dockerfile`)
+- Multi-stage build for minimal size
+- Runs as non-root user (ciris:1000)
+- Optimized for production deployment
+- Health check included
 
+### Development (`agent/Dockerfile.dev`)
+- Includes debugging tools (ipdb, ipython, vim)
+- Full build dependencies retained
+- Environment variable `CIRIS_DEV_MODE=true`
+- Suitable for local development
+
+### Testing (`agent/Dockerfile.test`)
+- Matches GitHub Actions CI environment
+- Includes pytest and coverage tools
+- Designed for running test suites
+
+## GUI Image (`gui/Dockerfile`)
+- Node.js 20 Alpine-based
+- Next.js application
+- Production build optimized
+
+## Voice Components (`voice/Dockerfile`)
+- Python 3.11 slim
+- Includes ffmpeg for audio processing
+- Runs as non-root user (wyoming)
+
+## Building Images
+
+### Production Build
 ```bash
-# Teacher agent
-docker-compose -f docker-compose-teacher.yml up -d
-
-# Student agent
-docker-compose -f docker-compose-student.yml up -d
-
-# Echo Core agent
-docker-compose -f docker-compose-echo-core.yml up -d
-
-# Echo Speculative agent
-docker-compose -f docker-compose-echo-spec.yml up -d
+docker build -f docker/agent/Dockerfile -t ciris-agent:latest .
 ```
 
-### Run All Agents Simultaneously
-
+### Development Build
 ```bash
-# Start all 4 agents
-docker-compose -f docker-compose-all.yml up -d
-
-# View logs for all agents
-docker-compose -f docker-compose-all.yml logs -f
-
-# Stop all agents
-docker-compose -f docker-compose-all.yml down
+docker build -f docker/agent/Dockerfile.dev -t ciris-agent:dev .
 ```
 
-### Environment Files
-
-Each agent requires its own `.env` file:
-- `.env` or `.env.teacher` - Teacher agent configuration
-- `.env.student` - Student agent configuration
-- `.env.echo-core` - Echo Core agent configuration
-- `.env.echo-spec` - Echo Speculative agent configuration
-
-Each env file should contain:
-```env
-OPENAI_API_KEY=your_openai_key
-DISCORD_BOT_TOKEN=your_discord_token_for_this_agent
-# Other agent-specific configuration
-```
-
-### API Access
-
-Once running, each agent's API is accessible at:
-- Teacher: http://localhost:8001
-- Student: http://localhost:8002
-- Echo Core: http://localhost:8003
-- Echo Speculative: http://localhost:8004
-
-### Health Check
-
+### GUI Build
 ```bash
-# Check teacher agent
-curl http://localhost:8001/api/v1/health
-
-# Check all agents
-for port in 8001 8002 8003 8004; do
-  echo "Agent on port $port:"
-  curl -s http://localhost:$port/api/v1/health | jq .
-done
+docker build -f docker/gui/Dockerfile -t ciris-gui:latest CIRISGUI/
 ```
 
-### OAuth Endpoints
+## Using Docker Compose
 
-Each agent exposes OAuth endpoints:
-- `GET /v1/auth/oauth/{provider}/start` - Start OAuth flow
-- `GET /v1/auth/oauth/{provider}/callback` - Handle OAuth callback
-
-Example:
-```bash
-# Start Google OAuth for teacher agent
-curl http://localhost:8001/v1/auth/oauth/google/start
-```
+See `deployment/` directory for Docker Compose configurations:
+- `docker-compose.dev.yml` - Development environment
+- `docker-compose.production.yml` - Production multi-agent setup
