@@ -200,7 +200,7 @@ export default function ConfigPage() {
         sections[sectionName].items.push({
           key: `${adapter.adapter_id}.config`,
           value: adapter.config || {},
-          updated_at: adapter.loaded_at || new Date().toISOString(),
+          updated_at: adapter.created_at || new Date().toISOString(),
           updated_by: 'system',
           is_sensitive: false
         });
@@ -211,7 +211,6 @@ export default function ConfigPage() {
           value: {
             type: adapter.adapter_type,
             is_running: adapter.is_running,
-            tools_count: adapter.tools?.length || 0,
             last_activity: adapter.last_activity || 'Never'
           },
           updated_at: new Date().toISOString(),
@@ -276,7 +275,7 @@ export default function ConfigPage() {
   const saveChanges = async () => {
     const updates = Object.entries(editedValues);
     if (updates.length === 0) {
-      toast.info('No changes to save');
+      toast('No changes to save');
       return;
     }
 
