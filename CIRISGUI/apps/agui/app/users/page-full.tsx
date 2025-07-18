@@ -92,11 +92,11 @@ export default function UsersPage() {
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="sm:flex sm:items-center">
           <div className="sm:flex-auto">
-              <h1 className="text-2xl font-semibold text-gray-900">User Management</h1>
-              <p className="mt-2 text-sm text-gray-700">
-                Manage users, roles, and Wise Authority assignments
-              </p>
-            </div>
+            <h1 className="text-2xl font-semibold text-gray-900">User Management</h1>
+            <p className="mt-2 text-sm text-gray-700">
+              Manage users, roles, and Wise Authority assignments
+            </p>
+          </div>
             <div className="mt-4 sm:mt-0 sm:ml-16 sm:flex-none space-x-2">
               {hasRole('SYSTEM_ADMIN') && (
                 <>
