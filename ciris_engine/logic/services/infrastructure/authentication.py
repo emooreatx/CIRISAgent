@@ -866,8 +866,24 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
         return hashlib.sha256(key_material.encode()).hexdigest()
 
     def _generate_wa_id(self, timestamp: datetime) -> str:
-        """Generate a WA ID in format wa-YYYY-MM-DD-XXXXXX."""
+        """Generate a unique WA (Wise Authority) ID.
+        
+        Format: wa-YYYY-MM-DD-XXXXXX
+        - wa: Fixed prefix for all WA IDs
+        - YYYY-MM-DD: Date from the provided timestamp
+        - XXXXXX: 6 uppercase hexadecimal characters (cryptographically random)
+        
+        Args:
+            timestamp: The timestamp to use for the date portion
+            
+        Returns:
+            A unique WA ID string
+            
+        Example:
+            wa-2025-07-14-A3F2B1
+        """
         date_str = timestamp.strftime("%Y-%m-%d")
+        # Generate 3 random bytes = 6 hex characters
         random_suffix = secrets.token_hex(3).upper()
         return f"wa-{date_str}-{random_suffix}"
 
