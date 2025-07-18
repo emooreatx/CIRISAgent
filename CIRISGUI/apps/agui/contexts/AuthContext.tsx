@@ -12,6 +12,8 @@ interface AuthContextType {
   logout: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
   hasRole: (role: string) => boolean;
+  setUser: (user: User | null) => void;
+  setToken: (token: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -76,8 +78,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return userRoleIndex >= requiredRoleIndex;
   }, [user]);
 
+  const setToken = useCallback((token: string) => {
+    cirisClient.setAccessToken(token);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, hasPermission, hasRole }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, hasPermission, hasRole, setUser, setToken }}>
       {children}
     </AuthContext.Provider>
   );
