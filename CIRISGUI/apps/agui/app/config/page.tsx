@@ -58,8 +58,9 @@ interface ConfigItem {
   key: string;
   value: any;
   updated_at: string;
-  updated_by: string;
-  is_sensitive: boolean;
+  updated_by?: string;
+  is_sensitive?: boolean;
+  description?: string;
 }
 
 interface ConfigSection {
