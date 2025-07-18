@@ -92,6 +92,7 @@ jobs:
       # Commit BUILD_INFO.txt if on main branch (only in repos without branch protection)
       - name: Commit version info
         if: github.ref == 'refs/heads/main' && github.event_name == 'push' && github.repository != 'CIRISai/CIRISAgent'
+        continue-on-error: true  # Don't fail the workflow if commit fails
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
@@ -103,8 +104,14 @@ jobs:
               echo "BUILD_INFO.txt has not changed, skipping commit"
             else
               git commit -m "chore: Update BUILD_INFO.txt [skip ci]"
-              git push
-              echo "BUILD_INFO.txt has been committed"
+              # Try to push, but don't fail if it doesn't work (e.g., in forks)
+              if git push; then
+                echo "BUILD_INFO.txt has been committed"
+              else
+                echo "::warning::Could not push BUILD_INFO.txt (this is normal in forks or with restricted permissions)"
+                echo "BUILD_INFO.txt changes:"
+                git show --name-status
+              fi
             fi
           else
             echo "BUILD_INFO.txt was not created"
@@ -135,6 +142,6 @@ jobs:
             if [[ "${{ github.repository }}" == "CIRISai/CIRISAgent" ]]; then
               echo "- 📝 Version info generated (not committed due to branch protection)" >> $GITHUB_STEP_SUMMARY
             else
-              echo "- 📝 Version info updated in BUILD_INFO.txt" >> $GITHUB_STEP_SUMMARY
+              echo "- 📝 Version info commit attempted (may be skipped in forks)" >> $GITHUB_STEP_SUMMARY
             fi
           fi
