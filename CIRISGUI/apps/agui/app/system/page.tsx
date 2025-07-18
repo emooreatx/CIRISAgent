@@ -347,7 +347,7 @@ export default function SystemPage() {
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
                 <dt className="text-sm font-medium text-gray-500">Memory Usage</dt>
                 <dd className="mt-2 text-2xl font-semibold text-gray-900">
-                  {resources?.current_usage?.memory_mb ? `${resources.current_usage.memory_mb.toFixed(1)} MB` : 'N/A'}
+                  {resources?.memory_mb ? `${resources.memory_mb.toFixed(1)} MB` : 'N/A'}
                 </dd>
               </div>
               
