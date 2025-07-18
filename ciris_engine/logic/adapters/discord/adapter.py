@@ -587,8 +587,11 @@ class DiscordPlatform(Service):
                 await self._discord_client_task
             except asyncio.CancelledError:
                 logger.info("DiscordPlatform: Discord client task successfully cancelled.")
-                # Don't re-raise during stop - we're already shutting down
-                pass  # NOSONAR: Intentionally not re-raising during shutdown
+                # Only re-raise if our current task is being cancelled
+                current_task = asyncio.current_task()
+                if current_task and current_task.cancelled():
+                    raise
+                # Otherwise, we're in normal shutdown - don't propagate the cancellation
 
         logger.info("DiscordPlatform: Stopped.")
     
