@@ -1,11 +1,15 @@
 // CIRIS TypeScript SDK - Type Definitions
 // Mirrors the Python SDK models for consistency
 
+// Role Types
+export type APIRole = 'OBSERVER' | 'ADMIN' | 'AUTHORITY' | 'SYSTEM_ADMIN';
+export type WARole = 'OBSERVER' | 'ADMIN' | 'AUTHORITY';
+
 // Base Types
 export interface User {
   user_id: string;
   username: string;
-  role: 'OBSERVER' | 'ADMIN' | 'AUTHORITY' | 'SYSTEM_ADMIN';
+  role: APIRole;
   permissions: string[];
   created_at: string;
   last_login?: string;
