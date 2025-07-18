@@ -27,6 +27,11 @@ from ciris_engine.schemas.api.auth import (
     ROLE_PERMISSIONS,
 )
 from ciris_engine.schemas.runtime.api import APIRole
+# Constants for OAuth configuration
+OAUTH_CONFIG_DIR = ".ciris"
+OAUTH_CONFIG_FILE = "oauth.json"
+PROVIDER_NAME_DESC = "Provider name"
+
 from ..dependencies.auth import (
     get_auth_context,
     get_auth_service,
@@ -207,7 +212,7 @@ async def refresh_token(
 
 class OAuthProviderInfo(BaseModel):
     """OAuth provider information."""
-    provider: str = Field(..., description="Provider name")
+    provider: str = Field(..., description=PROVIDER_NAME_DESC)
     client_id: str = Field(..., description="OAuth client ID")
     created: Optional[str] = Field(None, description="Creation timestamp")
     callback_url: str = Field(..., description="OAuth callback URL")
@@ -230,7 +235,7 @@ async def list_oauth_providers(
     import json
     from pathlib import Path
     
-    oauth_config_file = Path.home() / ".ciris" / "oauth.json"
+    oauth_config_file = Path.home() / OAUTH_CONFIG_DIR / OAUTH_CONFIG_FILE
     
     if not oauth_config_file.exists():
         return OAuthProvidersResponse(providers=[])
@@ -259,14 +264,14 @@ async def list_oauth_providers(
 
 class ConfigureOAuthProviderRequest(BaseModel):
     """Request to configure an OAuth provider."""
-    provider: str = Field(..., description="Provider name")
+    provider: str = Field(..., description=PROVIDER_NAME_DESC)
     client_id: str = Field(..., description="OAuth client ID")
     client_secret: str = Field(..., description="OAuth client secret")
     metadata: Optional[Dict[str, str]] = Field(None, description="Additional metadata")
 
 class ConfigureOAuthProviderResponse(BaseModel):
     """Response from OAuth provider configuration."""
-    provider: str = Field(..., description="Provider name")
+    provider: str = Field(..., description=PROVIDER_NAME_DESC)
     callback_url: str = Field(..., description="OAuth callback URL")
     message: str = Field(..., description="Status message")
 
@@ -284,7 +289,7 @@ async def configure_oauth_provider(
     import json
     from pathlib import Path
     
-    oauth_config_file = Path.home() / ".ciris" / "oauth.json"
+    oauth_config_file = Path.home() / OAUTH_CONFIG_DIR / OAUTH_CONFIG_FILE
     oauth_config_file.parent.mkdir(exist_ok=True, mode=0o700)
     
     # Load existing config
@@ -343,7 +348,7 @@ async def oauth_login(
     from pathlib import Path
     import urllib.parse
     
-    oauth_config_file = Path.home() / ".ciris" / "oauth.json"
+    oauth_config_file = Path.home() / OAUTH_CONFIG_DIR / OAUTH_CONFIG_FILE
     
     if not oauth_config_file.exists():
         raise HTTPException(
@@ -438,7 +443,7 @@ async def oauth_callback(
     from pathlib import Path
     
     # Load OAuth configuration
-    oauth_config_file = Path.home() / ".ciris" / "oauth.json"
+    oauth_config_file = Path.home() / OAUTH_CONFIG_DIR / OAUTH_CONFIG_FILE
     
     if not oauth_config_file.exists():
         raise HTTPException(

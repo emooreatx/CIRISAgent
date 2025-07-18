@@ -245,8 +245,7 @@ class APIRuntimeControlService(Service):
         self,
         adapter_type: str,
         adapter_id: Optional[str] = None,
-        config: Optional[Dict[str, object]] = None,
-        auto_start: bool = True
+        config: Optional[Dict[str, object]] = None
     ) -> Any:
         """Load a new adapter instance."""
         if not self.adapter_manager:
@@ -281,8 +280,7 @@ class APIRuntimeControlService(Service):
     
     async def unload_adapter(
         self,
-        adapter_id: str,
-        force: bool = False
+        adapter_id: str
     ) -> Any:
         """Unload an adapter instance."""
         if not self.adapter_manager:

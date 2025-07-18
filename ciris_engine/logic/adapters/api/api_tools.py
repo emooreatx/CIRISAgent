@@ -18,6 +18,10 @@ from ciris_engine.schemas.runtime.enums import ServiceType
 
 logger = logging.getLogger(__name__)
 
+# Constants for tool parameter descriptions
+HTTP_HEADERS_DESC = "HTTP headers"
+REQUEST_TIMEOUT_DESC = "Request timeout in seconds"
+
 
 class APIToolService(ToolService):
     """Tool service providing curl-like HTTP request functionality."""
@@ -160,9 +164,7 @@ class APIToolService(ToolService):
 
     async def validate_parameters(self, tool_name: str, parameters: dict) -> bool:
         """Validate parameters for a tool."""
-        if tool_name == "curl":
-            return "url" in parameters
-        elif tool_name in ["http_get", "http_post"]:
+        if tool_name in ["curl", "http_get", "http_post"]:
             return "url" in parameters
         return False
 
@@ -178,9 +180,9 @@ class APIToolService(ToolService):
                 properties={
                     "url": {"type": "string", "description": "URL to request"},
                     "method": {"type": "string", "description": "HTTP method (GET, POST, etc.)", "default": "GET"},
-                    "headers": {"type": "object", "description": "HTTP headers"},
+                    "headers": {"type": "object", "description": HTTP_HEADERS_DESC},
                     "data": {"type": ["object", "string"], "description": "Request body data"},
-                    "timeout": {"type": "number", "description": "Request timeout in seconds", "default": 30}
+                    "timeout": {"type": "number", "description": REQUEST_TIMEOUT_DESC, "default": 30}
                 },
                 required=["url"]
             ),
@@ -188,8 +190,8 @@ class APIToolService(ToolService):
                 type="object",
                 properties={
                     "url": {"type": "string", "description": "URL to GET"},
-                    "headers": {"type": "object", "description": "HTTP headers"},
-                    "timeout": {"type": "number", "description": "Request timeout in seconds", "default": 30}
+                    "headers": {"type": "object", "description": HTTP_HEADERS_DESC},
+                    "timeout": {"type": "number", "description": REQUEST_TIMEOUT_DESC, "default": 30}
                 },
                 required=["url"]
             ),
@@ -197,9 +199,9 @@ class APIToolService(ToolService):
                 type="object",
                 properties={
                     "url": {"type": "string", "description": "URL to POST to"},
-                    "headers": {"type": "object", "description": "HTTP headers"},
+                    "headers": {"type": "object", "description": HTTP_HEADERS_DESC},
                     "data": {"type": ["object", "string"], "description": "POST body data"},
-                    "timeout": {"type": "number", "description": "Request timeout in seconds", "default": 30}
+                    "timeout": {"type": "number", "description": REQUEST_TIMEOUT_DESC, "default": 30}
                 },
                 required=["url"]
             )
