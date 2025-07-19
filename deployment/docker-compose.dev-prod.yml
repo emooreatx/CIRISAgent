@@ -18,8 +18,8 @@ services:
   agent-datum:
     image: ciris-agent:latest  # Will be pulled from ghcr.io and tagged locally
     container_name: ciris-agent-datum
-    expose:
-      - "8080"
+    ports:
+      - "127.0.0.1:8080:8080"  # Expose to localhost only for nginx
     networks:
       - ciris-network
     environment:
@@ -53,8 +53,8 @@ services:
   ciris-gui:
     image: ciris-gui:latest  # Will be pulled from ghcr.io and tagged locally
     container_name: ciris-gui
-    expose:
-      - "3000"
+    ports:
+      - "127.0.0.1:3000:3000"  # Expose to localhost only for nginx
     networks:
       - ciris-network
     environment:
