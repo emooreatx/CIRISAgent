@@ -36,6 +36,7 @@ COPY --from=builder /root/.local /home/ciris/.local
 COPY --chown=ciris:ciris . .
 
 # Create necessary directories with proper permissions
+# Note: .ciris_keys directory will be copied from repo if it exists
 RUN mkdir -p /app/data /app/logs && \
     chown -R ciris:ciris /app/data /app/logs && \
     chmod 750 /app/data /app/logs
