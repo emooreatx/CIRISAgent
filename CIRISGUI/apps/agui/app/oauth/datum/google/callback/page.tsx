@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { useAuth } from '../../../../../../contexts/AuthContext';
+import { useAuth } from '../../../../../contexts/AuthContext';
 
 export default function GoogleOAuthCallbackPage() {
   const searchParams = useSearchParams();
