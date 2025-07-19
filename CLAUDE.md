@@ -537,8 +537,31 @@ The mock LLM extracts commands from user context in this order:
    - Tests run in Docker container
    - Docker images built and pushed to ghcr.io
    - Server initialized if needed (Docker, firewall, systemd)
-   - Containers deployed with development mock LLM configuration
+   - Staged deployment ensures zero downtime
    - Health checks verify deployment success
+
+**Staged Deployment Model**:
+- **GUI/Nginx**: Update immediately on deployment
+- **Agent Containers**: Use staged deployment:
+  1. New container created but not started (with `-staged` suffix)
+  2. Waits for current agent to exit gracefully (exit code 0)
+  3. Old container removed, staged container renamed and started
+  4. If agent exits with error, staged container is removed (rollback)
+- **Restart Policy**: `restart: on-failure` (NOT `unless-stopped`)
+  - Exit 0: No restart (allows staged deployment)
+  - Non-zero: Automatic restart
+
+**Graceful Shutdown**:
+```bash
+# Trigger graceful shutdown (for deployments)
+./deployment/graceful-shutdown.py
+
+# Custom shutdown message
+./deployment/graceful-shutdown.py --message "Maintenance required"
+
+# Remote shutdown
+./deployment/graceful-shutdown.py --agent-url https://agents.ciris.ai
+```
 
 **Important Environment Variables**:
 - `CIRIS_API_HOST=0.0.0.0` - Required for API to bind to all interfaces (default is 127.0.0.1)
@@ -550,9 +573,28 @@ The mock LLM extracts commands from user context in this order:
 - GUI on port 3000
 - API on port 8080
 - Using `deployment/docker-compose.dev-prod.yml` (uses pre-built images)
-- Container names: `ciris-agent-datum`, `ciris-gui`
+- Container names: `ciris-agent-datum`, `ciris-gui`, `ciris-nginx`
 - Auto-restart via systemd service: `ciris-dev.service`
 - Discord integration: Add token to `/home/ciris/CIRISAgent/.env.datum`
+
+**Common Deployment Issues**:
+1. **Container missing arguments**: Always use docker-compose to start containers
+   - Bad: `docker start ciris-agent-datum` (loses command arguments)
+   - Good: `docker-compose -f deployment/docker-compose.dev-prod.yml up -d agent-datum`
+
+2. **Staged deployment stuck**: Check for staged containers
+   ```bash
+   docker ps -a | grep staged
+   # If found, complete manually:
+   docker stop ciris-agent-datum && docker rm ciris-agent-datum
+   docker rename ciris-agent-datum-staged ciris-agent-datum
+   docker start ciris-agent-datum
+   ```
+
+3. **OAuth not working**: Ensure all components updated
+   - API must accept GET on callback endpoint
+   - GUI must redirect to GUI callback page
+   - SDK must use GET method
 
 **Monitoring**:
 ```bash
@@ -563,6 +605,8 @@ docker logs ciris-agent-datum
 docker logs ciris-gui
 # Check health
 curl http://localhost:8080/v1/system/health
+# Check incidents log (CRITICAL for debugging)
+docker exec ciris-agent-datum tail -n 100 /app/logs/incidents_latest.log
 ```
 
 ### Recent Fixes (July 2025)
