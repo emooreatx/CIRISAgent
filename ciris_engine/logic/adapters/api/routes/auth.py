@@ -9,6 +9,7 @@ Implements session management endpoints:
 
 Note: OAuth endpoints are in api_auth_v2.py
 """
+import os
 import secrets
 import logging
 from typing import Optional, Dict, List
@@ -224,6 +225,7 @@ class OAuthProvidersResponse(BaseModel):
 
 @router.get("/auth/oauth/providers", response_model=OAuthProvidersResponse)
 async def list_oauth_providers(
+    request: Request,
     auth: AuthContext = Depends(get_auth_context),
     _: None = Depends(check_permissions(["users.write"]))  # SYSTEM_ADMIN only
 ) -> OAuthProvidersResponse:
@@ -249,7 +251,7 @@ async def list_oauth_providers(
                 provider=provider,
                 client_id=settings.get("client_id", ""),
                 created=settings.get("created"),
-                callback_url=f"http://localhost:3000/auth/oauth/{provider}/callback",
+                callback_url=f"{request.url.scheme}://{request.headers.get('host', 'localhost')}/oauth/datum/callback",
                 metadata=settings.get("metadata", {})
             ))
         
@@ -278,6 +280,7 @@ class ConfigureOAuthProviderResponse(BaseModel):
 @router.post("/auth/oauth/providers", response_model=ConfigureOAuthProviderResponse)
 async def configure_oauth_provider(
     body: ConfigureOAuthProviderRequest,
+    request: Request,
     auth: AuthContext = Depends(get_auth_context),
     _: None = Depends(check_permissions(["users.write"]))  # SYSTEM_ADMIN only
 ) -> ConfigureOAuthProviderResponse:
@@ -318,7 +321,7 @@ async def configure_oauth_provider(
         
         return ConfigureOAuthProviderResponse(
             provider=body.provider,
-            callback_url=f"http://localhost:3000/auth/oauth/{body.provider}/callback",
+            callback_url=f"{request.url.scheme}://{request.headers.get('host', 'localhost')}/oauth/datum/callback",
             message="OAuth provider configured successfully"
         )
     except Exception as e:
@@ -473,7 +476,7 @@ async def oauth_callback(
                         "code": code,
                         "client_id": client_id,
                         "client_secret": client_secret,
-                        "redirect_uri": f"http://localhost:3000/auth/oauth/{provider}/callback",
+                        "redirect_uri": os.getenv("OAUTH_CALLBACK_BASE_URL", "https://agents.ciris.ai") + "/oauth/datum/callback",
                         "grant_type": "authorization_code"
                     }
                 )
@@ -565,7 +568,7 @@ async def oauth_callback(
                         "code": code,
                         "client_id": client_id,
                         "client_secret": client_secret,
-                        "redirect_uri": f"http://localhost:3000/auth/oauth/{provider}/callback",
+                        "redirect_uri": os.getenv("OAUTH_CALLBACK_BASE_URL", "https://agents.ciris.ai") + "/oauth/datum/callback",
                         "grant_type": "authorization_code"
                     }
                 )
