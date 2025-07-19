@@ -35,12 +35,10 @@ COPY --from=builder /root/.local /home/ciris/.local
 # Copy application code
 COPY --chown=ciris:ciris . .
 
-# Create necessary directories and files with proper permissions
+# Create necessary directories with proper permissions
 RUN mkdir -p /app/data /app/logs && \
-    touch /app/.ciris_keys && \
-    chown -R ciris:ciris /app/data /app/logs /app/.ciris_keys && \
-    chmod 750 /app/data /app/logs && \
-    chmod 600 /app/.ciris_keys
+    chown -R ciris:ciris /app/data /app/logs && \
+    chmod 750 /app/data /app/logs
 
 # Switch to non-root user
 USER ciris
