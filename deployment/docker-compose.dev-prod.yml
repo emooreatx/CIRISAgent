@@ -40,6 +40,8 @@ services:
       - /home/ciris/CIRISAgent/.env.datum:/app/.env:ro
       # Mount shared OAuth configuration
       - oauth_shared:/home/ciris/.ciris:ro
+      # Mount .ciris_keys directory for encryption keys
+      - /home/ciris/CIRISAgent/.ciris_keys:/app/.ciris_keys
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
       interval: 30s
