@@ -162,7 +162,9 @@ export function OAuthConfigModal({ onClose }: OAuthConfigModalProps) {
                                       Callback URL:
                                     </p>
                                     <code className="block mt-1 p-2 bg-gray-100 rounded text-gray-800">
-                                      {provider.callback_url}
+                                      {typeof window !== 'undefined' 
+                                        ? `${window.location.origin}/oauth/callback`
+                                        : provider.callback_url}
                                     </code>
                                   </div>
                                 </div>
