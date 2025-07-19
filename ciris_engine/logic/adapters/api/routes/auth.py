@@ -33,6 +33,8 @@ from ciris_engine.schemas.runtime.api import APIRole
 OAUTH_CONFIG_DIR = ".ciris"
 OAUTH_CONFIG_FILE = "oauth.json"
 PROVIDER_NAME_DESC = "Provider name"
+OAUTH_CALLBACK_PATH = "/oauth/datum/callback"
+DEFAULT_OAUTH_BASE_URL = "https://agents.ciris.ai"
 
 from ..dependencies.auth import (
     get_auth_context,
@@ -252,7 +254,7 @@ async def list_oauth_providers(
                 provider=provider,
                 client_id=settings.get("client_id", ""),
                 created=settings.get("created"),
-                callback_url=f"{request.url.scheme}://{request.headers.get('host', 'localhost')}/oauth/datum/callback",
+                callback_url=f"{request.url.scheme}://{request.headers.get('host', 'localhost')}{OAUTH_CALLBACK_PATH}",
                 metadata=settings.get("metadata", {})
             ))
         
@@ -322,7 +324,7 @@ async def configure_oauth_provider(
         
         return ConfigureOAuthProviderResponse(
             provider=body.provider,
-            callback_url=f"{request.url.scheme}://{request.headers.get('host', 'localhost')}/oauth/datum/callback",
+            callback_url=f"{request.url.scheme}://{request.headers.get('host', 'localhost')}{OAUTH_CALLBACK_PATH}",
             message="OAuth provider configured successfully"
         )
     except Exception as e:
@@ -384,7 +386,7 @@ async def oauth_login(
             # Construct from request headers
             base_url = f"{request.url.scheme}://{request.headers.get('host', 'localhost')}"
         
-        callback_url = redirect_uri or f"{base_url}/oauth/datum/callback"
+        callback_url = redirect_uri or f"{base_url}{OAUTH_CALLBACK_PATH}"
         
         # Build authorization URL based on provider
         if provider == "google":
@@ -482,7 +484,7 @@ async def oauth_callback(
                         "code": code,
                         "client_id": client_id,
                         "client_secret": client_secret,
-                        "redirect_uri": os.getenv("OAUTH_CALLBACK_BASE_URL", "https://agents.ciris.ai") + "/oauth/datum/callback",
+                        "redirect_uri": os.getenv("OAUTH_CALLBACK_BASE_URL", DEFAULT_OAUTH_BASE_URL) + OAUTH_CALLBACK_PATH,
                         "grant_type": "authorization_code"
                     }
                 )
@@ -574,7 +576,7 @@ async def oauth_callback(
                         "code": code,
                         "client_id": client_id,
                         "client_secret": client_secret,
-                        "redirect_uri": os.getenv("OAUTH_CALLBACK_BASE_URL", "https://agents.ciris.ai") + "/oauth/datum/callback",
+                        "redirect_uri": os.getenv("OAUTH_CALLBACK_BASE_URL", DEFAULT_OAUTH_BASE_URL) + OAUTH_CALLBACK_PATH,
                         "grant_type": "authorization_code"
                     }
                 )
