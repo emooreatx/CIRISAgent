@@ -6,6 +6,9 @@ set -e
 
 # Configuration
 DOCKER_COMPOSE_FILE="${DOCKER_COMPOSE_FILE:-deployment/docker-compose.dev-prod.yml}"
+AGENT_SERVICE="agent-datum"
+GUI_SERVICE="ciris-gui"
+NGINX_SERVICE="nginx"
 AGENT_CONTAINER="ciris-agent-datum"
 GUI_CONTAINER="ciris-gui"
 NGINX_CONTAINER="ciris-nginx"
@@ -45,9 +48,32 @@ get_image_id() {
 
 log "Starting staged deployment..."
 
-# Step 1: Pull all new images
-log "Pulling latest images..."
-docker-compose -f "$DOCKER_COMPOSE_FILE" pull
+# Step 1: Check if we're in the right directory
+if [ ! -f "$DOCKER_COMPOSE_FILE" ]; then
+    error "Docker compose file not found: $DOCKER_COMPOSE_FILE"
+    error "Please run this script from the project root directory"
+    exit 1
+fi
+
+# Check if ANY containers are running
+RUNNING_CONTAINERS=$(docker ps --format "{{.Names}}" | grep -E "(${AGENT_CONTAINER}|${GUI_CONTAINER}|${NGINX_CONTAINER})" || true)
+
+if [ -z "$RUNNING_CONTAINERS" ]; then
+    log "No CIRIS containers are running. Starting fresh deployment..."
+    docker-compose -f "$DOCKER_COMPOSE_FILE" up -d
+    
+    log "Deployment complete!"
+    echo ""
+    log "Container status:"
+    docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}" | grep -E "(NAME|$AGENT_CONTAINER|$GUI_CONTAINER|$NGINX_CONTAINER)"
+    exit 0
+fi
+
+log "Found running containers. Proceeding with staged deployment..."
+
+# Step 1.5: Pull all new images (this will fail but that's ok, we have local tags)
+log "Checking for new images..."
+docker-compose -f "$DOCKER_COMPOSE_FILE" pull 2>/dev/null || log "Using local tagged images"
 
 # Step 2: Update GUI and Nginx immediately
 log "Updating GUI and Nginx containers..."
@@ -55,24 +81,24 @@ log "Updating GUI and Nginx containers..."
 # Update GUI
 if is_running "$GUI_CONTAINER"; then
     log "Recreating GUI container..."
-    docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps --force-recreate "$GUI_CONTAINER"
+    docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps --force-recreate "$GUI_SERVICE"
 else
     log "Starting GUI container..."
-    docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps "$GUI_CONTAINER"
+    docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps "$GUI_SERVICE"
 fi
 
 # Update Nginx
 if is_running "$NGINX_CONTAINER"; then
     log "Recreating Nginx container..."
-    docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps --force-recreate "$NGINX_CONTAINER"
+    docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps --force-recreate "$NGINX_SERVICE"
 else
     log "Starting Nginx container..."
-    docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps "$NGINX_CONTAINER"
+    docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps "$NGINX_SERVICE"
 fi
 
 # Step 3: Check if agent needs update
 OLD_AGENT_IMAGE=$(docker inspect "$AGENT_CONTAINER" --format='{{.Image}}' 2>/dev/null || echo "none")
-NEW_AGENT_IMAGE=$(get_image_id "ghcr.io/cirisai/ciris-agent:latest")
+NEW_AGENT_IMAGE=$(get_image_id "ciris-agent:latest")
 
 if [ "$OLD_AGENT_IMAGE" = "$NEW_AGENT_IMAGE" ] || [ "$OLD_AGENT_IMAGE" = "none" ]; then
     log "Agent is already up to date or not running"
@@ -80,7 +106,7 @@ if [ "$OLD_AGENT_IMAGE" = "$NEW_AGENT_IMAGE" ] || [ "$OLD_AGENT_IMAGE" = "none" 
     # If not running, start it
     if ! is_running "$AGENT_CONTAINER"; then
         log "Starting agent container..."
-        docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps "$AGENT_CONTAINER"
+        docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps "$AGENT_SERVICE"
     fi
 else
     log "New agent image available. Current: ${OLD_AGENT_IMAGE:0:12}, New: ${NEW_AGENT_IMAGE:0:12}"
@@ -99,7 +125,7 @@ else
         --network "$AGENT_NETWORK" \
         $AGENT_ENV \
         $AGENT_VOLUMES \
-        "ghcr.io/cirisai/ciris-agent:latest"
+        "ciris-agent:latest"
     
     log "Staged container created. Monitoring current agent for graceful exit..."
     
