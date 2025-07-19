@@ -776,7 +776,7 @@ async def visualize_memory_graph(
     layout: Literal["force", "timeline", "hierarchical"] = Query("force", description="Graph layout algorithm"),
     width: int = Query(1200, ge=400, le=4000, description="SVG width in pixels"),
     height: int = Query(800, ge=300, le=3000, description="SVG height in pixels"),
-    limit: int = Query(500, ge=1, le=1000, description="Maximum nodes to visualize"),
+    limit: int = Query(100, ge=1, le=1000, description="Maximum nodes to visualize"),
     include_metrics: bool = Query(False, description="Include metric TSDB_DATA nodes"),
     auth: AuthContext = Depends(require_observer)
 ) -> Response:
@@ -809,10 +809,14 @@ async def visualize_memory_graph(
             
             # For timeline layout, query database directly to get time-distributed nodes
             if layout == "timeline":
+                # Cap timeline visualizations to prevent Cloudflare timeouts
+                effective_limit = min(limit, 100)  # Max 100 nodes for timeline through proxy
+                if limit > effective_limit:
+                    logger.info(f"Capping timeline visualization from {limit} to {effective_limit} nodes for performance")
                 import json
                 
                 try:
-                    logger.info(f"Timeline visualization: Querying database for {hours} hours with limit {limit}")
+                    logger.info(f"Timeline visualization: Querying database for {hours} hours with limit {effective_limit}")
                     with get_db_connection() as conn:
                         cursor = conn.cursor()
                         
@@ -822,7 +826,7 @@ async def visualize_memory_graph(
                             # Use hour buckets for better precision
                             bucket_hours = 3  # 3-hour buckets
                             num_buckets = (hours + bucket_hours - 1) // bucket_hours
-                            nodes_per_bucket = max(1, limit // num_buckets)
+                            nodes_per_bucket = max(1, effective_limit // num_buckets)
                             logger.info(f"Timeline: {num_buckets} buckets ({bucket_hours}h each), {nodes_per_bucket} nodes per bucket")
                             
                             # Sample nodes from each time bucket
@@ -890,7 +894,7 @@ async def visualize_memory_graph(
                         else:
                             # Use day buckets for longer ranges
                             days_in_range = int((now - since).total_seconds() / 86400) + 1
-                            nodes_per_day = max(1, limit // days_in_range)
+                            nodes_per_day = max(1, effective_limit // days_in_range)
                             logger.info(f"Timeline: {days_in_range} days, {nodes_per_day} nodes per day")
                             
                             # Sample nodes from each day
@@ -964,7 +968,7 @@ async def visualize_memory_graph(
                                         continue
                         
                         # Set nodes from database query
-                        nodes = all_db_nodes[:limit] if len(all_db_nodes) > limit else all_db_nodes
+                        nodes = all_db_nodes[:effective_limit] if len(all_db_nodes) > effective_limit else all_db_nodes
                         logger.info(f"Timeline: Collected {len(all_db_nodes)} nodes, using {len(nodes)} for visualization")
                         
                 except Exception as e:
@@ -1052,6 +1056,10 @@ async def visualize_memory_graph(
             # Regular query - get nodes with optional type filter
             # For timeline layout, we need many more nodes to cover time range
             if layout == "timeline":
+                # Cap timeline visualizations to prevent Cloudflare timeouts
+                effective_limit = min(limit, 100)  # Max 100 nodes for timeline through proxy
+                if limit > effective_limit:
+                    logger.info(f"Capping timeline visualization from {limit} to {effective_limit} nodes for performance")
                 # Query database directly for timeline to get proper time distribution
                 import json
                 
@@ -1059,13 +1067,13 @@ async def visualize_memory_graph(
                 start_time = now - timedelta(hours=hours or 0)
                 
                 try:
-                    logger.info(f"Timeline visualization: Querying database for {hours} hours with limit {limit}")
+                    logger.info(f"Timeline visualization: Querying database for {hours} hours with limit {effective_limit}")
                     with get_db_connection() as conn:
                         cursor = conn.cursor()
                         
                         # For timeline, we need to sample across time buckets
                         days_in_range = int((now - start_time).total_seconds() / 86400) + 1
-                        nodes_per_day = max(1, limit // days_in_range)
+                        nodes_per_day = max(1, effective_limit // days_in_range)
                         logger.info(f"Timeline: {days_in_range} days, {nodes_per_day} nodes per day")
                         
                         # Sample nodes from each day
@@ -1129,10 +1137,10 @@ async def visualize_memory_graph(
                         
                         # Limit nodes if we got too many
                         logger.info(f"Timeline: Collected {len(all_db_nodes)} total nodes from database")
-                        if len(all_db_nodes) > limit:
+                        if len(all_db_nodes) > effective_limit:
                             # Sample evenly across the collected nodes
-                            step = len(all_db_nodes) // limit
-                            nodes = [all_db_nodes[i] for i in range(0, len(all_db_nodes), step)][:limit]
+                            step = len(all_db_nodes) // effective_limit
+                            nodes = [all_db_nodes[i] for i in range(0, len(all_db_nodes), step)][:effective_limit]
                         else:
                             nodes = all_db_nodes
                         logger.info(f"Timeline: Using {len(nodes)} nodes for visualization")
