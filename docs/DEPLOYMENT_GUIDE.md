@@ -130,6 +130,70 @@ AUDIT_LOG_PATH="./audit_logs.jsonl"
    docker-compose -f docker-compose.local.yml up -d
    ```
 
+### Method 4: Automated CD Pipeline (Production Deployment)
+
+The CIRIS project uses GitHub Actions for continuous deployment to production servers.
+
+#### CD Pipeline Overview
+
+1. **Trigger**: Merge to main branch or manual workflow dispatch
+2. **Build**: Docker images built and pushed to GitHub Container Registry
+3. **Deploy**: Staged deployment with zero-downtime updates
+
+#### Deployment Process
+
+```bash
+# 1. Create PR to upstream repository
+gh pr create --repo CIRISAI/CIRISAgent --title "Your changes" --body "Description"
+
+# 2. Merge PR (requires admin permissions)
+gh pr merge <PR#> --repo CIRISAI/CIRISAgent --merge --admin
+
+# 3. Automatic deployment begins:
+#    - Tests run in Docker container
+#    - Images built and pushed to ghcr.io
+#    - Server deployment initiated
+#    - Health checks verify deployment
+```
+
+#### Staged Deployment Model
+
+The deployment uses a sophisticated staged deployment system to ensure zero downtime:
+
+1. **GUI and Nginx**: Updated immediately on deployment
+2. **Agent Containers**: Staged deployment process:
+   - New container created but not started
+   - Waits for current agent to gracefully exit
+   - New container starts automatically when old exits with code 0
+   - Rollback if agent exits with non-zero code
+
+#### Graceful Shutdown
+
+For manual graceful shutdown or maintenance:
+
+```bash
+# Use the graceful shutdown script
+./deployment/graceful-shutdown.py
+
+# With custom message
+./deployment/graceful-shutdown.py --message "Maintenance in progress"
+
+# For remote agent
+./deployment/graceful-shutdown.py --agent-url https://agents.ciris.ai
+```
+
+**Important**: Containers are configured with `restart: on-failure` policy:
+- Exit code 0: Container will NOT restart (enables staged deployment)
+- Non-zero exit: Container will restart automatically
+
+#### CD Pipeline Configuration
+
+The pipeline is configured in `.github/workflows/build.yml`:
+- Automatically updates Docker Compose if v1.x detected
+- Handles fresh server initialization
+- Manages OAuth volume permissions
+- Creates necessary directories and volumes
+
 ## Configuration
 
 ### Configuration Hierarchy
@@ -476,11 +540,30 @@ llm_services:
 
 #### 1. Emergency Shutdown
 ```bash
-# Graceful shutdown
+# Preferred: Use graceful shutdown script for clean exit
+./deployment/graceful-shutdown.py --message "Emergency shutdown"
+
+# Manual graceful shutdown
 kill -TERM $(pgrep -f "python main.py")
 
-# Force shutdown if needed
+# Force shutdown if needed (avoid - breaks staged deployment)
 kill -KILL $(pgrep -f "python main.py")
+```
+
+#### 1.5. Staged Deployment Recovery
+```bash
+# If staged deployment is stuck, check for staged container
+docker ps -a | grep staged
+
+# Complete staged deployment manually
+docker stop ciris-agent-datum
+docker rm ciris-agent-datum
+docker rename ciris-agent-datum-staged ciris-agent-datum
+docker start ciris-agent-datum
+
+# If no staged container but deployment needed
+cd /home/ciris/CIRISAgent
+./deployment/deploy-staged.sh
 ```
 
 #### 2. Database Recovery
