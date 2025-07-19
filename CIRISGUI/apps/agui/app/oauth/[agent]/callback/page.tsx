@@ -44,7 +44,7 @@ function OAuthCallbackContent() {
         const user = {
           user_id: userId,
           username: userId,
-          role: role,
+          role: role as any, // Role comes as string from query params
           permissions: [],
           created_at: new Date().toISOString(),
           last_login: new Date().toISOString()
