@@ -680,7 +680,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
         graph_audit = GraphAuditService(
             memory_bus=None,  # Will be set via service registry
             time_service=self.time_service,
-            export_path="audit_logs.jsonl",  # Standard audit log path
+            export_path="/app/logs/audit_logs.jsonl",  # Standard audit log path in logs directory
             export_format="jsonl",
             enable_hash_chain=True,
             db_path=str(audit_db_path),
