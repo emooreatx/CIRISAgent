@@ -130,6 +130,22 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64
 
+      - name: Build Nginx Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./deployment/nginx
+          file: ./deployment/nginx/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/cirisai/ciris-nginx:latest
+            ghcr.io/cirisai/ciris-nginx:${{ github.sha }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+          build-args: |
+            NGINX_CONFIG=agents.ciris.ai-dev.conf
+
   deploy:
     name: Deploy to Production
     needs: build
@@ -209,6 +225,20 @@ jobs:
               echo "# DISCORD_BOT_TOKEN=your_token_here" >> .env.datum
             fi
             
+            # Create shared OAuth directory and copy existing config if available
+            mkdir -p /home/ciris/shared/oauth
+            if [ -f "/home/ciris/.ciris/oauth.json" ]; then
+              echo "Copying existing OAuth configuration to shared volume..."
+              cp /home/ciris/.ciris/oauth.json /home/ciris/shared/oauth/
+            fi
+            
+            # Stop the standalone nginx service if running
+            if systemctl is-active --quiet nginx; then
+              echo "Stopping standalone nginx service..."
+              systemctl stop nginx
+              systemctl disable nginx || true
+            fi
+            
             # Use the production dev compose file that expects images
             if [ ! -f "deployment/docker-compose.dev-prod.yml" ]; then
               cp deployment/docker-compose.dev.yml deployment/docker-compose.dev-prod.yml
@@ -217,10 +247,12 @@ jobs:
             # Pull new images from GitHub Container Registry
             docker pull ghcr.io/cirisai/ciris-agent:latest
             docker pull ghcr.io/cirisai/ciris-gui:latest
+            docker pull ghcr.io/cirisai/ciris-nginx:latest
             
             # Tag images for local use
             docker tag ghcr.io/cirisai/ciris-agent:latest ciris-agent:latest
             docker tag ghcr.io/cirisai/ciris-gui:latest ciris-gui:latest
+            docker tag ghcr.io/cirisai/ciris-nginx:latest ciris-nginx:latest
             
             # Stop existing containers
             docker-compose -f deployment/docker-compose.dev-prod.yml down || true

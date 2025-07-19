@@ -1,12 +1,31 @@
 version: '3.8'
 
 services:
+  # Nginx reverse proxy - containerized to replace standalone service
+  nginx:
+    image: ciris-nginx:latest  # Will be pulled from ghcr.io and tagged locally
+    container_name: ciris-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # SSL certificates from host
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - ciris-gui
+      - agent-datum
+    restart: unless-stopped
+    networks:
+      - ciris-network
   # Development: Single Datum agent with Mock LLM for testing
   agent-datum:
     image: ciris-agent:latest  # Will be pulled from ghcr.io and tagged locally
     container_name: ciris-agent-datum
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
+    networks:
+      - ciris-network
     environment:
       - CIRIS_AGENT_NAME=Datum
       - CIRIS_AGENT_ID=agent-datum
@@ -23,6 +42,8 @@ services:
       - datum_logs:/app/logs
       # Mount the .env file into the container
       - /home/ciris/CIRISAgent/.env.datum:/app/.env:ro
+      # Mount shared OAuth configuration
+      - oauth_shared:/home/ciris/.ciris:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
       interval: 30s
@@ -36,8 +57,10 @@ services:
   ciris-gui:
     image: ciris-gui:latest  # Will be pulled from ghcr.io and tagged locally
     container_name: ciris-gui
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
+    networks:
+      - ciris-network
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_CIRIS_API_URL=https://agents.ciris.ai
@@ -46,3 +69,13 @@ services:
 volumes:
   datum_data:
   datum_logs:
+  oauth_shared:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/ciris/shared/oauth
+
+networks:
+  ciris-network:
+    driver: bridge

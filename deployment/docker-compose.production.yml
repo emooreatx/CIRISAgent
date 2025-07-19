@@ -4,23 +4,43 @@ version: '3.8'
 # Usage: docker-compose -f docker-compose.production.yml up -d
 
 services:
+  # Nginx reverse proxy
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    container_name: ciris-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # SSL certificates
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - ciris-gui
+      - agent-datum
+      - agent-sage
+      - agent-scout
+      - agent-echo-core
+      - agent-echo-speculative
+    restart: unless-stopped
+    networks:
+      - ciris-network
   # Agent Datum (Primary decision-making)
   agent-datum:
-    build:
-      context: ..
-      dockerfile: docker/agent/Dockerfile
+    image: ghcr.io/cirisai/ciris-agent:latest
     container_name: ciris-agent-datum
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
     env_file:
-      - /opt/ciris/env/datum.env  # Agent-specific env file
+      - ../.env.datum
     environment:
-      # Override/addition to env file
-      - CIRIS_AGENT_NAME=Datum
-      - CIRIS_AGENT_ID=agent-datum
-      - CIRIS_PORT=8080
-      - API_HOST=0.0.0.0
-      - API_PORT=8080
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8080
+      - CIRIS_ADAPTER=api
+      - CIRIS_MOCK_LLM=true
+      - CIRIS_AGENT_NAME=datum
     volumes:
       - datum_data:/app/data
       - datum_logs:/app/logs
@@ -31,136 +51,133 @@ services:
       retries: 3
       start_period: 40s
     restart: unless-stopped
-    command: ["python", "main.py", "--adapter", "api", "--adapter", "discord"]
+    networks:
+      - ciris-network
 
   # Agent Sage (Wisdom and deep analysis)
   agent-sage:
-    build:
-      context: ..
-      dockerfile: docker/agent/Dockerfile
+    image: ghcr.io/cirisai/ciris-agent:latest
     container_name: ciris-agent-sage
-    ports:
-      - "8081:8080"
+    expose:
+      - "8081"
     env_file:
-      - /opt/ciris/env/sage.env  # Agent-specific env file
+      - ../.env.sage
     environment:
-      # Override/addition to env file
-      - CIRIS_AGENT_NAME=Sage
-      - CIRIS_AGENT_ID=agent-sage
-      - CIRIS_PORT=8080
-      - API_HOST=0.0.0.0
-      - API_PORT=8080
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8081
+      - CIRIS_ADAPTER=api
+      - CIRIS_MOCK_LLM=true
+      - CIRIS_AGENT_NAME=sage
     volumes:
       - sage_data:/app/data
       - sage_logs:/app/logs
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8081/v1/system/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     restart: unless-stopped
-    command: ["python", "main.py", "--adapter", "api", "--adapter", "discord"]
+    networks:
+      - ciris-network
 
   # Agent Scout (Information gathering and reconnaissance)
   agent-scout:
-    build:
-      context: ..
-      dockerfile: docker/agent/Dockerfile
+    image: ghcr.io/cirisai/ciris-agent:latest
     container_name: ciris-agent-scout
-    ports:
-      - "8082:8080"
+    expose:
+      - "8082"
     env_file:
-      - /opt/ciris/env/scout.env  # Agent-specific env file
+      - ../.env.scout
     environment:
-      # Override/addition to env file
-      - CIRIS_AGENT_NAME=Scout
-      - CIRIS_AGENT_ID=agent-scout
-      - CIRIS_PORT=8080
-      - API_HOST=0.0.0.0
-      - API_PORT=8080
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8082
+      - CIRIS_ADAPTER=api
+      - CIRIS_MOCK_LLM=true
+      - CIRIS_AGENT_NAME=scout
     volumes:
       - scout_data:/app/data
       - scout_logs:/app/logs
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8082/v1/system/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     restart: unless-stopped
-    command: ["python", "main.py", "--adapter", "api", "--adapter", "discord"]
+    networks:
+      - ciris-network
 
   # Agent Echo-Core (Core reasoning and consistency)
   agent-echo-core:
-    build:
-      context: ..
-      dockerfile: docker/agent/Dockerfile
+    image: ghcr.io/cirisai/ciris-agent:latest
     container_name: ciris-agent-echo-core
-    ports:
-      - "8083:8080"
+    expose:
+      - "8083"
     env_file:
-      - /opt/ciris/env/echo-core.env  # Agent-specific env file
+      - ../.env.echo-core
     environment:
-      # Override/addition to env file
-      - CIRIS_AGENT_NAME=Echo-Core
-      - CIRIS_AGENT_ID=agent-echo-core
-      - CIRIS_PORT=8080
-      - API_HOST=0.0.0.0
-      - API_PORT=8080
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8083
+      - CIRIS_ADAPTER=api
+      - CIRIS_MOCK_LLM=true
+      - CIRIS_AGENT_NAME=echo-core
     volumes:
       - echo_core_data:/app/data
       - echo_core_logs:/app/logs
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8083/v1/system/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     restart: unless-stopped
-    command: ["python", "main.py", "--adapter", "api", "--adapter", "discord"]
+    networks:
+      - ciris-network
 
   # Agent Echo-Speculative (Speculative reasoning and possibilities)
   agent-echo-speculative:
-    build:
-      context: ..
-      dockerfile: docker/agent/Dockerfile
+    image: ghcr.io/cirisai/ciris-agent:latest
     container_name: ciris-agent-echo-speculative
-    ports:
-      - "8084:8080"
+    expose:
+      - "8084"
     env_file:
-      - /opt/ciris/env/echo-speculative.env  # Agent-specific env file
+      - ../.env.echo-speculative
     environment:
-      # Override/addition to env file
-      - CIRIS_AGENT_NAME=Echo-Speculative
-      - CIRIS_AGENT_ID=agent-echo-speculative
-      - CIRIS_PORT=8080
-      - API_HOST=0.0.0.0
-      - API_PORT=8080
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8084
+      - CIRIS_ADAPTER=api
+      - CIRIS_MOCK_LLM=true
+      - CIRIS_AGENT_NAME=echo-speculative
     volumes:
       - echo_speculative_data:/app/data
       - echo_speculative_logs:/app/logs
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8084/v1/system/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     restart: unless-stopped
-    command: ["python", "main.py", "--adapter", "api", "--adapter", "discord"]
+    networks:
+      - ciris-network
 
   # GUI Application
   ciris-gui:
-    build:
-      context: ../CIRISGUI
-      dockerfile: ../docker/gui/Dockerfile
+    image: ghcr.io/cirisai/ciris-gui:latest
     container_name: ciris-gui
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_CIRIS_API_URL=https://agents.ciris.ai
+      - NEXT_PUBLIC_DATUM_URL=https://agents.ciris.ai
+      - NEXT_PUBLIC_SAGE_URL=https://agents.ciris.ai/api/sage
+      - NEXT_PUBLIC_SCOUT_URL=https://agents.ciris.ai/api/scout
+      - NEXT_PUBLIC_ECHO_CORE_URL=https://agents.ciris.ai/api/echo-core
+      - NEXT_PUBLIC_ECHO_SPEC_URL=https://agents.ciris.ai/api/echo-speculative
     restart: unless-stopped
+    networks:
+      - ciris-network
 
 volumes:
   datum_data:
@@ -173,3 +190,7 @@ volumes:
   echo_core_logs:
   echo_speculative_data:
   echo_speculative_logs:
+
+networks:
+  ciris-network:
+    driver: bridge

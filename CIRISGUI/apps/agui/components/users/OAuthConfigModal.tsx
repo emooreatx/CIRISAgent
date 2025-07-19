@@ -163,9 +163,12 @@ export function OAuthConfigModal({ onClose }: OAuthConfigModalProps) {
                                     </p>
                                     <code className="block mt-1 p-2 bg-gray-100 rounded text-gray-800">
                                       {typeof window !== 'undefined' 
-                                        ? `${window.location.origin}/oauth/callback`
+                                        ? `${window.location.origin}/oauth/{agent}/callback`
                                         : provider.callback_url}
                                     </code>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      Replace {'{agent}'} with: datum, sage, scout, echo-core, or echo-speculative
+                                    </p>
                                   </div>
                                 </div>
                               </div>
@@ -178,10 +181,10 @@ export function OAuthConfigModal({ onClose }: OAuthConfigModalProps) {
                               <div className="bg-gray-50 rounded-lg p-4 max-w-lg mx-auto">
                                 <p className="text-xs text-gray-600 mb-2">Callback URL format:</p>
                                 <code className="block text-xs p-2 bg-gray-100 rounded text-gray-800">
-                                  {window.location.origin}/auth/oauth/{'{provider}'}/callback
+                                  {window.location.origin}/oauth/{'{agent}'}/callback
                                 </code>
                                 <p className="text-xs text-gray-500 mt-2">
-                                  Replace {'{provider}'} with: google, github, or discord
+                                  Replace {'{agent}'} with: datum, sage, scout, echo-core, or echo-speculative
                                 </p>
                               </div>
                             </div>
