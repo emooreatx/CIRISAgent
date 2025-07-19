@@ -39,7 +39,10 @@ COPY --chown=ciris:ciris . .
 # Note: .ciris_keys directory will be copied from repo if it exists
 RUN mkdir -p /app/data /app/logs /app/audit_keys /app/data_archive && \
     chown -R ciris:ciris /app/data /app/logs /app/audit_keys /app/data_archive && \
-    chmod 750 /app/data /app/logs /app/audit_keys /app/data_archive
+    chmod 750 /app/data /app/logs /app/audit_keys /app/data_archive && \
+    # Ensure /app directory itself is writable by ciris user for audit_logs.jsonl
+    chown ciris:ciris /app && \
+    chmod 755 /app
 
 # Switch to non-root user
 USER ciris
