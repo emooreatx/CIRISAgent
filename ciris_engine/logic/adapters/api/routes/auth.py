@@ -16,6 +16,7 @@ from typing import Optional, Dict, List
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException, status, Request, Depends
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from ciris_engine.schemas.api.auth import (
@@ -337,11 +338,11 @@ class OAuthLoginResponse(BaseModel):
     authorization_url: str = Field(..., description="URL to redirect user to for authorization")
     state: str = Field(..., description="State parameter for CSRF protection")
 
-@router.get("/auth/oauth/{provider}/login", response_model=OAuthLoginResponse)
+@router.get("/auth/oauth/{provider}/login")
 async def oauth_login(
     provider: str,
     redirect_uri: Optional[str] = None
-) -> OAuthLoginResponse:
+) -> RedirectResponse:
     """
     Initiate OAuth login flow.
     
@@ -416,10 +417,8 @@ async def oauth_login(
         # Build full URL
         full_url = f"{auth_url}?{urllib.parse.urlencode(params)}"
         
-        return OAuthLoginResponse(
-            authorization_url=full_url,
-            state=state
-        )
+        # Redirect user to OAuth provider
+        return RedirectResponse(url=full_url, status_code=302)
         
     except Exception as e:
         logger.error(f"OAuth login initiation failed: {e}")
