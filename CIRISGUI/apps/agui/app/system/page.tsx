@@ -415,7 +415,7 @@ export default function SystemPage() {
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">Disk Usage</span>
                   <span className="text-lg font-bold text-green-600">
-                    {resources?.disk_usage_gb ? `${resources.disk_usage_gb.toFixed(1)} GB` : 'N/A'}
+                    {resources?.current_usage?.disk_used_mb ? `${(resources.current_usage.disk_used_mb / 1024).toFixed(1)} GB` : 'N/A'}
                   </span>
                 </div>
               </div>
