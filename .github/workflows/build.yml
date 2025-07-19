@@ -277,11 +277,16 @@ jobs:
             docker tag ghcr.io/cirisai/ciris-gui:latest ciris-gui:latest
             docker tag ghcr.io/cirisai/ciris-nginx:latest ciris-nginx:latest
             
-            # Stop existing containers
-            docker-compose -f deployment/docker-compose.dev-prod.yml down || true
-            
-            # Start development deployment with mock LLM
-            docker-compose -f deployment/docker-compose.dev-prod.yml up -d
+            # Use staged deployment script if available
+            if [ -f "deployment/deploy-staged.sh" ]; then
+              echo "Using staged deployment for zero-downtime update..."
+              chmod +x deployment/deploy-staged.sh
+              ./deployment/deploy-staged.sh
+            else
+              # Fallback to regular deployment
+              docker-compose -f deployment/docker-compose.dev-prod.yml down || true
+              docker-compose -f deployment/docker-compose.dev-prod.yml up -d
+            fi
             
             # Clean up old images
             docker image prune -f
