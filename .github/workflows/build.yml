@@ -201,8 +201,9 @@ jobs:
                 systemctl start docker
               fi
               
-              # Install Docker Compose if needed
-              if ! command -v docker-compose &> /dev/null; then
+              # Install or update Docker Compose if needed
+              if ! command -v docker-compose &> /dev/null || ! docker-compose version | grep -q "v2"; then
+                echo "Installing/updating Docker Compose to v2.20.0..."
                 curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
                 chmod +x /usr/local/bin/docker-compose
               fi
