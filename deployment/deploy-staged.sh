@@ -71,9 +71,10 @@ fi
 
 log "Found running containers. Proceeding with staged deployment..."
 
-# Step 1.5: Pull all new images (this will fail but that's ok, we have local tags)
-log "Checking for new images..."
-docker-compose -f "$DOCKER_COMPOSE_FILE" pull 2>/dev/null || log "Using local tagged images"
+# Step 1.5: Images should already be pulled and tagged by main deployment script
+log "Using locally tagged images..."
+# Note: We don't pull here because docker-compose.yml uses local tags (ciris-agent:latest)
+# The main deployment workflow handles pulling from ghcr.io and tagging locally
 
 # Step 2: Update GUI and Nginx immediately
 log "Updating GUI and Nginx containers..."

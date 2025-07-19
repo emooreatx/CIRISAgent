@@ -277,6 +277,20 @@ jobs:
             docker tag ghcr.io/cirisai/ciris-gui:latest ciris-gui:latest
             docker tag ghcr.io/cirisai/ciris-nginx:latest ciris-nginx:latest
             
+            # Fix volume permissions before deployment
+            echo "Ensuring proper volume permissions..."
+            # The CIRIS container runs as user 'ciris' (uid 1000)
+            for volume in datum_data datum_logs; do
+              VOLUME_PATH=$(docker volume inspect deployment_${volume} 2>/dev/null | jq -r '.[0].Mountpoint' || echo "")
+              if [ -n "$VOLUME_PATH" ] && [ -d "$VOLUME_PATH" ]; then
+                echo "Setting permissions for $volume at $VOLUME_PATH"
+                # Set ownership to uid 1000 (ciris user in container)
+                chown -R 1000:1000 "$VOLUME_PATH" || true
+                # Set secure permissions: owner can read/write/execute, group can read/execute, others nothing
+                chmod -R 750 "$VOLUME_PATH"
+              fi
+            done
+            
             # Use staged deployment script if available
             if [ -f "deployment/deploy-staged.sh" ]; then
               echo "Using staged deployment for zero-downtime update..."
