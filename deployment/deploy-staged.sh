@@ -206,6 +206,20 @@ else
     
     log "Staged container created. Monitoring current agent for graceful exit..."
     
+    # Step 4.5: Trigger graceful shutdown if graceful-shutdown.py exists
+    if [ -f "deployment/graceful-shutdown.py" ]; then
+        log "Triggering graceful shutdown..."
+        # Use localhost since we're on the same server
+        python3 deployment/graceful-shutdown.py \
+            --agent-url "http://localhost:8080" \
+            --message "Updated container staged for deployment! Shutdown to upgrade immediately, defer if needed." \
+            --token "admin:ciris_admin_password" || {
+            warn "Failed to trigger graceful shutdown. Agent must be shut down manually."
+        }
+    else
+        warn "Graceful shutdown script not found. Agent must be shut down manually."
+    fi
+    
     # Step 5: Monitor for graceful shutdown
     WAIT_COUNT=0
     MAX_WAIT=7200  # 2 hours in seconds

@@ -636,13 +636,23 @@ async def oauth_callback(
         
         logger.info(f"OAuth user {oauth_user.user_id} logged in successfully via {provider}")
         
-        return LoginResponse(
-            access_token=api_key,
-            token_type="Bearer",
-            expires_in=2592000,  # 30 days
-            role=oauth_user.role,
-            user_id=oauth_user.user_id
-        )
+        # Redirect to GUI OAuth callback page with token info
+        # The GUI will handle storing the token and redirecting to dashboard
+        gui_callback_url = f"/oauth/datum/{provider}/callback"
+        redirect_params = {
+            "access_token": api_key,
+            "token_type": "Bearer",
+            "expires_in": "2592000",
+            "role": oauth_user.role.value,
+            "user_id": oauth_user.user_id
+        }
+        
+        # Build redirect URL with query parameters
+        import urllib.parse
+        query_string = urllib.parse.urlencode(redirect_params)
+        redirect_url = f"{gui_callback_url}?{query_string}"
+        
+        return RedirectResponse(url=redirect_url, status_code=302)
         
     except Exception as e:
         logger.error(f"OAuth callback error: {e}")
