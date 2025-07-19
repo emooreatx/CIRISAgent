@@ -24,6 +24,12 @@ function OAuthCallbackContent() {
     const error = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
     const agentId = params.agent as string;
+    
+    // Check if we have direct token parameters (from API redirect)
+    const accessToken = searchParams.get('access_token');
+    const tokenType = searchParams.get('token_type');
+    const role = searchParams.get('role');
+    const userId = searchParams.get('user_id');
 
     if (error) {
       setError(`OAuth error: ${error} - ${errorDescription || 'Unknown error'}`);
@@ -31,6 +37,40 @@ function OAuthCallbackContent() {
       return;
     }
 
+    // Handle direct token response from API
+    if (accessToken && tokenType && role && userId) {
+      try {
+        // Set the authentication state directly
+        const user = {
+          user_id: userId,
+          username: userId,
+          role: role,
+          permissions: [],
+          created_at: new Date().toISOString(),
+          last_login: new Date().toISOString()
+        };
+        
+        setToken(accessToken);
+        setUser(user);
+        
+        // Store the selected agent for future use
+        const agent = AGENTS.find(a => a.id === agentId);
+        if (agent) {
+          localStorage.setItem('selectedAgentId', agent.id);
+          localStorage.setItem('selectedAgentName', agent.name);
+        }
+        
+        // Redirect to dashboard
+        router.push('/dashboard');
+        return;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'OAuth authentication failed');
+        setProcessing(false);
+        return;
+      }
+    }
+
+    // Original OAuth code flow (if needed in future)
     if (!code || !state) {
       setError('Missing OAuth callback parameters');
       setProcessing(false);
