@@ -44,8 +44,8 @@ export default function LoginPage() {
       if (!agent) return;
       
       // Direct navigation to OAuth login endpoint (no auth required)
-      // Use per-agent OAuth callback path
-      const redirectUri = encodeURIComponent(`${window.location.origin}/v1/auth/oauth/${selectedAgent}/google/callback`);
+      // Use per-agent OAuth callback path (GUI page, not API endpoint)
+      const redirectUri = encodeURIComponent(`${window.location.origin}/oauth/${selectedAgent}/callback`);
       const apiUrl = process.env.NODE_ENV === 'development' 
         ? process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost:8080'
         : agent.apiUrl;

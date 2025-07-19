@@ -159,10 +159,12 @@ export class AuthResource extends BaseResource {
     state: string
   ): Promise<User> {
     try {
-      const response = await this.transport.post<LoginResponse>(
+      const response = await this.transport.get<LoginResponse>(
         `/v1/auth/oauth/${provider}/callback`,
-        { code, state },
-        { skipAuth: true }
+        { 
+          params: { code, state },
+          skipAuth: true 
+        }
       );
 
       // Save token

@@ -13,7 +13,7 @@ services:
     depends_on:
       - ciris-gui
       - agent-datum
-    restart: unless-stopped
+    restart: on-failure
   # Development: Single Datum agent with Mock LLM for testing
   agent-datum:
     image: ciris-agent:latest  # Will be pulled from ghcr.io and tagged locally
@@ -50,7 +50,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    restart: unless-stopped
+    restart: on-failure
     command: ["python", "main.py", "--adapter", "api", "--adapter", "discord", "--mock-llm"]
 
   # GUI Application
@@ -64,7 +64,7 @@ services:
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_CIRIS_API_URL=https://agents.ciris.ai
-    restart: unless-stopped
+    restart: on-failure
 
 volumes:
   datum_data:
