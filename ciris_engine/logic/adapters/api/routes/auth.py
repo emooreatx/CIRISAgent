@@ -386,7 +386,7 @@ async def oauth_login(
             # Construct from request headers
             base_url = f"{request.url.scheme}://{request.headers.get('host', 'localhost')}"
         
-        callback_url = redirect_uri or f"{base_url}{OAUTH_CALLBACK_PATH}"
+        callback_url = redirect_uri or f"{base_url}{OAUTH_CALLBACK_PATH.replace('{provider}', provider)}"
         
         # Build authorization URL based on provider
         if provider == "google":
@@ -484,7 +484,7 @@ async def oauth_callback(
                         "code": code,
                         "client_id": client_id,
                         "client_secret": client_secret,
-                        "redirect_uri": os.getenv("OAUTH_CALLBACK_BASE_URL", DEFAULT_OAUTH_BASE_URL) + OAUTH_CALLBACK_PATH,
+                        "redirect_uri": os.getenv("OAUTH_CALLBACK_BASE_URL", DEFAULT_OAUTH_BASE_URL) + OAUTH_CALLBACK_PATH.replace('{provider}', provider),
                         "grant_type": "authorization_code"
                     }
                 )
@@ -576,7 +576,7 @@ async def oauth_callback(
                         "code": code,
                         "client_id": client_id,
                         "client_secret": client_secret,
-                        "redirect_uri": os.getenv("OAUTH_CALLBACK_BASE_URL", DEFAULT_OAUTH_BASE_URL) + OAUTH_CALLBACK_PATH,
+                        "redirect_uri": os.getenv("OAUTH_CALLBACK_BASE_URL", DEFAULT_OAUTH_BASE_URL) + OAUTH_CALLBACK_PATH.replace('{provider}', provider),
                         "grant_type": "authorization_code"
                     }
                 )

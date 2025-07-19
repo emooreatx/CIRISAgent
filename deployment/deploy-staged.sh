@@ -192,6 +192,8 @@ else
     AGENT_ENV=$(docker inspect "$AGENT_CONTAINER" --format='{{range .Config.Env}}{{println .}}{{end}}' | grep -E '^(DISCORD_|OPENAI_|ANTHROPIC_|CIRIS_|OAUTH_)' | sed 's/^/-e /')
     AGENT_VOLUMES=$(docker inspect "$AGENT_CONTAINER" --format='{{range .Mounts}}{{if eq .Type "volume"}}-v {{.Name}}:{{.Destination}} {{end}}{{end}}')
     AGENT_NETWORK=$(docker inspect "$AGENT_CONTAINER" --format='{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' | head -1)
+    # Get the command from the running container
+    AGENT_CMD=$(docker inspect "$AGENT_CONTAINER" --format='{{join .Config.Cmd " "}}')
     
     # Create staged container (not running)
     docker create \
@@ -199,7 +201,8 @@ else
         --network "$AGENT_NETWORK" \
         $AGENT_ENV \
         $AGENT_VOLUMES \
-        "ciris-agent:latest"
+        "ciris-agent:latest" \
+        $AGENT_CMD
     
     log "Staged container created. Monitoring current agent for graceful exit..."
     
