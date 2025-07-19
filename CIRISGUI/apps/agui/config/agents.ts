@@ -13,7 +13,7 @@ export const AGENTS: AgentConfig[] = [
     id: 'datum',
     name: 'Datum',
     description: 'A humble data point that provides singular, focused observations',
-    apiUrl: process.env.NEXT_PUBLIC_DATUM_URL || 'https://agents.ciris.ai',
+    apiUrl: process.env.NEXT_PUBLIC_DATUM_URL || 'https://agents.ciris.ai/api/datum',
     port: 8080,
   },
   {
