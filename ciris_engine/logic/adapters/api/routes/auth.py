@@ -341,6 +341,7 @@ class OAuthLoginResponse(BaseModel):
 @router.get("/auth/oauth/{provider}/login")
 async def oauth_login(
     provider: str,
+    request: Request,
     redirect_uri: Optional[str] = None
 ) -> RedirectResponse:
     """
@@ -377,7 +378,13 @@ async def oauth_login(
         # Store state in a temporary location (in production, use Redis or similar)
         # For now, we'll include it in the redirect_uri
         
-        callback_url = redirect_uri or f"http://localhost:3000/auth/oauth/{provider}/callback"
+        # Use OAUTH_CALLBACK_BASE_URL environment variable, or construct from request
+        base_url = os.getenv("OAUTH_CALLBACK_BASE_URL")
+        if not base_url:
+            # Construct from request headers
+            base_url = f"{request.url.scheme}://{request.headers.get('host', 'localhost')}"
+        
+        callback_url = redirect_uri or f"{base_url}/oauth/datum/callback"
         
         # Build authorization URL based on provider
         if provider == "google":
@@ -515,7 +522,7 @@ async def oauth_callback(
                         "code": code,
                         "client_id": client_id,
                         "client_secret": client_secret,
-                        "redirect_uri": f"http://localhost:3000/auth/oauth/{provider}/callback"
+                        "redirect_uri": os.getenv("OAUTH_CALLBACK_BASE_URL", "https://agents.ciris.ai") + "/oauth/datum/callback"
                     }
                 )
                 
