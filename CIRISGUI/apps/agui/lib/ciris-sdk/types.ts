@@ -121,13 +121,40 @@ export interface ServiceInfo {
 }
 
 export interface ResourceUsage {
-  cpu_percent: number;
-  memory_mb: number;
-  memory_percent: number;
-  disk_usage_gb?: number;
-  active_thoughts: number;
-  active_handlers: number;
-  timestamp: string;
+  current_usage: {
+    memory_mb: number;
+    memory_percent: number;
+    cpu_percent: number;
+    cpu_average_1m: number;
+    tokens_used_hour: number;
+    tokens_used_day: number;
+    disk_used_mb: number;
+    disk_free_mb: number;
+    thoughts_active: number;
+    thoughts_queued: number;
+    healthy: boolean;
+    warnings: string[];
+    critical: string[];
+  };
+  limits: {
+    memory_mb: ResourceLimit;
+    cpu_percent: ResourceLimit;
+    tokens_hour: ResourceLimit;
+    tokens_day: ResourceLimit;
+    disk_mb: ResourceLimit;
+    thoughts_active: ResourceLimit;
+  };
+  health_status: string;
+  warnings: string[];
+  critical: string[];
+}
+
+export interface ResourceLimit {
+  limit: number;
+  warning: number;
+  critical: number;
+  action: string;
+  cooldown_seconds: number;
 }
 
 // Conversation Types
