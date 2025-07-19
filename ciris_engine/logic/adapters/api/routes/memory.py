@@ -1586,13 +1586,13 @@ def _generate_svg(G: "nx.DiGraph", pos: Dict[str, tuple], width: int, height: in
         # Define multiple arrow markers for different relationship types
         '<marker id="arrowhead-default" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">',
         '<polygon points="0 0, 10 3.5, 0 7" fill="#999" />',
-        '</marker>',
+        MARKER_END,
         '<marker id="arrowhead-strong" markerWidth="12" markerHeight="8" refX="11" refY="4" orient="auto">',
         '<polygon points="0 0, 12 4, 0 8" fill="#666" />',
-        '</marker>',
+        MARKER_END,
         '<marker id="arrowhead-weak" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">',
         '<polygon points="0 0, 8 3, 0 6" fill="#ccc" />',
-        '</marker>',
+        MARKER_END,
         # Add hover style
         '<style>',
         '.edge-line { cursor: pointer; }',
