@@ -33,7 +33,7 @@ from ciris_engine.schemas.runtime.api import APIRole
 OAUTH_CONFIG_DIR = ".ciris"
 OAUTH_CONFIG_FILE = "oauth.json"
 PROVIDER_NAME_DESC = "Provider name"
-OAUTH_CALLBACK_PATH = "/oauth/datum/callback"
+OAUTH_CALLBACK_PATH = "/v1/auth/oauth/datum/{provider}/callback"
 DEFAULT_OAUTH_BASE_URL = "https://agents.ciris.ai"
 
 from ..dependencies.auth import (
