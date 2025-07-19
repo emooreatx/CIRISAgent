@@ -83,7 +83,7 @@ This ensures type safety, validation, and clear contracts throughout the system.
    - Use `disallow_any_explicit = True` to catch Dict[str, Any]
    - Run mypy as part of CI/CD pipeline
 
-## Current Status (July 18, 2025)
+## Current Status (July 19, 2025)
 
 ### 🎉 Major Achievements
 
@@ -147,6 +147,34 @@ This ensures type safety, validation, and clear contracts throughout the system.
    - Fixed SQLite datetime adapter warnings
    - All SDK endpoint tests passing
    - CI/CD runs tests in Docker for consistency
+
+## Recent Achievements (July 2025)
+
+### Infrastructure Improvements (July 19, 2025)
+1. **Containerized Nginx**
+   - Replaced standalone nginx service with containerized version
+   - Supports both dev (single agent) and production (multi-agent) configurations
+   - Per-agent OAuth callback paths: `/oauth/{agent}/callback`
+   - Default API route: `/v1/` → Datum agent
+   - Agent-specific routes: `/api/{agent}/v1/*`
+
+2. **Shared OAuth Configuration**
+   - OAuth config now in shared volume: `/home/ciris/shared/oauth`
+   - All agents can mount and share OAuth credentials
+   - Migration script for existing configurations
+   - Google OAuth already configured in production
+
+3. **CI/CD Improvements**
+   - Fixed fork PR builds - they now build without pushing
+   - Only same-repo PRs and main branch push to registry
+   - Build summary shows what action was taken
+   - Prevents "installation not allowed to Write" errors
+
+4. **GUI Fixes**
+   - Fixed ResourceUsage SDK type to match nested API response
+   - Resource metrics now display correctly in System page
+   - Per-agent OAuth callback support in GUI
+   - Dynamic callback URL generation based on selected agent
 
 ## Recent Achievements (July 2025)
 
