@@ -5,9 +5,7 @@ services:
   nginx:
     image: ciris-nginx:latest  # Will be pulled from ghcr.io and tagged locally
     container_name: ciris-nginx
-    ports:
-      - "80:80"
-      - "443:443"
+    network_mode: host  # Use host network to access containers on bridge
     volumes:
       # SSL certificates from host
       - /etc/letsencrypt:/etc/letsencrypt:ro
@@ -16,8 +14,6 @@ services:
       - ciris-gui
       - agent-datum
     restart: unless-stopped
-    networks:
-      - ciris-network
   # Development: Single Datum agent with Mock LLM for testing
   agent-datum:
     image: ciris-agent:latest  # Will be pulled from ghcr.io and tagged locally
