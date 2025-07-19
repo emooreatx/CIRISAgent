@@ -48,6 +48,13 @@ get_image_id() {
 
 log "Starting staged deployment..."
 
+# Check docker-compose version and warn if old
+DOCKER_COMPOSE_VERSION=$(docker-compose version 2>/dev/null | grep -oE "v[0-9]+\.[0-9]+\.[0-9]+" | head -1 || echo "unknown")
+if [[ "$DOCKER_COMPOSE_VERSION" =~ ^v1\. ]]; then
+    warn "Detected old docker-compose version: $DOCKER_COMPOSE_VERSION"
+    warn "Some operations may fail. The CD pipeline should update this."
+fi
+
 # Step 1: Check if we're in the right directory
 if [ ! -f "$DOCKER_COMPOSE_FILE" ]; then
     error "Docker compose file not found: $DOCKER_COMPOSE_FILE"
@@ -60,7 +67,50 @@ RUNNING_CONTAINERS=$(docker ps --format "{{.Names}}" | grep -E "(${AGENT_CONTAIN
 
 if [ -z "$RUNNING_CONTAINERS" ]; then
     log "No CIRIS containers are running. Starting fresh deployment..."
-    docker-compose -f "$DOCKER_COMPOSE_FILE" up -d
+    
+    # Try docker-compose, but handle potential failures
+    if ! docker-compose -f "$DOCKER_COMPOSE_FILE" up -d 2>&1 | tee /tmp/compose.log; then
+        if grep -q "ContainerConfig" /tmp/compose.log; then
+            warn "docker-compose failed due to version incompatibility. Using fallback deployment..."
+            
+            # Start agent container
+            docker run -d --name "$AGENT_CONTAINER" \
+                --network deployment_ciris-network \
+                -p 127.0.0.1:8080:8080 \
+                -e CIRIS_AGENT_NAME=Datum \
+                -e CIRIS_AGENT_ID=agent-datum \
+                -e CIRIS_PORT=8080 \
+                -e CIRIS_ADAPTER=api \
+                -e CIRIS_ADAPTER_DISCORD=discord \
+                -e CIRIS_MOCK_LLM=true \
+                -e CIRIS_API_HOST=0.0.0.0 \
+                -e CIRIS_API_PORT=8080 \
+                -v deployment_datum_data:/app/data \
+                -v deployment_datum_logs:/app/logs \
+                -v /home/ciris/CIRISAgent/.env.datum:/app/.env:ro \
+                -v /home/ciris/shared/oauth:/home/ciris/.ciris:ro \
+                --restart unless-stopped \
+                ciris-agent:latest python main.py --adapter api --adapter discord --mock-llm
+            
+            # Start GUI container
+            docker run -d --name "$GUI_CONTAINER" \
+                --network deployment_ciris-network \
+                -p 127.0.0.1:3000:3000 \
+                -e NODE_ENV=production \
+                -e NEXT_PUBLIC_CIRIS_API_URL=https://agents.ciris.ai \
+                --restart unless-stopped \
+                ciris-gui:latest
+            
+            # Start Nginx container
+            docker run -d --name "$NGINX_CONTAINER" \
+                --network host \
+                -v /etc/letsencrypt:/etc/letsencrypt:ro \
+                -v /home/ciris/CIRISAgent/deployment/nginx/logs:/var/log/nginx \
+                --restart unless-stopped \
+                ciris-nginx:latest
+        fi
+    fi
+    rm -f /tmp/compose.log
     
     log "Deployment complete!"
     echo ""
@@ -82,7 +132,19 @@ log "Updating GUI and Nginx containers..."
 # Update GUI
 if is_running "$GUI_CONTAINER"; then
     log "Recreating GUI container..."
-    docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps --force-recreate "$GUI_SERVICE"
+    # Try docker-compose first, fall back to docker run if it fails
+    if ! docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps --force-recreate "$GUI_SERVICE" 2>/dev/null; then
+        warn "docker-compose failed, using docker run for GUI..."
+        docker stop "$GUI_CONTAINER" || true
+        docker rm "$GUI_CONTAINER" || true
+        docker run -d --name "$GUI_CONTAINER" \
+            --network deployment_ciris-network \
+            -p 127.0.0.1:3000:3000 \
+            -e NODE_ENV=production \
+            -e NEXT_PUBLIC_CIRIS_API_URL=https://agents.ciris.ai \
+            --restart unless-stopped \
+            ciris-gui:latest
+    fi
 else
     log "Starting GUI container..."
     docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps "$GUI_SERVICE"
@@ -91,7 +153,18 @@ fi
 # Update Nginx
 if is_running "$NGINX_CONTAINER"; then
     log "Recreating Nginx container..."
-    docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps --force-recreate "$NGINX_SERVICE"
+    # Try docker-compose first, fall back to docker run if it fails
+    if ! docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps --force-recreate "$NGINX_SERVICE" 2>/dev/null; then
+        warn "docker-compose failed, using docker run for Nginx..."
+        docker stop "$NGINX_CONTAINER" || true
+        docker rm "$NGINX_CONTAINER" || true
+        docker run -d --name "$NGINX_CONTAINER" \
+            --network host \
+            -v /etc/letsencrypt:/etc/letsencrypt:ro \
+            -v /home/ciris/CIRISAgent/deployment/nginx/logs:/var/log/nginx \
+            --restart unless-stopped \
+            ciris-nginx:latest
+    fi
 else
     log "Starting Nginx container..."
     docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps "$NGINX_SERVICE"
