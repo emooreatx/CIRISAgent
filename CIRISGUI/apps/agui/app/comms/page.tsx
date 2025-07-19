@@ -5,11 +5,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cirisClient } from '../../lib/ciris-sdk';
 import toast from 'react-hot-toast';
 import { StatusDot } from '../../components/Icons';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function CommsPage() {
+  const { user } = useAuth();
   const [message, setMessage] = useState('');
   const [showShutdownDialog, setShowShutdownDialog] = useState(false);
+  const [showEmergencyShutdownDialog, setShowEmergencyShutdownDialog] = useState(false);
   const [shutdownReason, setShutdownReason] = useState('User requested graceful shutdown');
+  const [emergencyReason, setEmergencyReason] = useState('EMERGENCY: Immediate shutdown required');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
@@ -74,6 +78,27 @@ export default function CommsPage() {
     },
   });
 
+  // Emergency shutdown mutation
+  const emergencyShutdownMutation = useMutation({
+    mutationFn: async () => {
+      return await cirisClient.system.shutdown(emergencyReason, true, true); // force=true
+    },
+    onSuccess: (response) => {
+      toast.success(`EMERGENCY SHUTDOWN INITIATED: ${response.message}`, { 
+        duration: 10000,
+        style: {
+          background: '#dc2626',
+          color: 'white',
+        },
+      });
+      setShowEmergencyShutdownDialog(false);
+    },
+    onError: (error: any) => {
+      console.error('Emergency shutdown error:', error);
+      toast.error(error.message || 'Failed to initiate emergency shutdown');
+    },
+  });
+
 
   // Scroll to bottom when new messages arrive
   useEffect(() => {
@@ -120,6 +145,25 @@ export default function CommsPage() {
                 className="ml-4 px-3 py-1 text-xs font-medium text-red-600 border border-red-600 rounded-md hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
               >
                 Shutdown
+              </button>
+              <button
+                onClick={() => {
+                  // Check if user has permission (ADMIN or higher)
+                  if (user?.role === 'OBSERVER') {
+                    toast.error('WISE AUTHORITY OR SYSTEM AUTHORITY REQUIRED', {
+                      duration: 5000,
+                      style: {
+                        background: '#dc2626',
+                        color: 'white',
+                      },
+                    });
+                  } else {
+                    setShowEmergencyShutdownDialog(true);
+                  }
+                }}
+                className="ml-2 px-3 py-1 text-xs font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
+                EMERGENCY STOP
               </button>
             </div>
           </div>
@@ -243,6 +287,65 @@ export default function CommsPage() {
                 className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {shutdownMutation.isPending ? 'Initiating...' : 'Confirm Shutdown'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Emergency Shutdown Dialog */}
+      {showEmergencyShutdownDialog && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full border-4 border-red-600">
+            <h3 className="text-lg font-bold text-red-600 mb-4 flex items-center">
+              <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              EMERGENCY SHUTDOWN
+            </h3>
+            <div className="bg-red-50 border border-red-200 rounded-md p-4 mb-4">
+              <p className="text-sm font-semibold text-red-800 mb-2">
+                ⚠️ WARNING: This will IMMEDIATELY terminate the agent!
+              </p>
+              <ul className="list-disc list-inside text-sm text-red-700 space-y-1">
+                <li>NO graceful shutdown procedures</li>
+                <li>NO task completion</li>
+                <li>NO final messages</li>
+                <li>IMMEDIATE process termination</li>
+              </ul>
+            </div>
+            <div className="mb-4">
+              <label htmlFor="emergency-reason" className="block text-sm font-medium text-gray-700 mb-2">
+                Emergency Reason (Required)
+              </label>
+              <textarea
+                id="emergency-reason"
+                rows={2}
+                className="block w-full rounded-md border-red-300 shadow-sm focus:border-red-500 focus:ring-red-500 sm:text-sm"
+                value={emergencyReason}
+                onChange={(e) => setEmergencyReason(e.target.value)}
+                placeholder="Describe the emergency..."
+              />
+            </div>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 mb-4">
+              <p className="text-xs text-yellow-800">
+                <strong>Authority Required:</strong> This action requires ADMIN, AUTHORITY, or SYSTEM_ADMIN role.
+                Your current role: <span className="font-semibold">{user?.role || 'Unknown'}</span>
+              </p>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowEmergencyShutdownDialog(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => emergencyShutdownMutation.mutate()}
+                disabled={emergencyShutdownMutation.isPending || !emergencyReason.trim()}
+                className="px-4 py-2 text-sm font-bold text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {emergencyShutdownMutation.isPending ? 'TERMINATING...' : 'EXECUTE EMERGENCY STOP'}
               </button>
             </div>
           </div>
