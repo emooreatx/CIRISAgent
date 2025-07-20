@@ -337,15 +337,32 @@ jobs:
           username: root
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            # Wait for containers to be healthy
-            echo "Waiting for containers to start..."
-            sleep 30
+            # Wait for containers to be healthy (can take up to 10 minutes)
+            echo "Waiting for containers to start (this can take several minutes)..."
             
-            # Check API health
-            echo "Checking API health..."
-            if ! curl -f http://localhost:8080/v1/system/health; then
-              echo "API health check failed!"
-              docker logs ciris-agent-datum
+            # Poll for up to 15 minutes
+            MAX_WAIT=900  # 15 minutes
+            WAIT_INTERVAL=30  # Check every 30 seconds
+            ELAPSED=0
+            
+            while [ $ELAPSED -lt $MAX_WAIT ]; do
+              echo "Checking API health (attempt $(($ELAPSED / $WAIT_INTERVAL + 1)))..."
+              
+              if curl -f http://localhost:8080/v1/system/health 2>/dev/null; then
+                echo "\nAPI is healthy!"
+                break
+              fi
+              
+              echo "API not ready yet, waiting ${WAIT_INTERVAL}s... (${ELAPSED}s elapsed)"
+              sleep $WAIT_INTERVAL
+              ELAPSED=$(($ELAPSED + $WAIT_INTERVAL))
+            done
+            
+            # Final check
+            if [ $ELAPSED -ge $MAX_WAIT ]; then
+              echo "API health check failed after ${MAX_WAIT} seconds!"
+              echo "\nContainer logs:"
+              docker logs ciris-agent-datum --tail 100
               exit 1
             fi
             
