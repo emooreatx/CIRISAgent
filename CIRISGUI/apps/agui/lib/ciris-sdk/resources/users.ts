@@ -23,6 +23,11 @@ export interface UserDetail extends UserSummary {
   wa_parent_id?: string;
   wa_auto_minted: boolean;
   api_keys_count: number;
+  // OAuth profile fields for permission request system
+  oauth_name?: string;
+  oauth_picture?: string;
+  permission_requested_at?: string;
+  custom_permissions?: string[];
 }
 
 export interface UserListParams {
@@ -72,6 +77,26 @@ export interface UserAPIKey {
   last_used?: string;
   expires_at?: string;
   is_active: boolean;
+}
+
+export interface PermissionRequestUser {
+  user_id: string;
+  username: string;
+  oauth_provider: string;
+  oauth_email?: string;
+  oauth_name?: string;
+  oauth_picture?: string;
+  permission_requested_at: string;
+  created_at: string;
+}
+
+export interface PermissionRequestResponse {
+  message: string;
+  requested_at: string;
+}
+
+export interface PermissionGrantRequest {
+  permissions: string[];
 }
 
 export class UsersResource extends BaseResource {
@@ -153,5 +178,29 @@ export class UsersResource extends BaseResource {
     return this.transport.get('/v1/users/wa/key-check', { 
       params: { path } 
     });
+  }
+
+  /**
+   * Request permissions for the current OAuth user
+   * Used by OAuth users who need SEND_MESSAGES permission
+   */
+  async requestPermissions(): Promise<PermissionRequestResponse> {
+    return this.transport.post<PermissionRequestResponse>('/v1/users/request-permissions');
+  }
+
+  /**
+   * Get list of users who have requested permissions
+   * Requires: manage_user_permissions (ADMIN/SYSTEM_ADMIN only)
+   */
+  async getPermissionRequests(): Promise<PermissionRequestUser[]> {
+    return this.transport.get<PermissionRequestUser[]>('/v1/users/permission-requests');
+  }
+
+  /**
+   * Grant custom permissions to a user
+   * Requires: manage_user_permissions (ADMIN/SYSTEM_ADMIN only)
+   */
+  async grantPermissions(userId: string, data: PermissionGrantRequest): Promise<UserDetail> {
+    return this.transport.put<UserDetail>(`/v1/users/${userId}/permissions`, data);
   }
 }

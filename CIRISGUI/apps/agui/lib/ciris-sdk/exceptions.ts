@@ -57,3 +57,16 @@ export class CIRISRateLimitError extends CIRISAPIError {
     this.name = 'CIRISRateLimitError';
   }
 }
+
+export class CIRISPermissionDeniedError extends CIRISAPIError {
+  constructor(
+    message: string,
+    public discordInvite?: string,
+    public canRequestPermissions?: boolean,
+    public permissionRequested?: boolean,
+    public requestedAt?: string
+  ) {
+    super(403, message);
+    this.name = 'CIRISPermissionDeniedError';
+  }
+}

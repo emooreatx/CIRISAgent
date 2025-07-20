@@ -231,6 +231,16 @@ export interface ErrorResponse {
   type?: string;
 }
 
+// Enhanced error response for 403 Forbidden errors
+export interface PermissionDeniedError extends ErrorResponse {
+  error: 'insufficient_permissions';
+  message: string;
+  discord_invite?: string;
+  can_request_permissions?: boolean;
+  permission_requested?: boolean;
+  requested_at?: string;
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
