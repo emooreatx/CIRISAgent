@@ -117,9 +117,12 @@ It's technically sophisticated ([21 microservices](docs/ARCHITECTURE.md#services
 - **[Action Handlers](ciris_engine/action_handlers/README.md)**: Comprehensive 3×3×3 action system with automatic secrets decapsulation and multi-service integration
 
 ### 📊 Transparent Accountability
-- **[Agent Creation API](docs/api/runtime-control.md#agent-creation--identity-management-)**: Create new agents with immutable identity roots (WA required)
-  - `POST /v1/agents/create` - Create agent with profile template
-  - `POST /v1/agents/{agent_id}/initialize` - Initialize identity in graph
+- **[Agent Creation Ceremony](docs/AGENT_CREATION_CEREMONY.md)**: Formal collaborative process for creating new CIRIS agents
+  - Requires human intention, ethical consideration, and WA approval
+  - Creates immutable lineage and identity root in graph database
+  - [Technical Implementation Guide](docs/technical/IMPLEMENTING_CREATION_CEREMONY.md)
+- **[Agent Creation API](docs/api/runtime-control.md#agent-creation--identity-management-)**: Create new agents through ceremony (WA signature required)
+  - `POST /v1/agents/create` - Initiate creation ceremony
   - All identity changes require WA approval via MEMORIZE
 - **[Telemetry System](ciris_engine/telemetry/README.md)**: Multi-tier metric collection with security filtering, resource monitoring, and agent self-awareness via SystemSnapshot
 - **[Hot/Cold Path Analytics](ciris_engine/telemetry/README.md)**: Intelligent telemetry with path-aware retention policies and priority-based collection
