@@ -61,9 +61,35 @@ class CIRISManager:
         await self.container_manager.start()
         await self.watchdog.start()
         
-        # TODO: Start API server when implemented
+        # Start API server if configured
+        if hasattr(self.config, 'api') and self.config.api:
+            asyncio.create_task(self._start_api_server())
         
         logger.info("CIRISManager started successfully")
+    
+    async def _start_api_server(self):
+        """Start the FastAPI server for CIRISManager API."""
+        try:
+            from fastapi import FastAPI
+            import uvicorn
+            from .api import router
+            
+            app = FastAPI(title="CIRISManager API", version="1.0.0")
+            app.include_router(router)
+            
+            config = uvicorn.Config(
+                app,
+                host=self.config.api.host,
+                port=self.config.api.port,
+                log_level="info"
+            )
+            server = uvicorn.Server(config)
+            
+            logger.info(f"Starting API server on {self.config.api.host}:{self.config.api.port}")
+            await server.serve()
+            
+        except Exception as e:
+            logger.error(f"Failed to start API server: {e}")
         
     async def stop(self):
         """Stop all manager services."""

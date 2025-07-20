@@ -292,9 +292,19 @@ jobs:
               fi
             done
             
-            # Use staged deployment script if available
-            if [ -f "deployment/deploy-staged.sh" ]; then
-              echo "Using staged deployment for zero-downtime update..."
+            # Use consent-based deployment that respects agent autonomy
+            if [ -f "deployment/consent-based-deploy.sh" ]; then
+              echo "Using consent-based deployment..."
+              chmod +x deployment/consent-based-deploy.sh
+              # This script will wait for agent consent or timeout gracefully
+              ./deployment/consent-based-deploy.sh || {
+                echo "Deployment requires manual intervention - agent did not consent"
+                echo "Staged container is ready for deployment when agent is ready"
+                # This is not a failure - it's respecting agent autonomy
+                exit 0
+              }
+            elif [ -f "deployment/deploy-staged.sh" ]; then
+              echo "Using staged deployment..."
               chmod +x deployment/deploy-staged.sh
               ./deployment/deploy-staged.sh
             else
