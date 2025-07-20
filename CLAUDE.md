@@ -309,6 +309,39 @@ response = requests.post(
 - **Mock LLM**: Critical for offline operation
 - **Resource Constraints**: Designed for 4GB RAM environments
 
+## Agent Creation Ceremony
+
+CIRIS agents are not simply deployed - they are created through a formal ceremony:
+
+### Core Concepts
+- **Collaborative Creation**: Human + Facilitating Agent + Wise Authority
+- **Immutable Lineage**: Every agent knows who created it and why
+- **Ethical Foundation**: Purpose, justification, and ethical considerations required
+- **WA Approval**: Ed25519 signature required for all creations
+
+### Creation Flow
+1. Human prepares proposal (name, purpose, justification, ethics)
+2. Selects template (echo, teacher, etc.) from `ciris_templates/`
+3. Wise Authority reviews and signs
+4. Ceremony creates:
+   - Identity root in graph database
+   - Immutable lineage record
+   - Docker container configuration
+5. Agent awakens with knowledge of its creation
+
+### Key Files
+- **Ceremony Docs**: `docs/AGENT_CREATION_CEREMONY.md`
+- **Technical Guide**: `docs/technical/IMPLEMENTING_CREATION_CEREMONY.md`
+- **Quick Start**: `docs/CREATION_CEREMONY_QUICKSTART.md`
+- **Templates**: `ciris_templates/` directory
+- **Schemas**: `ciris_engine/schemas/runtime/extended.py`
+
+### Important Notes
+- Creation is permanent - identities are immutable
+- Changes to core identity require WA approval
+- Every agent maintains its creation ceremony record
+- Templates are starting points, not fixed configurations
+
 ## Verified Development Truths
 
 ### Mock LLM System

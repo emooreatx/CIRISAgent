@@ -105,7 +105,77 @@ python main.py --adapter api --adapter discord --mock-llm --timeout 60
 docker-compose -f docker-compose.dev.yml up -d
 ```
 
-## Monitoring
+## CIRISManager - Agent Lifecycle Management
+
+CIRISManager runs as a systemd service to provide:
+- Automatic container updates (leverages Docker's restart policy)
+- Crash loop detection and prevention
+- Agent discovery API for GUI
+- Future: Agent creation with WA signatures
+
+### Installation
+
+```bash
+# Install CIRISManager
+cd /home/ciris/CIRISAgent
+pip install -e .
+
+# Create config directory
+sudo mkdir -p /etc/ciris-manager
+sudo chown $USER:$USER /etc/ciris-manager
+
+# Generate default config
+ciris-manager --generate-config --config /etc/ciris-manager/config.yml
+
+# Install systemd service
+sudo cp deployment/ciris-manager.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable ciris-manager
+sudo systemctl start ciris-manager
+```
+
+### Configuration
+
+Edit `/etc/ciris-manager/config.yml`:
+```yaml
+docker:
+  compose_file: /home/ciris/CIRISAgent/deployment/docker-compose.yml
+
+watchdog:
+  check_interval: 30  # Check every 30 seconds
+  crash_threshold: 3  # Stop after 3 crashes
+  crash_window: 300   # Within 5 minutes
+
+container_management:
+  interval: 60  # Run docker-compose up -d every 60 seconds
+```
+
+### How It Works
+
+1. **Automatic Updates**: Runs `docker-compose up -d` every 60 seconds
+   - Stopped containers start with latest image
+   - Running containers are unaffected
+   - Works with `restart: unless-stopped` policy
+
+2. **Crash Prevention**: Monitors for crash loops
+   - Detects 3+ crashes in 5 minutes
+   - Stops the container to prevent infinite restarts
+   - Alerts for manual intervention
+
+### Monitoring CIRISManager
+
+```bash
+# Check service status
+sudo systemctl status ciris-manager
+
+# View logs
+sudo journalctl -u ciris-manager -f
+
+# Check manager health
+curl http://localhost:9999/status  # When API is implemented
+```
+
+## Agent Monitoring
 
 Check agent health:
 ```bash

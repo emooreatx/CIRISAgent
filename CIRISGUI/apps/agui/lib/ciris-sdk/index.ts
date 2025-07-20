@@ -41,5 +41,8 @@ export type {
   UpdateUserRequest,
   ChangePasswordRequest,
   MintWARequest,
-  UserAPIKey
+  UserAPIKey,
+  PermissionRequestUser,
+  PermissionRequestResponse,
+  PermissionGrantRequest
 } from './resources/users';

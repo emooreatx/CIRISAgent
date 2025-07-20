@@ -306,6 +306,30 @@ jobs:
             # Clean up old images
             docker image prune -f
             
+            # Install CIRISManager if not already installed
+            if ! command -v ciris-manager &> /dev/null; then
+              echo "Installing CIRISManager..."
+              cd /home/ciris/CIRISAgent
+              apt-get install -y python3-pip python3-venv
+              pip3 install -e . -f setup_manager.py
+            fi
+            
+            # Create CIRISManager config if it doesn't exist
+            if [ ! -f "/etc/ciris-manager/config.yml" ]; then
+              mkdir -p /etc/ciris-manager
+              ciris-manager --generate-config --config /etc/ciris-manager/config.yml
+              # Update compose file path
+              sed -i 's|/home/ciris/CIRISAgent/deployment/docker-compose.yml|/home/ciris/CIRISAgent/deployment/docker-compose.dev-prod.yml|' /etc/ciris-manager/config.yml
+            fi
+            
+            # Install CIRISManager systemd service if not exists
+            if [ ! -f "/etc/systemd/system/ciris-manager.service" ]; then
+              cp deployment/ciris-manager.service /etc/systemd/system/
+              systemctl daemon-reload
+              systemctl enable ciris-manager
+              systemctl start ciris-manager
+            fi
+            
             # Create systemd service for auto-start if it doesn't exist
             if [ ! -f "/etc/systemd/system/ciris-dev.service" ]; then
               cat > /etc/systemd/system/ciris-dev.service << 'EOF'
@@ -337,11 +361,11 @@ jobs:
           username: root
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
-            # Wait for containers to be healthy (can take up to 10 minutes)
-            echo "Waiting for containers to start (this can take several minutes)..."
+            # Wait for containers to be healthy
+            echo "Waiting for containers to start..."
             
-            # Poll for up to 15 minutes
-            MAX_WAIT=900  # 15 minutes
+            # Poll for up to 5 minutes
+            MAX_WAIT=300  # 5 minutes
             WAIT_INTERVAL=30  # Check every 30 seconds
             ELAPSED=0
             

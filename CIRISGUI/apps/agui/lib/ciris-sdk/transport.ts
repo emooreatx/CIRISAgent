@@ -8,7 +8,8 @@ import {
   CIRISAuthError,
   CIRISConnectionError,
   CIRISTimeoutError,
-  CIRISRateLimitError
+  CIRISRateLimitError,
+  CIRISPermissionDeniedError
 } from './exceptions';
 import { SuccessResponse, ErrorResponse } from './types';
 
@@ -200,6 +201,18 @@ export class Transport {
     // Handle errors
     if (!response.ok) {
       const errorData = data as ErrorResponse;
+      
+      // Handle enhanced 403 permission denied errors
+      if (response.status === 403 && 'error' in data && data.error === 'insufficient_permissions') {
+        throw new CIRISPermissionDeniedError(
+          data.message || errorData.detail || 'Permission denied',
+          data.discord_invite,
+          data.can_request_permissions,
+          data.permission_requested,
+          data.requested_at
+        );
+      }
+      
       throw new CIRISAPIError(
         response.status,
         errorData.detail || `HTTP ${response.status} error`,
