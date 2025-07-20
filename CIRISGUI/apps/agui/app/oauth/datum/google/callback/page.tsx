@@ -22,6 +22,8 @@ function GoogleOAuthCallbackContent() {
         user_id: userId,
         username: userId,
         role: role as any, // Role comes as string from query params
+        api_role: role as any,
+        wa_role: undefined,
         permissions: [],
         created_at: new Date().toISOString(),
         last_login: new Date().toISOString()

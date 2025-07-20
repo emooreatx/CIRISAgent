@@ -150,7 +150,29 @@ This ensures type safety, validation, and clear contracts throughout the system.
 
 ## Recent Achievements (July 2025)
 
-### Infrastructure Improvements (July 19, 2025)
+### Complete OAuth Permission System (July 20, 2025)
+1. **Phase 1 & 2 Completed**
+   - OAuth users can request permissions via API endpoint
+   - Admin/System Admin can view and grant permissions
+   - Full TypeScript SDK support with dedicated users resource
+   - GUI components for permission management
+   - Filtered user list shows only OAuth users with granted permissions
+
+2. **CIRISManager Integration**
+   - Fully integrated into CI/CD pipeline
+   - Running in production on agents.ciris.ai
+   - API endpoints proxied through nginx at `/manager/v1/*`
+   - Dynamic agent discovery replacing hardcoded agent lists
+   - GUI successfully uses CIRISManager for agent discovery
+
+3. **GUI Dynamic Agent Discovery**
+   - Fixed all TypeScript build errors
+   - Removed hardcoded agent configurations
+   - AgentContextDynamic discovers agents from CIRISManager
+   - Properly handles authentication roles (api_role vs wa_role)
+   - SDK pattern enforced throughout (no direct client usage)
+
+### Infrastructure Improvements (July 19-20, 2025)
 1. **Containerized Nginx**
    - Replaced standalone nginx service with containerized version
    - Supports both dev (single agent) and production (multi-agent) configurations
@@ -169,12 +191,13 @@ This ensures type safety, validation, and clear contracts throughout the system.
    - Only same-repo PRs and main branch push to registry
    - Build summary shows what action was taken
    - Prevents "installation not allowed to Write" errors
+   - CIRISManager automatically deployed with agents
 
-4. **GUI Fixes**
-   - Fixed ResourceUsage SDK type to match nested API response
-   - Resource metrics now display correctly in System page
-   - Per-agent OAuth callback support in GUI
-   - Dynamic callback URL generation based on selected agent
+4. **Local Development Setup**
+   - CIRISManager runs via `python deployment/run-ciris-manager-api.py`
+   - Config stored in `~/.config/ciris-manager/config.yml`
+   - Docker containers managed via docker-compose files
+   - GUI runs on port 3000/3001 with hot reload
 
 ## Recent Achievements (July 2025)
 
@@ -245,10 +268,25 @@ Only for multi-provider services:
 
 ## Development
 
-### Running the Agent
+### Local Development Setup
 ```bash
-# Docker deployment (API mode)
-docker-compose -f docker-compose-api-mock.yml up -d
+# 1. Start the agent container
+docker-compose -f docker-compose-api-discord-mock.yml up -d
+
+# 2. Configure CIRISManager (first time only)
+mkdir -p ~/.config/ciris-manager
+python -m ciris_manager.cli --generate-config --config ~/.config/ciris-manager/config.yml
+# Edit config.yml to point to your docker-compose file
+
+# 3. Start CIRISManager API
+python deployment/run-ciris-manager-api.py
+# Runs on http://localhost:8888
+
+# 4. Start the GUI
+cd CIRISGUI/apps/agui
+npm install
+npm run dev
+# Runs on http://localhost:3000
 
 # CLI mode with mock LLM
 python main.py --mock-llm --timeout 15 --adapter cli
@@ -265,6 +303,9 @@ python test_api_v1_comprehensive.py
 # Run parallel handler testing (10 containers)
 docker-compose -f docker-compose-multi-mock.yml up -d
 python test_10_containers_parallel.py
+
+# Test CIRISManager API
+curl http://localhost:8888/manager/v1/agents
 ```
 
 ### API Authentication
@@ -641,14 +682,18 @@ some_command  # See all output
 - `CIRIS_API_PORT=8080` - API port (default is 8080)
 - The API adapter uses `CIRIS_API_HOST` not `API_HOST`
 
-**Current Setup (Development)**:
+**Current Setup (Production - July 20, 2025)**:
 - Single Datum agent with Mock LLM
-- GUI on port 3000
+- GUI on port 3000 (dynamically discovers agents via CIRISManager)
 - API on port 8080
+- CIRISManager API on port 8888 (proxied via nginx at `/manager/v1/*`)
 - Using `deployment/docker-compose.dev-prod.yml` (uses pre-built images)
 - Container names: `ciris-agent-datum`, `ciris-gui`, `ciris-nginx`
-- Auto-restart via systemd service: `ciris-dev.service`
+- Auto-restart via systemd services: 
+  - `ciris-dev.service` (agents and GUI)
+  - `ciris-manager-api.service` (CIRISManager API only)
 - Discord integration: Add token to `/home/ciris/CIRISAgent/.env.datum`
+- OAuth: Google OAuth configured with dynamic callback URLs
 
 **Common Deployment Issues**:
 1. **Container missing arguments**: Always use docker-compose to start containers

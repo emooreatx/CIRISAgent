@@ -45,6 +45,8 @@ function OAuthCallbackContent() {
           user_id: userId,
           username: userId,
           role: role as any, // Role comes as string from query params
+          api_role: role as any, // For the required api_role field
+          wa_role: undefined, // OAuth users don't have WA role initially
           permissions: [],
           created_at: new Date().toISOString(),
           last_login: new Date().toISOString()

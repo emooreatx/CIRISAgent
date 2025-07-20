@@ -2,6 +2,22 @@
 
 Lightweight agent lifecycle management service for CIRIS agents.
 
+## Status (July 20, 2025)
+- **Phase 1**: Core Watchdog and Container Management ✅
+- **Phase 2**: API for Agent Discovery ✅
+- **Production**: Running on agents.ciris.ai
+- **Integration**: Full CI/CD and GUI support
+
+## Phase 2 Complete: API for Agent Discovery ✅
+
+The API provides:
+- `/manager/v1/agents` - List all agents with status
+- `/manager/v1/agents/{agent_id}` - Get specific agent details
+- `/manager/v1/agents/{agent_id}/health` - Agent health check
+- `/manager/v1/system/health` - Manager health status
+
+Production runs API-only mode via `deployment/run-ciris-manager-api.py`
+
 ## Phase 1 Complete: Core Watchdog and Container Management ✅
 
 ### What's Implemented

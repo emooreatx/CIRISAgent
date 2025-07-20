@@ -2,17 +2,33 @@
 
 This directory contains the deployment configuration for the CIRIS system.
 
-## Deployment Environments
+## Current Status (July 20, 2025)
+- **CIRISManager**: Fully integrated for dynamic agent discovery
+- **OAuth**: Google OAuth with permission request system
+- **GUI**: Dynamic agent selection via CIRISManager
+- **CI/CD**: Fully automated deployment pipeline
+
+## Key Services
+
+### CIRISManager
+- Provides agent discovery API at `/manager/v1/*`
+- Monitors container health and lifecycle
+- Runs as systemd service: `ciris-manager-api.service`
+- API-only mode in production (no container management)
+
+### Deployment Environments
 
 ### Development (Mock LLM)
 - Single Datum agent with mock LLM for testing
 - No external API dependencies
-- Ideal for development and testing
+- CIRISManager for local agent discovery
+- GUI with hot reload on port 3000
 
-### Production (Multi-Agent)
-- 5 specialized CIRIS agents working in concert
-- Real LLM integration (OpenAI, Anthropic, etc.)
-- Full Discord and API capabilities
+### Production (agents.ciris.ai)
+- Currently single Datum agent (multi-agent ready)
+- Mock LLM for development (real LLM ready)
+- Full OAuth integration with Google
+- Nginx containerized with dynamic routing
 
 ## Production Architecture
 

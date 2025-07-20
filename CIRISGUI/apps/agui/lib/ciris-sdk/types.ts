@@ -9,7 +9,9 @@ export type WARole = 'OBSERVER' | 'ADMIN' | 'AUTHORITY';
 export interface User {
   user_id: string;
   username: string;
-  role: APIRole;
+  role: APIRole;  // For backward compatibility
+  api_role: APIRole;
+  wa_role?: WARole;
   permissions: string[];
   created_at: string;
   last_login?: string;
