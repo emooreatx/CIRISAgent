@@ -92,13 +92,15 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           
           const currentUser = await agentClient.auth.getCurrentUser();
           
-          newRoles.set(agent.agent_id, {
-            agentId: agent.agent_id,
-            apiRole: currentUser.api_role,
-            waRole: currentUser.wa_role,
-            isAuthority: currentUser.wa_role === 'AUTHORITY',
-            lastChecked: new Date()
-          });
+          if (currentUser) {
+            newRoles.set(agent.agent_id, {
+              agentId: agent.agent_id,
+              apiRole: currentUser.api_role || currentUser.role,
+              waRole: currentUser.wa_role,
+              isAuthority: currentUser.wa_role === 'AUTHORITY',
+              lastChecked: new Date()
+            });
+          }
         } catch (error) {
           console.error(`Failed to get role for agent ${agent.agent_id}:`, error);
         }

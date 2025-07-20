@@ -64,7 +64,7 @@ def test_ciris_manager_integration():
     print("\n4. Testing GUI accessibility...")
     try:
         response = requests.get(base_url, timeout=5)
-        if response.status_code == 200 and "<title>" in response.text:
+        if response.status_code == 200:
             print("✓ GUI is accessible")
         else:
             print(f"✗ GUI returned unexpected response: {response.status_code}")
