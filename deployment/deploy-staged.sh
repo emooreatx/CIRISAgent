@@ -193,12 +193,19 @@ else
     docker stop "$AGENT_CONTAINER" 2>/dev/null || true
     
     # Create new container using docker-compose (which preserves all settings)
-    docker-compose -f "$DOCKER_COMPOSE_FILE" create --no-start "$AGENT_SERVICE"
+    # Note: docker-compose v2.20.0 doesn't support --no-start flag
+    # We'll use run with --no-deps and --detach, then immediately stop it
+    log "Creating staged container..."
     
-    # Rename the new container to staged
-    NEW_CONTAINER=$(docker ps -aq --filter "name=${AGENT_CONTAINER}" --filter "status=created" | head -1)
-    if [ -n "$NEW_CONTAINER" ]; then
-        docker rename "$NEW_CONTAINER" "${AGENT_CONTAINER}-staged"
+    # First, remove any existing staged container
+    docker rm -f "${AGENT_CONTAINER}-staged" 2>/dev/null || true
+    
+    # Create and immediately stop the new container
+    # Use run with --name to control the container name
+    if docker-compose -f "$DOCKER_COMPOSE_FILE" run -d --no-deps --name "${AGENT_CONTAINER}-staged" "$AGENT_SERVICE"; then
+        # Immediately stop the staged container
+        docker stop "${AGENT_CONTAINER}-staged" 2>/dev/null || true
+        log "Staged container created successfully"
     else
         error "Failed to create staged container"
         # Restart the old container

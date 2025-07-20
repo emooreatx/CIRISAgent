@@ -517,6 +517,46 @@ The mock LLM extracts commands from user context in this order:
 - **Parallel testing**: Use multiple containers (ports 8080-8089)
 - **Incident logs are gold**: Every error reveals system behavior
 
+### Command Output Best Practices
+**NEVER pipe output to grep or jq without understanding the output format first**
+
+**Why this matters**:
+1. **Error messages look like data**: Many tools output errors as JSON or structured text that can be parsed incorrectly
+2. **Silent failures**: `jq` returns null or empty when parsing fails, hiding the actual error
+3. **Lost debugging info**: Piping immediately loses HTTP status codes, headers, and error details
+4. **Cascading confusion**: Wrong assumptions about output format lead to wrong conclusions about system state
+
+**Best practices**:
+```bash
+# ❌ Bad - Assumes output is JSON without checking
+curl -s https://api.example.com/data | jq '.result'
+
+# ✅ Good - Check output first, then parse
+response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" https://api.example.com/data)
+echo "$response"  # See what we actually got
+# Then parse if it's valid JSON
+
+# ❌ Bad - Assumes field exists
+docker inspect container | jq -r '.[0].Image'
+
+# ✅ Good - Check structure first
+docker inspect container  # See the actual structure
+# Then extract fields safely
+
+# ❌ Bad - Grep on unknown output
+some_command | grep -i error
+
+# ✅ Good - Examine output first
+some_command  # See all output
+# Then search for specific patterns
+```
+
+**Common mistakes**:
+- Parsing HTML as JSON (e.g., Cloudflare 502 pages)
+- Assuming API errors return JSON (many return plain text)
+- Using `jq` on null/empty responses (hides the real issue)
+- Grepping for patterns that don't exist in the actual output
+
 ### Production Deployment - agents.ciris.ai
 
 **Server Access**:
