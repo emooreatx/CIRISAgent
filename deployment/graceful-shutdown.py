@@ -14,20 +14,42 @@ import argparse
 from pathlib import Path
 
 
-def get_auth_token():
-    """Get authentication token from local config or prompt."""
+def get_auth_token(agent_url):
+    """Get authentication token by logging in with admin credentials."""
     # Try to read from .ciris/auth.json if it exists
     auth_file = Path.home() / ".ciris" / "auth.json"
     if auth_file.exists():
         try:
             with open(auth_file) as f:
                 auth_data = json.load(f)
-                return auth_data.get("token")
+                token = auth_data.get("token")
+                if token:
+                    return token
         except:
             pass
     
-    # Default to admin credentials
-    return "admin:ciris_admin_password"
+    # Login to get a proper JWT token
+    login_data = {
+        "username": "admin",
+        "password": "ciris_admin_password"
+    }
+    
+    try:
+        response = requests.post(
+            f"{agent_url}/v1/auth/login",
+            json=login_data,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            return data.get("access_token")
+        else:
+            print(f"❌ Login failed: {response.status_code} - {response.text}")
+            return None
+    except Exception as e:
+        print(f"❌ Error during login: {e}")
+        return None
 
 
 def send_shutdown_message(agent_url, message, token):
@@ -104,7 +126,11 @@ def main():
     args = parser.parse_args()
     
     # Get authentication token
-    token = args.token or get_auth_token()
+    token = args.token or get_auth_token(args.agent_url)
+    
+    if not token:
+        print("❌ Failed to obtain authentication token")
+        sys.exit(1)
     
     print(f"🔄 Sending graceful shutdown to {args.agent_url}")
     print(f"📝 Message: {args.message}")

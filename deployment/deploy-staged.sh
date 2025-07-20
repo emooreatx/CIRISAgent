@@ -188,21 +188,26 @@ else
     # Step 4: Create staged container (not started)
     log "Creating staged agent container..."
     
-    # Get current container config
-    AGENT_ENV=$(docker inspect "$AGENT_CONTAINER" --format='{{range .Config.Env}}{{println .}}{{end}}' | grep -E '^(DISCORD_|OPENAI_|ANTHROPIC_|CIRIS_|OAUTH_)' | sed 's/^/-e /')
-    AGENT_VOLUMES=$(docker inspect "$AGENT_CONTAINER" --format='{{range .Mounts}}{{if eq .Type "volume"}}-v {{.Name}}:{{.Destination}} {{end}}{{end}}')
-    AGENT_NETWORK=$(docker inspect "$AGENT_CONTAINER" --format='{{range $k, $v := .NetworkSettings.Networks}}{{$k}}{{end}}' | head -1)
-    # Get the command from the running container
-    AGENT_CMD=$(docker inspect "$AGENT_CONTAINER" --format='{{join .Config.Cmd " "}}')
+    # Use docker-compose to create the new container but not start it
+    # First, we need to stop the service without removing the container
+    docker stop "$AGENT_CONTAINER" 2>/dev/null || true
     
-    # Create staged container (not running)
-    docker create \
-        --name "${AGENT_CONTAINER}-staged" \
-        --network "$AGENT_NETWORK" \
-        $AGENT_ENV \
-        $AGENT_VOLUMES \
-        "ciris-agent:latest" \
-        $AGENT_CMD
+    # Create new container using docker-compose (which preserves all settings)
+    docker-compose -f "$DOCKER_COMPOSE_FILE" create --no-start "$AGENT_SERVICE"
+    
+    # Rename the new container to staged
+    NEW_CONTAINER=$(docker ps -aq --filter "name=${AGENT_CONTAINER}" --filter "status=created" | head -1)
+    if [ -n "$NEW_CONTAINER" ]; then
+        docker rename "$NEW_CONTAINER" "${AGENT_CONTAINER}-staged"
+    else
+        error "Failed to create staged container"
+        # Restart the old container
+        docker start "$AGENT_CONTAINER"
+        exit 1
+    fi
+    
+    # Start the old container again
+    docker start "$AGENT_CONTAINER"
     
     log "Staged container created. Monitoring current agent for graceful exit..."
     
@@ -212,8 +217,7 @@ else
         # Use localhost since we're on the same server
         python3 deployment/graceful-shutdown.py \
             --agent-url "http://localhost:8080" \
-            --message "Updated container staged for deployment! Shutdown to upgrade immediately, defer if needed." \
-            --token "admin:ciris_admin_password" || {
+            --message "Updated container staged for deployment! Shutdown to upgrade immediately, defer if needed." || {
             warn "Failed to trigger graceful shutdown. Agent must be shut down manually."
         }
     else
