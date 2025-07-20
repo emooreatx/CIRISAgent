@@ -321,24 +321,33 @@ jobs:
               echo "Installing CIRISManager..."
               cd /home/ciris/CIRISAgent
               apt-get install -y python3-pip python3-venv
-              pip3 install -e . --config-settings editable_mode=compat
+              # Install using setup_manager.py
+              python3 setup_manager.py install --user
+              # Add local bin to PATH
+              export PATH="/root/.local/bin:$PATH"
             fi
             
             # Create CIRISManager config if it doesn't exist
             if [ ! -f "/etc/ciris-manager/config.yml" ]; then
               mkdir -p /etc/ciris-manager
-              ciris-manager --generate-config --config /etc/ciris-manager/config.yml
-              # Update compose file path
+              /root/.local/bin/ciris-manager --generate-config --config /etc/ciris-manager/config.yml
+              # Update compose file path and disable pull_images
               sed -i 's|/home/ciris/CIRISAgent/deployment/docker-compose.yml|/home/ciris/CIRISAgent/deployment/docker-compose.dev-prod.yml|' /etc/ciris-manager/config.yml
+              sed -i 's/pull_images: true/pull_images: false/' /etc/ciris-manager/config.yml
             fi
             
-            # Install CIRISManager systemd service if not exists
-            if [ ! -f "/etc/systemd/system/ciris-manager.service" ]; then
-              cp deployment/ciris-manager.service /etc/systemd/system/
+            # Install CIRISManager API service (API-only, no container management)
+            if [ ! -f "/etc/systemd/system/ciris-manager-api.service" ]; then
+              cp deployment/ciris-manager-api.service /etc/systemd/system/
               systemctl daemon-reload
-              systemctl enable ciris-manager
-              systemctl start ciris-manager
+              systemctl enable ciris-manager-api
+              systemctl start ciris-manager-api
+            else
+              # Restart if already exists to pick up any changes
+              systemctl restart ciris-manager-api
             fi
+            
+            # No need to copy nginx config - it's mounted via docker-compose volume
             
             # Create systemd service for auto-start if it doesn't exist
             if [ ! -f "/etc/systemd/system/ciris-dev.service" ]; then
@@ -403,5 +412,21 @@ jobs:
             # Verify containers are running
             echo "\nRunning containers:"
             docker ps | grep ciris
+            
+            # Reload nginx to pick up any config changes
+            echo "\nReloading nginx configuration..."
+            docker exec ciris-nginx nginx -s reload && echo "Nginx configuration reloaded"
+            
+            # Check CIRISManager API
+            echo "\nChecking CIRISManager API..."
+            if curl -f http://localhost:8888/manager/v1/health 2>/dev/null; then
+              echo "CIRISManager API is healthy!"
+              
+              # List discovered agents
+              echo "\nDiscovered agents:"
+              curl -s http://localhost:8888/manager/v1/agents | jq -r '.[] | "- \(.agent_name) (\(.agent_id)): \(.status) - \(.health // "unknown")"' || echo "Failed to parse agents"
+            else
+              echo "Warning: CIRISManager API not responding (this is non-critical)"
+            fi
             
             echo "\nDeployment successful! Phase 1 with Mock LLM is running."

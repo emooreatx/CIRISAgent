@@ -10,6 +10,8 @@ services:
       # SSL certificates from host
       - /etc/letsencrypt:/etc/letsencrypt:ro
       - ./nginx/logs:/var/log/nginx
+      # Override nginx config for easy updates
+      - ./nginx/agents.ciris.ai.conf:/etc/nginx/conf.d/agents.ciris.ai.conf:ro
     depends_on:
       - ciris-gui
       - agent-datum
