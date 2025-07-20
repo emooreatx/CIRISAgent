@@ -311,7 +311,7 @@ jobs:
               echo "Installing CIRISManager..."
               cd /home/ciris/CIRISAgent
               apt-get install -y python3-pip python3-venv
-              pip3 install -e . -f setup_manager.py
+              pip3 install -e . --config-settings editable_mode=compat
             fi
             
             # Create CIRISManager config if it doesn't exist

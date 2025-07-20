@@ -1,34 +1,26 @@
+#!/usr/bin/env python3
 """
 Setup script for CIRISManager.
+This is a lightweight installation that only installs the manager component.
 """
+
 from setuptools import setup, find_packages
 
 setup(
     name="ciris-manager",
     version="0.1.0",
-    description="CIRIS Agent Lifecycle Management Service",
-    author="CIRIS Team",
-    packages=find_packages(),
-    include_package_data=True,
-    python_requires=">=3.8",
+    description="CIRIS Container Manager - Lightweight systemd service for agent lifecycle",
+    author="CIRIS AI",
+    packages=find_packages(include=["ciris_manager", "ciris_manager.*"]),
     install_requires=[
-        "pydantic>=2.0.0",
-        "PyYAML>=6.0",
-        "aiofiles>=23.0.0",
+        "pyyaml>=6.0",
+        "asyncio",
+        "aiofiles>=23.0",
     ],
     entry_points={
         "console_scripts": [
-            "ciris-manager=ciris_manager.__main__:main",
+            "ciris-manager=ciris_manager.cli:main",
         ],
     },
-    classifiers=[
-        "Development Status :: 3 - Alpha",
-        "Intended Audience :: Developers",
-        "License :: OSI Approved :: Apache Software License",
-        "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11",
-    ],
+    python_requires=">=3.8",
 )
