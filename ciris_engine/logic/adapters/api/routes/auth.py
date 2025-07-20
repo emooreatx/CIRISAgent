@@ -28,6 +28,7 @@ from ciris_engine.schemas.api.auth import (
     UserRole,
     ROLE_PERMISSIONS,
 )
+from ciris_engine.logic.adapters.api.services.oauth_security import validate_oauth_picture_url
 from ciris_engine.schemas.runtime.api import APIRole
 # Constants for OAuth configuration
 OAUTH_CONFIG_DIR = ".ciris"
@@ -474,6 +475,9 @@ async def oauth_callback(
         client_id = provider_config["client_id"]
         client_secret = provider_config["client_secret"]
         
+        # Initialize profile variables
+        picture = None
+        
         # Exchange authorization code for access token
         async with httpx.AsyncClient() as client:
             if provider == "google":
@@ -514,6 +518,7 @@ async def oauth_callback(
                 external_id = user_info["id"]
                 email = user_info.get("email")
                 name = user_info.get("name", email)
+                picture = user_info.get("picture")  # Google profile picture URL
                 
             elif provider == "github":
                 # Exchange code for token
@@ -553,6 +558,7 @@ async def oauth_callback(
                 external_id = str(user_info["id"])
                 email = user_info.get("email")
                 name = user_info.get("name", user_info.get("login"))
+                picture = user_info.get("avatar_url")  # GitHub avatar URL
                 
                 # If email is private, fetch from emails endpoint
                 if not email:
@@ -606,6 +612,12 @@ async def oauth_callback(
                 external_id = user_info["id"]
                 email = user_info.get("email")
                 name = user_info.get("username", email)
+                # Construct Discord avatar URL if avatar exists
+                avatar_hash = user_info.get("avatar")
+                if avatar_hash:
+                    picture = f"https://cdn.discordapp.com/avatars/{external_id}/{avatar_hash}.png"
+                else:
+                    picture = None
                 
             else:
                 raise HTTPException(
@@ -621,6 +633,20 @@ async def oauth_callback(
             name=name,
             role=UserRole.OBSERVER  # Default role for new OAuth users
         )
+        
+        # Store OAuth profile data if we have it
+        if picture:
+            # Validate the picture URL for security
+            if validate_oauth_picture_url(picture):
+                # Store additional OAuth profile data
+                user = auth_service.get_user(oauth_user.user_id)
+                if user:
+                    user.oauth_name = name
+                    user.oauth_picture = picture
+                    # Store the updated user data
+                    auth_service._users[oauth_user.user_id] = user
+            else:
+                logger.warning(f"Invalid OAuth picture URL rejected for user {oauth_user.user_id}: {picture}")
         
         # Generate API key for the user
         api_key = f"ciris_observer_{secrets.token_urlsafe(32)}"
