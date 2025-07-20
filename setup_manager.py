@@ -14,8 +14,11 @@ setup(
     packages=find_packages(include=["ciris_manager", "ciris_manager.*"]),
     install_requires=[
         "pyyaml>=6.0",
-        "asyncio",
         "aiofiles>=23.0",
+        "docker>=6.0",
+        "fastapi>=0.100.0",
+        "uvicorn>=0.23.0",
+        "pydantic>=2.0",
     ],
     entry_points={
         "console_scripts": [
