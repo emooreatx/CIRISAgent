@@ -134,9 +134,24 @@ async def interact(
     """
     # Check if user has permission to send messages
     if not auth.has_permission(Permission.SEND_MESSAGES):
+        # Get auth service to check permission request status
+        # Note: We can't use dependency injection here, so we'll access it directly
+        auth_service = request.app.state.auth_service if hasattr(request.app.state, 'auth_service') else None
+        user = auth_service.get_user(auth.user_id) if auth_service else None
+        
+        # Build detailed error response
+        error_detail = {
+            "error": "insufficient_permissions",
+            "message": "You do not have permission to send messages to this agent.",
+            "discord_invite": "https://discord.gg/YOUR_INVITE_CODE",  # TODO: Get from config
+            "can_request_permissions": user.permission_requested_at is None if user else True,
+            "permission_requested": user.permission_requested_at is not None if user else False,
+            "requested_at": user.permission_requested_at.isoformat() if user and user.permission_requested_at else None
+        }
+        
         raise HTTPException(
-            status_code=403, 
-            detail="You do not have permission to send messages. Contact an administrator to grant SEND_MESSAGES permission."
+            status_code=403,
+            detail=error_detail
         )
     # Create unique IDs
     message_id = str(uuid.uuid4())

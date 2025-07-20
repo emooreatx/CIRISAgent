@@ -273,3 +273,22 @@ class APIKeyListResponse(BaseModel):
     """List of API keys."""
     api_keys: List[APIKeyInfo] = Field(..., description="List of API keys")
     total: int = Field(..., description="Total number of keys")
+
+
+class PermissionRequestResponse(BaseModel):
+    """Response for permission request operation."""
+    success: bool = Field(..., description="Whether the request was successful")
+    status: str = Field(..., description="Status of the request (already_granted, already_requested, request_submitted)")
+    message: str = Field(..., description="Human-readable message")
+    requested_at: Optional[datetime] = Field(None, description="When the permission was requested")
+
+
+class PermissionRequestUser(BaseModel):
+    """User with permission request information."""
+    id: str = Field(..., description="User ID")
+    email: Optional[str] = Field(None, description="User email")
+    oauth_name: Optional[str] = Field(None, description="Name from OAuth provider")
+    oauth_picture: Optional[str] = Field(None, description="Profile picture URL from OAuth provider")
+    role: UserRole = Field(..., description="Current role")
+    permission_requested_at: datetime = Field(..., description="When permissions were requested")
+    has_send_messages: bool = Field(..., description="Whether user already has SEND_MESSAGES permission")

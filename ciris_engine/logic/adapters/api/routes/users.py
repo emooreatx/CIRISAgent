@@ -24,7 +24,12 @@ from ..dependencies.auth import (
     get_auth_context,
     check_permissions
 )
-from ciris_engine.schemas.api.auth import AuthContext
+from ciris_engine.schemas.api.auth import (
+    AuthContext,
+    PermissionRequestResponse,
+    PermissionRequestUser,
+    UserRole
+)
 
 # Error message constants
 ERROR_USER_NOT_FOUND = "User not found"
@@ -66,6 +71,9 @@ class UserSummary(BaseModel):
     wa_id: Optional[str] = None
     oauth_provider: Optional[str] = None
     oauth_email: Optional[str] = None
+    oauth_name: Optional[str] = None  # Full name from OAuth provider
+    oauth_picture: Optional[str] = None  # Profile picture URL
+    permission_requested_at: Optional[datetime] = None  # Permission request timestamp
     created_at: datetime
     last_login: Optional[datetime] = None
     is_active: bool = True
@@ -195,6 +203,9 @@ async def list_users(
             wa_id=user.wa_id if user.wa_role else None,
             oauth_provider=user.oauth_provider,
             oauth_email=user.oauth_email,
+            oauth_name=user.oauth_name,
+            oauth_picture=user.oauth_picture,
+            permission_requested_at=user.permission_requested_at,
             created_at=user.created_at,
             last_login=user.last_login,
             is_active=user.is_active
@@ -246,6 +257,108 @@ async def create_user(
     return await get_user(user.wa_id, auth, auth_service, None)
 
 
+@router.post("/request-permissions", response_model=PermissionRequestResponse)
+async def request_permissions(
+    auth: AuthContext = Depends(get_auth_context),
+    auth_service: APIAuthService = Depends(get_auth_service)
+) -> PermissionRequestResponse:
+    """
+    Request communication permissions for the current user.
+    
+    Requires: Must be authenticated (any role)
+    """
+    from ciris_engine.schemas.api.auth import Permission, PermissionRequestResponse
+    
+    # Check if user already has SEND_MESSAGES permission
+    if auth.has_permission(Permission.SEND_MESSAGES):
+        return PermissionRequestResponse(
+            success=True,
+            status="already_granted",
+            message="You already have communication permissions."
+        )
+    
+    # Get the current user
+    user = auth_service.get_user(auth.user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail=ERROR_USER_NOT_FOUND)
+    
+    # Check if request already pending
+    if user.permission_requested_at:
+        return PermissionRequestResponse(
+            success=True,
+            status="already_requested",
+            message="Your permission request is pending review.",
+            requested_at=user.permission_requested_at
+        )
+    
+    # Set permission request timestamp
+    user.permission_requested_at = datetime.now()
+    # Store the updated user
+    auth_service._users[user.wa_id] = user
+    
+    logger.info(f"Permission request submitted by user {user.oauth_email or user.name} (ID: {user.wa_id})")
+    
+    return PermissionRequestResponse(
+        success=True,
+        status="request_submitted",
+        message="Your request has been submitted for review.",
+        requested_at=user.permission_requested_at
+    )
+
+
+@router.get("/permission-requests", response_model=List[PermissionRequestUser])
+async def get_permission_requests(
+    auth: AuthContext = Depends(get_auth_context),
+    auth_service: APIAuthService = Depends(get_auth_service),
+    include_granted: bool = Query(False, description="Include users who already have permissions")
+) -> List[PermissionRequestUser]:
+    """
+    Get list of users who have requested permissions.
+    
+    Requires: ADMIN role or higher
+    """
+    from ciris_engine.schemas.api.auth import Permission, PermissionRequestUser
+    
+    logger.info(f"Permission requests called by {auth.user_id} with role {auth.role}")
+    
+    # Check permissions - require ADMIN or higher
+    if auth.role not in [UserRole.ADMIN, UserRole.AUTHORITY, UserRole.SYSTEM_ADMIN]:
+        logger.error(f"Insufficient permissions for user {auth.user_id} with role {auth.role}")
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    
+    permission_requests = []
+    
+    # Check all users for permission requests
+    logger.info(f"Checking {len(auth_service._users)} users in _users dict")
+    for user_id, user in auth_service._users.items():
+        # Skip users without permission requests
+        if not user.permission_requested_at:
+            continue
+            
+        # Check if user has SEND_MESSAGES permission
+        has_send_messages = Permission.SEND_MESSAGES.value in (user.custom_permissions or [])
+        
+        # Skip users who already have permissions unless include_granted is True
+        if has_send_messages and not include_granted:
+            continue
+        
+        # Add to results
+        permission_requests.append(PermissionRequestUser(
+            id=user.wa_id,
+            email=user.oauth_email,
+            oauth_name=user.oauth_name,
+            oauth_picture=user.oauth_picture,
+            role=UserRole.OBSERVER,  # OAuth users are always OBSERVER initially
+            permission_requested_at=user.permission_requested_at,
+            has_send_messages=has_send_messages
+        ))
+    
+    # Sort by request date (newest first)
+    permission_requests.sort(key=lambda x: x.permission_requested_at, reverse=True)
+    
+    return permission_requests
+
+
 @router.get("/{user_id}", response_model=UserDetail)
 async def get_user(
     user_id: str,
@@ -277,6 +390,9 @@ async def get_user(
         wa_id=user.wa_id if user.wa_role else None,
         oauth_provider=user.oauth_provider,
         oauth_email=user.oauth_email,
+        oauth_name=user.oauth_name,
+        oauth_picture=user.oauth_picture,
+        permission_requested_at=user.permission_requested_at,
         oauth_external_id=user.oauth_external_id,
         created_at=user.created_at,
         last_login=user.last_login,
@@ -651,3 +767,4 @@ async def update_user_permissions(
     
     # Return updated user details
     return await get_user(user_id, auth, auth_service, None)
+

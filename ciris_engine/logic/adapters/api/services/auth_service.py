@@ -81,6 +81,10 @@ class User:
     wa_auto_minted: bool = False
     password_hash: Optional[str] = None
     custom_permissions: Optional[List[str]] = None  # Additional permissions beyond role defaults
+    # OAuth profile fields for permission request system
+    oauth_name: Optional[str] = None  # Full name from OAuth provider
+    oauth_picture: Optional[str] = None  # Profile picture URL from OAuth provider
+    permission_requested_at: Optional[datetime] = None  # Timestamp when user requested permissions
 
 class APIAuthService:
     """Simple in-memory authentication service with database persistence."""
@@ -516,6 +520,8 @@ class APIAuthService:
         # Check OAuth users
         if user_id in self._oauth_users:
             oauth_user = self._oauth_users[user_id]
+            # Check if we have additional user data stored
+            stored_user = self._users.get(user_id)
             return User(
                 wa_id=oauth_user.user_id,
                 name=oauth_user.name or oauth_user.email or oauth_user.user_id,
@@ -526,7 +532,11 @@ class APIAuthService:
                 oauth_external_id=oauth_user.external_id,
                 created_at=oauth_user.created_at,
                 last_login=oauth_user.last_login,
-                is_active=True
+                is_active=True,
+                oauth_name=stored_user.oauth_name if stored_user else None,
+                oauth_picture=stored_user.oauth_picture if stored_user else None,
+                permission_requested_at=stored_user.permission_requested_at if stored_user else None,
+                custom_permissions=stored_user.custom_permissions if stored_user else None
             )
         
         return None
@@ -677,7 +687,8 @@ class APIAuthService:
                 PERMISSION_CONFIG_WRITE,
                 PERMISSION_AUDIT_READ,
                 PERMISSION_AUDIT_WRITE,
-                PERMISSION_USERS_READ
+                PERMISSION_USERS_READ,
+                PERMISSION_MANAGE_USER_PERMISSIONS
             ],
             APIRole.AUTHORITY: [
                 PERMISSION_SYSTEM_READ,
@@ -709,7 +720,8 @@ class APIAuthService:
                 PERMISSION_WA_READ,
                 PERMISSION_WA_WRITE,
                 PERMISSION_WA_MINT,
-                PERMISSION_EMERGENCY_SHUTDOWN
+                PERMISSION_EMERGENCY_SHUTDOWN,
+                PERMISSION_MANAGE_USER_PERMISSIONS
             ]
         }
         
