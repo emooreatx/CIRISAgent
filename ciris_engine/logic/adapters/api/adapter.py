@@ -36,19 +36,20 @@ class ApiPlatform(Service):
         super().__init__(config=kwargs.get('adapter_config'))
         self.runtime = runtime
         
-        # Parse configuration
+        # Start with default configuration
+        self.config = APIAdapterConfig()
+        
+        # Load environment variables first (provides defaults)
+        self.config.load_env_vars()
+        
+        # Then apply user-provided configuration (takes precedence)
         if "adapter_config" in kwargs and kwargs["adapter_config"] is not None:
             if isinstance(kwargs["adapter_config"], APIAdapterConfig):
                 self.config = kwargs["adapter_config"]
             elif isinstance(kwargs["adapter_config"], dict):
+                # Merge user config over env-loaded config
                 self.config = APIAdapterConfig(**kwargs["adapter_config"])
-            else:
-                self.config = APIAdapterConfig()
-        else:
-            self.config = APIAdapterConfig()
-        
-        # Load environment variables
-        self.config.load_env_vars()
+            # If adapter_config is provided but not dict/APIAdapterConfig, keep env-loaded config
         
         # Create FastAPI app - services will be injected later in start()
         self.app: FastAPI = create_app(runtime, self.config)
