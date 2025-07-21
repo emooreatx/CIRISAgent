@@ -238,6 +238,20 @@ class TSDBConsolidationService(BaseGraphService):
                 if self._running:
                     await self._run_extensive_consolidation()
                     
+                    # CRITICAL: After running, we must ensure we wait until the NEXT Monday
+                    # Otherwise we'll run again immediately if we're still in the same time window
+                    next_run = self._get_next_weekly_monday()
+                    # Force calculation to be at least 1 day in the future
+                    min_next_run = self._now() + timedelta(days=1)
+                    if next_run <= min_next_run:
+                        # If next Monday is too close, add a week
+                        next_run = next_run + timedelta(days=7)
+                    
+                    wait_seconds = (next_run - self._now()).total_seconds()
+                    if wait_seconds > 0:
+                        logger.info(f"Extensive consolidation complete. Next run on Monday {next_run.date()} at 00:00 UTC ({wait_seconds:.0f}s)")
+                        await asyncio.sleep(wait_seconds)
+                    
             except asyncio.CancelledError:
                 logger.debug("Extensive consolidation loop cancelled")
                 raise
@@ -262,6 +276,24 @@ class TSDBConsolidationService(BaseGraphService):
                 
                 if self._running:
                     await self._run_profound_consolidation()
+                    
+                    # CRITICAL: After running, we must ensure we wait until the NEXT month
+                    # Otherwise we'll run again immediately if we're still in the same time window
+                    next_run = self._get_next_month_start()
+                    # Force calculation to be at least 1 day in the future
+                    min_next_run = self._now() + timedelta(days=1)
+                    if next_run <= min_next_run:
+                        # If next month start is too close, add a month
+                        # Move to next month
+                        if next_run.month == 12:
+                            next_run = next_run.replace(year=next_run.year + 1, month=1)
+                        else:
+                            next_run = next_run.replace(month=next_run.month + 1)
+                    
+                    wait_seconds = (next_run - self._now()).total_seconds()
+                    if wait_seconds > 0:
+                        logger.info(f"Profound consolidation complete. Next run on {next_run.strftime('%Y-%m-01')} at 00:00 UTC ({wait_seconds:.0f}s)")
+                        await asyncio.sleep(wait_seconds)
                     
             except asyncio.CancelledError:
                 logger.debug("Profound consolidation loop cancelled")
