@@ -257,7 +257,7 @@ async def list_oauth_providers(
                 provider=provider,
                 client_id=settings.get("client_id", ""),
                 created=settings.get("created"),
-                callback_url=f"{request.url.scheme}://{request.headers.get('host', 'localhost')}{OAUTH_CALLBACK_PATH}",
+                callback_url=f"{request.headers.get('x-forwarded-proto', request.url.scheme)}://{request.headers.get('host', 'localhost')}{OAUTH_CALLBACK_PATH}",
                 metadata=settings.get("metadata", {})
             ))
         
@@ -327,7 +327,7 @@ async def configure_oauth_provider(
         
         return ConfigureOAuthProviderResponse(
             provider=body.provider,
-            callback_url=f"{request.url.scheme}://{request.headers.get('host', 'localhost')}{OAUTH_CALLBACK_PATH}",
+            callback_url=f"{request.headers.get('x-forwarded-proto', request.url.scheme)}://{request.headers.get('host', 'localhost')}{OAUTH_CALLBACK_PATH}",
             message="OAuth provider configured successfully"
         )
     except Exception as e:
@@ -387,7 +387,7 @@ async def oauth_login(
         base_url = os.getenv("OAUTH_CALLBACK_BASE_URL")
         if not base_url:
             # Construct from request headers
-            base_url = f"{request.url.scheme}://{request.headers.get('host', 'localhost')}"
+            base_url = f"{request.headers.get('x-forwarded-proto', request.url.scheme)}://{request.headers.get('host', 'localhost')}"
         
         # Always use API callback URL for OAuth providers (this is what's registered in Google Console)
         callback_url = f"{base_url}{OAUTH_CALLBACK_PATH.replace('{provider}', provider)}"

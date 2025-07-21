@@ -30,6 +30,7 @@ services:
       - CIRIS_PORT=8080
       - CIRIS_ADAPTER=api
       - CIRIS_ADAPTER_DISCORD=discord
+      - OAUTH_CALLBACK_BASE_URL=https://agents.ciris.ai
       - CIRIS_MOCK_LLM=true  # Enable mock LLM for Phase 1
       # Discord configuration loaded from .env.datum file
       # API configuration
