@@ -2,7 +2,7 @@
 Configuration settings for CIRISManager.
 """
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel, Field
 
 
@@ -25,22 +25,64 @@ class ContainerConfig(BaseModel):
     pull_images: bool = Field(default=True, description="Pull latest images before starting")
 
 
+class PortConfig(BaseModel):
+    """Port allocation configuration."""
+    start: int = Field(default=8080, description="Start of port range")
+    end: int = Field(default=8200, description="End of port range")
+    reserved: List[int] = Field(
+        default=[8888, 3000, 80, 443],
+        description="Ports to never allocate"
+    )
+
+
 class DockerConfig(BaseModel):
     """Docker configuration."""
     compose_file: str = Field(
         default="/home/ciris/CIRISAgent/deployment/docker-compose.yml",
         description="Path to docker-compose.yml"
     )
+    registry: str = Field(
+        default="ghcr.io/cirisai",
+        description="Docker registry for images"
+    )
+    image: str = Field(
+        default="ciris-agent:latest",
+        description="Default agent image"
+    )
 
 
 class ManagerConfig(BaseModel):
     """Manager API configuration."""
-    port: int = Field(default=9999, description="API port")
+    port: int = Field(default=8888, description="API port")
     socket: Optional[str] = Field(
         default="/var/run/ciris-manager.sock",
         description="Unix socket path"
     )
-    host: str = Field(default="127.0.0.1", description="API host")
+    host: str = Field(default="0.0.0.0", description="API host")
+    agents_directory: str = Field(
+        default="/etc/ciris-manager/agents",
+        description="Directory for agent configurations"
+    )
+    templates_directory: str = Field(
+        default="/home/ciris/CIRISAgent/ciris_templates",
+        description="Directory containing agent templates"
+    )
+    manifest_path: str = Field(
+        default="/etc/ciris-manager/pre-approved-templates.json",
+        description="Path to pre-approved templates manifest"
+    )
+
+
+class NginxConfig(BaseModel):
+    """Nginx configuration."""
+    config_path: str = Field(
+        default="/etc/nginx/sites-available/agents.ciris.ai",
+        description="Path to nginx config file"
+    )
+    reload_command: str = Field(
+        default="systemctl reload nginx",
+        description="Command to reload nginx"
+    )
 
 
 class CIRISManagerConfig(BaseModel):
@@ -48,6 +90,8 @@ class CIRISManagerConfig(BaseModel):
     manager: ManagerConfig = Field(default_factory=ManagerConfig)
     docker: DockerConfig = Field(default_factory=DockerConfig)
     watchdog: WatchdogConfig = Field(default_factory=WatchdogConfig)
+    ports: PortConfig = Field(default_factory=PortConfig)
+    nginx: NginxConfig = Field(default_factory=NginxConfig)
     updates: UpdateConfig = Field(default_factory=UpdateConfig)
     container_management: ContainerConfig = Field(default_factory=ContainerConfig)
     
