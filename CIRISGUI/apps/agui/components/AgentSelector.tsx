@@ -46,13 +46,13 @@ export default function AgentSelector() {
   if (!currentAgent) return null;
 
   return (
-    <Listbox value={currentAgent} onChange={(agent) => selectAgent(agent.id)}>
+    <Listbox value={currentAgent} onChange={(agent) => selectAgent(agent.agent_id)}>
       {({ open }) => (
         <div>
           <div className="relative">
             <Listbox.Button className="relative w-full cursor-pointer rounded-lg bg-white py-2 pl-3 pr-10 text-left shadow-md focus:outline-none focus-visible:border-indigo-500 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-opacity-75 focus-visible:ring-offset-2 focus-visible:ring-offset-orange-300 sm:text-sm">
               <span className="flex items-center justify-between">
-                <span className="block truncate">{currentAgent.name}</span>
+                <span className="block truncate">{currentAgent.agent_name}</span>
                 {currentAgentRole && getRoleBadge(currentAgentRole.apiRole, currentAgentRole.isAuthority)}
               </span>
               <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
@@ -71,12 +71,12 @@ export default function AgentSelector() {
             >
               <Listbox.Options className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
                 {agents.map((agent) => {
-                  const role = agentRoles.get(agent.id);
-                  const status = getAgentStatus(agent.id);
+                  const role = agentRoles.get(agent.agent_id);
+                  const status = getAgentStatus(agent.agent_id);
                   
                   return (
                     <Listbox.Option
-                      key={agent.id}
+                      key={agent.agent_id}
                       className={({ active }) =>
                         classNames(
                           active ? 'text-white bg-indigo-600' : 'text-gray-900',
@@ -91,10 +91,10 @@ export default function AgentSelector() {
                           <div className="flex items-center justify-between">
                             <div>
                               <span className={classNames(selected ? 'font-medium' : 'font-normal', 'block truncate')}>
-                                {agent.name}
+                                {agent.agent_name}
                               </span>
                               <span className={classNames(active ? 'text-indigo-200' : 'text-gray-500', 'text-xs')}>
-                                {agent.description}
+                                {agent.container_name}
                               </span>
                             </div>
                             <div className="flex items-center space-x-2">
