@@ -389,7 +389,8 @@ async def oauth_login(
             # Construct from request headers
             base_url = f"{request.url.scheme}://{request.headers.get('host', 'localhost')}"
         
-        callback_url = redirect_uri or f"{base_url}{OAUTH_CALLBACK_PATH.replace('{provider}', provider)}"
+        # Always use API callback URL for OAuth providers (this is what's registered in Google Console)
+        callback_url = f"{base_url}{OAUTH_CALLBACK_PATH.replace('{provider}', provider)}"
         
         # Build authorization URL based on provider
         if provider == "google":

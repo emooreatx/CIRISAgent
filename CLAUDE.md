@@ -83,6 +83,23 @@ This ensures type safety, validation, and clear contracts throughout the system.
    - Use `disallow_any_explicit = True` to catch Dict[str, Any]
    - Run mypy as part of CI/CD pipeline
 
+## CRITICAL: OAuth Callback URL Format
+
+**PRODUCTION OAuth CALLBACK URL - DO NOT FORGET:**
+```
+https://agents.ciris.ai/v1/auth/oauth/{agent_id}/{provider}/callback
+```
+
+Example for Datum + Google:
+```
+https://agents.ciris.ai/v1/auth/oauth/datum/google/callback
+```
+
+**REMEMBER:** 
+- Agent ID comes BEFORE provider
+- /v1/ is at the ROOT level
+- This is the DEFAULT nginx route (not /api/{agent}/v1/)
+
 ## Current Status (July 19, 2025)
 
 ### 🎉 Major Achievements
