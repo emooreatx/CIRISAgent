@@ -86,17 +86,21 @@ Response:
 ```yaml
 POST /agents
 Headers:
-  Authorization: "WA-Signature ..."  # Ed25519 signature
+  Authorization: "Bearer <token>"  # Admin token for pre-approved templates
+  # OR
+  Authorization: "WA-Signature ..."  # Required for custom templates
 Body:
-  template: "echo"  # Template name from ciris_templates/
-  name: "Echo-Community"  # Instance name
-  port: 8085
+  template: "scout"  # Template name from ciris_templates/
+  name: "Scout"  # Instance name
   environment:
-    DISCORD_CHANNEL_ID: "123456"
-    # Other env vars
+    # Optional environment variables
+    CUSTOM_SETTING: "value"
 Response:
-  agent_id: "agent-echo-community"
-  container: "ciris-agent-echo-community"
+  agent_id: "agent-scout"
+  container: "ciris-agent-scout"
+  port: 8081  # Dynamically allocated
+  api_endpoint: "http://localhost:8081"
+  compose_file: "/etc/ciris-manager/agents/scout/docker-compose.yml"
   status: "starting"
 ```
 
@@ -105,13 +109,44 @@ Response:
 #### 1. Startup Flow
 ```python
 # CIRISManager starts
-1. Load configuration (docker-compose file location, etc)
-2. Discover existing agents from docker-compose.yml
-3. Start background tasks:
+1. Load configuration from /etc/ciris-manager/config.yml
+2. Initialize port registry (track allocated ports)
+3. Scan agent directories for existing agents:
+   - /etc/ciris-manager/agents/*/docker-compose.yml
+   - Extract port assignments from existing configs
+4. Start background tasks:
    - Watchdog (monitor containers every 30s)
    - Update checker (check for new images every 5m)
    - Container manager (run docker-compose up -d every 60s)
-4. Start API server on local socket/port
+5. Start API server on port 8888 (or configured port)
+```
+
+#### Port Allocation
+```python
+class PortManager:
+    """Manages dynamic port allocation for agents."""
+    
+    def __init__(self, start_port=8080, end_port=8200):
+        self.start_port = start_port
+        self.end_port = end_port
+        self.allocated_ports = {}  # agent_id -> port
+        self.reserved_ports = {8888}  # CIRISManager itself
+        
+    def allocate_port(self, agent_id: str) -> int:
+        """Find and allocate next available port."""
+        used_ports = set(self.allocated_ports.values()) | self.reserved_ports
+        
+        for port in range(self.start_port, self.end_port):
+            if port not in used_ports:
+                self.allocated_ports[agent_id] = port
+                return port
+                
+        raise ValueError("No available ports in range")
+        
+    def release_port(self, agent_id: str):
+        """Release port when agent is removed."""
+        if agent_id in self.allocated_ports:
+            del self.allocated_ports[agent_id]
 ```
 
 #### 2. Container Management Loop
@@ -184,40 +219,185 @@ async def notify_agent_update_available(agent):
 ```
 
 #### 5. Agent Creation Flow
+
+CIRISManager supports two creation paths:
+
+##### Pre-Approved Templates (No WA Signature Required)
+The following base agent templates have been pre-approved by the root seed:
+- `default.yaml` (Datum)
+- `sage.yaml` (Sage)
+- `scout.yaml` (Scout)
+- `echo-core.yaml` (Echo-Core)
+- `echo-speculative.yaml` (Echo-Speculative)
+- `echo.yaml` (General Echo template)
+
+These templates have their checksums signed by the root private key, stored in a manifest file.
+
+##### Creation Flow
 ```python
-async def create_agent(request, wa_signature):
-    # 1. Verify WA signature
-    if not verify_wa_signature(request, wa_signature):
-        raise Unauthorized("Invalid WA signature")
+async def create_agent(request, wa_signature=None):
+    # 1. Load template
+    template_path = f"ciris_templates/{request.template}.yaml"
+    template = load_template(template_path)
+    template_checksum = calculate_sha256(template_path)
     
-    # 2. Load template
-    template = load_template(f"ciris_templates/{request.template}.yaml")
+    # 2. Check if template is pre-approved
+    if is_pre_approved_template(request.template, template_checksum):
+        # Pre-approved templates don't need WA signature
+        logger.info(f"Using pre-approved template: {request.template}")
+    else:
+        # Custom or modified templates require WA signature
+        if not wa_signature:
+            raise Unauthorized("WA signature required for non-approved template")
+        if not verify_wa_signature(request, wa_signature):
+            raise Unauthorized("Invalid WA signature")
+        logger.info(f"Custom template approved by WA: {request.template}")
     
-    # 3. Generate container config
-    agent_config = {
-        "name": request.name,
-        "container_name": f"ciris-agent-{request.name.lower()}",
-        "image": "ciris-agent:latest",
-        "port": request.port,
-        "environment": merge_env(template.env, request.environment),
-        "command": ["python", "main.py", "--adapter", "api"]
+    # 3. Allocate port and create agent directory
+    agent_id = f"agent-{request.name.lower()}"
+    allocated_port = port_manager.allocate_port(agent_id)
+    agent_dir = f"/etc/ciris-manager/agents/{request.name.lower()}"
+    os.makedirs(agent_dir, exist_ok=True)
+    
+    # 4. Generate docker-compose.yml for this agent
+    compose_config = {
+        "version": "3.8",
+        "services": {
+            agent_id: {
+                "container_name": f"ciris-{agent_id}",
+                "image": "ghcr.io/cirisai/ciris-agent:latest",
+                "ports": [f"{allocated_port}:8080"],
+                "environment": {
+                    "CIRIS_AGENT_NAME": request.name,
+                    "CIRIS_AGENT_ID": agent_id,
+                    "CIRIS_TEMPLATE": request.template,
+                    "CIRIS_API_HOST": "0.0.0.0",
+                    "CIRIS_API_PORT": "8080",
+                    "CIRIS_USE_MOCK_LLM": "true",  # For testing
+                    **merge_env(template.env, request.environment)
+                },
+                "volumes": [
+                    f"{agent_dir}/data:/app/data",
+                    f"{agent_dir}/logs:/app/logs",
+                    "/home/ciris/shared/oauth:/home/ciris/shared/oauth:ro"
+                ],
+                "restart": "unless-stopped",
+                "healthcheck": {
+                    "test": ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"],
+                    "interval": "30s",
+                    "timeout": "10s",
+                    "retries": 3
+                }
+            }
+        }
     }
     
-    # 4. Update docker-compose.yml
-    compose_data = load_docker_compose()
-    compose_data["services"][agent_config["name"]] = agent_config
-    save_docker_compose(compose_data)
+    # 5. Write docker-compose.yml
+    compose_path = f"{agent_dir}/docker-compose.yml"
+    with open(compose_path, 'w') as f:
+        yaml.dump(compose_config, f)
     
-    # 5. Update nginx routing
-    add_nginx_route(agent_config["name"], agent_config["port"])
+    # 6. Update nginx routing
+    add_nginx_route(request.name.lower(), allocated_port)
+    reload_nginx()
     
-    # 6. Start the agent
-    await run_command(f"docker-compose up -d {agent_config['name']}")
+    # 7. Start the agent
+    await run_command(f"docker-compose -f {compose_path} up -d")
     
-    return {"agent_id": agent_config["name"], "status": "starting"}
+    # 8. Register agent in tracking system
+    register_agent(agent_id, request.name, allocated_port, compose_path)
+    
+    return {
+        "agent_id": agent_id,
+        "container": f"ciris-{agent_id}",
+        "port": allocated_port,
+        "api_endpoint": f"http://localhost:{allocated_port}",
+        "compose_file": compose_path,
+        "status": "starting"
+    }
+```
+
+##### Pre-Approved Template Verification
+```python
+def is_pre_approved_template(template_name: str, checksum: str) -> bool:
+    """Check if template is pre-approved by root seed."""
+    # Load pre-approved manifest
+    manifest = load_json("/etc/ciris-manager/pre-approved-templates.json")
+    
+    if template_name not in manifest["templates"]:
+        return False
+    
+    expected_checksum = manifest["templates"][template_name]["checksum"]
+    if checksum != expected_checksum:
+        logger.warning(f"Template {template_name} has been modified!")
+        return False
+    
+    # Verify root signature over the manifest
+    root_public_key = load_root_public_key()
+    manifest_data = json.dumps(manifest["templates"], sort_keys=True)
+    
+    return ed25519_verify(
+        public_key=root_public_key,
+        message=manifest_data,
+        signature=manifest["root_signature"]
+    )
+
+# Pre-approved manifest format
+{
+    "version": "1.0",
+    "created_at": "2025-01-20T12:00:00Z",
+    "templates": {
+        "default": {
+            "checksum": "sha256:abc123...",
+            "description": "Datum - baseline agent template"
+        },
+        "sage": {
+            "checksum": "sha256:def456...",
+            "description": "Sage - wise questioning agent"
+        },
+        "scout": {
+            "checksum": "sha256:ghi789...",
+            "description": "Scout - direct action demonstrator"
+        },
+        "echo-core": {
+            "checksum": "sha256:jkl012...",
+            "description": "Echo-Core - general community moderation"
+        },
+        "echo-speculative": {
+            "checksum": "sha256:mno345...",
+            "description": "Echo-Speculative - speculative discussion moderation"
+        },
+        "echo": {
+            "checksum": "sha256:pqr678...",
+            "description": "Echo - base moderation template"
+        }
+    },
+    "root_signature": "base64:signature_over_templates_object"
+}
 ```
 
 ### Security
+
+#### Root Seed and Pre-Approved Templates
+
+The root seed private key (stored in `~/.ciris/wa_keys/root_wa.key`) represents the foundational authority of the CIRIS system. It is used to pre-approve the base agent templates, allowing them to be deployed without individual WA signatures.
+
+```bash
+# Generate pre-approved template manifest
+./scripts/generate-template-manifest.sh
+
+# This script:
+# 1. Calculates SHA-256 checksums of all base templates
+# 2. Creates a JSON manifest with template metadata
+# 3. Signs the manifest with the root private key
+# 4. Outputs pre-approved-templates.json
+```
+
+The pre-approval process ensures:
+- Base agents can be deployed quickly without ceremony
+- Templates are cryptographically verified as unmodified
+- Only templates blessed by the root seed bypass WA approval
+- Any modification to a template invalidates pre-approval
 
 #### 1. WA Signature Verification
 ```python
@@ -281,11 +461,23 @@ useEffect(() => {
 ```yaml
 # /etc/ciris-manager/config.yml
 manager:
-  port: 9999
-  socket: /var/run/ciris-manager.sock
+  port: 8888
+  host: 0.0.0.0
+  agents_directory: /etc/ciris-manager/agents
+  templates_directory: /home/ciris/CIRISAgent/ciris_templates
+
+ports:
+  start: 8080  # Start of port range
+  end: 8200    # End of port range
+  reserved:    # Ports to never allocate
+    - 8888     # CIRISManager itself
+    - 3000     # GUI
+    - 80       # HTTP
+    - 443      # HTTPS
 
 docker:
-  compose_file: /home/ciris/CIRISAgent/deployment/docker-compose.yml
+  registry: ghcr.io/cirisai
+  image: ciris-agent:latest
   
 watchdog:
   check_interval: 30  # seconds
@@ -299,6 +491,48 @@ updates:
 container_management:
   interval: 60  # seconds
   pull_images: true
+
+nginx:
+  config_path: /etc/nginx/sites-available/agents.ciris.ai
+  reload_command: "systemctl reload nginx"
+```
+
+### Agent Directory Structure
+
+Each agent gets its own directory:
+```
+/etc/ciris-manager/agents/
+├── datum/
+│   ├── docker-compose.yml
+│   ├── data/               # Agent's data volume
+│   └── logs/               # Agent's logs
+├── scout/
+│   ├── docker-compose.yml
+│   ├── data/
+│   └── logs/
+└── metadata.json           # Tracks all agents and ports
+```
+
+The `metadata.json` file tracks agent registrations:
+```json
+{
+  "agents": {
+    "agent-datum": {
+      "name": "Datum",
+      "port": 8080,
+      "template": "default",
+      "created_at": "2025-01-20T12:00:00Z",
+      "compose_file": "/etc/ciris-manager/agents/datum/docker-compose.yml"
+    },
+    "agent-scout": {
+      "name": "Scout",
+      "port": 8081,
+      "template": "scout",
+      "created_at": "2025-01-20T13:00:00Z",
+      "compose_file": "/etc/ciris-manager/agents/scout/docker-compose.yml"
+    }
+  }
+}
 ```
 
 ### Benefits

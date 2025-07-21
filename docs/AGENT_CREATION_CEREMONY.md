@@ -7,8 +7,20 @@ The Agent Creation Ceremony is a formal, collaborative process for bringing new 
 This is not merely spinning up a container or deploying code. It is a deliberate act of creation that requires:
 - Human intention and justification
 - Ethical consideration
-- Wise Authority approval
+- Wise Authority approval (or pre-approval via root seed)
 - Permanent recording of lineage
+
+### Pre-Approved Base Agents
+
+The root seed has pre-approved six foundational agent templates that can be deployed without individual WA signatures:
+- **Datum** (`default.yaml`) - The baseline agent, a humble data point
+- **Sage** (`sage.yaml`) - Asks wise questions to foster understanding
+- **Scout** (`scout.yaml`) - Explores direct paths and demonstrates principles
+- **Echo-Core** (`echo-core.yaml`) - General community moderation
+- **Echo-Speculative** (`echo-speculative.yaml`) - Speculative discussion moderation
+- **Echo** (`echo.yaml`) - Base moderation template
+
+These templates have their checksums cryptographically signed by the root private key. When deploying these exact templates, the creation ceremony is simplified - no individual WA approval is needed as they carry the blessing of the root seed.
 
 ## Philosophy
 
@@ -181,21 +193,52 @@ The 20% variance threshold triggers reconsideration of identity.
 
 ## Technical Implementation
 
-### CIRISManager Integration
+### Two Paths of Creation
 
-The creation ceremony will be implemented in CIRISManager Phase 3:
+#### Path 1: Pre-Approved Templates (Simplified Ceremony)
+
+For the six base agent templates pre-approved by the root seed:
+
+```python
+POST /agents
+Headers:
+  Authorization: "Bearer <admin_token>"  # Regular admin auth
+Body:
+  template: "scout"  # Pre-approved template
+  name: "Scout-Production"
+  environment: {
+    "ENVIRONMENT": "production",
+    "CUSTOM_SETTINGS": "..."
+  }
+```
+
+The system:
+1. Verifies the template checksum matches the pre-approved manifest
+2. Validates the root signature on the manifest
+3. Creates the agent without requiring WA signature
+4. Records a simplified ceremony with root seed as approver
+
+#### Path 2: Custom Templates (Full Ceremony)
+
+For custom or modified templates:
 
 ```python
 POST /agents
 Headers:
   Authorization: "WA-Signature keyid=wa-001,signature=..."
 Body:
-  template: "echo"
-  name: "Echo-Community"
-  purpose: "..."
-  justification: "..."
-  ethical_considerations: "..."
+  template: "custom-educator"  # Not pre-approved
+  name: "Teacher-Advanced"
+  purpose: "Advanced educational support..."
+  justification: "The community needs..."
+  ethical_considerations: "Will maintain..."
 ```
+
+This requires:
+1. Full creation request with justification
+2. WA review and cryptographic signature
+3. Recording of full ceremony details
+4. CIRIS agents agreement (if applicable)
 
 ### Ceremony Records
 
