@@ -140,17 +140,37 @@ def create_routes(manager) -> APIRouter:
             logger.error(f"Failed to create agent: {e}")
             raise HTTPException(status_code=500, detail="Failed to create agent")
     
-    @router.delete("/agents/{agent_name}")
-    async def delete_agent(agent_name: str) -> Dict[str, str]:
-        """Delete an agent."""
-        agent = manager.agent_registry.get_agent_by_name(agent_name)
+    @router.delete("/agents/{agent_id}")
+    async def delete_agent(agent_id: str) -> Dict[str, str]:
+        """
+        Delete an agent and clean up all resources.
+        
+        This will:
+        - Stop and remove the agent container
+        - Remove nginx routes
+        - Free the allocated port
+        - Remove agent from registry
+        - Clean up agent directory
+        """
+        # Check if agent exists
+        agent = manager.agent_registry.get_agent(agent_id)
         if not agent:
-            raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
+            raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
         
-        # TODO: Stop container and clean up
-        manager.agent_registry.unregister_agent(agent.agent_id)
+        # Perform deletion
+        success = await manager.delete_agent(agent_id)
         
-        return {"status": "deleted", "agent_id": agent.agent_id}
+        if success:
+            return {
+                "status": "deleted", 
+                "agent_id": agent_id,
+                "message": f"Agent {agent_id} and all its resources have been removed"
+            }
+        else:
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Failed to delete agent {agent_id}. Check logs for details."
+            )
     
     @router.get("/templates", response_model=TemplateListResponse)
     async def list_templates() -> TemplateListResponse:

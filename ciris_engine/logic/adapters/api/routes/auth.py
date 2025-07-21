@@ -34,7 +34,9 @@ from ciris_engine.schemas.runtime.api import APIRole
 OAUTH_CONFIG_DIR = ".ciris"
 OAUTH_CONFIG_FILE = "oauth.json"
 PROVIDER_NAME_DESC = "Provider name"
-OAUTH_CALLBACK_PATH = "/v1/auth/oauth/datum/{provider}/callback"
+# Get agent ID from environment, default to 'datum' if not set
+AGENT_ID = os.getenv("CIRIS_AGENT_ID", "datum")
+OAUTH_CALLBACK_PATH = f"/v1/auth/oauth/{AGENT_ID}/{{provider}}/callback"
 DEFAULT_OAUTH_BASE_URL = "https://agents.ciris.ai"
 
 from ..dependencies.auth import (
@@ -255,7 +257,7 @@ async def list_oauth_providers(
                 provider=provider,
                 client_id=settings.get("client_id", ""),
                 created=settings.get("created"),
-                callback_url=f"{request.url.scheme}://{request.headers.get('host', 'localhost')}{OAUTH_CALLBACK_PATH}",
+                callback_url=f"{request.headers.get('x-forwarded-proto', request.url.scheme)}://{request.headers.get('host', 'localhost')}{OAUTH_CALLBACK_PATH}",
                 metadata=settings.get("metadata", {})
             ))
         
@@ -325,7 +327,7 @@ async def configure_oauth_provider(
         
         return ConfigureOAuthProviderResponse(
             provider=body.provider,
-            callback_url=f"{request.url.scheme}://{request.headers.get('host', 'localhost')}{OAUTH_CALLBACK_PATH}",
+            callback_url=f"{request.headers.get('x-forwarded-proto', request.url.scheme)}://{request.headers.get('host', 'localhost')}{OAUTH_CALLBACK_PATH}",
             message="OAuth provider configured successfully"
         )
     except Exception as e:
@@ -385,9 +387,10 @@ async def oauth_login(
         base_url = os.getenv("OAUTH_CALLBACK_BASE_URL")
         if not base_url:
             # Construct from request headers
-            base_url = f"{request.url.scheme}://{request.headers.get('host', 'localhost')}"
+            base_url = f"{request.headers.get('x-forwarded-proto', request.url.scheme)}://{request.headers.get('host', 'localhost')}"
         
-        callback_url = redirect_uri or f"{base_url}{OAUTH_CALLBACK_PATH.replace('{provider}', provider)}"
+        # Always use API callback URL for OAuth providers (this is what's registered in Google Console)
+        callback_url = f"{base_url}{OAUTH_CALLBACK_PATH.replace('{provider}', provider)}"
         
         # Build authorization URL based on provider
         if provider == "google":
@@ -529,7 +532,7 @@ async def oauth_callback(
                         "code": code,
                         "client_id": client_id,
                         "client_secret": client_secret,
-                        "redirect_uri": os.getenv("OAUTH_CALLBACK_BASE_URL", "https://agents.ciris.ai") + "/oauth/datum/callback"
+                        "redirect_uri": os.getenv("OAUTH_CALLBACK_BASE_URL", DEFAULT_OAUTH_BASE_URL) + OAUTH_CALLBACK_PATH.replace('{provider}', provider)
                     }
                 )
                 
@@ -664,7 +667,7 @@ async def oauth_callback(
         
         # Redirect to GUI OAuth callback page with token info
         # The GUI will handle storing the token and redirecting to dashboard
-        gui_callback_url = f"/oauth/datum/{provider}/callback"
+        gui_callback_url = f"/oauth/{AGENT_ID}/{provider}/callback"
         redirect_params = {
             "access_token": api_key,
             "token_type": "Bearer",

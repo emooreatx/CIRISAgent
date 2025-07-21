@@ -4,7 +4,8 @@ Graceful shutdown script for CIRIS agents.
 
 This script sends a graceful shutdown message to a running CIRIS agent,
 allowing it to complete current tasks before exiting with code 0.
-This is used for staged deployments where a new container is waiting.
+When used with CIRIS Manager, the agent will automatically restart
+with the latest image after shutdown.
 """
 import os
 import sys

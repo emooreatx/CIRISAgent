@@ -64,30 +64,11 @@ class TestCLI:
         """Test main with --generate-config flag."""
         config_path = tmp_path / "config.yml"
         
-        with patch('sys.argv', ['ciris-manager', '--generate-config']):
-            # Mock the default path to our temp path
-            with patch('ciris_manager.cli.Path') as mock_path_class:
-                # Create a proper mock that returns our temp path
-                def path_side_effect(arg):
-                    if "~/.config" in arg:
-                        return config_path
-                    return Path(arg)
-                
-                mock_path_class.side_effect = path_side_effect
-                
-                # Patch the default config path to use temp path
-                original_config = '/etc/ciris-manager/config.yml'
-                with patch('ciris_manager.cli.Path') as inner_path:
-                    def inner_path_effect(p):
-                        if p == original_config:
-                            return config_path
-                        return Path(p)
-                    inner_path.side_effect = inner_path_effect
-                    
-                    with pytest.raises(SystemExit) as exc:
-                        main()
-                    
-                    assert exc.value.code == 0
+        with patch('sys.argv', ['ciris-manager', '--generate-config', '--config', str(config_path)]):
+            with pytest.raises(SystemExit) as exc:
+                main()
+            
+            assert exc.value.code == 0
         
         # Config should be created
         assert config_path.exists()
