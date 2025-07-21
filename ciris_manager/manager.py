@@ -7,12 +7,17 @@ API for agent discovery and lifecycle management.
 import asyncio
 import logging
 import signal
+import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, List, Any
 
 from ciris_manager.core.container_manager import ContainerManager
 from ciris_manager.core.watchdog import CrashLoopWatchdog
 from ciris_manager.config.settings import CIRISManagerConfig
+from ciris_manager.port_manager import PortManager
+from ciris_manager.template_verifier import TemplateVerifier
+from ciris_manager.agent_registry import AgentRegistry
+from ciris_manager.compose_generator import ComposeGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -29,18 +34,36 @@ class CIRISManager:
         """
         self.config = config or CIRISManagerConfig()
         
-        # Validate docker-compose file exists
-        compose_path = Path(self.config.docker.compose_file)
-        if not compose_path.exists():
-            raise FileNotFoundError(
-                f"Docker compose file not found: {self.config.docker.compose_file}"
-            )
-            
-        # Initialize components
-        self.container_manager = ContainerManager(
-            compose_file=self.config.docker.compose_file,
-            interval=self.config.container_management.interval
+        # Create necessary directories
+        self.agents_dir = Path(self.config.manager.agents_directory)
+        self.agents_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Initialize new components
+        metadata_path = self.agents_dir / "metadata.json"
+        self.agent_registry = AgentRegistry(metadata_path)
+        
+        self.port_manager = PortManager(
+            start_port=self.config.ports.start,
+            end_port=self.config.ports.end,
+            metadata_path=metadata_path
         )
+        
+        # Add reserved ports
+        for port in self.config.ports.reserved:
+            self.port_manager.add_reserved_port(port)
+        
+        # Initialize template verifier
+        manifest_path = Path(self.config.manager.manifest_path)
+        self.template_verifier = TemplateVerifier(manifest_path)
+        
+        # Initialize compose generator
+        self.compose_generator = ComposeGenerator(
+            docker_registry=self.config.docker.registry,
+            default_image=self.config.docker.image
+        )
+        
+        # Initialize existing components (updated for per-agent management)
+        self.container_manager = None  # Will be replaced with per-agent management
         
         self.watchdog = CrashLoopWatchdog(
             check_interval=self.config.watchdog.check_interval,
@@ -48,8 +71,181 @@ class CIRISManager:
             crash_window=self.config.watchdog.crash_window
         )
         
+        # Scan existing agents on startup
+        self._scan_existing_agents()
+        
         self._running = False
         self._shutdown_event = asyncio.Event()
+    
+    def _scan_existing_agents(self) -> None:
+        """Scan agent directories to rebuild registry on startup."""
+        if not self.agents_dir.exists():
+            return
+        
+        # Look for agent directories
+        for agent_dir in self.agents_dir.iterdir():
+            if not agent_dir.is_dir() or agent_dir.name == "metadata.json":
+                continue
+            
+            compose_path = agent_dir / "docker-compose.yml"
+            if compose_path.exists():
+                # Extract agent info from directory name
+                agent_name = agent_dir.name
+                agent_id = agent_name
+                
+                # Try to get port from existing registry
+                agent_info = self.agent_registry.get_agent(agent_id)
+                if agent_info:
+                    # Ensure port manager knows about this allocation
+                    self.port_manager.allocate_port(agent_id)
+                    logger.info(f"Found existing agent: {agent_id} on port {agent_info.port}")
+    
+    async def create_agent(
+        self,
+        template: str,
+        name: str,
+        environment: Optional[Dict[str, str]] = None,
+        wa_signature: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Create a new agent.
+        
+        Args:
+            template: Template name (e.g., 'scout')
+            name: Agent name
+            environment: Additional environment variables
+            wa_signature: WA signature for non-approved templates
+            
+        Returns:
+            Agent creation result
+            
+        Raises:
+            ValueError: Invalid template or name
+            PermissionError: WA signature required but not provided
+        """
+        # Validate inputs
+        template_path = Path(self.config.manager.templates_directory) / f"{template}.yaml"
+        if not template_path.exists():
+            raise ValueError(f"Template not found: {template}")
+        
+        # Check if template is pre-approved
+        is_pre_approved = self.template_verifier.is_pre_approved(template, template_path)
+        
+        if not is_pre_approved and not wa_signature:
+            raise PermissionError(
+                f"Template '{template}' is not pre-approved. WA signature required."
+            )
+        
+        # TODO: Verify WA signature if provided
+        if wa_signature and not is_pre_approved:
+            logger.info(f"Verifying WA signature for custom template: {template}")
+            # Implementation would go here
+        
+        # Generate agent ID and allocate port
+        agent_id = name.lower()
+        allocated_port = self.port_manager.allocate_port(agent_id)
+        
+        # Create agent directory
+        agent_dir = self.agents_dir / name.lower()
+        agent_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate docker-compose.yml
+        compose_config = self.compose_generator.generate_compose(
+            agent_id=agent_id,
+            agent_name=name,
+            port=allocated_port,
+            template=template,
+            agent_dir=agent_dir,
+            environment=environment,
+            use_mock_llm=True  # For testing
+        )
+        
+        # Write compose file
+        compose_path = agent_dir / "docker-compose.yml"
+        self.compose_generator.write_compose_file(compose_config, compose_path)
+        
+        # Register agent
+        agent_info = self.agent_registry.register_agent(
+            agent_id=agent_id,
+            name=name,
+            port=allocated_port,
+            template=template,
+            compose_file=str(compose_path)
+        )
+        
+        # Update nginx routing
+        await self._add_nginx_route(name.lower(), allocated_port)
+        
+        # Start the agent
+        await self._start_agent(agent_id, compose_path)
+        
+        return {
+            "agent_id": agent_id,
+            "container": f"ciris-{agent_id}",
+            "port": allocated_port,
+            "api_endpoint": f"http://localhost:{allocated_port}",
+            "compose_file": str(compose_path),
+            "status": "starting"
+        }
+    
+    async def _add_nginx_route(self, agent_name: str, port: int) -> None:
+        """Add nginx route for agent."""
+        # This would modify nginx config and reload
+        # For now, just log
+        logger.info(f"Would add nginx route: /api/{agent_name}/* -> localhost:{port}")
+        
+        # TODO: Implement actual nginx config modification
+        # nginx_config = Path(self.config.nginx.config_path)
+        # ... modify config ...
+        # subprocess.run(self.config.nginx.reload_command.split(), check=True)
+    
+    async def _start_agent(self, agent_id: str, compose_path: Path) -> None:
+        """Start an agent container."""
+        cmd = ["docker-compose", "-f", str(compose_path), "up", "-d"]
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode != 0:
+            logger.error(f"Failed to start agent {agent_id}: {stderr.decode()}")
+            raise RuntimeError(f"Failed to start agent: {stderr.decode()}")
+        
+        logger.info(f"Started agent {agent_id}")
+    
+    async def container_management_loop(self) -> None:
+        """Updated container management for per-agent compose files."""
+        while self._running:
+            try:
+                # Iterate through all registered agents
+                for agent_info in self.agent_registry.list_agents():
+                    compose_path = Path(agent_info.compose_file)
+                    if compose_path.exists():
+                        # Pull latest images if configured
+                        if self.config.container_management.pull_images:
+                            await self._pull_agent_images(compose_path)
+                        
+                        # Run docker-compose up -d for this agent
+                        await self._start_agent(agent_info.agent_id, compose_path)
+                
+                # Wait for next iteration
+                await asyncio.sleep(self.config.container_management.interval)
+                
+            except Exception as e:
+                logger.error(f"Error in container management loop: {e}")
+                await asyncio.sleep(30)  # Back off on error
+    
+    async def _pull_agent_images(self, compose_path: Path) -> None:
+        """Pull latest images for an agent."""
+        cmd = ["docker-compose", "-f", str(compose_path), "pull"]
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        await process.communicate()
         
     async def start(self):
         """Start all manager services."""
@@ -57,12 +253,14 @@ class CIRISManager:
         
         self._running = True
         
-        # Start components
-        await self.container_manager.start()
+        # Start the new container management loop
+        asyncio.create_task(self.container_management_loop())
+        
+        # Start watchdog
         await self.watchdog.start()
         
         # Start API server if configured
-        if hasattr(self.config, 'api') and self.config.api:
+        if hasattr(self.config.manager, 'port') and self.config.manager.port:
             asyncio.create_task(self._start_api_server())
         
         logger.info("CIRISManager started successfully")
@@ -72,20 +270,23 @@ class CIRISManager:
         try:
             from fastapi import FastAPI
             import uvicorn
-            from .api import router
+            from .api.routes_v2 import create_routes
             
             app = FastAPI(title="CIRISManager API", version="1.0.0")
-            app.include_router(router)
+            
+            # Create routes with manager instance
+            router = create_routes(self)
+            app.include_router(router, prefix="/manager/v1")
             
             config = uvicorn.Config(
                 app,
-                host=self.config.api.host,
-                port=self.config.api.port,
+                host=self.config.manager.host,
+                port=self.config.manager.port,
                 log_level="info"
             )
             server = uvicorn.Server(config)
             
-            logger.info(f"Starting API server on {self.config.api.host}:{self.config.api.port}")
+            logger.info(f"Starting API server on {self.config.manager.host}:{self.config.manager.port}")
             await server.serve()
             
         except Exception as e:
@@ -97,11 +298,10 @@ class CIRISManager:
         
         self._running = False
         
-        # Stop components
-        await self.container_manager.stop()
+        # Stop watchdog
         await self.watchdog.stop()
         
-        # TODO: Stop API server when implemented
+        self._shutdown_event.set()
         
         logger.info("CIRISManager stopped")
         

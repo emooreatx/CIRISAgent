@@ -11,7 +11,7 @@ services:
       - "8080:8080"
     environment:
       - CIRIS_AGENT_NAME=Datum
-      - CIRIS_AGENT_ID=agent-datum
+      - CIRIS_AGENT_ID=datum
       - CIRIS_PORT=8080
       - CIRIS_ADAPTER=api
       - CIRIS_ADAPTER_DISCORD=discord
@@ -50,7 +50,7 @@ services:
       - "8081:8080"
     environment:
       - CIRIS_AGENT_NAME=Sage
-      - CIRIS_AGENT_ID=agent-sage
+      - CIRIS_AGENT_ID=sage
       - CIRIS_PORT=8080
       - CIRIS_ADAPTER=api
       - CIRIS_ADAPTER_DISCORD=discord
@@ -89,7 +89,7 @@ services:
       - "8082:8080"
     environment:
       - CIRIS_AGENT_NAME=Scout
-      - CIRIS_AGENT_ID=agent-scout
+      - CIRIS_AGENT_ID=scout
       - CIRIS_PORT=8080
       - CIRIS_ADAPTER=api
       - CIRIS_ADAPTER_DISCORD=discord
@@ -128,7 +128,7 @@ services:
       - "8083:8080"
     environment:
       - CIRIS_AGENT_NAME=Echo-Core
-      - CIRIS_AGENT_ID=agent-echo-core
+      - CIRIS_AGENT_ID=echo-core
       - CIRIS_PORT=8080
       - CIRIS_ADAPTER=api
       - CIRIS_ADAPTER_DISCORD=discord
@@ -167,7 +167,7 @@ services:
       - "8084:8080"
     environment:
       - CIRIS_AGENT_NAME=Echo-Speculative
-      - CIRIS_AGENT_ID=agent-echo-speculative
+      - CIRIS_AGENT_ID=echo-speculative
       - CIRIS_PORT=8080
       - CIRIS_ADAPTER=api
       - CIRIS_ADAPTER_DISCORD=discord
