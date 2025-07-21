@@ -3,7 +3,7 @@ version: '3.8'
 services:
   # Nginx reverse proxy - containerized to replace standalone service
   nginx:
-    image: ciris-nginx:latest  # Will be pulled from ghcr.io and tagged locally
+    image: ghcr.io/cirisai/ciris-nginx:latest
     container_name: ciris-nginx
     network_mode: host  # Use host network to access containers on bridge
     volumes:
@@ -18,7 +18,7 @@ services:
     restart: unless-stopped
   # Development: Single Datum agent with Mock LLM for testing
   agent-datum:
-    image: ciris-agent:latest  # Will be pulled from ghcr.io and tagged locally
+    image: ghcr.io/cirisai/ciris-agent:latest
     container_name: ciris-agent-datum
     ports:
       - "127.0.0.1:8080:8080"  # Expose to localhost only for nginx
@@ -58,7 +58,7 @@ services:
 
   # GUI Application
   ciris-gui:
-    image: ciris-gui:latest  # Will be pulled from ghcr.io and tagged locally
+    image: ghcr.io/cirisai/ciris-gui:latest
     container_name: ciris-gui
     ports:
       - "127.0.0.1:3000:3000"  # Expose to localhost only for nginx
