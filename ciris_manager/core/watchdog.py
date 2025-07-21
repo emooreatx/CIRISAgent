@@ -6,7 +6,7 @@ to prevent infinite restart loops.
 """
 import asyncio
 import logging
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 
@@ -210,21 +210,25 @@ class CrashLoopWatchdog:
         # TODO: Implement actual alerting mechanism
         logger.critical(f"ALERT: {message}")
         
-    def get_status(self) -> Dict[str, Dict]:
+    def get_status(self) -> Dict[str, Any]:
         """Get current watchdog status."""
-        status = {}
-        
-        for name, tracker in self._trackers.items():
-            status[name] = {
-                'crashes': len(tracker.crashes),
-                'stopped': tracker.stopped,
-                'recent_crashes': [
-                    {
-                        'timestamp': crash.timestamp.isoformat(),
-                        'exit_code': crash.exit_code
-                    }
-                    for crash in tracker.crashes[-5:]  # Last 5 crashes
-                ]
+        return {
+            'running': self._running,
+            'check_interval': self.check_interval,
+            'crash_threshold': self.crash_threshold,
+            'crash_window': self.crash_window.total_seconds(),
+            'containers': {
+                name: {
+                    'crashes': len(tracker.crashes),
+                    'stopped': tracker.stopped,
+                    'recent_crashes': [
+                        {
+                            'timestamp': crash.timestamp.isoformat(),
+                            'exit_code': crash.exit_code
+                        }
+                        for crash in tracker.crashes[-5:]  # Last 5 crashes
+                    ]
+                }
+                for name, tracker in self._trackers.items()
             }
-            
-        return status
+        }

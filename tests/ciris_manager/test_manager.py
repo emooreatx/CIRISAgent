@@ -138,7 +138,6 @@ class TestCIRISManager:
         assert agent.name == "Scout"
         assert agent.port == 8081
     
-    @pytest.mark.skip(reason="Temporarily skip to deploy OAuth fix")
     @pytest.mark.asyncio
     async def test_create_agent_pre_approved(self, manager):
         """Test creating agent with pre-approved template."""
@@ -160,13 +159,13 @@ class TestCIRISManager:
             )
         
         # Verify result
-        assert result["agent_id"] == "agent-scout"
-        assert result["container"] == "ciris-agent-scout"
+        assert result["agent_id"] == "scout"
+        assert result["container"] == "ciris-scout"
         assert result["port"] == 8080  # First available
         assert result["status"] == "starting"
         
         # Verify agent registered
-        agent = manager.agent_registry.get_agent("agent-scout")
+        agent = manager.agent_registry.get_agent("scout")
         assert agent is not None
         assert agent.name == "Scout"
         
@@ -192,7 +191,6 @@ class TestCIRISManager:
                 name="Custom"
             )
     
-    @pytest.mark.skip(reason="Temporarily skip to deploy OAuth fix")
     @pytest.mark.asyncio
     async def test_create_agent_custom_template_with_signature(self, manager):
         """Test creating agent with custom template and signature."""
@@ -214,7 +212,7 @@ class TestCIRISManager:
             )
         
         # Should succeed
-        assert result["agent_id"] == "agent-custom"
+        assert result["agent_id"] == "custom"
         assert result["status"] == "starting"
     
     @pytest.mark.asyncio
@@ -328,7 +326,6 @@ class TestCIRISManager:
         status = manager.get_status()
         assert status['running']
     
-    @pytest.mark.skip(reason="Temporarily skip to deploy OAuth fix")
     @pytest.mark.asyncio
     async def test_port_allocation_persistence(self, manager):
         """Test port allocation persists across restarts."""
@@ -353,8 +350,8 @@ class TestCIRISManager:
             manager2 = CIRISManager(manager.config)
         
         # Ports should still be allocated
-        assert manager2.port_manager.get_port("agent-scout1") == 8080
-        assert manager2.port_manager.get_port("agent-scout2") == 8081
+        assert manager2.port_manager.get_port("scout1") == 8080
+        assert manager2.port_manager.get_port("scout2") == 8081
     
     @pytest.mark.asyncio
     async def test_concurrent_agent_creation(self, manager):
