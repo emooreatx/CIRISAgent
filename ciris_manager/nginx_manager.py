@@ -192,7 +192,7 @@ upstream {agent_name} {{
             # Remove API route
             content = self._remove_block(
                 content,
-                f"# {agent_name",
+                f"# {agent_name}",
                 "    }"
             )
             
