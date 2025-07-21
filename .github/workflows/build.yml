@@ -292,24 +292,15 @@ jobs:
               fi
             done
             
-            # Use consent-based deployment that respects agent autonomy
-            if [ -f "deployment/consent-based-deploy.sh" ]; then
-              echo "Using consent-based deployment..."
-              chmod +x deployment/consent-based-deploy.sh
-              # This script will wait for agent consent or timeout gracefully
-              ./deployment/consent-based-deploy.sh || {
-                echo "Deployment requires manual intervention - agent did not consent"
-                echo "Staged container is ready for deployment when agent is ready"
-                # This is not a failure - it's respecting agent autonomy
-                exit 0
-              }
-            elif [ -f "deployment/deploy-staged.sh" ]; then
-              echo "Using staged deployment..."
-              chmod +x deployment/deploy-staged.sh
-              ./deployment/deploy-staged.sh
+            # Use clean deployment with CIRIS Manager
+            if [ -f "deployment/deploy-clean.sh" ]; then
+              echo "Using clean deployment with CIRIS Manager..."
+              chmod +x deployment/deploy-clean.sh
+              ./deployment/deploy-clean.sh
             else
-              # Fallback to regular deployment
-              docker-compose -f deployment/docker-compose.dev-prod.yml down || true
+              # Fallback to simple docker-compose
+              echo "Using simple deployment..."
+              docker-compose -f deployment/docker-compose.dev-prod.yml pull
               docker-compose -f deployment/docker-compose.dev-prod.yml up -d
             fi
             
