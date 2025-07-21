@@ -6,7 +6,7 @@ import pytest
 from unittest.mock import Mock
 from ciris_manager.core.watchdog import CrashLoopWatchdog, ContainerTracker, CrashEvent
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 
 class TestWatchdogSimple:
@@ -22,7 +22,7 @@ class TestWatchdogSimple:
         
         assert watchdog.check_interval == 30
         assert watchdog.crash_threshold == 3
-        assert watchdog.crash_window == 300
+        assert watchdog.crash_window == timedelta(seconds=300)
         assert not watchdog._running
     
     def test_get_status(self):

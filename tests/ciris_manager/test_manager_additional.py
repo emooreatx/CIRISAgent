@@ -18,15 +18,23 @@ class TestManagerAdditional:
         """Test API server start with import error."""
         config = CIRISManagerConfig()
         config.manager.agents_directory = str(tmp_path / "agents") 
-        config.manager.port = 8888
+        config.manager.port = 0  # Use port 0 to get a random available port
         
         manager = CIRISManager(config)
         
-        # Mock import to succeed but server start to handle errors
-        with patch('ciris_manager.manager.logger') as mock_logger:
-            # This will test the error handling path
+        # Mock uvicorn module at import time
+        import sys
+        mock_uvicorn = Mock()
+        mock_server = AsyncMock()
+        mock_uvicorn.Server.return_value = mock_server
+        mock_uvicorn.Config.return_value = Mock()
+        
+        with patch.dict('sys.modules', {'uvicorn': mock_uvicorn}):
+            # This will test the server creation path
             await manager._start_api_server()
-            # Logger should be used for any messages
+            
+            # Just verify the method completes without error
+            assert mock_uvicorn.Config.called or mock_uvicorn.Server.called
     
     @pytest.mark.asyncio
     async def test_container_management_with_image_pull_disabled(self, tmp_path):
