@@ -189,10 +189,10 @@ upstream {agent_name} {{
                 "    }"
             )
             
-            # Remove API route
+            # Remove API route  
             content = self._remove_block(
                 content,
-                f"# {agent_name}",
+                f"location ~ ^/api/{agent_name}/",
                 "    }"
             )
             
@@ -361,7 +361,8 @@ upstream {agent_name} {{
         
     def _backup_config(self) -> None:
         """Create backup of current config."""
-        backup_path = self.config_path.with_suffix(
+        backup_path = self.config_path.parent / (
+            self.config_path.name + 
             f".bak.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         )
         shutil.copy2(self.config_path, backup_path)

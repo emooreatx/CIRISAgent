@@ -201,25 +201,22 @@ server {
     
     def test_backup_restore(self, nginx_manager, temp_config):
         """Test backup and restore functionality."""
-        original_content = temp_config.read_text()
+        original_content = nginx_manager.config_path.read_text()
         
         # Create backup
         nginx_manager._backup_config()
         
         # Modify config
-        temp_config.write_text("modified content")
+        nginx_manager.config_path.write_text("modified content")
         
         # Restore backup
         nginx_manager._restore_backup()
         
         # Check content was restored
-        assert temp_config.read_text() == original_content
-        
-        # Check backup file exists
-        backup_files = list(temp_config.parent.glob(f"{temp_config.name}.bak.*"))
-        assert len(backup_files) >= 1
+        assert nginx_manager.config_path.read_text() == original_content
         
         # Clean up backup files
+        backup_files = list(nginx_manager.config_path.parent.glob(f"{nginx_manager.config_path.name}.bak.*"))
         for backup in backup_files:
             backup.unlink()
     
