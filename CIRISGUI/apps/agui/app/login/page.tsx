@@ -3,16 +3,17 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { cirisClient } from "../../lib/ciris-sdk";
-import type { OAuthProvider } from "../../lib/ciris-sdk";
+import type { OAuthProvider, AgentInfo } from "../../lib/ciris-sdk";
 import LogoIcon from "../../components/ui/floating/LogoIcon";
 import CButton from "components/ui/Buttons";
-import { AGENTS } from "../../config/agents";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [selectedAgent, setSelectedAgent] = useState(AGENTS[0].id);
+  const [selectedAgent, setSelectedAgent] = useState("datum");
   const [loading, setLoading] = useState(false);
+  const [agents, setAgents] = useState<AgentInfo[]>([]);
+  const [loadingAgents, setLoadingAgents] = useState(true);
   const { login } = useAuth();
 
   // Always show Google and Discord OAuth options
@@ -21,34 +22,64 @@ export default function LoginPage() {
     { provider: "discord", name: "Discord" }
   ];
 
+  // Load agents from CIRISManager
+  useEffect(() => {
+    const loadAgents = async () => {
+      try {
+        const discovered = await cirisClient.manager.listAgents();
+        const runningAgents = discovered.filter(a => a.status === 'running');
+        setAgents(runningAgents);
+        if (runningAgents.length > 0) {
+          setSelectedAgent(runningAgents[0].agent_id);
+        }
+      } catch (error) {
+        console.error('Failed to load agents:', error);
+        // Fallback to datum
+        setAgents([{
+          agent_id: 'datum',
+          agent_name: 'Datum',
+          container_name: 'ciris-agent-datum',
+          status: 'running',
+          api_endpoint: window.location.origin,
+          created_at: new Date().toISOString(),
+          update_available: false
+        }]);
+      } finally {
+        setLoadingAgents(false);
+      }
+    };
+    loadAgents();
+  }, []);
+
   // Update client baseURL when agent selection changes
   useEffect(() => {
-    const agent = AGENTS.find(a => a.id === selectedAgent);
+    const agent = agents.find(a => a.agent_id === selectedAgent);
     if (agent) {
-      // For development, we only have one API running
-      const baseURL = process.env.NODE_ENV === 'development' 
-        ? process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost:8080'
-        : agent.apiUrl;
+      // Use multi-agent routing in production
+      const isProduction = window.location.hostname === 'agents.ciris.ai';
+      const baseURL = isProduction 
+        ? `${window.location.origin}/api/${agent.agent_id}`
+        : agent.api_endpoint || 'http://localhost:8080';
       
       cirisClient.setConfig({ baseURL });
       
       // Store selected agent for use after login
-      localStorage.setItem('selectedAgentId', agent.id);
-      localStorage.setItem('selectedAgentName', agent.name);
+      localStorage.setItem('selectedAgentId', agent.agent_id);
+      localStorage.setItem('selectedAgentName', agent.agent_name);
     }
-  }, [selectedAgent]);
+  }, [selectedAgent, agents]);
 
   const handleOAuthLogin = async (provider: string) => {
     try {
-      const agent = AGENTS.find(a => a.id === selectedAgent);
+      const agent = agents.find(a => a.agent_id === selectedAgent);
       if (!agent) return;
       
       // Direct navigation to OAuth login endpoint (no auth required)
-      // Use API callback endpoint (configured in Google OAuth)
-      const redirectUri = encodeURIComponent(`${window.location.origin}/v1/auth/oauth/${selectedAgent}/${provider}/callback`);
-      const apiUrl = process.env.NODE_ENV === 'development' 
-        ? process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost:8080'
-        : agent.apiUrl;
+      const isProduction = window.location.hostname === 'agents.ciris.ai';
+      const redirectUri = encodeURIComponent(`${window.location.origin}/oauth/${selectedAgent}/callback`);
+      const apiUrl = isProduction 
+        ? `${window.location.origin}/api/${agent.agent_id}`
+        : agent.api_endpoint || 'http://localhost:8080';
       window.location.href = `${apiUrl}/v1/auth/oauth/${provider}/login?redirect_uri=${redirectUri}`;
     } catch (error) {
       console.error("OAuth login error:", error);
@@ -115,13 +146,17 @@ export default function LoginPage() {
               className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
               value={selectedAgent}
               onChange={(e) => setSelectedAgent(e.target.value)}
-              disabled={loading}
+              disabled={loading || loadingAgents}
             >
-              {AGENTS.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.name} - {agent.description}
-                </option>
-              ))}
+              {loadingAgents ? (
+                <option>Loading agents...</option>
+              ) : (
+                agents.map((agent) => (
+                  <option key={agent.agent_id} value={agent.agent_id}>
+                    {agent.agent_name} ({agent.status})
+                  </option>
+                ))
+              )}
             </select>
             <p className="mt-1 text-xs text-gray-500">
               Each agent has separate authentication. You'll need to login individually to each agent.
