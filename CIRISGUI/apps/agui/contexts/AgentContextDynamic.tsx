@@ -119,10 +119,15 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     
     setCurrentAgent(agent);
     
-    // Update SDK to use the agent's API endpoint
-    if (agent.api_endpoint) {
-      cirisClient.setConfig({ baseURL: agent.api_endpoint });
-    }
+    // Update SDK to use multi-agent routing pattern
+    // For production, use /api/{agent}/v1 pattern
+    // For local development, use the agent's direct endpoint
+    const isProduction = window.location.hostname === 'agents.ciris.ai';
+    const baseURL = isProduction 
+      ? `${window.location.origin}/api/${agentId}`
+      : agent.api_endpoint;
+    
+    cirisClient.setConfig({ baseURL });
   };
 
   // Initial discovery
