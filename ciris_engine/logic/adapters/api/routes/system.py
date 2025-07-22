@@ -207,12 +207,34 @@ async def get_system_health(request: Request) -> SuccessResponse[SystemHealthRes
         except Exception as e:
             logger.error(f"Error checking service health: {e}")
 
+    # Check processor thread health
+    processor_healthy = False
+    runtime_control = getattr(request.app.state, 'main_runtime_control_service', None)
+    if not runtime_control:
+        runtime_control = getattr(request.app.state, 'runtime_control_service', None)
+    
+    if runtime_control:
+        try:
+            # Get processor queue status - if this succeeds, processor thread is alive
+            queue_status = await runtime_control.get_processor_queue_status()
+            # If we can get queue status and processor name is not "unknown", thread is alive
+            processor_healthy = queue_status.processor_name != "unknown"
+            
+            # Also check runtime status for additional validation
+            runtime_status = await runtime_control.get_runtime_status()
+            processor_healthy = processor_healthy and runtime_status.is_running
+        except Exception as e:
+            logger.warning(f"Failed to check processor health: {e}")
+            processor_healthy = False
+    
     # Determine overall status
     total_services = sum(s.get("available", 0) for s in services.values())
     healthy_services = sum(s.get("healthy", 0) for s in services.values())
 
     if not init_complete:
         status = "initializing"
+    elif not processor_healthy:
+        status = "critical"  # Processor thread dead = critical
     elif healthy_services == total_services:
         status = "healthy"
     elif healthy_services >= total_services * 0.8:
@@ -381,7 +403,7 @@ async def control_runtime(
             )
         elif action == "state":
             # Get current state without changing it
-            status = await runtime_control.get_runtime_status()
+            status = runtime_control.get_runtime_status()
             result = RuntimeControlResponse(
                 success=True,
                 message="Current runtime state retrieved",

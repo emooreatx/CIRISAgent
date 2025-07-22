@@ -432,6 +432,109 @@ class TestWiseBusDeferrals:
 
         assert len(thought_ids) == 5
 
+    @pytest.mark.asyncio
+    async def test_deferral_broadcast_to_multiple_services(
+        self,
+        wise_bus,
+        mock_service_registry,
+        mock_time_service
+    ):
+        """Test that deferrals are broadcast to ALL wise authority services."""
+        # Arrange - Create multiple WA services (Discord and API)
+        discord_wa_service = MockWiseAuthorityService()
+        api_wa_service = MockWiseAuthorityService()
+        
+        # Both services should support send_deferral
+        discord_caps = Mock()
+        discord_caps.actions = {"send_deferral", "fetch_guidance", "check_permission"}
+        discord_wa_service.get_capabilities = Mock(return_value=discord_caps)
+        
+        api_caps = Mock()
+        api_caps.actions = {"send_deferral", "fetch_guidance", "list_permissions"}
+        api_wa_service.get_capabilities = Mock(return_value=api_caps)
+        
+        # Registry returns both services
+        mock_service_registry.get_services_by_type.return_value = [
+            discord_wa_service,
+            api_wa_service
+        ]
+        
+        context = DeferralContext(
+            thought_id="thought_broadcast_123",
+            task_id="task_broadcast_456",
+            reason="Test broadcast to all WA services",
+            defer_until=mock_time_service.now() + timedelta(hours=1),
+            priority="high",
+            metadata={"test": "broadcast"}
+        )
+        
+        # Act
+        result = await wise_bus.send_deferral(
+            context=context,
+            handler_name="TestBroadcastHandler"
+        )
+        
+        # Assert
+        assert result is True  # Should succeed if at least one service processed it
+        
+        # Both services should have received the deferral
+        discord_wa_service.send_deferral.assert_called_once()
+        api_wa_service.send_deferral.assert_called_once()
+        
+        # Verify both got the same deferral request
+        discord_call = discord_wa_service.send_deferral.call_args[0][0]
+        api_call = api_wa_service.send_deferral.call_args[0][0]
+        
+        assert discord_call.thought_id == api_call.thought_id == "thought_broadcast_123"
+        assert discord_call.task_id == api_call.task_id == "task_broadcast_456"
+        assert discord_call.reason == api_call.reason == "Test broadcast to all WA services"
+
+    @pytest.mark.asyncio
+    async def test_deferral_partial_failure(
+        self,
+        wise_bus,
+        mock_service_registry,
+        mock_time_service
+    ):
+        """Test that deferral succeeds if at least one WA service processes it."""
+        # Arrange - Create two services, one will fail
+        working_service = MockWiseAuthorityService()
+        failing_service = MockWiseAuthorityService()
+        
+        # Set up capabilities
+        caps = Mock()
+        caps.actions = {"send_deferral"}
+        working_service.get_capabilities = Mock(return_value=caps)
+        failing_service.get_capabilities = Mock(return_value=caps)
+        
+        # Make one service fail
+        failing_service.send_deferral.side_effect = Exception("Service unavailable")
+        
+        mock_service_registry.get_services_by_type.return_value = [
+            failing_service,
+            working_service
+        ]
+        
+        context = DeferralContext(
+            thought_id="thought_partial_123",
+            task_id="task_partial_456", 
+            reason="Test partial failure",
+            defer_until=None,
+            priority="medium",
+            metadata={}
+        )
+        
+        # Act
+        result = await wise_bus.send_deferral(
+            context=context,
+            handler_name="TestPartialHandler"
+        )
+        
+        # Assert
+        assert result is True  # Should succeed because one service worked
+        working_service.send_deferral.assert_called_once()
+        failing_service.send_deferral.assert_called_once()
+
 
 class TestWiseBusErrorHandling:
     """Test error handling scenarios in WiseBus."""

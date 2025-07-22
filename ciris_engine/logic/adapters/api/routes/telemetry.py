@@ -92,9 +92,22 @@ class DetailedMetric(BaseModel):
     by_service: List[ServiceMetricValue] = Field(default_factory=list, description="Values by service")
     recent_data: List[MetricData] = Field(default_factory=list, description="Recent data points")
 
+class MetricAggregate(BaseModel):
+    """Aggregated metric statistics."""
+    min: float = Field(0.0, description="Minimum value")
+    max: float = Field(0.0, description="Maximum value")
+    avg: float = Field(0.0, description="Average value")
+    sum: float = Field(0.0, description="Sum of values")
+    count: int = Field(0, description="Number of data points")
+    p50: Optional[float] = Field(None, description="50th percentile")
+    p95: Optional[float] = Field(None, description="95th percentile")
+    p99: Optional[float] = Field(None, description="99th percentile")
+
 class MetricsResponse(BaseModel):
     """Detailed metrics response."""
     metrics: List[DetailedMetric] = Field(..., description="Detailed metrics")
+    summary: MetricAggregate = Field(..., description="Summary statistics")
+    period: str = Field(..., description="Time period")
     timestamp: datetime = Field(..., description="Response timestamp")
 
     @field_serializer('timestamp')
@@ -584,8 +597,33 @@ async def get_detailed_metrics(
                     )
                     metrics.append(metric)
 
+        # Calculate summary statistics across all metrics
+        all_values = []
+        for metric in metrics:
+            if metric.recent_data:
+                all_values.extend([dp.value for dp in metric.recent_data])
+        
+        if all_values:
+            summary = MetricAggregate(
+                min=min(all_values),
+                max=max(all_values),
+                avg=sum(all_values) / len(all_values),
+                sum=sum(all_values),
+                count=len(all_values)
+            )
+        else:
+            summary = MetricAggregate(
+                min=0.0,
+                max=0.0,
+                avg=0.0,
+                sum=0.0,
+                count=0
+            )
+
         response = MetricsResponse(
             metrics=metrics,
+            summary=summary,
+            period="24h",
             timestamp=now
         )
 

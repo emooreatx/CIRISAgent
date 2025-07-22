@@ -1,4 +1,18 @@
-"""Communication Service Protocol."""
+"""Communication Service Protocol.
+
+IMPORTANT: This is NOT one of the 21 core services!
+
+This protocol defines the interface for adapter-provided communication services.
+It is used by the CommunicationBus to enable multiple communication providers:
+- CLIAdapter provides CLI-based communication
+- APICommunicationService provides API-based communication  
+- DiscordAdapter provides Discord-based communication
+
+There is no core CommunicationService - all communication is handled by adapters
+that implement this protocol and register with the CommunicationBus.
+
+See CLAUDE.md section on "Message Bus Architecture" for more details.
+"""
 
 from typing import Protocol, List, Any, Optional, Dict
 from abc import abstractmethod
@@ -7,7 +21,12 @@ from datetime import datetime
 from ...runtime.base import ServiceProtocol
 
 class CommunicationServiceProtocol(ServiceProtocol, Protocol):
-    """Protocol for communication service."""
+    """Protocol for adapter-provided communication services.
+    
+    This protocol must be implemented by any adapter that wants to provide
+    communication capabilities to the CIRIS system. Adapters register their
+    implementation with the CommunicationBus at runtime.
+    """
 
     @abstractmethod
     async def send_message(self, channel_id: str, content: str) -> bool:

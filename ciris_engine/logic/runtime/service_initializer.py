@@ -407,7 +407,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
                 service_type=ServiceType.WISE_AUTHORITY,
                 provider=self.wa_auth_system,
                 priority=Priority.HIGH,
-                capabilities=["authenticate", "authorize", "validate", "guidance"],
+                capabilities=["authenticate", "authorize", "validate", "guidance", "send_deferral", "get_pending_deferrals", "resolve_deferral"],
                 metadata={"type": "consolidated", "consensus": "single"}
             )
             logger.info("WiseAuthority service registered in ServiceRegistry")

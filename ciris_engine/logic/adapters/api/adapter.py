@@ -46,9 +46,13 @@ class ApiPlatform(Service):
         if "adapter_config" in kwargs and kwargs["adapter_config"] is not None:
             if isinstance(kwargs["adapter_config"], APIAdapterConfig):
                 self.config = kwargs["adapter_config"]
+                # Still load env vars to allow env overrides
+                self.config.load_env_vars()
             elif isinstance(kwargs["adapter_config"], dict):
                 # Merge user config over env-loaded config
                 self.config = APIAdapterConfig(**kwargs["adapter_config"])
+                # Load env vars after to allow env overrides
+                self.config.load_env_vars()
             # If adapter_config is provided but not dict/APIAdapterConfig, keep env-loaded config
         
         # Create FastAPI app - services will be injected later in start()

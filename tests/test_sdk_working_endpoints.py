@@ -115,7 +115,7 @@ class TestWorkingSDKEndpoints:
         """Test GET /v1/system/health (no auth required)."""
         health = await unauthenticated_client.system.health()
         assert health.status in ["healthy", "degraded", "critical", "initializing"]
-        assert health.version == "3.0.0"
+        assert health.version == "1.0.2"
         assert health.uptime_seconds >= 0
         assert hasattr(health, 'services')
         assert health.initialization_complete is True
@@ -127,7 +127,7 @@ class TestWorkingSDKEndpoints:
         # Should work with auth too
         health = await client.system.health()
         assert health.status in ["healthy", "degraded"]  # May be degraded if some services aren't fully ready
-        assert health.version == "3.0.0"
+        assert health.version == "1.0.2"
 
     # ========== Integration Tests ==========
     
