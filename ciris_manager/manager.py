@@ -18,6 +18,7 @@ from ciris_manager.port_manager import PortManager
 from ciris_manager.template_verifier import TemplateVerifier
 from ciris_manager.agent_registry import AgentRegistry
 from ciris_manager.compose_generator import ComposeGenerator
+from ciris_manager.nginx_manager import NginxManager
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,12 @@ class CIRISManager:
         self.compose_generator = ComposeGenerator(
             docker_registry=self.config.docker.registry,
             default_image=self.config.docker.image
+        )
+        
+        # Initialize nginx manager
+        self.nginx_manager = NginxManager(
+            config_path=self.config.nginx.config_path,
+            reload_command=self.config.nginx.reload_command
         )
         
         # Initialize existing components (updated for per-agent management)
@@ -190,14 +197,21 @@ class CIRISManager:
     
     async def _add_nginx_route(self, agent_name: str, port: int) -> None:
         """Add nginx route for agent."""
-        # This would modify nginx config and reload
-        # For now, just log
-        logger.info(f"Would add nginx route: /api/{agent_name}/* -> localhost:{port}")
-        
-        # TODO: Implement actual nginx config modification
-        # nginx_config = Path(self.config.nginx.config_path)
-        # ... modify config ...
-        # subprocess.run(self.config.nginx.reload_command.split(), check=True)
+        try:
+            # Ensure managed sections exist first
+            if not self.nginx_manager.ensure_managed_sections():
+                logger.error("Failed to ensure nginx managed sections")
+                raise RuntimeError("Nginx configuration not ready")
+            
+            # Add the agent route
+            if self.nginx_manager.add_agent_route(agent_name, port):
+                logger.info(f"Added nginx route: /api/{agent_name}/* -> localhost:{port}")
+            else:
+                logger.error(f"Failed to add nginx route for {agent_name}")
+                raise RuntimeError("Failed to add nginx route")
+        except Exception as e:
+            logger.error(f"Error adding nginx route: {e}")
+            raise
     
     async def _start_agent(self, agent_id: str, compose_path: Path) -> None:
         """Start an agent container."""
@@ -292,6 +306,59 @@ class CIRISManager:
         except Exception as e:
             logger.error(f"Failed to start API server: {e}")
         
+    async def delete_agent(self, agent_id: str) -> bool:
+        """
+        Delete an agent and clean up its resources.
+        
+        Args:
+            agent_id: ID of agent to delete
+            
+        Returns:
+            True if successful
+        """
+        try:
+            # Get agent info
+            agent_info = self.agent_registry.get_agent(agent_id)
+            if not agent_info:
+                logger.error(f"Agent {agent_id} not found")
+                return False
+                
+            # Stop the agent container
+            compose_path = Path(agent_info.compose_file)
+            if compose_path.exists():
+                logger.info(f"Stopping agent {agent_id}")
+                cmd = ["docker-compose", "-f", str(compose_path), "down", "-v"]
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                await process.communicate()
+                
+            # Remove nginx routes
+            logger.info(f"Removing nginx routes for {agent_id}")
+            self.nginx_manager.remove_agent_route(agent_id)
+            
+            # Free the port
+            self.port_manager.free_port(agent_info.port)
+            
+            # Remove from registry
+            self.agent_registry.remove_agent(agent_id)
+            
+            # Remove agent directory
+            agent_dir = compose_path.parent
+            if agent_dir.exists() and agent_dir != self.agents_dir:
+                import shutil
+                shutil.rmtree(agent_dir)
+                logger.info(f"Removed agent directory: {agent_dir}")
+                
+            logger.info(f"Successfully deleted agent {agent_id}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to delete agent {agent_id}: {e}")
+            return False
+    
     async def stop(self):
         """Stop all manager services."""
         logger.info("Stopping CIRISManager...")
