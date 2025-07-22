@@ -55,12 +55,7 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
         # Load prompts from YAML file
         self.prompt_loader = get_prompt_loader()
         try:
-            prompt_collection = self.prompt_loader.load_prompt_template("csdma_common_sense")
-            # Convert PromptCollection to dict for backward compatibility
-            self.prompt_template_data = {
-                "system_guidance_header": prompt_collection.system_guidance_header or DEFAULT_TEMPLATE,
-                "covenant_header": prompt_collection.uses_covenant_header
-            }
+            self.prompt_template_data = self.prompt_loader.load_prompt_template("csdma_common_sense")
         except FileNotFoundError:
             logger.warning("CSDMA prompt template not found, using fallback")
             # Fallback to embedded prompt for backward compatibility
