@@ -27,7 +27,8 @@ class TestAPIRoutes:
         manager.agent_registry = Mock()
         manager.agent_registry.list_agents = Mock(return_value=[])
         manager.agent_registry.get_agent_by_name = Mock(return_value=None)
-        manager.agent_registry.unregister_agent = Mock()
+        manager.agent_registry.get_agent = Mock(return_value=None)
+        manager.agent_registry.unregister_agent = AsyncMock()
         
         # Mock port manager
         manager.port_manager = Mock()
@@ -54,6 +55,9 @@ class TestAPIRoutes:
         
         # Mock create_agent as async
         manager.create_agent = AsyncMock()
+        
+        # Mock delete_agent as async
+        manager.delete_agent = AsyncMock(return_value=True)
         
         return manager
     
@@ -256,19 +260,20 @@ class TestAPIRoutes:
             compose_file="/path/to/scout/docker-compose.yml"
         )
         
-        mock_manager.agent_registry.get_agent_by_name.return_value = agent
+        mock_manager.agent_registry.get_agent.return_value = agent
         
         response = client.delete("/manager/v1/agents/scout")
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "deleted"
-        assert data["agent_id"] == "agent-scout"
+        assert data["agent_id"] == "scout"
         
-        mock_manager.agent_registry.unregister_agent.assert_called_once_with("agent-scout")
+        # Verify delete_agent was called
+        mock_manager.delete_agent.assert_called_once_with("scout")
     
     def test_delete_agent_not_found(self, client, mock_manager):
         """Test deleting non-existent agent."""
-        mock_manager.agent_registry.get_agent_by_name.return_value = None
+        mock_manager.agent_registry.get_agent.return_value = None
         
         response = client.delete("/manager/v1/agents/nonexistent")
         assert response.status_code == 404

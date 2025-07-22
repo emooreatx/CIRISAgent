@@ -180,12 +180,18 @@ class DeferralContext(BaseContext):
 
 class AuditContext(BaseContext):
     """Context for audit entries."""
-    actor_id: str = Field(..., description="Actor identifier")
-    actor_type: str = Field(..., description="Actor type: user|system|service")
+    entity_id: Optional[str] = Field(None, description="Entity being audited")
+    entity_type: Optional[str] = Field(None, description="Type of entity")
+    operation: Optional[str] = Field(None, description="Operation performed")
+    description: Optional[str] = Field(None, description="Human-readable description")
+    request_id: Optional[str] = Field(None, description="Request ID")
+    correlation_id: Optional[str] = Field(None, description="Correlation ID")
+    user_id: Optional[str] = Field(None, description="User who triggered action")
     ip_address: Optional[str] = Field(None, description="Client IP address")
     user_agent: Optional[str] = Field(None, description="User agent string")
-    session_id: Optional[str] = Field(None, description="Session identifier")
-    permissions: List[str] = Field(default_factory=list, description="Actor permissions")
+    result: Optional[str] = Field(None, description="Operation result")
+    error: Optional[str] = Field(None, description="Error message if failed")
+    metadata: Optional[dict] = Field(None, description="Additional metadata")
 
 
 # Verification Models
@@ -202,13 +208,21 @@ class VerificationDetails(BaseModel):
 
 class VerificationResult(BaseModel):
     """Result of verification operation."""
-    is_valid: bool = Field(..., description="Whether verification passed")
-    verified_at: datetime = Field(..., description="Verification timestamp")
-    verified_by: str = Field(..., description="Verifier identifier")
-    details: VerificationDetails = Field(..., description="Verification details")
+    signature_valid: bool = Field(..., description="Whether signature verification passed")
+    hash_chain_valid: bool = Field(..., description="Whether hash chain verification passed")
+    verified_at: Union[str, datetime] = Field(..., description="Verification timestamp")
+    verifier: str = Field(..., description="Verifier identifier")
+    algorithm: str = Field(..., description="Verification algorithm used")
+    previous_hash_match: Optional[bool] = Field(None, description="Whether previous hash matches")
+    
+    # Optional fields for compatibility
+    is_valid: Optional[bool] = Field(None, description="Overall verification status")
+    verified_by: Optional[str] = Field(None, description="Verifier identifier (alias)")
+    details: Optional[VerificationDetails] = Field(None, description="Verification details")
     errors: List[str] = Field(default_factory=list, description="Verification errors")
     
     class Config:
+        extra = "allow"
         json_encoders = {
             datetime: lambda v: v.isoformat() if v else None
         }

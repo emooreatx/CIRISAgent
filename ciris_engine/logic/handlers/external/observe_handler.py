@@ -101,14 +101,9 @@ class ObserveHandler(BaseActionHandler):
                 action_result=result
             )
 
-        if not params.active:
-            logger.debug(f"Passive observation for thought {thought_id} - no action needed")
-            persistence.update_thought_status(
-                thought_id=thought_id,
-                status=ThoughtStatus.COMPLETED,
-                final_action=result,
-            )
-            return None
+        # Always do active observation - agent should always create follow-up thoughts
+        # Force active=True regardless of input
+        params.active = True
 
         # Get channel context from params or dispatch
         channel_context: Optional[ChannelContext] = params.channel_context or dispatch_context.channel_context

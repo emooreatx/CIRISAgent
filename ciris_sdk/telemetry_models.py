@@ -42,10 +42,12 @@ class ResourceLimits(BaseModel):
 class ResourceHealth(BaseModel):
     """Resource health status."""
     status: str = Field(..., description="Overall health status: healthy|degraded|critical")
-    cpu_health: str = Field(..., description="CPU health status")
-    memory_health: str = Field(..., description="Memory health status")
-    disk_health: Optional[str] = Field(None, description="Disk health status")
     warnings: List[str] = Field(default_factory=list, description="Health warnings")
+    
+    # Optional fields for backward compatibility
+    cpu_health: Optional[str] = Field(None, description="CPU health status")
+    memory_health: Optional[str] = Field(None, description="Memory health status")
+    disk_health: Optional[str] = Field(None, description="Disk health status")
     
     class Config:
         extra = "allow"

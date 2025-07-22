@@ -87,7 +87,18 @@ class TestCIRISManager:
     def manager(self, config):
         """Create CIRISManager instance."""
         with patch('ciris_manager.template_verifier.TemplateVerifier._verify_manifest_signature', return_value=True):
-            return CIRISManager(config)
+            with patch('ciris_manager.nginx_manager.NginxManager') as mock_nginx_class:
+                # Configure nginx manager mock
+                mock_nginx = Mock()
+                mock_nginx.ensure_managed_sections = Mock(return_value=True)
+                mock_nginx.add_agent_route = Mock(return_value=True)
+                mock_nginx.remove_agent_route = Mock(return_value=True)
+                mock_nginx.reload_nginx = Mock(return_value=True)
+                mock_nginx_class.return_value = mock_nginx
+                
+                manager = CIRISManager(config)
+                manager.nginx_manager = mock_nginx
+                return manager
     
     def test_initialization(self, manager, config):
         """Test CIRISManager initialization."""
@@ -239,7 +250,7 @@ class TestCIRISManager:
             mock_subprocess.return_value = mock_process
             
             # Should raise RuntimeError
-            with pytest.raises(RuntimeError, match="Failed to start agent"):
+            with pytest.raises(RuntimeError, match="Failed to start"):
                 await manager.create_agent(
                     template="scout",
                     name="Scout"

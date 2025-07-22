@@ -17,7 +17,7 @@ from ciris_engine.schemas.runtime.system_context import ChannelContext
 class ObserveParams(BaseModel):
     """Parameters for OBSERVE action."""
     channel_context: Optional[ChannelContext] = None
-    active: bool = False
+    active: bool = True  # Always active - agent should always create follow-up thoughts
     context: Optional[Dict[str, str]] = Field(default=None)
 
     model_config = ConfigDict(extra="forbid")

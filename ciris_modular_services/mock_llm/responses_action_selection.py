@@ -238,9 +238,9 @@ def action_selection(context: Optional[List[Any]] = None, messages: Optional[Lis
             elif action == HandlerActionType.OBSERVE:
                 parts = action_params.split() if action_params else []
                 observe_channel = parts[0] if len(parts) > 0 else ""
-                active = parts[1].lower() == "true" if len(parts) > 1 else False
+                # Always active - agent should always create follow-up thoughts
                 channel_context = create_channel_context(observe_channel) if observe_channel else None
-                params = ObserveParams(channel_context=channel_context, active=active)
+                params = ObserveParams(channel_context=channel_context, active=True)
                 
             elif action == HandlerActionType.TOOL:
                 if action_params:
@@ -501,14 +501,13 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
             rationale = f"[MOCK LLM] Executing tool: {tool_name}"
             command_found = True
         elif command_from_context == '$observe':
-            # Parse observe command - expects a default_channel and optional active flag
+            # Parse observe command - expects a default_channel
             args = command_args_from_context.strip().split() if command_args_from_context else []
             obs_channel = args[0] if args else default_channel
-            # Check if 'true' is passed as second argument for active observation
-            active = len(args) > 1 and args[1].lower() == 'true'
+            # Always active - agent should always create follow-up thoughts
             params = ObserveParams(
                 channel_context=create_channel_context(obs_channel),
-                active=active,
+                active=True,
                 context={"observer_channel": default_channel, "target_channel": obs_channel}
             )
             action = HandlerActionType.OBSERVE
@@ -746,15 +745,14 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
                                 command_found = True
                                 break
                             elif command == '$observe':
-                                # Parse observe command - expects a default_channel and optional active flag
+                                # Parse observe command - expects a default_channel
                                 args = command_args.strip().split() if command_args else []
                                 obs_channel = args[0] if args else default_channel
-                                # Check if 'true' is passed as second argument for active observation
-                                active = len(args) > 1 and args[1].lower() == 'true'
+                                # Always active - agent should always create follow-up thoughts
                                 
                                 params = ObserveParams(
                                     channel_context=create_channel_context(obs_channel),
-                                    active=active,
+                                    active=True,
                                     context={"observer_channel": default_channel, "target_channel": obs_channel}
                                 )
                                 action = HandlerActionType.OBSERVE
