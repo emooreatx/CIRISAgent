@@ -3,7 +3,7 @@
 ## Table of Contents
 - [High-Level Architecture](#high-level-architecture)
 - [Core Design Philosophy](#core-design-philosophy)
-- [The 19 Services](#services)
+- [The 21 Services](#services)
 - [Message Bus Architecture](#message-bus-architecture)
 - [Type Safety Architecture](#type-safety)
 - [Async Design Patterns](#async-design)
@@ -40,26 +40,26 @@
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                              │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │                         19 SERVICES LAYER                            │   │
+│  │                         21 SERVICES LAYER                            │   │
 │  │                                                                      │   │
-│  │  Graph Services (6)        │  Core Services (2)                     │   │
+│  │  Graph Services (6)        │  Runtime Services (3)                  │   │
 │  │  ┌──────────────────┐     │  ┌─────────────┐  ┌──────────────┐   │   │
-│  │  │ Memory Service   │     │  │ LLM Service │  │Secrets Service│   │   │
-│  │  │ Audit Service    │     │  └─────────────┘  └──────────────┘   │   │
-│  │  │ Config Service   │     │                                        │   │
-│  │  │ Telemetry Service│     │  Infrastructure Services (7)           │   │
-│  │  │ Incident Service │     │  ┌─────────────┐  ┌──────────────┐   │   │
-│  │  │ TSDB Service     │     │  │Time Service │  │Shutdown Svc  │   │   │
-│  │  └──────────────────┘     │  │Init Service │  │Visibility    │   │   │
-│  │                           │  │Auth Service │  │Resource Mon  │   │   │
-│  │  Governance (1)           │  │Runtime Ctrl │                  │   │   │
-│  │  ┌──────────────────┐     │  └─────────────┘  └──────────────┘   │   │
-│  │  │ Wise Authority   │     │                                        │   │
-│  │  └──────────────────┘     │  Special Services (3)                 │   │
-│  │                           │  ┌─────────────┐  ┌──────────────┐   │   │
-│  │                           │  │Self Config  │  │Adaptive Filter│   │   │
-│  │                           │  │Task Sched   │                  │   │   │
-│  │                           │  └─────────────┘  └──────────────┘   │   │
+│  │  │ Memory Service   │     │  │ LLM Service │  │Runtime Ctrl  │   │   │
+│  │  │ Audit Service    │     │  │Task Sched   │                  │   │   │
+│  │  │ Config Service   │     │  └─────────────┘  └──────────────┘   │   │
+│  │  │ Telemetry Service│     │                                        │   │
+│  │  │ Incident Service │     │  Infrastructure Services (7)           │   │
+│  │  │ TSDB Service     │     │  ┌─────────────┐  ┌──────────────┐   │   │
+│  │  └──────────────────┘     │  │Time Service │  │Shutdown Svc  │   │   │
+│  │                           │  │Init Service │  │Auth Service  │   │   │
+│  │  Governance (4)           │  │Resource Mon │  │Database Maint│   │   │
+│  │  ┌──────────────────┐     │  │Secrets Svc  │                  │   │   │
+│  │  │ Wise Authority   │     │  └─────────────┘  └──────────────┘   │   │
+│  │  │ Adaptive Filter  │     │                                        │   │
+│  │  │ Visibility       │     │  Tool Services (1)                    │   │
+│  │  │ Self Observation │     │  ┌─────────────┐                      │   │
+│  │  └──────────────────┘     │  │Secrets Tool │                      │   │
+│  │                           │  └─────────────┘                      │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                              │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
@@ -93,7 +93,7 @@ This philosophy ensures:
 
 ## Services
 
-CIRIS has exactly **19 services** - no more, no less. Each service has a specific purpose and clear boundaries.
+CIRIS has exactly **21 services** - no more, no less. Each service has a specific purpose and clear boundaries.
 
 ### Graph Services (6)
 
@@ -144,9 +144,9 @@ await memory_bus.memorize(
 **Access**: Direct injection  
 **Why**: Long-term memory (1000+ years). Raw data kept 24h, summaries forever.
 
-### Core Services (2)
+### Runtime Services (3)
 
-Essential services that other services depend on:
+Essential runtime services:
 
 #### 7. LLM Service
 **Purpose**: Interface to language models (OpenAI, Anthropic, Mock)  
@@ -163,41 +163,46 @@ response = await llm_bus.generate(
 )
 ```
 
-#### 8. Secrets Service
-**Purpose**: Secure credential management  
-**Protocol**: `SecretsServiceProtocol`  
+#### 8. Runtime Control Service
+**Purpose**: Dynamic system control (pause/resume processor, adapter management)  
+**Protocol**: `RuntimeControlProtocol`  
+**Bus**: `RuntimeControlBus` (always present)  
+**Why**: Remote management and debugging. Essential for production operations.
+
+#### 9. Task Scheduler Service
+**Purpose**: Cron-like task scheduling and agent self-directed activities  
+**Protocol**: `TaskSchedulerProtocol`  
 **Access**: Direct injection  
-**Why**: Single security boundary. All secrets in one auditable location.
+**Why**: Autonomous operation. Enables proactive agent behavior and maintenance.
 
 ### Infrastructure Services (7)
 
 Foundation services that enable the system:
 
-#### 9. Time Service
+#### 10. Time Service
 **Purpose**: Consistent time operations across the system  
 **Protocol**: `TimeServiceProtocol`  
 **Access**: Direct injection  
 **Why**: Testability and consistency. No direct `datetime.now()` calls.
 
-#### 10. Shutdown Service
+#### 11. Shutdown Service
 **Purpose**: Graceful shutdown coordination  
 **Protocol**: `ShutdownServiceProtocol`  
 **Access**: Direct injection  
 **Why**: Data integrity. Ensure clean shutdown even in resource-constrained environments.
 
-#### 11. Initialization Service
+#### 12. Initialization Service
 **Purpose**: Startup orchestration and dependency management  
 **Protocol**: `InitializationServiceProtocol`  
 **Access**: Direct injection  
 **Why**: Complex initialization order. Services have interdependencies.
 
-#### 12. Visibility Service
+#### 13. Authentication Service
 **Purpose**: System introspection and monitoring  
 **Protocol**: `VisibilityServiceProtocol`  
 **Access**: Direct injection  
 **Why**: Understand system state without external tools. Critical for offline deployments.
 
-#### 13. Authentication Service
 **Purpose**: Identity verification and access control  
 **Protocol**: `AuthServiceProtocol`  
 **Access**: Direct injection  
@@ -209,41 +214,53 @@ Foundation services that enable the system:
 **Access**: Direct injection  
 **Why**: Prevent resource exhaustion in constrained environments (4GB RAM target).
 
-#### 15. Runtime Control Service
-**Purpose**: Dynamic system control (start/stop services, change states)  
-**Protocol**: `RuntimeControlProtocol`  
-**Bus**: `RuntimeControlBus` (optional, adapter-provided)  
-**Why**: Remote management. Critical for headless deployments.
+#### 15. Database Maintenance Service
+**Purpose**: SQLite optimization, vacuum operations, and long-term health
+**Protocol**: `DatabaseMaintenanceProtocol`
+**Access**: Direct injection
+**Why**: Critical for 1000-year operation in resource-constrained environments.
 
-### Governance Services (1)
+#### 16. Secrets Service
+**Purpose**: Cryptographic secret management and encryption  
+**Protocol**: `SecretsServiceProtocol`  
+**Access**: Direct injection  
+**Why**: Central security boundary. All secrets encrypted with AES-256-GCM.
 
-#### 16. Wise Authority Service
+### Governance Services (4)
+
+Ethical and operational governance:
+
+#### 17. Wise Authority Service
 **Purpose**: Ethical decision making and guidance  
 **Protocol**: `WiseAuthorityProtocol`  
 **Bus**: `WiseBus` (supports distributed wisdom)  
 **Why**: Ubuntu philosophy. Decisions consider community impact.
 
-### Special Services (3)
-
-Advanced capabilities:
-
-#### 17. Self Configuration Service
-**Purpose**: Pattern detection and identity monitoring (no automatic changes)  
-**Protocol**: `SelfConfigProtocol`  
-**Access**: Direct injection  
-**Why**: Learn from experience. Agent discovers insights and decides how to adapt.
-
 #### 18. Adaptive Filter Service
-**Purpose**: Content filtering based on context  
+**Purpose**: Intelligent message prioritization and spam detection  
 **Protocol**: `AdaptiveFilterProtocol`  
 **Access**: Direct injection  
-**Why**: Cultural sensitivity. What's appropriate varies by community.
+**Why**: Manages attention economy. Learns what deserves immediate response vs. deferral. Tracks user trust levels.
 
-#### 19. Task Scheduler Service
-**Purpose**: Cron-like task scheduling  
-**Protocol**: `TaskSchedulerProtocol`  
+#### 19. Visibility Service
+**Purpose**: Reasoning transparency - the "why" behind decisions (TRACES)  
+**Protocol**: `VisibilityServiceProtocol`  
 **Access**: Direct injection  
-**Why**: Autonomous operation. Run maintenance tasks without human intervention.
+**Why**: Trust through transparency. Explains decision chains, not system metrics.
+
+#### 20. Self Observation Service
+**Purpose**: Behavioral analysis and pattern detection that generates insights  
+**Protocol**: `SelfObservationProtocol`  
+**Access**: Direct injection  
+**Why**: Continuous learning. Detects patterns, generates insights the agent can act on. Monitors identity variance and triggers WA review if threshold exceeded.
+
+### Tool Services (1)
+
+#### 21. Secrets Tool Service
+**Purpose**: Agent self-help tools including secret recall and filter updates
+**Protocol**: `ToolServiceProtocol`
+**Bus**: `ToolBus` (always present)
+**Why**: Enables agent self-sufficiency. Core tools always available even offline.
 
 ## Message Bus Architecture
 
@@ -287,9 +304,9 @@ response = await llm_bus.generate(
 ```
 
 #### 3. ToolBus
-**Providers**: Adapter-specific tools  
+**Providers**: Adapter-specific tools + core secrets tools  
 **Purpose**: Dynamic tool discovery and execution  
-**Note**: No standalone service - adapters provide tools
+**Note**: Core secrets tool service always present, adapters add more
 
 #### 4. CommunicationBus
 **Providers**: Discord, API, CLI adapters  
@@ -309,9 +326,9 @@ guidance = await wise_bus.seek_wisdom(
 ```
 
 #### 6. RuntimeControlBus
-**Providers**: API control, CLI control  
+**Providers**: Core runtime control + optional adapter additions  
 **Purpose**: System management interface  
-**Note**: Optional - only if adapter provides it
+**Note**: Core service always present, adapters may add additional providers
 
 ### Bus vs Direct Access Rules
 
@@ -635,18 +652,23 @@ CIRIS follows a strict initialization order to manage dependencies:
 7. REMAINING SERVICES
    ├── LLMService
    ├── AuthenticationService
-   ├── VisibilityService
+   ├── DatabaseMaintenanceService
+   ├── RuntimeControlService
    ├── TaskSchedulerService
    ├── AdaptiveFilterService
-   └── SelfConfigurationService
+   ├── VisibilityService
+   └── SelfObservationService
 
-8. COMPONENTS
+8. TOOL SERVICES
+   └── SecretsToolService
+
+9. COMPONENTS
    ├── Build processors
    ├── Build handlers
    └── Wire dependencies
 
-9. VERIFICATION
-   └── Final health checks
+10. VERIFICATION
+    └── Final health checks
 ```
 
 ### Dependency Rules
@@ -841,7 +863,7 @@ The system adapts:
 Key decisions that shaped CIRIS:
 
 1. **SQLite over PostgreSQL**: Offline-first requirement
-2. **19 Services**: Right balance of modularity and complexity
+2. **21 Services**: Right balance of modularity and complexity
 3. **Pydantic Everywhere**: Runtime validation critical for medical use
 4. **Graph Memory**: Flexible knowledge representation
 5. **Mock LLM**: Essential for offline operation

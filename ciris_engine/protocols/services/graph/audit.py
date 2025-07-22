@@ -70,8 +70,8 @@ class AuditServiceProtocol(GraphServiceProtocol, Protocol):
     @abstractmethod
     async def export_audit_data(
         self,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
         format: str = 'jsonl'
     ) -> str:
         """Export audit data."""

@@ -296,12 +296,13 @@ def main(
                 from ciris_engine.logic.adapters.api.config import APIAdapterConfig
                 
                 api_config = APIAdapterConfig()
+                # Load environment variables first
+                api_config.load_env_vars()
+                # Then override with command line args if provided
                 if api_host:
                     api_config.host = api_host
                 if api_port:
                     api_config.port = api_port
-                
-                # Environment variables are loaded by global configuration bootstrap
                 
                 adapter_configs[adapter_type] = api_config
                 api_channel_id = api_config.get_home_channel_id(api_config.host, api_config.port)

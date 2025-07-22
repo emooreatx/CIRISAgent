@@ -268,16 +268,20 @@ class AgentProcessor:
             await self.stop_processing()
             return
 
+        logger.info("Attempting to transition from WAKEUP to WORK state...")
         if not self.state_manager.transition_to(AgentState.WORK):
             logger.error("Failed to transition to WORK state after wakeup")
             await self.stop_processing()
             return
 
+        logger.info("Successfully transitioned to WORK state")
         self.state_manager.update_state_metadata("wakeup_complete", True)
 
+        logger.info("Loading preload tasks...")
         self._load_preload_tasks()
 
         # Schedule first dream session
+        logger.info("Scheduling initial dream session...")
         await self._schedule_initial_dream()
 
         if hasattr(self, "runtime") and self.runtime is not None and hasattr(self.runtime, "start_interactive_console"):
@@ -287,9 +291,13 @@ class AgentProcessor:
             except Exception as e:
                 logger.error(f"Error initializing interactive console: {e}")
 
+        logger.info("Initializing work processor...")
         self.work_processor.initialize()
+        logger.info("Work processor initialized successfully")
 
+        logger.info("Creating processing loop task...")
         self._processing_task = asyncio.create_task(self._processing_loop(num_rounds))
+        logger.info("Processing loop task created")
 
         try:
             await self._processing_task
@@ -693,11 +701,13 @@ class AgentProcessor:
 
     async def _processing_loop(self, num_rounds: Optional[int] = None) -> None:
         """Main processing loop with state management and comprehensive exception handling."""
+        logger.info(f"Processing loop started (num_rounds: {num_rounds})")
         round_count = 0
         consecutive_errors = 0
         max_consecutive_errors = 5
 
         try:
+            logger.info("Entering main processing while loop...")
             while not (self._stop_event is not None and self._stop_event.is_set()):
                 try:
                     if num_rounds is not None and round_count >= num_rounds:
@@ -734,14 +744,18 @@ class AgentProcessor:
 
                     # Process based on current state
                     current_state = self.state_manager.get_state()
+                    logger.info(f"Processing round {round_count}, current state: {current_state}")
 
                     # Get processor for current state
                     processor = self.state_processors.get(current_state)
+                    logger.info(f"Got processor for state {current_state}: {processor.__class__.__name__ if processor else 'None'}")
 
                     if processor and current_state != AgentState.SHUTDOWN:
                         # Use the appropriate processor (except for SHUTDOWN which has special handling)
                         try:
+                            logger.info(f"Calling {processor.__class__.__name__}.process(round={self.current_round_number})")
                             result = await processor.process(self.current_round_number)
+                            logger.info(f"Processor returned: {result.__class__.__name__ if hasattr(result, '__class__') else type(result)}")
                             round_count += 1
                             consecutive_errors = 0  # Reset error counter on success
 

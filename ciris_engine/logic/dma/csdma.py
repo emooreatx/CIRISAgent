@@ -50,33 +50,17 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
             **kwargs
         )
 
-        self.prompt_overrides = prompt_overrides or {}
 
         # Load prompts from YAML file
         self.prompt_loader = get_prompt_loader()
-        try:
-            self.prompt_template_data = self.prompt_loader.load_prompt_template("csdma_common_sense")
-        except FileNotFoundError:
-            logger.warning("CSDMA prompt template not found, using fallback")
-            # Fallback to embedded prompt for backward compatibility
-            self.prompt_template_data = {
-                "system_guidance_header": DEFAULT_TEMPLATE,
-                "covenant_header": True
-            }
-
-        # Apply prompt overrides if provided
-        if self.prompt_overrides:
-            self.prompt_template_data.update(self.prompt_overrides)
+        self.prompt_template_data = self.prompt_loader.load_prompt_template("csdma_common_sense")
 
         # Client will be retrieved from the service registry during evaluation
 
         self.env_kg = environmental_kg # Placeholder for now
         self.task_kg = task_specific_kg   # Placeholder for now
         # Log the final client type being used
-        logger.info(
-            f"CSDMAEvaluator initialized with model: {self.model_name}. "
-            f"Overrides: {self.prompt_overrides is not None}"
-        )
+        logger.info(f"CSDMAEvaluator initialized with model: {self.model_name}")
 
     def _create_csdma_messages_for_instructor(
         self,
