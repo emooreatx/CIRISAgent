@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  ciris-local:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: ciris-api-discord-mock
+    ports:
+      - "8080:8080"
+    environment:
+      # Force mock LLM
+      - CIRIS_MOCK_LLM=true
+      # API configuration
+      - CIRIS_API_HOST=0.0.0.0
+      - CIRIS_API_PORT=8080
+      - CIRIS_API_INTERACTION_TIMEOUT=3.0
+      # Discord configuration - these will be loaded from .env file if present
+      - DISCORD_BOT_TOKEN=${DISCORD_BOT_TOKEN}
+      - DISCORD_SERVER_ID=${DISCORD_SERVER_ID}
+      - DISCORD_CHANNEL_ID=${DISCORD_CHANNEL_ID}
+      - DISCORD_DEFERRAL_CHANNEL_ID=${DISCORD_DEFERRAL_CHANNEL_ID}
+      - WA_USER_ID=${WA_USER_ID}
+      - SNORE_CHANNEL_ID=${SNORE_CHANNEL_ID}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      # Mount the .env file into the container
+      - ./.env:/app/.env:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/system/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    labels:
+      - "autoheal=true"
+    command: ["python", "main.py", "--adapter", "api", "--adapter", "discord", "--mock-llm"]
+
+  autoheal:
+    image: willfarrell/autoheal:latest
+    container_name: ciris-autoheal
+    restart: always
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+      - AUTOHEAL_INTERVAL=30
+      - AUTOHEAL_START_PERIOD=60
+      - DOCKER_SOCK=/var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock

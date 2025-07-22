@@ -152,7 +152,8 @@ class CIRISAPIClient:
                     
             # Check handler match
             if handler_name in str(entry.get('actor', '')) or \
-               handler_name.upper() in str(entry.get('action', '')):
+               handler_name.upper() in str(entry.get('action', '')) or \
+               f"HANDLER_ACTION_{handler_name.upper().replace('HANDLER', '')}" in str(entry.get('action', '')):
                 return True
         
         # If running in container, try direct DB query

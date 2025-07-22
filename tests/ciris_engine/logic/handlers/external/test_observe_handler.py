@@ -100,6 +100,14 @@ def mock_bus_manager(mock_memory_bus: AsyncMock) -> Mock:
     manager.memory = mock_memory_bus
     manager.audit_service = AsyncMock()
     manager.audit_service.log_event = AsyncMock()
+    
+    # Add communication bus for active observation
+    manager.communication = AsyncMock()
+    manager.communication.fetch_messages = AsyncMock(return_value=[
+        Mock(message_id="msg1", content="Test message 1", author_id="user1"),
+        Mock(message_id="msg2", content="Test message 2", author_id="user2")
+    ])
+    
     return manager
 
 
@@ -289,11 +297,11 @@ class TestObserveHandler:
         self, observe_handler: ObserveHandler, test_thought: Thought, dispatch_context: DispatchContext,
         mock_memory_bus: AsyncMock, test_task: Task, channel_context: ChannelContext
     ) -> None:
-        """Test passive observation mode."""
+        """Test passive observation mode - now always creates follow-up."""
         # Create passive observation params
         params = ObserveParams(
             channel_context=channel_context,
-            active=False,  # Passive mode
+            active=False,  # Will be forced to True
             context={
                 "observation": "User mentioned they work nights",
                 "type": "user_info",
@@ -315,14 +323,19 @@ class TestObserveHandler:
             # Execute handler
             follow_up_id = await observe_handler.handle(result, test_thought, dispatch_context)
             
-            # For passive observation, handler completes without doing anything
-            # No memorize or recall should happen
-            mock_memory_bus.memorize.assert_not_called()
-            mock_memory_bus.recall.assert_not_called()
+            # Handler now always creates follow-up thoughts (active=True is forced)
+            assert follow_up_id is not None
             
-            # Thought should be marked as completed
-            # Check if persistence was called (could be in base handler)
-            assert follow_up_id is None  # No follow-up for passive observation
+            # Should perform active observation (fetching messages)
+            observe_handler.bus_manager.communication.fetch_messages.assert_called_once()
+            
+            # Should update thought status
+            mock_base_persistence.update_thought_status.assert_called_once()
+            
+            # Should create follow-up thought
+            mock_base_persistence.add_thought.assert_called_once()
+            follow_up_call = mock_base_persistence.add_thought.call_args[0][0]
+            assert "CIRIS_FOLLOW_UP_THOUGHT" in follow_up_call.content
 
     @pytest.mark.asyncio
     async def test_observation_without_author_info(

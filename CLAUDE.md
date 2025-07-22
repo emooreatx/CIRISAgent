@@ -565,6 +565,43 @@ docker exec <container> tail -n 100 /app/logs/incidents_latest.log
 
 **NEVER restart the container until everything in incidents_latest.log has been understood and addressed** - These are opportunities to discover flaws in the software. Each error message is valuable debugging information.
 
+### Root Cause Analysis (RCA) Mode
+
+When debugging issues, especially "smoking guns", follow this RCA methodology:
+
+1. **Preserve the Crime Scene**: Don't clean up stuck tasks or errors immediately - they reveal system behavior
+2. **Use Debug Tools First**: 
+   ```python
+   docker exec container python debug_tools.py
+   # Then explore with commands like:
+   show_thoughts(status='PENDING')
+   show_correlations(trace_id="...")
+   ```
+3. **Trace the Full Flow**: Follow data through the entire pipeline before making changes
+4. **Test Incrementally**: Add debug logging, rebuild, test - small steps reveal root causes
+5. **Question Assumptions**: "Active observations" vs "passive observations" - challenge the design
+
+**Example RCA Success**: ObserveHandler Issue
+- **Symptom**: 35 tasks stuck in ACTIVE state
+- **Initial Instinct**: Clean them up ❌
+- **RCA Approach**: 
+  1. Used debug_tools to examine stuck tasks
+  2. Found they all had observation thoughts with no follow-ups
+  3. Added debug logging to trace the flow
+  4. Discovered mock LLM defaulted to `active=False`
+  5. Root cause: Passive observations don't create follow-ups
+  6. Solution: Remove passive observation capability entirely
+
+### The Value of Errors
+
+**Errors are not failures - they are insights into system behavior**:
+- A stuck task reveals a missing state transition
+- A crash exposes a race condition
+- Silent failures show where logging is needed
+- Unexpected behavior challenges our mental model
+
+**Never suppress errors without understanding them** - They are the system trying to tell you something important.
+
 ### Mock LLM Behavior
 The mock LLM may not always respond with a message - **this is by design**:
 - **DEFER**: Task is deferred, no message sent back
@@ -609,13 +646,16 @@ The mock LLM extracts commands from user context in this order:
 - **Incident logs are gold**: Every error reveals system behavior
 
 ### Command Output Best Practices
-**NEVER pipe output to grep or jq without understanding the output format first**
+**🚨 CRITICAL: NEVER pipe output to grep or jq without understanding the output format first 🚨**
 
 **Why this matters**:
 1. **Error messages look like data**: Many tools output errors as JSON or structured text that can be parsed incorrectly
 2. **Silent failures**: `jq` returns null or empty when parsing fails, hiding the actual error
 3. **Lost debugging info**: Piping immediately loses HTTP status codes, headers, and error details
 4. **Cascading confusion**: Wrong assumptions about output format lead to wrong conclusions about system state
+5. **Wasted debugging time**: You'll spend hours chasing ghosts when the real error was hidden by jq
+
+**GOLDEN RULE**: Always run the command WITHOUT pipes first, examine the output, THEN add parsing.
 
 **Best practices**:
 ```bash
@@ -640,13 +680,26 @@ some_command | grep -i error
 # ✅ Good - Examine output first
 some_command  # See all output
 # Then search for specific patterns
+
+# ❌ WORST - Chaining pipes without checking
+curl -s http://localhost:8080/v1/system/health | jq -r '.status' | grep healthy
+
+# ✅ BEST - Step by step verification
+# Step 1: Check raw response
+curl -s http://localhost:8080/v1/system/health
+# Step 2: If JSON, check with jq
+curl -s http://localhost:8080/v1/system/health | jq '.'
+# Step 3: Extract specific field only after confirming structure
+curl -s http://localhost:8080/v1/system/health | jq -r '.status'
 ```
 
-**Common mistakes**:
-- Parsing HTML as JSON (e.g., Cloudflare 502 pages)
-- Assuming API errors return JSON (many return plain text)
-- Using `jq` on null/empty responses (hides the real issue)
+**Common mistakes that waste hours**:
+- Parsing HTML as JSON (e.g., Cloudflare 502 pages, nginx error pages)
+- Assuming API errors return JSON (many return plain text or HTML)
+- Using `jq` on null/empty responses (hides connection failures)
 - Grepping for patterns that don't exist in the actual output
+- Container not running but jq hides the "connection refused" error
+- Service returning 500 error with HTML but jq shows null
 
 ### Production Deployment - agents.ciris.ai
 

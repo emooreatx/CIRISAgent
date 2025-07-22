@@ -138,11 +138,11 @@ class TestAPIAdapterLifecycle:
         """Test API adapter start lifecycle."""
         # Mock server
         mock_server = Mock()
-        mock_server.startup = AsyncMock()
-        mock_server.main_loop = AsyncMock()
+        mock_server.serve = AsyncMock()
         mock_server.should_exit = False
         
-        with patch('ciris_engine.logic.adapters.api.adapter.Server') as mock_server_class:
+        with patch('uvicorn.Server') as mock_server_class, \
+             patch('uvicorn.Config') as mock_config_class:
             mock_server_class.return_value = mock_server
             
             # Start the platform
@@ -233,7 +233,12 @@ class TestAPIMessageHandling:
         )
         
         # Start platform to set up message handler
-        with patch('ciris_engine.logic.adapters.api.adapter.Server'):
+        with patch('uvicorn.Server') as mock_server_class, patch('uvicorn.Config'):
+            # Configure the mock server instance
+            mock_server = Mock()
+            mock_server.serve = AsyncMock()
+            mock_server_class.return_value = mock_server
+            
             with patch('ciris_engine.logic.adapters.api.adapter.APIObserver', return_value=mock_observer):
                 await api_platform.start()
                 
@@ -257,7 +262,12 @@ class TestAPIMessageHandling:
         api_platform.message_observer.handle_incoming_message = AsyncMock()
         
         # Start platform
-        with patch('ciris_engine.logic.adapters.api.adapter.Server'):
+        with patch('uvicorn.Server') as mock_server_class, patch('uvicorn.Config'):
+            # Configure the mock server instance
+            mock_server = Mock()
+            mock_server.serve = AsyncMock()
+            mock_server_class.return_value = mock_server
+            
             await api_platform.start()
             
             # Create test message with string timestamp
@@ -316,7 +326,7 @@ class TestAPIErrorHandling:
     @pytest.mark.asyncio
     async def test_server_startup_error(self, api_platform):
         """Test handling of server startup errors."""
-        with patch('ciris_engine.logic.adapters.api.adapter.uvicorn.Server') as mock_server_class:
+        with patch('uvicorn.Server') as mock_server_class, patch('uvicorn.Config'):
             mock_server = Mock()
             # Make serve() raise an exception
             async def failing_serve():
@@ -346,7 +356,12 @@ class TestAPIErrorHandling:
         )
         
         # Start platform
-        with patch('ciris_engine.logic.adapters.api.adapter.Server'):
+        with patch('uvicorn.Server') as mock_server_class, patch('uvicorn.Config'):
+            # Configure the mock server instance
+            mock_server = Mock()
+            mock_server.serve = AsyncMock()
+            mock_server_class.return_value = mock_server
+            
             await api_platform.start()
             
             # Create test message with string timestamp
@@ -407,7 +422,12 @@ class TestAPIConcurrentHandling:
         mock_observer.start = AsyncMock()
         
         # Start platform
-        with patch('ciris_engine.logic.adapters.api.adapter.Server'):
+        with patch('uvicorn.Server') as mock_server_class, patch('uvicorn.Config'):
+            # Configure the mock server instance
+            mock_server = Mock()
+            mock_server.serve = AsyncMock()
+            mock_server_class.return_value = mock_server
+            
             with patch('ciris_engine.logic.adapters.api.adapter.APIObserver', return_value=mock_observer):
                 await api_platform.start()
                 

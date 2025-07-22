@@ -83,7 +83,15 @@ class TelemetryResourcesHistory(BaseModel):
             
         # Extract period from nested data if needed
         period = data.get("period")
-        if not period:
+        if isinstance(period, dict):
+            # Period is a dict with start, end, hours
+            if "start" in period and "end" in period:
+                period = f"{period['start']} to {period['end']}"
+            elif "hours" in period:
+                period = f"Last {period['hours']} hours"
+            else:
+                period = "Recent"
+        elif not period:
             # Create a period string from available data
             if "start" in data and "end" in data:
                 period = f"{data['start']} to {data['end']}"
