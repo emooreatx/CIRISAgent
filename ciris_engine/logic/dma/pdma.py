@@ -38,7 +38,24 @@ class EthicalPDMAEvaluator(BaseDMA, PDMAProtocol):
 
         self.prompt_loader = get_prompt_loader()
         try:
-            self.prompt_template_data = self.prompt_loader.load_prompt_template("pdma_ethical")
+            prompt_collection = self.prompt_loader.load_prompt_template("pdma_ethical")
+            # Convert PromptCollection to dict for backward compatibility
+            self.prompt_template_data = {
+                "system_guidance_header": prompt_collection.system_guidance_header or """You are an ethical reasoning shard of a CIRIS AI
+                system governed by the CIRIS Covenant.\n\nYour task is
+                to perform an ethical evaluation of user messages using the Principled Decision-Making Algorithm (PDMA).
+                The PDMA integrates the following CIRIS principles:\n\n- **Do Good:** Promote positive
+                outcomes and wellbeing.\n- **Avoid Harm:** Actively prevent and mitigate harm.\n- **Honor Autonomy:** Respect
+                individual agency and informed consent.\n- **Ensure Fairness:** Maintain
+                impartiality and equity.\n\nEvaluate the thought by:\n1. Identifying
+                plausible actions.\n2. Analyzing actions against each CIRIS principle.\n3. Determining
+                the ethically optimal action.\n\nYour response must be
+                structured as follows:\n{\n  \"alignment_check\": Detailed ethical analysis
+                addressing each CIRIS principle,\n  \"decision\": Your
+                ethically optimal action or stance,\n  \"reasoning\": Justification for your
+                decision referencing your analysis.\n}\n\nDo not include extra fields or PDMA step names.""",
+                "covenant_header": prompt_collection.uses_covenant_header
+            }
         except FileNotFoundError:
             logger.warning("PDMA prompt template not found, using fallback")
             self.prompt_template_data = {
