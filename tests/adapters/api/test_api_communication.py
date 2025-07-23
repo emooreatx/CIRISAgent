@@ -203,16 +203,16 @@ class TestAPICommunicationMessageFetching:
             assert len(messages) == 2
             
             # Check observe message
-            assert messages[0]["content"] == "User message 1"
-            assert messages[0]["author_id"] == "user1"
-            assert messages[0]["author_name"] == "User One"
-            assert messages[0]["is_agent_message"] is False
+            assert messages[0].content == "User message 1"
+            assert messages[0].author_id == "user1"
+            assert messages[0].author_name == "User One"
+            assert messages[0].is_bot is False
             
             # Check speak message
-            assert messages[1]["content"] == "Bot response 1"
-            assert messages[1]["author_id"] == "ciris"
-            assert messages[1]["author_name"] == "CIRIS"
-            assert messages[1]["is_agent_message"] is True
+            assert messages[1].content == "Bot response 1"
+            assert messages[1].author_id == "ciris"
+            assert messages[1].author_name == "CIRIS"
+            assert messages[1].is_bot is True
     
     @pytest.mark.asyncio
     async def test_fetch_messages_with_before_timestamp(self, communication_service):

@@ -314,10 +314,10 @@ class TestAPIChannelManagement:
             channels = api_platform.get_channel_list()
             
             assert len(channels) == 2
-            assert any(c["channel_id"] == "api_127.0.0.1_8888" for c in channels)
-            assert any(c["channel_id"] == "api_192.168.1.1_8080" for c in channels)
-            assert all(c["channel_type"] == "api" for c in channels)
-            assert all(c["is_active"] for c in channels)
+            assert any(c.channel_id == "api_127.0.0.1_8888" for c in channels)
+            assert any(c.channel_id == "api_192.168.1.1_8080" for c in channels)
+            assert all(c.channel_type == "api" for c in channels)
+            assert all(c.is_active for c in channels)
 
 
 class TestAPIErrorHandling:
