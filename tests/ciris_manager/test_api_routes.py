@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from fastapi import FastAPI
 from unittest.mock import Mock, MagicMock, AsyncMock
 from pathlib import Path
-from ciris_manager.api.routes_v2 import create_routes
+from ciris_manager.api.routes import create_routes
 from ciris_manager.agent_registry import AgentInfo
 
 

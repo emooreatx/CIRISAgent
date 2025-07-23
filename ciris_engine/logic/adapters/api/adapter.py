@@ -15,6 +15,7 @@ from ciris_engine.logic.adapters.base import Service
 from ciris_engine.logic.registries.base import Priority
 from ciris_engine.schemas.adapters import AdapterServiceRegistration
 from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.runtime.system_context import ChannelContext
 from .app import create_app
 from .config import APIAdapterConfig
 from .api_runtime_control import APIRuntimeControlService
@@ -78,6 +79,13 @@ class ApiPlatform(Service):
         self.tool_service = APIToolService(
             time_service=getattr(runtime, 'time_service', None)
         )
+        
+        # Debug logging
+        logger.info(f"[DEBUG] adapter_config in kwargs: {'adapter_config' in kwargs}")
+        if 'adapter_config' in kwargs and kwargs['adapter_config'] is not None:
+            logger.info(f"[DEBUG] adapter_config type: {type(kwargs['adapter_config'])}")
+            if hasattr(kwargs['adapter_config'], 'host'):
+                logger.info(f"[DEBUG] adapter_config.host: {kwargs['adapter_config'].host}")
         
         logger.info(
             f"API adapter initialized - host: {self.config.host}, "
@@ -300,6 +308,7 @@ class ApiPlatform(Service):
 
     async def start(self) -> None:
         """Start the API server."""
+        logger.info(f"[DEBUG] At start() - config.host: {self.config.host}, config.port: {self.config.port}")
         await super().start()
         
         # Start the communication service
@@ -375,31 +384,45 @@ class ApiPlatform(Service):
         
         await super().stop()
     
-    def get_channel_list(self) -> List[Dict[str, Any]]:
+    def get_channel_list(self) -> List[ChannelContext]:
         """
         Get list of available API channels from correlations.
         
         Returns:
-            List of channel information dicts with:
-            - channel_id: str
-            - channel_name: Optional[str]
-            - channel_type: str (always "api")
-            - is_active: bool
-            - last_activity: Optional[datetime]
-            - is_admin: bool (whether channel belongs to admin user)
+            List of ChannelContext objects for API channels.
         """
         from ciris_engine.logic.persistence.models.correlations import (
             get_active_channels_by_adapter,
             is_admin_channel
         )
+        from datetime import datetime
         
         # Get active channels from last 30 days
-        channels = get_active_channels_by_adapter("api", since_days=30)
+        channels_data = get_active_channels_by_adapter("api", since_days=30)
         
-        # Enhance with admin status
-        for channel in channels:
-            channel["channel_name"] = channel["channel_id"]  # API channels use ID as name
-            channel["is_admin"] = is_admin_channel(channel["channel_id"])
+        # Convert to ChannelContext objects
+        channels = []
+        for data in channels_data:
+            # Determine allowed actions based on admin status
+            is_admin = is_admin_channel(data["channel_id"])
+            allowed_actions = ["speak", "observe", "memorize", "recall", "tool"]
+            if is_admin:
+                allowed_actions.extend(["wa_defer", "runtime_control"])
+            
+            channel = ChannelContext(
+                channel_id=data["channel_id"],
+                channel_type="api",
+                created_at=data.get("last_activity", datetime.now()),
+                channel_name=data["channel_id"],  # API channels use ID as name
+                is_private=False,  # API channels are not private
+                participants=[],  # Could track user IDs if needed
+                is_active=data.get("is_active", True),
+                last_activity=data.get("last_activity"),
+                message_count=data.get("message_count", 0),
+                allowed_actions=allowed_actions,
+                moderation_level="standard"
+            )
+            channels.append(channel)
         
         return channels
     

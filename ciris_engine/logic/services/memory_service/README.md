@@ -46,36 +46,29 @@ Adds new knowledge to the graph:
 
 ```python
 # Store a user preference
-await memory_service.memorize(
-    MemorizeParams(
-        concept="user_preference_language",
-        content="User prefers formal communication style",
-        scope=GraphScope.LOCAL,
-        metadata={"confidence": 0.9, "observed_count": 5},
-        associations=[
-            Association(
-                target_concept="user_profile",
-                relationship="PREFERENCE_OF",
-                metadata={"strength": "strong"}
-            )
-        ]
-    )
+# Store a node in the graph
+node = GraphNode(
+    id="user_preference_language",
+    type=NodeType.CONFIG,
+    scope=GraphScope.LOCAL,
+    attributes={
+        "content": "User prefers formal communication style",
+        "confidence": 0.9,
+        "observed_count": 5
+    }
 )
+await memory_service.memorize(node)
 
-# Store critical configuration (requires WA approval)
-await memory_service.memorize(
-    MemorizeParams(
-        concept="medical_protocol_override",
-        content="Allow emergency medication suggestions",
-        scope=GraphScope.IDENTITY,  # Triggers WA approval
-        associations=[
-            Association(
-                target_concept="safety_protocols",
-                relationship="MODIFIES"
-            )
-        ]
-    )
+# Store critical configuration (IDENTITY scope requires WA approval)
+node = GraphNode(
+    id="medical_protocol_override",
+    type=NodeType.CONFIG,
+    scope=GraphScope.IDENTITY,  # Triggers WA approval
+    attributes={
+        "content": "Allow emergency medication suggestions"
+    }
 )
+await memory_service.memorize(node)
 ```
 
 ### RECALL
@@ -83,37 +76,30 @@ await memory_service.memorize(
 Retrieves memories with semantic search and graph traversal:
 
 ```python
-# Simple concept recall
+# Simple node recall by ID
 result = await memory_service.recall(
-    SearchParams(
-        query="user communication preferences",
-        max_results=5,
+    MemoryQuery(
+        node_id="user_preference_language",
         scope=GraphScope.LOCAL
     )
 )
 
-# Complex graph traversal
+# Wildcard recall - get all nodes of a type
 result = await memory_service.recall(
-    SearchParams(
-        query="medical decisions last week",
-        include_associations=True,
-        max_depth=3,  # Follow relationships 3 hops
-        filters={
-            "node_type": "decision",
-            "risk_level": "high"
-        }
+    MemoryQuery(
+        node_id="*",  # Wildcard
+        scope=GraphScope.LOCAL,
+        type=NodeType.CONFIG
     )
 )
 
-# Time-based recall
+# Recall with edge traversal
 result = await memory_service.recall(
-    SearchParams(
-        query="my resource usage today",
-        node_type=NodeType.TSDB_SUMMARY,
-        time_range=TimeRange(
-            start=datetime.now() - timedelta(days=1),
-            end=datetime.now()
-        )
+    MemoryQuery(
+        node_id="medical_protocol",
+        scope=GraphScope.LOCAL,
+        include_edges=True,
+        depth=2  # Follow edges 2 hops
     )
 )
 ```
@@ -123,26 +109,14 @@ result = await memory_service.recall(
 Removes or archives memories (with audit trail):
 
 ```python
-# Forget with reason
-await memory_service.forget(
-    ForgetParams(
-        concept="outdated_medical_protocol",
-        reason="Replaced by updated 2025 guidelines",
-        scope=GraphScope.LOCAL,
-        cascade=False  # Don't delete related nodes
-    )
+# Forget a node
+node = GraphNode(
+    id="outdated_medical_protocol",
+    type=NodeType.CONFIG,
+    scope=GraphScope.LOCAL
 )
-
-# Compliance-driven forgetting
-await memory_service.forget(
-    ForgetParams(
-        concept="patient_data_*",
-        reason="GDPR deletion request",
-        scope=GraphScope.LOCAL,
-        cascade=True,  # Remove all related data
-        no_audit=False  # Always audit deletions
-    )
-)
+result = await memory_service.forget(node)
+# Note: Reason is tracked in audit trail, not in forget operation
 ```
 
 ## Implementation Details
@@ -152,29 +126,22 @@ await memory_service.forget(
 The default implementation backed by SQLite:
 
 ```python
-class LocalGraphMemoryService(MemoryServiceProtocol):
-    def __init__(self, db_manager: DatabaseManager):
-        self.db_manager = db_manager
+class LocalGraphMemoryService(BaseGraphService, MemoryService):
+    def __init__(self, db_path: Optional[str] = None, 
+                 secrets_service: Optional[SecretsService] = None,
+                 time_service: Optional[TimeServiceProtocol] = None):
+        # Initialize with optional dependencies
+        super().__init__(memory_bus=None, time_service=time_service)
         
-    async def memorize(self, params: MemorizeParams) -> MemoryOpStatus:
-        # Create node with proper type
-        node = self._create_node(params)
+    async def memorize(self, node: GraphNode) -> MemoryOpResult:
+        # Process secrets before storing
+        processed_node = await self._process_secrets_for_memorize(node)
         
-        # Check WA approval if needed
-        if params.scope in [GraphScope.IDENTITY, GraphScope.ENVIRONMENT]:
-            if not await self._check_wa_approval(params):
-                return MemoryOpStatus.PERMISSION_DENIED
+        # Store in persistence layer
+        persistence.add_graph_node(processed_node, db_path=self.db_path)
         
-        # Store in database
-        await self._store_node(node)
-        
-        # Create associations
-        await self._create_associations(node, params.associations)
-        
-        # Update audit trail
-        await self._audit_memorize(node, params)
-        
-        return MemoryOpStatus.OK
+        # Note: WA approval happens at handler level, not here
+        return MemoryOpResult(status=MemoryOpStatus.OK)
 ```
 
 ### Graph Storage Schema
@@ -261,20 +228,20 @@ my_metrics = await memory_service.recall(
 ### Graph Traversal Patterns
 
 ```python
-# Find all memories related to a concept
-related = await memory_service.traverse(
-    start_concept="diabetes_management",
-    relationship_types=["RELATES_TO", "PART_OF", "UPDATES"],
-    max_depth=3,
-    direction="BOTH"
+# Get edges for a node
+edges = memory_service.get_node_edges(
+    node_id="diabetes_management",
+    scope=GraphScope.LOCAL
 )
 
-# Build knowledge graph for visualization
-graph = await memory_service.get_subgraph(
-    root_concepts=["medical_knowledge", "patient_interactions"],
-    depth=2,
-    include_properties=True
+# Create relationships between nodes
+edge = GraphEdge(
+    source="diabetes_management",
+    target="patient_care_protocol",
+    relationship="RELATES_TO",
+    scope=GraphScope.LOCAL
 )
+memory_service.create_edge(edge)
 ```
 
 ## Best Practices
@@ -282,25 +249,32 @@ graph = await memory_service.get_subgraph(
 ### 1. Use Semantic Concepts
 
 ```python
-# Good - semantic concept name
-await memorize(concept="user_prefers_metric_units", ...)
+# Good - semantic node ID
+node = GraphNode(
+    id="user_prefers_metric_units",
+    type=NodeType.CONFIG,
+    ...
+)
 
 # Bad - implementation detail
-await memorize(concept="pref_metric_flag_true", ...)
+node = GraphNode(
+    id="pref_metric_flag_true",
+    type=NodeType.CONFIG,
+    ...
+)
 ```
 
 ### 2. Create Rich Associations
 
 ```python
-# Good - multiple relationships
-associations=[
-    Association("user_profile", "PREFERENCE_OF"),
-    Association("measurement_system", "USES"),
-    Association("interaction_style", "INFLUENCES")
-]
+# Good - create edges to connect nodes
+edge1 = GraphEdge(source=node_id, target="user_profile", relationship="PREFERENCE_OF")
+edge2 = GraphEdge(source=node_id, target="measurement_system", relationship="USES")
+memory_service.create_edge(edge1)
+memory_service.create_edge(edge2)
 
-# Bad - isolated memory
-associations=[]
+# Bad - isolated node with no relationships
+# (no edges created)
 ```
 
 ### 3. Include Metadata
@@ -374,18 +348,12 @@ await memorize(
 
 ## Future Enhancements
 
-### Planned Features
-- Distributed graph support (Neo4j, ArangoDB)
-- Graph partitioning by scope
-- Real-time graph streaming
-- ML-based relationship discovery
-- Quantum-ready graph algorithms
-
-### Research Areas
-- Homomorphic encryption for private memories
-- Federated learning across agent graphs
-- Emergent behavior from graph patterns
-- Consciousness emergence metrics
+### Current Architecture
+- SQLite-based graph storage for offline operation
+- Scope-based access control with WA integration
+- Automatic secret detection and encryption
+- Time-series data consolidation
+- Identity variance monitoring
 
 ## Troubleshooting
 
@@ -419,11 +387,15 @@ print(f"Total nodes: {graph_stats['node_count']}")
 print(f"Total edges: {graph_stats['edge_count']}")
 print(f"Node types: {graph_stats['node_types']}")
 
-# Trace query execution
-result = await memory_service.recall(
-    SearchParams(query="test", debug=True)
+# Use search method for text queries
+results = await memory_service.search(
+    query="test",
+    filters=MemorySearchFilter(
+        node_type="CONFIG",
+        scope="local",
+        limit=10
+    )
 )
-print(result.debug_info)
 ```
 
 ## Summary

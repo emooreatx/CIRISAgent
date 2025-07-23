@@ -12,6 +12,7 @@ from ciris_engine.schemas.telemetry.core import (
     ServiceCorrelation, ServiceCorrelationStatus,
     ServiceRequestData, ServiceResponseData, TraceContext
 )
+from ciris_engine.schemas.runtime.system_context import ChannelContext
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
@@ -45,17 +46,12 @@ class BaseAdapter(Service):
             self._time_service = getattr(self.runtime, 'time_service', None)
         return self._time_service
     
-    def get_channel_list(self) -> List[Dict[str, Any]]:
+    def get_channel_list(self) -> List[ChannelContext]:
         """
         Get list of available channels for this adapter.
         
         Returns:
-            List of channel information dicts with at least:
-            - channel_id: str
-            - channel_name: Optional[str]
-            - channel_type: str (adapter type)
-            - is_active: bool
-            - last_activity: Optional[datetime]
+            List of ChannelContext objects containing channel information.
         
         This base implementation returns empty list.
         Subclasses should override to provide actual channels.

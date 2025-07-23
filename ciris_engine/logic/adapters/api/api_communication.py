@@ -8,6 +8,7 @@ import asyncio
 
 from ciris_engine.protocols.services.governance.communication import CommunicationServiceProtocol
 from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.runtime.messages import FetchedMessage
 
 if TYPE_CHECKING:
     from ciris_engine.schemas.services.core import ServiceStatus, ServiceCapabilities
@@ -146,7 +147,7 @@ class APICommunicationService(CommunicationServiceProtocol):
         *,
         limit: int = 50,
         before: Optional[datetime] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[FetchedMessage]:
         """Retrieve messages from a channel using the correlations database."""
         from ciris_engine.logic.persistence import get_correlations_by_channel
         
@@ -171,15 +172,14 @@ class APICommunicationService(CommunicationServiceProtocol):
                     elif hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
                         content = corr.request_data.parameters.get("content", "")
                     
-                    messages.append({
-                        "message_id": corr.correlation_id,
-                        "author_id": "ciris",  # Agent messages
-                        "author_name": "CIRIS",
-                        "content": content,
-                        "timestamp": corr.timestamp or corr.created_at,
-                        "channel_id": channel_id,
-                        "is_agent_message": True
-                    })
+                    messages.append(FetchedMessage(
+                        message_id=corr.correlation_id,
+                        author_id="ciris",  # Agent messages
+                        author_name="CIRIS",
+                        content=content,
+                        timestamp=(corr.timestamp or corr.created_at).isoformat() if (corr.timestamp or corr.created_at) else None,
+                        is_bot=True
+                    ))
                 elif corr.action_type == "observe" and corr.request_data:
                     # This is an incoming message from a user
                     content = ""
@@ -198,18 +198,17 @@ class APICommunicationService(CommunicationServiceProtocol):
                         author_id = params.get("author_id", "unknown")
                         author_name = params.get("author_name", "User")
                     
-                    messages.append({
-                        "message_id": corr.correlation_id,
-                        "author_id": author_id,
-                        "author_name": author_name,
-                        "content": content,
-                        "timestamp": corr.timestamp or corr.created_at,
-                        "channel_id": channel_id,
-                        "is_agent_message": False
-                    })
+                    messages.append(FetchedMessage(
+                        message_id=corr.correlation_id,
+                        author_id=author_id,
+                        author_name=author_name,
+                        content=content,
+                        timestamp=(corr.timestamp or corr.created_at).isoformat() if (corr.timestamp or corr.created_at) else None,
+                        is_bot=False
+                    ))
             
             # Sort by timestamp
-            messages.sort(key=lambda m: str(m["timestamp"]))
+            messages.sort(key=lambda m: str(m.timestamp))
             
             return messages
             

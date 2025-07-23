@@ -1,22 +1,24 @@
 """Epistemic Faculty Protocol for Conscience Integration."""
 
-from typing import Protocol, Dict, Any, Optional, List
+from typing import Protocol, Optional, List
 from abc import abstractmethod
+
+from ciris_engine.schemas.dma.faculty import FacultyResult, FacultyContext
 
 class EpistemicFaculty(Protocol):
     """Protocol for epistemic faculties used in conscience bounce mechanism."""
 
     @abstractmethod
-    async def analyze(self, content: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    async def analyze(self, content: str, context: Optional[FacultyContext] = None) -> FacultyResult:
         """
         Analyze content and return epistemic insights.
 
         Args:
             content: The content to analyze
-            context: Optional context for deeper analysis
+            context: Optional typed context for deeper analysis
 
         Returns:
-            Dictionary containing faculty-specific analysis results
+            FacultyResult containing faculty-specific analysis results
         """
         ...
 
