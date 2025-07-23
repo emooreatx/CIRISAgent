@@ -13,28 +13,28 @@ class TestServiceMapping:
     """Tests for ServiceMapping dataclass."""
     
     def test_service_mapping_defaults(self):
-        """Test ServiceMapping with default app_state_names."""
+        """Test ServiceMapping with default app_state_name."""
         mapping = ServiceMapping("test_service", description="Test service")
         assert mapping.runtime_attr == "test_service"
-        assert mapping.app_state_names == ["test_service"]
+        assert mapping.app_state_name == "test_service"
         assert mapping.special_handler is None
         assert mapping.description == "Test service"
     
-    def test_service_mapping_empty_list_triggers_post_init(self):
-        """Test that empty app_state_names triggers __post_init__."""
+    def test_service_mapping_none_triggers_post_init(self):
+        """Test that None app_state_name triggers __post_init__."""
         # This specifically tests the __post_init__ method
-        mapping = ServiceMapping("test_service", app_state_names=[], description="Test")
-        assert mapping.app_state_names == ["test_service"]
+        mapping = ServiceMapping("test_service", app_state_name=None, description="Test")
+        assert mapping.app_state_name == "test_service"
     
-    def test_service_mapping_with_explicit_names(self):
-        """Test ServiceMapping with explicit app_state_names."""
+    def test_service_mapping_with_explicit_name(self):
+        """Test ServiceMapping with explicit app_state_name."""
         mapping = ServiceMapping(
             "wa_auth_system",
-            app_state_names=["wise_authority_service", "wa_service"],
+            app_state_name="wise_authority_service",
             description="Wise Authority"
         )
         assert mapping.runtime_attr == "wa_auth_system"
-        assert mapping.app_state_names == ["wise_authority_service", "wa_service"]
+        assert mapping.app_state_name == "wise_authority_service"
     
     def test_service_mapping_with_handler(self):
         """Test ServiceMapping with special handler."""
@@ -79,9 +79,9 @@ class TestApiServiceConfiguration:
         for mapping in mappings:
             assert isinstance(mapping, tuple)
             assert len(mapping) == 3
-            runtime_attr, app_attrs, handler = mapping
+            runtime_attr, app_state_name, handler = mapping
             assert isinstance(runtime_attr, str)
-            assert isinstance(app_attrs, (str, list))
+            assert isinstance(app_state_name, str)
             assert handler is None or isinstance(handler, str)
     
     def test_specific_service_mappings(self):
@@ -93,7 +93,7 @@ class TestApiServiceConfiguration:
         assert "memory_service" in mapping_dict
         assert mapping_dict["memory_service"][1] == "memory_service"
         
-        # Check wise authority - returns string when only one name
+        # Check wise authority 
         assert "wa_auth_system" in mapping_dict
         assert mapping_dict["wa_auth_system"][1] == "wise_authority_service"
         
@@ -162,29 +162,25 @@ class TestServiceConfigurationIntegration:
         for service in all_services:
             assert service.description, f"Service {service.runtime_attr} missing description"
     
-    def test_empty_app_state_names_uses_runtime_attr(self):
-        """Test that empty app_state_names defaults to runtime_attr."""
-        # Create a mapping with empty list
-        mapping = ServiceMapping("test_service", app_state_names=[], description="Test")
-        # Should default to runtime_attr in a list
-        assert mapping.app_state_names == ["test_service"]
+    def test_explicit_app_state_name_overrides_default(self):
+        """Test that explicit app_state_name overrides default."""
+        # Create a mapping with explicit name
+        mapping = ServiceMapping("test_service", app_state_name="different_name", description="Test")
+        # Should use explicit name
+        assert mapping.app_state_name == "different_name"
     
     def test_mappings_handle_all_tuple_positions(self):
         """Test that all tuple positions are correctly populated."""
         mappings = ApiServiceConfiguration.get_current_mappings_as_tuples()
         
-        for runtime_attr, app_attrs, handler in mappings:
+        for runtime_attr, app_state_name, handler in mappings:
             # Runtime attr should always be a non-empty string
             assert isinstance(runtime_attr, str)
             assert runtime_attr
             
-            # App attrs should be string or list of strings
-            if isinstance(app_attrs, list):
-                assert all(isinstance(attr, str) for attr in app_attrs)
-                assert all(attr for attr in app_attrs)  # No empty strings
-            else:
-                assert isinstance(app_attrs, str)
-                assert app_attrs  # Not empty
+            # App state name should be a non-empty string
+            assert isinstance(app_state_name, str)
+            assert app_state_name  # Not empty
             
             # Handler should be None or a string
             if handler is not None:

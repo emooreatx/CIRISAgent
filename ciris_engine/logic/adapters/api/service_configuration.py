@@ -12,14 +12,14 @@ from dataclasses import dataclass, field
 class ServiceMapping:
     """Defines how a single service should be mapped from runtime to API."""
     runtime_attr: str                    # Attribute name in runtime
-    app_state_names: List[str] = field(default_factory=list)  # Names in app.state
+    app_state_name: Optional[str] = None # Name in app.state (defaults to runtime_attr)
     special_handler: Optional[str] = None   # Special processing function name
     description: str = ""                # Human-readable description
     
     def __post_init__(self):
-        # If no app_state_names specified, use runtime_attr
-        if not self.app_state_names:
-            self.app_state_names = [self.runtime_attr]
+        # If no app_state_name specified, use runtime_attr
+        if self.app_state_name is None:
+            self.app_state_name = self.runtime_attr
 
 
 class ApiServiceConfiguration:
@@ -54,7 +54,6 @@ class ApiServiceConfiguration:
         ServiceMapping("incident_management_service", 
                       description="Incident tracking and management"),
         ServiceMapping("tsdb_consolidation_service", 
-                      app_state_names=["tsdb_consolidation_service"],
                       description="Time-series data consolidation"),
     ]
     
@@ -72,7 +71,6 @@ class ApiServiceConfiguration:
         ServiceMapping("resource_monitor", 
                       description="System resource monitoring"),
         ServiceMapping("database_maintenance_service", 
-                      app_state_names=["database_maintenance_service"],
                       description="Database maintenance operations"),
         ServiceMapping("secrets_service", 
                       description="Secrets and credential management"),
@@ -81,10 +79,9 @@ class ApiServiceConfiguration:
     # 4 Governance Services - System oversight and adaptation
     GOVERNANCE_SERVICES = [
         ServiceMapping("wa_auth_system", 
-                      app_state_names=["wise_authority_service"],
+                      app_state_name="wise_authority_service",
                       description="Wise Authority decision system"),
         ServiceMapping("adaptive_filter_service", 
-                      app_state_names=["adaptive_filter_service"],
                       description="Adaptive content filtering"),
         ServiceMapping("visibility_service", 
                       description="System visibility and monitoring"),
@@ -97,7 +94,7 @@ class ApiServiceConfiguration:
         ServiceMapping("llm_service", 
                       description="Language model integration"),
         ServiceMapping("runtime_control_service", 
-                      app_state_names=["main_runtime_control_service"],
+                      app_state_name="main_runtime_control_service",
                       description="Main runtime control from agent"),
         ServiceMapping("task_scheduler", 
                       description="Task scheduling and execution"),
@@ -106,7 +103,6 @@ class ApiServiceConfiguration:
     # 1 Tool Service - Specialized operations
     TOOL_SERVICES = [
         ServiceMapping("secrets_tool_service", 
-                      app_state_names=["secrets_tool_service"],
                       description="Secrets management tool"),
     ]
     
@@ -120,7 +116,7 @@ class ApiServiceConfiguration:
     ]
     
     @classmethod
-    def get_current_mappings_as_tuples(cls) -> List[Tuple[str, Union[str, List[str]], Optional[str]]]:
+    def get_current_mappings_as_tuples(cls) -> List[Tuple[str, str, Optional[str]]]:
         """
         Returns all mappings in the same format as the existing code.
         This ensures backward compatibility during the refactor.
@@ -136,13 +132,7 @@ class ApiServiceConfiguration:
         )
         
         for mapping in all_mappings:
-            # Handle single vs multiple app state names
-            if len(mapping.app_state_names) == 1:
-                app_attrs = mapping.app_state_names[0]
-            else:
-                app_attrs = mapping.app_state_names
-            
-            result.append((mapping.runtime_attr, app_attrs, mapping.special_handler))
+            result.append((mapping.runtime_attr, mapping.app_state_name, mapping.special_handler))
         
         return result
 
