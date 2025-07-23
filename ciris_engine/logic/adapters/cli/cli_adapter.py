@@ -15,7 +15,7 @@ from ciris_engine.schemas.adapters.cli import (
     ReadFileToolResult, SystemInfoToolResult
 )
 from ciris_engine.protocols.services import CommunicationService, ToolService
-from ciris_engine.schemas.runtime.messages import IncomingMessage
+from ciris_engine.schemas.runtime.messages import IncomingMessage, FetchedMessage
 from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, ServiceRequestData, ServiceResponseData, CorrelationType
 from ciris_engine.schemas.adapters.tools import ToolInfo, ToolExecutionResult, ToolExecutionStatus, ToolParameterSchema
 from ciris_engine.schemas.runtime.system_context import ChannelContext
@@ -198,7 +198,7 @@ class CLIAdapter(Service, CommunicationService, ToolService):
             logger.error(f"Failed to send CLI message: {e}")
             return False
 
-    async def fetch_messages(self, channel_id: str, *, limit: int = 50, before: Optional[datetime] = None) -> List[Dict[str, Any]]:
+    async def fetch_messages(self, channel_id: str, *, limit: int = 50, before: Optional[datetime] = None) -> List[FetchedMessage]:
         """
         Fetch messages from correlations for CLI channel.
 
@@ -208,7 +208,7 @@ class CLIAdapter(Service, CommunicationService, ToolService):
             before: Optional datetime to fetch messages before
 
         Returns:
-            List of fetched messages from correlations
+            List of FetchedMessage objects from correlations
         """
         from ciris_engine.logic.persistence import get_correlations_by_channel
         
@@ -228,15 +228,14 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                     if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
                         content = corr.request_data.parameters.get("content", "")
                     
-                    messages.append({
-                        "id": corr.correlation_id,
-                        "author_id": "ciris",
-                        "author_name": "CIRIS",
-                        "content": content,
-                        "timestamp": (corr.timestamp or corr.created_at).isoformat() if corr.timestamp or corr.created_at else None,
-                        "channel_id": channel_id,
-                        "is_bot": True
-                    })
+                    messages.append(FetchedMessage(
+                        message_id=corr.correlation_id,
+                        author_id="ciris",
+                        author_name="CIRIS",
+                        content=content,
+                        timestamp=(corr.timestamp or corr.created_at).isoformat() if corr.timestamp or corr.created_at else None,
+                        is_bot=True
+                    ))
                 elif corr.action_type == "observe" and corr.request_data:
                     # This is an incoming message from a user
                     content = ""
@@ -249,18 +248,17 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                         author_id = params.get("author_id", "cli_user")
                         author_name = params.get("author_name", "User")
                     
-                    messages.append({
-                        "id": corr.correlation_id,
-                        "author_id": author_id,
-                        "author_name": author_name,
-                        "content": content,
-                        "timestamp": (corr.timestamp or corr.created_at).isoformat() if corr.timestamp or corr.created_at else None,
-                        "channel_id": channel_id,
-                        "is_bot": False
-                    })
+                    messages.append(FetchedMessage(
+                        message_id=corr.correlation_id,
+                        author_id=author_id,
+                        author_name=author_name,
+                        content=content,
+                        timestamp=(corr.timestamp or corr.created_at).isoformat() if corr.timestamp or corr.created_at else None,
+                        is_bot=False
+                    ))
             
             # Sort by timestamp
-            messages.sort(key=lambda m: m.get("timestamp") or "")
+            messages.sort(key=lambda m: str(m.timestamp or ""))
             
             return messages
             

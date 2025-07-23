@@ -17,18 +17,25 @@ CIRIS has achieved **100% type safety in core components** while maintaining ope
    - `faculties.py`: Now uses `FacultyContext` and `FacultyResult`
    - `communication.py`: Now uses `List[FetchedMessage]`
 
-2. **Fixed implementation mismatch**:
+2. **Fixed implementation mismatches**:
    - `api_communication.py` now correctly returns `FetchedMessage` objects
+   - Fixed sort key error when using object attributes
 
-3. **Validated with tools**:
+3. **Updated adapter interfaces**:
+   - `base_adapter.py`: `get_channel_list` now returns `List[ChannelContext]`
+   - `api/adapter.py`: Updated to return `ChannelContext` objects
+   - `cli/cli_adapter.py`: Updated both `get_channel_list` and `fetch_messages` to use typed schemas
+
+4. **Validated with tools**:
    - mypy: No protocol compliance errors
    - ciris_mypy_toolkit: All 21 services fully aligned
+   - No type errors in updated adapter methods
 
 ## Remaining Work
 
-### Distribution of Dict[str, Any] (91 total)
+### Distribution of Dict[str, Any] (~86 total, down from 91)
 1. **TSDB Consolidation** (23): Dynamic data compression - likely justified
-2. **Adapters** (28): External system interfaces  
+2. **Adapters** (~23, down from 28): External system interfaces  
 3. **DMAs** (11): Faculty evaluation aggregation
 4. **Context/Config** (13): Runtime state and user configs
 5. **Other boundaries** (16): Buses, registries, protocols
