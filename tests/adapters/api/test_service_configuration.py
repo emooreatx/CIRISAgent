@@ -20,6 +20,12 @@ class TestServiceMapping:
         assert mapping.special_handler is None
         assert mapping.description == "Test service"
     
+    def test_service_mapping_empty_list_triggers_post_init(self):
+        """Test that empty app_state_names triggers __post_init__."""
+        # This specifically tests the __post_init__ method
+        mapping = ServiceMapping("test_service", app_state_names=[], description="Test")
+        assert mapping.app_state_names == ["test_service"]
+    
     def test_service_mapping_with_explicit_names(self):
         """Test ServiceMapping with explicit app_state_names."""
         mapping = ServiceMapping(
