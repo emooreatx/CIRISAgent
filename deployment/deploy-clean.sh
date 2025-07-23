@@ -71,10 +71,10 @@ main() {
                 
                 if [ -n "$TOKEN" ]; then
                     docker exec "$agent" curl -X POST \
-                        http://localhost:8080/v1/system/runtime/shutdown \
+                        http://localhost:8080/v1/system/shutdown \
                         -H "Authorization: Bearer $TOKEN" \
                         -H "Content-Type: application/json" \
-                        -d '{"reason": "Deployment update - please shutdown gracefully"}' \
+                        -d '{"reason": "Deployment update - please shutdown gracefully", "confirm": true}' \
                         2>/dev/null || warn "Could not notify $agent (may not support graceful shutdown)"
                 else
                     warn "Could not authenticate with $agent for graceful shutdown"
