@@ -5,17 +5,27 @@ Provides RESTful API and WebSocket interfaces to the CIRIS agent.
 """
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+import uuid
+from typing import Any, Dict, List, Optional, Union, Callable, Awaitable
+from datetime import datetime, timezone
 
 import uvicorn
 from uvicorn import Server
 from fastapi import FastAPI
 
+from ciris_engine.logic import persistence
 from ciris_engine.logic.adapters.base import Service
 from ciris_engine.logic.registries.base import Priority
 from ciris_engine.schemas.adapters import AdapterServiceRegistration
 from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.runtime.system_context import ChannelContext
+from ciris_engine.schemas.runtime.messages import IncomingMessage
+from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus
+from ciris_engine.schemas.telemetry.core import ServiceRequestData, ServiceResponseData
+from ciris_engine.logic.persistence.models.correlations import (
+    get_active_channels_by_adapter,
+    is_admin_channel
+)
 from .app import create_app
 from .config import APIAdapterConfig
 from .api_runtime_control import APIRuntimeControlService
@@ -23,6 +33,7 @@ from .api_observer import APIObserver
 from .api_communication import APICommunicationService
 from .api_tools import APIToolService
 from .services.auth_service import APIAuthService
+from .service_configuration import ApiServiceConfiguration
 
 logger = logging.getLogger(__name__)
 
@@ -136,53 +147,25 @@ class ApiPlatform(Service):
         self.app.state.api_config = self.config
         logger.info(f"Injected API config with interaction_timeout={self.config.interaction_timeout}s")
         
-        # Define service mappings (runtime_attr, app_state_attr, special_handler)
-        service_mappings = [
-            # Core services
-            ('memory_service', 'memory_service', None),
-            ('time_service', 'time_service', None),
-            ('telemetry_service', 'telemetry_service', None),
-            ('audit_service', 'audit_service', None),
-            ('config_service', 'config_service', None),
-            ('wa_auth_system', ['wise_authority_service', 'wa_service'], None),
-            ('resource_monitor', 'resource_monitor', None),
-            ('task_scheduler', 'task_scheduler', None),
-            ('authentication_service', 'authentication_service', self._handle_auth_service),
-            ('incident_management_service', 'incident_management_service', None),
-            ('service_registry', 'service_registry', None),
-            ('runtime_control_service', 'main_runtime_control_service', None),
-            ('agent_processor', 'agent_processor', None),
-            ('message_handler', 'message_handler', None),
-            # Additional services
-            ('shutdown_service', 'shutdown_service', None),
-            ('initialization_service', 'initialization_service', None),
-            ('tsdb_consolidation_service', 'tsdb_service', None),
-            ('secrets_service', 'secrets_service', None),
-            ('adaptive_filter_service', 'adaptive_filter', None),
-            ('visibility_service', 'visibility_service', None),
-            ('self_observation_service', 'self_observation_service', None),
-            ('database_maintenance', 'database_maintenance', None),
-            ('database_maintenance_service', 'database_maintenance_service', None),
-            ('secrets_tool', 'secrets_tool', None),
-            ('secrets_tool_service', 'secrets_tool_service', None),
-            ('llm_service', 'llm_service', None),
-        ]
+        # Get service mappings from declarative configuration
+        service_mappings = ApiServiceConfiguration.get_current_mappings_as_tuples()
         
         # Inject services using mapping
-        for runtime_attr, app_attrs, handler in service_mappings:
+        for runtime_attr, app_attrs, handler_name in service_mappings:
+            # Convert handler name to actual method if provided
+            handler = getattr(self, handler_name) if handler_name else None
             self._inject_service(runtime_attr, app_attrs, handler)
         
-        # Inject adapter-created services
-        self.app.state.runtime_control_service = self.runtime_control
-        logger.info("Injected API runtime_control_service")
-        
-        self.app.state.communication_service = self.communication
-        logger.info("Injected communication_service")
+        # Inject adapter-created services using configuration
+        for adapter_service in ApiServiceConfiguration.ADAPTER_CREATED_SERVICES:
+            service = getattr(self, adapter_service.attr_name)
+            setattr(self.app.state, adapter_service.app_state_name, service)
+            logger.info(f"Injected {adapter_service.app_state_name} ({adapter_service.description})")
         
         # Set up message handling
         self._setup_message_handling()
     
-    def _inject_service(self, runtime_attr: str, app_attrs: Any, handler: Optional[Any] = None) -> None:
+    def _inject_service(self, runtime_attr: str, app_attrs: Union[str, List[str]], handler: Optional[Callable[[Any], None]] = None) -> None:
         """Inject a single service from runtime to app state."""
         runtime = self.runtime
         if hasattr(runtime, runtime_attr) and getattr(runtime, runtime_attr) is not None:
@@ -203,9 +186,9 @@ class ApiPlatform(Service):
     
     def _handle_auth_service(self, auth_service: Any) -> None:
         """Special handler for authentication service."""
-        # Re-initialize APIAuthService with the authentication service for persistence
+        # Initialize APIAuthService with the authentication service for persistence
         self.app.state.auth_service = APIAuthService(auth_service)
-        logger.info("Re-initialized APIAuthService with authentication service for persistence")
+        logger.info("Initialized APIAuthService with authentication service for persistence")
     
     def _setup_message_handling(self) -> None:
         """Set up message handling and correlation tracking."""
@@ -216,9 +199,9 @@ class ApiPlatform(Service):
         self.app.state.on_message = self._create_message_handler()
         logger.info("Set up message handler via observer pattern with correlation tracking")
     
-    def _create_message_handler(self) -> Any:
+    def _create_message_handler(self) -> Callable[[IncomingMessage], Awaitable[None]]:
         """Create the message handler function."""
-        async def handle_message_via_observer(msg: Any) -> None:
+        async def handle_message_via_observer(msg: IncomingMessage) -> None:
             """Handle incoming messages by creating passive observations."""
             try:
                 logger.info(f"handle_message_via_observer called for message {msg.message_id}")
@@ -241,12 +224,6 @@ class ApiPlatform(Service):
     
     async def _create_message_correlation(self, msg: Any) -> None:
         """Create an observe correlation for incoming message."""
-        from ciris_engine.logic import persistence
-        from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus
-        from ciris_engine.schemas.telemetry.core import ServiceRequestData, ServiceResponseData
-        import uuid
-        from datetime import datetime, timezone
-        
         correlation_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         
@@ -370,10 +347,6 @@ class ApiPlatform(Service):
         Returns:
             List of ChannelContext objects for API channels.
         """
-        from ciris_engine.logic.persistence.models.correlations import (
-            get_active_channels_by_adapter,
-            is_admin_channel
-        )
         from datetime import datetime
         
         # Get active channels from last 30 days
@@ -413,7 +386,7 @@ class ApiPlatform(Service):
         # Check if the server task is still running
         return not self._server_task.done()
     
-    async def run_lifecycle(self, agent_run_task: asyncio.Task) -> None:
+    async def run_lifecycle(self, agent_run_task: asyncio.Task[Any]) -> None:
         """Run the adapter lifecycle - API runs until agent stops."""
         logger.info("API adapter running lifecycle")
         
