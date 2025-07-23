@@ -4,30 +4,28 @@ This directory contains protocol definitions for all 10 CIRIS action handlers. E
 
 ## Handler Categories
 
+Note: Handler protocols are defined in the base protocol files, not in separate category files.
+
 ### External Actions
 Handlers that interact with the outside world:
-- **[external.py](./external.py)**
   - `SpeakHandlerProtocol` - Sends messages to users
   - `ToolHandlerProtocol` - Executes external tools
   - `ObserveHandlerProtocol` - Monitors channels/environment
 
 ### Control Actions
 Handlers that control agent decision flow:
-- **[control.py](./control.py)**
   - `RejectHandlerProtocol` - Refuses to perform actions
   - `PonderHandlerProtocol` - Deep thinking and reflection
   - `DeferHandlerProtocol` - Defers decisions to Wise Authority
 
 ### Memory Actions
 Handlers that manage the agent's memory:
-- **[memory.py](./memory.py)**
   - `MemorizeHandlerProtocol` - Stores information in graph
   - `RecallHandlerProtocol` - Retrieves information from graph
   - `ForgetHandlerProtocol` - Removes information from graph
 
 ### Terminal Action
 Handler that completes tasks:
-- **[terminal.py](./terminal.py)**
   - `TaskCompleteHandlerProtocol` - Marks tasks as complete
 
 ## Handler Rules

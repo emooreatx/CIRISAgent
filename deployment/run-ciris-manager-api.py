@@ -12,10 +12,15 @@ import os
 # Add parent directory to path to import ciris_manager
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ciris_manager.api.routes import router
+from ciris_manager.api.routes import create_routes
+from ciris_manager.manager import CIRISManager
+
+# Create a minimal manager instance for the API
+manager = CIRISManager()
 
 app = FastAPI(title="CIRISManager API", version="1.0.0")
-app.include_router(router)
+router = create_routes(manager)
+app.include_router(router, prefix="/manager/v1")
 
 if __name__ == "__main__":
     # Run the API server

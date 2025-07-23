@@ -4,13 +4,13 @@ This directory contains all protocol definitions for the CIRIS system. Protocols
 
 ## Protocol Categories
 
-### 🧠 [Services](./services/) - 19 Core Service Protocols
-The heart of CIRIS - all 19 service protocols organized by category:
-- **Graph Services** (5): Memory, Audit, Config, Telemetry, Gratitude
-- **Core Services** (5): LLM, MockLLM, Tool, Secrets, RuntimeControl
-- **Infrastructure** (4): Time, Shutdown, Initialization, Visibility
-- **Authority** (1): WiseAuthority (consolidated)
-- **Special** (4): SelfConfiguration, AdaptiveFilter, TaskScheduler, TransactionOrchestrator
+### 🧠 [Services](./services/) - 21 Core Service Protocols
+The heart of CIRIS - all 21 service protocols organized by category:
+- **Graph Services** (6): Memory, Config, Telemetry, Audit, IncidentManagement, TSDBConsolidation
+- **Infrastructure** (7): Time, Shutdown, Initialization, Authentication, ResourceMonitor, DatabaseMaintenance, Secrets
+- **Governance** (4): WiseAuthority, AdaptiveFilter, Visibility, SelfObservation
+- **Runtime** (3): LLM, RuntimeControl, TaskScheduler
+- **Tool** (1): Tool (external tool execution)
 
 ### 🎯 [Handlers](./handlers/) - Action Handler Protocols
 Protocols for the 10 action handlers:

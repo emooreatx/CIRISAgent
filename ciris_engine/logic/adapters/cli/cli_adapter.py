@@ -18,6 +18,7 @@ from ciris_engine.protocols.services import CommunicationService, ToolService
 from ciris_engine.schemas.runtime.messages import IncomingMessage
 from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, ServiceRequestData, ServiceResponseData, CorrelationType
 from ciris_engine.schemas.adapters.tools import ToolInfo, ToolExecutionResult, ToolExecutionStatus, ToolParameterSchema
+from ciris_engine.schemas.runtime.system_context import ChannelContext
 from ciris_engine.logic import persistence
 
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
@@ -803,33 +804,44 @@ Tools available:
         import os
         return f"cli_{os.getpid()}_{uuid.uuid4().hex[:8]}"
     
-    def get_channel_list(self) -> List[Dict[str, Any]]:
+    def get_channel_list(self) -> List[ChannelContext]:
         """
         Get list of available CLI channels from correlations.
         
         Returns:
-            List of channel information dicts with:
-            - channel_id: str
-            - channel_name: Optional[str]
-            - channel_type: str (always "cli")
-            - is_active: bool
-            - last_activity: Optional[datetime]
+            List of ChannelContext objects for CLI channels.
         """
         from ciris_engine.logic.persistence.models.correlations import get_active_channels_by_adapter
         
         # Get active channels from last 30 days
-        channels = get_active_channels_by_adapter("cli", since_days=30)
+        channels_data = get_active_channels_by_adapter("cli", since_days=30)
         
-        # Add channel names
-        for channel in channels:
-            # CLI channels can include descriptive names
-            if "_" in channel["channel_id"]:
-                parts = channel["channel_id"].split("_", 2)
+        # Convert to ChannelContext objects
+        channels = []
+        for data in channels_data:
+            # Determine channel name
+            channel_name = data["channel_id"]
+            if "_" in data["channel_id"]:
+                parts = data["channel_id"].split("_", 2)
                 if len(parts) >= 3:
-                    channel["channel_name"] = f"CLI Session {parts[1]}"
-                else:
-                    channel["channel_name"] = channel["channel_id"]
-            else:
-                channel["channel_name"] = channel["channel_id"]
+                    channel_name = f"CLI Session {parts[1]}"
+            
+            # CLI channels support all actions
+            allowed_actions = ["speak", "observe", "memorize", "recall", "tool", "wa_defer", "runtime_control"]
+            
+            channel = ChannelContext(
+                channel_id=data["channel_id"],
+                channel_type="cli",
+                created_at=data.get("last_activity", datetime.now()),
+                channel_name=channel_name,
+                is_private=True,  # CLI sessions are private
+                participants=["user", "ciris"],  # CLI is 1-on-1
+                is_active=data.get("is_active", True),
+                last_activity=data.get("last_activity"),
+                message_count=data.get("message_count", 0),
+                allowed_actions=allowed_actions,
+                moderation_level="minimal"  # CLI has minimal moderation
+            )
+            channels.append(channel)
         
         return channels

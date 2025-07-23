@@ -284,7 +284,7 @@ class CIRISManager:
         try:
             from fastapi import FastAPI
             import uvicorn
-            from .api.routes_v2 import create_routes
+            from .api.routes import create_routes
             
             app = FastAPI(title="CIRISManager API", version="1.0.0")
             

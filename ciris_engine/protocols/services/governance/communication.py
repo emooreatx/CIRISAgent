@@ -14,11 +14,12 @@ that implement this protocol and register with the CommunicationBus.
 See CLAUDE.md section on "Message Bus Architecture" for more details.
 """
 
-from typing import Protocol, List, Any, Optional, Dict
+from typing import Protocol, List, Optional
 from abc import abstractmethod
 from datetime import datetime
 
 from ...runtime.base import ServiceProtocol
+from ciris_engine.schemas.runtime.messages import FetchedMessage
 
 class CommunicationServiceProtocol(ServiceProtocol, Protocol):
     """Protocol for adapter-provided communication services.
@@ -40,7 +41,7 @@ class CommunicationServiceProtocol(ServiceProtocol, Protocol):
         *,
         limit: int = 50,
         before: Optional[datetime] = None,
-    ) -> List[Dict[str, Any]]:
+    ) -> List[FetchedMessage]:
         """Retrieve messages from a channel."""
         ...
 
