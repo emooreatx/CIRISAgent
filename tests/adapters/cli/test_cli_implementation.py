@@ -300,9 +300,9 @@ class TestCLIAdapterChannelManagement:
             
             # Check that we have channels
             channel = channels[0]
-            assert "channel_id" in channel
-            assert "channel_name" in channel
-            assert "channel_type" in channel
+            assert hasattr(channel, 'channel_id')
+            assert hasattr(channel, 'channel_name')
+            assert hasattr(channel, 'channel_type')
     
     @pytest.mark.asyncio
     async def test_channel_activity_update(self, cli_adapter):
@@ -323,7 +323,7 @@ class TestCLIAdapterChannelManagement:
             
             # Get initial activity
             initial_channels = cli_adapter.get_channel_list()
-            initial_activity = initial_channels[0]["last_activity"]
+            initial_activity = initial_channels[0].last_activity
             
             # Wait a bit
             await asyncio.sleep(0.01)
@@ -337,7 +337,7 @@ class TestCLIAdapterChannelManagement:
             
             # Check updated activity
             updated_channels = cli_adapter.get_channel_list()
-            updated_activity = updated_channels[0]["last_activity"]
+            updated_activity = updated_channels[0].last_activity
         
         # Activity should be updated
         assert updated_activity >= initial_activity
