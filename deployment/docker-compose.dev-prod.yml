@@ -53,7 +53,7 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    restart: unless-stopped
+    restart: on-failure
     command: ["python", "main.py", "--adapter", "api", "--adapter", "discord", "--mock-llm"]
 
   # GUI Application

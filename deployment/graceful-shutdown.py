@@ -60,44 +60,22 @@ def send_shutdown_message(agent_url, message, token):
         "Content-Type": "application/json"
     }
     
-    # First, send the shutdown message via interact endpoint
-    interact_data = {
-        "message": message,
-        "channel_id": "cli_graceful_shutdown"
-    }
-    
-    try:
-        response = requests.post(
-            f"{agent_url}/v1/agent/interact",
-            headers=headers,
-            json=interact_data,
-            timeout=10
-        )
-        
-        if response.status_code == 200:
-            print(f"✓ Shutdown message sent: {message}")
-        else:
-            print(f"⚠ Failed to send message: {response.status_code} - {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ Error sending message: {e}")
-        return False
-    
-    # Now trigger the actual shutdown via runtime control
+    # Send shutdown request with proper fields
     shutdown_data = {
-        "reason": message
+        "reason": message,  # The API expects "reason"
+        "confirm": True     # Required confirmation flag
     }
     
     try:
         response = requests.post(
-            f"{agent_url}/v1/system/runtime/shutdown",
+            f"{agent_url}/v1/system/shutdown",  # Correct endpoint
             headers=headers,
             json=shutdown_data,
             timeout=10
         )
         
         if response.status_code in [200, 202]:
-            print("✓ Graceful shutdown initiated")
+            print(f"✓ Graceful shutdown initiated: {message}")
             return True
         else:
             print(f"⚠ Failed to initiate shutdown: {response.status_code} - {response.text}")
