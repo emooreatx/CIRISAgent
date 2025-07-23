@@ -5,7 +5,6 @@ from ciris_engine.protocols.runtime.base import BaseAdapterProtocol
 from .cirisnode_client import CIRISNodeClient
 
 OpenAICompatibleClient = None
-_has_openai_llm = False
 
 __all__ = [
     "load_adapter",

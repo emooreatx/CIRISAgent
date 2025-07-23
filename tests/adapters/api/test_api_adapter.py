@@ -294,7 +294,8 @@ class TestAPIChannelManagement:
     def test_get_channel_list(self, api_platform):
         """Test getting channel list."""
         # API adapter uses its own get_channel_list method
-        with patch('ciris_engine.logic.persistence.models.correlations.get_active_channels_by_adapter') as mock_get_channels:
+        with patch('ciris_engine.logic.adapters.api.adapter.get_active_channels_by_adapter') as mock_get_channels, \
+             patch('ciris_engine.logic.adapters.api.adapter.is_admin_channel') as mock_is_admin:
             # Mock the return value
             mock_get_channels.return_value = [
                 {
@@ -310,6 +311,9 @@ class TestAPIChannelManagement:
                     "last_activity": datetime.now(timezone.utc)
                 }
             ]
+            
+            # Mock is_admin_channel to return False for both channels
+            mock_is_admin.return_value = False
             
             channels = api_platform.get_channel_list()
             

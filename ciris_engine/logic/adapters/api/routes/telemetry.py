@@ -185,7 +185,7 @@ async def _get_system_overview(request: Request) -> SystemOverview:
     visibility_service = getattr(request.app.state, 'visibility_service', None)
     time_service = getattr(request.app.state, 'time_service', None)
     resource_monitor = getattr(request.app.state, 'resource_monitor', None)
-    incident_service = getattr(request.app.state, 'incident_management', None)
+    incident_service = getattr(request.app.state, 'incident_management_service', None)
     wise_authority = getattr(request.app.state, 'wise_authority', None)
 
     # Initialize overview with all required fields
@@ -276,8 +276,8 @@ async def _get_system_overview(request: Request) -> SystemOverview:
         'memory_service', 'llm_service', 'audit_service', 'telemetry_service',
         'config_service', 'visibility_service', 'time_service', 'secrets_service',
         'resource_monitor', 'authentication_service', 'wise_authority',
-        'incident_management', 'tsdb_consolidation', 'self_configuration',
-        'adaptive_filter', 'task_scheduler', 'initialization_service',
+        'incident_management_service', 'tsdb_consolidation_service', 'self_observation_service',
+        'adaptive_filter_service', 'task_scheduler', 'initialization_service',
         'shutdown_service', 'runtime_control'
     ]
 
@@ -911,7 +911,7 @@ async def query_telemetry(
     telemetry_service = getattr(request.app.state, 'telemetry_service', None)
     visibility_service = getattr(request.app.state, 'visibility_service', None)
     audit_service = getattr(request.app.state, 'audit_service', None)
-    incident_service = getattr(request.app.state, 'incident_management', None)
+    incident_service = getattr(request.app.state, 'incident_management_service', None)
 
     try:
         if query.query_type == "metrics":

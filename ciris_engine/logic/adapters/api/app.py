@@ -93,6 +93,21 @@ def create_app(runtime: Any = None, adapter_config: Any = None) -> FastAPI:
         app.state.service_registry = None
         app.state.agent_processor = None
         app.state.message_handler = None
+        # Additional services from the 21 core services
+        app.state.tsdb_consolidation_service = None
+        app.state.adaptive_filter_service = None
+        app.state.visibility_service = None
+        app.state.self_observation_service = None
+        app.state.llm_service = None
+        app.state.runtime_control_service = None
+        app.state.secrets_service = None
+        app.state.secrets_tool_service = None
+        app.state.database_maintenance_service = None
+        app.state.shutdown_service = None
+        app.state.initialization_service = None
+        # Adapter-created services
+        app.state.communication_service = None
+        app.state.tool_service = None
 
     # Mount v1 API routes (all routes except emergency under /v1)
     v1_routers = [
