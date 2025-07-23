@@ -56,12 +56,30 @@ main() {
         
         # Check if agent is healthy first
         if docker exec "$agent" curl -s http://localhost:8080/v1/system/health > /dev/null 2>&1; then
-            # Try to send graceful shutdown signal
-            docker exec "$agent" curl -X POST \
-                http://localhost:8080/v1/system/shutdown \
-                -H "Content-Type: application/json" \
-                -d '{"message": "Deployment update - please shutdown gracefully"}' \
-                2>/dev/null || warn "Could not notify $agent (may not support graceful shutdown)"
+            # Try to use the graceful shutdown script if available
+            if docker exec "$agent" test -f /app/deployment/graceful-shutdown.py 2>/dev/null; then
+                docker exec "$agent" python /app/deployment/graceful-shutdown.py \
+                    --message "Deployment update - please shutdown gracefully" \
+                    2>/dev/null || warn "Could not notify $agent (may not support graceful shutdown)"
+            else
+                # Fallback: Try to login and send shutdown signal with auth
+                TOKEN=$(docker exec "$agent" curl -s -X POST \
+                    http://localhost:8080/v1/auth/login \
+                    -H "Content-Type: application/json" \
+                    -d '{"username":"admin","password":"ciris_admin_password"}' \
+                    2>/dev/null | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
+                
+                if [ -n "$TOKEN" ]; then
+                    docker exec "$agent" curl -X POST \
+                        http://localhost:8080/v1/system/runtime/shutdown \
+                        -H "Authorization: Bearer $TOKEN" \
+                        -H "Content-Type: application/json" \
+                        -d '{"reason": "Deployment update - please shutdown gracefully"}' \
+                        2>/dev/null || warn "Could not notify $agent (may not support graceful shutdown)"
+                else
+                    warn "Could not authenticate with $agent for graceful shutdown"
+                fi
+            fi
         else
             warn "$agent is not healthy, will be restarted"
         fi
