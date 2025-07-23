@@ -6,7 +6,7 @@ Provides RESTful API and WebSocket interfaces to the CIRIS agent.
 import asyncio
 import logging
 import uuid
-from typing import Any, Dict, List, Optional, Union, Callable, Awaitable
+from typing import Any, Dict, List, Optional, Callable, Awaitable
 from datetime import datetime, timezone
 
 import uvicorn
@@ -69,11 +69,11 @@ class ApiPlatform(Service):
         
         # Create FastAPI app - services will be injected later in start()
         self.app: FastAPI = create_app(runtime, self.config)
-        self._server: Optional[Server] = None
-        self._server_task: Optional[asyncio.Task[Any]] = None
+        self._server: Server | None = None
+        self._server_task: asyncio.Task[Any] | None = None
         
         # Message observer for handling incoming messages (will be created in start())
-        self.message_observer: Optional[APIObserver] = None
+        self.message_observer: APIObserver | None = None
         
         # Communication service for API responses
         self.communication = APICommunicationService(config=self.config)
@@ -165,18 +165,12 @@ class ApiPlatform(Service):
         # Set up message handling
         self._setup_message_handling()
     
-    def _inject_service(self, runtime_attr: str, app_attrs: Union[str, List[str]], handler: Optional[Callable[[Any], None]] = None) -> None:
+    def _inject_service(self, runtime_attr: str, app_state_name: str, handler: Callable[[Any], None] | None = None) -> None:
         """Inject a single service from runtime to app state."""
         runtime = self.runtime
         if hasattr(runtime, runtime_attr) and getattr(runtime, runtime_attr) is not None:
             service = getattr(runtime, runtime_attr)
-            
-            # Handle multiple app state attributes
-            if isinstance(app_attrs, list):
-                for attr in app_attrs:
-                    setattr(self.app.state, attr, service)
-            else:
-                setattr(self.app.state, app_attrs, service)
+            setattr(self.app.state, app_state_name, service)
             
             # Call special handler if provided
             if handler:
