@@ -294,7 +294,8 @@ class TestAPIChannelManagement:
     def test_get_channel_list(self, api_platform):
         """Test getting channel list."""
         # API adapter uses its own get_channel_list method
-        with patch('ciris_engine.logic.persistence.models.correlations.get_active_channels_by_adapter') as mock_get_channels:
+        with patch('ciris_engine.logic.adapters.api.adapter.get_active_channels_by_adapter') as mock_get_channels, \
+             patch('ciris_engine.logic.adapters.api.adapter.is_admin_channel') as mock_is_admin:
             # Mock the return value
             mock_get_channels.return_value = [
                 {
@@ -310,6 +311,9 @@ class TestAPIChannelManagement:
                     "last_activity": datetime.now(timezone.utc)
                 }
             ]
+            
+            # Mock is_admin_channel to return False for both channels
+            mock_is_admin.return_value = False
             
             channels = api_platform.get_channel_list()
             
@@ -401,6 +405,53 @@ class TestAPIHealthCheck:
         api_platform._server_task.done.return_value = True
         
         assert api_platform.is_healthy() is False
+
+
+class TestAPIAppCoverage:
+    """Test app.py specific coverage."""
+    
+    @pytest.mark.asyncio
+    async def test_lifespan_context_manager(self):
+        """Test the lifespan context manager in app.py."""
+        from ciris_engine.logic.adapters.api.app import lifespan
+        app = Mock()
+        async with lifespan(app):
+            pass
+    
+    def test_create_app_with_runtime_all_services(self):
+        """Test create_app initializes all service placeholders."""
+        from ciris_engine.logic.adapters.api.app import create_app
+        runtime = Mock()
+        app = create_app(runtime=runtime)
+        
+        # This covers lines 85-122 in app.py
+        assert app.state.memory_service is None
+        assert app.state.config_service is None
+        assert app.state.telemetry_service is None
+        assert app.state.audit_service is None
+        assert app.state.incident_management_service is None
+        assert app.state.tsdb_consolidation_service is None
+        assert app.state.time_service is None
+        assert app.state.shutdown_service is None
+        assert app.state.initialization_service is None
+        assert app.state.authentication_service is None
+        assert app.state.resource_monitor is None
+        assert app.state.database_maintenance_service is None
+        assert app.state.secrets_service is None
+        assert app.state.wise_authority_service is None
+        assert app.state.wa_service is None
+        assert app.state.adaptive_filter_service is None
+        assert app.state.visibility_service is None
+        assert app.state.self_observation_service is None
+        assert app.state.llm_service is None
+        assert app.state.runtime_control_service is None
+        assert app.state.task_scheduler is None
+        assert app.state.secrets_tool_service is None
+        assert app.state.service_registry is None
+        assert app.state.agent_processor is None
+        assert app.state.message_handler is None
+        assert app.state.communication_service is None
+        assert app.state.tool_service is None
 
 
 class TestAPIConcurrentHandling:
