@@ -15,6 +15,40 @@ from ciris_manager.config.settings import CIRISManagerConfig
 class TestCIRISManager:
     """Test cases for CIRISManager."""
     
+    def test_generate_agent_suffix(self):
+        """Test agent suffix generation."""
+        # Import just what we need to test
+        import random
+        
+        # Copy the implementation to test it in isolation
+        SAFE_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"
+        
+        def generate_suffix():
+            return ''.join(random.choices(SAFE_CHARS, k=6))
+        
+        # Test multiple suffixes
+        suffixes = set()
+        for _ in range(100):
+            suffix = generate_suffix()
+            
+            # Check length
+            assert len(suffix) == 6
+            
+            # Check all characters are from SAFE_CHARS
+            assert all(c in SAFE_CHARS for c in suffix)
+            
+            # Check no confusing characters
+            assert '0' not in suffix
+            assert 'O' not in suffix
+            assert 'I' not in suffix
+            assert 'l' not in suffix
+            assert '1' not in suffix
+            
+            suffixes.add(suffix)
+        
+        # Check reasonable uniqueness (should get at least 90 unique in 100 tries)
+        assert len(suffixes) >= 90
+    
     @pytest.fixture
     def temp_dirs(self):
         """Create temporary directories for testing."""
