@@ -164,7 +164,7 @@ function ManagerPageContent() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => window.open(agent.api_endpoint, '_blank')}
+                            onClick={() => window.open(`${agent.api_endpoint}/docs`, '_blank')}
                           >
                             Open API
                           </Button>
