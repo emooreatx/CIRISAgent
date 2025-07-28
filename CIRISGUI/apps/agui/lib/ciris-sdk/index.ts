@@ -23,6 +23,7 @@ export { SystemResource } from './resources/system';
 export { MemoryResource } from './resources/memory';
 export { ConfigResource, unwrapConfigValue, wrapConfigValue } from './resources/config';
 export { UsersResource } from './resources/users';
+export * from './resources/manager';
 
 // Export OAuth types
 export type {

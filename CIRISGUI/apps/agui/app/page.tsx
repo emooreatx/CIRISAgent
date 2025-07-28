@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { cirisClient } from "../lib/ciris-sdk";
 import Link from "next/link";
 import { ProtectedRoute } from "../components/ProtectedRoute";
-import { useAgent } from "../contexts/AgentContextStatic";
+import { useAgent } from "../contexts/AgentContextHybrid";
 import { NoAgentsPlaceholder } from "../components/NoAgentsPlaceholder";
 import {
   StatusDot,

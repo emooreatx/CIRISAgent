@@ -6,7 +6,7 @@ import { cirisClient } from '../../lib/ciris-sdk';
 import toast from 'react-hot-toast';
 import { StatusDot } from '../../components/Icons';
 import { useAuth } from '../../contexts/AuthContext';
-import { useAgent } from '../../contexts/AgentContextStatic';
+import { useAgent } from '../../contexts/AgentContextHybrid';
 import { NoAgentsPlaceholder } from '../../components/NoAgentsPlaceholder';
 
 export default function CommsPage() {

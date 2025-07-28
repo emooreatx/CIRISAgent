@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { useAgent } from '@/contexts/AgentContextStatic';
+import { useAgent } from '@/contexts/AgentContextHybrid';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { StatusDot } from '@/components/Icons';
