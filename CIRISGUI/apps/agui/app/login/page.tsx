@@ -28,13 +28,16 @@ export default function LoginPage() {
       try {
         console.log('Loading static agent configuration...');
         // Use static agent configuration
-        const staticAgents = [{
+        const staticAgents: AgentInfo[] = [{
           agent_id: 'datum',
           agent_name: 'Datum',
           status: 'running',
           health: 'healthy',
           api_url: process.env.NEXT_PUBLIC_CIRIS_API_URL || window.location.origin,
           api_port: 8080,
+          container_name: 'ciris-agent-datum',
+          created_at: new Date().toISOString(),
+          update_available: false,
         }];
         console.log('Static agents:', staticAgents);
         setAgents(staticAgents);

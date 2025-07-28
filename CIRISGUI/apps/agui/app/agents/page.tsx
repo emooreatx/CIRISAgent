@@ -21,7 +21,7 @@ export default function AgentsPage() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>{agent.agent_name}</CardTitle>
-                  <StatusDot variant={agent.health === 'healthy' ? 'success' : 'warning'} />
+                  <StatusDot status={agent.health === 'healthy' ? 'green' : 'yellow'} />
                 </div>
                 <CardDescription>
                   Agent ID: {agent.agent_id} | Status: {agent.status}
@@ -29,7 +29,7 @@ export default function AgentsPage() {
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  API URL: {agent.api_url}:{agent.api_port}
+                  API URL: {agent.api_endpoint || `${agent.api_url || 'localhost'}:${agent.api_port || 8080}`}
                 </p>
                 {currentAgent?.agent_id === agent.agent_id && (
                   <p className="text-sm text-primary mt-2">Currently selected</p>

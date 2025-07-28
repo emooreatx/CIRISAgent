@@ -38,24 +38,11 @@ const DEFAULT_LOCAL_AGENT: AgentInfo = {
   health: 'healthy',
   api_url: process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost',
   api_port: 8080,
+  api_endpoint: process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost:8080',
   container_name: 'ciris-agent-datum',
-  image: 'ciris-agent:latest',
   created_at: new Date().toISOString(),
   started_at: new Date().toISOString(),
-  template_id: 'echo',
-  git_repo: null,
-  git_branch: null,
-  env_vars: {},
-  volumes: [],
-  networks: ['ciris-network'],
-  restart: 'unless-stopped',
   update_available: false,
-  exit_code: null,
-  capabilities: {
-    api: true,
-    discord: true,
-    cli: true
-  }
 };
 
 export function AgentProvider({ children }: { children: ReactNode }) {
@@ -123,13 +110,17 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         // Get current user info for this agent
         const userInfo = await cirisClient.auth.getCurrentUser();
         
-        newRoles.set(agent.agent_id, {
-          agentId: agent.agent_id,
-          apiRole: userInfo.api_role,
-          waRole: userInfo.wa_role,
-          isAuthority: userInfo.is_authority || false,
-          lastChecked: new Date()
-        });
+        if (userInfo) {
+          newRoles.set(agent.agent_id, {
+            agentId: agent.agent_id,
+            apiRole: userInfo.api_role,
+            waRole: userInfo.wa_role,
+            isAuthority: userInfo.wa_role === 'AUTHORITY' || userInfo.api_role === 'SYSTEM_ADMIN',
+            lastChecked: new Date()
+          });
+        } else {
+          throw new Error('No user info returned');
+        }
       } catch (error) {
         console.error(`Failed to fetch role for agent ${agent.agent_id}:`, error);
         // Set a default role on error

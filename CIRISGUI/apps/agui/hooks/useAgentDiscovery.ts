@@ -44,24 +44,11 @@ export function useAgentDiscovery(options: UseAgentDiscoveryOptions = {}) {
           health: 'healthy',
           api_url: process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost',
           api_port: 8080,
+          api_endpoint: process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost:8080',
           container_name: 'ciris-agent-datum',
-          image: 'ciris-agent:latest',
           created_at: new Date().toISOString(),
           started_at: new Date().toISOString(),
-          template_id: 'echo',
-          git_repo: null,
-          git_branch: null,
-          env_vars: {},
-          volumes: [],
-          networks: ['ciris-network'],
-          restart: 'unless-stopped',
           update_available: false,
-          exit_code: null,
-          capabilities: {
-            api: true,
-            discord: true,
-            cli: true
-          }
         };
         setAgents([defaultAgent]);
         if (!selectedAgent) {
