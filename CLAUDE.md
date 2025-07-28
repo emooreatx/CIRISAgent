@@ -175,17 +175,8 @@ https://agents.ciris.ai/v1/auth/oauth/datum/google/callback
    - GUI components for permission management
    - Filtered user list shows only OAuth users with granted permissions
 
-2. **CIRISManager Integration**
-   - Fully integrated into CI/CD pipeline
-   - Running in production on agents.ciris.ai
-   - API endpoints proxied through nginx at `/manager/v1/*`
-   - Dynamic agent discovery replacing hardcoded agent lists
-   - GUI successfully uses CIRISManager for agent discovery
-
-3. **GUI Dynamic Agent Discovery**
+2. **GUI Improvements**
    - Fixed all TypeScript build errors
-   - Removed hardcoded agent configurations
-   - AgentContextDynamic discovers agents from CIRISManager
    - Properly handles authentication roles (api_role vs wa_role)
    - SDK pattern enforced throughout (no direct client usage)
 
@@ -208,11 +199,8 @@ https://agents.ciris.ai/v1/auth/oauth/datum/google/callback
    - Only same-repo PRs and main branch push to registry
    - Build summary shows what action was taken
    - Prevents "installation not allowed to Write" errors
-   - CIRISManager automatically deployed with agents
 
 4. **Local Development Setup**
-   - CIRISManager runs via `python deployment/run-ciris-manager-api.py`
-   - Config stored in `~/.config/ciris-manager/config.yml`
    - Docker containers managed via docker-compose files
    - GUI runs on port 3000/3001 with hot reload
 
@@ -290,16 +278,7 @@ Only for multi-provider services:
 # 1. Start the agent container
 docker-compose -f docker-compose-api-discord-mock.yml up -d
 
-# 2. Configure CIRISManager (first time only)
-mkdir -p ~/.config/ciris-manager
-python -m ciris_manager.cli --generate-config --config ~/.config/ciris-manager/config.yml
-# Edit config.yml to point to your docker-compose file
-
-# 3. Start CIRISManager API
-python deployment/run-ciris-manager-api.py
-# Runs on http://localhost:8888
-
-# 4. Start the GUI
+# 2. Start the GUI
 cd CIRISGUI/apps/agui
 npm install
 npm run dev
@@ -320,9 +299,6 @@ python test_api_v1_comprehensive.py
 # Run parallel handler testing (10 containers)
 docker-compose -f docker-compose-multi-mock.yml up -d
 python test_10_containers_parallel.py
-
-# Test CIRISManager API
-curl http://localhost:8888/manager/v1/agents
 ```
 
 ### API Authentication
@@ -754,14 +730,11 @@ curl -s http://localhost:8080/v1/system/health | jq -r '.status'
 
 **Current Setup (Production - July 20, 2025)**:
 - Single Datum agent with Mock LLM
-- GUI on port 3000 (dynamically discovers agents via CIRISManager)
+- GUI on port 3000
 - API on port 8080
-- CIRISManager API on port 8888 (proxied via nginx at `/manager/v1/*`)
 - Using `deployment/docker-compose.dev-prod.yml` (uses pre-built images)
 - Container names: `ciris-agent-datum`, `ciris-gui`, `ciris-nginx`
-- Auto-restart via systemd services: 
-  - `ciris-dev.service` (agents and GUI)
-  - `ciris-manager-api.service` (CIRISManager API only)
+- Auto-restart via systemd service: `ciris-dev.service`
 - Discord integration: Add token to `/home/ciris/CIRISAgent/.env.datum`
 - OAuth: Google OAuth configured with dynamic callback URLs
 

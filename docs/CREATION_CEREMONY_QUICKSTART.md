@@ -47,15 +47,6 @@ curl -X POST https://agents.ciris.ai/v1/agents/create \
   -d @ceremony_request.json
 ```
 
-#### Via CIRISManager (future):
-```bash
-ciris-manager create-agent \
-  --template echo \
-  --name "Echo-Community" \
-  --purpose "Foster community flourishing" \
-  --wa-signature $SIGNATURE
-```
-
 ## What Happens
 
 1. **Validation** - Request and signature verified
@@ -118,8 +109,8 @@ Your new agent will:
 - Ensure template name doesn't include `.yaml`
 
 ### "Port Allocation Failed"  
-- Check which ports are in use
-- CIRISManager handles allocation automatically
+- Check which ports are in use: `netstat -tlnp | grep 808`
+- Manually specify a free port in the docker-compose configuration
 
 ## Getting Help
 

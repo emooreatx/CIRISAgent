@@ -1,5 +1,5 @@
 #!/bin/bash
-# Production troubleshooting script for CIRISManager and agent deployment
+# Production troubleshooting script for CIRIS agent deployment
 
 set -e
 
@@ -60,57 +60,8 @@ else
     netstat -tlnp | grep :8080 || echo "  Port 8080 not listening"
 fi
 
-# Step 4: Check CIRISManager installation
-log "\nStep 4: Checking CIRISManager installation..."
-if command -v ciris-manager >/dev/null 2>&1; then
-    echo -e "  ${GREEN}✓ CIRISManager is installed${NC}"
-    echo "  Location: $(which ciris-manager)"
-else
-    error "  ✗ CIRISManager not found in PATH"
-    # Check if it's installed but not in PATH
-    if [ -f "/usr/local/bin/ciris-manager" ]; then
-        warn "  Found at /usr/local/bin/ciris-manager but not in PATH"
-    fi
-fi
-
-# Step 5: Check CIRISManager service
-log "\nStep 5: Checking CIRISManager systemd service..."
-if systemctl list-unit-files | grep -q "ciris-manager.service"; then
-    echo -e "  ${GREEN}✓ Service is installed${NC}"
-    STATUS=$(systemctl is-active ciris-manager.service || echo "inactive")
-    ENABLED=$(systemctl is-enabled ciris-manager.service || echo "disabled")
-    echo "  Status: $STATUS"
-    echo "  Enabled: $ENABLED"
-    
-    if [[ "$STATUS" != "active" ]]; then
-        warn "  Service is not active!"
-        echo "  Last 10 journal entries:"
-        journalctl -u ciris-manager.service -n 10 --no-pager | sed 's/^/    /'
-    fi
-else
-    error "  ✗ ciris-manager.service not found"
-fi
-
-# Step 6: Check CIRISManager config
-log "\nStep 6: Checking CIRISManager configuration..."
-if [ -f "/etc/ciris-manager/config.yml" ]; then
-    echo -e "  ${GREEN}✓ Config file exists${NC}"
-    echo "  Compose file path:"
-    grep "compose_file:" /etc/ciris-manager/config.yml | sed 's/^/    /'
-    
-    # Verify compose file exists
-    COMPOSE_FILE=$(grep "compose_file:" /etc/ciris-manager/config.yml | awk '{print $2}' | tr -d '"')
-    if [ -f "$COMPOSE_FILE" ]; then
-        echo -e "  ${GREEN}✓ Compose file exists${NC}"
-    else
-        error "  ✗ Compose file not found: $COMPOSE_FILE"
-    fi
-else
-    error "  ✗ Config file not found at /etc/ciris-manager/config.yml"
-fi
-
-# Step 7: Check Docker permissions
-log "\nStep 7: Checking Docker permissions..."
+# Step 4: Check Docker permissions
+log "\nStep 4: Checking Docker permissions..."
 if docker ps >/dev/null 2>&1; then
     echo -e "  ${GREEN}✓ Docker accessible${NC}"
 else
@@ -132,44 +83,6 @@ if ! docker ps --format "{{.Names}}" | grep -q "ciris-agent-datum"; then
     echo ""
 fi
 
-# Check if CIRISManager needs installation
-if ! command -v ciris-manager >/dev/null 2>&1; then
-    ((ISSUES++))
-    echo "$ISSUES. CIRISManager needs to be installed:"
-    echo "   cd /home/ciris/CIRISAgent"
-    echo "   pip3 install -e ."
-    echo ""
-fi
-
-# Check if service needs to be started
-if systemctl list-unit-files | grep -q "ciris-manager.service"; then
-    if [[ "$(systemctl is-active ciris-manager.service)" != "active" ]]; then
-        ((ISSUES++))
-        echo "$ISSUES. CIRISManager service needs to be started:"
-        echo "   systemctl start ciris-manager"
-        echo "   systemctl enable ciris-manager"
-        echo ""
-    fi
-else
-    ((ISSUES++))
-    echo "$ISSUES. CIRISManager service needs to be installed:"
-    echo "   cp /home/ciris/CIRISAgent/deployment/ciris-manager.service /etc/systemd/system/"
-    echo "   systemctl daemon-reload"
-    echo "   systemctl enable ciris-manager"
-    echo "   systemctl start ciris-manager"
-    echo ""
-fi
-
-# Check if config needs to be created
-if [ ! -f "/etc/ciris-manager/config.yml" ]; then
-    ((ISSUES++))
-    echo "$ISSUES. CIRISManager config needs to be created:"
-    echo "   mkdir -p /etc/ciris-manager"
-    echo "   ciris-manager --generate-config --config /etc/ciris-manager/config.yml"
-    echo "   # Then update the compose_file path to:"
-    echo "   # /home/ciris/CIRISAgent/deployment/docker-compose.dev-prod.yml"
-    echo ""
-fi
 
 if [ $ISSUES -eq 0 ]; then
     echo -e "${GREEN}No issues found! Everything appears to be configured correctly.${NC}"
@@ -183,12 +96,4 @@ echo ""
 echo "Run this to fix common issues:"
 echo ""
 echo "cd /home/ciris/CIRISAgent && \\"
-echo "docker-compose -f deployment/docker-compose.dev-prod.yml up -d && \\"
-echo "pip3 install -e . && \\"
-echo "mkdir -p /etc/ciris-manager && \\"
-echo "ciris-manager --generate-config --config /etc/ciris-manager/config.yml && \\"
-echo "sed -i 's|docker-compose.yml|docker-compose.dev-prod.yml|' /etc/ciris-manager/config.yml && \\"
-echo "cp deployment/ciris-manager.service /etc/systemd/system/ && \\"
-echo "systemctl daemon-reload && \\"
-echo "systemctl enable ciris-manager && \\"
-echo "systemctl start ciris-manager"
+echo "docker-compose -f deployment/docker-compose.dev-prod.yml up -d"

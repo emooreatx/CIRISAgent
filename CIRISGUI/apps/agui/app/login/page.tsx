@@ -22,19 +22,24 @@ export default function LoginPage() {
     { provider: "discord", name: "Discord" }
   ];
 
-  // Load agents from CIRISManager
+  // Load static agent configuration
   useEffect(() => {
     const loadAgents = async () => {
       try {
-        console.log('Loading agents from manager...');
-        console.log('Manager endpoint:', `${window.location.origin}/manager/v1/agents`);
-        const discovered = await cirisClient.manager.listAgents();
-        console.log('Discovered agents:', discovered);
-        const runningAgents = discovered.filter(a => a.status === 'running');
-        console.log('Running agents:', runningAgents);
-        setAgents(runningAgents);
-        if (runningAgents.length > 0) {
-          setSelectedAgent(runningAgents[0].agent_id);
+        console.log('Loading static agent configuration...');
+        // Use static agent configuration
+        const staticAgents = [{
+          agent_id: 'datum',
+          agent_name: 'Datum',
+          status: 'running',
+          health: 'healthy',
+          api_url: process.env.NEXT_PUBLIC_CIRIS_API_URL || window.location.origin,
+          api_port: 8080,
+        }];
+        console.log('Static agents:', staticAgents);
+        setAgents(staticAgents);
+        if (staticAgents.length > 0) {
+          setSelectedAgent(staticAgents[0].agent_id);
         }
       } catch (error) {
         console.error('Failed to load agents - Full error:', error);

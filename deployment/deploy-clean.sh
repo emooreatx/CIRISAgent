@@ -1,6 +1,6 @@
 #!/bin/bash
 # CIRIS Clean Deployment Script
-# Uses CIRIS Manager approach - no staging, no complexity
+# Simple deployment with graceful shutdown
 
 set -e
 
@@ -107,16 +107,9 @@ main() {
     done
     echo # New line after progress
     
-    # Step 5: Let CIRIS Manager handle the restart
-    log "Agents have stopped. CIRIS Manager will start them with new images..."
-    
-    # If CIRIS Manager is not running, we can do one manual up
-    if ! systemctl is-active --quiet ciris-manager; then
-        warn "CIRIS Manager is not running. Starting containers manually..."
-        docker-compose -f "$DOCKER_COMPOSE_FILE" up -d
-    else
-        log "CIRIS Manager is running and will start containers within 60 seconds"
-    fi
+    # Step 5: Restart containers with new images
+    log "Agents have stopped. Starting containers with new images..."
+    docker-compose -f "$DOCKER_COMPOSE_FILE" up -d
     
     # Step 6: Verify deployment
     log "Waiting for services to be healthy..."
@@ -130,9 +123,6 @@ main() {
     done
     
     log "Deployment complete!"
-    log ""
-    log "Note: With CIRIS Manager, agents will automatically restart with the latest"
-    log "image whenever they exit. No staging or complex deployment needed!"
 }
 
 # Run main function

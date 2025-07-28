@@ -50,7 +50,7 @@
   - [ ] Audit logging
 
 ### Integration
-- [ ] CIRISManager API routes
+- [ ] API routes
 - [ ] Authentication middleware
 - [ ] Rate limiting
 - [ ] Request logging

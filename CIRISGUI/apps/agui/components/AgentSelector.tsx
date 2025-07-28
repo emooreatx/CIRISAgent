@@ -4,7 +4,7 @@ import { Fragment } from 'react';
 import { Listbox, Transition } from '@headlessui/react';
 import { CheckIcon } from './Icons';
 import { ChevronUpDownIcon } from '@heroicons/react/24/outline';
-import { useAgent } from '../contexts/AgentContextDynamic';
+import { useAgent } from '../contexts/AgentContextStatic';
 import { APIRole } from '../lib/ciris-sdk';
 
 function classNames(...classes: string[]) {

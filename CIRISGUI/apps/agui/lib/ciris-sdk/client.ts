@@ -11,7 +11,6 @@ import { TelemetryResource } from './resources/telemetry';
 import { WiseAuthorityResource } from './resources/wise-authority';
 import { EmergencyResource } from './resources/emergency';
 import { UsersResource } from './resources/users';
-import { ManagerResource } from './resources/manager';
 import { User } from './types';
 
 export interface CIRISClientOptions {
@@ -36,7 +35,6 @@ export class CIRISClient {
   public readonly wiseAuthority: WiseAuthorityResource;
   public readonly emergency: EmergencyResource;
   public readonly users: UsersResource;
-  public readonly manager: ManagerResource;
 
   constructor(options: CIRISClientOptions = {}) {
     // Use environment variable if available, otherwise fall back to window location for browser
@@ -70,7 +68,6 @@ export class CIRISClient {
     this.wiseAuthority = new WiseAuthorityResource(this.transport);
     this.emergency = new EmergencyResource(this.transport);
     this.users = new UsersResource(this.transport);
-    this.manager = new ManagerResource(this.transport);
   }
 
   /**
@@ -111,6 +108,13 @@ export class CIRISClient {
     if (options.authToken !== undefined) {
       this.transport.setAuthToken(options.authToken);
     }
+  }
+
+  /**
+   * Update base URL (convenience method for static agent configuration)
+   */
+  setBaseURL(baseURL: string): void {
+    this.transport.setBaseURL(baseURL);
   }
 
   /**
