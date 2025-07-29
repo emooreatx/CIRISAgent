@@ -79,8 +79,9 @@ services:
 **Implementation**:
 ```python
 # Example: Querying current state (Operational)
-discovery = DockerDiscovery()
-running_agents = discovery.discover_agents()  # Real-time query
+# Note: In current implementation, we use static agent configuration
+# rather than dynamic discovery for simplicity and reliability
+agents = load_static_agent_config()  # Configured agents
 ```
 
 ## Key Design Decisions
@@ -156,8 +157,8 @@ class AutoHealer:
         desired_agents = self.registry.list_agents()
         
         # Get reality
-        running = DockerDiscovery().discover_agents()
-        running_ids = {a['agent_id'] for a in running}
+        running = self.docker.list_containers()
+        running_ids = {c['agent_id'] for c in running if 'agent_id' in c.labels}
         
         # Reconcile
         for agent in desired_agents:

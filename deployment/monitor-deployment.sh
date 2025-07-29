@@ -59,7 +59,3 @@ while true; do
     sleep 30
 done
 
-echo ""
-echo "To manually deploy CIRISManager:"
-echo "  ssh -i ~/.ssh/ciris_deploy root@108.61.119.117"
-echo "  cd /home/ciris/CIRISAgent && ./deployment/deploy-ciris-manager.sh"

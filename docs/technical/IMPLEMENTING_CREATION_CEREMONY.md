@@ -459,11 +459,11 @@ def create_container_config(
 
 ## Integration Points
 
-### CIRISManager Integration
+### API Integration
 
 ```python
-# In CIRISManager API (Phase 3)
-@app.post("/v1/agents")
+# In CIRIS API (Phase 3)
+@app.post("/v1/ceremony/create-agent")
 async def create_agent(
     request: CreationCeremonyRequest,
     wa_signature: str = Header(...),
@@ -478,10 +478,10 @@ async def create_agent(
     if current_user.role not in CeremonyPermissions.INITIATE_CEREMONY:
         raise HTTPException(403, "Insufficient permissions")
     
-    # Get facilitating agent (CIRISManager acts as facilitator)
+    # Get facilitating agent
     facilitator = Agent(
-        agent_id="ciris-manager",
-        agent_name="CIRISManager"
+        agent_id="datum",
+        agent_name="Datum"
     )
     
     # Execute ceremony

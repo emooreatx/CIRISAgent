@@ -20,5 +20,4 @@ echo "  - SHA-256 checksums of all pre-approved templates"
 echo "  - Ed25519 signature from the root private key"
 echo "  - Root public key for verification"
 echo
-echo "Place this file at /etc/ciris-manager/pre-approved-templates.json"
-echo "on the server where CIRISManager runs."
+echo "Save this file for use in agent creation ceremonies."

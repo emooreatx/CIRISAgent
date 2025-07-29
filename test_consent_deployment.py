@@ -151,16 +151,6 @@ def main():
         if result.returncode == 0:
             warn("Staged container exists - agent may not have consented")
         
-    # Step 5: Test CIRISManager API
-    info("Step 5: Testing CIRISManager API endpoints")
-    
-    # Start CIRISManager if not running
-    if not os.path.exists("/tmp/test-ciris-manager.pid"):
-        log("Starting CIRISManager for testing...")
-        # This would normally be done via systemd
-        # For testing, we'll skip this step
-        warn("CIRISManager API test skipped (requires systemd)")
-    
     print("=" * 60)
     log("Consent-based deployment test complete")
     

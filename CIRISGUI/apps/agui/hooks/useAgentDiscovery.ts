@@ -34,6 +34,30 @@ export function useAgentDiscovery(options: UseAgentDiscoveryOptions = {}) {
         }
       }
     } catch (err) {
+      // If manager is not available, use default local agent
+      if (err instanceof Error && (err.message.includes('fetch') || err.message.includes('Failed to fetch'))) {
+        console.log('CIRIS Manager not available, using local dev agent');
+        const defaultAgent: AgentInfo = {
+          agent_id: 'datum',
+          agent_name: 'Datum (Local Dev)',
+          status: 'running',
+          health: 'healthy',
+          api_url: process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost',
+          api_port: 8080,
+          api_endpoint: process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost:8080',
+          container_name: 'ciris-agent-datum',
+          created_at: new Date().toISOString(),
+          started_at: new Date().toISOString(),
+          update_available: false,
+        };
+        setAgents([defaultAgent]);
+        if (!selectedAgent) {
+          setSelectedAgent(defaultAgent);
+        }
+        // Don't set error for expected connection failures
+        return;
+      }
+      
       const error = err instanceof Error ? err : new Error('Failed to fetch agents');
       setError(error);
       onError?.(error);

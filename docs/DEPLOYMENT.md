@@ -14,45 +14,31 @@ This guide covers deployment options for CIRIS, from local development to produc
 - Docker and docker-compose installed
 - Python 3.11+
 - Node.js 18+
-- Ports available: 80, 3000, 8080-8199, 8888
+- Ports available: 80, 3000, 8080
 
-### Quick Start (3 Steps)
+### Quick Start (2 Steps)
 
 ```bash
-# 1. Start CIRISManager (no agents needed)
-GOOGLE_CLIENT_ID=your-client-id GOOGLE_CLIENT_SECRET=your-secret \
-  CIRIS_MANAGER_CONFIG=~/.config/ciris-manager/config.yml \
-  python deployment/run-ciris-manager-api.py
+# 1. Start CIRIS Agent with API adapter
+docker-compose -f docker-compose-api-mock.yml up -d
 
-# 2. Start GUI
+# 2. Start GUI (optional)
 cd CIRISGUI/apps/agui && npm run dev
-
-# 3. Start nginx (optional, for unified routing)
-docker-compose -f docker-compose-nginx.yml up -d
 ```
 
 Access at:
-- GUI: http://localhost:3000 (direct) or http://localhost (via nginx)
-- Manager API: http://localhost:8888/manager/v1/agents
-- Agent APIs: http://localhost:808X/docs (when agents are created)
+- GUI: http://localhost:3000
+- Agent API: http://localhost:8080/docs
+- Health check: http://localhost:8080/v1/system/health
 
-### Creating Agents
+### Running with Discord
 
-Via GUI:
-1. Navigate to http://localhost:3000/manager
-2. Click "Create Agent"
-3. Select template and configure
-4. **Important**: Set `CIRIS_ADAPTER=api` or agent will exit
-
-Via API:
 ```bash
-curl -X POST http://localhost:8888/manager/v1/agents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "template": "scout",
-    "name": "My Scout",
-    "environment": {"CIRIS_ADAPTER": "api"}
-  }'
+# Create .env.datum file with Discord token
+echo "DISCORD_TOKEN=your-bot-token" > .env.datum
+
+# Start with Discord adapter
+docker-compose -f docker-compose-api-discord-mock.yml up -d
 ```
 
 ## Production Deployment
@@ -60,80 +46,72 @@ curl -X POST http://localhost:8888/manager/v1/agents \
 ### Current Setup (agents.ciris.ai)
 
 Production uses:
-- CIRISManager as systemd service (API-only mode)
-- Multiple agent containers (managed by Docker)
+- Single Datum agent with Mock LLM
 - nginx for routing
 - Google OAuth for authentication
+- Automated deployment via GitHub Actions
 
 ### Deployment Flow
 
 1. **Code Changes**
-   - Push to main branch
-   - GitHub Actions builds and pushes Docker images
-   - CIRISManager detects new images (checks every 60s)
-   - Automatic rolling updates for agents
+   - Create PR to CIRISAI/CIRISAgent
+   - Merge to main branch
+   - GitHub Actions automatically:
+     - Runs tests
+     - Builds Docker images
+     - Deploys to production
+     - Uses staged deployment for zero downtime
 
-2. **Manager Updates**
-   - SSH to server required
-   - `git pull origin main`
-   - `sudo systemctl restart ciris-manager-api`
+2. **Manual Deployment** (if needed)
+   ```bash
+   ssh -i ~/.ssh/ciris_deploy root@108.61.119.117
+   cd /home/ciris/CIRISAgent
+   git pull
+   docker-compose -f deployment/docker-compose.dev-prod.yml up -d
+   ```
 
 ### Environment Variables
 
 Required for production:
 ```bash
+# For API access
+CIRIS_API_HOST=0.0.0.0  # Required for external access
+CIRIS_API_PORT=8080
+
+# For Discord (optional)
+DISCORD_TOKEN=your-token
+
+# For Google OAuth (optional)
 GOOGLE_CLIENT_ID=xxx
 GOOGLE_CLIENT_SECRET=yyy
-CIRIS_MANAGER_CONFIG=/path/to/config.yml
 ```
 
 ## Architecture Overview
 
 ```
-[Browser] → [nginx:80/443] → ├─ [GUI:3000] → [Manager:8888] → [Docker API]
-                              ├─ [Manager:8888]              ↘
-                              └─ [/api/<agent>/*] ← ← ← ← ← ← [Agents:808X]
+[Browser] → [nginx:80/443] → ├─ [GUI:3000]
+                             └─ [Agent API:8080]
 ```
 
 ### Components
 
-1. **CIRISManager** - Agent lifecycle management
-   - Discovers agents via Docker API
-   - Updates nginx configuration
-   - Handles OAuth authentication
-   - Port allocation (8080-8199)
-
-2. **nginx** - Reverse proxy
-   - Routes to GUI, Manager, and Agents
-   - SSL termination (production)
-   - Health checks
-
-3. **GUI** - Web interface
-   - Agent management
-   - Real-time status
-   - OAuth integration
-
-4. **Agents** - CIRIS instances
+1. **CIRIS Agent** - The main AI agent
    - API adapter for web access
-   - Discord adapter for chat
+   - Discord adapter for chat (optional)
+   - Mock LLM for offline operation
    - Health monitoring
 
-## Configuration
+2. **nginx** - Reverse proxy
+   - Routes to GUI and Agent
+   - SSL termination (production)
+   - Static configuration
 
-### Manager Config (config.yml)
-```yaml
-manager:
-  agents_directory: ~/.config/ciris-manager/agents
-  manifest_path: ~/.config/ciris-manager/pre-approved-templates.json
-  templates_directory: ./ciris_templates
-nginx:
-  config_dir: /home/ciris/nginx
-  container_name: ciris-nginx
-ports:
-  start: 8080
-  end: 8199
-  reserved: [8888, 3000, 80, 443]
-```
+3. **GUI** - Web interface
+   - Agent interaction
+   - System status
+   - Static agent configuration
+
+## Configuration
 
 ### Docker Networks
 
@@ -142,38 +120,54 @@ ports:
 
 ### Critical Settings
 
-- **CIRIS_ADAPTER=api** - Required for agents to serve HTTP
-- **OAuth** - Required for create/delete operations
-- **Port Range** - 8080-8199 reserved for agents
+- **CIRIS_ADAPTER=api** - Required for HTTP API
+- **CIRIS_API_HOST=0.0.0.0** - Required for external access
+- **Mock LLM** - Enabled by default for offline operation
 
 ## Troubleshooting
 
 ### Common Issues
 
-**"Pre-approved manifest not found"**
-```bash
-cp pre-approved-templates.json ~/.config/ciris-manager/
-```
+**Agent not accessible externally**
+- Ensure `CIRIS_API_HOST=0.0.0.0` is set
+- Check firewall allows port 8080
+- Verify with: `curl http://localhost:8080/v1/system/health`
 
-**401 Unauthorized on agent creation**
-- Ensure OAuth environment variables are set
-- Check Manager logs: `tail -f /tmp/ciris-manager.log`
-
-**Agent exits immediately**
-- Set `CIRIS_ADAPTER=api` in environment
-- Check logs: `docker logs ciris-<agent-id>`
+**Container exits immediately**
+- Check logs: `docker logs ciris-agent-datum`
+- Look at incidents: `docker exec ciris-agent-datum tail /app/logs/incidents_latest.log`
+- Ensure required environment variables are set
 
 **nginx routing issues**
-- Verify network: `docker network ls | grep ciris`
-- Check config: `cat /home/ciris/nginx/nginx.conf`
+- Check config: `docker exec ciris-nginx cat /etc/nginx/nginx.conf`
 - Reload: `docker exec ciris-nginx nginx -s reload`
+- Verify network: `docker network ls | grep ciris`
 
 ### Logs
 
-- Manager: `/tmp/ciris-manager.log` or `journalctl -u ciris-manager-api`
-- Agents: `docker logs ciris-<agent-id>`
+- Agent: `docker logs ciris-agent-datum`
+- Incidents: `docker exec ciris-agent-datum tail -f /app/logs/incidents_latest.log`
 - nginx: `docker logs ciris-nginx`
 - GUI: Browser console
+
+### Health Checks
+
+```bash
+# Check agent health
+curl http://localhost:8080/v1/system/health
+
+# Check all services
+./deployment/production-troubleshoot.sh
+```
+
+## Graceful Shutdown
+
+For zero-downtime deployments:
+```bash
+./deployment/graceful-shutdown.py
+# or with custom message
+./deployment/graceful-shutdown.py --message "Maintenance update"
+```
 
 ## See Also
 

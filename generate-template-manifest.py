@@ -6,7 +6,7 @@ This script:
 1. Scans template files and calculates SHA-256 checksums
 2. Creates the manifest JSON structure
 3. Signs the templates object with the root WA private key
-4. Outputs the complete manifest for CIRISManager
+4. Outputs the complete manifest for agent creation
 """
 import json
 import hashlib
@@ -38,7 +38,7 @@ def main():
     # Paths
     templates_dir = Path("ciris_templates")
     private_key_path = Path.home() / ".ciris/wa_keys/root_wa.key"
-    output_path = Path.home() / ".config/ciris-manager/pre-approved-templates.json"
+    output_path = Path("pre-approved-templates.json")
     
     # Load private key
     print(f"Loading root WA private key from {private_key_path}")

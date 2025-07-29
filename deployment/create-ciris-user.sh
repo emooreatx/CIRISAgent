@@ -1,6 +1,6 @@
 #!/bin/bash
 # Create ciris user for managing CIRIS services
-# This script creates a dedicated user for running CIRISManager and managing configurations
+# This script creates a dedicated user for running CIRIS services and managing configurations
 
 set -e
 
@@ -57,10 +57,8 @@ directories=(
     "$CIRIS_HOME/nginx"
     "$CIRIS_HOME/shared/oauth"
     "$CIRIS_HOME/.ciris"
-    "$CIRIS_HOME/.config/ciris-manager"
     "/var/log/ciris"
     "/var/run/ciris"
-    "/etc/ciris-manager/agents"
 )
 
 for dir in "${directories[@]}"; do
@@ -113,8 +111,6 @@ echo "  - Groups: $(groups $CIRIS_USER | cut -d: -f2)"
 echo
 echo "Next steps:"
 echo "  1. Clone CIRISAgent repo to $CIRIS_HOME/CIRISAgent"
-echo "  2. Run deployment/setup-nginx-management.sh"
-echo "  3. Configure CIRISManager"
 echo
 echo "To switch to ciris user:"
 echo "  sudo su - $CIRIS_USER"

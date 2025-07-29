@@ -50,54 +50,7 @@ else
     docker-compose -f deployment/docker-compose.dev-prod.yml up -d agent-datum
 fi
 
-# Step 4: Deploy CIRISManager
-log "Deploying CIRISManager..."
-
-# Ensure Python environment
-if [ ! -d "/home/ciris/CIRISAgent/venv" ]; then
-    log "Creating Python virtual environment..."
-    cd /home/ciris/CIRISAgent
-    python3 -m venv venv
-fi
-
-# Activate venv and install dependencies
-cd /home/ciris/CIRISAgent
-source venv/bin/activate
-pip install --upgrade pip
-pip install pyyaml aiofiles
-
-# Create ciris-manager wrapper
-log "Creating ciris-manager command..."
-cat > /usr/local/bin/ciris-manager << 'EOF'
-#!/bin/bash
-cd /home/ciris/CIRISAgent
-export PYTHONPATH="/home/ciris/CIRISAgent:$PYTHONPATH"
-if [ -d "venv" ]; then
-    source venv/bin/activate
-fi
-python3 -m ciris_manager.cli "$@"
-EOF
-chmod +x /usr/local/bin/ciris-manager
-
-# Create config
-mkdir -p /etc/ciris-manager
-if [ ! -f "/etc/ciris-manager/config.yml" ]; then
-    ciris-manager --generate-config --config /etc/ciris-manager/config.yml
-    sed -i 's|docker-compose.yml|docker-compose.dev-prod.yml|' /etc/ciris-manager/config.yml
-fi
-
-# Install service
-if [ -f "deployment/ciris-manager.service" ]; then
-    cp deployment/ciris-manager.service /etc/systemd/system/
-    sed -i 's|ExecStart=.*|ExecStart=/usr/local/bin/ciris-manager --config /etc/ciris-manager/config.yml|' /etc/systemd/system/ciris-manager.service
-    systemctl daemon-reload
-    systemctl enable ciris-manager
-    systemctl restart ciris-manager
-else
-    warn "Service file not found, skipping systemd setup"
-fi
-
-# Step 5: Verify
+# Step 4: Verify
 log "Waiting for services to stabilize..."
 sleep 10
 
@@ -108,15 +61,6 @@ echo ""
 # Check containers
 echo "Containers:"
 docker ps --format "table {{.Names}}\t{{.Status}}" | grep -E "ciris|NAMES" || true
-
-# Check CIRISManager
-echo ""
-echo "CIRISManager:"
-if systemctl is-active ciris-manager >/dev/null 2>&1; then
-    echo -e "  ${GREEN}✓ Service is active${NC}"
-else
-    echo -e "  ${RED}✗ Service is not active${NC}"
-fi
 
 # Check API
 echo ""
