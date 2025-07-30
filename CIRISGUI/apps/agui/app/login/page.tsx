@@ -22,27 +22,38 @@ export default function LoginPage() {
     { provider: "discord", name: "Discord" }
   ];
 
-  // Load static agent configuration
+  // Load agents from manager API
   useEffect(() => {
     const loadAgents = async () => {
       try {
-        console.log('Loading static agent configuration...');
-        // Use static agent configuration
-        const staticAgents: AgentInfo[] = [{
-          agent_id: 'datum',
-          agent_name: 'Datum',
-          status: 'running',
-          health: 'healthy',
-          api_url: process.env.NEXT_PUBLIC_CIRIS_API_URL || window.location.origin,
-          api_port: 8080,
-          container_name: 'ciris-agent-datum',
-          created_at: new Date().toISOString(),
+        console.log('Loading agents from manager API...');
+        // Fetch agents from manager API using fetch (no auth required)
+        const response = await fetch('/manager/v1/agents');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch agents: ${response.status} ${response.statusText}`);
+        }
+        const data = await response.json();
+        console.log('Loaded agents:', data.agents);
+        
+        // Convert manager API response to AgentInfo format
+        const agentsList: AgentInfo[] = data.agents.map((agent: any) => ({
+          agent_id: agent.agent_id,
+          agent_name: agent.agent_name,
+          status: agent.status,
+          health: agent.health,
+          api_url: agent.api_endpoint || `http://localhost:${agent.api_port}`,
+          api_port: parseInt(agent.api_port) || 8080,
+          api_endpoint: agent.api_endpoint || `http://localhost:${agent.api_port}`,
+          container_name: agent.container_name,
+          created_at: agent.created_at,
           update_available: false,
-        }];
-        console.log('Static agents:', staticAgents);
-        setAgents(staticAgents);
-        if (staticAgents.length > 0) {
-          setSelectedAgent(staticAgents[0].agent_id);
+        }));
+        
+        setAgents(agentsList);
+        if (agentsList.length > 0) {
+          // Select the first healthy agent by default
+          const healthyAgent = agentsList.find(a => a.health === 'healthy') || agentsList[0];
+          setSelectedAgent(healthyAgent.agent_id);
         }
       } catch (error) {
         console.error('Failed to load agents - Full error:', error);
@@ -56,8 +67,23 @@ export default function LoginPage() {
         } else {
           console.error('Unknown error type:', error);
         }
-        // Don't set any fallback agents - show empty list
-        setAgents([]);
+        
+        // Fall back to static Datum agent if manager API fails
+        console.log('Falling back to static Datum agent');
+        const staticAgents: AgentInfo[] = [{
+          agent_id: 'datum',
+          agent_name: 'Datum',
+          status: 'running',
+          health: 'healthy',
+          api_url: process.env.NEXT_PUBLIC_CIRIS_API_URL || window.location.origin,
+          api_port: 8080,
+          api_endpoint: 'http://localhost:8080',
+          container_name: 'ciris-agent-datum',
+          created_at: new Date().toISOString(),
+          update_available: false,
+        }];
+        setAgents(staticAgents);
+        setSelectedAgent('datum');
       } finally {
         setLoadingAgents(false);
       }
