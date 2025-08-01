@@ -53,22 +53,7 @@ environment:
 
 ## Creating Agents
 
-### Via CIRISManager API
-```bash
-curl -X POST http://localhost:8888/manager/v1/agents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "template": "scout",
-    "name": "Production Scout",
-    "environment": {
-      "CIRIS_ADAPTER": "api",
-      "OPENAI_API_KEY": "sk-...",
-      "CIRIS_LLM_PROVIDER": "openai"
-    }
-  }'
-```
-
-### Manual Docker Compose
+### Docker Compose
 ```yaml
 version: '3.8'
 services:

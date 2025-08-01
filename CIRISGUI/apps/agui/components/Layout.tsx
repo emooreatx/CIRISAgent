@@ -2,7 +2,7 @@
 import LogoIcon from "../components/ui/floating/LogoIcon";
 import Link from "next/link";
 import { useAuth } from "../contexts/AuthContext";
-import { useAgent } from "../contexts/AgentContextDynamic";
+import { useAgent } from "../contexts/AgentContextHybrid";
 import { useRouter } from "next/navigation";
 // import AgentSelector from "./AgentSelector"; // Removed - agents require separate auth
 import React, { useState, useEffect } from "react";

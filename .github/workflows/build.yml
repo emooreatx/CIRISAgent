@@ -225,16 +225,6 @@ jobs:
             cd CIRISAgent
             git pull origin main
             
-            # Setup Python virtual environment for CIRISManager
-            if [ ! -d "/home/ciris/venv" ]; then
-              echo "Creating Python virtual environment for CIRISManager..."
-              python3 -m venv /home/ciris/venv
-            fi
-            
-            # Update pip and install requirements
-            echo "Installing/updating Python dependencies..."
-            /home/ciris/venv/bin/pip install --upgrade pip
-            /home/ciris/venv/bin/pip install -r requirements.txt
             
             # Create .env.datum file for Phase 1 if it doesn't exist
             if [ ! -f ".env.datum" ]; then
@@ -280,51 +270,14 @@ jobs:
               fi
             done
             
-            # Use clean deployment with CIRIS Manager
-            if [ -f "deployment/deploy-clean.sh" ]; then
-              echo "Using clean deployment with CIRIS Manager..."
-              chmod +x deployment/deploy-clean.sh
-              ./deployment/deploy-clean.sh
-            else
-              # Fallback to simple docker-compose
-              echo "Using simple deployment..."
-              docker-compose -f deployment/docker-compose.dev-prod.yml pull
-              docker-compose -f deployment/docker-compose.dev-prod.yml up -d
-            fi
+            # Simple deployment
+            echo "Using simple deployment..."
+            docker-compose -f deployment/docker-compose.dev-prod.yml pull
+            docker-compose -f deployment/docker-compose.dev-prod.yml up -d
             
             # Clean up old images
             docker image prune -f
             
-            # Install CIRISManager if not already installed
-            if ! command -v ciris-manager &> /dev/null; then
-              echo "Installing CIRISManager..."
-              cd /home/ciris/CIRISAgent
-              apt-get install -y python3-pip python3-venv
-              # Install using setup_manager.py
-              python3 setup_manager.py install --user
-              # Add local bin to PATH
-              export PATH="/root/.local/bin:$PATH"
-            fi
-            
-            # Create CIRISManager config if it doesn't exist
-            if [ ! -f "/etc/ciris-manager/config.yml" ]; then
-              mkdir -p /etc/ciris-manager
-              /root/.local/bin/ciris-manager --generate-config --config /etc/ciris-manager/config.yml
-              # Update compose file path and disable pull_images
-              sed -i 's|/home/ciris/CIRISAgent/deployment/docker-compose.yml|/home/ciris/CIRISAgent/deployment/docker-compose.dev-prod.yml|' /etc/ciris-manager/config.yml
-              sed -i 's/pull_images: true/pull_images: false/' /etc/ciris-manager/config.yml
-            fi
-            
-            # Install CIRISManager API service (API-only, no container management)
-            if [ ! -f "/etc/systemd/system/ciris-manager-api.service" ]; then
-              cp deployment/ciris-manager-api.service /etc/systemd/system/
-              systemctl daemon-reload
-              systemctl enable ciris-manager-api
-              systemctl start ciris-manager-api
-            else
-              # Restart if already exists to pick up any changes
-              systemctl restart ciris-manager-api
-            fi
             
             # Nginx is now managed by CIRISManager
             
@@ -394,16 +347,5 @@ jobs:
             
             # Nginx is now managed by CIRISManager
             
-            # Check CIRISManager API
-            echo "\nChecking CIRISManager API..."
-            if curl -f http://localhost:8888/manager/v1/health 2>/dev/null; then
-              echo "CIRISManager API is healthy!"
-              
-              # List discovered agents
-              echo "\nDiscovered agents:"
-              curl -s http://localhost:8888/manager/v1/agents | jq -r '.[] | "- \(.agent_name) (\(.agent_id)): \(.status) - \(.health // "unknown")"' || echo "Failed to parse agents"
-            else
-              echo "Warning: CIRISManager API not responding (this is non-critical)"
-            fi
             
             echo "\nDeployment successful! Phase 1 with Mock LLM is running."

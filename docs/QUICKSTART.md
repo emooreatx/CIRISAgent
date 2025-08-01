@@ -23,20 +23,20 @@ curl http://localhost:8080/v1/system/health
 
 Visit API docs: http://localhost:8080/docs
 
-## Option 2: Full Local Stack
+## Option 2: Local Development with GUI
 
 ```bash
-# 1. Start Manager (handles multiple agents)
-CIRIS_MANAGER_CONFIG=~/.config/ciris-manager/config.yml \
-  python deployment/run-ciris-manager-api.py
+# 1. Start an agent with API adapter
+docker-compose -f docker-compose-api-discord-mock.yml up -d
 
 # 2. Start GUI (in new terminal)
 cd CIRISGUI/apps/agui
 npm install
 npm run dev
 
-# 3. Create agents via GUI
+# 3. Access the web interface
 # Visit http://localhost:3000
+# Default credentials: admin/ciris_admin_password
 ```
 
 ## What's Running?
@@ -46,7 +46,6 @@ npm run dev
 | Agent API | http://localhost:8080 | CIRIS agent with mock LLM |
 | API Docs | http://localhost:8080/docs | Interactive API documentation |
 | GUI | http://localhost:3000 | Web interface (Option 2) |
-| Manager | http://localhost:8888 | Agent management (Option 2) |
 
 ## Next Steps
 

@@ -23,7 +23,7 @@ export { SystemResource } from './resources/system';
 export { MemoryResource } from './resources/memory';
 export { ConfigResource, unwrapConfigValue, wrapConfigValue } from './resources/config';
 export { UsersResource } from './resources/users';
-export { ManagerResource } from './resources/manager';
+export * from './resources/manager';
 
 // Export OAuth types
 export type {
@@ -48,11 +48,3 @@ export type {
   PermissionGrantRequest
 } from './resources/users';
 
-// Export manager types
-export type {
-  AgentInfo,
-  AgentCreationRequest,
-  UpdateNotification,
-  DeploymentStatus,
-  ManagerHealth
-} from './resources/manager';

@@ -1,103 +1,86 @@
-# Deployment Migration Guide: From Staged to Clean
+# Deployment Migration Guide
 
 ## Overview
 
-We've migrated from a complex staged deployment process to a clean, simple approach that leverages Docker and CIRIS Manager's natural behavior.
+This guide documents the migration from complex staged deployments to a clean, direct approach using Docker Compose.
 
-## What Changed
+## Current Deployment Strategy
 
-### Old Approach (Staged Deployment)
-- Used `docker-compose create --no-start` to create staged containers
-- Complex renaming and orchestration logic
-- Risk of containers getting stuck in staging
-- Required manual intervention if agent didn't consent
+### Simple and Direct
+- Use `docker-compose up -d` for all deployments
+- Agents handle their own lifecycle gracefully
+- No staging containers or complex orchestration
+- Restart policy: `unless-stopped` for production stability
 
-### New Approach (Clean Deployment)
-- Simple `docker-compose pull` to get latest images
-- Graceful shutdown notification to running agents
-- Agents exit with code 0 when ready
-- CIRIS Manager or `docker-compose up -d` starts them with new image
-- Uses `restart: unless-stopped` policy
+## Key Principles
 
-## Key Benefits
+1. **Simplicity**: Direct container management with Docker Compose
+2. **Agent Autonomy**: Agents manage their own shutdown/restart cycles
+3. **Zero Downtime**: Graceful shutdown ensures clean handoffs
+4. **No Manual Intervention**: Automatic restart on clean exit
 
-1. **Simplicity**: No staging, no renaming, no complex state management
-2. **Reliability**: Leverages Docker's built-in restart policies
-3. **Safety**: Running containers are never forcefully stopped
-4. **Automation**: CIRIS Manager handles restarts automatically
+## Deployment Process
 
-## Migration Steps
-
-### 1. Update Docker Compose Files
-
-Change restart policy from `on-failure` to `unless-stopped`:
-
-```yaml
-services:
-  agent-datum:
-    restart: unless-stopped  # Changed from on-failure
-```
-
-### 2. Remove Old Scripts
-
-The following scripts are no longer needed:
-- `deployment/deploy-staged.sh`
-- `deployment/deploy-staged-v2.sh`
-- `deployment/consent-based-deploy.sh`
-- `deployment/negotiate-deployment.sh`
-
-### 3. Use New Deployment Script
-
+### 1. Update Images
 ```bash
-# Simple deployment
-./deployment/deploy-clean.sh
-
-# Or just use docker-compose directly
-docker-compose pull
-docker-compose up -d
+# Pull latest images
+docker-compose -f deployment/docker-compose.dev-prod.yml pull
 ```
 
-### 4. Enable CIRIS Manager (Optional but Recommended)
-
-CIRIS Manager will automatically:
-- Run `docker-compose up -d` every 60 seconds
-- Start stopped containers with latest images
-- Monitor for crash loops
-- Provide agent discovery API
-
+### 2. Graceful Shutdown (Optional)
 ```bash
-# Start CIRIS Manager
-systemctl start ciris-manager
-systemctl enable ciris-manager
+# Request graceful shutdown
+./deployment/graceful-shutdown.py --message "Updating to new version"
 ```
 
-## How It Works
+### 3. Deploy
+```bash
+# Start/update containers
+docker-compose -f deployment/docker-compose.dev-prod.yml up -d
+```
 
-1. **Pull Latest Images**: `docker-compose pull`
-2. **Notify Agents**: Send graceful shutdown request
-3. **Wait for Exit**: Agents exit with code 0 when ready
-4. **Automatic Restart**: 
-   - With CIRIS Manager: Happens within 60s automatically
-   - Without: Run `docker-compose up -d`
+## Container Restart Policies
 
-## Important Notes
+- **unless-stopped**: Production agents (keeps running unless explicitly stopped)
+- **on-failure**: Development/testing (restarts only on crashes)
 
-- **Exit Code 0**: Agents must exit with code 0 for `unless-stopped` to work
-- **No Force Stops**: Never use `docker stop -f` or `docker-compose down`
-- **Patience**: Give agents time to shutdown gracefully
+## Migration from Old Approaches
+
+### Removed Components
+- Staged deployment scripts
+- Complex container renaming logic
+- Manager-based orchestration
+- Dynamic agent discovery
+
+### New Approach
+- Static agent configuration
+- Direct Docker Compose management
+- Agent-controlled lifecycles
+- Simplified deployment scripts
 
 ## Troubleshooting
 
-### Container Won't Restart
-- Check exit code: `docker ps -a` 
-- Exit 0 = Won't auto-restart (correct for updates)
-- Non-zero = Will auto-restart (for crashes)
+### Container Won't Start
+```bash
+# Check logs
+docker logs ciris-agent-datum
 
-### Stuck in Old State
-- Remove any `-staged` containers: `docker rm ciris-agent-*-staged`
-- Run `docker-compose up -d` to restore normal state
+# Check status
+docker ps -a | grep ciris
+```
 
-### CIRIS Manager Not Starting Containers
-- Check if running: `systemctl status ciris-manager`
-- Check logs: `journalctl -u ciris-manager -f`
-- Manual fix: `docker-compose up -d`
+### Clean Restart
+```bash
+# Stop everything
+docker-compose -f deployment/docker-compose.dev-prod.yml down
+
+# Start fresh
+docker-compose -f deployment/docker-compose.dev-prod.yml up -d
+```
+
+## Best Practices
+
+1. Always use docker-compose files (never raw docker commands)
+2. Let agents shutdown gracefully (don't force stop)
+3. Monitor logs during deployment
+4. Keep deployment scripts simple and readable

@@ -50,7 +50,6 @@ services:
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_CIRIS_API_URL=http://ciris-agent-local:8080
-      - NEXT_PUBLIC_MANAGER_URL=http://host.docker.internal:8888
     networks:
       - ciris-network
     depends_on:
@@ -59,12 +58,17 @@ services:
       - "host.docker.internal:host-gateway"
     restart: unless-stopped
 
-  # CIRISManager API (non-containerized, runs on host)
-  # Note: Run this separately with: python deployment/run-ciris-manager-api.py
+  # Note: Nginx routing is handled by CIRISManager (separate repository)
+  # For local development:
+  # 1. Clone CIRISManager: git clone https://github.com/CIRISAI/CIRISManager.git ../CIRISManager
+  # 2. Configure: cd ../CIRISManager && ciris-manager --generate-config --config ~/.config/ciris-manager/config.yml
+  # 3. Run API: python deployment/run-ciris-manager-api.py
+  # This provides nginx routing and multi-agent management capabilities
 
 volumes:
   agent_data:
   agent_logs:
+  nginx_logs:  # Used when running nginx from CIRISManager
 
 networks:
   ciris-network:

@@ -7,6 +7,8 @@ export interface AgentInfo {
   container_name: string;
   status: string;
   health?: string;
+  api_url?: string;
+  api_port?: number;
   api_endpoint?: string;
   created_at: string;
   started_at?: string;

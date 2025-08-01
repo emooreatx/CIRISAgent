@@ -114,6 +114,13 @@ export class CIRISClient {
   }
 
   /**
+   * Update base URL (convenience method for static agent configuration)
+   */
+  setBaseURL(baseURL: string): void {
+    this.transport.setBaseURL(baseURL);
+  }
+
+  /**
    * Create a new client instance with different configuration
    */
   withConfig(options: Partial<CIRISClientOptions> & { authToken?: string }): CIRISClient {

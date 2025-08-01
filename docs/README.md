@@ -14,7 +14,6 @@ Welcome to the CIRIS (Continuous Intelligent Response and Interaction System) do
 ## Configuration & Operations
 - [Agent Configuration](AGENT_CONFIGURATION.md) - Creating and configuring agents
 - [Agent Creation Ceremony](AGENT_CREATION_CEREMONY.md) - Formal process for agent creation
-- [CIRISManager Deployment](CIRIS_MANAGER_DEPLOYMENT.md) - Manager service details
 
 ## Development
 - [API Documentation](API_SPEC.md) - REST API specification
@@ -38,7 +37,7 @@ Start with the [Quick Start Guide](QUICKSTART.md) to get CIRIS running quickly.
 Review the [Architecture](ARCHITECTURE.md) and [API Documentation](API_SPEC.md).
 
 ### For Operations
-See the [Deployment Guide](DEPLOYMENT.md) and [CIRISManager documentation](CIRIS_MANAGER_DEPLOYMENT.md).
+See the [Deployment Guide](DEPLOYMENT.md).
 
 ## Contributing
 
