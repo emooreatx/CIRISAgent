@@ -25,9 +25,33 @@ interface AgentContextType {
   isLoadingAgents: boolean;
   isLoadingRoles: boolean;
   error: Error | null;
+  mode: 'standalone' | 'managed';
+  apiBase: string;
 }
 
 const AgentContext = createContext<AgentContextType | null>(null);
+
+// Detect deployment mode based on URL path
+function detectDeploymentMode(): { mode: 'standalone' | 'managed', agentId: string | null, apiBase: string } {
+  if (typeof window === 'undefined') {
+    // Server-side rendering, default to standalone
+    return { mode: 'standalone', agentId: null, apiBase: '/v1' };
+  }
+
+  const path = window.location.pathname;
+  const isManaged = path.startsWith('/agent/');
+
+  if (isManaged) {
+    // Managed mode: extract agent ID from /agent/{agent_id}
+    const pathParts = path.split('/');
+    const agentId = pathParts[2] || 'default';
+    const apiBase = `/api/${agentId}/v1`;
+    return { mode: 'managed', agentId, apiBase };
+  } else {
+    // Standalone mode: direct API access
+    return { mode: 'standalone', agentId: 'default', apiBase: '/v1' };
+  }
+}
 
 export function AgentProvider({ children }: { children: ReactNode }) {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
@@ -38,8 +62,43 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<Error | null>(null);
   const { user } = useAuth();
 
-  // Discover agents from CIRISManager
+  // Detect mode and configure SDK
+  const { mode, agentId: detectedAgentId, apiBase } = detectDeploymentMode();
+
+  // Initialize based on mode
+  useEffect(() => {
+    if (mode === 'standalone') {
+      // In standalone mode, create a single default agent
+      const defaultAgent: AgentInfo = {
+        agent_id: detectedAgentId || 'default',
+        agent_name: 'Default Agent',
+        container_name: 'standalone',
+        status: 'running',
+        api_endpoint: `${window.location.origin}${apiBase}`,
+        created_at: new Date().toISOString(),
+        health: 'healthy',
+        update_available: false
+      };
+      
+      setAgents([defaultAgent]);
+      setCurrentAgent(defaultAgent);
+      
+      // Configure SDK for standalone mode
+      cirisClient.setConfig({ 
+        baseURL: window.location.origin
+      });
+    } else {
+      // In managed mode, discover agents from CIRISManager
+      refreshAgents();
+    }
+  }, [mode]);
+
+  // Discover agents from CIRISManager (managed mode only)
   const refreshAgents = async () => {
+    if (mode === 'standalone') {
+      // No need to discover in standalone mode
+      return;
+    }
     setIsLoadingAgents(true);
     setError(null);
     
@@ -47,17 +106,26 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       const discovered = await cirisClient.manager.listAgents();
       setAgents(discovered);
       
-      // If no current agent selected, select first running agent
-      if (!currentAgent && discovered.length > 0) {
+      // If we're in managed mode with a specific agent ID, select it
+      if (detectedAgentId) {
+        const targetAgent = discovered.find(a => a.agent_id === detectedAgentId);
+        if (targetAgent) {
+          setCurrentAgent(targetAgent);
+          // Configure SDK for this specific agent
+          cirisClient.setConfig({ 
+            baseURL: `${window.location.origin}${apiBase}`
+          });
+        }
+      } else if (!currentAgent && discovered.length > 0) {
+        // Otherwise select first running agent
         const runningAgent = discovered.find(a => a.status === 'running');
         if (runningAgent) {
-          setCurrentAgent(runningAgent);
+          await selectAgent(runningAgent.agent_id);
         }
       }
     } catch (err) {
       console.error('Failed to discover agents:', err);
       setError(err instanceof Error ? err : new Error('Failed to discover agents'));
-      // Don't create fallback agents - let the UI handle the "no agents" case
     } finally {
       setIsLoadingAgents(false);
     }
@@ -71,12 +139,15 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     const newRoles = new Map<string, AgentRole>();
     
     for (const agent of agents) {
-      if (agent.api_endpoint && agent.status === 'running') {
+      if (agent.status === 'running') {
         try {
-          // Create client for specific agent
-          const agentClient = cirisClient.withConfig({
-            baseURL: agent.api_endpoint
-          });
+          // In standalone mode, use the configured base URL
+          // In managed mode, create client for specific agent
+          const agentClient = mode === 'standalone' 
+            ? cirisClient
+            : cirisClient.withConfig({
+                baseURL: `${window.location.origin}/api/${agent.agent_id}`
+              });
           
           const currentUser = await agentClient.auth.getCurrentUser();
           
@@ -107,17 +178,18 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     
     setCurrentAgent(agent);
     
-    // Update SDK to use multi-agent routing pattern
-    // Always use /api/{agent} pattern for consistency with nginx routing
-    const baseURL = `${window.location.origin}/api/${agentId}`;
-    
-    cirisClient.setConfig({ baseURL });
+    // Update SDK based on mode
+    if (mode === 'standalone') {
+      // In standalone mode, always use direct /v1 access
+      cirisClient.setConfig({ 
+        baseURL: window.location.origin
+      });
+    } else {
+      // In managed mode, use multi-agent routing pattern
+      const baseURL = `${window.location.origin}/api/${agentId}`;
+      cirisClient.setConfig({ baseURL });
+    }
   };
-
-  // Initial discovery
-  useEffect(() => {
-    refreshAgents();
-  }, []);
 
   // Refresh roles when agents change or user logs in
   useEffect(() => {
@@ -126,11 +198,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     }
   }, [user, agents]);
 
-  // Auto-refresh agents every 30 seconds
+  // Auto-refresh agents every 30 seconds (managed mode only)
   useEffect(() => {
-    const interval = setInterval(refreshAgents, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    if (mode === 'managed') {
+      const interval = setInterval(refreshAgents, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [mode]);
 
   const currentAgentRole = currentAgent 
     ? agentRoles.get(currentAgent.agent_id) || null
@@ -146,7 +220,9 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     refreshAgentRoles,
     isLoadingAgents,
     isLoadingRoles,
-    error
+    error,
+    mode,
+    apiBase
   };
 
   return (

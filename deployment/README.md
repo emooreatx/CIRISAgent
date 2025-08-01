@@ -98,15 +98,17 @@ The adapters are configured with the following priorities:
 
 This ensures that API requests take precedence, followed by Discord, then CLI.
 
-## NGINX Configuration
+## Routing Configuration
 
-The production NGINX configuration (`nginx/agents.ciris.ai.conf`) routes:
+The production routing is managed by CIRISManager's nginx service:
 - `/` → GUI on port 3000
 - `/api/datum/*` → Datum agent on port 8080
 - `/api/sage/*` → Sage agent on port 8081
 - `/api/scout/*` → Scout agent on port 8082
 - `/api/echo-core/*` → Echo-Core agent on port 8083
 - `/api/echo-speculative/*` → Echo-Speculative agent on port 8084
+
+Note: Nginx configuration has been moved to CIRISManager for centralized infrastructure management.
 
 ## Local Development
 
@@ -199,7 +201,7 @@ curl http://localhost:8080/v1/system/health  # Datum
 curl http://localhost:8081/v1/system/health  # Sage
 # etc...
 
-# Through NGINX
+# Through routing layer (managed by CIRISManager)
 curl https://agents.ciris.ai/api/datum/system/health
 ```
 

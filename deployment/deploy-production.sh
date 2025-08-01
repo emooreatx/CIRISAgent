@@ -100,14 +100,10 @@ remote_exec "cd $REMOTE_DIR && tar -xzf deployment.tar.gz && rm deployment.tar.g
 # Copy deployment files
 echo "Copying deployment files..."
 scp -i "$SSH_KEY" deployment/docker-compose.production.yml "$DEPLOY_USER@$DEPLOY_HOST:$REMOTE_DIR/docker-compose.yml"
-scp -i "$SSH_KEY" deployment/nginx/agents.ciris.ai.conf "$DEPLOY_USER@$DEPLOY_HOST:/tmp/agents.ciris.ai.conf"
 
-# Update NGINX configuration
-echo
-echo "Updating NGINX configuration..."
-remote_exec "cp /tmp/agents.ciris.ai.conf /etc/nginx/sites-available/agents.ciris.ai"
-remote_exec "ln -sf /etc/nginx/sites-available/agents.ciris.ai /etc/nginx/sites-enabled/"
-remote_exec "nginx -t && systemctl reload nginx"
+# Note: Nginx configuration is now managed by CIRISManager
+# The nginx container and routing configuration have been moved to CIRISManager
+# for centralized infrastructure management
 
 # Deploy Phase 1 or Phase 2
 echo

@@ -431,7 +431,10 @@ pytest tests/ciris_engine/audit/ -v          # Transparency and audit systems
 
 ## Production Deployment
 
-### Docker Deployment
+CIRIS supports two deployment modes:
+
+### Standalone Mode (Default)
+Single agent deployment with direct API access:
 
 ```bash
 # API mode with mock LLM (for testing)
@@ -439,10 +442,31 @@ docker-compose -f docker-compose-api-mock.yml up -d
 
 # Production deployment
 docker-compose up -d
-
-# Multi-agent deployment
-docker-compose -f docker-compose-all.yml up -d
 ```
+
+- GUI runs at `/` (root)
+- API available at `/v1/*`
+- No routing infrastructure needed
+- Perfect for single-agent deployments
+
+### Managed Mode (Multi-Agent)
+Orchestrated by CIRISManager for multi-agent deployments:
+
+```bash
+# Deploy with CIRISManager
+# First deploy agents
+docker-compose -f deployment/docker-compose.production.yml up -d
+
+# Then add CIRISManager
+./deployment/deploy-with-manager.sh
+```
+
+- GUI at `/agent/{agent_id}`
+- API routed through `/api/{agent_id}/v1/*`
+- CIRISManager handles all routing
+- Supports multiple agents on one server
+
+The GUI automatically detects which mode it's running in - no configuration needed!
 
 **Docker Commands:**
 ```bash

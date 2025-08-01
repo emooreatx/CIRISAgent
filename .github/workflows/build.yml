@@ -131,21 +131,6 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64
 
-      - name: Build Nginx Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: ./deployment/nginx
-          file: ./deployment/nginx/Dockerfile
-          push: ${{ github.repository == 'CIRISAI/CIRISAgent' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
-          tags: |
-            ghcr.io/cirisai/ciris-nginx:latest
-            ghcr.io/cirisai/ciris-nginx:${{ github.sha }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          platforms: linux/amd64
-          build-args: |
-            NGINX_CONFIG=agents.ciris.ai-dev.conf
 
       - name: Build Summary
         if: always()
@@ -167,7 +152,6 @@ jobs:
           echo "### Images:" >> $GITHUB_STEP_SUMMARY
           echo "- ciris-agent" >> $GITHUB_STEP_SUMMARY
           echo "- ciris-gui" >> $GITHUB_STEP_SUMMARY
-          echo "- ciris-nginx" >> $GITHUB_STEP_SUMMARY
 
   deploy:
     name: Deploy to Production
@@ -257,12 +241,7 @@ jobs:
               cp /home/ciris/.ciris/oauth.json /home/ciris/shared/oauth/
             fi
             
-            # Stop the standalone nginx service if running
-            if systemctl is-active --quiet nginx; then
-              echo "Stopping standalone nginx service..."
-              systemctl stop nginx
-              systemctl disable nginx || true
-            fi
+            # Note: nginx is now managed by CIRISManager
             
             # Use the production dev compose file that expects images
             if [ ! -f "deployment/docker-compose.dev-prod.yml" ]; then
@@ -272,12 +251,10 @@ jobs:
             # Pull new images from GitHub Container Registry
             docker pull ghcr.io/cirisai/ciris-agent:latest
             docker pull ghcr.io/cirisai/ciris-gui:latest
-            docker pull ghcr.io/cirisai/ciris-nginx:latest
             
             # Tag images for local use
             docker tag ghcr.io/cirisai/ciris-agent:latest ciris-agent:latest
             docker tag ghcr.io/cirisai/ciris-gui:latest ciris-gui:latest
-            docker tag ghcr.io/cirisai/ciris-nginx:latest ciris-nginx:latest
             
             # Fix volume permissions before deployment
             echo "Ensuring proper volume permissions..."
@@ -302,7 +279,7 @@ jobs:
             docker image prune -f
             
             
-            # No need to copy nginx config - it's mounted via docker-compose volume
+            # Nginx is now managed by CIRISManager
             
             # Create systemd service for auto-start if it doesn't exist
             if [ ! -f "/etc/systemd/system/ciris-dev.service" ]; then
@@ -368,9 +345,7 @@ jobs:
             echo "\nRunning containers:"
             docker ps | grep ciris
             
-            # Reload nginx to pick up any config changes
-            echo "\nReloading nginx configuration..."
-            docker exec ciris-nginx nginx -s reload && echo "Nginx configuration reloaded"
+            # Nginx is now managed by CIRISManager
             
             
             echo "\nDeployment successful! Phase 1 with Mock LLM is running."

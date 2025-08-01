@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { cirisClient } from "../../lib/ciris-sdk";
 import type { OAuthProvider, AgentInfo } from "../../lib/ciris-sdk";
+import { detectDeploymentMode, getApiBaseUrl, getApiUrl } from "../../lib/api-utils";
 import LogoIcon from "../../components/ui/floating/LogoIcon";
 import CButton from "components/ui/Buttons";
 
@@ -15,6 +16,9 @@ export default function LoginPage() {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(true);
   const { login } = useAuth();
+  
+  // Detect deployment mode
+  const { mode, agentId: detectedAgentId } = detectDeploymentMode();
 
   // Always show Google and Discord OAuth options
   const oauthProviders = [
@@ -22,85 +26,98 @@ export default function LoginPage() {
     { provider: "discord", name: "Discord" }
   ];
 
-  // Load agents from manager API
+  // Load agents based on deployment mode
   useEffect(() => {
     const loadAgents = async () => {
-      try {
-        console.log('Loading agents from manager API...');
-        // Fetch agents from manager API using fetch (no auth required)
-        const response = await fetch('/manager/v1/agents');
-        if (!response.ok) {
-          throw new Error(`Failed to fetch agents: ${response.status} ${response.statusText}`);
-        }
-        const data = await response.json();
-        console.log('Loaded agents:', data.agents);
-        
-        // Convert manager API response to AgentInfo format
-        const agentsList: AgentInfo[] = data.agents.map((agent: any) => ({
-          agent_id: agent.agent_id,
-          agent_name: agent.agent_name,
-          status: agent.status,
-          health: agent.health,
-          api_url: agent.api_endpoint || `http://localhost:${agent.api_port}`,
-          api_port: parseInt(agent.api_port) || 8080,
-          api_endpoint: agent.api_endpoint || `http://localhost:${agent.api_port}`,
-          container_name: agent.container_name,
-          created_at: agent.created_at,
-          update_available: false,
-        }));
-        
-        setAgents(agentsList);
-        if (agentsList.length > 0) {
-          // Select the first healthy agent by default
-          const healthyAgent = agentsList.find(a => a.health === 'healthy') || agentsList[0];
-          setSelectedAgent(healthyAgent.agent_id);
-        }
-      } catch (error) {
-        console.error('Failed to load agents - Full error:', error);
-        // Type-safe error handling
-        if (error instanceof Error) {
-          console.error('Error details:', {
-            message: error.message,
-            status: (error as any).status,
-            detail: (error as any).detail
-          });
-        } else {
-          console.error('Unknown error type:', error);
-        }
-        
-        // Fall back to static Datum agent if manager API fails
-        console.log('Falling back to static Datum agent');
-        const staticAgents: AgentInfo[] = [{
-          agent_id: 'datum',
-          agent_name: 'Datum',
+      if (mode === 'standalone') {
+        // In standalone mode, create a single default agent
+        const defaultAgent: AgentInfo = {
+          agent_id: detectedAgentId || 'default',
+          agent_name: 'CIRIS Agent',
+          container_name: 'ciris-agent',
           status: 'running',
-          health: 'healthy',
-          api_url: process.env.NEXT_PUBLIC_CIRIS_API_URL || window.location.origin,
-          api_port: 8080,
-          api_endpoint: 'http://localhost:8080',
-          container_name: 'ciris-agent-datum',
+          api_endpoint: window.location.origin,
           created_at: new Date().toISOString(),
-          update_available: false,
-        }];
-        setAgents(staticAgents);
-        setSelectedAgent('datum');
-      } finally {
+          update_available: false
+        };
+        setAgents([defaultAgent]);
+        setSelectedAgent(defaultAgent.agent_id);
         setLoadingAgents(false);
+      } else {
+        // In managed mode, load from CIRISManager
+        try {
+          console.log('Loading agents from manager API...');
+          // Fetch agents from manager API using fetch (no auth required)
+          const response = await fetch('/manager/v1/agents');
+          if (!response.ok) {
+            throw new Error(`Failed to fetch agents: ${response.status} ${response.statusText}`);
+          }
+          const data = await response.json();
+          console.log('Loaded agents:', data.agents);
+          
+          // Convert manager API response to AgentInfo format
+          const agentsList: AgentInfo[] = data.agents.map((agent: any) => ({
+            agent_id: agent.agent_id,
+            agent_name: agent.agent_name,
+            status: agent.status,
+            health: agent.health,
+            api_url: agent.api_endpoint || `http://localhost:${agent.api_port}`,
+            api_port: parseInt(agent.api_port) || 8080,
+            api_endpoint: agent.api_endpoint || `http://localhost:${agent.api_port}`,
+            container_name: agent.container_name,
+            created_at: agent.created_at,
+            update_available: false,
+          }));
+          
+          setAgents(agentsList);
+          if (agentsList.length > 0) {
+            // Select the first healthy agent by default
+            const healthyAgent = agentsList.find(a => a.health === 'healthy') || agentsList[0];
+            setSelectedAgent(healthyAgent.agent_id);
+          }
+        } catch (error) {
+          console.error('Failed to load agents - Full error:', error);
+          // Type-safe error handling
+          if (error instanceof Error) {
+            console.error('Error details:', {
+              message: error.message,
+              status: (error as any).status,
+              detail: (error as any).detail
+            });
+          } else {
+            console.error('Unknown error type:', error);
+          }
+          
+          // Fall back to static Datum agent if manager API fails
+          console.log('Falling back to static Datum agent');
+          const staticAgents: AgentInfo[] = [{
+            agent_id: 'datum',
+            agent_name: 'Datum',
+            status: 'running',
+            health: 'healthy',
+            api_url: process.env.NEXT_PUBLIC_CIRIS_API_URL || window.location.origin,
+            api_port: 8080,
+            api_endpoint: 'http://localhost:8080',
+            container_name: 'ciris-agent-datum',
+            created_at: new Date().toISOString(),
+            update_available: false,
+          }];
+          setAgents(staticAgents);
+          setSelectedAgent('datum');
+        } finally {
+          setLoadingAgents(false);
+        }
       }
     };
     loadAgents();
-  }, []);
+  }, [mode, detectedAgentId]);
 
   // Update client baseURL when agent selection changes
   useEffect(() => {
     const agent = agents.find(a => a.agent_id === selectedAgent);
     if (agent) {
-      // Use multi-agent routing in production
-      const isProduction = window.location.hostname === 'agents.ciris.ai';
-      const baseURL = isProduction 
-        ? `${window.location.origin}/api/${agent.agent_id}`
-        : agent.api_endpoint || 'http://localhost:8080';
-      
+      // Use deployment mode to determine base URL
+      const baseURL = getApiBaseUrl(agent.agent_id);
       cirisClient.setConfig({ baseURL });
       
       // Store selected agent for use after login
@@ -115,12 +132,9 @@ export default function LoginPage() {
       if (!agent) return;
       
       // Direct navigation to OAuth login endpoint (no auth required)
-      const isProduction = window.location.hostname === 'agents.ciris.ai';
       const redirectUri = encodeURIComponent(`${window.location.origin}/oauth/${selectedAgent}/callback`);
-      const apiUrl = isProduction 
-        ? `${window.location.origin}/api/${agent.agent_id}`
-        : agent.api_endpoint || 'http://localhost:8080';
-      window.location.href = `${apiUrl}/v1/auth/oauth/${provider}/login?redirect_uri=${redirectUri}`;
+      const oauthUrl = getApiUrl(`v1/auth/oauth/${provider}/login`, agent.agent_id);
+      window.location.href = `${oauthUrl}?redirect_uri=${redirectUri}`;
     } catch (error) {
       console.error("OAuth login error:", error);
     }

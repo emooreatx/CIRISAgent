@@ -143,7 +143,7 @@ async def interact(
         error_detail = {
             "error": "insufficient_permissions",
             "message": "You do not have permission to send messages to this agent.",
-            "discord_invite": "https://discord.gg/YOUR_INVITE_CODE",  # TODO: Get from config
+            "discord_invite": "https://discord.gg/A3HVPMWd",
             "can_request_permissions": user.permission_requested_at is None if user else True,
             "permission_requested": user.permission_requested_at is not None if user else False,
             "requested_at": user.permission_requested_at.isoformat() if user and user.permission_requested_at else None
