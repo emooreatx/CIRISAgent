@@ -71,13 +71,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       // In standalone mode, create a single default agent
       const defaultAgent: AgentInfo = {
         agent_id: detectedAgentId || 'default',
+        agent_name: 'Default Agent',
+        container_name: 'standalone',
         status: 'running',
         api_endpoint: `${window.location.origin}${apiBase}`,
         created_at: new Date().toISOString(),
-        health: {
-          healthy: true,
-          last_check: new Date().toISOString()
-        }
+        health: 'healthy',
+        update_available: false
       };
       
       setAgents([defaultAgent]);
