@@ -689,99 +689,91 @@ curl -s http://localhost:8080/v1/system/health | jq -r '.status'
 
 ### Production Deployment - agents.ciris.ai
 
+**Deployment Philosophy**:
+CIRIS deployment follows a clean, agent-respecting model:
+- **CD builds and notifies**: GitHub Actions builds images and calls CIRISManager API
+- **CIRISManager orchestrates**: Handles canary deployment, respects agent autonomy
+- **Agents decide**: Each agent can accept, defer, or reject updates via graceful shutdown
+- **No staged containers**: Docker's `restart: unless-stopped` handles the swap
+
+**Clean CD Model (Implemented August 2025)**:
+```yaml
+# GitHub Actions makes ONE API call:
+curl -X POST https://agents.ciris.ai/manager/v1/updates/notify \
+  -H "Authorization: Bearer ${{ secrets.DEPLOY_TOKEN }}" \
+  -d '{"agent_image": "ghcr.io/cirisai/ciris-agent:latest", "strategy": "canary"}'
+```
+
+That's it. CIRISManager handles everything else:
+1. Notifies agents based on deployment strategy (canary/immediate/manual)
+2. Each agent receives update notification at `/v1/system/update`
+3. Agents respond: accept (TASK_COMPLETE), defer (DEFER), or reject (REJECT)
+4. CIRISManager respects these decisions
+5. Docker automatically swaps containers on graceful exit
+
 **Server Access**:
 - **IP**: 108.61.119.117 (Cloudflare proxied - must use IP for SSH, not domain)
 - **SSH Key**: `~/.ssh/ciris_deploy`
 - **User**: root
 - **Example**: `ssh -i ~/.ssh/ciris_deploy root@108.61.119.117`
 
-**Repository Location**:
-- **Path**: `/home/ciris/CIRISAgent`
-- **Upstream**: CIRISAI/CIRISAgent (not emooreatx fork)
-- **GUI Path**: `/home/ciris/CIRISAgent/CIRISGUI`
+**Repository Locations**:
+- **CIRISAgent**: `/home/ciris/CIRISAgent`
+- **CIRISManager**: `/opt/ciris-manager` (separate repo)
+- **Upstream**: CIRISAI/CIRISAgent (not personal forks)
 
-**Deployment Process (Automated)**:
-1. **Create PR to upstream**: `gh pr create --repo CIRISAI/CIRISAgent`
+**Deployment Process**:
+1. **Create PR**: `gh pr create --repo CIRISAI/CIRISAgent`
 2. **Merge PR**: `gh pr merge <PR#> --repo CIRISAI/CIRISAgent --merge --admin`
-3. **Automatic deployment**: GitHub Actions automatically builds and deploys on merge to main
-   - Tests run in Docker container
-   - Docker images built and pushed to ghcr.io
-   - Server initialized if needed (Docker, firewall, systemd)
-   - Staged deployment ensures zero downtime
-   - Health checks verify deployment success
+3. **Automatic deployment**: 
+   - GitHub Actions builds and tests
+   - Pushes images to ghcr.io
+   - Notifies CIRISManager via API
+   - CIRISManager orchestrates the rest
 
-**Staged Deployment Model**:
-- **GUI**: Update immediately on deployment
-- **Agent Containers**: Use staged deployment:
-  1. New container created but not started (with `-staged` suffix)
-  2. Waits for current agent to exit gracefully (exit code 0)
-  3. Old container removed, staged container renamed and started
-  4. If agent exits with error, staged container is removed (rollback)
-- **Restart Policy**: `restart: on-failure` (NOT `unless-stopped`)
-  - Exit 0: No restart (allows staged deployment)
-  - Non-zero: Automatic restart
+**Container Management**:
+- **Restart Policy**: `restart: unless-stopped` (critical for clean swaps)
+- **No staged containers**: Eliminated complexity
+- **Graceful shutdown**: Agents process shutdown as a task
+- **Agent autonomy**: Can defer or reject updates
 
-**Graceful Shutdown**:
+**Graceful Shutdown Protocol**:
 ```bash
-# Trigger graceful shutdown (for deployments)
-./deployment/graceful-shutdown.py
-
-# Custom shutdown message
-./deployment/graceful-shutdown.py --message "Maintenance required"
-
-# Remote shutdown
-./deployment/graceful-shutdown.py --agent-url https://agents.ciris.ai
+# CIRISManager calls agent's update endpoint
+# Agent processes as normal task through cognitive loop
+# Response determines action:
+# - TASK_COMPLETE: Agent exits gracefully (exit 0)
+# - DEFER: Agent continues, update scheduled for later
+# - REJECT: Agent continues, update cancelled
 ```
 
 **Important Environment Variables**:
-- `CIRIS_API_HOST=0.0.0.0` - Required for API to bind to all interfaces (default is 127.0.0.1)
-- `CIRIS_API_PORT=8080` - API port (default is 8080)
-- The API adapter uses `CIRIS_API_HOST` not `API_HOST`
+- `CIRIS_API_HOST=0.0.0.0` - Required for API to bind to all interfaces
+- `CIRIS_API_PORT=8080` - API port (default)
 
-**Current Setup (Production - August 2025)**:
-- Single Datum agent with Mock LLM
+**Current Production Setup**:
+- Multiple agents managed by CIRISManager
 - GUI supports dual-mode deployment (standalone or managed)
-- GUI on port 3000
-- API on port 8080 (always serves at `/v1/*`)
-- CIRISManager (separate repo) handles nginx routing
-- Using `deployment/docker-compose.dev-prod.yml` (uses pre-built images)
-- Container names: `ciris-agent-datum`, `ciris-gui`
-- When using CIRISManager: `ciris-nginx` container from CIRISManager repo
-- Auto-restart via systemd service: `ciris-dev.service`
-- Discord integration: Add token to `/home/ciris/CIRISAgent/.env.datum`
-- OAuth: Google OAuth configured with dynamic callback URLs
-
-**Common Deployment Issues**:
-1. **Container missing arguments**: Always use docker-compose to start containers
-   - Bad: `docker start ciris-agent-datum` (loses command arguments)
-   - Good: `docker-compose -f deployment/docker-compose.dev-prod.yml up -d agent-datum`
-
-2. **Staged deployment stuck**: Check for staged containers
-   ```bash
-   docker ps -a | grep staged
-   # If found, complete manually:
-   docker stop ciris-agent-datum && docker rm ciris-agent-datum
-   docker rename ciris-agent-datum-staged ciris-agent-datum
-   docker start ciris-agent-datum
-   ```
-
-3. **OAuth not working**: Ensure all components updated
-   - API must accept GET on callback endpoint
-   - GUI must redirect to GUI callback page
-   - SDK must use GET method
+- CIRISManager handles all nginx routing
+- OAuth shared across agents via mounted volumes
+- Canary deployments protect agent stability
 
 **Monitoring**:
 ```bash
-# Check status
-docker ps
-# View logs
-docker logs ciris-agent-datum
-docker logs ciris-gui
-# Check health
+# Check CIRISManager status
+curl http://localhost:8888/manager/v1/status
+
+# Check agent health
 curl http://localhost:8080/v1/system/health
-# Check incidents log (CRITICAL for debugging)
+
+# View deployment status
+curl http://localhost:8888/manager/v1/updates/status
+
+# Check incidents (always check this first!)
 docker exec ciris-agent-datum tail -n 100 /app/logs/incidents_latest.log
 ```
+
+**The Beauty**: One API call triggers everything. No SSH scripts, no staged containers, no manual intervention. Just clean orchestration that respects agent autonomy.
 
 ### Recent Fixes (July 2025)
 
