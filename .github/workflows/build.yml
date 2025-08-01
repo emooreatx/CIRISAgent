@@ -240,3 +240,32 @@ jobs:
           echo ""
           echo "CIRISManager will handle the deployment orchestration."
           echo "Agents will be notified based on the canary deployment strategy."
+
+  deploy-gui:
+    name: Deploy GUI Container
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.repository == 'CIRISAI/CIRISAgent'
+    environment: production
+    steps:
+      - name: Deploy GUI Container
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: 108.61.119.117
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /home/ciris/CIRISAgent
+            
+            # Pull latest GUI image
+            echo "Pulling latest GUI image..."
+            docker pull ghcr.io/cirisai/ciris-gui:latest
+            
+            # Update GUI container (no agent negotiation needed - just infrastructure)
+            echo "Updating GUI container..."
+            docker-compose -f deployment/docker-compose.dev-prod.yml up -d ciris-gui
+            
+            # Verify GUI is running
+            docker ps | grep ciris-gui
+            
+            echo "GUI deployment complete!"
