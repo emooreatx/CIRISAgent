@@ -4,29 +4,6 @@ version: '3.8'
 # Usage: docker-compose -f docker-compose.production.yml up -d
 
 services:
-  # Nginx reverse proxy
-  nginx:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
-    container_name: ciris-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      # SSL certificates
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - ./nginx/logs:/var/log/nginx
-    depends_on:
-      - ciris-gui
-      - agent-datum
-      - agent-sage
-      - agent-scout
-      - agent-echo-core
-      - agent-echo-speculative
-    restart: unless-stopped
-    networks:
-      - ciris-network
   # Agent Datum (Primary decision-making)
   agent-datum:
     image: ghcr.io/cirisai/ciris-agent:latest

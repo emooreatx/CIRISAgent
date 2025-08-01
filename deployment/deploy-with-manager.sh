@@ -3,9 +3,10 @@
 # This script updates containers and lets CIRISManager handle the lifecycle
 #
 # How it works:
-# 1. Updates GUI/Nginx immediately (they can restart without issues)
+# 1. Updates GUI immediately (can restart without issues)
 # 2. For agents: Pulls new images and triggers graceful shutdown
 # 3. CIRISManager's periodic docker-compose up -d will start the new version
+# Note: Nginx is now managed by CIRISManager, not CIRISAgent
 #
 set -e
 
@@ -13,7 +14,6 @@ set -e
 DOCKER_COMPOSE_FILE="${DOCKER_COMPOSE_FILE:-deployment/docker-compose.dev-prod.yml}"
 AGENT_SERVICES=("agent-datum")  # Add more agents as needed
 GUI_SERVICE="ciris-gui"
-NGINX_SERVICE="nginx"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -92,11 +92,7 @@ docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps --force-recreate "$GUI_
     warn "Failed to update GUI container"
 }
 
-# Nginx - can restart anytime
-log "Recreating Nginx container..."
-docker-compose -f "$DOCKER_COMPOSE_FILE" up -d --no-deps --force-recreate "$NGINX_SERVICE" || {
-    warn "Failed to update Nginx container"
-}
+# Note: Nginx is now managed by CIRISManager
 
 # Step 3: Handle agent updates gracefully
 log "Handling agent updates..."

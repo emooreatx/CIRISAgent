@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../../contexts/AuthContext";
 import { cirisClient } from "../../lib/ciris-sdk";
 import type { OAuthProvider, AgentInfo } from "../../lib/ciris-sdk";
+import { detectDeploymentMode, getApiBaseUrl, getApiUrl } from "../../lib/api-utils";
 import LogoIcon from "../../components/ui/floating/LogoIcon";
 import CButton from "components/ui/Buttons";
 
@@ -15,6 +16,9 @@ export default function LoginPage() {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(true);
   const { login } = useAuth();
+  
+  // Detect deployment mode
+  const { mode, agentId: detectedAgentId } = detectDeploymentMode();
 
   // Always show Google and Discord OAuth options
   const oauthProviders = [
@@ -22,51 +26,58 @@ export default function LoginPage() {
     { provider: "discord", name: "Discord" }
   ];
 
-  // Load agents from CIRISManager
+  // Load agents based on deployment mode
   useEffect(() => {
     const loadAgents = async () => {
-      try {
-        console.log('Loading agents from manager...');
-        console.log('Manager endpoint:', `${window.location.origin}/manager/v1/agents`);
-        const discovered = await cirisClient.manager.listAgents();
-        console.log('Discovered agents:', discovered);
-        const runningAgents = discovered.filter(a => a.status === 'running');
-        console.log('Running agents:', runningAgents);
-        setAgents(runningAgents);
-        if (runningAgents.length > 0) {
-          setSelectedAgent(runningAgents[0].agent_id);
-        }
-      } catch (error) {
-        console.error('Failed to load agents - Full error:', error);
-        // Type-safe error handling
-        if (error instanceof Error) {
-          console.error('Error details:', {
-            message: error.message,
-            status: (error as any).status,
-            detail: (error as any).detail
-          });
-        } else {
-          console.error('Unknown error type:', error);
-        }
-        // Don't set any fallback agents - show empty list
-        setAgents([]);
-      } finally {
+      if (mode === 'standalone') {
+        // In standalone mode, create a single default agent
+        const defaultAgent: AgentInfo = {
+          agent_id: detectedAgentId || 'default',
+          agent_name: 'CIRIS Agent',
+          container_name: 'ciris-agent',
+          status: 'running',
+          api_endpoint: window.location.origin,
+          created_at: new Date().toISOString(),
+          update_available: false
+        };
+        setAgents([defaultAgent]);
+        setSelectedAgent(defaultAgent.agent_id);
         setLoadingAgents(false);
+      } else {
+        // In managed mode, load from CIRISManager
+        try {
+          console.log('Loading agents from manager...');
+          console.log('Manager endpoint:', `${window.location.origin}/manager/v1/agents`);
+          const discovered = await cirisClient.manager.listAgents();
+          console.log('Discovered agents:', discovered);
+          const runningAgents = discovered.filter(a => a.status === 'running');
+          console.log('Running agents:', runningAgents);
+          setAgents(runningAgents);
+          
+          // If we have a detected agent ID, select it
+          if (detectedAgentId && runningAgents.find(a => a.agent_id === detectedAgentId)) {
+            setSelectedAgent(detectedAgentId);
+          } else if (runningAgents.length > 0) {
+            setSelectedAgent(runningAgents[0].agent_id);
+          }
+        } catch (error) {
+          console.error('Failed to load agents - Full error:', error);
+          // Don't set any fallback agents - show empty list
+          setAgents([]);
+        } finally {
+          setLoadingAgents(false);
+        }
       }
     };
     loadAgents();
-  }, []);
+  }, [mode, detectedAgentId]);
 
   // Update client baseURL when agent selection changes
   useEffect(() => {
     const agent = agents.find(a => a.agent_id === selectedAgent);
     if (agent) {
-      // Use multi-agent routing in production
-      const isProduction = window.location.hostname === 'agents.ciris.ai';
-      const baseURL = isProduction 
-        ? `${window.location.origin}/api/${agent.agent_id}`
-        : agent.api_endpoint || 'http://localhost:8080';
-      
+      // Use deployment mode to determine base URL
+      const baseURL = getApiBaseUrl(agent.agent_id);
       cirisClient.setConfig({ baseURL });
       
       // Store selected agent for use after login
@@ -81,12 +92,9 @@ export default function LoginPage() {
       if (!agent) return;
       
       // Direct navigation to OAuth login endpoint (no auth required)
-      const isProduction = window.location.hostname === 'agents.ciris.ai';
       const redirectUri = encodeURIComponent(`${window.location.origin}/oauth/${selectedAgent}/callback`);
-      const apiUrl = isProduction 
-        ? `${window.location.origin}/api/${agent.agent_id}`
-        : agent.api_endpoint || 'http://localhost:8080';
-      window.location.href = `${apiUrl}/v1/auth/oauth/${provider}/login?redirect_uri=${redirectUri}`;
+      const oauthUrl = getApiUrl(`v1/auth/oauth/${provider}/login`, agent.agent_id);
+      window.location.href = `${oauthUrl}?redirect_uri=${redirectUri}`;
     } catch (error) {
       console.error("OAuth login error:", error);
     }

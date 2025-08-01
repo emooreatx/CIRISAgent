@@ -98,7 +98,7 @@ https://agents.ciris.ai/v1/auth/oauth/datum/google/callback
 **REMEMBER:** 
 - Agent ID comes BEFORE provider
 - /v1/ is at the ROOT level
-- This is the DEFAULT nginx route (not /api/{agent}/v1/)
+- This is the DEFAULT route (not /api/{agent}/v1/)
 
 ## Current Status (July 19, 2025)
 
@@ -178,7 +178,7 @@ https://agents.ciris.ai/v1/auth/oauth/datum/google/callback
 2. **CIRISManager Integration**
    - Fully integrated into CI/CD pipeline
    - Running in production on agents.ciris.ai
-   - API endpoints proxied through nginx at `/manager/v1/*`
+   - API endpoints available at `/manager/v1/*`
    - Dynamic agent discovery replacing hardcoded agent lists
    - GUI successfully uses CIRISManager for agent discovery
 
@@ -190,11 +190,11 @@ https://agents.ciris.ai/v1/auth/oauth/datum/google/callback
    - SDK pattern enforced throughout (no direct client usage)
 
 ### Infrastructure Improvements (July 19-20, 2025)
-1. **Containerized Nginx**
-   - Replaced standalone nginx service with containerized version
+1. **Routing Infrastructure**
+   - Nginx routing now managed by CIRISManager
+   - CIRISAgent no longer includes nginx - clean separation of concerns
    - Supports both dev (single agent) and production (multi-agent) configurations
    - Per-agent OAuth callback paths: `/oauth/{agent}/callback`
-   - Default API route: `/v1/` → Datum agent
    - Agent-specific routes: `/api/{agent}/v1/*`
 
 2. **Shared OAuth Configuration**
@@ -203,14 +203,22 @@ https://agents.ciris.ai/v1/auth/oauth/datum/google/callback
    - Migration script for existing configurations
    - Google OAuth already configured in production
 
-3. **CI/CD Improvements**
+3. **Dual-Mode GUI (August 2025)**
+   - GUI supports both standalone and managed deployments
+   - **Standalone Mode**: GUI at `/` talks to `/v1/*` directly
+   - **Managed Mode**: GUI at `/agent/{id}` talks to `/api/{id}/v1/*`
+   - Auto-detects mode from URL path - no configuration needed
+   - No breaking changes - existing deployments continue working
+   - Same codebase works in both modes
+
+4. **CI/CD Improvements**
    - Fixed fork PR builds - they now build without pushing
    - Only same-repo PRs and main branch push to registry
    - Build summary shows what action was taken
    - Prevents "installation not allowed to Write" errors
    - CIRISManager automatically deployed with agents
 
-4. **Local Development Setup**
+5. **Local Development Setup**
    - CIRISManager runs via `python deployment/run-ciris-manager-api.py`
    - Config stored in `~/.config/ciris-manager/config.yml`
    - Docker containers managed via docker-compose files
@@ -694,7 +702,7 @@ curl -s http://localhost:8080/v1/system/health | jq -r '.status'
 ```
 
 **Common mistakes that waste hours**:
-- Parsing HTML as JSON (e.g., Cloudflare 502 pages, nginx error pages)
+- Parsing HTML as JSON (e.g., Cloudflare 502 pages, web server error pages)
 - Assuming API errors return JSON (many return plain text or HTML)
 - Using `jq` on null/empty responses (hides connection failures)
 - Grepping for patterns that don't exist in the actual output
@@ -725,7 +733,7 @@ curl -s http://localhost:8080/v1/system/health | jq -r '.status'
    - Health checks verify deployment success
 
 **Staged Deployment Model**:
-- **GUI/Nginx**: Update immediately on deployment
+- **GUI**: Update immediately on deployment
 - **Agent Containers**: Use staged deployment:
   1. New container created but not started (with `-staged` suffix)
   2. Waits for current agent to exit gracefully (exit code 0)
@@ -752,16 +760,16 @@ curl -s http://localhost:8080/v1/system/health | jq -r '.status'
 - `CIRIS_API_PORT=8080` - API port (default is 8080)
 - The API adapter uses `CIRIS_API_HOST` not `API_HOST`
 
-**Current Setup (Production - July 20, 2025)**:
+**Current Setup (Production - August 2025)**:
 - Single Datum agent with Mock LLM
-- GUI on port 3000 (dynamically discovers agents via CIRISManager)
-- API on port 8080
-- CIRISManager API on port 8888 (proxied via nginx at `/manager/v1/*`)
+- GUI supports dual-mode deployment (standalone or managed)
+- API on port 8080 (always serves at `/v1/*`)
+- CIRISManager handles all routing (nginx moved to CIRISManager)
 - Using `deployment/docker-compose.dev-prod.yml` (uses pre-built images)
-- Container names: `ciris-agent-datum`, `ciris-gui`, `ciris-nginx`
+- Container names: `ciris-agent-datum`, `ciris-gui`
 - Auto-restart via systemd services: 
   - `ciris-dev.service` (agents and GUI)
-  - `ciris-manager-api.service` (CIRISManager API only)
+  - `ciris-manager-api.service` (CIRISManager with routing)
 - Discord integration: Add token to `/home/ciris/CIRISAgent/.env.datum`
 - OAuth: Google OAuth configured with dynamic callback URLs
 

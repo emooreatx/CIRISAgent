@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams, useRouter, useParams } from 'next/navigation';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { cirisClient } from '../../../../lib/ciris-sdk';
-import { AGENTS } from '../../../../config/agents';
+import { getApiBaseUrl, detectDeploymentMode } from '../../../../lib/api-utils';
 
 function OAuthCallbackContent() {
   const searchParams = useSearchParams();
@@ -56,14 +56,15 @@ function OAuthCallbackContent() {
         setUser(user);
         
         // Store the selected agent for future use
-        const agent = AGENTS.find(a => a.id === agentId);
-        if (agent) {
-          localStorage.setItem('selectedAgentId', agent.id);
-          localStorage.setItem('selectedAgentName', agent.name);
-        }
+        localStorage.setItem('selectedAgentId', agentId);
         
-        // Redirect to dashboard
-        router.push('/dashboard');
+        // Redirect to dashboard or managed agent page based on mode
+        const { mode } = detectDeploymentMode();
+        if (mode === 'managed') {
+          router.push(`/agent/${agentId}/dashboard`);
+        } else {
+          router.push('/dashboard');
+        }
         return;
       } catch (err) {
         setError(err instanceof Error ? err.message : 'OAuth authentication failed');
@@ -79,20 +80,9 @@ function OAuthCallbackContent() {
       return;
     }
 
-    // Find the agent configuration
-    const agent = AGENTS.find(a => a.id === agentId);
-    if (!agent) {
-      setError(`Invalid agent: ${agentId}`);
-      setProcessing(false);
-      return;
-    }
-
     try {
-      // Update the SDK to use the correct agent URL
-      const baseURL = process.env.NODE_ENV === 'development' 
-        ? process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost:8080'
-        : agent.apiUrl;
-      
+      // Update the SDK to use the correct agent URL based on deployment mode
+      const baseURL = getApiBaseUrl(agentId);
       cirisClient.setConfig({ baseURL });
 
       // Extract provider from state (we'll encode it in the state parameter)
@@ -104,11 +94,15 @@ function OAuthCallbackContent() {
       setUser(user);
       
       // Store the selected agent for future use
-      localStorage.setItem('selectedAgentId', agent.id);
-      localStorage.setItem('selectedAgentName', agent.name);
+      localStorage.setItem('selectedAgentId', agentId);
       
-      // Redirect to dashboard
-      router.push('/dashboard');
+      // Redirect to dashboard or managed agent page based on mode
+      const { mode } = detectDeploymentMode();
+      if (mode === 'managed') {
+        router.push(`/agent/${agentId}/dashboard`);
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'OAuth authentication failed');
       setProcessing(false);

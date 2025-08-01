@@ -1,7 +1,8 @@
 #!/bin/bash
-# Setup script for nginx management with CIRISManager
-# This script prepares the nginx configuration directory and ensures
-# CIRISManager can manage nginx configurations dynamically.
+# DEPRECATED: This script is no longer needed as nginx management has been moved to CIRISManager
+# 
+# This script was used to prepare the nginx configuration directory for CIRISManager.
+# Nginx container and configuration are now managed entirely by CIRISManager.
 
 set -e
 
