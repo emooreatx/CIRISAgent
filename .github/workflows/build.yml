@@ -154,198 +154,89 @@ jobs:
           echo "- ciris-gui" >> $GITHUB_STEP_SUMMARY
 
   deploy:
-    name: Deploy to Production
+    name: Notify CIRISManager of Update
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.repository == 'CIRISai/CIRISAgent'
+    if: github.ref == 'refs/heads/main' && github.repository == 'CIRISAI/CIRISAgent'
     environment: production
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.0.0
+      - uses: actions/checkout@v4
         with:
-          host: 108.61.119.117
-          username: root
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            # Initialize server if needed (idempotent)
-            if [ ! -f "/home/ciris/.initialized" ]; then
-              echo "First time deployment - initializing server..."
-              
-              # Update system
-              apt-get update
-              apt-get upgrade -y
-              
-              # Install required packages
-              apt-get install -y curl git ca-certificates gnupg lsb-release ufw
-              
-              # Install Docker if needed
-              if ! command -v docker &> /dev/null; then
-                curl -fsSL https://get.docker.com | sh
-                systemctl enable docker
-                systemctl start docker
-              fi
-              
-              # Install or update Docker Compose if needed
-              if ! command -v docker-compose &> /dev/null || ! docker-compose version | grep -q "v2"; then
-                echo "Installing/updating Docker Compose to v2.20.0..."
-                curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-                chmod +x /usr/local/bin/docker-compose
-              fi
-              
-              # Create ciris user if needed
-              if ! id -u ciris &>/dev/null; then
-                useradd -m -s /bin/bash ciris
-                usermod -aG docker ciris
-              fi
-              
-              # Setup directory structure
-              mkdir -p /home/ciris
-              chown ciris:ciris /home/ciris
-              
-              # Configure firewall
-              ufw allow 22/tcp    # SSH
-              ufw allow 80/tcp    # HTTP
-              ufw allow 443/tcp   # HTTPS
-              ufw allow 3000/tcp  # GUI
-              ufw allow 8080/tcp  # API
-              ufw --force enable
-              
-              # Mark as initialized
-              touch /home/ciris/.initialized
-            fi
-            
-            # Ensure base directories exist
-            mkdir -p /home/ciris
-            cd /home/ciris
-            
-            # Clone or update repository
-            if [ ! -d "CIRISAgent" ]; then
-              git clone https://github.com/CIRISAI/CIRISAgent.git
-            fi
-            cd CIRISAgent
-            git pull origin main
-            
-            
-            # Create .env.datum file for Phase 1 if it doesn't exist
-            if [ ! -f ".env.datum" ]; then
-              echo "# Phase 1 Mock LLM Environment" > .env.datum
-              echo "CIRIS_MOCK_LLM=true" >> .env.datum
-              echo "# Discord credentials should be added manually if needed" >> .env.datum
-              echo "# DISCORD_BOT_TOKEN=your_token_here" >> .env.datum
-            fi
-            
-            # Create shared OAuth directory and copy existing config if available
-            mkdir -p /home/ciris/shared/oauth
-            if [ -f "/home/ciris/.ciris/oauth.json" ]; then
-              echo "Copying existing OAuth configuration to shared volume..."
-              cp /home/ciris/.ciris/oauth.json /home/ciris/shared/oauth/
-            fi
-            
-            # Note: nginx is now managed by CIRISManager
-            
-            # Use the production dev compose file that expects images
-            if [ ! -f "deployment/docker-compose.dev-prod.yml" ]; then
-              cp deployment/docker-compose.dev.yml deployment/docker-compose.dev-prod.yml
-            fi
-            
-            # Pull new images from GitHub Container Registry
-            docker pull ghcr.io/cirisai/ciris-agent:latest
-            docker pull ghcr.io/cirisai/ciris-gui:latest
-            
-            # Tag images for local use
-            docker tag ghcr.io/cirisai/ciris-agent:latest ciris-agent:latest
-            docker tag ghcr.io/cirisai/ciris-gui:latest ciris-gui:latest
-            
-            # Fix volume permissions before deployment
-            echo "Ensuring proper volume permissions..."
-            # The CIRIS container runs as user 'ciris' (uid 1000)
-            for volume in datum_data datum_logs; do
-              VOLUME_PATH=$(docker volume inspect deployment_${volume} 2>/dev/null | jq -r '.[0].Mountpoint' || echo "")
-              if [ -n "$VOLUME_PATH" ] && [ -d "$VOLUME_PATH" ]; then
-                echo "Setting permissions for $volume at $VOLUME_PATH"
-                # Set ownership to uid 1000 (ciris user in container)
-                chown -R 1000:1000 "$VOLUME_PATH" || true
-                # Set secure permissions: owner can read/write/execute, group can read/execute, others nothing
-                chmod -R 750 "$VOLUME_PATH"
-              fi
-            done
-            
-            # Simple deployment
-            echo "Using simple deployment..."
-            docker-compose -f deployment/docker-compose.dev-prod.yml pull
-            docker-compose -f deployment/docker-compose.dev-prod.yml up -d
-            
-            # Clean up old images
-            docker image prune -f
-            
-            
-            # Nginx is now managed by CIRISManager
-            
-            # Create systemd service for auto-start if it doesn't exist
-            if [ ! -f "/etc/systemd/system/ciris-dev.service" ]; then
-              cat > /etc/systemd/system/ciris-dev.service << 'EOF'
-            [Unit]
-            Description=CIRIS Development Deployment
-            After=docker.service
-            Requires=docker.service
-            
-            [Service]
-            Type=oneshot
-            RemainAfterExit=yes
-            WorkingDirectory=/home/ciris/CIRISAgent
-            ExecStart=/usr/local/bin/docker-compose -f deployment/docker-compose.dev-prod.yml up -d
-            ExecStop=/usr/local/bin/docker-compose -f deployment/docker-compose.dev-prod.yml down
-            User=root
-            Group=root
-            
-            [Install]
-            WantedBy=multi-user.target
-            EOF
-              systemctl daemon-reload
-              systemctl enable ciris-dev
-            fi
+          fetch-depth: 1  # Just need the latest commit message
+          
+      - name: Notify CIRISManager
+        run: |
+          # Extract changelog and assess risk
+          CHANGELOG=$(git log -1 --pretty=format:"%s")
+          
+          # Simple risk assessment based on commit message
+          if echo "$CHANGELOG" | grep -qiE "breaking|major|critical|security"; then
+            RISK_LEVEL="high"
+          elif echo "$CHANGELOG" | grep -qiE "fix|patch|minor"; then
+            RISK_LEVEL="low"
+          else
+            RISK_LEVEL="medium"
+          fi
+          
+          # Extract version (use short SHA)
+          VERSION="${{ github.sha }}"
+          VERSION="${VERSION:0:7}"
+          
+          # Notify CIRISManager about new images with rich context
+          # CIRISManager will orchestrate the deployment
+          response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST https://agents.ciris.ai/manager/v1/updates/notify \
+            -H "Authorization: Bearer ${{ secrets.DEPLOY_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"agent_image\": \"ghcr.io/cirisai/ciris-agent:latest\",
+              \"gui_image\": \"ghcr.io/cirisai/ciris-gui:latest\", 
+              \"strategy\": \"canary\",
+              \"source\": \"github-actions\",
+              \"commit_sha\": \"${{ github.sha }}\",
+              \"changelog\": \"$CHANGELOG\",
+              \"risk_level\": \"$RISK_LEVEL\",
+              \"version\": \"$VERSION\"
+            }")
+          
+          # Extract HTTP status
+          http_status=$(echo "$response" | grep "HTTP_STATUS:" | cut -d: -f2)
+          body=$(echo "$response" | sed '/HTTP_STATUS:/d')
+          
+          echo "Response body: $body"
+          echo "HTTP status: $http_status"
+          
+          # Check if successful (2xx status code)
+          if [[ "$http_status" =~ ^2[0-9][0-9]$ ]]; then
+            echo "✅ Successfully notified CIRISManager"
+            echo "Deployment ID: $(echo "$body" | jq -r '.deployment_id // "unknown"')"
+            echo "Strategy: $(echo "$body" | jq -r '.strategy // "unknown"')"
+          else
+            echo "❌ Failed to notify CIRISManager"
+            echo "HTTP Status: $http_status"
+            echo "Response: $body"
+            exit 1
+          fi
 
-      - name: Verify deployment
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: 108.61.119.117
-          username: root
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            # Wait for containers to be healthy
-            echo "Waiting for containers to start..."
-            
-            # Poll for up to 5 minutes
-            MAX_WAIT=300  # 5 minutes
-            WAIT_INTERVAL=30  # Check every 30 seconds
-            ELAPSED=0
-            
-            while [ $ELAPSED -lt $MAX_WAIT ]; do
-              echo "Checking API health (attempt $(($ELAPSED / $WAIT_INTERVAL + 1)))..."
-              
-              if curl -f http://localhost:8080/v1/system/health 2>/dev/null; then
-                echo "\nAPI is healthy!"
-                break
-              fi
-              
-              echo "API not ready yet, waiting ${WAIT_INTERVAL}s... (${ELAPSED}s elapsed)"
-              sleep $WAIT_INTERVAL
-              ELAPSED=$(($ELAPSED + $WAIT_INTERVAL))
-            done
-            
-            # Final check
-            if [ $ELAPSED -ge $MAX_WAIT ]; then
-              echo "API health check failed after ${MAX_WAIT} seconds!"
-              echo "\nContainer logs:"
-              docker logs ciris-agent-datum --tail 100
-              exit 1
-            fi
-            
-            # Verify containers are running
-            echo "\nRunning containers:"
-            docker ps | grep ciris
-            
-            # Nginx is now managed by CIRISManager
-            
-            
-            echo "\nDeployment successful! Phase 1 with Mock LLM is running."
+      - name: Monitor Deployment Status
+        run: |
+          # Give CIRISManager time to process
+          sleep 10
+          
+          # Check deployment status
+          echo "Checking deployment status..."
+          status_response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" https://agents.ciris.ai/manager/v1/updates/status \
+            -H "Authorization: Bearer ${{ secrets.DEPLOY_TOKEN }}")
+          
+          status_http=$(echo "$status_response" | grep "HTTP_STATUS:" | cut -d: -f2)
+          status_body=$(echo "$status_response" | sed '/HTTP_STATUS:/d')
+          
+          if [[ "$status_http" =~ ^2[0-9][0-9]$ ]]; then
+            echo "Deployment Status:"
+            echo "$status_body" | jq '.'
+          else
+            echo "Could not retrieve deployment status"
+          fi
+          
+          echo ""
+          echo "CIRISManager will handle the deployment orchestration."
+          echo "Agents will be notified based on the canary deployment strategy."
