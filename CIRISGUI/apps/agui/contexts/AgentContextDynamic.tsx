@@ -68,25 +68,46 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   // Initialize based on mode
   useEffect(() => {
     if (mode === 'standalone') {
-      // In standalone mode, create a single default agent
-      const defaultAgent: AgentInfo = {
-        agent_id: detectedAgentId || 'default',
-        agent_name: 'Default Agent',
-        container_name: 'standalone',
-        status: 'running',
-        api_endpoint: `${window.location.origin}${apiBase}`,
-        created_at: new Date().toISOString(),
-        health: 'healthy',
-        update_available: false
-      };
-      
-      setAgents([defaultAgent]);
-      setCurrentAgent(defaultAgent);
-      
-      // Configure SDK for standalone mode
+      // Configure SDK for standalone mode first
       cirisClient.setConfig({ 
         baseURL: window.location.origin
       });
+      
+      // In standalone mode, fetch the real agent identity
+      const fetchAgentIdentity = async () => {
+        setIsLoadingAgents(true);
+        setError(null);
+        
+        try {
+          // Fetch real identity from the API
+          const identity = await cirisClient.agent.getIdentity();
+          
+          // Create agent info from real identity
+          const realAgent: AgentInfo = {
+            agent_id: identity.agent_id,
+            agent_name: identity.name, // Real name from API!
+            container_name: 'standalone',
+            status: 'running',
+            api_endpoint: `${window.location.origin}${apiBase}`,
+            created_at: new Date().toISOString(),
+            health: 'healthy',
+            update_available: false
+          };
+          
+          setAgents([realAgent]);
+          setCurrentAgent(realAgent);
+        } catch (err) {
+          console.error('Failed to fetch agent identity:', err);
+          setError(err instanceof Error ? err : new Error('Failed to fetch agent identity'));
+          // Fail fast - don't create fake data
+          setAgents([]);
+          setCurrentAgent(null);
+        } finally {
+          setIsLoadingAgents(false);
+        }
+      };
+      
+      fetchAgentIdentity();
     } else {
       // In managed mode, discover agents from CIRISManager
       refreshAgents();
