@@ -6,6 +6,8 @@ import { cirisClient } from '../lib/ciris-sdk';
 import { AgentInfo } from '../lib/ciris-sdk/resources/manager';
 import type { APIRole, WARole } from '../lib/ciris-sdk';
 import { usePathname } from 'next/navigation';
+import { sdkConfigManager } from '../lib/sdk-config-manager';
+import { AuthStore } from '../lib/ciris-sdk/auth-store';
 
 interface AgentRole {
   agentId: string;
@@ -100,14 +102,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     setIsLoadingRoles(true);
     const newRoles = new Map<string, AgentRole>();
     
+    // Get the auth token once, to use for all agents
+    const authToken = AuthStore.getAccessToken() || undefined;
+    
     for (const agent of agents) {
       try {
-        // Configure client for this specific agent
-        const agentUrl = isManagerAvailable 
-          ? `${window.location.origin}/api/${agent.agent_id}`
-          : `${agent.api_url}:${agent.api_port}`;
-        
-        cirisClient.setConfig({ baseURL: agentUrl });
+        // Use SDK config manager for each agent
+        sdkConfigManager.configure(agent.agent_id, authToken);
         
         // Get current user info for this agent
         const userInfo = await cirisClient.auth.getCurrentUser();
@@ -135,6 +136,11 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       }
     }
     
+    // Restore SDK config to current agent
+    if (currentAgent && authToken) {
+      sdkConfigManager.configure(currentAgent.agent_id, authToken);
+    }
+    
     setAgentRoles(newRoles);
     setIsLoadingRoles(false);
   };
@@ -144,25 +150,38 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     const agent = agents.find(a => a.agent_id === agentId);
     if (!agent) return;
     
+    console.log('[AgentContext] Selecting agent:', agentId);
     setCurrentAgent(agent);
     
-    // Update API client base URL for the selected agent
-    const agentUrl = isManagerAvailable 
-      ? `${window.location.origin}/api/${agent.agent_id}`
-      : `${agent.api_url}:${agent.api_port}`;
-    
-    cirisClient.setConfig({ baseURL: agentUrl });
+    // Use SDK config manager to properly configure the SDK
+    // This handles OAuth tokens and proper URL configuration
+    const authToken = AuthStore.getAccessToken() || undefined;
+    sdkConfigManager.configure(agentId, authToken);
     
     // Store selection
     localStorage.setItem('selectedAgentId', agentId);
     localStorage.setItem('selectedAgentName', agent.agent_name);
+    
+    // Store API endpoint for this agent if in standalone mode
+    if (!isManagerAvailable) {
+      localStorage.setItem(`agent_${agentId}_api_url`, `${agent.api_url}:${agent.api_port}`);
+    }
   };
 
   // Get current agent role
   const currentAgentRole = currentAgent ? agentRoles.get(currentAgent.agent_id) || null : null;
 
-  // Initial load
+  // Initial load - restore SDK configuration first
   useEffect(() => {
+    // Check if we have a stored auth token and restore SDK config
+    const authToken = AuthStore.getAccessToken();
+    const savedAgentId = localStorage.getItem('selectedAgentId');
+    
+    if (authToken && savedAgentId) {
+      console.log('[AgentContext] Restoring SDK config for agent:', savedAgentId);
+      sdkConfigManager.configure(savedAgentId, authToken);
+    }
+    
     refreshAgents();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

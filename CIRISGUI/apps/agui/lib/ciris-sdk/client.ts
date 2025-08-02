@@ -121,6 +121,13 @@ export class CIRISClient {
   }
 
   /**
+   * Get current base URL (for debugging)
+   */
+  getBaseURL(): string {
+    return this.transport.getBaseURL();
+  }
+
+  /**
    * Create a new client instance with different configuration
    */
   withConfig(options: Partial<CIRISClientOptions> & { authToken?: string }): CIRISClient {
