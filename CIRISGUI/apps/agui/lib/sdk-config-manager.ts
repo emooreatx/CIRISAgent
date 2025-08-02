@@ -34,8 +34,8 @@ class SDKConfigManager {
     // Determine the correct base URL
     let baseURL: string;
     if (mode === 'managed') {
-      // In managed mode, use /api/{agent_id} path
-      baseURL = `${window.location.origin}/api/${agentId}`;
+      // In managed mode, use /api/{agent_id}/v1 path
+      baseURL = `${window.location.origin}/api/${agentId}/v1`;
     } else {
       // In standalone mode, check if we have a stored API URL
       const storedApiUrl = localStorage.getItem(`agent_${agentId}_api_url`);
@@ -76,8 +76,8 @@ class SDKConfigManager {
     // During OAuth callback, we need to be extra careful about the base URL
     let baseURL: string;
     if (mode === 'managed') {
-      // Always use the proxied path in managed mode
-      baseURL = `${window.location.origin}/api/${agentId}`;
+      // Always use the proxied path in managed mode with /v1
+      baseURL = `${window.location.origin}/api/${agentId}/v1`;
     } else {
       // In standalone, use the origin
       baseURL = window.location.origin;
