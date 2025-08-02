@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext';
 import { cirisClient } from '../lib/ciris-sdk';
 import { AgentInfo } from '../lib/ciris-sdk/resources/manager';
 import type { APIRole, WARole } from '../lib/ciris-sdk';
+import { usePathname } from 'next/navigation';
 
 interface AgentRole {
   agentId: string;
@@ -54,6 +55,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<Error | null>(null);
   const [isManagerAvailable, setIsManagerAvailable] = useState(false);
   const { user } = useAuth();
+  const pathname = usePathname();
 
   // Discover agents from CIRISManager or fallback to local
   const refreshAgents = async () => {
@@ -171,13 +173,27 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     }
   }, [agents, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Restore previous selection
+  // Detect agent from URL path or restore previous selection
   useEffect(() => {
+    if (agents.length === 0 || currentAgent) return;
+    
+    // Check if we're on an agent-specific path like /agent/{agent_id}/...
+    const pathMatch = pathname.match(/^\/agent\/([^\/]+)/);
+    if (pathMatch && pathMatch[1]) {
+      const agentIdFromUrl = pathMatch[1];
+      const agentFromUrl = agents.find(a => a.agent_id === agentIdFromUrl);
+      if (agentFromUrl) {
+        selectAgent(agentIdFromUrl);
+        return;
+      }
+    }
+    
+    // Fall back to saved selection
     const savedAgentId = localStorage.getItem('selectedAgentId');
-    if (savedAgentId && agents.length > 0 && !currentAgent) {
+    if (savedAgentId) {
       selectAgent(savedAgentId);
     }
-  }, [agents]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [agents, pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const value: AgentContextType = {
     agents,

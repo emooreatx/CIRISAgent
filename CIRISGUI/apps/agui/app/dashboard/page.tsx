@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { cirisClient } from "../../lib/ciris-sdk";
 import Link from "next/link";
 import { ProtectedRoute } from "../../components/ProtectedRoute";
+import { useAgent } from "../../contexts/AgentContextHybrid";
 import {
   StatusDot,
   SpinnerIcon,
@@ -13,69 +14,83 @@ import {
 } from "../../components/Icons";
 
 export default function DashboardPage() {
-  // Fetch all necessary data
+  // Get current agent context - this ensures SDK is configured correctly
+  const { currentAgent, isLoadingAgents, error: agentError } = useAgent();
+
+  // Fetch all necessary data - only when agent is selected
   const { data: health } = useQuery({
-    queryKey: ["dashboard-health"],
+    queryKey: ["dashboard-health", currentAgent?.agent_id],
     queryFn: () => cirisClient.system.getHealth(),
     refetchInterval: 5000,
+    enabled: !!currentAgent && !isLoadingAgents,
   });
 
   const { data: resources } = useQuery({
-    queryKey: ["dashboard-resources"],
+    queryKey: ["dashboard-resources", currentAgent?.agent_id],
     queryFn: () => cirisClient.system.getResources(),
     refetchInterval: 5000,
+    enabled: !!currentAgent && !isLoadingAgents,
   });
 
   // Cast resources to the actual API response structure
   const resourceData = resources as any;
 
   const { data: services } = useQuery({
-    queryKey: ["dashboard-services"],
+    queryKey: ["dashboard-services", currentAgent?.agent_id],
     queryFn: () => cirisClient.system.getServices(),
     refetchInterval: 10000,
+    enabled: !!currentAgent && !isLoadingAgents,
   });
 
   const { data: agentStatus } = useQuery({
-    queryKey: ["dashboard-agent"],
+    queryKey: ["dashboard-agent", currentAgent?.agent_id],
     queryFn: () => cirisClient.agent.getStatus(),
     refetchInterval: 5000,
+    enabled: !!currentAgent && !isLoadingAgents,
   });
 
   const { data: memoryStats } = useQuery({
-    queryKey: ["dashboard-memory"],
+    queryKey: ["dashboard-memory", currentAgent?.agent_id],
     queryFn: () => cirisClient.memory.getStats(),
     refetchInterval: 30000,
+    enabled: !!currentAgent && !isLoadingAgents,
   });
   const { data: status } = useQuery({
-    queryKey: ["agent-status"],
+    queryKey: ["agent-status", currentAgent?.agent_id],
     queryFn: () => cirisClient.agent.getStatus(),
+    enabled: !!currentAgent && !isLoadingAgents,
   });
   const { data: runtimeState } = useQuery({
-    queryKey: ["runtime-state"],
+    queryKey: ["runtime-state", currentAgent?.agent_id],
     queryFn: () => cirisClient.system.getRuntimeState(),
+    enabled: !!currentAgent && !isLoadingAgents,
   });
   const { data: telemetryOverview } = useQuery({
-    queryKey: ["dashboard-telemetry"],
+    queryKey: ["dashboard-telemetry", currentAgent?.agent_id],
     queryFn: () => cirisClient.telemetry.getOverview(),
     refetchInterval: 30000,
+    enabled: !!currentAgent && !isLoadingAgents,
   });
 
   const { data: recentLogs } = useQuery({
-    queryKey: ["dashboard-logs"],
+    queryKey: ["dashboard-logs", currentAgent?.agent_id],
     queryFn: () => cirisClient.telemetry.getLogs("ERROR", undefined, 5),
     refetchInterval: 10000,
+    enabled: !!currentAgent && !isLoadingAgents,
   });
 
   const { data: runtimeStatus } = useQuery({
-    queryKey: ["dashboard-runtime"],
+    queryKey: ["dashboard-runtime", currentAgent?.agent_id],
     queryFn: () => cirisClient.system.getRuntimeStatus(),
     refetchInterval: 5000,
+    enabled: !!currentAgent && !isLoadingAgents,
   });
 
   const { data: queueStatus } = useQuery({
-    queryKey: ["dashboard-queue"],
+    queryKey: ["dashboard-queue", currentAgent?.agent_id],
     queryFn: () => cirisClient.system.getProcessingQueueStatus(),
     refetchInterval: 5000,
+    enabled: !!currentAgent && !isLoadingAgents,
   });
 
   // Helper functions
@@ -111,6 +126,48 @@ export default function DashboardPage() {
       services?.services?.filter((s: any) => s.available === false).length || 0,
     total: services?.total_services || 0,
   };
+
+  // Handle loading and error states
+  if (isLoadingAgents) {
+    return (
+      <ProtectedRoute>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <SpinnerIcon className="w-8 h-8 mx-auto mb-4 animate-spin" />
+            <p className="text-gray-600">Loading agent configuration...</p>
+          </div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
+
+  if (agentError) {
+    return (
+      <ProtectedRoute>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center bg-red-50 border border-red-200 rounded-md p-6">
+            <p className="text-red-600">Failed to load agent configuration</p>
+            <p className="text-sm text-red-500 mt-2">{agentError.message}</p>
+          </div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
+
+  if (!currentAgent) {
+    return (
+      <ProtectedRoute>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <p className="text-gray-600">No agent selected</p>
+            <Link href="/login" className="text-indigo-600 hover:text-indigo-500 mt-2 inline-block">
+              Return to login
+            </Link>
+          </div>
+        </div>
+      </ProtectedRoute>
+    );
+  }
 
   return (
     <ProtectedRoute>
