@@ -213,12 +213,19 @@ export default function DashboardPage() {
                     <br />
                     - Auth Token: {AuthStore.getAccessToken() ? 'Present' : 'Missing'}
                     <br />
-                    - Expected URL: {window.location.origin}/api/{currentAgent?.agent_id}/v1/*
+                    - Agent ID: {currentAgent?.agent_id || 'Not set'}
+                    <br />
+                    - SDK Transport Base: {(cirisClient as any).transport?.getBaseURL?.() || 'Unknown'}
                   </p>
                   {healthError && (
-                    <p className="mt-2 font-mono text-xs">
-                      Error: {healthError.message}
-                    </p>
+                    <div className="mt-2">
+                      <p className="font-mono text-xs">
+                        Error: {healthError.message}
+                      </p>
+                      <p className="font-mono text-xs text-red-600">
+                        Check Network Tab: The failing URL will show what's actually being called
+                      </p>
+                    </div>
                   )}
                 </div>
               </div>
