@@ -18,19 +18,52 @@ export default function LoginPage() {
   const [loadingAgents, setLoadingAgents] = useState(true);
   const { login } = useAuth();
   
-  // Detect deployment mode
-  const { mode, agentId: detectedAgentId } = detectDeploymentMode();
-
   // Always show Google and Discord OAuth options
   const oauthProviders = [
     { provider: "google", name: "Google" },
     { provider: "discord", name: "Discord" }
   ];
 
-  // Load agents based on deployment mode
+  // Load agents by detecting deployment mode dynamically
   useEffect(() => {
     const loadAgents = async () => {
-      if (mode === 'standalone') {
+      // Try CIRISManager first to detect managed mode
+      try {
+        console.log('Checking for CIRISManager...');
+        const response = await fetch('/manager/v1/agents');
+        if (response.ok) {
+          // CIRISManager is available - we're in managed mode
+          console.log('CIRISManager detected - using managed mode');
+          const data = await response.json();
+          console.log('Loaded agents:', data.agents);
+          
+          // Convert manager API response to AgentInfo format
+          const agentsList: AgentInfo[] = data.agents.map((agent: any) => ({
+            agent_id: agent.agent_id,
+            agent_name: agent.agent_name,
+            status: agent.status,
+            health: agent.health,
+            api_url: agent.api_endpoint || `http://localhost:${agent.api_port}`,
+            api_port: parseInt(agent.api_port) || 8080,
+            api_endpoint: agent.api_endpoint || `http://localhost:${agent.api_port}`,
+            container_name: agent.container_name,
+            created_at: agent.created_at,
+            update_available: false,
+          }));
+          
+          setAgents(agentsList);
+          if (agentsList.length > 0) {
+            // Select the first healthy agent by default
+            const healthyAgent = agentsList.find(a => a.health === 'healthy') || agentsList[0];
+            setSelectedAgent(healthyAgent.agent_id);
+          }
+          return; // Exit early for managed mode
+        }
+      } catch (error) {
+        console.log('CIRISManager not available, trying standalone mode');
+      }
+      
+      // CIRISManager not available - try standalone mode
         // In standalone mode, fetch real agent identity from API
         try {
           // Configure SDK for standalone mode
@@ -60,69 +93,57 @@ export default function LoginPage() {
         } finally {
           setLoadingAgents(false);
         }
-      } else {
-        // In managed mode, load from CIRISManager
-        try {
-          console.log('Loading agents from manager API...');
-          // Fetch agents from manager API using fetch (no auth required)
-          const response = await fetch('/manager/v1/agents');
-          if (!response.ok) {
-            throw new Error(`Failed to fetch agents: ${response.status} ${response.statusText}`);
-          }
-          const data = await response.json();
-          console.log('Loaded agents:', data.agents);
-          
-          // Convert manager API response to AgentInfo format
-          const agentsList: AgentInfo[] = data.agents.map((agent: any) => ({
-            agent_id: agent.agent_id,
-            agent_name: agent.agent_name,
-            status: agent.status,
-            health: agent.health,
-            api_url: agent.api_endpoint || `http://localhost:${agent.api_port}`,
-            api_port: parseInt(agent.api_port) || 8080,
-            api_endpoint: agent.api_endpoint || `http://localhost:${agent.api_port}`,
-            container_name: agent.container_name,
-            created_at: agent.created_at,
-            update_available: false,
-          }));
-          
-          setAgents(agentsList);
-          if (agentsList.length > 0) {
-            // Select the first healthy agent by default
-            const healthyAgent = agentsList.find(a => a.health === 'healthy') || agentsList[0];
-            setSelectedAgent(healthyAgent.agent_id);
-          }
-        } catch (error) {
-          console.error('Failed to load agents - Full error:', error);
-          // Type-safe error handling
-          if (error instanceof Error) {
-            console.error('Error details:', {
-              message: error.message,
-              status: (error as any).status,
-              detail: (error as any).detail
-            });
-          } else {
-            console.error('Unknown error type:', error);
-          }
-          
-          // Fail fast - no fallback
-          console.log('Manager API unreachable - no fallback');
-          setAgents([]);
-          setError(error instanceof Error ? error : new Error('CIRISManager unreachable'));
-        } finally {
-          setLoadingAgents(false);
-        }
+      
+      // Try standalone API
+      try {
+        console.log('Trying standalone mode...');
+        // Configure SDK for standalone mode
+        cirisClient.setConfig({ baseURL: window.location.origin });
+        
+        // Fetch real identity from the API
+        const identity = await cirisClient.agent.getIdentity();
+        
+        // Create agent info from real identity
+        const realAgent: AgentInfo = {
+          agent_id: identity.agent_id,
+          agent_name: identity.name,  // Real name from API!
+          container_name: 'standalone',
+          status: 'running',
+          api_endpoint: window.location.origin,
+          created_at: new Date().toISOString(),
+          update_available: false
+        };
+        
+        setAgents([realAgent]);
+        setSelectedAgent(realAgent.agent_id);
+        console.log('Standalone mode successful');
+      } catch (error) {
+        console.error('Neither CIRISManager nor standalone API available:', error);
+        setError(error instanceof Error ? error : new Error('No CIRIS infrastructure available'));
+        setAgents([]);
+      } finally {
+        setLoadingAgents(false);
       }
     };
     loadAgents();
-  }, [mode, detectedAgentId]);
+  }, []);
 
   // Update client baseURL when agent selection changes
   useEffect(() => {
     const agent = agents.find(a => a.agent_id === selectedAgent);
     if (agent) {
-      // Use deployment mode to determine base URL
-      const baseURL = getApiBaseUrl(agent.agent_id);
+      // Determine base URL based on available infrastructure
+      let baseURL;
+      
+      // Check if we have multiple agents (managed mode) or single agent (standalone)
+      if (agents.length > 1 || agent.container_name !== 'standalone') {
+        // Managed mode: use agent-specific API path
+        baseURL = `${window.location.origin}/api/${agent.agent_id}`;
+      } else {
+        // Standalone mode: direct API access
+        baseURL = window.location.origin;
+      }
+      
       cirisClient.setConfig({ baseURL });
       
       // Store selected agent for use after login
@@ -136,9 +157,20 @@ export default function LoginPage() {
       const agent = agents.find(a => a.agent_id === selectedAgent);
       if (!agent) return;
       
-      // Direct navigation to OAuth login endpoint (no auth required)
-      const redirectUri = encodeURIComponent(`${window.location.origin}/oauth/${selectedAgent}/callback`);
-      const oauthUrl = getApiUrl(`v1/auth/oauth/${provider}/login`, agent.agent_id);
+      let oauthUrl;
+      let redirectUri;
+      
+      // Determine OAuth URLs based on deployment mode
+      if (agents.length > 1 || agent.container_name !== 'standalone') {
+        // Managed mode: use agent-specific paths
+        redirectUri = encodeURIComponent(`${window.location.origin}/oauth/${selectedAgent}/callback`);
+        oauthUrl = `${window.location.origin}/api/${agent.agent_id}/v1/auth/oauth/${provider}/login`;
+      } else {
+        // Standalone mode: direct OAuth
+        redirectUri = encodeURIComponent(`${window.location.origin}/oauth/callback`);
+        oauthUrl = `${window.location.origin}/v1/auth/oauth/${provider}/login`;
+      }
+      
       window.location.href = `${oauthUrl}?redirect_uri=${redirectUri}`;
     } catch (error) {
       console.error("OAuth login error:", error);
