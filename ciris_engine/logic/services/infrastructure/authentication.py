@@ -855,7 +855,9 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
                 iterations=100000,
             )
             key = kdf.derive(password.encode())
-            return key == stored_key
+            # Use constant-time comparison to prevent timing attacks
+            import hmac
+            return hmac.compare_digest(key, stored_key)
         except Exception:
             return False
 
