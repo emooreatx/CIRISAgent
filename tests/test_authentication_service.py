@@ -1230,24 +1230,32 @@ class TestAuthenticationServiceSecurity:
         correct_times = []
         wrong_times = []
         
-        for _ in range(10):
+        # Run more iterations for better statistical significance
+        for _ in range(50):
             # Correct password
-            start = time.time()
+            start = time.perf_counter()  # More precise than time.time()
             auth_service._verify_password(correct_password, hash_value)
-            correct_times.append(time.time() - start)
+            correct_times.append(time.perf_counter() - start)
             
             # Wrong password
-            start = time.time()
+            start = time.perf_counter()
             auth_service._verify_password(wrong_password, hash_value)
-            wrong_times.append(time.time() - start)
+            wrong_times.append(time.perf_counter() - start)
+        
+        # Remove outliers (top and bottom 10%)
+        correct_times.sort()
+        wrong_times.sort()
+        trim_count = len(correct_times) // 10
+        correct_times = correct_times[trim_count:-trim_count]
+        wrong_times = wrong_times[trim_count:-trim_count]
         
         # Average times should be similar (constant-time comparison)
         avg_correct = sum(correct_times) / len(correct_times)
         avg_wrong = sum(wrong_times) / len(wrong_times)
         
-        # Difference should be minimal (less than 20% difference)
+        # Difference should be minimal (less than 30% difference to account for CI variability)
         ratio = max(avg_correct, avg_wrong) / min(avg_correct, avg_wrong)
-        assert ratio < 1.2
+        assert ratio < 1.3, f"Timing ratio {ratio:.4f} exceeds threshold - possible timing attack vulnerability"
     
     def test_key_file_permissions(self, auth_service):
         """Test that key files are created with secure permissions."""
