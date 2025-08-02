@@ -10,7 +10,7 @@ export interface DeploymentMode {
 }
 
 /**
- * Detect deployment mode based on URL path
+ * Detect deployment mode based on URL path and domain
  */
 export function detectDeploymentMode(): DeploymentMode {
   if (typeof window === 'undefined') {
@@ -18,13 +18,30 @@ export function detectDeploymentMode(): DeploymentMode {
     return { mode: 'standalone', agentId: null, apiBase: '/v1' };
   }
 
+  const hostname = window.location.hostname;
   const path = window.location.pathname;
-  const isManaged = path.startsWith('/agent/');
+  
+  // Check if we're on the production multi-agent domain
+  const isProductionMultiAgent = hostname === 'agents.ciris.ai';
+  
+  // Check if path indicates managed mode
+  const isManagedPath = path.startsWith('/agent/');
 
-  if (isManaged) {
-    // Managed mode: extract agent ID from /agent/{agent_id}
-    const pathParts = path.split('/');
-    const agentId = pathParts[2] || 'default';
+  if (isProductionMultiAgent || isManagedPath) {
+    // In production or with /agent/ path, we're in managed mode
+    let agentId = 'default';
+    
+    if (isManagedPath) {
+      // Extract from path: /agent/{agent_id}
+      const pathParts = path.split('/');
+      agentId = pathParts[2] || 'default';
+    } else {
+      // In production without /agent/ path, check localStorage for selected agent
+      const savedAgentId = typeof window !== 'undefined' ? 
+        localStorage.getItem('selectedAgentId') : null;
+      agentId = savedAgentId || 'default';
+    }
+    
     const apiBase = `/api/${agentId}/v1`;
     return { mode: 'managed', agentId, apiBase };
   } else {
