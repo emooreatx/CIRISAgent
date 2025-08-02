@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { cirisClient, User } from '../lib/ciris-sdk';
+import { sdkConfigManager } from '../lib/sdk-config-manager';
 
 interface AuthContextType {
   user: User | null;
@@ -58,7 +59,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(async (username: string, password: string) => {
     try {
+      // Get the selected agent from localStorage (set by login page)
+      const selectedAgentId = localStorage.getItem('selectedAgentId');
+      if (!selectedAgentId) {
+        throw new Error('No agent selected');
+      }
+
+      // Configure SDK for the selected agent BEFORE login
+      sdkConfigManager.configure(selectedAgentId);
+
+      // Now perform the login
       const user = await cirisClient.login(username, password);
+      
+      // Configure SDK again with the auth token from AuthStore
+      const token = cirisClient.auth.getAccessToken();
+      if (token) {
+        sdkConfigManager.configure(selectedAgentId, token);
+      }
+
       setUser(user);
       toast.success(`Welcome, ${user.username || user.user_id}!`);
       router.push('/');
