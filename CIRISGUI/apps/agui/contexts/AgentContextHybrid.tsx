@@ -95,53 +95,39 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // Fetch roles for all agents
+  // Fetch role for the current agent only
   const refreshAgentRoles = async () => {
-    if (!user) return;
+    if (!user || !currentAgent) return;
     
     setIsLoadingRoles(true);
-    const newRoles = new Map<string, AgentRole>();
     
-    // Get the auth token once, to use for all agents
-    const authToken = AuthStore.getAccessToken() || undefined;
-    
-    for (const agent of agents) {
-      try {
-        // Use SDK config manager for each agent
-        sdkConfigManager.configure(agent.agent_id, authToken);
-        
-        // Get current user info for this agent
-        const userInfo = await cirisClient.auth.getCurrentUser();
-        
-        if (userInfo) {
-          newRoles.set(agent.agent_id, {
-            agentId: agent.agent_id,
-            apiRole: userInfo.api_role,
-            waRole: userInfo.wa_role,
-            isAuthority: userInfo.wa_role === 'AUTHORITY' || userInfo.api_role === 'SYSTEM_ADMIN',
-            lastChecked: new Date()
-          });
-        } else {
-          throw new Error('No user info returned');
-        }
-      } catch (error) {
-        console.error(`Failed to fetch role for agent ${agent.agent_id}:`, error);
-        // Set a default role on error
-        newRoles.set(agent.agent_id, {
-          agentId: agent.agent_id,
-          apiRole: 'OBSERVER' as APIRole,
-          isAuthority: false,
+    try {
+      // SDK should already be configured for current agent
+      // Just get the user info for verification
+      const userInfo = await cirisClient.auth.getCurrentUser();
+      
+      if (userInfo) {
+        const newRole: AgentRole = {
+          agentId: currentAgent.agent_id,
+          apiRole: userInfo.api_role,
+          waRole: userInfo.wa_role,
+          isAuthority: userInfo.wa_role === 'AUTHORITY' || userInfo.api_role === 'SYSTEM_ADMIN',
           lastChecked: new Date()
+        };
+        
+        // Update only the current agent's role
+        setAgentRoles(prev => {
+          const newRoles = new Map(prev);
+          newRoles.set(currentAgent.agent_id, newRole);
+          return newRoles;
         });
       }
+    } catch (error) {
+      console.error(`Failed to fetch role for agent ${currentAgent.agent_id}:`, error);
+      // Don't set a default role on error - let it fail properly
+      // This ensures 401 errors are handled correctly
     }
     
-    // Restore SDK config to current agent
-    if (currentAgent && authToken) {
-      sdkConfigManager.configure(currentAgent.agent_id, authToken);
-    }
-    
-    setAgentRoles(newRoles);
     setIsLoadingRoles(false);
   };
 
@@ -185,12 +171,12 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     refreshAgents();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Refresh roles when agents or user changes
+  // Refresh roles when current agent or user changes
   useEffect(() => {
-    if (agents.length > 0 && user) {
+    if (currentAgent && user) {
       refreshAgentRoles();
     }
-  }, [agents, user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentAgent, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Detect agent from URL path or restore previous selection
   useEffect(() => {
