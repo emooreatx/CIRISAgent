@@ -5,6 +5,8 @@ import { useSearchParams, useRouter, useParams } from 'next/navigation';
 import { useAuth } from '../../../../contexts/AuthContext';
 import { cirisClient } from '../../../../lib/ciris-sdk';
 import { getApiBaseUrl, detectDeploymentMode } from '../../../../lib/api-utils';
+import { sdkConfigManager } from '../../../../lib/sdk-config-manager';
+import { AuthStore } from '../../../../lib/ciris-sdk/auth-store';
 
 function OAuthCallbackContent() {
   const searchParams = useSearchParams();
@@ -40,6 +42,8 @@ function OAuthCallbackContent() {
     // Handle direct token response from API
     if (accessToken && tokenType && role && userId) {
       try {
+        console.log('[OAuth Callback] Processing direct token response:', { agentId, userId, role });
+        
         // Set the authentication state directly
         const user = {
           user_id: userId,
@@ -52,11 +56,31 @@ function OAuthCallbackContent() {
           last_login: new Date().toISOString()
         };
         
+        // CRITICAL: Configure SDK before setting auth state
+        // This ensures all subsequent API calls use the correct configuration
+        sdkConfigManager.configureForOAuthCallback(agentId, accessToken);
+        
+        // Save auth token to AuthStore for persistence
+        AuthStore.saveToken({
+          access_token: accessToken,
+          token_type: tokenType,
+          expires_in: 3600, // Default 1 hour
+          user_id: userId,
+          role: role,
+          created_at: Date.now()
+        });
+        
+        // Save user to AuthStore
+        AuthStore.saveUser(user);
+        
+        // Now set the auth context state
         setToken(accessToken);
         setUser(user);
         
         // Store the selected agent for future use
         localStorage.setItem('selectedAgentId', agentId);
+        
+        console.log('[OAuth Callback] SDK configured, redirecting to dashboard');
         
         // Redirect to dashboard or managed agent page based on mode
         const { mode } = detectDeploymentMode();
@@ -67,6 +91,7 @@ function OAuthCallbackContent() {
         }
         return;
       } catch (err) {
+        console.error('[OAuth Callback] Error:', err);
         setError(err instanceof Error ? err.message : 'OAuth authentication failed');
         setProcessing(false);
         return;

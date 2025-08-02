@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { cirisClient } from "../../lib/ciris-sdk";
+import { cirisClient, AuthStore } from "../../lib/ciris-sdk";
 import Link from "next/link";
 import { ProtectedRoute } from "../../components/ProtectedRoute";
 import { useAgent } from "../../contexts/AgentContextHybrid";
@@ -18,11 +18,12 @@ export default function DashboardPage() {
   const { currentAgent, isLoadingAgents, error: agentError } = useAgent();
 
   // Fetch all necessary data - only when agent is selected
-  const { data: health } = useQuery({
+  const { data: health, error: healthError } = useQuery({
     queryKey: ["dashboard-health", currentAgent?.agent_id],
     queryFn: () => cirisClient.system.getHealth(),
     refetchInterval: 5000,
     enabled: !!currentAgent && !isLoadingAgents,
+    retry: false, // Fail fast
   });
 
   const { data: resources } = useQuery({
@@ -169,6 +170,9 @@ export default function DashboardPage() {
     );
   }
 
+  // Check for API errors
+  const apiError = healthError || (health === undefined && currentAgent && !isLoadingAgents);
+  
   return (
     <ProtectedRoute>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -181,6 +185,46 @@ export default function DashboardPage() {
             Real-time monitoring of all system components
           </p>
         </div>
+
+        {/* API Configuration Error Alert */}
+        {apiError && (
+          <div className="mb-8 bg-red-50 border-l-4 border-red-400 p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">
+                  API Configuration Error
+                </h3>
+                <div className="mt-2 text-sm text-red-700">
+                  <p>Unable to connect to agent API. This usually means:</p>
+                  <ul className="list-disc list-inside mt-1">
+                    <li>OAuth token is not properly configured</li>
+                    <li>SDK is pointing to wrong endpoint</li>
+                    <li>Agent {currentAgent?.agent_id} is not accessible</li>
+                  </ul>
+                  <p className="mt-2">
+                    Current SDK configuration:
+                    <br />
+                    - Base URL: {cirisClient.getBaseURL()}
+                    <br />
+                    - Auth Token: {AuthStore.getAccessToken() ? 'Present' : 'Missing'}
+                    <br />
+                    - Expected URL: {window.location.origin}/api/{currentAgent?.agent_id}/v1/*
+                  </p>
+                  {healthError && (
+                    <p className="mt-2 font-mono text-xs">
+                      Error: {healthError.message}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Key Metrics */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">

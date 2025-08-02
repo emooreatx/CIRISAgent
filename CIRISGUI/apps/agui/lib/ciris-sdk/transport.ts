@@ -272,6 +272,11 @@ export class Transport {
       });
     }
 
+    // Debug logging in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[CIRIS SDK] Request URL:', url.toString());
+    }
+
     return url.toString();
   }
 
@@ -332,6 +337,9 @@ export class Transport {
    */
   setBaseURL(baseURL: string): void {
     this.baseURL = baseURL.replace(/\/$/, ''); // Remove trailing slash
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[CIRIS SDK] Base URL updated to:', this.baseURL);
+    }
   }
 
   /**
@@ -346,6 +354,13 @@ export class Transport {
    */
   setAuthToken(token: string | null): void {
     if (token) {
+      // Don't override existing token metadata if we already have it
+      const existing = AuthStore.getToken();
+      if (existing && existing.access_token === token) {
+        // Token is already saved with metadata
+        return;
+      }
+      
       AuthStore.saveToken({
         access_token: token,
         token_type: 'Bearer',
@@ -354,6 +369,10 @@ export class Transport {
         role: '',
         created_at: Date.now()
       });
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[CIRIS SDK] Auth token updated');
+      }
     } else {
       AuthStore.clearToken();
     }
