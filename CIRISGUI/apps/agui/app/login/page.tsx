@@ -57,6 +57,7 @@ export default function LoginPage() {
             const healthyAgent = agentsList.find(a => a.health === 'healthy') || agentsList[0];
             setSelectedAgent(healthyAgent.agent_id);
           }
+          setLoadingAgents(false); // Important: set loading to false!
           return; // Exit early for managed mode
         }
       } catch (error) {
