@@ -261,6 +261,11 @@ export class Transport {
       url = new URL(path);
     } else {
       // Path is relative, combine with baseURL
+      // In managed mode (when baseURL contains /api/), nginx adds /v1
+      // so we need to strip it from SDK paths
+      if (this.baseURL.includes('/api/') && path.startsWith('/v1/')) {
+        path = path.substring(3); // Remove '/v1' prefix
+      }
       url = new URL(path, this.baseURL);
     }
 
