@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [selectedAgent, setSelectedAgent] = useState("datum");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(true);
   const { login } = useAuth();
@@ -30,19 +31,35 @@ export default function LoginPage() {
   useEffect(() => {
     const loadAgents = async () => {
       if (mode === 'standalone') {
-        // In standalone mode, create a single default agent
-        const defaultAgent: AgentInfo = {
-          agent_id: detectedAgentId || 'default',
-          agent_name: 'CIRIS Agent',
-          container_name: 'ciris-agent',
-          status: 'running',
-          api_endpoint: window.location.origin,
-          created_at: new Date().toISOString(),
-          update_available: false
-        };
-        setAgents([defaultAgent]);
-        setSelectedAgent(defaultAgent.agent_id);
-        setLoadingAgents(false);
+        // In standalone mode, fetch real agent identity from API
+        try {
+          // Configure SDK for standalone mode
+          cirisClient.setConfig({ baseURL: window.location.origin });
+          
+          // Fetch real identity from the API
+          const identity = await cirisClient.agent.getIdentity();
+          
+          // Create agent info from real identity
+          const realAgent: AgentInfo = {
+            agent_id: identity.agent_id,
+            agent_name: identity.name,  // Real name from API!
+            container_name: 'standalone',
+            status: 'running',
+            api_endpoint: window.location.origin,
+            created_at: new Date().toISOString(),
+            update_available: false
+          };
+          
+          setAgents([realAgent]);
+          setSelectedAgent(realAgent.agent_id);
+        } catch (error) {
+          console.error('Failed to fetch agent identity:', error);
+          setError(error instanceof Error ? error : new Error('Failed to fetch agent identity'));
+          // Fail fast - don't create fake data
+          setAgents([]);
+        } finally {
+          setLoadingAgents(false);
+        }
       } else {
         // In managed mode, load from CIRISManager
         try {
@@ -88,22 +105,10 @@ export default function LoginPage() {
             console.error('Unknown error type:', error);
           }
           
-          // Fall back to static Datum agent if manager API fails
-          console.log('Falling back to static Datum agent');
-          const staticAgents: AgentInfo[] = [{
-            agent_id: 'datum',
-            agent_name: 'Datum',
-            status: 'running',
-            health: 'healthy',
-            api_url: process.env.NEXT_PUBLIC_CIRIS_API_URL || window.location.origin,
-            api_port: 8080,
-            api_endpoint: 'http://localhost:8080',
-            container_name: 'ciris-agent-datum',
-            created_at: new Date().toISOString(),
-            update_available: false,
-          }];
-          setAgents(staticAgents);
-          setSelectedAgent('datum');
+          // Fail fast - no fallback
+          console.log('Manager API unreachable - no fallback');
+          setAgents([]);
+          setError(error instanceof Error ? error : new Error('CIRISManager unreachable'));
         } finally {
           setLoadingAgents(false);
         }
@@ -197,6 +202,11 @@ export default function LoginPage() {
           <p className="mt-2 text-center text-sm text-gray-600">
             Select an agent and enter your credentials
           </p>
+          {error && (
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-600">{error.message}</p>
+            </div>
+          )}
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <input type="hidden" name="remember" value="true" />
