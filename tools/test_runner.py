@@ -160,8 +160,13 @@ class TestRunner:
             for line in status['last_lines']:
                 print(line)
     
-    def logs(self, tail: int = 50):
-        """Show test output logs."""
+    def logs(self, tail: int = 50, errors_only: bool = False):
+        """Show test output logs.
+        
+        Args:
+            tail: Number of lines to show from end (0 for all)
+            errors_only: Only show failures and errors
+        """
         status = self.status()
         if not status:
             return
@@ -171,12 +176,60 @@ class TestRunner:
             print("❌ Output file not found")
             return
         
-        if tail:
-            # Use tail command for efficiency
-            subprocess.run(['tail', '-n', str(tail), str(output_file)])
+        # Read the file content
+        with open(output_file, 'r') as f:
+            lines = f.readlines()
+        
+        if errors_only:
+            # Extract detailed error information
+            in_error_section = False
+            error_lines = []
+            failure_summary = []
+            
+            for i, line in enumerate(lines):
+                # Capture FAILED/ERROR lines with context
+                if 'FAILED' in line or 'ERROR' in line:
+                    # Get previous 5 and next 20 lines for context
+                    start = max(0, i - 5)
+                    end = min(len(lines), i + 20)
+                    error_lines.extend(lines[start:end])
+                    error_lines.append("-" * 80 + "\n")
+                
+                # Capture the failures section
+                if "FAILURES" in line or "ERRORS" in line:
+                    in_error_section = True
+                elif line.startswith("===") and in_error_section:
+                    in_error_section = False
+                
+                if in_error_section:
+                    failure_summary.append(line)
+            
+            # Print detailed errors first
+            if error_lines:
+                print("=" * 80)
+                print("DETAILED ERROR CONTEXT:")
+                print("=" * 80)
+                for line in error_lines:
+                    print(line.rstrip())
+            
+            # Then print failure summary
+            if failure_summary:
+                print("\n" + "=" * 80)
+                print("FAILURE DETAILS:")
+                print("=" * 80)
+                for line in failure_summary:
+                    print(line.rstrip())
+        
+        elif tail > 0:
+            # Show last N lines
+            print(f"Last {tail} lines of test output:")
+            print("-" * 80)
+            for line in lines[-tail:]:
+                print(line.rstrip())
         else:
-            # Cat the entire file
-            subprocess.run(['cat', str(output_file)])
+            # Show all
+            for line in lines:
+                print(line.rstrip())
     
     def stop(self):
         """Stop the current test run."""
@@ -243,6 +296,8 @@ def main():
     logs_parser = subparsers.add_parser("logs", help="Show test output")
     logs_parser.add_argument("--tail", type=int, default=50, 
                            help="Number of lines to show (0 for all)")
+    logs_parser.add_argument("--errors", action="store_true",
+                           help="Show only errors and failures with full context")
     
     # Stop command
     stop_parser = subparsers.add_parser("stop", help="Stop current test run")
@@ -259,7 +314,7 @@ def main():
     elif args.command == "status":
         runner.show_status()
     elif args.command == "logs":
-        runner.logs(tail=args.tail)
+        runner.logs(tail=args.tail, errors_only=args.errors)
     elif args.command == "stop":
         runner.stop()
     elif args.command == "results":
