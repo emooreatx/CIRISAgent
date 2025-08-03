@@ -11,6 +11,9 @@ Usage:
     python tools/sonar.py mark-wontfix ISSUE_KEY [--comment "Reason"]
     python tools/sonar.py reopen ISSUE_KEY
     python tools/sonar.py stats
+    python tools/sonar.py quality-gate
+    python tools/sonar.py hotspots [--status TO_REVIEW]
+    python tools/sonar.py coverage [--new-code]
 """
 
 import os
@@ -115,6 +118,78 @@ class SonarClient:
                 stats["top_rules"] = [(v["val"], v["count"]) for v in facet["values"][:5]]
         
         return stats
+    
+    def get_quality_gate_status(self) -> Dict[str, Any]:
+        """Get quality gate status for the project."""
+        response = self.session.get(
+            f"{SONAR_API_BASE}/qualitygates/project_status",
+            params={"projectKey": PROJECT_KEY}
+        )
+        response.raise_for_status()
+        return response.json()["projectStatus"]
+    
+    def search_hotspots(self, status: str = "TO_REVIEW", limit: int = 100) -> Dict[str, Any]:
+        """Search for security hotspots."""
+        params = {
+            "projectKey": PROJECT_KEY,
+            "status": status,
+            "ps": limit
+        }
+        
+        response = self.session.get(f"{SONAR_API_BASE}/hotspots/search", params=params)
+        response.raise_for_status()
+        return response.json()
+    
+    def mark_hotspot_safe(self, hotspot_key: str, comment: Optional[str] = None) -> Dict[str, Any]:
+        """Mark a security hotspot as safe."""
+        data = {
+            "hotspot": hotspot_key,
+            "status": "SAFE"
+        }
+        if comment:
+            data["comment"] = comment
+        
+        response = self.session.post(
+            f"{SONAR_API_BASE}/hotspots/change_status",
+            data=data
+        )
+        response.raise_for_status()
+        return response.json()
+    
+    def get_coverage_metrics(self, new_code: bool = False) -> Dict[str, Any]:
+        """Get coverage metrics for the project."""
+        metrics = []
+        if new_code:
+            metrics = ["new_coverage", "new_lines_to_cover", "new_uncovered_lines", 
+                      "new_line_coverage", "new_branch_coverage"]
+        else:
+            metrics = ["coverage", "lines_to_cover", "uncovered_lines", 
+                      "line_coverage", "branch_coverage"]
+        
+        response = self.session.get(
+            f"{SONAR_API_BASE}/measures/component",
+            params={
+                "component": PROJECT_KEY,
+                "metricKeys": ",".join(metrics)
+            }
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+def format_hotspot(hotspot: Dict[str, Any]) -> str:
+    """Format a security hotspot for display."""
+    file_path = hotspot["component"].split(":")[-1]
+    created = datetime.fromisoformat(hotspot["creationDate"].replace("Z", "+00:00"))
+    created_str = created.strftime("%Y-%m-%d")
+    
+    return (
+        f"[{hotspot['vulnerabilityProbability']} RISK] {hotspot['key']} - {hotspot['securityCategory'].upper()}\n"
+        f"  File: {file_path}:{hotspot.get('line', '?')}\n"
+        f"  Message: {hotspot['message']}\n"
+        f"  Status: {hotspot['status']}\n"
+        f"  Created: {created_str}\n"
+    )
 
 
 def format_issue(issue: Dict[str, Any]) -> str:
@@ -163,6 +238,24 @@ def main():
     comment_parser = subparsers.add_parser("comment", help="Add comment to an issue")
     comment_parser.add_argument("issue_key", help="Issue key to comment on")
     comment_parser.add_argument("comment", help="Comment text")
+    
+    # Quality Gate
+    qg_parser = subparsers.add_parser("quality-gate", help="Show quality gate status")
+    
+    # Security Hotspots
+    hotspots_parser = subparsers.add_parser("hotspots", help="List security hotspots")
+    hotspots_parser.add_argument("--status", choices=["TO_REVIEW", "REVIEWED", "SAFE", "FIXED"],
+                                default="TO_REVIEW", help="Filter by status")
+    hotspots_parser.add_argument("--limit", type=int, default=20, help="Number of hotspots to show")
+    
+    # Mark hotspot safe
+    safe_parser = subparsers.add_parser("mark-safe", help="Mark security hotspot as safe")
+    safe_parser.add_argument("hotspot_key", help="Hotspot key to mark")
+    safe_parser.add_argument("--comment", help="Comment explaining why it's safe")
+    
+    # Coverage
+    coverage_parser = subparsers.add_parser("coverage", help="Show coverage metrics")
+    coverage_parser.add_argument("--new-code", action="store_true", help="Show metrics for new code only")
     
     args = parser.parse_args()
     
@@ -236,6 +329,102 @@ def main():
             print("\nTop 5 Rules:")
             for rule, count in stats["top_rules"]:
                 print(f"  {rule}: {count} issues")
+        
+        elif args.command == "quality-gate":
+            qg_status = client.get_quality_gate_status()
+            print(f"\nQuality Gate Status: {qg_status['status']}")
+            print("=" * 50)
+            
+            if qg_status.get('periods'):
+                period = qg_status['periods'][0]
+                print(f"Analysis Period: {period['mode']} ({period['date']})\n")
+            
+            print("Conditions:")
+            for condition in qg_status['conditions']:
+                status_icon = "✓" if condition['status'] == "OK" else "✗"
+                metric = condition['metricKey'].replace('_', ' ').title()
+                actual = condition.get('actualValue', 'N/A')
+                threshold = condition['errorThreshold']
+                comparator = "≥" if condition['comparator'] == "LT" else "≤"
+                
+                print(f"  {status_icon} {metric}: {actual} (needs {comparator} {threshold})")
+            
+            if qg_status['status'] != "OK":
+                print("\n⚠️  Quality gate is failing! Fix the above issues to pass.")
+        
+        elif args.command == "hotspots":
+            result = client.search_hotspots(status=args.status, limit=args.limit)
+            hotspots = result['hotspots']
+            
+            if not hotspots:
+                print(f"No security hotspots found with status {args.status}.")
+            else:
+                print(f"\nFound {result['paging']['total']} security hotspots (showing {len(hotspots)}):")
+                print("=" * 70)
+                
+                # Group by vulnerability probability
+                by_risk = {}
+                for hotspot in hotspots:
+                    risk = hotspot['vulnerabilityProbability']
+                    if risk not in by_risk:
+                        by_risk[risk] = []
+                    by_risk[risk].append(hotspot)
+                
+                for risk in ['HIGH', 'MEDIUM', 'LOW']:
+                    if risk in by_risk:
+                        print(f"\n{risk} RISK ({len(by_risk[risk])} hotspots):\n")
+                        for hotspot in by_risk[risk]:
+                            print(format_hotspot(hotspot))
+        
+        elif args.command == "mark-safe":
+            if args.comment:
+                comment = f"Marking as safe: {args.comment}"
+            else:
+                comment = "Reviewed and determined to be safe"
+            
+            result = client.mark_hotspot_safe(args.hotspot_key, comment)
+            print(f"✓ Marked {args.hotspot_key} as safe")
+        
+        elif args.command == "coverage":
+            metrics = client.get_coverage_metrics(new_code=args.new_code)
+            component = metrics['component']
+            
+            # Extract measures - handle both value and periods formats
+            measures = {}
+            for m in component.get('measures', []):
+                if 'value' in m:
+                    measures[m['metric']] = m['value']
+                elif 'periods' in m and m['periods']:
+                    measures[m['metric']] = m['periods'][0]['value']
+            
+            print(f"\nCoverage Metrics for {PROJECT_KEY}")
+            print("=" * 50)
+            
+            prefix = "new_" if args.new_code else ""
+            scope = "New Code" if args.new_code else "Overall"
+            
+            if f"{prefix}coverage" in measures:
+                coverage = float(measures[f"{prefix}coverage"])
+                print(f"{scope} Coverage: {coverage:.1f}%")
+                
+                if coverage < 80 and args.new_code:
+                    print("⚠️  New code coverage is below 80% threshold!")
+            
+            if f"{prefix}lines_to_cover" in measures:
+                lines_to_cover = int(float(measures.get(f"{prefix}lines_to_cover", 0)))
+                uncovered_lines = int(float(measures.get(f"{prefix}uncovered_lines", 0)))
+                covered_lines = lines_to_cover - uncovered_lines
+                
+                print(f"\nLines:")
+                print(f"  Total to cover: {lines_to_cover}")
+                print(f"  Covered: {covered_lines}")
+                print(f"  Uncovered: {uncovered_lines}")
+            
+            if f"{prefix}line_coverage" in measures:
+                print(f"\nLine Coverage: {float(measures[f'{prefix}line_coverage']):.1f}%")
+            
+            if f"{prefix}branch_coverage" in measures:
+                print(f"Branch Coverage: {float(measures[f'{prefix}branch_coverage']):.1f}%")
         
         else:
             parser.print_help()
