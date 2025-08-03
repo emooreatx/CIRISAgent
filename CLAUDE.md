@@ -4,13 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Context
 
-CIRIS is a moral reasoning platform designed for progressive deployment:
-- **Current Production**: Discord community moderation (handling spam, fostering positive community)
-- **Architecture Goals**: Resource-constrained environments (4GB RAM, offline-capable)
-- **Target Deployments**: Rural clinics, educational settings, community centers
-- **Design Philosophy**: Start simple (Discord bot), scale to critical (healthcare triage)
-
-The sophisticated architecture (21 core services, 6 buses) is intentional - it's a platform that starts as a Discord bot but is designed to scale to mission-critical applications in resource-constrained environments.
+CIRIS is an ethical AI platform designed for progressive deployment:
+- **Current Production**: Discord community moderation + API access
+- **Architecture**: 21 core services, 6 buses, strict type safety
+- **Target**: Resource-constrained environments (4GB RAM, offline-capable)
+- **Philosophy**: Start simple (Discord bot), scale to critical (healthcare triage)
 
 ## Core Philosophy: No Dicts, No Strings, No Kings
 
@@ -100,9 +98,9 @@ https://agents.ciris.ai/v1/auth/oauth/datum/google/callback
 - /v1/ is at the ROOT level
 - This is the DEFAULT route (not /api/{agent}/v1/)
 
-## Current Status (July 19, 2025)
+## Current Status (August 2025)
 
-### 🎉 Major Achievements
+### Major Achievements
 
 1. **Complete Type Safety**
    - Zero `Dict[str, Any]` in production code
@@ -157,93 +155,9 @@ https://agents.ciris.ai/v1/auth/oauth/datum/google/callback
    - All logic under `logic/` directory
    - SelfConfiguration renamed to SelfObservation (complete refactor)
 
-7. **Test Suite Health**
-   - 1,161 tests passing (100% pass rate)
-   - Database retry logic ensures stability
-   - Fixed Pydantic v2 deprecations
-   - Fixed SQLite datetime adapter warnings
-   - All SDK endpoint tests passing
-   - CI/CD runs tests in Docker for consistency
-
-## Recent Achievements (July 2025)
-
-### Complete OAuth Permission System (July 20, 2025)
-1. **Phase 1 & 2 Completed**
-   - OAuth users can request permissions via API endpoint
-   - Admin/System Admin can view and grant permissions
-   - Full TypeScript SDK support with dedicated users resource
-   - GUI components for permission management
-   - Filtered user list shows only OAuth users with granted permissions
-
-2. **GUI Dynamic Agent Discovery**
-   - Fixed all TypeScript build errors
-   - Properly handles authentication roles (api_role vs wa_role)
-   - SDK pattern enforced throughout (no direct client usage)
-
-### Infrastructure Improvements (July 19-20, 2025)
-1. **Routing Infrastructure**
-   - Nginx routing now managed by CIRISManager
-   - CIRISAgent no longer includes nginx - clean separation of concerns
-   - Supports both dev (single agent) and production (multi-agent) configurations
-   - Per-agent OAuth callback paths: `/oauth/{agent}/callback`
-   - Agent-specific routes: `/api/{agent}/v1/*`
-
-2. **Shared OAuth Configuration**
-   - OAuth config now in shared volume: `/home/ciris/shared/oauth`
-   - All agents can mount and share OAuth credentials
-   - Migration script for existing configurations
-   - Google OAuth already configured in production
-
-3. **Dual-Mode GUI (August 2025)**
-   - GUI supports both standalone and managed deployments
-   - **Standalone Mode**: GUI at `/` talks to `/v1/*` directly
-   - **Managed Mode**: GUI at `/agent/{id}` talks to `/api/{id}/v1/*`
-   - Auto-detects mode from URL path - no configuration needed
-   - No breaking changes - existing deployments continue working
-   - Same codebase works in both modes
-
-4. **CI/CD Improvements**
-   - Fixed fork PR builds - they now build without pushing
-   - Only same-repo PRs and main branch push to registry
-   - Build summary shows what action was taken
-   - Prevents "installation not allowed to Write" errors
-
-5. **Local Development Setup**
-   - CIRISManager (separate repo) runs via `python deployment/run-ciris-manager-api.py`
-   - Config stored in `~/.config/ciris-manager/config.yml`
-   - Docker containers managed via docker-compose files
-   - GUI runs on port 3000/3001 with hot reload
-
-## Recent Achievements (July 2025)
-
-### Mock LLM Handler Testing Infrastructure
-1. **Standardized Passive Observation Format**
-   - All adapters now use: "You observed @{author} (ID: {id}) in channel {channel} say: {message}"
-   - Simple string-based command extraction without regex tricks
-   - Reliable command parsing from passive observation prefix
-
-2. **Fixed ASPDMA Template Variables**
-   - Discovered root cause: context_builder.py was sending literal `{original_thought.content}` instead of actual values
-   - Fixed all template variable formatting in ActionSelectionDMAResult prompts
-   - Mock LLM now receives properly formatted context from ASPDMA
-
-3. **Complete Handler Coverage in Mock LLM**
-   - Added missing handlers: TOOL, OBSERVE, DEFER, REJECT
-   - Fixed MEMORIZE validation using tags instead of content/description
-   - All 9 main handlers + TASK_COMPLETE now fully operational
-   - Tested with 10 parallel containers successfully
-
-4. **Mock LLM Purpose Clarification**
-   - Mock LLM is TEST INFRASTRUCTURE ONLY - not production code
-   - Performance is not a concern - it's for deterministic testing
-   - Channel isolation in mock LLM is not a security issue
-   - Designed for offline testing and development
-
-5. **Parallel Testing Capability**
-   - Use Claude Code Task tool to spawn concurrent sub-agents
-   - NOT Python scripts - leverage Claude Code's native parallelism
-   - Successfully tested 10 containers in parallel
-   - Each container tests different handlers concurrently
+7. **Test Suite**
+   - 1,180+ tests with Docker-based CI/CD
+   - Background test runner for development
 
 ## Architecture Overview
 
@@ -281,34 +195,37 @@ Only for multi-provider services:
 - **DREAM** - Deep introspection
 - **SHUTDOWN** - Graceful termination
 
-## Development
+## Development Tools
+
+### Essential Tools
+
+```bash
+# SonarCloud Analysis
+python tools/sonar.py quality-gate      # Check quality gate status
+python tools/sonar.py hotspots         # List security hotspots
+python tools/sonar.py coverage --new-code  # Coverage metrics
+python tools/sonar.py list --severity CRITICAL  # List issues
+
+# Background Test Runner
+python tools/test_runner.py start --coverage  # Start tests in Docker
+python tools/test_runner.py status     # Check progress
+python tools/test_runner.py logs       # View output
+python tools/test_runner.py results    # Summary when done
+
+# Debug Tools (run inside container)
+docker exec <container> python debug_tools.py  # Interactive debugging
+```
 
 ### Local Development Setup
 ```bash
-# 1. Start the agent container
-docker-compose -f docker-compose-api-discord-mock.yml up -d
+# Docker compose files in docker/
+docker compose -f docker/docker-compose-api-discord-mock.yml up -d
 
-# 2. Start the GUI
-cd CIRISGUI/apps/agui
-npm install
-npm run dev
-# Runs on http://localhost:3000
+# GUI development
+cd CIRISGUI/apps/agui && npm run dev  # http://localhost:3000
 
 # CLI mode with mock LLM
 python main.py --mock-llm --timeout 15 --adapter cli
-```
-
-### Testing
-```bash
-# Run full test suite
-pytest tests/ -v
-
-# Run API tests
-python test_api_v1_comprehensive.py
-
-# Run parallel handler testing (10 containers)
-docker-compose -f docker-compose-multi-mock.yml up -d
-python test_10_containers_parallel.py
 ```
 
 ### API Authentication
@@ -386,40 +303,6 @@ CIRIS agents are not simply deployed - they are created through a formal ceremon
 - Every agent maintains its creation ceremony record
 - Templates are starting points, not fixed configurations
 
-## Verified Development Truths
-
-### Mock LLM System
-- **Location**: External module in `ciris_modular_services/mock_llm/`
-- **Commands**: All mock LLM commands use `$` prefix (e.g., `$speak`, `$recall`, `$memorize`)
-- **API Interaction**: Use `/v1/agent/interact` endpoint with `{"message": "...", "channel_id": "..."}` format
-- **Response Format**: Mock responses should use `[MOCK LLM] ` prefix for clarity
-- **Testing**: Mock LLM provides deterministic responses for offline testing
-- **Purpose**: TEST INFRASTRUCTURE ONLY - not production code, performance not critical
-- **Command Extraction**: Uses simple string operations to extract commands from "You observed @" prefix
-- **All Handlers Implemented**: SPEAK, RECALL, MEMORIZE, TOOL, OBSERVE, PONDER, DEFER, REJECT, TASK_COMPLETE
-
-### Container Management
-- **Incidents Log**: ALWAYS check container incidents logs with `docker exec <container> tail /app/logs/incidents_latest.log`
-- **Multi-Container**: Use `docker-compose-multi-mock.yml` for 10-container parallel testing
-- **Ports**: Containers use ports 8080-8089 (container0 through container9)
-- **Health Check**: Wait for containers to be healthy before testing
-- **Parallel Testing**: Use Claude Code Task tool for concurrent testing, NOT Python scripts
-- **Rebuild Required**: ALWAYS rebuild containers after code changes for endpoints to appear
-
-### API Structure
-- **Adapter Management**: Runtime adapter management endpoints are available at `/v1/system/adapters/*` (requires container rebuild after code changes)
-- **Service Registration**: AdapterServiceRegistration doesn't have priority_group or strategy attributes - use getattr() for optional attributes
-- **Auth Field**: API uses `"message"` field not `"content"` for interact endpoint
-- **Channel Format**: Channel IDs follow pattern `<adapter>_<identifier>` (e.g., `discord_1234567890`, `api_0.0.0.0_8080`)
-
-### Testing Best Practices
-- **Parallel Testing**: Use Claude Code Task tool to spawn concurrent sub-agents for parallel testing
-- **Container Logs**: Check logs INSIDE containers with `docker exec`, not local logs
-- **Rebuild Frequency**: ALWAYS rebuild containers after ANY code changes - endpoints won't appear without rebuild
-- **Container Age**: Check container uptime in health endpoint - if it shows hours when you just started, you forgot to rebuild
-- **Error Patterns**: ServiceCorrelation validation errors are non-critical (missing response_timestamp field)
-- **Handler Testing**: Test all 9 main handlers plus runtime control in parallel containers
-- **Mock LLM Debug**: Check context extraction in responses.py and action selection in responses_action_selection.py
 
 ### Debug Tool Usage
 
@@ -775,59 +658,6 @@ docker exec ciris-agent-datum tail -n 100 /app/logs/incidents_latest.log
 
 **The Beauty**: One API call triggers everything. No SSH scripts, no staged containers, no manual intervention. Just clean orchestration that respects agent autonomy.
 
-### Recent Fixes (July 2025)
-
-#### CI/CD Pipeline (July 18, 2025)
-**Achievement**: Fully automated deployment pipeline with GitHub Actions
-
-**Features**:
-1. **Automated testing** in Docker containers
-2. **Docker image builds** pushed to GitHub Container Registry
-3. **Fresh server support** - Can deploy to new Ubuntu servers with just SSH key
-4. **Idempotent deployment** - Safe to run multiple times
-5. **Systemd integration** - Auto-starts on server reboot
-
-**Key Changes**:
-- Server initialization integrated into deployment workflow
-- Uses pre-built Docker images from ghcr.io
-- Maintains development mock LLM configuration
-- No manual steps required after PR merge
-
-#### Database Retry Logic (July 18, 2025)
-**Issue**: SQLite database locking during concurrent writes causing test failures
-
-**Solution**: Implemented RetryConnection wrapper class
-- Automatically retries write operations (INSERT, UPDATE, DELETE, etc.)
-- No retry for read operations (maintains performance)
-- Transparent to existing code - no changes needed at call sites
-- Fixed test_concurrent_write_serialization without modifying 80+ database calls
-
-#### Production Fixes (July 18, 2025)
-1. **Coroutine Error**: Fixed `'coroutine' object is not iterable` in system_snapshot.py
-   - Added proper `inspect.iscoroutinefunction()` checks
-   - Correctly awaits async methods before use
-
-2. **OpenAI Model Update**: Updated from deprecated `gpt-4-vision-preview` to `gpt-4o`
-
-#### Discord Adapter Fix (July 9, 2025)
-
-**Issue**: Discord adapter crashed with "Concurrent call to receive() is not allowed" when receiving messages.
-
-**Root Cause**: Multiple components (DiscordPlatform and DiscordConnectionManager) were trying to manage the Discord client connection simultaneously, causing race conditions.
-
-**Solution**:
-1. **Simplified reconnection logic** in DiscordPlatform - removed client recreation
-2. **Disabled redundant connection management** in DiscordConnectionManager
-3. **Leveraged Discord.py's built-in reconnection** with `reconnect=True` parameter
-4. **Added proper health check** via `is_healthy()` method in DiscordPlatform
-
-**Key Changes**:
-- DiscordPlatform now uses `client.start(token, reconnect=True)` and lets Discord.py handle reconnection
-- Removed complex client recreation logic that was causing websocket conflicts
-- DiscordConnectionManager now only monitors connection state, doesn't attempt reconnection
-- Single point of control for Discord client lifecycle
-
-This fix ensures robust Discord connectivity for both boot-time and runtime adapter loading.
 
 ## Type Safety Best Practices
 
