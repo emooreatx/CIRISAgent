@@ -8,6 +8,7 @@ Tests the complete OAuth user permission workflow:
 4. Access control enforcement
 """
 import pytest
+import pytest_asyncio
 from unittest.mock import Mock, patch
 import secrets
 from datetime import datetime, timezone
@@ -16,11 +17,31 @@ from fastapi import status
 
 from ciris_engine.logic.adapters.api.app import create_app
 from ciris_engine.logic.adapters.api.services.auth_service import APIAuthService, OAuthUser, UserRole
-from ciris_engine.protocols.runtime import RuntimeInterface
+from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+from ciris_engine.schemas.config.essential import EssentialConfig
+
+
+@pytest_asyncio.fixture
+async def test_runtime():
+    """Create a test runtime for OAuth testing."""
+    config = EssentialConfig()
+    config.services.llm_endpoint = "mock://localhost"
+    config.services.llm_model = "mock"
+    
+    runtime = CIRISRuntime(
+        adapter_types=["api"],
+        essential_config=config,
+        startup_channel_id="test_oauth",
+        mock_llm=True
+    )
+    
+    await runtime.initialize()
+    yield runtime
+    await runtime.shutdown()
 
 
 @pytest.fixture
-async def oauth_test_app(test_runtime: RuntimeInterface):
+def oauth_test_app(test_runtime):
     """Create test app with OAuth support."""
     app = create_app(test_runtime)
     return app

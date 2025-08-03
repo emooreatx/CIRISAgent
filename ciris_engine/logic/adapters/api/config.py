@@ -69,3 +69,11 @@ class APIAdapterConfig(BaseModel):
                 self.interaction_timeout = float(env_timeout)
             except ValueError:
                 pass
+                
+        env_cors_origins = get_env_var("CIRIS_API_CORS_ORIGINS")
+        if env_cors_origins:
+            try:
+                import json
+                self.cors_origins = json.loads(env_cors_origins)
+            except (ValueError, json.JSONDecodeError):
+                pass

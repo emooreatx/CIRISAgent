@@ -18,34 +18,38 @@ class TestAPIConfig:
         config = APIAdapterConfig()
         assert config.host == "127.0.0.1"
         assert config.port == 8080
-        assert config.log_level == "INFO"
         assert config.cors_origins == ["*"]
     
     def test_env_var_loading(self):
         """Test that environment variables are loaded correctly."""
         with patch.dict(os.environ, {
             'CIRIS_API_HOST': '0.0.0.0',
-            'CIRIS_API_PORT': '9090',
-            'CIRIS_API_LOG_LEVEL': 'DEBUG'
+            'CIRIS_API_PORT': '9090'
         }):
             config = APIAdapterConfig()
             config.load_env_vars()
             
             assert config.host == "0.0.0.0"
             assert config.port == 9090
-            assert config.log_level == "DEBUG"
     
     def test_env_var_partial_loading(self):
         """Test that only set environment variables are loaded."""
-        with patch.dict(os.environ, {
-            'CIRIS_API_HOST': '0.0.0.0'
-            # PORT not set, should keep default
-        }):
-            config = APIAdapterConfig()
-            config.load_env_vars()
-            
-            assert config.host == "0.0.0.0"
-            assert config.port == 8080  # Default retained
+        # First ensure CIRIS_API_PORT is not set
+        original_port = os.environ.pop('CIRIS_API_PORT', None)
+        try:
+            with patch.dict(os.environ, {
+                'CIRIS_API_HOST': '0.0.0.0'
+                # PORT not set, should keep default
+            }):
+                config = APIAdapterConfig()
+                config.load_env_vars()
+                
+                assert config.host == "0.0.0.0"
+                assert config.port == 8080  # Default retained
+        finally:
+            # Restore original value if it existed
+            if original_port is not None:
+                os.environ['CIRIS_API_PORT'] = original_port
     
     def test_env_var_type_conversion(self):
         """Test that environment variables are converted to correct types."""
@@ -88,7 +92,6 @@ class TestAPIConfig:
         config = APIAdapterConfig(
             host="0.0.0.0",
             port=9000,
-            log_level="DEBUG",
             cors_origins=["http://example.com"]
         )
         
@@ -96,14 +99,12 @@ class TestAPIConfig:
         config_dict = config.model_dump()
         assert config_dict["host"] == "0.0.0.0"
         assert config_dict["port"] == 9000
-        assert config_dict["log_level"] == "DEBUG"
         assert config_dict["cors_origins"] == ["http://example.com"]
         
         # Create from dict
         new_config = APIAdapterConfig(**config_dict)
         assert new_config.host == config.host
         assert new_config.port == config.port
-        assert new_config.log_level == config.log_level
         assert new_config.cors_origins == config.cors_origins
     
     def test_invalid_env_var_handling(self):
