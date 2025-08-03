@@ -34,12 +34,23 @@ class TestRunner:
         TEST_OUTPUT_DIR.mkdir(exist_ok=True)
     
     def start(self, coverage: bool = False, filter_pattern: Optional[str] = None, 
-              compose_file: str = "docker/docker-compose-pytest.yml") -> str:
+              compose_file: str = "docker/docker-compose-pytest.yml", rebuild: bool = True) -> str:
         """Start a new test run in the background."""
         # Check if already running
         if self.is_running():
             print("⚠️  Tests already running. Use 'status' to check or 'stop' to cancel.")
             return ""
+        
+        # Rebuild container if requested (default: True)
+        if rebuild:
+            print("🔨 Rebuilding test container...")
+            rebuild_cmd = ["docker", "compose", "-f", compose_file, "build", "pytest"]
+            rebuild_result = subprocess.run(rebuild_cmd, capture_output=True, text=True)
+            if rebuild_result.returncode != 0:
+                print(f"❌ Failed to rebuild container:")
+                print(rebuild_result.stderr)
+                return ""
+            print("✅ Container rebuilt successfully")
         
         # Generate run ID
         run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -288,6 +299,8 @@ def main():
     start_parser.add_argument("--filter", help="Pytest -k filter pattern")
     start_parser.add_argument("--compose-file", default="docker/docker-compose-pytest.yml",
                             help="Docker compose file to use")
+    start_parser.add_argument("--no-rebuild", action="store_true",
+                            help="Skip rebuilding the container (faster but may miss code changes)")
     
     # Status command
     status_parser = subparsers.add_parser("status", help="Check test run status")
@@ -310,7 +323,7 @@ def main():
     
     if args.command == "start":
         runner.start(coverage=args.coverage, filter_pattern=args.filter, 
-                    compose_file=args.compose_file)
+                    compose_file=args.compose_file, rebuild=not args.no_rebuild)
     elif args.command == "status":
         runner.show_status()
     elif args.command == "logs":
