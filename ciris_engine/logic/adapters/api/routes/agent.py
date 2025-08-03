@@ -139,6 +139,15 @@ async def interact(
         auth_service = request.app.state.auth_service if hasattr(request.app.state, 'auth_service') else None
         user = auth_service.get_user(auth.user_id) if auth_service else None
         
+        # If user is an OAuth user without a permission request, automatically create one
+        if user and user.auth_type == "oauth" and user.permission_requested_at is None:
+            # Set permission request timestamp
+            user.permission_requested_at = datetime.now(timezone.utc)
+            # Store the updated user
+            auth_service._users[user.wa_id] = user
+            
+            logger.info(f"Auto-created permission request for OAuth user {user.oauth_email or user.name} (ID: {user.wa_id})")
+        
         # Build detailed error response
         error_detail = {
             "error": "insufficient_permissions",

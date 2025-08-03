@@ -136,14 +136,8 @@ async def get_current_user(
     Returns details about the currently authenticated user including
     their role and all permissions based on that role.
     """
-    # Get all permissions for the user's role
-    if auth.role == UserRole.SYSTEM_ADMIN:
-        # SYSTEM_ADMIN has all permissions
-        permissions = [p.value for p in Permission]
-    else:
-        # Get role-based permissions
-        role_permissions = ROLE_PERMISSIONS.get(auth.role, set())
-        permissions = [p.value for p in role_permissions]
+    # Use permissions from the auth context which includes custom permissions
+    permissions = [p.value for p in auth.permissions]
 
     # For API key auth, we don't have a traditional username
     # Use the user_id as username

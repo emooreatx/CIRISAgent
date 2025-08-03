@@ -481,6 +481,7 @@ class APIAuthService:
                 oauth_provider=oauth_user.provider,
                 oauth_email=oauth_user.email,
                 oauth_external_id=oauth_user.external_id,
+                oauth_name=oauth_user.name,  # Map OAuth name to oauth_name field
                 created_at=oauth_user.created_at,
                 last_login=oauth_user.last_login,
                 is_active=True
@@ -533,7 +534,7 @@ class APIAuthService:
                 created_at=oauth_user.created_at,
                 last_login=oauth_user.last_login,
                 is_active=True,
-                oauth_name=stored_user.oauth_name if stored_user else None,
+                oauth_name=stored_user.oauth_name if stored_user else oauth_user.name,  # Use oauth_user.name as fallback
                 oauth_picture=stored_user.oauth_picture if stored_user else None,
                 permission_requested_at=stored_user.permission_requested_at if stored_user else None,
                 custom_permissions=stored_user.custom_permissions if stored_user else None

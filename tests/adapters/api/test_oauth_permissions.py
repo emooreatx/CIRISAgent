@@ -12,7 +12,7 @@ import pytest_asyncio
 from unittest.mock import Mock, patch
 import secrets
 from datetime import datetime, timezone
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 from fastapi import status
 
 from ciris_engine.logic.adapters.api.app import create_app
@@ -48,13 +48,23 @@ async def test_runtime():
 def oauth_test_app(test_runtime):
     """Create test app with OAuth support."""
     app = create_app(test_runtime)
+    
+    # Set up a simple message handler that returns immediately
+    # This prevents 503 errors when testing interaction endpoints
+    async def mock_message_handler(msg):
+        # Store the message for response correlation
+        from ciris_engine.logic.adapters.api.routes.agent import store_message_response
+        await store_message_response(msg.message_id, f"Mock response to: {msg.content}")
+    
+    app.state.on_message = mock_message_handler
     return app
 
 
 @pytest.fixture
 async def oauth_client(oauth_test_app):
     """Create async test client."""
-    async with AsyncClient(app=oauth_test_app, base_url="http://test") as client:
+    transport = ASGITransport(app=oauth_test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
 
 
@@ -70,10 +80,10 @@ async def admin_token(oauth_client):
 
 
 @pytest.fixture
-async def oauth_user(oauth_client):
+async def oauth_user(oauth_test_app):
     """Create an OAuth user for testing."""
-    # Simulate OAuth user creation (normally done in OAuth callback)
-    auth_service = APIAuthService()
+    # Get the auth service from the app state
+    auth_service = oauth_test_app.state.auth_service
     
     external_id = f"google-user-{secrets.token_hex(8)}"
     email = f"testuser.{secrets.token_hex(4)}@gmail.com"
@@ -85,9 +95,7 @@ async def oauth_user(oauth_client):
         external_id=external_id,
         email=email,
         name=name,
-        picture=picture,
-        api_role=UserRole.OBSERVER,
-        wa_role=UserRole.OBSERVER
+        role=UserRole.OBSERVER
     )
     
     # Generate API key for the user
@@ -121,13 +129,17 @@ class TestOAuthPermissions:
         
         users = response.json()["items"]
         oauth_user_found = False
+        # Debug: print what we're looking for and what we got
+        print(f"Looking for OAuth user with ID: {oauth_user['user'].user_id}")
+        print(f"Found {len(users)} users in list")
         for user in users:
+            print(f"  User: {user.get('user_id')} - {user.get('username')} - {user.get('auth_type')}")
             if user["user_id"] == oauth_user["user"].user_id:
                 oauth_user_found = True
                 assert user["oauth_provider"] == "google"
                 assert user["oauth_email"] == oauth_user["email"]
                 assert user["oauth_name"] == oauth_user["name"]
-                assert user["oauth_picture"] == oauth_user["user"].oauth_picture
+                # Note: picture field not currently supported in OAuthUser
                 break
         
         assert oauth_user_found, "OAuth user not found in user list"
@@ -144,12 +156,14 @@ class TestOAuthPermissions:
             }
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
-        assert "Permission required" in response.json()["detail"]
+        detail = response.json()["detail"]
+        assert detail["error"] == "insufficient_permissions"
+        assert "permission" in detail["message"].lower()
     
-    async def test_permission_request_creation(self, oauth_client, oauth_user):
+    async def test_permission_request_creation(self, oauth_client, oauth_user, admin_token):
         """Test that permission requests are created when OAuth users try to interact."""
         # First interaction attempt creates permission request
-        await oauth_client.post(
+        response = await oauth_client.post(
             "/v1/agent/interact",
             headers={"Authorization": f"Bearer {oauth_user['api_key']}"},
             json={
@@ -157,19 +171,28 @@ class TestOAuthPermissions:
                 "channel_id": f"api_oauth_{oauth_user['user'].user_id}"
             }
         )
+        # Should get 403 forbidden
+        assert response.status_code == status.HTTP_403_FORBIDDEN
         
-        # Get current user to check permission request
+        # Verify permission request was created by checking admin endpoint
         response = await oauth_client.get(
-            "/v1/auth/current",
-            headers={"Authorization": f"Bearer {oauth_user['api_key']}"}
+            "/v1/users/permission-requests",
+            headers={"Authorization": f"Bearer {admin_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
         
-        current = response.json()
-        assert current["permission_request"] is not None
-        assert current["permission_request"]["status"] == "pending"
-        assert current["permission_request"]["api_permission"] == "requested"
-        assert current["permission_request"]["wa_permission"] == "not_requested"
+        requests = response.json()
+        found = False
+        for req in requests:
+            if req["id"] == oauth_user["user"].user_id:
+                found = True
+                assert req["email"] == oauth_user["email"]
+                assert req["oauth_name"] == oauth_user["name"]
+                assert req["permission_requested_at"] is not None
+                assert req["has_send_messages"] is False
+                break
+        
+        assert found, "Permission request not found in admin list"
     
     async def test_admin_view_permission_requests(self, oauth_client, admin_token, oauth_user):
         """Test that admins can view permission requests."""
@@ -190,15 +213,17 @@ class TestOAuthPermissions:
         )
         assert response.status_code == status.HTTP_200_OK
         
-        requests = response.json()["items"]
+        # Response is a list, not a dict with items
+        requests = response.json()
         found = False
         for req in requests:
-            if req["user_id"] == oauth_user["user"].user_id:
+            if req["id"] == oauth_user["user"].user_id:
                 found = True
-                assert req["status"] == "pending"
-                assert req["api_permission"] == "requested"
-                assert req["oauth_provider"] == "google"
-                assert req["oauth_email"] == oauth_user["email"]
+                assert req["email"] == oauth_user["email"]
+                assert req["oauth_name"] == oauth_user["name"]
+                assert req["role"] == "OBSERVER"
+                assert req["permission_requested_at"] is not None
+                assert req["has_send_messages"] is False
                 break
         
         assert found, "Permission request not found"
@@ -215,22 +240,19 @@ class TestOAuthPermissions:
             }
         )
         
-        # Admin grants API permission
-        response = await oauth_client.post(
-            f"/v1/users/{oauth_user['user'].user_id}/grant-permissions",
+        # Admin grants send_messages permission
+        response = await oauth_client.put(
+            f"/v1/users/{oauth_user['user'].user_id}/permissions",
             headers={"Authorization": f"Bearer {admin_token}"},
             json={
-                "api_permission": True,
-                "wa_permission": False,
-                "reason": "Test user approved"
+                "permissions": ["send_messages"]
             }
         )
         assert response.status_code == status.HTTP_200_OK
         
+        # Verify user details show the permission
         result = response.json()
-        assert result["status"] == "approved"
-        assert result["api_permission"] == "granted"
-        assert result["wa_permission"] == "not_requested"
+        assert "send_messages" in result["custom_permissions"]
     
     async def test_oauth_user_can_interact_after_permission(self, oauth_client, admin_token, oauth_user):
         """Test that OAuth users can interact after permission is granted."""
@@ -245,13 +267,11 @@ class TestOAuthPermissions:
         )
         
         # Admin grants permission
-        await oauth_client.post(
-            f"/v1/users/{oauth_user['user'].user_id}/grant-permissions",
+        await oauth_client.put(
+            f"/v1/users/{oauth_user['user'].user_id}/permissions",
             headers={"Authorization": f"Bearer {admin_token}"},
             json={
-                "api_permission": True,
-                "wa_permission": False,
-                "reason": "Test user approved"
+                "permissions": ["send_messages"]
             }
         )
         
@@ -265,7 +285,11 @@ class TestOAuthPermissions:
             }
         )
         assert response.status_code == status.HTTP_200_OK
-        assert "request_id" in response.json()
+        result = response.json()
+        # Response should have data with the message response
+        assert "data" in result
+        assert "response" in result["data"]
+        assert "message_id" in result["data"]
     
     async def test_oauth_permission_persistence(self, oauth_client, admin_token, oauth_user):
         """Test that permissions persist across sessions."""
@@ -279,24 +303,21 @@ class TestOAuthPermissions:
             }
         )
         
-        await oauth_client.post(
-            f"/v1/users/{oauth_user['user'].user_id}/grant-permissions",
+        await oauth_client.put(
+            f"/v1/users/{oauth_user['user'].user_id}/permissions",
             headers={"Authorization": f"Bearer {admin_token}"},
             json={
-                "api_permission": True,
-                "wa_permission": False,
-                "reason": "Test user approved"
+                "permissions": ["send_messages"]
             }
         )
         
         # Check current user shows granted permission
         response = await oauth_client.get(
-            "/v1/auth/current",
+            "/v1/auth/me",
             headers={"Authorization": f"Bearer {oauth_user['api_key']}"}
         )
         assert response.status_code == status.HTTP_200_OK
         
         current = response.json()
-        assert current["permission_request"] is not None
-        assert current["permission_request"]["status"] == "approved"
-        assert current["permission_request"]["api_permission"] == "granted"
+        # The /auth/me endpoint returns permissions list
+        assert "send_messages" in current["permissions"]
