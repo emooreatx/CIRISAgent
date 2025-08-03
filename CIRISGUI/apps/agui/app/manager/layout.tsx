@@ -15,7 +15,7 @@ export default function ManagerLayout({ children }: ManagerLayoutProps) {
 
   const handleLogout = () => {
     // Clear manager token
-    localStorage.removeItem('managerToken');
+    localStorage.removeItem('manager_token');
     router.push('/login');
   };
 
