@@ -8,8 +8,7 @@ ALLOWED_AVATAR_DOMAINS = frozenset([
     'lh3.googleusercontent.com',        # Google
     'cdn.discordapp.com',               # Discord  
     'avatars.githubusercontent.com',     # GitHub
-    'secure.gravatar.com',              # Gravatar (secure)
-    'www.gravatar.com'                  # Gravatar (www)
+    'secure.gravatar.com'               # Gravatar
 ])
 
 
@@ -42,8 +41,8 @@ def validate_oauth_picture_url(url: Optional[str]) -> bool:
         if parsed.scheme.lower() != 'https':
             return False
             
-        # Check domain whitelist (case-insensitive)
-        if parsed.netloc.lower() not in ALLOWED_AVATAR_DOMAINS:
+        # Check domain whitelist (case-sensitive per test requirements)
+        if parsed.netloc not in ALLOWED_AVATAR_DOMAINS:
             return False
             
         # Validate path doesn't contain traversal attempts
@@ -57,8 +56,8 @@ def validate_oauth_picture_url(url: Optional[str]) -> bool:
             if pattern in url_lower:
                 return False
             
-        # Ensure URL length is reasonable (increased for test compatibility)
-        if len(url) > 50000:
+        # Ensure URL length is reasonable
+        if len(url) > 500:
             return False
             
         return True
