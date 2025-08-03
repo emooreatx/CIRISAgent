@@ -18,12 +18,16 @@ from fastapi import status
 from ciris_engine.logic.adapters.api.app import create_app
 from ciris_engine.logic.adapters.api.services.auth_service import APIAuthService, OAuthUser, UserRole
 from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+from ciris_engine.logic.runtime.prevent_sideeffects import allow_runtime_creation
 from ciris_engine.schemas.config.essential import EssentialConfig
 
 
 @pytest_asyncio.fixture
 async def test_runtime():
     """Create a test runtime for OAuth testing."""
+    # Allow runtime creation in tests
+    allow_runtime_creation()
+    
     config = EssentialConfig()
     config.services.llm_endpoint = "mock://localhost"
     config.services.llm_model = "mock"

@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 
 from ciris_engine.logic.adapters.api.app import create_app
 from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+from ciris_engine.logic.runtime.prevent_sideeffects import allow_runtime_creation
 from ciris_engine.logic.services.runtime.control_service import RuntimeControlService
 from ciris_engine.schemas.config.essential import EssentialConfig
 from ciris_engine.schemas.adapters import AdapterServiceRegistration
@@ -22,6 +23,9 @@ from ciris_engine.logic.registries.base import Priority, SelectionStrategy
 @pytest_asyncio.fixture
 async def test_runtime():
     """Create a test runtime with mock services."""
+    # Allow runtime creation in tests
+    allow_runtime_creation()
+    
     # Create proper EssentialConfig with nested configs
     from ciris_engine.schemas.config.essential import ServiceEndpointsConfig
     
