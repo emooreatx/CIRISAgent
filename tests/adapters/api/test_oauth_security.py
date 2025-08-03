@@ -152,9 +152,9 @@ class TestOAuthPictureValidation:
         """Test URL validation with different cases."""
         # urlparse normalizes scheme to lowercase, so HTTPS works
         assert validate_oauth_picture_url("HTTPS://lh3.googleusercontent.com/a/valid") is True
-        # Domain with different case should not match
-        assert validate_oauth_picture_url("https://LH3.googleusercontent.com/a/valid") is False
-        assert validate_oauth_picture_url("https://lh3.GOOGLEUSERCONTENT.com/a/valid") is False
+        # Domain with different case should still match (case-insensitive)
+        assert validate_oauth_picture_url("https://LH3.googleusercontent.com/a/valid") is True
+        assert validate_oauth_picture_url("https://lh3.GOOGLEUSERCONTENT.com/a/valid") is True
 
 
 class TestAllowedDomains:
@@ -170,10 +170,11 @@ class TestAllowedDomains:
             'lh3.googleusercontent.com',      # Google
             'cdn.discordapp.com',             # Discord
             'avatars.githubusercontent.com',   # GitHub  
-            'secure.gravatar.com'             # Gravatar
+            'secure.gravatar.com',            # Gravatar
+            'www.gravatar.com'                # Gravatar (www)
         }
         assert expected_domains == ALLOWED_AVATAR_DOMAINS
     
     def test_no_unexpected_domains(self):
         """Test that no unexpected domains are in whitelist."""
-        assert len(ALLOWED_AVATAR_DOMAINS) == 4
+        assert len(ALLOWED_AVATAR_DOMAINS) == 5

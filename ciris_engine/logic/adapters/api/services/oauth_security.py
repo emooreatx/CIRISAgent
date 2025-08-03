@@ -8,7 +8,7 @@ ALLOWED_AVATAR_DOMAINS = frozenset([
     'lh3.googleusercontent.com',        # Google
     'cdn.discordapp.com',               # Discord  
     'avatars.githubusercontent.com',     # GitHub
-    'secure.gravatar.com',              # Gravatar (secure)
+    'secure.gravatar.com',              # Gravatar
     'www.gravatar.com'                  # Gravatar (www)
 ])
 
@@ -57,8 +57,8 @@ def validate_oauth_picture_url(url: Optional[str]) -> bool:
             if pattern in url_lower:
                 return False
             
-        # Ensure URL length is reasonable (increased for test compatibility)
-        if len(url) > 50000:
+        # Ensure URL length is reasonable
+        if len(url) > 500:
             return False
             
         return True
