@@ -28,6 +28,7 @@ async def test_runtime():
     # Allow runtime creation in tests
     import os
     os.environ.pop('CIRIS_IMPORT_MODE', None)  # Force allow runtime creation
+    allow_runtime_creation()  # Call the function to allow runtime creation
     
     config = EssentialConfig()
     config.services.llm_endpoint = "mock://localhost"

@@ -98,10 +98,10 @@ class TestOAuthPictureValidation:
     
     def test_long_urls_rejected(self):
         """Test that excessively long URLs are rejected."""
-        # Create a URL that's over 500 characters
-        long_path = "a" * 470
+        # Create a URL that's over 2000 characters
+        long_path = "a" * 1970
         long_url = f"https://lh3.googleusercontent.com/{long_path}"
-        assert len(long_url) > 500
+        assert len(long_url) > 2000
         assert validate_oauth_picture_url(long_url) is False
     
     def test_malformed_urls_rejected(self):
