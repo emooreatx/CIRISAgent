@@ -1,7 +1,7 @@
 import logging
 import json
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from pydantic import BaseModel
 from ciris_engine.logic.services.memory_service import LocalGraphMemoryService
@@ -11,6 +11,10 @@ from ciris_engine.schemas.runtime.models import Task
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot, UserProfile
 from ciris_engine.schemas.services.graph_core import GraphScope, NodeType
 from ciris_engine.schemas.services.operations import MemoryQuery
+from ciris_engine.schemas.processors.base import ChannelContext
+from ciris_engine.schemas.adapters.tools import ToolInfo
+from ciris_engine.schemas.services.core.runtime import ServiceHealthStatus
+from ciris_engine.schemas.services.runtime_control import CircuitBreakerStatus
 from ciris_engine.logic import persistence
 from .secrets_snapshot import build_secrets_snapshot
 
@@ -155,16 +159,11 @@ async def build_system_snapshot(
 
             if identity_result and identity_result.attributes:
                 # The identity is stored as a TypedGraphNode (IdentityNode)
-                # Extract the identity fields from attributes
-                node_attrs: Union[Any, Dict[str, Any]] = identity_result.attributes
-                # GraphNodeAttributes is always a Pydantic model with model_dump()
-                # Convert to dict for consistent access
-                attrs_dict: Dict[str, Any]
-                if hasattr(node_attrs, 'model_dump'):
-                    attrs_dict = node_attrs.model_dump()
-                else:
-                    # Fallback for dict-like objects
-                    attrs_dict = dict(node_attrs) if node_attrs else {}
+                # Attributes must be a Pydantic model
+                if not hasattr(identity_result.attributes, 'model_dump'):
+                    raise TypeError(f"Invalid graph node attributes type: {type(identity_result.attributes)}")
+                
+                attrs_dict = identity_result.attributes.model_dump()
                 
                 identity_data = {
                     "agent_id": attrs_dict.get("agent_id", ""),
@@ -254,8 +253,8 @@ async def build_system_snapshot(
         resource_alerts.append(f"🚨 CRITICAL! FAILED TO CHECK RESOURCES: {str(e)}")
 
     # Get service health status
-    service_health: Dict[str, dict] = {}
-    circuit_breaker_status: Dict[str, dict] = {}
+    service_health: Dict[str, ServiceHealthStatus] = {}
+    circuit_breaker_status: Dict[str, CircuitBreakerStatus] = {}
 
     if service_registry:
         try:
@@ -296,7 +295,7 @@ async def build_system_snapshot(
             logger.warning(f"Failed to get telemetry summary: {e}")
     
     # Get adapter channels for agent visibility
-    adapter_channels: Dict[str, List[Dict[str, Any]]] = {}
+    adapter_channels: Dict[str, List[ChannelContext]] = {}
     if runtime and hasattr(runtime, 'adapter_manager'):
         try:
             adapter_manager = runtime.adapter_manager
@@ -305,18 +304,21 @@ async def build_system_snapshot(
                 if hasattr(adapter, 'get_channel_list'):
                     channels = adapter.get_channel_list()
                     if channels:
-                        # Extract adapter type from channel_type in first channel
-                        adapter_type = channels[0].get('channel_type', adapter_name.lower())
+                        # Ensure we have ChannelContext objects
+                        if not isinstance(channels[0], ChannelContext):
+                            raise TypeError(f"Adapter {adapter_name} returned invalid channel list type: {type(channels[0])}")
+                        # Use channel_type from first channel
+                        adapter_type = channels[0].channel_type
                         adapter_channels[adapter_type] = channels
                         logger.debug(f"Found {len(channels)} channels for {adapter_type} adapter")
         except Exception as e:
-            logger.warning(f"Failed to get adapter channels: {e}")
+            logger.error(f"Failed to get adapter channels: {e}")
+            raise
     
     # Get available tools from all adapters via tool bus
-    available_tools: Dict[str, List[Dict[str, Any]]] = {}
+    available_tools: Dict[str, List[ToolInfo]] = {}
     if runtime and hasattr(runtime, 'bus_manager') and hasattr(runtime, 'service_registry'):
         try:
-            runtime.bus_manager
             service_registry = runtime.service_registry
             
             # Get all tool services from registry
@@ -331,31 +333,28 @@ async def build_system_snapshot(
                     # Check if it's a coroutine function
                     import inspect
                     if inspect.iscoroutinefunction(tool_service.get_available_tools):
-                        tools = await tool_service.get_available_tools()
+                        tool_names = await tool_service.get_available_tools()
                     else:
-                        tools = tool_service.get_available_tools()
+                        tool_names = tool_service.get_available_tools()
                     
                     # Get detailed info for each tool
-                    tool_infos = []
-                    for tool_name in tools:
-                        tool_info = {
-                            'name': tool_name,
-                            'adapter_id': adapter_id
-                        }
-                        
-                        # Try to get additional info
+                    tool_infos: List[ToolInfo] = []
+                    for tool_name in tool_names:
+                        # Get tool info - must return ToolInfo or None
                         if hasattr(tool_service, 'get_tool_info'):
                             try:
                                 if inspect.iscoroutinefunction(tool_service.get_tool_info):
-                                    detailed_info = await tool_service.get_tool_info(tool_name)
+                                    tool_info = await tool_service.get_tool_info(tool_name)
                                 else:
-                                    detailed_info = tool_service.get_tool_info(tool_name)
-                                if detailed_info:
-                                    tool_info['description'] = getattr(detailed_info, 'description', '')
-                            except Exception:
-                                pass
-                        
-                        tool_infos.append(tool_info)
+                                    tool_info = tool_service.get_tool_info(tool_name)
+                                
+                                if tool_info:
+                                    if not isinstance(tool_info, ToolInfo):
+                                        raise TypeError(f"Tool service returned invalid type: {type(tool_info)}, expected ToolInfo")
+                                    tool_infos.append(tool_info)
+                            except Exception as e:
+                                logger.error(f"Failed to get info for tool {tool_name}: {e}")
+                                raise
                     
                     if tool_infos:
                         # Group by adapter type (extract from adapter_id)
@@ -366,7 +365,8 @@ async def build_system_snapshot(
                         logger.debug(f"Found {len(tool_infos)} tools for {adapter_type} adapter")
                         
         except Exception as e:
-            logger.warning(f"Failed to get available tools: {e}")
+            logger.error(f"Failed to get available tools: {e}")
+            raise
 
     # Get queue status using centralized function
     queue_status = persistence.get_queue_status()
@@ -473,8 +473,13 @@ async def build_system_snapshot(
                 
                 if user_results:
                     user_node = user_results[0]
-                    # Extract ALL attributes from the user node
-                    attrs = user_node.attributes if isinstance(user_node.attributes, dict) else {}
+                    # Extract ALL attributes from the user node - must be Pydantic model
+                    if not user_node.attributes:
+                        attrs = {}
+                    elif hasattr(user_node.attributes, 'model_dump'):
+                        attrs = user_node.attributes.model_dump()
+                    else:
+                        raise TypeError(f"Invalid user node attributes type: {type(user_node.attributes)}")
                     
                     # Get edges and connected nodes
                     connected_nodes_info = []
@@ -495,7 +500,13 @@ async def build_system_snapshot(
                             connected_results = await memory_service.recall(connected_query)
                             if connected_results:
                                 connected_node = connected_results[0]
-                                connected_attrs = connected_node.attributes if isinstance(connected_node.attributes, dict) else {}
+                                # Attributes must be Pydantic model
+                                if not connected_node.attributes:
+                                    connected_attrs = {}
+                                elif hasattr(connected_node.attributes, 'model_dump'):
+                                    connected_attrs = connected_node.attributes.model_dump()
+                                else:
+                                    raise TypeError(f"Invalid connected node attributes type: {type(connected_node.attributes)}")
                                 connected_nodes_info.append({
                                     'node_id': connected_node.id,
                                     'node_type': connected_node.type,

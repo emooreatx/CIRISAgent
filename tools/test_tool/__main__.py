@@ -50,6 +50,7 @@ Examples:
     test_parser = subparsers.add_parser("test", help="Run a specific test")
     test_parser.add_argument("test_path", help="Test file or specific test to run")
     test_parser.add_argument("--coverage", action="store_true", help="Run with coverage")
+    test_parser.add_argument("--coverage-path", help="Specific path to measure coverage for")
     test_parser.add_argument("--no-rebuild", action="store_true",
                            help="Skip rebuilding the container")
     test_parser.add_argument("-v", "--verbose", action="count", default=1,
@@ -88,6 +89,7 @@ Examples:
         runner.run_single_test(
             test_path=args.test_path,
             coverage=args.coverage,
+            coverage_path=args.coverage_path,
             rebuild=not args.no_rebuild
         )
     elif args.command == "status":
