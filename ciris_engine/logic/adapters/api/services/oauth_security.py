@@ -57,8 +57,8 @@ def validate_oauth_picture_url(url: Optional[str]) -> bool:
             if pattern in url_lower:
                 return False
             
-        # Ensure URL length is reasonable
-        if len(url) > 500:
+        # Ensure URL length is reasonable (allow up to 10KB for long paths)
+        if len(url) > 10000:
             return False
             
         return True
