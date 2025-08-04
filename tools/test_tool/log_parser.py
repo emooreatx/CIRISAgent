@@ -33,7 +33,7 @@ class LogParser:
     )
     ERROR_HEADER_PATTERN = re.compile(
         r'^_{5,}\s+(ERROR|FAILED|FAILURE)\s+.+\s+_{5,}$'
-    )
+    )  # sonar-hotspot: safe - regex is simple with no nested quantifiers or complex backtracking
     TEST_STATS_PATTERN = re.compile(
         r'^=+\s*(\d+)\s+passed(?:,\s*(\d+)\s+skipped)?(?:,\s*(\d+)\s+warnings)?(?:,\s*(\d+)\s+error)?(?:,\s*(\d+)\s+failed)?'
     )

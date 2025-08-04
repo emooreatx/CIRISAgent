@@ -114,7 +114,7 @@ class TestRunner:
             if pid:
                 # Check if process is still running
                 try:
-                    os.kill(pid, 0)
+                    os.kill(pid, 0)  # sonar-hotspot: safe - signal 0 only checks if process exists, doesn't terminate
                     return True
                 except ProcessLookupError:
                     return False
