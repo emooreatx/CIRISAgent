@@ -1,4 +1,36 @@
 # CIRIS Agent Beta Release Notes
+
+## Version: 1.0.3-beta
+## Release Date: August 4, 2025
+
+### 🐛 Bug Fixes
+- **Critical**: Fixed TSDB consolidation infinite loop causing agent unresponsiveness and production outages
+- **Security**: Fixed timing attack vulnerability in password verification using constant-time comparison
+- **Multi-agent**: Fixed OAuth authentication to properly configure SDK for agent-specific endpoints
+- **GUI**: Fixed immediate logout issue when using username/password authentication
+- **GUI**: Fixed SDK base URL configuration for managed vs standalone deployment modes
+- **Discord**: Improved connection stability and error handling
+
+### 🔧 Improvements
+- OAuth multi-agent support now properly configures SDK per agent instead of all agents
+- Enhanced URL routing detection based on domain (agents.ciris.ai) or path (/agent/)
+- Better error handling with fail-fast behavior instead of showing null/unknown data
+- Complete type safety achieved - zero Dict[str, Any] remaining in codebase
+- Improved test infrastructure with auto-rebuild capability
+
+### 📊 Updated Metrics
+- Test suite: 1,161 tests passing (100% pass rate)
+- All SonarQube A-grades maintained with zero security issues
+- Production stability proven with 1+ month Discord deployment
+- Successfully running 5 agents in production environment
+
+### 🚀 Production Status
+- Discord adapter has been live for over a month with excellent stability
+- Multi-agent deployment successful at agents.ciris.ai
+- Ready to add 4 additional agents to the Discord pilot
+
+---
+
 ## Version: 1.0.0-beta.1
 ## Release Date: July 15, 2025
 
