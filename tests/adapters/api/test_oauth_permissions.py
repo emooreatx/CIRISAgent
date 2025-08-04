@@ -25,25 +25,29 @@ from ciris_engine.schemas.config.essential import EssentialConfig
 @pytest_asyncio.fixture
 async def test_runtime():
     """Create a test runtime for OAuth testing."""
-    # Allow runtime creation in tests
-    import os
-    os.environ.pop('CIRIS_IMPORT_MODE', None)  # Force allow runtime creation
-    allow_runtime_creation()  # Call the function to allow runtime creation
+    # Allow runtime creation for this test
+    allow_runtime_creation()
     
-    config = EssentialConfig()
-    config.services.llm_endpoint = "mock://localhost"
-    config.services.llm_model = "mock"
-    
-    runtime = CIRISRuntime(
-        adapter_types=["api"],
-        essential_config=config,
-        startup_channel_id="test_oauth",
-        mock_llm=True
-    )
-    
-    await runtime.initialize()
-    yield runtime
-    await runtime.shutdown()
+    try:
+        config = EssentialConfig()
+        config.services.llm_endpoint = "mock://localhost"
+        config.services.llm_model = "mock"
+        
+        runtime = CIRISRuntime(
+            adapter_types=["api"],
+            essential_config=config,
+            startup_channel_id="test_oauth",
+            mock_llm=True
+        )
+        
+        await runtime.initialize()
+        yield runtime
+        await runtime.shutdown()
+    finally:
+        # Restore original state to avoid affecting other tests
+        import os
+        if os.environ.get('CIRIS_IMPORT_MODE') is None:
+            os.environ['CIRIS_IMPORT_MODE'] = 'true'
 
 
 @pytest.fixture
