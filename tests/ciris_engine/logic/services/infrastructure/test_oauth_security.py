@@ -116,14 +116,15 @@ class TestOAuthSecurity:
     
     def test_oauth_url_validation_performance(self):
         """Test that URL validation handles large inputs gracefully."""
-        # Very long URL
+        # Very long URL - should reject URLs over 2000 chars
         long_path = "a" * 10000
         long_url = f"https://lh3.googleusercontent.com/{long_path}.png"
-        assert validate_oauth_picture_url(long_url) is True
+        assert validate_oauth_picture_url(long_url) is False  # Changed: reject long URLs
         
-        # URL with many query parameters
-        params = "&".join([f"param{i}=value{i}" for i in range(100)])
+        # URL with many query parameters but under 2000 chars total
+        params = "&".join([f"param{i}=value{i}" for i in range(50)])  # Reduced from 100
         param_url = f"https://avatars.githubusercontent.com/u/123?{params}"
+        assert len(param_url) < 2000  # Ensure it's under limit
         assert validate_oauth_picture_url(param_url) is True
         
         # Malformed URLs should not crash
