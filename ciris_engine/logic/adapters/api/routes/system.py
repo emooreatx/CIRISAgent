@@ -641,6 +641,32 @@ async def shutdown_system(
         
         # Log shutdown request with sanitized reason
         logger.warning(f"SHUTDOWN requested: {safe_reason}")
+        
+        # Audit shutdown request - especially important for service tokens
+        audit_service = getattr(request.app.state, 'audit_service', None)
+        if audit_service:
+            from ciris_engine.schemas.services.graph.audit import AuditEventData
+            # Check if this is a service account
+            is_service_account = auth.role.value == "SERVICE_ACCOUNT"
+            audit_event = AuditEventData(
+                entity_id="system",
+                actor=auth.user_id,
+                outcome="initiated",
+                severity="high" if body.force else "warning",
+                action="system_shutdown",
+                resource="system",
+                reason=safe_reason,
+                metadata={
+                    "force": body.force,
+                    "is_service_account": is_service_account,
+                    "auth_role": auth.role.value,
+                    "ip_address": request.client.host if request.client else "unknown",
+                    "user_agent": request.headers.get("user-agent", "unknown"),
+                    "request_path": str(request.url.path)
+                }
+            )
+            import asyncio
+            asyncio.create_task(audit_service.log_event("system_shutdown_request", audit_event))
 
         # Execute shutdown through runtime to ensure proper state transition
         # The runtime's request_shutdown will call the shutdown service AND set global flags

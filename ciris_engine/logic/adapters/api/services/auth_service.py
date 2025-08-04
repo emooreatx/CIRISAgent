@@ -754,6 +754,37 @@ class APIAuthService:
         
         return user
     
+    def validate_service_token(self, token: str) -> Optional[User]:
+        """Validate a service token and return a service account user.
+        
+        Service tokens are compared against CIRIS_SERVICE_TOKEN environment variable.
+        Uses constant-time comparison to prevent timing attacks.
+        """
+        import os
+        import hmac
+        
+        # Get expected service token from environment
+        expected_token = os.environ.get("CIRIS_SERVICE_TOKEN")
+        if not expected_token:
+            return None
+            
+        # Use constant-time comparison
+        if not hmac.compare_digest(token, expected_token):
+            return None
+            
+        # Create and return service account user
+        return User(
+            wa_id="service-account",
+            name="Service Account",
+            auth_type="service_token",
+            api_role=APIRole.SERVICE_ACCOUNT,
+            wa_role=None,
+            created_at=datetime.now(timezone.utc),
+            last_login=datetime.now(timezone.utc),
+            is_active=True,
+            custom_permissions=None
+        )
+    
     def list_user_api_keys(self, user_id: str) -> List[StoredAPIKey]:
         """List all API keys for a specific user."""
         keys = []
