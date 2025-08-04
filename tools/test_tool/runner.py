@@ -21,6 +21,7 @@ class TestRunner:
         
     def start(self, 
               coverage: bool = False,
+              coverage_path: Optional[str] = None,
               filter_pattern: Optional[str] = None,
               test_path: Optional[str] = None,
               compose_file: str = DEFAULT_COMPOSE_FILE,
@@ -67,6 +68,7 @@ class TestRunner:
         # Build pytest command
         pytest_cmd = build_pytest_command(
             coverage=coverage,
+            coverage_path=coverage_path,
             filter_pattern=filter_pattern,
             test_path=test_path,
             markers=markers,
@@ -258,7 +260,8 @@ class TestRunner:
             for test in summary['failed_tests']:
                 print(f"  ❌ {test}")
     
-    def run_single_test(self, test_path: str, coverage: bool = False, 
+    def run_single_test(self, test_path: str, coverage: bool = False,
+                       coverage_path: Optional[str] = None,
                        rebuild: bool = True) -> str:
         """
         Convenience method to run a single test.
@@ -267,6 +270,7 @@ class TestRunner:
             test_path: Path to test file or specific test
                       e.g., "tests/test_foo.py::TestClass::test_method"
             coverage: Run with coverage
+            coverage_path: Specific path to measure coverage for
             rebuild: Rebuild container first
             
         Returns:
@@ -275,5 +279,6 @@ class TestRunner:
         return self.start(
             test_path=test_path,
             coverage=coverage,
+            coverage_path=coverage_path,
             rebuild=rebuild
         )

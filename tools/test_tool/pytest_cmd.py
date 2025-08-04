@@ -11,9 +11,14 @@ class PytestCommand:
         self.base_cmd = "pytest -xvs --tb=short"
         self.options = []
         
-    def with_coverage(self) -> 'PytestCommand':
-        """Add coverage reporting."""
-        self.options.append("--cov=ciris_engine --cov-report=term-missing --cov-report=html")
+    def with_coverage(self, cov_path: Optional[str] = None) -> 'PytestCommand':
+        """Add coverage reporting.
+        
+        Args:
+            cov_path: Specific path to measure coverage for. If None, covers all ciris_engine.
+        """
+        cov_target = cov_path or "ciris_engine"
+        self.options.append(f"--cov={cov_target} --cov-report=term-missing --cov-report=html")
         return self
     
     def with_filter(self, pattern: str) -> 'PytestCommand':
@@ -74,6 +79,7 @@ class PytestCommand:
 
 def build_pytest_command(
     coverage: bool = False,
+    coverage_path: Optional[str] = None,
     filter_pattern: Optional[str] = None,
     test_path: Optional[str] = None,
     markers: Optional[List[str]] = None,
@@ -95,7 +101,7 @@ def build_pytest_command(
         builder.with_specific_test(test_path)
     
     if coverage:
-        builder.with_coverage()
+        builder.with_coverage(coverage_path)
     
     if filter_pattern:
         builder.with_filter(filter_pattern)
