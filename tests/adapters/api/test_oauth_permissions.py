@@ -26,7 +26,8 @@ from ciris_engine.schemas.config.essential import EssentialConfig
 async def test_runtime():
     """Create a test runtime for OAuth testing."""
     # Allow runtime creation in tests
-    allow_runtime_creation()
+    import os
+    os.environ.pop('CIRIS_IMPORT_MODE', None)  # Force allow runtime creation
     
     config = EssentialConfig()
     config.services.llm_endpoint = "mock://localhost"
