@@ -48,7 +48,103 @@ async def get_auth_context(  # NOSONAR: FastAPI requires async for dependency in
 
     api_key = authorization[7:]  # Remove "Bearer " prefix
 
-    # Validate API key
+    # Check if this is a service token
+    if api_key.startswith("service:"):
+        service_token = api_key[8:]  # Remove "service:" prefix
+        service_user = auth_service.validate_service_token(service_token)
+        if not service_user:
+            # Audit failed service token attempt
+            audit_service = getattr(request.app.state, 'audit_service', None)
+            if audit_service:
+                from ciris_engine.schemas.services.graph.audit import AuditEventData
+                import hashlib
+                # Hash the token for audit logging (don't log the actual token)
+                token_hash = hashlib.sha256(service_token.encode()).hexdigest()[:16]
+                audit_event = AuditEventData(
+                    entity_id="auth_service",
+                    actor=f"service_token_hash:{token_hash}",
+                    outcome="failure",
+                    severity="warning",
+                    action="service_token_validation",
+                    resource="api_auth",
+                    reason="invalid_service_token",
+                    metadata={
+                        "ip_address": request.client.host if request.client else "unknown",
+                        "user_agent": request.headers.get("user-agent", "unknown"),
+                        "token_hash": token_hash
+                    }
+                )
+                import asyncio
+                asyncio.create_task(audit_service.log_event("service_token_auth_failed", audit_event))
+            
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid service token"
+            )
+        
+        # Audit successful service token use
+        audit_service = getattr(request.app.state, 'audit_service', None)
+        if audit_service:
+            from ciris_engine.schemas.services.graph.audit import AuditEventData
+            import hashlib
+            # Hash the token for audit logging
+            token_hash = hashlib.sha256(service_token.encode()).hexdigest()[:16]
+            audit_event = AuditEventData(
+                entity_id="auth_service",
+                actor=service_user.wa_id,
+                outcome="success",
+                severity="info",
+                action="service_token_validation",
+                resource="api_auth",
+                reason="service_token_accepted",
+                metadata={
+                    "ip_address": request.client.host if request.client else "unknown",
+                    "user_agent": request.headers.get("user-agent", "unknown"),
+                    "token_hash": token_hash,
+                    "request_path": str(request.url.path),
+                    "request_method": request.method
+                }
+            )
+            import asyncio
+            asyncio.create_task(audit_service.log_event("service_token_auth_success", audit_event))
+        
+        # Create auth context for service account
+        from ciris_engine.schemas.api.auth import UserRole as AuthUserRole
+        context = AuthContext(
+            user_id=service_user.wa_id,
+            role=AuthUserRole.SERVICE_ACCOUNT,
+            permissions=ROLE_PERMISSIONS.get(AuthUserRole.SERVICE_ACCOUNT, set()),
+            api_key_id=None,
+            authenticated_at=datetime.now(timezone.utc)
+        )
+        context.request = request
+        return context
+
+    # Check if this is username:password format (for legacy support)
+    if ":" in api_key:
+        username, password = api_key.split(":", 1)
+        user = await auth_service.verify_user_password(username, password)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid username or password"
+            )
+        
+        # Create auth context for password auth
+        from ciris_engine.schemas.api.auth import UserRole as AuthUserRole
+        # Map APIRole to UserRole
+        user_role = AuthUserRole[user.api_role.value]
+        context = AuthContext(
+            user_id=user.wa_id,
+            role=user_role,
+            permissions=ROLE_PERMISSIONS.get(user_role, set()),
+            api_key_id=None,
+            authenticated_at=datetime.now(timezone.utc)
+        )
+        context.request = request
+        return context
+
+    # Otherwise, validate as regular API key
     key_info = auth_service.validate_api_key(api_key)
     if not key_info:
         raise HTTPException(
@@ -132,6 +228,7 @@ require_observer = require_role(UserRole.OBSERVER)
 require_admin = require_role(UserRole.ADMIN)
 require_authority = require_role(UserRole.AUTHORITY)
 require_system_admin = require_role(UserRole.SYSTEM_ADMIN)
+require_service_account = require_role(UserRole.SERVICE_ACCOUNT)
 
 def check_permissions(permissions: list[str]) -> Callable:
     """

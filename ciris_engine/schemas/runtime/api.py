@@ -18,6 +18,7 @@ class APIRole(str, Enum):
     ADMIN = "ADMIN"
     AUTHORITY = "AUTHORITY"
     SYSTEM_ADMIN = "SYSTEM_ADMIN"
+    SERVICE_ACCOUNT = "SERVICE_ACCOUNT"  # For service-to-service authentication
     
     @property
     def level(self) -> int:
@@ -26,7 +27,8 @@ class APIRole(str, Enum):
             "OBSERVER": 1,
             "ADMIN": 2,
             "AUTHORITY": 3,
-            "SYSTEM_ADMIN": 4
+            "SYSTEM_ADMIN": 4,
+            "SERVICE_ACCOUNT": 2  # Same level as ADMIN for shutdown operations
         }[self.value]
 
 

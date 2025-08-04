@@ -15,6 +15,7 @@ class UserRole(str, Enum):
     ADMIN = "ADMIN"
     AUTHORITY = "AUTHORITY"
     SYSTEM_ADMIN = "SYSTEM_ADMIN"  # Renamed from ROOT to avoid confusion with WA ROOT
+    SERVICE_ACCOUNT = "SERVICE_ACCOUNT"  # For service-to-service authentication
 
     @property
     def level(self) -> int:
@@ -23,7 +24,8 @@ class UserRole(str, Enum):
             "OBSERVER": 1,
             "ADMIN": 2,
             "AUTHORITY": 3,
-            "SYSTEM_ADMIN": 4
+            "SYSTEM_ADMIN": 4,
+            "SERVICE_ACCOUNT": 2  # Same level as ADMIN for shutdown operations
         }[self.value]
 
     def has_permission(self, required_role: "UserRole") -> bool:
@@ -121,6 +123,14 @@ ROLE_PERMISSIONS: Dict[UserRole, Set[Permission]] = {
         Permission.FULL_ACCESS,
         Permission.EMERGENCY_SHUTDOWN,
         Permission.MANAGE_SENSITIVE_CONFIG,
+    },
+    UserRole.SERVICE_ACCOUNT: {
+        # Limited permissions for service-to-service operations
+        Permission.VIEW_TELEMETRY,
+        Permission.VIEW_CONFIG,
+        Permission.RUNTIME_CONTROL,  # For shutdown operations
+        Permission.VIEW_TOOLS,
+        Permission.VIEW_LOGS,
     }
 }
 
