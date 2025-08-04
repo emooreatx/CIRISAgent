@@ -9,7 +9,7 @@ Tests the complete OAuth user permission workflow:
 """
 import pytest
 import pytest_asyncio
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock, AsyncMock
 import secrets
 from datetime import datetime, timezone
 from httpx import AsyncClient, ASGITransport
@@ -29,20 +29,53 @@ async def test_runtime():
     allow_runtime_creation()
     
     try:
-        config = EssentialConfig()
-        config.services.llm_endpoint = "mock://localhost"
-        config.services.llm_model = "mock"
-        
-        runtime = CIRISRuntime(
-            adapter_types=["api"],
-            essential_config=config,
-            startup_channel_id="test_oauth",
-            mock_llm=True
-        )
-        
-        await runtime.initialize()
-        yield runtime
-        await runtime.shutdown()
+        # Mock adapter loading to avoid Python 3.12.11 ABC instantiation issue
+        with patch('ciris_engine.logic.runtime.ciris_runtime.load_adapter') as mock_load:
+            # Create a concrete mock adapter class that doesn't inherit from ABC
+            class MockApiAdapter:
+                def __init__(self, runtime, **kwargs):
+                    self.runtime = runtime
+                    self.config = kwargs.get('adapter_config', {})
+                    # Import the real API adapter's app creation
+                    from ciris_engine.logic.adapters.api.adapter import ApiPlatform
+                    # Create a real API adapter instance for app creation
+                    self._real_adapter = ApiPlatform(runtime, **kwargs)
+                
+                async def start(self):
+                    # Use real adapter's start method
+                    await self._real_adapter.start()
+                
+                async def stop(self):
+                    # Use real adapter's stop method
+                    await self._real_adapter.stop()
+                
+                async def run_lifecycle(self):
+                    pass
+                
+                def get_services_to_register(self):
+                    # Use real adapter's services
+                    return self._real_adapter.get_services_to_register()
+                
+                def create_app(self):
+                    # Use real adapter's app creation
+                    return self._real_adapter.create_app()
+            
+            mock_load.return_value = MockApiAdapter
+            
+            config = EssentialConfig()
+            config.services.llm_endpoint = "mock://localhost"
+            config.services.llm_model = "mock"
+            
+            runtime = CIRISRuntime(
+                adapter_types=["api"],
+                essential_config=config,
+                startup_channel_id="test_oauth",
+                mock_llm=True
+            )
+            
+            await runtime.initialize()
+            yield runtime
+            await runtime.shutdown()
     finally:
         # Restore original state to avoid affecting other tests
         import os
