@@ -70,6 +70,13 @@ class Transport:
         if self.rate_limiter:
             await self.rate_limiter.acquire()
         
+        # In managed mode (when base_url contains /api/), nginx adds /v1
+        # so we need to strip it from SDK paths
+        if '/api/' in self.base_url and path.startswith('/v1/'):
+            # Remove '/v1' prefix
+            path = path[3:]  # This gives us '/agent/interact' instead of '/v1/agent/interact'
+            logger.debug(f"Managed mode detected, stripped /v1 prefix: {path}")
+        
         url = f"{self.base_url}{path}"
         headers = kwargs.pop("headers", {})
         if self.api_key:

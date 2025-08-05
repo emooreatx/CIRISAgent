@@ -86,7 +86,7 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                 raise RuntimeError("Runtime not available or does not have service registry")
         return self._time_service
 
-    async def _emit_telemetry(self, metric_name: str, value: float = 1.0, tags: Optional[Dict[str, Any]] = None) -> None:
+    async def _emit_telemetry(self, metric_name: str, value: float = 1.0, tags: Optional[Dict[str, str]] = None) -> None:
         """Emit telemetry as TSDBGraphNode through memory bus."""
         if not self.bus_manager:
             return  # No bus manager, can't emit telemetry
