@@ -14,8 +14,8 @@ import sys
 import os
 import logging
 import click
-from ciris_mypy_toolkit.core import CIRISMypyToolkit
-from ciris_mypy_toolkit.analyzers.engine_simplifier import generate_engine_simplification_proposals
+from .core import CIRISMypyToolkit
+from .analyzers.engine_simplifier import generate_engine_simplification_proposals
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')

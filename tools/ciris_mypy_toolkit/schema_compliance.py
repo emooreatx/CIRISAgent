@@ -10,12 +10,20 @@ from pathlib import Path
 # Import current v1 schemas and protocols
 try:
     from ciris_engine import schemas
-    from ciris_engine.protocols import (
-        CommunicationService, MemoryService, LLMService, 
-        AuditService, ToolService, WiseAuthorityService
-    )
+    from ciris_engine.protocols.services.governance.communication import CommunicationService
+    from ciris_engine.protocols.services.graph.memory import MemoryService
+    from ciris_engine.protocols.services.runtime.llm import LLMService
+    from ciris_engine.protocols.services.graph.audit import AuditService
+    from ciris_engine.protocols.services.core.tool import ToolService
+    from ciris_engine.protocols.services.governance.wise_authority import WiseAuthorityService
 except ImportError:
     schemas = None
+    CommunicationService = None
+    MemoryService = None
+    LLMService = None
+    AuditService = None
+    ToolService = None
+    WiseAuthorityService = None
 
 
 class SchemaComplianceChecker:

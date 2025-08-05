@@ -741,7 +741,10 @@ When encountering `Dict[str, Any]`:
 
 ### Tools and Automation
 
-- **ciris_mypy_toolkit** - Run compliance analysis
+- **ciris_mypy_toolkit** - Run compliance analysis for type safety
+- **quality_analyzer** - Cross-analyze type safety, code quality, and test coverage
+- **sonar_tool** - Detailed SonarCloud analysis with AI time estimates
+- **test_tool** - Docker-based test execution with automatic rebuilding
 - **mypy** - Static type checking
 - **pydantic** - Runtime validation
 - **FastAPI** - Automatic API documentation
@@ -755,3 +758,52 @@ Type safety provides security benefits:
 - Reduces attack surface
 
 Remember: Every `Dict[str, Any]` is a potential bug. Replace them with proper types!
+
+## Quality Analysis Tools
+
+CIRIS includes several complementary tools for code quality analysis:
+
+### 1. quality_analyzer
+Unified analysis that cross-references multiple quality dimensions:
+```bash
+# Run comprehensive analysis
+python -m tools.quality_analyzer
+
+# Shows files with multiple issues (type safety + complexity + coverage)
+# Generates prioritized improvement plan with AI time estimates
+```
+
+### 2. sonar_tool
+Deep dive into SonarCloud metrics:
+```bash
+# Coverage analysis with strategic targets
+python -m tools.sonar_tool analyze
+
+# Technical debt analysis
+python -m tools.sonar_tool tech-debt
+
+# Find specific file coverage
+python -m tools.sonar_tool find <pattern>
+```
+
+### 3. ciris_mypy_toolkit
+Type safety and protocol compliance:
+```bash
+# Check protocol-module-schema alignment
+python -m ciris_mypy_toolkit check-protocols
+
+# Full compliance analysis
+python -m ciris_mypy_toolkit analyze
+```
+
+### 4. test_tool
+Docker-based test execution:
+```bash
+# Run tests in Docker with auto-rebuild
+python -m tools.test_tool run tests/
+
+# Run specific test file
+python -m tools.test_tool run tests/test_api_v1.py
+```
+
+**Best Practice**: Use quality_analyzer first to identify high-priority targets, then use specialized tools for deeper analysis.

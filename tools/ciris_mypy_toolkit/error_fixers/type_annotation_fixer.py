@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 import logging
-from ciris_mypy_toolkit.analyzers.hot_cold_path_analyzer import generate_hot_cold_path_map
+from ..analyzers.hot_cold_path_analyzer import generate_hot_cold_path_map
 
 logger = logging.getLogger(__name__)
 
