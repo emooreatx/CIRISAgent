@@ -3,25 +3,28 @@ Wise Authority Service endpoints for CIRIS API v3 (Simplified).
 
 Manages human-in-the-loop deferrals and permissions.
 """
-from typing import Optional, List, Dict, Any
-from datetime import datetime, timezone, timedelta
-from fastapi import APIRouter, Request, HTTPException, Depends, Query
+
 import logging
 import uuid
+from datetime import datetime, timedelta, timezone
+from typing import List, Optional
 
-from ciris_engine.schemas.api.responses import SuccessResponse, ErrorResponse, ErrorCode, ErrorDetail, ResponseMetadata
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+
+from ciris_engine.protocols.services.governance.wise_authority import WiseAuthorityServiceProtocol
+from ciris_engine.schemas.api.responses import ErrorCode, ErrorDetail, ErrorResponse, ResponseMetadata, SuccessResponse
 from ciris_engine.schemas.api.wa import (
+    PermissionsListResponse,
     ResolveDeferralRequest,
     ResolveDeferralResponse,
-    PermissionsListResponse,
-    WAStatusResponse,
     WAGuidanceRequest,
-    WAGuidanceResponse
+    WAGuidanceResponse,
+    WAStatusResponse,
 )
 from ciris_engine.schemas.services.authority_core import DeferralResponse
-from ciris_engine.protocols.services.governance.wise_authority import WiseAuthorityServiceProtocol
-from ..dependencies.auth import require_authority, require_observer, AuthContext
+
 from ..constants import ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
+from ..dependencies.auth import AuthContext, require_authority, require_observer
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +35,7 @@ router = APIRouter(prefix="/wa", tags=["wise_authority"])
 async def get_deferrals(
     request: Request,
     wa_id: Optional[str] = Query(None, description="Filter by WA ID"),
-    auth: AuthContext = Depends(require_observer)
+    auth: AuthContext = Depends(require_observer),
 ) -> SuccessResponse[List[DeferralResponse]]:
     """
     Get list of pending deferrals.
@@ -43,15 +46,14 @@ async def get_deferrals(
     Requires OBSERVER role or higher.
     """
     # Get WA service from app state
-    if not hasattr(request.app.state, 'wise_authority_service'):
+    if not hasattr(request.app.state, "wise_authority_service"):
         raise HTTPException(
             status_code=503,
             detail=ErrorResponse(
                 error=ErrorDetail(
-                    code=ErrorCode.SERVICE_UNAVAILABLE,
-                    message=ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
+                    code=ErrorCode.SERVICE_UNAVAILABLE, message=ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
                 )
-            ).model_dump(mode='json')
+            ).model_dump(mode="json"),
         )
 
     wa_service: WiseAuthorityServiceProtocol = request.app.state.wise_authority_service
@@ -59,30 +61,25 @@ async def get_deferrals(
     try:
         # Get pending deferrals
         deferrals = await wa_service.get_pending_deferrals(wa_id=wa_id)
-        
+
         # Transform PendingDeferral to include question from reason for UI compatibility
         # The TypeScript SDK expects a 'question' field
         transformed_deferrals = []
         for d in deferrals:
             # Create a dict representation and add the question field
             deferral_dict = d.model_dump()
-            deferral_dict['question'] = d.reason  # Use reason as the question
-            deferral_dict['context'] = {}  # Add empty context for compatibility
-            deferral_dict['timeout_at'] = (d.created_at + timedelta(days=7)).isoformat()  # Default 7 day timeout
+            deferral_dict["question"] = d.reason  # Use reason as the question
+            deferral_dict["context"] = {}  # Add empty context for compatibility
+            deferral_dict["timeout_at"] = (d.created_at + timedelta(days=7)).isoformat()  # Default 7 day timeout
             transformed_deferrals.append(deferral_dict)
 
-        response = {
-            "deferrals": transformed_deferrals,
-            "total": len(transformed_deferrals)
-        }
+        response = {"deferrals": transformed_deferrals, "total": len(transformed_deferrals)}
 
         return SuccessResponse(
             data=response,
             metadata=ResponseMetadata(
-                timestamp=datetime.now(timezone.utc),
-                request_id=str(uuid.uuid4()),
-                duration_ms=0
-            )
+                timestamp=datetime.now(timezone.utc), request_id=str(uuid.uuid4()), duration_ms=0
+            ),
         )
 
     except Exception as e:
@@ -90,14 +87,9 @@ async def get_deferrals(
         raise HTTPException(
             status_code=500,
             detail=ErrorResponse(
-                error=ErrorDetail(
-                    code=ErrorCode.INTERNAL_ERROR,
-                    message=f"Failed to retrieve deferrals: {str(e)}"
-                )
-            ).model_dump(mode='json')
+                error=ErrorDetail(code=ErrorCode.INTERNAL_ERROR, message=f"Failed to retrieve deferrals: {str(e)}")
+            ).model_dump(mode="json"),
         )
-
-
 
 
 @router.post("/deferrals/{deferral_id}/resolve", response_model=SuccessResponse[ResolveDeferralResponse])
@@ -105,7 +97,7 @@ async def resolve_deferral(
     request: Request,
     deferral_id: str,
     resolve_request: ResolveDeferralRequest,
-    auth: AuthContext = Depends(require_authority)
+    auth: AuthContext = Depends(require_authority),
 ) -> SuccessResponse[ResolveDeferralResponse]:
     """
     Resolve a pending deferral with guidance.
@@ -117,15 +109,14 @@ async def resolve_deferral(
     Requires AUTHORITY role.
     """
     # Get WA service from app state
-    if not hasattr(request.app.state, 'wise_authority_service'):
+    if not hasattr(request.app.state, "wise_authority_service"):
         raise HTTPException(
             status_code=503,
             detail=ErrorResponse(
                 error=ErrorDetail(
-                    code=ErrorCode.SERVICE_UNAVAILABLE,
-                    message=ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
+                    code=ErrorCode.SERVICE_UNAVAILABLE, message=ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
                 )
-            ).model_dump(mode='json')
+            ).model_dump(mode="json"),
         )
 
     wa_service: WiseAuthorityServiceProtocol = request.app.state.wise_authority_service
@@ -137,7 +128,7 @@ async def resolve_deferral(
             reason=resolve_request.guidance or f"Resolved by {auth.user_id}",
             modified_time=None,  # Time modifications not needed in simplified version
             wa_id=auth.user_id,  # Use authenticated user as WA
-            signature=f"api_{auth.user_id}_{datetime.now(timezone.utc).isoformat()}"
+            signature=f"api_{auth.user_id}_{datetime.now(timezone.utc).isoformat()}",
         )
 
         # Resolve the deferral
@@ -149,55 +140,50 @@ async def resolve_deferral(
                 detail=ErrorResponse(
                     error=ErrorDetail(
                         code=ErrorCode.VALIDATION_ERROR,
-                        message="Failed to resolve deferral - it may have already been resolved"
+                        message="Failed to resolve deferral - it may have already been resolved",
                     )
-                ).model_dump(mode='json')
+                ).model_dump(mode="json"),
             )
 
         response = ResolveDeferralResponse(
-            success=True,
-            deferral_id=deferral_id,
-            resolved_at=datetime.now(timezone.utc)
+            success=True, deferral_id=deferral_id, resolved_at=datetime.now(timezone.utc)
         )
 
         # Sanitize user input for logging to prevent log injection
-        safe_resolution = ''.join(c if c.isprintable() and c not in '\n\r\t' else ' ' for c in resolve_request.resolution)
-        safe_deferral_id = ''.join(c if c.isprintable() and c not in '\n\r\t' else ' ' for c in deferral_id)
+        safe_resolution = "".join(
+            c if c.isprintable() and c not in "\n\r\t" else " " for c in resolve_request.resolution
+        )
+        safe_deferral_id = "".join(c if c.isprintable() and c not in "\n\r\t" else " " for c in deferral_id)
         logger.info(f"Deferral {safe_deferral_id} resolved by {auth.user_id} with resolution: {safe_resolution}")
 
         return SuccessResponse(
             data=response,
             metadata=ResponseMetadata(
-                timestamp=datetime.now(timezone.utc),
-                request_id=str(uuid.uuid4()),
-                duration_ms=0
-            )
+                timestamp=datetime.now(timezone.utc), request_id=str(uuid.uuid4()), duration_ms=0
+            ),
         )
 
     except HTTPException:
         raise
     except Exception as e:
-        # Sanitize user input before logging to prevent log injection
-        safe_deferral_id = ''.join(c if c.isprintable() and c not in '\n\r\t' else ' ' for c in deferral_id)
-        logger.error(f"Failed to resolve deferral {safe_deferral_id}: {e}")
+        # Use hash instead of user input to prevent log injection
+        import hashlib
+
+        deferral_hash = hashlib.sha256(deferral_id.encode()).hexdigest()[:8]
+        logger.error(f"Failed to resolve deferral [id_hash:{deferral_hash}]: {e}")
         raise HTTPException(
             status_code=500,
             detail=ErrorResponse(
-                error=ErrorDetail(
-                    code=ErrorCode.INTERNAL_ERROR,
-                    message=f"Failed to resolve deferral: {str(e)}"
-                )
-            ).model_dump(mode='json')
+                error=ErrorDetail(code=ErrorCode.INTERNAL_ERROR, message=f"Failed to resolve deferral: {str(e)}")
+            ).model_dump(mode="json"),
         )
-
-
 
 
 @router.get("/permissions", response_model=SuccessResponse[PermissionsListResponse])
 async def get_permissions(
     request: Request,
     wa_id: Optional[str] = Query(None, description="WA ID to get permissions for (defaults to current user)"),
-    auth: AuthContext = Depends(require_observer)
+    auth: AuthContext = Depends(require_observer),
 ) -> SuccessResponse[PermissionsListResponse]:
     """
     Get WA permission status.
@@ -209,15 +195,14 @@ async def get_permissions(
     Requires OBSERVER role or higher.
     """
     # Get WA service from app state
-    if not hasattr(request.app.state, 'wise_authority_service'):
+    if not hasattr(request.app.state, "wise_authority_service"):
         raise HTTPException(
             status_code=503,
             detail=ErrorResponse(
                 error=ErrorDetail(
-                    code=ErrorCode.SERVICE_UNAVAILABLE,
-                    message=ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
+                    code=ErrorCode.SERVICE_UNAVAILABLE, message=ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
                 )
-            ).model_dump(mode='json')
+            ).model_dump(mode="json"),
         )
 
     wa_service: WiseAuthorityServiceProtocol = request.app.state.wise_authority_service
@@ -229,39 +214,30 @@ async def get_permissions(
         # Get permissions
         permissions = await wa_service.list_permissions(target_wa_id)
 
-        response = PermissionsListResponse(
-            permissions=permissions,
-            wa_id=target_wa_id
-        )
+        response = PermissionsListResponse(permissions=permissions, wa_id=target_wa_id)
 
         return SuccessResponse(
             data=response,
             metadata=ResponseMetadata(
-                timestamp=datetime.now(timezone.utc),
-                request_id=str(uuid.uuid4()),
-                duration_ms=0
-            )
+                timestamp=datetime.now(timezone.utc), request_id=str(uuid.uuid4()), duration_ms=0
+            ),
         )
 
     except Exception as e:
         # Sanitize user input before logging to prevent log injection
-        safe_target_wa_id = ''.join(c if c.isprintable() and c not in '\n\r\t' else ' ' for c in target_wa_id)
+        safe_target_wa_id = "".join(c if c.isprintable() and c not in "\n\r\t" else " " for c in target_wa_id)
         logger.error(f"Failed to get permissions for {safe_target_wa_id}: {e}")
         raise HTTPException(
             status_code=500,
             detail=ErrorResponse(
-                error=ErrorDetail(
-                    code=ErrorCode.INTERNAL_ERROR,
-                    message=f"Failed to retrieve permissions: {str(e)}"
-                )
-            ).model_dump(mode='json')
+                error=ErrorDetail(code=ErrorCode.INTERNAL_ERROR, message=f"Failed to retrieve permissions: {str(e)}")
+            ).model_dump(mode="json"),
         )
 
 
 @router.get("/status", response_model=SuccessResponse[WAStatusResponse])
 async def get_wa_status(
-    request: Request,
-    auth: AuthContext = Depends(require_observer)
+    request: Request, auth: AuthContext = Depends(require_observer)
 ) -> SuccessResponse[WAStatusResponse]:
     """
     Get current WA service status.
@@ -274,15 +250,14 @@ async def get_wa_status(
     Requires OBSERVER role or higher.
     """
     # Get WA service from app state
-    if not hasattr(request.app.state, 'wise_authority_service'):
+    if not hasattr(request.app.state, "wise_authority_service"):
         raise HTTPException(
             status_code=503,
             detail=ErrorResponse(
                 error=ErrorDetail(
-                    code=ErrorCode.SERVICE_UNAVAILABLE,
-                    message=ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
+                    code=ErrorCode.SERVICE_UNAVAILABLE, message=ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
                 )
-            ).model_dump(mode='json')
+            ).model_dump(mode="json"),
         )
 
     wa_service: WiseAuthorityServiceProtocol = request.app.state.wise_authority_service
@@ -290,12 +265,12 @@ async def get_wa_status(
     try:
         # Get service status
         is_healthy = True
-        if hasattr(wa_service, 'is_healthy'):
+        if hasattr(wa_service, "is_healthy"):
             is_healthy = await wa_service.is_healthy()
 
         # Get pending deferrals count
         pending_deferrals = await wa_service.get_pending_deferrals()
-        
+
         # Get active WAs (in a real implementation, this would query WA registry)
         # For now, we'll just report if the service is available
         active_was = 1 if is_healthy else 0
@@ -306,16 +281,14 @@ async def get_wa_status(
             pending_deferrals=len(pending_deferrals),
             deferrals_24h=len(pending_deferrals),  # Simplified - would track over time
             average_resolution_time_minutes=0.0,  # Would calculate from historical data
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
 
         return SuccessResponse(
             data=response,
             metadata=ResponseMetadata(
-                timestamp=datetime.now(timezone.utc),
-                request_id=str(uuid.uuid4()),
-                duration_ms=0
-            )
+                timestamp=datetime.now(timezone.utc), request_id=str(uuid.uuid4()), duration_ms=0
+            ),
         )
 
     except Exception as e:
@@ -323,19 +296,14 @@ async def get_wa_status(
         raise HTTPException(
             status_code=500,
             detail=ErrorResponse(
-                error=ErrorDetail(
-                    code=ErrorCode.INTERNAL_ERROR,
-                    message=f"Failed to retrieve WA status: {str(e)}"
-                )
-            ).model_dump(mode='json')
+                error=ErrorDetail(code=ErrorCode.INTERNAL_ERROR, message=f"Failed to retrieve WA status: {str(e)}")
+            ).model_dump(mode="json"),
         )
 
 
 @router.post("/guidance", response_model=SuccessResponse[WAGuidanceResponse])
 async def request_guidance(
-    request: Request,
-    guidance_request: WAGuidanceRequest,
-    auth: AuthContext = Depends(require_observer)
+    request: Request, guidance_request: WAGuidanceRequest, auth: AuthContext = Depends(require_observer)
 ) -> SuccessResponse[WAGuidanceResponse]:
     """
     Request guidance from WA on a specific topic.
@@ -347,27 +315,28 @@ async def request_guidance(
     Requires OBSERVER role or higher.
     """
     # Get WA service from app state
-    if not hasattr(request.app.state, 'wise_authority_service'):
+    if not hasattr(request.app.state, "wise_authority_service"):
         raise HTTPException(
             status_code=503,
             detail=ErrorResponse(
                 error=ErrorDetail(
-                    code=ErrorCode.SERVICE_UNAVAILABLE,
-                    message=ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
+                    code=ErrorCode.SERVICE_UNAVAILABLE, message=ERROR_WISE_AUTHORITY_SERVICE_NOT_AVAILABLE
                 )
-            ).model_dump(mode='json')
+            ).model_dump(mode="json"),
         )
 
-    wa_service: WiseAuthorityServiceProtocol = request.app.state.wise_authority_service
+    # wa_service would be used in full implementation
+    # wa_service: WiseAuthorityServiceProtocol = request.app.state.wise_authority_service
 
     try:
         # In a real implementation, this would query available WAs for guidance
         # For now, we'll provide a simple response
-        
+
         # Check if this is about an ethical concern
-        is_ethical = any(word in guidance_request.topic.lower() 
-                        for word in ['ethical', 'moral', 'right', 'wrong', 'should'])
-        
+        is_ethical = any(
+            word in guidance_request.topic.lower() for word in ["ethical", "moral", "right", "wrong", "should"]
+        )
+
         if is_ethical:
             guidance = (
                 "Consider the Ubuntu principle: 'I am because we are.' "
@@ -388,18 +357,16 @@ async def request_guidance(
             additional_context={
                 "topic": guidance_request.topic,
                 "context_provided": bool(guidance_request.context),
-                "urgency": guidance_request.urgency.value if guidance_request.urgency else "normal"
+                "urgency": guidance_request.urgency.value if guidance_request.urgency else "normal",
             },
-            timestamp=datetime.now(timezone.utc)
+            timestamp=datetime.now(timezone.utc),
         )
 
         return SuccessResponse(
             data=response,
             metadata=ResponseMetadata(
-                timestamp=datetime.now(timezone.utc),
-                request_id=str(uuid.uuid4()),
-                duration_ms=0
-            )
+                timestamp=datetime.now(timezone.utc), request_id=str(uuid.uuid4()), duration_ms=0
+            ),
         )
 
     except Exception as e:
@@ -407,9 +374,6 @@ async def request_guidance(
         raise HTTPException(
             status_code=500,
             detail=ErrorResponse(
-                error=ErrorDetail(
-                    code=ErrorCode.INTERNAL_ERROR,
-                    message=f"Failed to retrieve guidance: {str(e)}"
-                )
-            ).model_dump(mode='json')
+                error=ErrorDetail(code=ErrorCode.INTERNAL_ERROR, message=f"Failed to retrieve guidance: {str(e)}")
+            ).model_dump(mode="json"),
         )
