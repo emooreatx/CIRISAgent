@@ -1,11 +1,11 @@
 {
   "production": {
-    "occurrences": 167,
-    "files_affected": 76,
+    "occurrences": 156,
+    "files_affected": 74,
     "categories": {
-      "generic_data": 144,
+      "generic_data": 136,
       "parameters": 5,
-      "configuration": 6,
+      "configuration": 3,
       "api_request": 2,
       "context_data": 7,
       "api_response": 3
@@ -1177,94 +1177,6 @@
         "class": "AdapterStatus",
         "function": null,
         "context": "other",
-        "usage_hint": "generic_data"
-      },
-      {
-        "file": "ciris_engine/schemas/runtime/system_context.py",
-        "line": 71,
-        "class": "SystemSnapshot",
-        "function": null,
-        "context": "variable_annotation",
-        "usage_hint": "generic_data"
-      },
-      {
-        "file": "ciris_engine/schemas/runtime/system_context.py",
-        "line": 117,
-        "class": "SystemSnapshot",
-        "function": null,
-        "context": "variable_annotation",
-        "usage_hint": "generic_data"
-      },
-      {
-        "file": "ciris_engine/schemas/runtime/system_context.py",
-        "line": 121,
-        "class": "SystemSnapshot",
-        "function": null,
-        "context": "variable_annotation",
-        "usage_hint": "generic_data"
-      },
-      {
-        "file": "ciris_engine/schemas/runtime/system_context.py",
-        "line": 151,
-        "class": "SystemSnapshot",
-        "function": null,
-        "context": "other",
-        "usage_hint": "generic_data"
-      },
-      {
-        "file": "ciris_engine/schemas/api/config_security.py",
-        "line": 124,
-        "class": "ConfigSecurity",
-        "function": "filter_config",
-        "context": "function_parameter",
-        "usage_hint": "configuration"
-      },
-      {
-        "file": "ciris_engine/schemas/api/config_security.py",
-        "line": 126,
-        "class": "ConfigSecurity",
-        "function": "filter_config",
-        "context": "return_type",
-        "usage_hint": "generic_data"
-      },
-      {
-        "file": "ciris_engine/schemas/api/config_security.py",
-        "line": 193,
-        "class": "ConfigListResponse",
-        "function": null,
-        "context": "variable_annotation",
-        "usage_hint": "configuration"
-      },
-      {
-        "file": "ciris_engine/schemas/api/config_security.py",
-        "line": 194,
-        "class": "ConfigListResponse",
-        "function": null,
-        "context": "variable_annotation",
-        "usage_hint": "generic_data"
-      },
-      {
-        "file": "ciris_engine/schemas/api/config_security.py",
-        "line": 197,
-        "class": null,
-        "function": "filter_config_for_role",
-        "context": "function_parameter",
-        "usage_hint": "configuration"
-      },
-      {
-        "file": "ciris_engine/schemas/api/config_security.py",
-        "line": 197,
-        "class": null,
-        "function": "filter_config_for_role",
-        "context": "return_type",
-        "usage_hint": "generic_data"
-      },
-      {
-        "file": "ciris_engine/schemas/api/config_security.py",
-        "line": 233,
-        "class": "ConfigValidationRequest",
-        "function": null,
-        "context": "variable_annotation",
         "usage_hint": "generic_data"
       },
       {
@@ -2632,7 +2544,7 @@
     ]
   },
   "total_all_code": {
-    "occurrences": 326,
-    "files_affected": 107
+    "occurrences": 315,
+    "files_affected": 105
   }
 }
