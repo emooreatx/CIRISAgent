@@ -216,6 +216,27 @@ python tools/test_runner.py results    # Summary when done
 docker exec <container> python debug_tools.py  # Interactive debugging
 ```
 
+### Critical: Bash Command Timeout
+
+**The default Bash tool timeout is 2 minutes (120 seconds).** For long-running commands like CI/CD monitoring, Docker builds, or test suites, use the timeout parameter:
+
+```bash
+# Example: Monitor CI/CD with 10-minute timeout
+gh run watch --repo CIRISAI/CIRISAgent  # timeout: 600000ms
+
+# Example: Run full test suite with 5-minute timeout
+python -m pytest tests/  # timeout: 300000ms
+
+# Maximum allowed timeout is 600000ms (10 minutes)
+```
+
+This is crucial for commands that:
+- Monitor CI/CD workflows
+- Build Docker images
+- Run comprehensive test suites
+- Watch for deployment completions
+- Execute database migrations
+
 ### Local Development Setup
 ```bash
 # Docker compose files in docker/
