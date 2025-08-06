@@ -1587,8 +1587,24 @@
     ]
   },
   "tools": {
-    "occurrences": 121,
+    "occurrences": 123,
     "findings": [
+      {
+        "file": "tools/validate_prod_routes.py",
+        "line": 75,
+        "class": "RouteValidator",
+        "function": "test_route",
+        "context": "other",
+        "usage_hint": "generic_data"
+      },
+      {
+        "file": "tools/validate_prod_routes.py",
+        "line": 76,
+        "class": "RouteValidator",
+        "function": "test_route",
+        "context": "other",
+        "usage_hint": "generic_data"
+      },
       {
         "file": "tools/sonar.py",
         "line": 43,
@@ -2560,7 +2576,7 @@
     ]
   },
   "total_all_code": {
-    "occurrences": 317,
-    "files_affected": 106
+    "occurrences": 319,
+    "files_affected": 107
   }
 }

@@ -1,0 +1,48 @@
+#!/bin/bash
+# Pre-commit wrapper that automatically handles hook modifications
+# This makes the "right way the easy way"
+
+set -e
+
+# Maximum attempts to handle hook modifications
+MAX_ATTEMPTS=3
+ATTEMPT=0
+
+# Store original commit message
+COMMIT_MSG_FILE=".git/COMMIT_EDITMSG"
+if [ -f "$COMMIT_MSG_FILE" ]; then
+    ORIGINAL_MSG=$(cat "$COMMIT_MSG_FILE")
+fi
+
+echo "🚀 Running pre-commit hooks..."
+
+while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+    ATTEMPT=$((ATTEMPT + 1))
+
+    # Run pre-commit hooks
+    if pre-commit run --all-files 2>&1 | tee /tmp/pre-commit-output.txt; then
+        echo "✅ All hooks passed!"
+        exit 0
+    else
+        # Check if files were modified
+        if grep -q "files were modified by this hook" /tmp/pre-commit-output.txt; then
+            echo "🔄 Files modified by hooks (attempt $ATTEMPT/$MAX_ATTEMPTS), re-staging..."
+            git add -A
+
+            # If this is the last attempt, exit with success
+            # (files are staged for the next commit)
+            if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
+                echo "⚠️  Files were modified by hooks and staged."
+                echo "📝 Please review changes and commit again."
+                exit 1
+            fi
+        else
+            # Real failure, not just file modifications
+            echo "❌ Pre-commit hooks failed"
+            exit 1
+        fi
+    fi
+done
+
+echo "✅ Pre-commit hooks completed successfully!"
+exit 0
