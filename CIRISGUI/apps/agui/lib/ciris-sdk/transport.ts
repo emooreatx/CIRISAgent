@@ -261,9 +261,11 @@ export class Transport {
       url = new URL(path);
     } else {
       // Path is relative, combine with baseURL
+      // Remove leading slash from path to ensure proper concatenation
+      const cleanPath = path.startsWith('/') ? path.slice(1) : path;
       // Ensure baseURL ends with / for proper URL construction
       const base = this.baseURL.endsWith('/') ? this.baseURL : this.baseURL + '/';
-      url = new URL(path, base);
+      url = new URL(cleanPath, base);
     }
 
     if (params) {
