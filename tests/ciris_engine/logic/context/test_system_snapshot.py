@@ -271,6 +271,6 @@ async def test_build_system_snapshot_with_version_info():
 
     assert isinstance(snapshot, SystemSnapshot)
     # Version info should be present
-    assert snapshot.agent_version == "1.0.4-beta"
+    assert snapshot.agent_version == "1.1.0-beta"
     assert snapshot.agent_codename == "Graceful Guardian"
     # code_hash might be None in tests
