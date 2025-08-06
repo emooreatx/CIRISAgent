@@ -15,11 +15,13 @@ import json
 class DictAnyAuditor(ast.NodeVisitor):
     """AST visitor to find Dict[str, Any] usage patterns."""
     
-    def __init__(self, filepath: str):
+    def __init__(self, filepath: str, source_lines: List[str]):
         self.filepath = filepath
+        self.source_lines = source_lines  # Store source lines to check for comments
         self.findings: List[Dict[str, any]] = []
         self.current_class = None
         self.current_function = None
+        self.in_docstring = False
         
     def visit_ClassDef(self, node: ast.ClassDef):
         old_class = self.current_class
@@ -46,6 +48,41 @@ class DictAnyAuditor(ast.NodeVisitor):
                         isinstance(second, ast.Name) and second.id == 'Any'):
                         return True
         return False
+    
+    def _is_in_comment(self, lineno: int) -> bool:
+        """Check if the line is a comment or contains the Dict[str, Any] in a comment."""
+        if lineno <= 0 or lineno > len(self.source_lines):
+            return False
+        
+        line = self.source_lines[lineno - 1]  # Lines are 1-indexed
+        
+        # Strip leading whitespace and check if it's a comment line
+        stripped = line.strip()
+        if stripped.startswith('#'):
+            return True
+        
+        # Check if Dict[str, Any] appears after a # comment
+        if '#' in line:
+            comment_pos = line.find('#')
+            dict_pos = line.find('Dict[str, Any]')
+            if dict_pos >= 0 and dict_pos > comment_pos:
+                return True
+        
+        return False
+    
+    def _is_in_docstring_context(self, node: ast.AST) -> bool:
+        """Check if node is within a docstring."""
+        # Check if the node appears to be in a docstring based on parent context
+        parent = getattr(node, 'parent', None)
+        if parent:
+            # Check if parent is an Expr node (typical for docstrings)
+            if isinstance(parent, ast.Expr) and isinstance(parent.value, ast.Constant):
+                if isinstance(parent.value.value, str):
+                    return True
+            # Check if we're in a string that could be a docstring
+            if isinstance(parent, ast.Constant) and isinstance(parent.value, str):
+                return True
+        return False
         
     def _get_context(self, node: ast.AST) -> str:
         """Determine the context of Dict[str, Any] usage."""
@@ -66,6 +103,15 @@ class DictAnyAuditor(ast.NodeVisitor):
             
     def visit_Subscript(self, node: ast.Subscript):
         if self._is_dict_str_any(node):
+            # Skip if this is in a comment or docstring
+            if self._is_in_comment(node.lineno):
+                self.generic_visit(node)
+                return
+            
+            if self._is_in_docstring_context(node):
+                self.generic_visit(node)
+                return
+            
             context = self._get_context(node)
             
             # Try to determine what the dict is used for
@@ -134,11 +180,12 @@ def audit_file(filepath: Path) -> List[Dict[str, any]]:
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
             content = f.read()
+            source_lines = content.splitlines()
             
         tree = ast.parse(content, filename=str(filepath))
         add_parent_references(tree)
         
-        auditor = DictAnyAuditor(str(filepath))
+        auditor = DictAnyAuditor(str(filepath), source_lines)
         auditor.visit(tree)
         
         return auditor.findings
