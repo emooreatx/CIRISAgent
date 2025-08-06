@@ -232,26 +232,68 @@ def main():
     """Main audit function."""
     # Find all Python files
     python_files = []
+    production_files = []
+    test_files = []
+    tool_files = []
+    
     for root, dirs, files in os.walk('.'):
         # Skip virtual environments and cache directories
         dirs[:] = [d for d in dirs if d not in {'.venv', 'venv', '__pycache__', '.git', '.mypy_cache'}]
         
         for file in files:
             if file.endswith('.py'):
-                python_files.append(Path(root) / file)
+                filepath = Path(root) / file
+                python_files.append(filepath)
                 
-    print(f"Auditing {len(python_files)} Python files...")
+                # Categorize by location
+                path_str = str(filepath)
+                if path_str.startswith('./tests/') or path_str.startswith('tests/'):
+                    test_files.append(filepath)
+                elif path_str.startswith('./tools/') or path_str.startswith('tools/'):
+                    tool_files.append(filepath)
+                elif path_str.startswith('./ciris_engine/') or path_str.startswith('ciris_engine/'):
+                    production_files.append(filepath)
+                elif not path_str.startswith('./') or path_str.count('/') == 1:
+                    # Root level files or other production code
+                    if 'test' not in path_str.lower():
+                        production_files.append(filepath)
+                
+    print(f"Scanning Python files:")
+    print(f"  Production: {len(production_files)}")
+    print(f"  Tests: {len(test_files)}")
+    print(f"  Tools: {len(tool_files)}")
+    print(f"  Total: {len(python_files)}")
+    print()
     
-    # Collect all findings
-    all_findings = []
-    for filepath in python_files:
+    # Collect findings separated by type
+    production_findings = []
+    test_findings = []
+    tool_findings = []
+    
+    for filepath in production_files:
         findings = audit_file(filepath)
-        all_findings.extend(findings)
+        production_findings.extend(findings)
+        
+    for filepath in test_files:
+        findings = audit_file(filepath)
+        test_findings.extend(findings)
+        
+    for filepath in tool_files:
+        findings = audit_file(filepath)
+        tool_findings.extend(findings)
+    
+    all_findings = production_findings + test_findings + tool_findings
         
     # Categorize findings
     findings_by_category = defaultdict(list)
     findings_by_file = defaultdict(list)
+    prod_findings_by_category = defaultdict(list)
+    prod_findings_by_file = defaultdict(list)
     
+    for finding in production_findings:
+        prod_findings_by_category[finding['usage_hint']].append(finding)
+        prod_findings_by_file[finding['file']].append(finding)
+        
     for finding in all_findings:
         findings_by_category[finding['usage_hint']].append(finding)
         findings_by_file[finding['file']].append(finding)
@@ -260,67 +302,104 @@ def main():
     print(f"\n{'='*80}")
     print(f"Dict[str, Any] Usage Audit Report")
     print(f"{'='*80}")
-    print(f"Total occurrences: {len(all_findings)}")
-    print(f"Files affected: {len(findings_by_file)}")
     
-    print(f"\n{'Category':<20} {'Count':<10} {'Percentage'}")
-    print(f"{'-'*50}")
-    for category, items in sorted(findings_by_category.items(), key=lambda x: len(x[1]), reverse=True):
-        percentage = (len(items) / len(all_findings)) * 100
-        print(f"{category:<20} {len(items):<10} {percentage:.1f}%")
+    # PRODUCTION CODE SUMMARY (what actually matters)
+    print(f"\n🚨 PRODUCTION CODE VIOLATIONS:")
+    print(f"  Occurrences: {len(production_findings)}")
+    print(f"  Files affected: {len(prod_findings_by_file)}")
+    
+    if production_findings:
+        print(f"\n  Category Breakdown:")
+        for category, items in sorted(prod_findings_by_category.items(), key=lambda x: len(x[1]), reverse=True):
+            percentage = (len(items) / len(production_findings)) * 100 if production_findings else 0
+            print(f"    {category:<20} {len(items):>3} ({percentage:.1f}%)")
+    
+    # Test/Tool summary (for reference only)
+    print(f"\n📊 NON-PRODUCTION CODE (Tests/Tools):")
+    print(f"  Tests: {len(test_findings)} occurrences")
+    print(f"  Tools: {len(tool_findings)} occurrences")
+    
+    print(f"\n📈 TOTAL ACROSS ALL CODE:")
+    print(f"  Total occurrences: {len(all_findings)}")
+    print(f"  Total files: {len(findings_by_file)}")
         
-    # Top 10 files with most occurrences
-    print(f"\n\nTop 10 files with most Dict[str, Any] usage:")
+    # Top 10 PRODUCTION files with most occurrences
+    print(f"\n\nTop 10 PRODUCTION files with most Dict[str, Any] usage:")
     print(f"{'-'*60}")
-    top_files = sorted(findings_by_file.items(), key=lambda x: len(x[1]), reverse=True)[:10]
-    for filepath, items in top_files:
+    top_prod_files = sorted(prod_findings_by_file.items(), key=lambda x: len(x[1]), reverse=True)[:10]
+    for filepath, items in top_prod_files:
         print(f"{filepath:<50} {len(items)} occurrences")
         
-    # Generate Pydantic model suggestions
-    print(f"\n\nSuggested Pydantic Models by Category:")
-    print(f"{'='*80}")
-    suggestions = generate_pydantic_model_suggestions(findings_by_category)
-    
-    for category, suggestion in suggestions.items():
-        print(f"\n## Category: {category}")
-        print(f"Files to update: {len(findings_by_category[category])}")
-        print(f"Suggested model:\n")
-        print(suggestion)
+    # Generate Pydantic model suggestions FOR PRODUCTION CODE ONLY
+    if production_findings:
+        print(f"\n\nSuggested Pydantic Models for PRODUCTION CODE:")
+        print(f"{'='*80}")
+        suggestions = generate_pydantic_model_suggestions(prod_findings_by_category)
+        
+        for category, suggestion in suggestions.items():
+            print(f"\n## Category: {category}")
+            print(f"Production files to update: {len(prod_findings_by_category[category])}")
+            print(f"Suggested model:\n")
+            print(suggestion)
         
     # Save detailed findings to JSON
     output_file = 'dict_any_audit_results.json'
     with open(output_file, 'w') as f:
         json.dump({
-            'summary': {
-                'total_occurrences': len(all_findings),
-                'files_affected': len(findings_by_file),
-                'categories': {k: len(v) for k, v in findings_by_category.items()}
+            'production': {
+                'occurrences': len(production_findings),
+                'files_affected': len(prod_findings_by_file),
+                'categories': {k: len(v) for k, v in prod_findings_by_category.items()},
+                'findings': production_findings
             },
-            'findings': all_findings
+            'tests': {
+                'occurrences': len(test_findings),
+                'findings': test_findings
+            },
+            'tools': {
+                'occurrences': len(tool_findings),
+                'findings': tool_findings
+            },
+            'total_all_code': {
+                'occurrences': len(all_findings),
+                'files_affected': len(findings_by_file)
+            }
         }, f, indent=2)
         
     print(f"\n\nDetailed findings saved to: {output_file}")
     
-    # Generate migration priority list
-    print(f"\n\nMigration Priority:")
-    print(f"{'='*80}")
-    print("1. High Priority (Core Services):")
-    core_services = ['services/graph/', 'services/runtime/', 'services/governance/']
-    for service in core_services:
-        count = sum(1 for f in all_findings if service in f['file'])
-        print(f"   - {service}: {count} occurrences")
-        
-    print("\n2. Medium Priority (API/Adapters):")
-    adapters = ['adapters/api/', 'adapters/discord/', 'adapters/cli/']
-    for adapter in adapters:
-        count = sum(1 for f in all_findings if adapter in f['file'])
-        print(f"   - {adapter}: {count} occurrences")
-        
-    print("\n3. Lower Priority (Tests/Tools):")
-    other = ['tests/', 'tools/', 'scripts/']
-    for category in other:
-        count = sum(1 for f in all_findings if category in f['file'])
-        print(f"   - {category}: {count} occurrences")
+    # Generate migration priority list FOR PRODUCTION CODE
+    if production_findings:
+        print(f"\n\nMigration Priority (PRODUCTION CODE ONLY):")
+        print(f"{'='*80}")
+        print("1. High Priority (Core Services):")
+        core_services = ['services/graph/', 'services/runtime/', 'services/governance/']
+        for service in core_services:
+            count = sum(1 for f in production_findings if service in f['file'])
+            if count > 0:
+                print(f"   - {service}: {count} occurrences")
+            
+        print("\n2. Medium Priority (API/Adapters):")
+        adapters = ['adapters/api/', 'adapters/discord/', 'adapters/cli/']
+        for adapter in adapters:
+            count = sum(1 for f in production_findings if adapter in f['file'])
+            if count > 0:
+                print(f"   - {adapter}: {count} occurrences")
+            
+        print("\n3. Other Production Code:")
+        # Count production findings not in services or adapters
+        other_count = sum(1 for f in production_findings 
+                         if not any(path in f['file'] for path in core_services + adapters))
+        if other_count > 0:
+            print(f"   - Other files: {other_count} occurrences")
+    
+    # Final summary
+    print(f"\n\n{'='*80}")
+    if len(production_findings) == 0:
+        print("✅ CONGRATULATIONS! Zero Dict[str, Any] in production code!")
+    else:
+        print(f"⚠️  ACTION REQUIRED: {len(production_findings)} Dict[str, Any] violations in production code")
+        print(f"   These violate the 'No Dicts' principle and must be fixed.")
 
 
 if __name__ == '__main__':
