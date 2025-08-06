@@ -7,8 +7,13 @@ Future versions will include multimedia compression for images, video, and telem
 
 import json
 import logging
-from typing import Dict, Any, List, Tuple
+from typing import List, Tuple
 from datetime import datetime
+
+from ciris_engine.schemas.services.graph.tsdb_models import (
+    SummaryAttributes,
+    CompressionResult
+)
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +30,7 @@ class SummaryCompressor:
         """
         self.target_mb_per_day = target_mb_per_day
     
-    def compress_summary(self, attributes: Dict[str, Any]) -> Tuple[Dict[str, Any], float]:
+    def compress_summary(self, attributes: SummaryAttributes) -> CompressionResult:
         """
         Compress a summary's attributes in-place.
         
@@ -33,10 +38,14 @@ class SummaryCompressor:
             attributes: The summary attributes to compress
             
         Returns:
-            Tuple of (compressed_attributes, size_reduction_ratio)
+            CompressionResult with compressed attributes and metrics
         """
-        original_size = len(json.dumps(attributes))
-        compressed = attributes.copy()
+        # Calculate original size
+        original_data = attributes.model_dump(exclude_none=True)
+        original_size = len(json.dumps(original_data, default=str))
+        
+        # Create a copy for compression
+        compressed = attributes.model_copy(deep=True)
         
         # Current compression strategies (text-based)
         compressed = self._compress_metrics(compressed)
@@ -48,12 +57,20 @@ class SummaryCompressor:
         # compressed = self._compress_video_thumbnails(compressed)
         # compressed = self._compress_telemetry_data(compressed)
         
-        compressed_size = len(json.dumps(compressed))
-        reduction_ratio = 1.0 - (compressed_size / original_size)
+        # Calculate compressed size
+        compressed_data = compressed.model_dump(exclude_none=True)
+        compressed_size = len(json.dumps(compressed_data, default=str))
+        reduction_ratio = 1.0 - (compressed_size / original_size) if original_size > 0 else 0.0
         
-        return compressed, reduction_ratio
+        return CompressionResult(
+            compressed_attributes=compressed,
+            original_size=original_size,
+            compressed_size=compressed_size,
+            reduction_ratio=reduction_ratio,
+            compression_method="text"
+        )
     
-    def _compress_metrics(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+    def _compress_metrics(self, attrs: SummaryAttributes) -> SummaryAttributes:
         """
         Compress metrics by keeping only significant patterns.
         
@@ -63,31 +80,32 @@ class SummaryCompressor:
         Returns:
             Attributes with compressed metrics
         """
-        if 'metrics' not in attrs:
-            return attrs
+        # Compress basic metrics into a simplified format
+        compressed_metrics = {}
         
-        metrics = attrs['metrics']
+        # Only keep non-zero metrics
+        if attrs.total_interactions > 0:
+            compressed_metrics['ti'] = attrs.total_interactions  # Shortened key
+        if attrs.unique_services > 0:
+            compressed_metrics['us'] = attrs.unique_services
+        if attrs.total_tasks > 0:
+            compressed_metrics['tt'] = attrs.total_tasks
+        if attrs.total_thoughts > 0:
+            compressed_metrics['tth'] = attrs.total_thoughts
+            
+        # Store compressed version
+        attrs.compressed_metrics = compressed_metrics if compressed_metrics else None
         
-        # Keep only metrics with significant values
-        significant_metrics = {}
-        for metric_name, metric_data in metrics.items():
-            if isinstance(metric_data, dict):
-                # Keep metric if it has meaningful activity
-                if metric_data.get('count', 0) > 10 or metric_data.get('sum', 0) > 100:
-                    # Reduce precision for storage
-                    compressed_data = {
-                        'c': metric_data.get('count', 0),  # Shortened keys
-                        's': round(metric_data.get('sum', 0), 2),
-                        'a': round(metric_data.get('avg', 0), 2)
-                    }
-                    significant_metrics[metric_name] = compressed_data
-            elif isinstance(metric_data, (int, float)) and metric_data > 0:
-                significant_metrics[metric_name] = round(metric_data, 2)
-        
-        attrs['metrics'] = significant_metrics
+        # Clear original fields if we compressed them
+        if attrs.compressed_metrics:
+            attrs.total_interactions = 0
+            attrs.unique_services = 0
+            attrs.total_tasks = 0
+            attrs.total_thoughts = 0
+            
         return attrs
     
-    def _compress_descriptions(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+    def _compress_descriptions(self, attrs: SummaryAttributes) -> SummaryAttributes:
         """
         Compress text descriptions by removing redundancy.
         
@@ -98,37 +116,37 @@ class SummaryCompressor:
             Attributes with compressed descriptions
         """
         # Compress conversation summaries
-        if 'messages_by_channel' in attrs:
+        if attrs.messages_by_channel:
             compressed_channels = {}
-            for channel, data in attrs['messages_by_channel'].items():
+            for channel, data in attrs.messages_by_channel.items():
                 # Keep only channel ID and count
-                compressed_channels[channel] = data.get('count', 0)
-            attrs['messages_by_channel'] = compressed_channels
+                if isinstance(data, dict):
+                    compressed_channels[channel] = data.get('count', 0)
+                else:
+                    compressed_channels[channel] = data
+            attrs.messages_by_channel = compressed_channels
         
         # Compress participant data
-        if 'participants' in attrs:
+        if attrs.participants:
             compressed_participants = {}
-            for user_id, data in attrs['participants'].items():
+            for user_id, data in attrs.participants.items():
                 # Keep only essential data
                 compressed_participants[user_id] = {
                     'msg_count': data.get('message_count', 0),
                     'name': data.get('author_name', '')[:20]  # Truncate names
                 }
-            attrs['participants'] = compressed_participants
+            attrs.participants = compressed_participants
         
-        # Remove verbose fields
-        verbose_fields = [
-            'detailed_description',
-            'full_context',
-            'raw_data',
-            'debug_info'
-        ]
-        for field in verbose_fields:
-            attrs.pop(field, None)
+        # Compress patterns and events
+        if attrs.dominant_patterns and len(attrs.dominant_patterns) > 5:
+            attrs.dominant_patterns = attrs.dominant_patterns[:5]
+            
+        if attrs.significant_events and len(attrs.significant_events) > 10:
+            attrs.significant_events = attrs.significant_events[:10]
         
         return attrs
     
-    def _remove_redundancy(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+    def _remove_redundancy(self, attrs: SummaryAttributes) -> SummaryAttributes:
         """
         Remove redundant information from attributes.
         
@@ -138,35 +156,27 @@ class SummaryCompressor:
         Returns:
             Attributes with redundancy removed
         """
-        # Remove duplicate timestamp formats
-        if 'period_start' in attrs and 'start_time' in attrs:
-            attrs.pop('start_time', None)
-        if 'period_end' in attrs and 'end_time' in attrs:
-            attrs.pop('end_time', None)
+        # Since we're using typed models, redundancy removal is less relevant
+        # The model already has defined fields
         
-        # Consolidate error information
-        if 'errors' in attrs and isinstance(attrs['errors'], list):
-            # Keep only error count and types
-            error_types = {}
-            for error in attrs['errors']:
-                error_type = error.get('type', 'unknown')
-                error_types[error_type] = error_types.get(error_type, 0) + 1
-            attrs['error_summary'] = error_types
-            attrs.pop('errors', None)
+        # We can clear any extra fields if using extra="allow"
+        # But for now, just ensure compressed fields are used efficiently
         
-        # Remove low-value fields
-        low_value_fields = [
-            'created_by',
-            'updated_by',
-            'version',
-            'internal_id'
-        ]
-        for field in low_value_fields:
-            attrs.pop(field, None)
+        # If we have compressed versions, clear originals
+        if attrs.compressed_metrics:
+            attrs.total_interactions = 0
+            attrs.unique_services = 0
+            attrs.total_tasks = 0
+            attrs.total_thoughts = 0
+            
+        if attrs.compressed_descriptions:
+            # Clear long descriptions if compressed version exists
+            attrs.dominant_patterns = []
+            attrs.significant_events = []
         
         return attrs
     
-    def estimate_daily_size(self, summaries: List[Dict[str, Any]], days_in_period: int) -> float:
+    def estimate_daily_size(self, summaries: List[SummaryAttributes], days_in_period: int) -> float:
         """
         Estimate the daily storage size for a set of summaries.
         
@@ -177,11 +187,14 @@ class SummaryCompressor:
         Returns:
             Estimated MB per day
         """
-        total_size = sum(len(json.dumps(s)) for s in summaries)
+        total_size = sum(
+            len(json.dumps(s.model_dump(exclude_none=True), default=str)) 
+            for s in summaries
+        )
         size_mb = total_size / (1024 * 1024)
         return size_mb / days_in_period if days_in_period > 0 else 0
     
-    def needs_compression(self, summaries: List[Dict[str, Any]], days_in_period: int) -> bool:
+    def needs_compression(self, summaries: List[SummaryAttributes], days_in_period: int) -> bool:
         """
         Check if summaries need compression based on target size.
         
@@ -197,7 +210,7 @@ class SummaryCompressor:
     
     # Future multimedia compression methods
     
-    def _compress_images(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+    def _compress_images(self, attrs: SummaryAttributes) -> SummaryAttributes:
         """
         Future: Compress embedded images using lossy compression.
         
@@ -209,7 +222,7 @@ class SummaryCompressor:
         # TODO: Implement when image support is added
         return attrs
     
-    def _compress_video_thumbnails(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+    def _compress_video_thumbnails(self, attrs: SummaryAttributes) -> SummaryAttributes:
         """
         Future: Compress video data to thumbnails and metadata.
         
@@ -221,7 +234,7 @@ class SummaryCompressor:
         # TODO: Implement when video support is added
         return attrs
     
-    def _compress_telemetry_data(self, attrs: Dict[str, Any]) -> Dict[str, Any]:
+    def _compress_telemetry_data(self, attrs: SummaryAttributes) -> SummaryAttributes:
         """
         Future: Compress robotic/sensor telemetry data.
         

@@ -610,7 +610,7 @@ class EdgeManager:
     
     def create_edges(
         self,
-        edges: Union[List[EdgeSpecification], List[Tuple[GraphNode, GraphNode, str, Dict[str, Any]]]]
+        edges: Union[List[EdgeSpecification], List[Tuple[GraphNode, GraphNode, str, dict]]]
     ) -> int:
         """
         Create multiple edges from a list of edge specifications.
@@ -637,7 +637,7 @@ class EdgeManager:
                 nodes_to_create = []
                 
                 # Convert to normalized format
-                normalized_edges: List[Tuple[str, str, str, Dict[str, Any], Optional[str]]] = []
+                normalized_edges: List[Tuple[str, str, str, dict, Optional[str]]] = []
                 
                 # Check if we have EdgeSpecifications or tuples
                 if edges and isinstance(edges[0], EdgeSpecification):

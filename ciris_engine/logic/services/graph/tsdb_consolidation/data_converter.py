@@ -7,7 +7,7 @@ The converter accepts both dictionary inputs (for backward compatibility) and ty
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, List, Optional, Union
 from pydantic import BaseModel, Field
 
 from ciris_engine.schemas.services.graph.consolidation import (
@@ -37,10 +37,10 @@ class RawCorrelationData(BaseModel):
     span_id: Optional[str] = None
     parent_span_id: Optional[str] = None
     timestamp: datetime
-    request_data: Dict[str, Any] = Field(default_factory=dict)
-    response_data: Dict[str, Any] = Field(default_factory=dict)
-    tags: Dict[str, Any] = Field(default_factory=dict)
-    context: Optional[Dict[str, Any]] = Field(default=None)
+    request_data: Dict[str, Union[str, int, float, bool, list, dict]] = Field(default_factory=dict)
+    response_data: Dict[str, Union[str, int, float, bool, list, dict]] = Field(default_factory=dict)
+    tags: Dict[str, Union[str, int, float, bool]] = Field(default_factory=dict)
+    context: Optional[Dict[str, Union[str, int, float, bool, list]]] = Field(default=None)
 
 
 class RawTaskData(BaseModel):
@@ -54,8 +54,8 @@ class RawTaskData(BaseModel):
     description: Optional[str] = None
     retry_count: int = 0
     error_message: Optional[str] = None
-    thoughts: List[Dict[str, Any]] = Field(default_factory=list)
-    metadata: Optional[Dict[str, Any]] = None
+    thoughts: List[Dict[str, Union[str, int, float, bool]]] = Field(default_factory=list)
+    metadata: Optional[Dict[str, Union[str, int, float, bool]]] = None
 
 
 class RawThoughtData(BaseModel):
@@ -65,7 +65,7 @@ class RawThoughtData(BaseModel):
     status: str = 'unknown'
     created_at: str = ''
     content: Optional[str] = None
-    final_action: Optional[Union[str, Dict[str, Any]]] = None
+    final_action: Optional[Union[str, Dict[str, Union[str, int, float, bool]]]] = None
     round_number: int = 0
     depth: int = 0
 
@@ -74,7 +74,7 @@ class TSDBDataConverter:
     """Converts raw dictionary data to typed schemas."""
     
     @staticmethod
-    def convert_service_interaction(raw_data: Union[Dict[str, Any], RawCorrelationData]) -> Optional[ServiceInteractionData]:
+    def convert_service_interaction(raw_data: Union[dict, RawCorrelationData]) -> Optional[ServiceInteractionData]:
         """Convert raw correlation data to ServiceInteractionData."""
         try:
             # Convert dict to typed model if needed
@@ -147,7 +147,7 @@ class TSDBDataConverter:
             return None
     
     @staticmethod
-    def convert_metric_correlation(raw_data: Union[Dict[str, Any], RawCorrelationData]) -> Optional[MetricCorrelationData]:
+    def convert_metric_correlation(raw_data: Union[dict, RawCorrelationData]) -> Optional[MetricCorrelationData]:
         """Convert raw correlation data to MetricCorrelationData."""
         try:
             # Convert dict to typed model if needed
@@ -195,7 +195,7 @@ class TSDBDataConverter:
             return None
     
     @staticmethod
-    def convert_trace_span(raw_data: Union[Dict[str, Any], RawCorrelationData]) -> Optional[TraceSpanData]:
+    def convert_trace_span(raw_data: Union[dict, RawCorrelationData]) -> Optional[TraceSpanData]:
         """Convert raw correlation data to TraceSpanData."""
         try:
             # Convert dict to typed model if needed
@@ -248,7 +248,7 @@ class TSDBDataConverter:
             return None
     
     @staticmethod
-    def convert_task(raw_task: Union[Dict[str, Any], RawTaskData]) -> Optional[TaskCorrelationData]:
+    def convert_task(raw_task: Union[dict, RawTaskData]) -> Optional[TaskCorrelationData]:
         """Convert raw task data to TaskCorrelationData."""
         try:
             # Convert dict to typed model if needed
@@ -310,7 +310,7 @@ class TSDBDataConverter:
             return None
     
     @staticmethod
-    def _convert_thought(raw_thought: Union[Dict[str, Any], RawThoughtData]) -> Optional[ThoughtSummary]:
+    def _convert_thought(raw_thought: Union[dict, RawThoughtData]) -> Optional[ThoughtSummary]:
         """Convert raw thought data to ThoughtSummary."""
         try:
             # Convert dict to typed model if needed
