@@ -6,15 +6,16 @@ This makes committing with hooks seamless - "the right way is the easy way".
 
 import subprocess
 import sys
+from typing import List, Tuple
 
 
-def run_command(cmd):
+def run_command(cmd: str) -> Tuple[int, str, str]:
     """Run a command and return output."""
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     return result.returncode, result.stdout, result.stderr
 
 
-def get_modified_files():
+def get_modified_files() -> List[str]:
     """Get list of modified files."""
     code, stdout, _ = run_command("git diff --name-only")
     if code == 0 and stdout:
@@ -22,7 +23,7 @@ def get_modified_files():
     return []
 
 
-def get_staged_files():
+def get_staged_files() -> List[str]:
     """Get list of staged files."""
     code, stdout, _ = run_command("git diff --cached --name-only")
     if code == 0 and stdout:
@@ -30,7 +31,7 @@ def get_staged_files():
     return []
 
 
-def main():
+def main() -> int:
     """Main smart commit logic."""
     print("🚀 Smart Commit Hook: Checking for hook modifications...")
 
