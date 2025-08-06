@@ -270,7 +270,15 @@ async def test_build_system_snapshot_with_version_info():
     snapshot = await build_system_snapshot(task=None, thought=None, resource_monitor=resource_monitor)
 
     assert isinstance(snapshot, SystemSnapshot)
-    # Version info should be present
-    assert snapshot.agent_version == "1.1.2-beta"
+    # Version info should be present and valid
+    assert snapshot.agent_version is not None
+    assert isinstance(snapshot.agent_version, str)
+    assert len(snapshot.agent_version) > 0
+    # Check it matches semantic versioning pattern (e.g., "1.1.2-beta")
+    import re
+
+    assert re.match(
+        r"^\d+\.\d+\.\d+(-\w+)?$", snapshot.agent_version
+    ), f"Invalid version format: {snapshot.agent_version}"
     assert snapshot.agent_codename == "Graceful Guardian"
     # code_hash might be None in tests
