@@ -7,8 +7,14 @@ Usage:
     python tools/bump_version.py patch    # Increment patch (1.0.4 -> 1.0.5)
     python tools/bump_version.py minor    # Increment minor (1.0.4 -> 1.1.0)
     python tools/bump_version.py major    # Increment major (1.0.4 -> 2.0.0)
+
+This tool updates version in:
+    - ciris_engine/constants.py (main version source)
+    - CIRISGUI/apps/agui/package.json (GUI version)
+    - CIRISGUI/apps/agui/lib/ciris-sdk/version.ts (SDK version)
 """
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -83,6 +89,27 @@ def bump_version(bump_type: str):
     # Write back
     with open(constants_file, "w") as f:
         f.write(content)
+
+    # Update GUI package.json
+    gui_package_file = Path(__file__).parent.parent / "CIRISGUI" / "apps" / "agui" / "package.json"
+    if gui_package_file.exists():
+        with open(gui_package_file, "r") as f:
+            package_data = json.load(f)
+        package_data["version"] = new_version
+        with open(gui_package_file, "w") as f:
+            json.dump(package_data, f, indent=2)
+            f.write("\n")  # Add newline at end
+        print(f"  Updated GUI package.json to {new_version}")
+
+    # Update SDK version.ts
+    sdk_version_file = Path(__file__).parent.parent / "CIRISGUI" / "apps" / "agui" / "lib" / "ciris-sdk" / "version.ts"
+    if sdk_version_file.exists():
+        with open(sdk_version_file, "r") as f:
+            sdk_content = f.read()
+        sdk_content = re.sub(r"version: '[^']+'", f"version: '{new_version}'", sdk_content)
+        with open(sdk_version_file, "w") as f:
+            f.write(sdk_content)
+        print(f"  Updated SDK version.ts to {new_version}")
 
     print(f"Version bumped to {new_version}")
     return True
