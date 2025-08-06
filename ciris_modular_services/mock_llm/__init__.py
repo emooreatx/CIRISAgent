@@ -7,6 +7,6 @@ This is the first modular service in CIRIS, demonstrating:
 - Module-based architecture
 """
 
-from .service import MockLLMService, MockLLMClient
+from .service import MockLLMClient, MockLLMService
 
 __all__ = ["MockLLMService", "MockLLMClient"]

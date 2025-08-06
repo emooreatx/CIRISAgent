@@ -65,7 +65,7 @@ The Mock LLM uses a simple `$` command syntax for testing and debugging:
 
 ### Node Types
 - `AGENT` - Agent-related nodes
-- `USER` - User-related nodes  
+- `USER` - User-related nodes
 - `CHANNEL` - Channel-related nodes
 - `CONCEPT` - Concept/knowledge nodes
 - `CONFIG` - Configuration nodes
@@ -286,7 +286,7 @@ See [CIRIS_PROFILES.md](CIRIS_PROFILES.md) for more information about profile in
 Enable Mock LLM debug output:
 ```
 [MOCK_LLM_DEBUG] Request for: ActionSelectionResult
-[MOCK_LLM_DEBUG] Found handler: action_selection  
+[MOCK_LLM_DEBUG] Found handler: action_selection
 [MOCK_LLM_DEBUG] Handler returned: ActionSelectionResult
 ```
 

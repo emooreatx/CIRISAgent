@@ -2,24 +2,27 @@
 Work processor handling normal task and thought processing.
 Enhanced with proper context building and service passing.
 """
+
 import logging
-from typing import List, Optional, TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, List, Optional
 
 if TYPE_CHECKING:
     from ciris_engine.logic.processors.core.thought_processor import ThoughtProcessor
     from ciris_engine.logic.infrastructure.handlers.action_dispatcher import ActionDispatcher
 
-from ciris_engine.schemas.processors.states import AgentState
-from ciris_engine.schemas.runtime.enums import ThoughtStatus
-from ciris_engine.schemas.processors.results import WorkResult
 from ciris_engine.logic import persistence
 from ciris_engine.logic.processors.core.base_processor import BaseProcessor
 from ciris_engine.logic.processors.support.task_manager import TaskManager
 from ciris_engine.logic.processors.support.thought_manager import ThoughtManager
+
 # ServiceProtocol import removed - processors aren't services
 from ciris_engine.logic.utils.context_utils import build_dispatch_context
+from ciris_engine.schemas.processors.results import WorkResult
+from ciris_engine.schemas.processors.states import AgentState
+from ciris_engine.schemas.runtime.enums import ThoughtStatus
 
 logger = logging.getLogger(__name__)
+
 
 class WorkProcessor(BaseProcessor):
     """Handles the WORK state for normal task/thought processing."""
@@ -31,16 +34,16 @@ class WorkProcessor(BaseProcessor):
         action_dispatcher: "ActionDispatcher",
         services: dict,
         startup_channel_id: Optional[str] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         """Initialize work processor."""
         self.startup_channel_id = startup_channel_id
         super().__init__(config_accessor, thought_processor, action_dispatcher, services, **kwargs)
 
-        workflow_config = getattr(self.config, 'workflow', None)
+        workflow_config = getattr(self.config, "workflow", None)
         if workflow_config:
-            max_active_tasks = getattr(workflow_config, 'max_active_tasks', 10)
-            max_active_thoughts = getattr(workflow_config, 'max_active_thoughts', 50)
+            max_active_tasks = getattr(workflow_config, "max_active_tasks", 10)
+            max_active_thoughts = getattr(workflow_config, "max_active_thoughts", 50)
         else:
             max_active_tasks = 10
             max_active_thoughts = 50
@@ -77,7 +80,7 @@ class WorkProcessor(BaseProcessor):
             "thoughts_generated": 0,
             "thoughts_processed": 0,
             "errors": 0,
-            "was_idle": False
+            "was_idle": False,
         }
 
         try:
@@ -91,10 +94,7 @@ class WorkProcessor(BaseProcessor):
             logger.info("[WORK DEBUG] Phase 2: Generating seed thoughts...")
             tasks_needing_seed = self.task_manager.get_tasks_needing_seed()
             logger.info(f"[WORK DEBUG] Found {len(tasks_needing_seed)} tasks needing seed thoughts")
-            generated = self.thought_manager.generate_seed_thoughts(
-                tasks_needing_seed,
-                round_number
-            )
+            generated = self.thought_manager.generate_seed_thoughts(tasks_needing_seed, round_number)
             logger.info(f"[WORK DEBUG] Generated {generated} seed thoughts")
             round_metrics["thoughts_generated"] = generated
 
@@ -137,7 +137,7 @@ class WorkProcessor(BaseProcessor):
         round_metrics["duration_seconds"] = duration
 
         # Only log at INFO level if work was actually done
-        if round_metrics['thoughts_processed'] > 0 or round_metrics['tasks_activated'] > 0:
+        if round_metrics["thoughts_processed"] > 0 or round_metrics["tasks_activated"] > 0:
             logger.info(
                 f"Work round {round_number}: completed "
                 f"({round_metrics['thoughts_processed']} thoughts, {duration:.2f}s)"
@@ -149,7 +149,7 @@ class WorkProcessor(BaseProcessor):
             tasks_processed=round_metrics.get("tasks_activated", 0),
             thoughts_processed=round_metrics.get("thoughts_processed", 0),
             errors=round_metrics.get("errors", 0),
-            duration_seconds=duration
+            duration_seconds=duration,
         )
 
     async def _process_batch(self, batch: List[Any], round_number: int) -> int:
@@ -190,10 +190,7 @@ class WorkProcessor(BaseProcessor):
         """Dispatch the result of thought processing."""
         thought_id = item.thought_id
 
-        logger.debug(
-            f"Dispatching action {result.selected_action} "
-            f"for thought {thought_id}"
-        )
+        logger.debug(f"Dispatching action {result.selected_action} " f"for thought {thought_id}")
 
         thought_obj = await persistence.async_get_thought_by_id(thought_id)
         if not thought_obj:
@@ -206,20 +203,16 @@ class WorkProcessor(BaseProcessor):
             time_service=self.time_service,
             task=task,
             app_config=self.config,
-            round_number=getattr(item, 'round_number', 0),
-            extra_context=getattr(item, 'initial_context', {}),
-            action_type=result.selected_action if result else None
+            round_number=getattr(item, "round_number", 0),
+            extra_context=getattr(item, "initial_context", {}),
+            action_type=result.selected_action if result else None,
         )
-
 
         try:
             await self.dispatch_action(result, thought_obj, dispatch_context.model_dump())
         except Exception as e:
             logger.error(f"Error dispatching action for thought {thought_id}: {e}")
-            self._mark_thought_failed(
-                thought_id,
-                f"Dispatch failed: {str(e)}"
-            )
+            self._mark_thought_failed(thought_id, f"Dispatch failed: {str(e)}")
 
     def _handle_idle_state(self, round_number: int) -> None:
         """Handle idle state when no thoughts are pending."""
@@ -236,15 +229,12 @@ class WorkProcessor(BaseProcessor):
     def _mark_thought_failed(self, thought_id: str, error: str) -> None:
         """Mark a thought as failed."""
         persistence.update_thought_status(
-            thought_id=thought_id,
-            status=ThoughtStatus.FAILED,
-            final_action={"error": error}
+            thought_id=thought_id, status=ThoughtStatus.FAILED, final_action={"error": error}
         )
 
     def get_idle_duration(self) -> float:
         """Get duration in seconds since last activity."""
         return (self.time_service.now() - self.last_activity_time).total_seconds()
-
 
     def should_transition_to_dream(self) -> bool:
         """
@@ -262,6 +252,7 @@ class WorkProcessor(BaseProcessor):
     async def start_processing(self, num_rounds: Optional[int] = None) -> None:
         """Start the work processing loop."""
         import asyncio
+
         round_num = 0
         self._running = True
 
@@ -292,14 +283,14 @@ class WorkProcessor(BaseProcessor):
             "processing_thoughts": self.thought_manager.get_processing_thought_count(),
             "total_rounds": self.metrics.rounds_completed,
             "total_processed": self.metrics.items_processed,
-            "total_errors": self.metrics.errors
+            "total_errors": self.metrics.errors,
         }
         return {
             "processor_type": "work",
             "supported_states": [state.value for state in self.get_supported_states()],
-            "is_running": getattr(self, '_running', False),
+            "is_running": getattr(self, "_running", False),
             "work_stats": work_stats,
-            "metrics": getattr(self, 'metrics', {}),
+            "metrics": getattr(self, "metrics", {}),
             "startup_channel_id": self.startup_channel_id,
-            "should_transition_to_dream": self.should_transition_to_dream()
+            "should_transition_to_dream": self.should_transition_to_dream(),
         }

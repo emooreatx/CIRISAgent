@@ -5,14 +5,16 @@ Provides AES-256-GCM encryption with per-secret keys derived from a master key.
 Implements secure key derivation, rotation, and forward secrecy.
 """
 
+import logging
 import secrets
 from typing import Optional, Tuple
+
+from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives import hashes
-import logging
 
 logger = logging.getLogger(__name__)
+
 
 class SecretsEncryption:
     """Handles encryption/decryption of secrets using AES-256-GCM"""
@@ -70,7 +72,7 @@ class SecretsEncryption:
         key = self._derive_key(salt)
 
         aesgcm = AESGCM(key)
-        encrypted_value = aesgcm.encrypt(nonce, value.encode('utf-8'), None)
+        encrypted_value = aesgcm.encrypt(nonce, value.encode("utf-8"), None)
 
         logger.debug(f"Encrypted secret of length {len(value)} characters")
         return encrypted_value, salt, nonce
@@ -96,7 +98,7 @@ class SecretsEncryption:
         decrypted_bytes = aesgcm.decrypt(nonce, encrypted_value, None)
 
         logger.debug("Successfully decrypted secret")
-        return decrypted_bytes.decode('utf-8')
+        return decrypted_bytes.decode("utf-8")
 
     def rotate_master_key(self, new_master_key: Optional[bytes] = None) -> bytes:
         """
@@ -146,7 +148,7 @@ class SecretsEncryption:
             iterations=100000,
         )
 
-        key = kdf.derive(password.encode('utf-8'))
+        key = kdf.derive(password.encode("utf-8"))
         return key, salt
 
     def test_encryption(self) -> bool:

@@ -1,29 +1,28 @@
 """Authority service schemas."""
 
-from ciris_engine.schemas.services.authority.wise_authority import (
-    PermissionEntry,
-    ApprovalRequestContext,
-    AuthenticationResult,
-    WAUpdate,
-    TokenVerification,
-    PendingDeferral,
-    DeferralResolution,
-    WAResource,
-    OAuthConfig
-)
-
 from ciris_engine.schemas.services.authority.jwt import (
     JWTAlgorithm,
-    JWTHeader,
     JWTClaims,
+    JWTHeader,
     JWTToken,
-    JWTValidationResult
+    JWTValidationResult,
+)
+from ciris_engine.schemas.services.authority.wise_authority import (
+    ApprovalRequestContext,
+    AuthenticationResult,
+    DeferralResolution,
+    OAuthConfig,
+    PendingDeferral,
+    PermissionEntry,
+    TokenVerification,
+    WAResource,
+    WAUpdate,
 )
 
 __all__ = [
     # Wise Authority schemas
     "PermissionEntry",
-    "ApprovalRequestContext", 
+    "ApprovalRequestContext",
     "AuthenticationResult",
     "WAUpdate",
     "TokenVerification",
@@ -36,5 +35,5 @@ __all__ = [
     "JWTHeader",
     "JWTClaims",
     "JWTToken",
-    "JWTValidationResult"
+    "JWTValidationResult",
 ]

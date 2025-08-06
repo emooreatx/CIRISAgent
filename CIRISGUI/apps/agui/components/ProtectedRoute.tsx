@@ -10,10 +10,10 @@ interface ProtectedRouteProps {
   requiredPermission?: string;
 }
 
-export function ProtectedRoute({ 
-  children, 
-  requiredRole, 
-  requiredPermission 
+export function ProtectedRoute({
+  children,
+  requiredRole,
+  requiredPermission
 }: ProtectedRouteProps) {
   const { user, loading, hasRole, hasPermission } = useAuth();
   const router = useRouter();

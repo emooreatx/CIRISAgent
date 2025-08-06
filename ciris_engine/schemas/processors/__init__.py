@@ -1,20 +1,15 @@
 """Package initialization."""
 
 from .core import (
-    DMAResults,
     ConscienceApplicationResult,
+    DMAResults,
     ProcessedThoughtResult,
+    ProcessingError,
     ThoughtProcessingMetrics,
-    ProcessingError
 )
-
-from .error import (
-    ErrorSeverity,
-    ErrorContext,
-    ProcessingError as ProcessorError,
-    ErrorHandlingResult,
-    ProcessorConfig
-)
+from .error import ErrorContext, ErrorHandlingResult, ErrorSeverity
+from .error import ProcessingError as ProcessorError
+from .error import ProcessorConfig
 
 __all__ = [
     "DMAResults",
@@ -27,5 +22,5 @@ __all__ = [
     "ErrorContext",
     "ProcessorError",
     "ErrorHandlingResult",
-    "ProcessorConfig"
+    "ProcessorConfig",
 ]

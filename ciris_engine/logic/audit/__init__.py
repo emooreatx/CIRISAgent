@@ -7,8 +7,4 @@ from .hash_chain import AuditHashChain
 from .signature_manager import AuditSignatureManager
 from .verifier import AuditVerifier
 
-__all__ = [
-    "AuditHashChain",
-    "AuditSignatureManager",
-    "AuditVerifier"
-]
+__all__ = ["AuditHashChain", "AuditSignatureManager", "AuditVerifier"]

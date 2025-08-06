@@ -14,28 +14,25 @@ Tests cover:
 - Recursive pondering prevention
 """
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from contextlib import contextmanager
 from datetime import datetime, timezone
-import uuid
-from typing import Optional, Any, List, Dict
+from typing import Any, Optional
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 from pydantic import BaseModel
 
+from ciris_engine.logic.buses.bus_manager import BusManager
 from ciris_engine.logic.handlers.control.ponder_handler import PonderHandler
 from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies
-from ciris_engine.logic.buses.bus_manager import BusManager
-from ciris_engine.schemas.actions.parameters import PonderParams
-from ciris_engine.schemas.runtime.models import Thought, ThoughtContext, Task
-from ciris_engine.schemas.runtime.enums import (
-    ThoughtStatus, HandlerActionType, TaskStatus, ThoughtType
-)
-from ciris_engine.schemas.runtime.contexts import DispatchContext
-from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
-from ciris_engine.schemas.runtime.system_context import ChannelContext
-from ciris_engine.schemas.telemetry.core import ServiceCorrelation
-from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.logic.secrets.service import SecretsService
-from contextlib import contextmanager
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.actions.parameters import PonderParams
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from ciris_engine.schemas.runtime.contexts import DispatchContext
+from ciris_engine.schemas.runtime.enums import HandlerActionType, TaskStatus, ThoughtStatus
+from ciris_engine.schemas.runtime.models import Task, Thought, ThoughtContext
+from ciris_engine.schemas.runtime.system_context import ChannelContext
 
 
 @contextmanager
@@ -48,9 +45,10 @@ def patch_persistence_properly(test_task: Optional[Task] = None) -> Any:
     mock_persistence.update_thought_status = Mock(return_value=True)
     mock_persistence.add_correlation = Mock()
     mock_persistence.update_thought_ponder_notes = Mock(return_value=True)
-    
-    with patch('ciris_engine.logic.handlers.control.ponder_handler.persistence', mock_persistence), \
-         patch('ciris_engine.logic.infrastructure.handlers.base_handler.persistence', mock_persistence):
+
+    with patch("ciris_engine.logic.handlers.control.ponder_handler.persistence", mock_persistence), patch(
+        "ciris_engine.logic.infrastructure.handlers.base_handler.persistence", mock_persistence
+    ):
         yield mock_persistence
 
 
@@ -83,13 +81,15 @@ def mock_bus_manager() -> Mock:
 
 
 @pytest.fixture
-def handler_dependencies(mock_bus_manager: Mock, mock_time_service: Mock, mock_secrets_service: Mock) -> ActionHandlerDependencies:
+def handler_dependencies(
+    mock_bus_manager: Mock, mock_time_service: Mock, mock_secrets_service: Mock
+) -> ActionHandlerDependencies:
     """Create handler dependencies."""
     return ActionHandlerDependencies(
         bus_manager=mock_bus_manager,
         time_service=mock_time_service,
         secrets_service=mock_secrets_service,
-        shutdown_callback=None
+        shutdown_callback=None,
     )
 
 
@@ -111,7 +111,7 @@ def channel_context() -> ChannelContext:
         is_active=True,
         last_activity=None,
         message_count=0,
-        moderation_level="standard"
+        moderation_level="standard",
     )
 
 
@@ -137,7 +137,7 @@ def dispatch_context(channel_context: ChannelContext) -> DispatchContext:
         epistemic_data=None,
         correlation_id="corr_123",
         span_id=None,
-        trace_id=None
+        trace_id=None,
     )
 
 
@@ -163,8 +163,8 @@ def test_thought() -> Thought:
             round_number=1,
             depth=1,
             channel_id="test_channel_123",
-            parent_thought_id=None
-        )
+            parent_thought_id=None,
+        ),
     )
 
 
@@ -184,7 +184,7 @@ def test_task() -> Task:
         outcome=None,
         signed_by=None,
         signature=None,
-        signed_at=None
+        signed_at=None,
     )
 
 
@@ -196,7 +196,7 @@ def ponder_params() -> PonderParams:
             "What are the ethical implications of this decision?",
             "How does this align with beneficence and non-maleficence?",
             "What impact will this have on autonomy and justice?",
-            "Are there potential consequences we haven't considered?"
+            "Are there potential consequences we haven't considered?",
         ]
     )
 
@@ -211,7 +211,7 @@ def action_result(ponder_params: PonderParams) -> ActionSelectionDMAResult:
         raw_llm_response="PONDER: Focus on ethical implications",
         reasoning="Complex ethical question requires reflection",
         evaluation_time_ms=100.0,
-        resource_usage=None
+        resource_usage=None,
     )
 
 
@@ -220,24 +220,24 @@ class TestPonderHandler:
 
     @pytest.mark.asyncio
     async def test_successful_pondering(
-        self, ponder_handler: PonderHandler, action_result: ActionSelectionDMAResult,
-        test_thought: Thought, dispatch_context: DispatchContext,
-        test_task: Task
+        self,
+        ponder_handler: PonderHandler,
+        action_result: ActionSelectionDMAResult,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        test_task: Task,
     ) -> None:
         """Test successful pondering operation."""
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
-            follow_up_id = await ponder_handler.handle(
-                action_result, test_thought, dispatch_context
-            )
-            
+            follow_up_id = await ponder_handler.handle(action_result, test_thought, dispatch_context)
+
             # Verify thought status was updated
             assert mock_persistence.update_thought_status.called
             update_call = mock_persistence.update_thought_status.call_args
-            assert update_call.kwargs['thought_id'] == "thought_123"
-            assert update_call.kwargs['status'] == ThoughtStatus.COMPLETED
-            
-            
+            assert update_call.kwargs["thought_id"] == "thought_123"
+            assert update_call.kwargs["status"] == ThoughtStatus.COMPLETED
+
             # Verify follow-up thought was created with questions
             assert follow_up_id is not None
             mock_persistence.add_thought.assert_called_once()
@@ -245,13 +245,19 @@ class TestPonderHandler:
             assert follow_up_call.thought_depth == 2  # Increased depth
             assert "ethical implications" in follow_up_call.content.lower()
             # The handler includes questions in the follow-up content
-            assert "current considerations" in follow_up_call.content.lower() or "current focus" in follow_up_call.content.lower()
+            assert (
+                "current considerations" in follow_up_call.content.lower()
+                or "current focus" in follow_up_call.content.lower()
+            )
 
     @pytest.mark.asyncio
     async def test_pondering_with_multiple_questions(
-        self, ponder_handler: PonderHandler, action_result: ActionSelectionDMAResult,
-        test_thought: Thought, dispatch_context: DispatchContext,
-        test_task: Task
+        self,
+        ponder_handler: PonderHandler,
+        action_result: ActionSelectionDMAResult,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        test_task: Task,
     ) -> None:
         """Test pondering with multiple questions."""
         # Create params with many questions
@@ -261,10 +267,10 @@ class TestPonderHandler:
                 "Question 2: What are the risks?",
                 "Question 3: Who are the stakeholders?",
                 "Question 4: What are the alternatives?",
-                "Question 5: How do we measure success?"
+                "Question 5: How do we measure success?",
             ]
         )
-        
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.PONDER,
             action_parameters=params,
@@ -272,15 +278,13 @@ class TestPonderHandler:
             raw_llm_response=None,
             reasoning=None,
             evaluation_time_ms=None,
-            resource_usage=None
+            resource_usage=None,
         )
-        
+
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
-            await ponder_handler.handle(
-                result, test_thought, dispatch_context
-            )
-            
+            await ponder_handler.handle(result, test_thought, dispatch_context)
+
             # Verify follow-up was created with questions
             follow_up_call = mock_persistence.add_thought.call_args[0][0]
             # Handler formats questions into the content
@@ -288,26 +292,23 @@ class TestPonderHandler:
 
     @pytest.mark.asyncio
     async def test_depth_levels(
-        self, ponder_handler: PonderHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        test_task: Task
+        self, ponder_handler: PonderHandler, test_thought: Thought, dispatch_context: DispatchContext, test_task: Task
     ) -> None:
         """Test different pondering depth levels."""
         # Test that the handler properly increases depth
         initial_depths = [1, 2, 3, 5]
-        
+
         with patch_persistence_properly(test_task) as mock_persistence:
             for initial_depth in initial_depths:
                 # Reset mocks
                 mock_persistence.add_thought.reset_mock()
-                
+
                 # Set thought's current depth
                 test_thought.thought_depth = initial_depth
-                
+
                 # Create params with questions
-                params = PonderParams(
-                    questions=[f"Question for depth {initial_depth + 1}"]
-                )
-                
+                params = PonderParams(questions=[f"Question for depth {initial_depth + 1}"])
+
                 result = ActionSelectionDMAResult(
                     selected_action=HandlerActionType.PONDER,
                     action_parameters=params,
@@ -315,20 +316,19 @@ class TestPonderHandler:
                     raw_llm_response=None,
                     reasoning=None,
                     evaluation_time_ms=None,
-                    resource_usage=None
+                    resource_usage=None,
                 )
-                
+
                 # Execute handler
                 await ponder_handler.handle(result, test_thought, dispatch_context)
-                
+
                 # Verify follow-up thought has increased depth
                 follow_up_call = mock_persistence.add_thought.call_args[0][0]
                 assert follow_up_call.thought_depth == initial_depth + 1
 
     @pytest.mark.asyncio
     async def test_multiple_aspects_analysis(
-        self, ponder_handler: PonderHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        test_task: Task
+        self, ponder_handler: PonderHandler, test_thought: Thought, dispatch_context: DispatchContext, test_task: Task
     ) -> None:
         """Test pondering with multiple aspects to analyze."""
         # Create params with questions about different aspects
@@ -339,10 +339,10 @@ class TestPonderHandler:
                 "How will this impact society and different communities?",
                 "What are the economic considerations and costs?",
                 "Are there any legal compliance issues?",
-                "What environmental effects should we evaluate?"
+                "What environmental effects should we evaluate?",
             ]
         )
-        
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.PONDER,
             action_parameters=params,
@@ -350,13 +350,13 @@ class TestPonderHandler:
             raw_llm_response=None,
             reasoning=None,
             evaluation_time_ms=None,
-            resource_usage=None
+            resource_usage=None,
         )
-        
+
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
             await ponder_handler.handle(result, test_thought, dispatch_context)
-            
+
             # Verify follow-up includes the questions
             follow_up_call = mock_persistence.add_thought.call_args[0][0]
             content = follow_up_call.content.lower()
@@ -365,15 +365,12 @@ class TestPonderHandler:
 
     @pytest.mark.asyncio
     async def test_pondering_without_questions(
-        self, ponder_handler: PonderHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        test_task: Task
+        self, ponder_handler: PonderHandler, test_thought: Thought, dispatch_context: DispatchContext, test_task: Task
     ) -> None:
         """Test pondering with empty questions list."""
         # Create params without questions
-        params = PonderParams(
-            questions=[]
-        )
-        
+        params = PonderParams(questions=[])
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.PONDER,
             action_parameters=params,
@@ -381,13 +378,13 @@ class TestPonderHandler:
             raw_llm_response=None,
             reasoning=None,
             evaluation_time_ms=None,
-            resource_usage=None
+            resource_usage=None,
         )
-        
+
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
             await ponder_handler.handle(result, test_thought, dispatch_context)
-            
+
             # Verify pondering still works without specific questions
             follow_up_call = mock_persistence.add_thought.call_args[0][0]
             # Handler should still create a follow-up even with no questions
@@ -396,17 +393,14 @@ class TestPonderHandler:
 
     @pytest.mark.asyncio
     async def test_max_depth_limit(
-        self, ponder_handler: PonderHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        test_task: Task
+        self, ponder_handler: PonderHandler, test_thought: Thought, dispatch_context: DispatchContext, test_task: Task
     ) -> None:
         """Test pondering at maximum depth limit."""
         # Set thought to max depth (handler shows special messages at depth 7+)
         test_thought.thought_depth = 7
-        
-        params = PonderParams(
-            questions=["Final analysis question at max depth"]
-        )
-        
+
+        params = PonderParams(questions=["Final analysis question at max depth"])
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.PONDER,
             action_parameters=params,
@@ -414,13 +408,13 @@ class TestPonderHandler:
             raw_llm_response=None,
             reasoning=None,
             evaluation_time_ms=None,
-            resource_usage=None
+            resource_usage=None,
         )
-        
+
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
             await ponder_handler.handle(result, test_thought, dispatch_context)
-            
+
             # Verify follow-up is capped at max depth (7)
             follow_up_call = mock_persistence.add_thought.call_args[0][0]
             assert follow_up_call.thought_depth == 7  # Max depth is capped at 7
@@ -429,15 +423,14 @@ class TestPonderHandler:
 
     @pytest.mark.asyncio
     async def test_parameter_type_handling(
-        self, ponder_handler: PonderHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        test_task: Task
+        self, ponder_handler: PonderHandler, test_thought: Thought, dispatch_context: DispatchContext, test_task: Task
     ) -> None:
         """Test handling of different parameter types."""
         with patch_persistence_properly(test_task) as mock_persistence:
             # Create a BaseModel object that has model_dump but invalid fields
             class BadParams(BaseModel):
                 invalid_field: str = "test"
-            
+
             # Create a mock result where params have model_dump but will fail conversion
             mock_result = Mock(spec=ActionSelectionDMAResult)
             mock_result.selected_action = HandlerActionType.PONDER
@@ -447,19 +440,15 @@ class TestPonderHandler:
             mock_result.reasoning = None
             mock_result.evaluation_time_ms = None
             mock_result.resource_usage = None
-            
+
             # Execute handler - should handle conversion gracefully
-            follow_up_id = await ponder_handler.handle(
-                mock_result, test_thought, dispatch_context
-            )
-            
+            follow_up_id = await ponder_handler.handle(mock_result, test_thought, dispatch_context)
+
             # Verify thought was marked as completed (handler is resilient)
             mock_persistence.update_thought_status.assert_called_with(
-                thought_id="thought_123",
-                status=ThoughtStatus.COMPLETED,
-                final_action=mock_result
+                thought_id="thought_123", status=ThoughtStatus.COMPLETED, final_action=mock_result
             )
-            
+
             # Verify follow-up was created with empty questions (fallback behavior)
             assert follow_up_id is not None
             follow_up_call = mock_persistence.add_thought.call_args[0][0]
@@ -467,23 +456,24 @@ class TestPonderHandler:
 
     @pytest.mark.asyncio
     async def test_ponder_with_existing_ponder_notes(
-        self, ponder_handler: PonderHandler, action_result: ActionSelectionDMAResult,
-        test_thought: Thought, dispatch_context: DispatchContext,
-        test_task: Task
+        self,
+        ponder_handler: PonderHandler,
+        action_result: ActionSelectionDMAResult,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        test_task: Task,
     ) -> None:
         """Test handling when thought already has ponder notes."""
         # Add existing ponder notes to thought
         test_thought.ponder_notes = ["Previous ponder 1", "Previous ponder 2", "Previous ponder 3"]
-        
+
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
-            follow_up_id = await ponder_handler.handle(
-                action_result, test_thought, dispatch_context
-            )
-            
+            follow_up_id = await ponder_handler.handle(action_result, test_thought, dispatch_context)
+
             # Should create follow-up thought
             assert follow_up_id is not None
-            
+
             # Check that previous ponder history is included in follow-up
             follow_up_call = mock_persistence.add_thought.call_args[0][0]
             assert "previous ponder history" in follow_up_call.content.lower()
@@ -491,17 +481,18 @@ class TestPonderHandler:
 
     @pytest.mark.asyncio
     async def test_context_enrichment(
-        self, ponder_handler: PonderHandler, action_result: ActionSelectionDMAResult,
-        test_thought: Thought, dispatch_context: DispatchContext,
-        test_task: Task
+        self,
+        ponder_handler: PonderHandler,
+        action_result: ActionSelectionDMAResult,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        test_task: Task,
     ) -> None:
         """Test that pondering enriches thought context."""
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
-            await ponder_handler.handle(
-                action_result, test_thought, dispatch_context
-            )
-            
+            await ponder_handler.handle(action_result, test_thought, dispatch_context)
+
             # Verify follow-up thought has enriched context
             follow_up_call = mock_persistence.add_thought.call_args[0][0]
             assert follow_up_call.parent_thought_id == "thought_123"
@@ -511,17 +502,14 @@ class TestPonderHandler:
 
     @pytest.mark.asyncio
     async def test_long_questions_list(
-        self, ponder_handler: PonderHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        test_task: Task
+        self, ponder_handler: PonderHandler, test_thought: Thought, dispatch_context: DispatchContext, test_task: Task
     ) -> None:
         """Test pondering with very long questions list."""
         # Create many questions
         long_questions = [f"Question {i}: What about aspect {i}?" for i in range(50)]
-        
-        params = PonderParams(
-            questions=long_questions
-        )
-        
+
+        params = PonderParams(questions=long_questions)
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.PONDER,
             action_parameters=params,
@@ -529,13 +517,13 @@ class TestPonderHandler:
             raw_llm_response=None,
             reasoning=None,
             evaluation_time_ms=None,
-            resource_usage=None
+            resource_usage=None,
         )
-        
+
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
             await ponder_handler.handle(result, test_thought, dispatch_context)
-            
+
             # Verify follow-up was created with questions
             follow_up_call = mock_persistence.add_thought.call_args[0][0]
             # Handler will include questions in the follow-up content
@@ -543,52 +531,54 @@ class TestPonderHandler:
 
     @pytest.mark.asyncio
     async def test_audit_trail(
-        self, ponder_handler: PonderHandler, action_result: ActionSelectionDMAResult,
-        test_thought: Thought, dispatch_context: DispatchContext,
-        mock_bus_manager: Mock, test_task: Task
+        self,
+        ponder_handler: PonderHandler,
+        action_result: ActionSelectionDMAResult,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_bus_manager: Mock,
+        test_task: Task,
     ) -> None:
         """Test audit logging for PONDER actions."""
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
-            await ponder_handler.handle(
-                action_result, test_thought, dispatch_context
-            )
-            
+            await ponder_handler.handle(action_result, test_thought, dispatch_context)
+
             # Verify audit log was created
             audit_calls = mock_bus_manager.audit_service.log_event.call_args_list
             assert len(audit_calls) >= 1  # At least completion audit
-            
+
             # Check audit call
             audit_call = audit_calls[-1]
-            assert "handler_action_ponder" in str(audit_call[1]['event_type']).lower()
-            assert audit_call[1]['event_data']['outcome'] == "success"
+            assert "handler_action_ponder" in str(audit_call[1]["event_type"]).lower()
+            assert audit_call[1]["event_data"]["outcome"] == "success"
 
     @pytest.mark.asyncio
     async def test_handler_execution_tracking(
-        self, ponder_handler: PonderHandler, action_result: ActionSelectionDMAResult,
-        test_thought: Thought, dispatch_context: DispatchContext,
-        test_task: Task
+        self,
+        ponder_handler: PonderHandler,
+        action_result: ActionSelectionDMAResult,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        test_task: Task,
     ) -> None:
         """Test that handler execution is tracked properly."""
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
-            follow_up_id = await ponder_handler.handle(
-                action_result, test_thought, dispatch_context
-            )
-            
+            follow_up_id = await ponder_handler.handle(action_result, test_thought, dispatch_context)
+
             # Verify handler completed successfully
             assert follow_up_id is not None
-            
+
             # Verify thought was updated
             mock_persistence.update_thought_status.assert_called_once()
-            
+
             # Verify follow-up was created
             mock_persistence.add_thought.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_recursive_ponder_prevention(
-        self, ponder_handler: PonderHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        test_task: Task
+        self, ponder_handler: PonderHandler, test_thought: Thought, dispatch_context: DispatchContext, test_task: Task
     ) -> None:
         """Test handling of deep pondering chains."""
         # Create a thought that's at high depth (near max)
@@ -597,13 +587,11 @@ class TestPonderHandler:
             "Ponder round 1: Initial analysis",
             "Ponder round 2: Deeper analysis",
             "Ponder round 3: Further reflection",
-            "Ponder round 4: Extended contemplation"
+            "Ponder round 4: Extended contemplation",
         ]
-        
-        params = PonderParams(
-            questions=["Should we continue pondering at this depth?"]
-        )
-        
+
+        params = PonderParams(questions=["Should we continue pondering at this depth?"])
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.PONDER,
             action_parameters=params,
@@ -611,13 +599,13 @@ class TestPonderHandler:
             raw_llm_response=None,
             reasoning=None,
             evaluation_time_ms=None,
-            resource_usage=None
+            resource_usage=None,
         )
-        
+
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
             await ponder_handler.handle(result, test_thought, dispatch_context)
-            
+
             # Handler should create follow-up with warning about approaching limit
             follow_up_call = mock_persistence.add_thought.call_args[0][0]
             # At depth 6, going to 7, should get final action warning

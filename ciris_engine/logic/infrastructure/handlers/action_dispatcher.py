@@ -1,22 +1,24 @@
-import logging
 import inspect
+import logging
 from typing import Awaitable, Callable, Dict, Optional
 
-from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
-from ciris_engine.schemas.runtime.contexts import DispatchContext
-from ciris_engine.schemas.runtime.models import Thought
-from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
-from ciris_engine.protocols.services.graph.telemetry import TelemetryServiceProtocol
-from . import BaseActionHandler
 from ciris_engine.logic import persistence
+from ciris_engine.protocols.services.graph.telemetry import TelemetryServiceProtocol
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from ciris_engine.schemas.runtime.contexts import DispatchContext
+from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
+from ciris_engine.schemas.runtime.models import Thought
+
+from . import BaseActionHandler
 
 logger = logging.getLogger(__name__)
+
 
 class ActionDispatcher:
     def __init__(
         self,
         handlers: Dict[HandlerActionType, BaseActionHandler],
-        telemetry_service: Optional[TelemetryServiceProtocol] = None
+        telemetry_service: Optional[TelemetryServiceProtocol] = None,
     ) -> None:
         """
         Initializes the ActionDispatcher with a map of action types to their handler instances.
@@ -30,7 +32,9 @@ class ActionDispatcher:
         self.telemetry_service = telemetry_service
 
         for action_type, handler_instance in self.handlers.items():
-            logger.info(f"ActionDispatcher: Registered handler for {action_type.value}: {handler_instance.__class__.__name__}")
+            logger.info(
+                f"ActionDispatcher: Registered handler for {action_type.value}: {handler_instance.__class__.__name__}"
+            )
 
     def get_handler(self, action_type: HandlerActionType) -> Optional[BaseActionHandler]:
         """Get a handler by action type."""
@@ -39,8 +43,8 @@ class ActionDispatcher:
     async def dispatch(
         self,
         action_selection_result: ActionSelectionDMAResult,
-        thought: Thought, # The original thought that led to this action
-        dispatch_context: DispatchContext, # Context from the caller (e.g., channel_id, author_name, services)
+        thought: Thought,  # The original thought that led to this action
+        dispatch_context: DispatchContext,  # Context from the caller (e.g., channel_id, author_name, services)
         # Services are now expected to be part of ActionHandlerDependencies,
         # but dispatch_context can still carry event-specific data.
     ) -> None:
@@ -56,7 +60,9 @@ class ActionDispatcher:
         if self.action_filter:
             try:
                 # Convert DispatchContext to dict for action_filter compatibility
-                context_dict = dispatch_context.model_dump() if hasattr(dispatch_context, 'model_dump') else vars(dispatch_context)
+                context_dict = (
+                    dispatch_context.model_dump() if hasattr(dispatch_context, "model_dump") else vars(dispatch_context)
+                )
                 should_skip = self.action_filter(action_selection_result, context_dict)
                 if inspect.iscoroutine(should_skip):
                     should_skip = await should_skip
@@ -71,7 +77,9 @@ class ActionDispatcher:
         handler_instance = self.handlers.get(action_type)
 
         if not handler_instance:
-            logger.error(f"No handler registered for action type: {action_type.value}. Thought ID: {thought.thought_id}")
+            logger.error(
+                f"No handler registered for action type: {action_type.value}. Thought ID: {thought.thought_id}"
+            )
             # Fallback: Mark thought as FAILED
             try:
                 persistence.update_thought_status(
@@ -79,12 +87,14 @@ class ActionDispatcher:
                     status=ThoughtStatus.FAILED,
                     final_action={
                         "error": f"No handler for action {action_type.value}",
-                        "original_result": action_selection_result
-                    }
+                        "original_result": action_selection_result,
+                    },
                 )
                 # Consider creating a follow-up error thought here if handlers normally do
             except Exception as e_persist:
-                logger.error(f"Failed to update thought {thought.thought_id} to FAILED after no handler found: {e_persist}")
+                logger.error(
+                    f"Failed to update thought {thought.thought_id} to FAILED after no handler found: {e_persist}"
+                )
             return
 
         logger.info(
@@ -94,9 +104,7 @@ class ActionDispatcher:
         # Wait for service registry readiness before invoking the handler
         dependencies = getattr(handler_instance, "dependencies", None)
         if dependencies and hasattr(dependencies, "wait_registry_ready"):
-            ready = await dependencies.wait_registry_ready(
-                timeout=getattr(dispatch_context, 'registry_timeout', 30.0)
-            )
+            ready = await dependencies.wait_registry_ready(timeout=getattr(dispatch_context, "registry_timeout", 30.0))
             if not ready:
                 logger.error(
                     f"Service registry not ready for handler {handler_instance.__class__.__name__}; action aborted"
@@ -114,8 +122,8 @@ class ActionDispatcher:
                         "handler": handler_instance.__class__.__name__,
                         "action": action_type.value,
                         "path_type": "hot",
-                        "source_module": "action_dispatcher"
-                    }
+                        "source_module": "action_dispatcher",
+                    },
                 )
                 await self.telemetry_service.record_metric(
                     "handler_invoked_total",
@@ -123,8 +131,8 @@ class ActionDispatcher:
                     tags={
                         "handler": handler_instance.__class__.__name__,
                         "path_type": "hot",
-                        "source_module": "action_dispatcher"
-                    }
+                        "source_module": "action_dispatcher",
+                    },
                 )
 
             # The handler's `handle` method will take care of everything.
@@ -132,6 +140,7 @@ class ActionDispatcher:
 
             # Log completion with follow-up thought ID if available
             import datetime
+
             timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
             completion_msg = f"[{timestamp}] [DISPATCHER] Handler {handler_instance.__class__.__name__} completed for action {action_type.value} on thought {thought.thought_id}"
             if follow_up_thought_id:
@@ -153,11 +162,12 @@ class ActionDispatcher:
                 await self.telemetry_service.record_metric("handler_error_total")
             try:
                 persistence.update_thought_status(
-                    thought_id=thought.thought_id,                status=ThoughtStatus.FAILED,
-                final_action={
-                    "error": f"Handler {handler_instance.__class__.__name__} failed: {str(e)}",
-                    "original_result": action_selection_result,
-                },
+                    thought_id=thought.thought_id,
+                    status=ThoughtStatus.FAILED,
+                    final_action={
+                        "error": f"Handler {handler_instance.__class__.__name__} failed: {str(e)}",
+                        "original_result": action_selection_result,
+                    },
                 )
             except Exception as e_persist:
                 logger.error(

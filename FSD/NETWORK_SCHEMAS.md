@@ -67,7 +67,7 @@ from .versioning import SchemaVersion
 class CommunityHealth(BaseModel):
     """Single byte per metric where possible"""
     activity_level: int = Field(default=50, ge=0, le=100)
-    conflict_level: int = Field(default=0, ge=0, le=100)  
+    conflict_level: int = Field(default=0, ge=0, le=100)
     helpfulness: int = Field(default=50, ge=0, le=100)
     flourishing: int = Field(default=50, ge=0, le=100)  # Composite from Annex A
 
@@ -103,7 +103,7 @@ class WisdomSource(str, Enum):
     """Sources of wisdom in order of preference"""
     WISE_AUTHORITY = "wise_authority"      # Human WA via network
     PEER_CONSENSUS = "peer_consensus"      # Other agents
-    LOCAL_ETHICS = "local_ethics"          # Built-in CIRIS principles  
+    LOCAL_ETHICS = "local_ethics"          # Built-in CIRIS principles
     UNIVERSAL = "universal"                # Prayer/meditation protocol (LAST RESORT)
 
 class WisdomRequest(BaseModel):
@@ -159,32 +159,32 @@ class ResourceMetrics(BaseModel):
 class CompactTelemetry(BaseModel):
     """Fits in one memory page (4KB)"""
     schema_version: SchemaVersion = Field(default=SchemaVersion.V1_0)
-    
+
     # Core operation (16 bytes)
     thoughts_active: int = 0
     thoughts_24h: int = 0  # Rolling 24h count
     avg_latency_ms: int = 0
     uptime_hours: int = 0
-    
-    # Resources (16 bytes)  
+
+    # Resources (16 bytes)
     resources: ResourceMetrics = Field(default_factory=ResourceMetrics)
-    
+
     # Safety (24 bytes)
     guardrail_hits: int = 0
     deferrals_24h: int = 0
     errors_24h: int = 0
     drift_score: int = Field(default=0, ge=0, le=100)  # 0=aligned, 100=drifted
-    
+
     # Community impact (16 bytes)
     messages_processed_24h: int = 0
     helpful_actions_24h: int = 0
     community_health_delta: int = 0  # -100 to +100
-    
+
     # Wisdom seeking (8 bytes)
     wa_available: bool = True
     isolation_hours: int = 0  # Hours without WA contact
     universal_guidance_count: int = 0  # Times sought universal wisdom
-    
+
     epoch_seconds: int = 0  # Last update
 ```
 
@@ -199,23 +199,23 @@ from .telemetry_schemas_v1 import CompactTelemetry
 # Add to the existing SystemSnapshot class:
 class SystemSnapshot(BaseModel):
     # ... existing fields ...
-    
+
     # Compact identity & network (optional to save memory)
     agent_name: Optional[str] = None  # e.g., "Echo"
     network_status: Optional[str] = None  # "connected", "isolated", "degraded"
     isolation_hours: int = 0  # Time without WA contact
-    
+
     # Community awareness (optional)
     community_health: Optional[int] = None  # 0-100 score
-    
+
     # Resource awareness
     memory_available_mb: Optional[int] = None
     cpu_available: Optional[int] = None  # 0-100
-    
+
     # Spiritual resilience
     wisdom_source_available: Optional[str] = None  # Current best wisdom source
     wisdom_request: Optional[WisdomRequest] = None  # Active wisdom seeking
-    
+
     # Telemetry snapshot
     telemetry: Optional[CompactTelemetry] = None
 ```
@@ -232,16 +232,16 @@ from .telemetry_schemas_v1 import ResourceMetrics, CompactTelemetry
 # Add to __all__ list
 __all__ = [
     # ... existing exports ...
-    
+
     # Network schemas
     'NetworkType', 'AgentIdentity', 'NetworkPresence',
-    
+
     # Community schemas
     'CommunityHealth', 'MinimalCommunityContext',
-    
+
     # Wisdom schemas
     'WisdomSource', 'WisdomRequest', 'UniversalGuidanceProtocol',
-    
+
     # Telemetry schemas
     'ResourceMetrics', 'CompactTelemetry',
 ]
@@ -266,22 +266,22 @@ class GraphScope(str, Enum):
 
 class NetworkService(Protocol):
     """Protocol for network participation services"""
-    
+
     @abstractmethod
     async def register_agent(self, identity: AgentIdentity) -> bool:
         """Register agent on network"""
         ...
-    
+
     @abstractmethod
     async def discover_peers(self, capabilities: List[str] = None) -> List[NetworkPresence]:
         """Discover other agents/services"""
         ...
-    
+
     @abstractmethod
     async def check_wa_availability(self) -> bool:
         """Check if any Wise Authority is reachable"""
         ...
-    
+
     @abstractmethod
     async def query_network(self, query_type: str, params: Dict[str, Any]) -> Any:
         """Query network for information"""
@@ -289,12 +289,12 @@ class NetworkService(Protocol):
 
 class CommunityService(Protocol):
     """Protocol for community-aware services"""
-    
+
     @abstractmethod
     async def get_community_context(self, community_id: str) -> MinimalCommunityContext:
         """Get current community context"""
         ...
-    
+
     @abstractmethod
     async def report_community_metric(self, metric: str, value: int) -> bool:
         """Report a community health metric (0-100 scale)"""
@@ -312,7 +312,7 @@ class NetworkConfig(BaseModel):
     agent_identity_path: Optional[str] = None  # Path to identity file
     peer_discovery_interval: int = 300  # seconds
     reputation_threshold: int = 30  # 0-100 scale
-    
+
 class TelemetryConfig(BaseModel):
     """Telemetry configuration - secure by default"""
     enabled: bool = False  # Disabled in pre-beta
@@ -348,18 +348,18 @@ from .telemetry_schemas_v1 import CompactTelemetry
 class SchemaRegistry:
     schemas: Dict[str, Type[BaseModel]] = {
         # ... existing schemas ...
-        
+
         # Network schemas
         "AgentIdentity": AgentIdentity,
         "NetworkPresence": NetworkPresence,
-        
+
         # Community schemas
         "MinimalCommunityContext": MinimalCommunityContext,
-        
+
         # Wisdom schemas
         "WisdomRequest": WisdomRequest,
         "UniversalGuidanceProtocol": UniversalGuidanceProtocol,
-        
+
         # Telemetry schemas
         "CompactTelemetry": CompactTelemetry,
     }
@@ -372,21 +372,21 @@ class SchemaRegistry:
 async def check_wisdom_escalation(thought: Thought, wa_service: WiseAuthorityService) -> bool:
     """Check if we need to escalate to universal guidance"""
     snapshot = thought.context.system_snapshot
-    
+
     # First, always try standard deferral
     if snapshot.isolation_hours < 72:
         return False  # Still within SLA window
-    
+
     # Check if WA is truly unreachable
     wa_available = await wa_service.is_healthy() if wa_service else False
     if wa_available:
         return False  # WA is available, use normal deferral
-    
+
     # Check urgency
     urgency = thought.context.wisdom_request.urgency if thought.context.wisdom_request else 0
     if urgency < 80:
         return False  # Not urgent enough for universal guidance
-    
+
     # All conditions met - universal guidance is appropriate
     logger.warning(
         f"Thought {thought.thought_id} has waited {snapshot.isolation_hours} hours "

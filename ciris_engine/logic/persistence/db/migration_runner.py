@@ -1,10 +1,11 @@
 import logging
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
+
 
 def _ensure_tracking_table(conn: sqlite3.Connection) -> None:
     conn.execute(
@@ -15,6 +16,7 @@ def _ensure_tracking_table(conn: sqlite3.Connection) -> None:
         )
         """
     )
+
 
 def run_migrations(db_path: str | None = None) -> None:
     """Apply pending migrations located in the migrations directory."""
@@ -27,18 +29,14 @@ def run_migrations(db_path: str | None = None) -> None:
         migration_files = sorted(MIGRATIONS_DIR.glob("*.sql"))
         for file in migration_files:
             name = file.name
-            cur = conn.execute(
-                "SELECT 1 FROM schema_migrations WHERE filename = ?", (name,)
-            )
+            cur = conn.execute("SELECT 1 FROM schema_migrations WHERE filename = ?", (name,))
             if cur.fetchone():
                 continue
             logger.info(f"Applying migration {name}")
             sql = file.read_text()
             try:
                 conn.executescript(sql)
-                conn.execute(
-                    "INSERT INTO schema_migrations (filename) VALUES (?)", (name,)
-                )
+                conn.execute("INSERT INTO schema_migrations (filename) VALUES (?)", (name,))
                 conn.commit()
             except Exception as e:
                 conn.rollback()

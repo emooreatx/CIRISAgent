@@ -3,7 +3,7 @@ const puppeteer = require('puppeteer');
 
 async function testGUIVisual() {
   console.log('=== GUI Visual Component Test ===\n');
-  
+
   // Check if puppeteer is installed
   try {
     require.resolve('puppeteer');
@@ -20,32 +20,32 @@ async function testGUIVisual() {
     return;
   }
 
-  const browser = await puppeteer.launch({ 
+  const browser = await puppeteer.launch({
     headless: 'new',
     args: ['--no-sandbox', '--disable-setuid-sandbox']
   });
-  
+
   try {
     const page = await browser.newPage();
-    
+
     // 1. Test login page
     console.log('1. Testing login page...');
     await page.goto('http://localhost:3000/login');
     await page.waitForSelector('input[name="username"]', { timeout: 5000 });
     console.log('✓ Login page loaded');
-    
+
     // Login
     await page.type('input[name="username"]', 'admin');
     await page.type('input[name="password"]', 'ciris_admin_password');
     await page.click('button[type="submit"]');
     await page.waitForNavigation();
     console.log('✓ Logged in successfully');
-    
+
     // 2. Test Users page
     console.log('\n2. Testing Users page...');
     await page.goto('http://localhost:3000/users');
     await page.waitForSelector('h1', { timeout: 5000 });
-    
+
     // Check for Permission Requests tab
     const permissionTab = await page.$('button:has-text("Permission Requests")');
     if (permissionTab) {
@@ -56,22 +56,22 @@ async function testGUIVisual() {
     } else {
       console.log('✗ Permission Requests tab not found');
     }
-    
+
     // 3. Test Comms page
     console.log('\n3. Testing Comms page...');
     await page.goto('http://localhost:3000/comms');
     await page.waitForSelector('input[type="text"]', { timeout: 5000 });
     console.log('✓ Comms page loaded');
     console.log('✓ Message input field found');
-    
+
     // Check for send button
     const sendButton = await page.$('button:has-text("Send")');
     if (sendButton) {
       console.log('✓ Send button found');
     }
-    
+
     console.log('\n✅ All visual components verified!');
-    
+
   } catch (error) {
     console.error('Visual test error:', error.message);
   } finally {
@@ -83,7 +83,7 @@ async function testGUIVisual() {
 async function testGUIEndpoints() {
   const axios = require('axios');
   console.log('\n=== GUI Endpoint Test ===\n');
-  
+
   const endpoints = [
     { path: '/', name: 'Home' },
     { path: '/login', name: 'Login' },
@@ -91,7 +91,7 @@ async function testGUIEndpoints() {
     { path: '/comms', name: 'Communications' },
     { path: '/oauth/callback', name: 'OAuth Callback' }
   ];
-  
+
   for (const endpoint of endpoints) {
     try {
       const response = await axios.get(`http://localhost:3000${endpoint.path}`, {
@@ -103,7 +103,7 @@ async function testGUIEndpoints() {
       console.log(`✗ ${endpoint.name} (${endpoint.path}): ${error.message}`);
     }
   }
-  
+
   console.log('\n📸 Screenshot Testing:');
   console.log('For visual verification, take screenshots of:');
   console.log('1. Users page - both tabs');

@@ -30,9 +30,9 @@ async def handle_incoming_message(msg: IncomingMessage):
         content=msg.content,
         direction="incoming"
     ))
-    
+
     # Process message...
-    
+
     # When agent responds
     await broadcast_message(MessageStreamData(
         message_id=response_id,
@@ -108,7 +108,7 @@ ws.onopen = () => {
 
 ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
-    
+
     switch(msg.type) {
         case 'auth':
             console.log('Authenticated:', msg.data);
@@ -143,12 +143,12 @@ import json
 
 async def message_stream():
     uri = "ws://localhost:8000/v1/stream/messages?token=YOUR_API_KEY"
-    
+
     async with websockets.connect(uri) as websocket:
         # Receive auth confirmation
         auth_msg = await websocket.recv()
         print(f"Auth: {auth_msg}")
-        
+
         # Listen for messages
         async for message in websocket:
             data = json.loads(message)

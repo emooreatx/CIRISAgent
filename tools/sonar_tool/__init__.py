@@ -5,9 +5,9 @@ A comprehensive tool for code quality analysis and improvement.
 Helps identify high-impact areas for coverage and tech debt reduction.
 """
 
-from .client import SonarClient
 from .analyzer import CoverageAnalyzer
-from .reporter import QualityReporter
+from .client import SonarClient
 from .commands import CommandHandler
+from .reporter import QualityReporter
 
-__all__ = ['SonarClient', 'CoverageAnalyzer', 'QualityReporter', 'CommandHandler']
+__all__ = ["SonarClient", "CoverageAnalyzer", "QualityReporter", "CommandHandler"]

@@ -151,7 +151,7 @@ function ToolsPageContent() {
                   {tools.length} {tools.length === 1 ? 'tool' : 'tools'}
                 </span>
               </div>
-              
+
               <div className="space-y-3">
                 {tools.map((tool, index) => (
                   <div
@@ -201,8 +201,8 @@ function ToolsPageContent() {
           </div>
           <div className="ml-3">
             <p className="text-sm text-blue-700">
-              These tools are available for the agent to use when processing requests. The agent automatically 
-              selects appropriate tools based on the task and context. Tools are provided by adapters and 
+              These tools are available for the agent to use when processing requests. The agent automatically
+              selects appropriate tools based on the task and context. Tools are provided by adapters and
               become available when adapters are loaded on the System page.
             </p>
           </div>

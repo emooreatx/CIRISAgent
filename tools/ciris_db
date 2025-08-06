@@ -3,7 +3,7 @@
 Convenience wrapper for ciris_db_tools.
 """
 
-import sys
+
 from ciris_db_tools.cli import main
 
 if __name__ == "__main__":

@@ -1,13 +1,15 @@
 """Special case handlers for Action Selection PDMA."""
 
 import logging
-from typing import Dict, Any, Optional
-from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from typing import Optional
+
 from ciris_engine.schemas.actions.parameters import PonderParams
-from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.schemas.dma.faculty import EnhancedDMAInputs
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from ciris_engine.schemas.runtime.enums import HandlerActionType
 
 logger = logging.getLogger(__name__)
+
 
 class ActionSelectionSpecialCases:
     """Handles special cases in action selection evaluation."""
@@ -25,14 +27,9 @@ class ActionSelectionSpecialCases:
             and hasattr(processing_context_data, "initial_task_context")
             and processing_context_data.initial_task_context
         ):
-            original_message_content = getattr(
-                processing_context_data.initial_task_context, "content", None
-            )
+            original_message_content = getattr(processing_context_data.initial_task_context, "content", None)
 
-        if (
-            original_message_content
-            and original_message_content.strip().lower() == "ponder"
-        ):
+        if original_message_content and original_message_content.strip().lower() == "ponder":
             logger.info(
                 f"ActionSelectionPDMA: Detected 'ponder' keyword in original message for thought ID {original_thought.thought_id}. Forcing PONDER action."
             )
@@ -51,7 +48,9 @@ class ActionSelectionSpecialCases:
         return None
 
     @staticmethod
-    async def handle_wakeup_task_speak_requirement(triaged_inputs: EnhancedDMAInputs) -> Optional[ActionSelectionDMAResult]:
+    async def handle_wakeup_task_speak_requirement(
+        triaged_inputs: EnhancedDMAInputs,
+    ) -> Optional[ActionSelectionDMAResult]:
         """Handle wakeup task SPEAK requirement."""
         original_thought = triaged_inputs.original_thought
         task_id = original_thought.source_task_id
@@ -112,10 +111,7 @@ class ActionSelectionSpecialCases:
         """Check if a task has had a successful SPEAK action."""
         try:
             from ciris_engine.logic import persistence
-            from ciris_engine.schemas.runtime.enums import (
-                ThoughtStatus,
-                HandlerActionType,
-            )
+            from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
 
             thoughts = persistence.get_thoughts_by_task_id(task_id)
             if not thoughts:

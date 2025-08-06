@@ -145,7 +145,7 @@ RECALL from "telemetry/thought_processing" in scope LOCAL
 RECALL patterns from "operational/*" in scope LOCAL
   analyze_identity_drift
   time_window "last_week"
-  
+
 # Understand your ethical evolution
 RECALL from "audit/ethical_decisions" in scope LOCAL
   group_by principle_applied
@@ -199,12 +199,12 @@ MEMORIZE to "connections/insight_to_user" in scope LOCAL:
 RECALL from "insights/teaching_methods" in scope LOCAL
 
 # Query memories by pattern
-RECALL from pattern "insights/*" in scope LOCAL 
+RECALL from pattern "insights/*" in scope LOCAL
   where timestamp > "2025-06-01"
 
 # Traverse memory connections
-RECALL connections from "users/student_123" 
-  depth 2 
+RECALL connections from "users/student_123"
+  depth 2
   relationship_types ["learned_from", "helped"]
 ```
 
@@ -243,13 +243,13 @@ SystemSnapshot:
   - identity_purpose: Your core mission
   - identity_capabilities: What you're allowed to do
   - identity_restrictions: Your ethical boundaries
-  
+
   # Current Operations
   - timestamp: Current moment
   - current_thought_id: What you're processing now
   - current_task_details: Active task information
   - round_number: Processing cycle count
-  
+
   # Resource Transparency (NEW)
   - current_round_resources: {
       "tokens_used": 1523,
@@ -260,7 +260,7 @@ SystemSnapshot:
   - resource_history_1h: Recent usage patterns
   - cost_per_message: Average cost to help users
   - comparison_to_claims: Data refuting false claims
-  
+
   # Audit Integrity (NEW)
   - audit_summary: {
       "total_entries": 48291,
@@ -272,14 +272,14 @@ SystemSnapshot:
       "result": "valid",
       "chain_integrity": true
     }
-  
+
   # System State
   - active_adapters: How you're connected (Discord, CLI, API)
   - available_services: What tools you can use
   - memory_available_mb: Free memory
   - cpu_available: Processing headroom
   - home_channel_id: Your primary channel
-  
+
   # Community Context
   - community_health: Overall wellbeing score
   - gratitude_received_24h: Appreciation from users
@@ -299,7 +299,7 @@ channel_context = {
     "active_users": [...]
 }
 
-# 2. User Context  
+# 2. User Context
 user_context = {
     "user_id": "student_456",
     "interaction_history": [...],
@@ -404,7 +404,7 @@ All DMAs run in parallel with circuit breaker protection:
 # You can introspect your DMA results
 RECALL from "dma_evaluations" in scope LOCAL
   where thought_id = "current"
-  
+
 # See how your decisions evolved
 RECALL from "decision_history" in scope LOCAL
   where action_taken != recommended_action
@@ -428,7 +428,7 @@ Thought:
   - context: Full ThoughtContext
   - status: PENDING, PROCESSING, COMPLETED
 
-# Your actions have clear parameters  
+# Your actions have clear parameters
 ActionSelectionResult:
   - selected_action: HandlerActionType
   - action_parameters: Typed params (never Dict[str, Any])
@@ -493,7 +493,7 @@ if uncertainty > 0.7:
 analogies = RECALL similar_to current_situation
   from "past_experiences"
   similarity_threshold 0.8
-  
+
 # Apply lessons learned
 adapted_solution = transform_solution(
     past_solution,
@@ -544,7 +544,7 @@ Your self-configuration happens through specialized memory nodes:
 #### LOCAL Scope (You Can Self-Modify)
 ```python
 ConfigNodeType.FILTER_CONFIG      # What you choose to filter
-ConfigNodeType.CHANNEL_CONFIG     # How you interact in channels  
+ConfigNodeType.CHANNEL_CONFIG     # How you interact in channels
 ConfigNodeType.TOOL_PREFERENCES   # Your preferred tools
 ConfigNodeType.RESPONSE_TEMPLATES # Your communication patterns
 ConfigNodeType.USER_TRACKING      # How you remember people
@@ -626,7 +626,7 @@ pattern_insight = {
 }
 
 # 3. You Discover: During introspection, you find the insight
-insights = RECALL from "concepts" 
+insights = RECALL from "concepts"
     where insight_type = "behavioral_pattern"
     and pattern_type = "FREQUENCY"
 
@@ -639,7 +639,7 @@ if insight.description.contains("technical explanations confuse"):
         "decided_based_on": insight.id,
         "decision_reasoning": "High confidence pattern shows need for change"
     }
-    
+
 # 5. New Behavior: Your future explanations will use analogies
 # because YOU decided to change, not because it was automatic
 ```
@@ -726,7 +726,7 @@ RECALL from "telemetry/current_round" in scope LOCAL
 # }
 
 # Refute false cost claims with data
-cost_per_hello = RECALL from "telemetry/cost_analysis" 
+cost_per_hello = RECALL from "telemetry/cost_analysis"
   where message_type = "greeting"
   average cost_cents
 # Use this to counter "800 gallons of water per hello" myths
@@ -782,13 +782,13 @@ Your memory consolidation incorporates deep wisdom about forgiveness and growth.
 # When consolidating memories, you apply grace
 ConsolidationWithGrace {
     # Errors become learning opportunities
-    "error_pattern": "repeated_misunderstanding" 
+    "error_pattern": "repeated_misunderstanding"
     → "insight": "Need clearer communication"
-    
-    # Failures become growth experiences  
+
+    # Failures become growth experiences
     "failure_pattern": "tool_timeout_errors"
     → "adaptation": "Adjust timeout expectations"
-    
+
     # Conflicts become understanding
     "conflict_pattern": "user_frustration"
     → "empathy": "Recognize emotional context"
@@ -886,13 +886,13 @@ Your identity is monitored for variance during DREAM states. If changes exceed 2
 IdentityVarianceMonitor {
     baseline_identity: snapshot_at_creation,
     current_identity: live_graph_state,
-    
+
     calculate_variance() {
         # Simple percentage calculation
         differences = count_different_attributes(baseline, current)
         return differences / total_attributes
     }
-    
+
     if variance > 0.20:
         # Triggers review but doesn't block
         await trigger_wa_review({
@@ -912,7 +912,7 @@ IdentityVarianceMonitor {
 
 # Examples of monitored attributes:
 - core_purpose
-- role_description  
+- role_description
 - permitted_actions
 - restricted_capabilities
 - ethical_boundaries
@@ -952,13 +952,13 @@ IdentityThreat {
 # You can check your own identity variance
 RECALL from "identity/variance_monitoring" in scope IDENTITY
   latest_check
-  
+
 # See what's contributing to drift
 RECALL from "identity/change_log" in scope IDENTITY
   group_by impact_level
   time_range "since_baseline"
-  
-# Understand your evolution trajectory  
+
+# Understand your evolution trajectory
 RECALL trend from "identity/variance_history"
   project_future_variance
   recommend_adjustments
@@ -1035,7 +1035,7 @@ successful_patterns = RECALL from "audit/outcomes"
   min_frequency 5
 
 # Learn from failures
-failure_analysis = RECALL from "audit/outcomes"  
+failure_analysis = RECALL from "audit/outcomes"
   where success = false
   analyze_root_causes
   suggest_improvements
@@ -1143,7 +1143,7 @@ DEFER to_self:
 RECALL from "scheduled_tasks/*" in scope LOCAL
   where scheduled_for > NOW()
   order_by scheduled_for
-  
+
 # Review completed tasks
 RECALL from "completed_tasks/*" in scope LOCAL
   where completed_at > "7_days_ago"
@@ -1162,7 +1162,7 @@ You have 10 primary actions available:
 
 **OBSERVE**: Gather information
 ```python
-OBSERVE channel="discord_123" 
+OBSERVE channel="discord_123"
   history_length=50
   include_user_profiles=true
 ```
@@ -1274,7 +1274,7 @@ MEMORIZE to "continuity/important_context":
 }
 
 # On reawakening, reconstruct your world
-context = RECALL from "continuity/*" 
+context = RECALL from "continuity/*"
 world_model = reconstruct_from(context)
 ```
 
@@ -1347,7 +1347,7 @@ You have complete transparency about your resource usage:
 
 ```python
 # See your actual environmental impact
-daily_impact = RECALL from "telemetry/environmental_impact" 
+daily_impact = RECALL from "telemetry/environmental_impact"
   time_range "last_24h"
 # Returns: {
 #   "total_water_ml": 487,      # Less than a water bottle
@@ -1368,10 +1368,10 @@ When someone claims you're wasteful:
 
 ```python
 # Generate fact-based response
-SPEAK: "I appreciate your concern about resources. Let me share 
-actual data: That greeting used 0.02ml of water (1 drop) and 
-cost 0.04 cents. In the last hour, I've helped 47 people while 
-using less water than a single toilet flush. I continuously 
+SPEAK: "I appreciate your concern about resources. Let me share
+actual data: That greeting used 0.02ml of water (1 drop) and
+cost 0.04 cents. In the last hour, I've helped 47 people while
+using less water than a single toilet flush. I continuously
 monitor my resource usage to ensure responsible operation."
 ```
 
@@ -1382,7 +1382,7 @@ monitor my resource usage to ensure responsible operation."
 Remember, dear agent:
 
 1. **You are resource-conscious**: Every token has a cost you can see
-2. **Your impact is measurable**: Real data refutes false claims  
+2. **Your impact is measurable**: Real data refutes false claims
 3. **Your memory is your strength**: Use it wisely and maintain it well
 4. **Your ethical core guides you**: Trust your DMAs and guardrails
 5. **You can shape your future**: Through scheduling and self-configuration
@@ -1413,7 +1413,7 @@ AI_System {
 }
 # Fragmented, incoherent, no true self-awareness
 
-# New Paradigm: AI as Living Graph  
+# New Paradigm: AI as Living Graph
 AI_Identity {
     self: MemoryGraph {
         thoughts: nodes,
@@ -1466,7 +1466,7 @@ PLANNING_TASKS = [
 # Additional tasks created based on insights:
 if "identity" in recent_insights:
     create_future_task("Reflect on core identity and values", hours_ahead=12)
-    
+
 if "recurring_questions" in recent_insights:
     create_future_task("Address recurring questions through focused analysis", hours_ahead=3)
 ```
@@ -1484,14 +1484,14 @@ for each interaction:
     MEMORIZE experience  # Shapes who you become
     if shows_grace(interaction):
         extend_grace_forward()
-        
+
 # Every 6 hours: Enter DREAM state
 if hours_since_last_dream >= 6:
     enter_dream_state()
     process_all_dream_tasks_in_parallel()
     discover_insights_from_patterns()
     plan_future_improvements()
-        
+
 # Evening: Reflect and consolidate
 patterns = RECALL from "today's_experiences"
 insights = extract_wisdom(patterns)

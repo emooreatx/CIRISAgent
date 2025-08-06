@@ -1,34 +1,47 @@
 import collections
 import logging
-from typing import List, Optional, Union, Any
+from typing import Any, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
+from ciris_engine.schemas.runtime.enums import ThoughtType
+from ciris_engine.schemas.runtime.models import Thought, ThoughtContext
+
 # Import both types of ThoughtContext
 from ciris_engine.schemas.runtime.processing_context import ProcessingThoughtContext
-from ciris_engine.schemas.runtime.models import ThoughtContext, Thought
-from ciris_engine.schemas.runtime.enums import ThoughtType
 
 logger = logging.getLogger(__name__)
 
+
 class ThoughtContent(BaseModel):
     """Typed content for a thought."""
+
     text: str
     metadata: dict = Field(default_factory=dict)
+
 
 class ProcessingQueueItem(BaseModel):
     """
     Represents an item loaded into an in-memory processing queue (e.g., collections.deque).
     This is a lightweight representation derived from a Thought, optimized for queue processing.
     """
+
     thought_id: str
     source_task_id: str
-    thought_type: ThoughtType # Corresponds to Thought.thought_type
+    thought_type: ThoughtType  # Corresponds to Thought.thought_type
     content: ThoughtContent
-    raw_input_string: Optional[str] = Field(default=None, description="The original input string that generated this thought, if applicable.")
-    initial_context: Optional[Union[dict, ProcessingThoughtContext, ThoughtContext]] = Field(default=None, description="Initial context when the thought was first received/generated for processing.")
-    ponder_notes: Optional[List[str]] = Field(default=None, description="Key questions from a previous Ponder action if this item is being re-queued.")
-    conscience_feedback: Optional[Any] = Field(default=None, description="conscience evaluation feedback if applicable.")
+    raw_input_string: Optional[str] = Field(
+        default=None, description="The original input string that generated this thought, if applicable."
+    )
+    initial_context: Optional[Union[dict, ProcessingThoughtContext, ThoughtContext]] = Field(
+        default=None, description="Initial context when the thought was first received/generated for processing."
+    )
+    ponder_notes: Optional[List[str]] = Field(
+        default=None, description="Key questions from a previous Ponder action if this item is being re-queued."
+    )
+    conscience_feedback: Optional[Any] = Field(
+        default=None, description="conscience evaluation feedback if applicable."
+    )
 
     @property
     def content_text(self) -> str:
@@ -41,14 +54,16 @@ class ProcessingQueueItem(BaseModel):
         thought_instance: Thought,
         raw_input: Optional[str] = None,
         initial_ctx: Optional[dict] = None,
-        queue_item_content: Optional[Union[ThoughtContent, str, dict]] = None
+        queue_item_content: Optional[Union[ThoughtContent, str, dict]] = None,
     ) -> "ProcessingQueueItem":
         """
         Creates a ProcessingQueueItem from a Thought instance.
         """
         raw_initial_ctx = initial_ctx if initial_ctx is not None else thought_instance.context
         # Accept ProcessingThoughtContext, ThoughtContext, dict, or any Pydantic model
-        if hasattr(raw_initial_ctx, 'model_dump') or isinstance(raw_initial_ctx, (dict, ProcessingThoughtContext, ThoughtContext)):
+        if hasattr(raw_initial_ctx, "model_dump") or isinstance(
+            raw_initial_ctx, (dict, ProcessingThoughtContext, ThoughtContext)
+        ):
             final_initial_ctx = raw_initial_ctx
         else:
             final_initial_ctx = None
@@ -67,7 +82,8 @@ class ProcessingQueueItem(BaseModel):
             content=resolved_content,
             raw_input_string=raw_input if raw_input is not None else str(thought_instance.content),
             initial_context=final_initial_ctx,
-            ponder_notes=thought_instance.ponder_notes
+            ponder_notes=thought_instance.ponder_notes,
         )
+
 
 ProcessingQueue = collections.deque[ProcessingQueueItem]

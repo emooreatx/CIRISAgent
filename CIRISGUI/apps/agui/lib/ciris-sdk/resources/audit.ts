@@ -44,7 +44,7 @@ export class AuditResource extends BaseResource {
     user_id?: string;
   }): Promise<PaginatedResponse<AuditEntry>> {
     const response = await this.transport.get<{ entries: AuditEntry[] }>('/v1/audit/entries', params);
-    
+
     // Transform the response to match PaginatedResponse interface
     return {
       items: response.entries || [],

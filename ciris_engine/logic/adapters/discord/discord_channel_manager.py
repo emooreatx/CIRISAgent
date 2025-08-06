@@ -1,12 +1,15 @@
 """Discord channel management component for client and channel operations."""
-import discord
+
 import logging
-from typing import Awaitable, Callable, Optional, Any
+from typing import Any, Awaitable, Callable, Optional
+
+import discord
 from discord.errors import Forbidden, NotFound
 
 from ciris_engine.schemas.runtime.messages import DiscordMessage
 
 logger = logging.getLogger(__name__)
+
 
 class DiscordChannelManager:
     """Handles Discord client management and channel operations."""
@@ -15,7 +18,7 @@ class DiscordChannelManager:
         self,
         token: str,
         client: Optional[discord.Client] = None,
-        on_message_callback: Optional[Callable[[DiscordMessage], Awaitable[None]]] = None
+        on_message_callback: Optional[Callable[[DiscordMessage], Awaitable[None]]] = None,
     ) -> None:
         """Initialize the channel manager.
 
@@ -91,7 +94,7 @@ class DiscordChannelManager:
         if not channel:
             return False
 
-        if not hasattr(channel, 'send'):
+        if not hasattr(channel, "send"):
             logger.warning(f"Channel {channel_id} does not support sending messages")
             return False
 
@@ -124,7 +127,7 @@ class DiscordChannelManager:
             return False
 
         try:
-            if hasattr(self.client, 'wait_until_ready'):
+            if hasattr(self.client, "wait_until_ready"):
                 await self.client.wait_until_ready()
                 return True
             return self.is_client_ready()
@@ -142,9 +145,9 @@ class DiscordChannelManager:
             return
 
         # Format channel_id as discord_guildid_channelid for proper routing
-        guild_id = str(message.guild.id) if hasattr(message, 'guild') and message.guild else "dm"
+        guild_id = str(message.guild.id) if hasattr(message, "guild") and message.guild else "dm"
         channel_id = f"discord_{guild_id}_{message.channel.id}"
-        
+
         incoming = DiscordMessage(
             message_id=str(message.id),
             content=message.content,
@@ -152,21 +155,26 @@ class DiscordChannelManager:
             author_name=message.author.display_name,
             channel_id=channel_id,
             is_bot=message.author.bot,
-            is_dm=getattr(getattr(message.channel, '__class__', None), '__name__', '') == 'DMChannel',
-            raw_message=message
+            is_dm=getattr(getattr(message.channel, "__class__", None), "__name__", "") == "DMChannel",
+            raw_message=message,
         )
 
         # Create an "observe" correlation for this incoming message
         try:
-            from ciris_engine.logic import persistence
-            from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus
-            from ciris_engine.schemas.telemetry.core import ServiceRequestData, ServiceResponseData
-            from datetime import datetime, timezone
             import uuid
-            
+            from datetime import datetime, timezone
+
+            from ciris_engine.logic import persistence
+            from ciris_engine.schemas.telemetry.core import (
+                ServiceCorrelation,
+                ServiceCorrelationStatus,
+                ServiceRequestData,
+                ServiceResponseData,
+            )
+
             now = datetime.now(timezone.utc)
             correlation_id = str(uuid.uuid4())
-            
+
             correlation = ServiceCorrelation(
                 correlation_id=correlation_id,
                 service_type="discord",
@@ -180,22 +188,19 @@ class DiscordChannelManager:
                         "content": message.content,
                         "author_id": str(message.author.id),
                         "author_name": message.author.display_name,
-                        "message_id": str(message.id)
+                        "message_id": str(message.id),
                     },
-                    request_timestamp=now
+                    request_timestamp=now,
                 ),
                 response_data=ServiceResponseData(
-                    success=True,
-                    result_summary="Message observed",
-                    execution_time_ms=0,
-                    response_timestamp=now
+                    success=True, result_summary="Message observed", execution_time_ms=0, response_timestamp=now
                 ),
                 status=ServiceCorrelationStatus.COMPLETED,
                 created_at=now,
                 updated_at=now,
-                timestamp=now
+                timestamp=now,
             )
-            
+
             persistence.add_correlation(correlation, None)  # Discord doesn't have time_service
             logger.debug(f"Created observe correlation for Discord message {message.id}")
         except Exception as e:
@@ -229,8 +234,8 @@ class DiscordChannelManager:
             return {
                 "status": "ready" if not self.client.is_closed() else "closed",
                 "user": str(self.client.user) if self.client.user else None,
-                "guilds": len(self.client.guilds) if hasattr(self.client, 'guilds') else 0,
-                "latency": getattr(self.client, 'latency', None)
+                "guilds": len(self.client.guilds) if hasattr(self.client, "guilds") else 0,
+                "latency": getattr(self.client, "latency", None),
             }
         except Exception as e:
             logger.exception(f"Error getting client info: {e}")
@@ -254,15 +259,15 @@ class DiscordChannelManager:
                 "exists": True,
                 "accessible": True,
                 "type": type(channel).__name__,
-                "can_send": hasattr(channel, 'send'),
-                "can_read_history": hasattr(channel, 'history')
+                "can_send": hasattr(channel, "send"),
+                "can_read_history": hasattr(channel, "history"),
             }
 
-            if hasattr(channel, 'guild') and channel.guild:
+            if hasattr(channel, "guild") and channel.guild:
                 info["guild_name"] = channel.guild.name
                 info["guild_id"] = str(channel.guild.id)
 
-            if hasattr(channel, 'name'):
+            if hasattr(channel, "name"):
                 info["name"] = channel.name
 
             return info

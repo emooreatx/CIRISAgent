@@ -7,58 +7,40 @@ No backwards compatibility is guaranteed.
 """
 
 from .client import CIRISClient
-from .websocket import WebSocketClient, EventChannel
-from .resources.agent import (
-    InteractResponse,
-    AgentStatus,
-    AgentIdentity,
-    ConversationHistory,
-    ConversationMessage
+from .models import (  # Legacy models; Telemetry models; Other models
+    AdapterInfo,
+    AuditEntriesResponse,
+    AuditEntryResponse,
+    AuditExportResponse,
+    DeferralInfo,
+    MemoryEntry,
+    MemoryOpResult,
+    MemoryScope,
+    Message,
+    MetricRecord,
+    ProcessorControlResponse,
+    ProcessorState,
+    RuntimeStatus,
+    ServiceInfo,
+    SystemHealth,
+    TelemetryDetailedMetric,
+    TelemetryLogEntry,
+    TelemetryMetricData,
+    TelemetryReasoningTrace,
+    TelemetrySystemOverview,
 )
-from .resources.memory import (
-    GraphNode,
-    MemoryStoreResponse,
-    MemoryQueryResponse,
-    TimelineResponse
-)
+from .resources.agent import AgentIdentity, AgentStatus, ConversationHistory, ConversationMessage, InteractResponse
+from .resources.emergency import EmergencyCommandType, EmergencyShutdownResponse, WASignedCommand
+from .resources.memory import GraphNode, MemoryQueryResponse, MemoryStoreResponse, TimelineResponse
 from .resources.system import (
-    SystemHealthResponse,
-    SystemTimeResponse,
     ResourceUsageResponse,
     RuntimeControlResponse,
     ServicesStatusResponse,
-    ShutdownResponse
+    ShutdownResponse,
+    SystemHealthResponse,
+    SystemTimeResponse,
 )
-from .resources.emergency import (
-    EmergencyShutdownResponse,
-    WASignedCommand,
-    EmergencyCommandType
-)
-from .models import (
-    # Legacy models
-    MemoryEntry,
-    MemoryScope,
-    MemoryOpResult,
-    # Telemetry models
-    TelemetryMetricData,
-    TelemetryDetailedMetric,
-    TelemetrySystemOverview,
-    TelemetryReasoningTrace,
-    TelemetryLogEntry,
-    # Other models
-    Message,
-    ProcessorControlResponse,
-    AdapterInfo,
-    RuntimeStatus,
-    SystemHealth,
-    ServiceInfo,
-    ProcessorState,
-    MetricRecord,
-    DeferralInfo,
-    AuditEntryResponse,
-    AuditEntriesResponse,
-    AuditExportResponse
-)
+from .websocket import EventChannel, WebSocketClient
 
 __all__ = [
     "CIRISClient",
@@ -108,7 +90,7 @@ __all__ = [
     "DeferralInfo",
     "AuditEntryResponse",
     "AuditEntriesResponse",
-    "AuditExportResponse"
+    "AuditExportResponse",
 ]
 
 # Version indicator for v1 API

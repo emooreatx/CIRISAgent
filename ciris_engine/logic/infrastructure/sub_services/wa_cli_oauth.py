@@ -1,33 +1,34 @@
 """WA CLI OAuth Service - Handles OAuth provider configuration and authentication."""
 
-import json
-import secrets
-import webbrowser
 import asyncio
 import http.server
+import json
+import logging
+import secrets
 import socketserver
 import urllib.parse
+import webbrowser
 from pathlib import Path
-from typing import Optional, TYPE_CHECKING
 from threading import Thread
+from typing import TYPE_CHECKING, Optional
 
 from rich.console import Console
 
-from ciris_engine.schemas.services.authority_core import (
-    WACertificate, WARole, TokenType
-)
 from ciris_engine.logic.services.infrastructure.authentication import AuthenticationService
 from ciris_engine.schemas.infrastructure.oauth import (
-    OAuthOperationResult, OAuthLoginResult, OAuthCallbackData,
-    OAuthTokenResponse, OAuthUserInfo
+    OAuthCallbackData,
+    OAuthLoginResult,
+    OAuthOperationResult,
+    OAuthTokenResponse,
+    OAuthUserInfo,
 )
-
-import logging
+from ciris_engine.schemas.services.authority_core import WACertificate, WARole
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
+
 
 class WACLIOAuthService:
     """Handles OAuth provider configuration and authentication flows."""
@@ -49,11 +50,7 @@ class WACLIOAuthService:
         self._oauth_server_running = False
 
     async def oauth_setup(
-        self,
-        provider: str,
-        client_id: str,
-        client_secret: str,
-        custom_metadata: Optional[dict] = None
+        self, provider: str, client_id: str, client_secret: str, custom_metadata: Optional[dict] = None
     ) -> OAuthOperationResult:
         """Configure OAuth provider."""
         try:
@@ -66,7 +63,7 @@ class WACLIOAuthService:
             config[provider] = {
                 "client_id": client_id,
                 "client_secret": client_secret,
-                "created": self.time_service.now().isoformat()
+                "created": self.time_service.now().isoformat(),
             }
 
             if custom_metadata:
@@ -84,18 +81,11 @@ class WACLIOAuthService:
             self.console.print(f"🔗 Callback URL: [bold]{callback_url}[/bold]")
             self.console.print(f"\nRun [bold]ciris wa oauth-login {provider}[/bold] to authenticate.")
 
-            return OAuthOperationResult(
-                status="success",
-                provider=provider,
-                callback_url=callback_url
-            )
+            return OAuthOperationResult(status="success", provider=provider, callback_url=callback_url)
 
         except Exception as e:
             self.console.print(f"❌ Error configuring OAuth: {e}")
-            return OAuthOperationResult(
-                status="error",
-                error=str(e)
-            )
+            return OAuthOperationResult(status="error", error=str(e))
 
     async def oauth_login(self, provider: str) -> OAuthLoginResult:
         """Initiate OAuth login flow."""
@@ -158,17 +148,10 @@ class WACLIOAuthService:
 
         except Exception as e:
             self.console.print(f"❌ OAuth login error: {e}")
-            return OAuthLoginResult(
-                status="error",
-                provider=provider,
-                error=str(e)
-            )
+            return OAuthLoginResult(status="error", provider=provider, error=str(e))
 
     async def _exchange_oauth_code(
-        self,
-        provider: str,
-        callback_data: OAuthCallbackData,
-        provider_config: dict
+        self, provider: str, callback_data: OAuthCallbackData, provider_config: dict
     ) -> OAuthLoginResult:
         """Exchange OAuth code for token and create WA."""
 
@@ -185,44 +168,30 @@ class WACLIOAuthService:
                 raise ValueError("No authorization code received")
 
             # Exchange code for token based on provider
-            token_data = await self._exchange_code_for_token(
-                provider, code, provider_config
-            )
+            token_data = await self._exchange_code_for_token(provider, code, provider_config)
 
             # Fetch user profile
-            user_profile = await self._fetch_user_profile(
-                provider, token_data.access_token
-            )
+            user_profile = await self._fetch_user_profile(provider, token_data.access_token)
 
             # Create or update WA certificate
-            wa_cert = await self._create_oauth_wa(
-                provider, user_profile, token_data
-            )
+            wa_cert = await self._create_oauth_wa(provider, user_profile, token_data)
 
             # Generate session JWT
-            token = self.auth_service.create_gateway_token(
-                wa=wa_cert,
-                expires_hours=24
-            )
+            token = self.auth_service.create_gateway_token(wa=wa_cert, expires_hours=24)
 
             return OAuthLoginResult(
                 status="success",
                 provider=provider,
                 auth_url=None,
                 certificate={"wa_id": wa_cert.wa_id, "token": token, "scopes": json.loads(wa_cert.scopes_json)},
-                error=None
+                error=None,
             )
 
         except Exception as e:
             logger.error(f"OAuth exchange error: {e}")
             raise
 
-    async def _exchange_code_for_token(
-        self,
-        provider: str,
-        code: str,
-        provider_config: dict
-    ) -> OAuthTokenResponse:
+    async def _exchange_code_for_token(self, provider: str, code: str, provider_config: dict) -> OAuthTokenResponse:
         """Exchange authorization code for access token."""
         import aiohttp
 
@@ -230,7 +199,7 @@ class WACLIOAuthService:
         token_endpoints = {
             "google": "https://oauth2.googleapis.com/token",
             "discord": "https://discord.com/api/oauth2/token",
-            "github": "https://github.com/login/oauth/access_token"
+            "github": "https://github.com/login/oauth/access_token",
         }
 
         if provider not in token_endpoints:
@@ -240,17 +209,15 @@ class WACLIOAuthService:
         token_request_data = {
             "grant_type": "authorization_code",
             "code": code,
-            "client_id": provider_config['client_id'],
-            "client_secret": provider_config['client_secret'],
-            "redirect_uri": "http://localhost:8080/callback"
+            "client_id": provider_config["client_id"],
+            "client_secret": provider_config["client_secret"],
+            "redirect_uri": "http://localhost:8080/callback",
         }
 
         # Make token request
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                token_endpoints[provider],
-                data=token_request_data,
-                headers={"Accept": "application/json"}
+                token_endpoints[provider], data=token_request_data, headers={"Accept": "application/json"}
             ) as resp:
                 if resp.status != 200:
                     error = await resp.text()
@@ -258,19 +225,15 @@ class WACLIOAuthService:
 
                 token_json = await resp.json()
                 token_data = OAuthTokenResponse(
-                    access_token=token_json['access_token'],
-                    token_type=token_json.get('token_type', 'Bearer'),
-                    expires_in=token_json.get('expires_in'),
-                    refresh_token=token_json.get('refresh_token'),
-                    scope=token_json.get('scope')
+                    access_token=token_json["access_token"],
+                    token_type=token_json.get("token_type", "Bearer"),
+                    expires_in=token_json.get("expires_in"),
+                    refresh_token=token_json.get("refresh_token"),
+                    scope=token_json.get("scope"),
                 )
                 return token_data
 
-    async def _fetch_user_profile(
-        self,
-        provider: str,
-        access_token: str
-    ) -> OAuthUserInfo:
+    async def _fetch_user_profile(self, provider: str, access_token: str) -> OAuthUserInfo:
         """Fetch user profile from OAuth provider."""
         import aiohttp
 
@@ -278,7 +241,7 @@ class WACLIOAuthService:
         user_endpoints = {
             "google": "https://www.googleapis.com/oauth2/v2/userinfo",
             "discord": "https://discord.com/api/users/@me",
-            "github": "https://api.github.com/user"
+            "github": "https://api.github.com/user",
         }
 
         if provider not in user_endpoints:
@@ -287,8 +250,7 @@ class WACLIOAuthService:
         # Fetch user info
         async with aiohttp.ClientSession() as session:
             async with session.get(
-                user_endpoints[provider],
-                headers={"Authorization": f"Bearer {access_token}"}
+                user_endpoints[provider], headers={"Authorization": f"Bearer {access_token}"}
             ) as resp:
                 if resp.status != 200:
                     error = await resp.text()
@@ -303,7 +265,7 @@ class WACLIOAuthService:
                         email=profile.get("email"),
                         name=profile.get("name"),
                         picture=profile.get("picture"),
-                        provider_data=profile
+                        provider_data=profile,
                     )
                 elif provider == "discord":
                     return OAuthUserInfo(
@@ -313,8 +275,8 @@ class WACLIOAuthService:
                         provider_data={
                             "discriminator": profile.get("discriminator"),
                             "avatar": profile.get("avatar"),
-                            **profile
-                        }
+                            **profile,
+                        },
                     )
                 elif provider == "github":
                     return OAuthUserInfo(
@@ -322,10 +284,7 @@ class WACLIOAuthService:
                         email=profile.get("email"),
                         name=profile.get("name") or profile.get("login"),
                         picture=profile.get("avatar_url"),
-                        provider_data={
-                            "login": profile.get("login"),
-                            **profile
-                        }
+                        provider_data={"login": profile.get("login"), **profile},
                     )
 
                 # Return raw profile for unhandled providers
@@ -333,21 +292,15 @@ class WACLIOAuthService:
                     id=str(profile.get("id", "")),
                     email=profile.get("email"),
                     name=profile.get("name"),
-                    provider_data=profile
+                    provider_data=profile,
                 )
 
     async def _create_oauth_wa(
-        self,
-        provider: str,
-        user_profile: OAuthUserInfo,
-        token_data: OAuthTokenResponse
+        self, provider: str, user_profile: OAuthUserInfo, token_data: OAuthTokenResponse
     ) -> WACertificate:
         """Create or update WA certificate for OAuth user."""
         # Check if WA already exists for this OAuth user
-        existing_wa = await self.auth_service.get_wa_by_oauth(
-            provider=provider,
-            external_id=user_profile.id
-        )
+        existing_wa = await self.auth_service.get_wa_by_oauth(provider=provider, external_id=user_profile.id)
 
         if existing_wa:
             # Update last auth
@@ -361,7 +314,7 @@ class WACLIOAuthService:
         jwt_kid = f"wa-jwt-oauth-{wa_id[-6:].lower()}"
 
         # Determine display name
-        display_name = user_profile.name or (user_profile.email or '').split('@')[0]
+        display_name = user_profile.name or (user_profile.email or "").split("@")[0]
         if not display_name:
             display_name = f"{provider}_user_{user_profile.id[:8]}"
 
@@ -377,7 +330,7 @@ class WACLIOAuthService:
             auto_minted=True,
             scopes_json='["read:any", "write:message"]',
             created_at=timestamp,
-            last_auth=timestamp
+            last_auth=timestamp,
         )
 
         # Note: Discord ID is stored in oauth_external_id for OAuth users
@@ -407,7 +360,7 @@ class WACLIOAuthService:
                     self.oauth_service._oauth_callback_data = OAuthCallbackData(
                         code=params.get("code", [None])[0] or "",
                         state=params.get("state", [None])[0] or "",
-                        error=params.get("error", [None])[0]
+                        error=params.get("error", [None])[0],
                     )
 
                     # Send response

@@ -38,7 +38,7 @@ export function UserDetailsModal({ user, onClose, onPasswordChange, onMintWA, on
 
   const handleDeactivate = async () => {
     if (!confirm('Are you sure you want to deactivate this user?')) return;
-    
+
     try {
       setUpdating(true);
       setError(null);
@@ -90,7 +90,7 @@ export function UserDetailsModal({ user, onClose, onPasswordChange, onMintWA, on
                       <XMarkIcon size="lg" className="text-gray-400" />
                     </button>
                   </div>
-                  
+
                   <div>
                     <Dialog.Title as="h3" className="text-lg font-medium leading-6 text-gray-900 mb-4">
                       User Details
@@ -257,7 +257,7 @@ export function UserDetailsModal({ user, onClose, onPasswordChange, onMintWA, on
                               Change Password
                             </button>
                           )}
-                          
+
                           {hasRole('SYSTEM_ADMIN') && user.is_active && (
                             <button
                               onClick={handleDeactivate}

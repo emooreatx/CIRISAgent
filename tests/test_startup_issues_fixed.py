@@ -15,19 +15,18 @@ import asyncio
 import os
 import sys
 import tempfile
-import shutil
-from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
-from ciris_engine.schemas.config.essential import EssentialConfig
-from ciris_engine.logic.utils.shutdown_manager import request_global_shutdown
 import logging
 
+from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+from ciris_engine.logic.utils.shutdown_manager import request_global_shutdown
+from ciris_engine.schemas.config.essential import EssentialConfig
+
 # Set up logging to see what's happening
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -50,7 +49,7 @@ async def test_startup_and_shutdown():
                 template="datum",
                 mock_llm=True,  # Use mock LLM for testing
                 host="0.0.0.0",
-                port=8080
+                port=8080,
             )
 
             logger.info("Initializing runtime...")
@@ -65,6 +64,7 @@ async def test_startup_and_shutdown():
 
             # Verify TimeService is in registry
             from ciris_engine.schemas.runtime.enums import ServiceType
+
             time_providers = runtime.service_registry.get_providers(ServiceType.TIME)
             assert len(time_providers) > 0, "TimeService not found in registry"
             logger.info("✓ TimeService registered in ServiceRegistry")
@@ -77,7 +77,7 @@ async def test_startup_and_shutdown():
 
             # Test identity was stored and retrieved
             assert runtime.agent_identity is not None, "Agent identity not loaded"
-            assert hasattr(runtime.agent_identity, 'agent_id'), "Agent identity missing agent_id"
+            assert hasattr(runtime.agent_identity, "agent_id"), "Agent identity missing agent_id"
             logger.info(f"✓ Identity loaded successfully: {runtime.agent_identity.agent_id}")
 
             # Trigger shutdown to test shutdown sequence

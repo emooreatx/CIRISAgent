@@ -4,21 +4,18 @@ Schemas for Time Service.
 Provides configuration and data structures for time operations.
 """
 
-from pydantic import BaseModel, Field
-from typing import Optional
 from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
 
 class TimeServiceConfig(BaseModel):
     """Configuration for Time Service."""
 
-    enable_mocking: bool = Field(
-        default=True,
-        description="Whether to allow time mocking for tests"
-    )
-    default_timezone: str = Field(
-        default="UTC",
-        description="Default timezone (always UTC for CIRIS)"
-    )
+    enable_mocking: bool = Field(default=True, description="Whether to allow time mocking for tests")
+    default_timezone: str = Field(default="UTC", description="Default timezone (always UTC for CIRIS)")
+
 
 class TimeSnapshot(BaseModel):
     """A snapshot of time information."""
@@ -28,6 +25,7 @@ class TimeSnapshot(BaseModel):
     current_timestamp: float = Field(..., description="Current Unix timestamp")
     is_mocked: bool = Field(..., description="Whether time is mocked")
     mock_time: Optional[datetime] = Field(None, description="Mock time if set")
+
 
 class TimeServiceStatus(BaseModel):
     """Extended status for Time Service."""

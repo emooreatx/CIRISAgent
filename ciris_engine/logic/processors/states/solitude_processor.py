@@ -1,25 +1,30 @@
 """
 Solitude processor for minimal processing and reflection state.
 """
+
 import logging
-from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
-from ciris_engine.schemas.processors.states import AgentState
-from ciris_engine.schemas.processors.results import SolitudeResult
-from ciris_engine.schemas.processors.solitude import (
-    ReflectionData, MaintenanceResult, TaskTypePattern,
-    ReflectionResult, ExitConditions
-)
-from ciris_engine.schemas.processors.status import ProcessorInfo, SolitudeStats
-from ciris_engine.schemas.runtime.enums import TaskStatus
 from ciris_engine.logic import persistence
-
 from ciris_engine.logic.processors.core.base_processor import BaseProcessor
+
 # ServiceProtocol import removed - processors aren't services
 from ciris_engine.logic.registries.base import ServiceRegistry
+from ciris_engine.schemas.processors.results import SolitudeResult
+from ciris_engine.schemas.processors.solitude import (
+    ExitConditions,
+    MaintenanceResult,
+    ReflectionData,
+    ReflectionResult,
+    TaskTypePattern,
+)
+from ciris_engine.schemas.processors.states import AgentState
+from ciris_engine.schemas.processors.status import ProcessorInfo, SolitudeStats
+from ciris_engine.schemas.runtime.enums import TaskStatus
 
 logger = logging.getLogger(__name__)
+
 
 class SolitudeProcessor(BaseProcessor):
     """
@@ -46,8 +51,8 @@ class SolitudeProcessor(BaseProcessor):
         self._time_service: Optional[Any] = None
 
         # Initialize time service if service registry is available
-        if hasattr(self, 'services') and isinstance(self.services, dict) and 'service_registry' in self.services:
-            self._initialize_time_service(self.services['service_registry'])
+        if hasattr(self, "services") and isinstance(self.services, dict) and "service_registry" in self.services:
+            self._initialize_time_service(self.services["service_registry"])
 
     def get_supported_states(self) -> List[AgentState]:
         """Solitude processor only handles SOLITUDE state."""
@@ -65,7 +70,7 @@ class SolitudeProcessor(BaseProcessor):
         logger.info(f"Solitude round {round_number}: Minimal processing mode")
 
         # Log why we're in solitude if this is the first round
-        if round_number == 0 and hasattr(self, 'solitude_reason') and self.solitude_reason:
+        if round_number == 0 and hasattr(self, "solitude_reason") and self.solitude_reason:
             logger.info(f"Solitude: {self.solitude_reason}")
         else:
             logger.debug(f"Solitude round {round_number}: Minimal processing mode")
@@ -81,11 +86,7 @@ class SolitudeProcessor(BaseProcessor):
                 if self._ready_to_exit_solitude():
                     logger.info(f"Found {critical_count} critical tasks - exiting solitude")
                     duration = (self.time_service.now() - start_time).total_seconds()
-                    return SolitudeResult(
-                        thoughts_processed=0,
-                        errors=0,
-                        duration_seconds=duration
-                    )
+                    return SolitudeResult(thoughts_processed=0, errors=0, duration_seconds=duration)
                 else:
                     logger.info(f"Found {critical_count} critical tasks but need more solitude time")
                     # Continue in solitude despite critical tasks
@@ -99,19 +100,11 @@ class SolitudeProcessor(BaseProcessor):
             logger.error(f"Error in solitude round {round_number}: {e}", exc_info=True)
             self.metrics.errors += 1
             duration = (self.time_service.now() - start_time).total_seconds()
-            return SolitudeResult(
-                thoughts_processed=0,
-                errors=1,
-                duration_seconds=duration
-            )
+            return SolitudeResult(thoughts_processed=0, errors=1, duration_seconds=duration)
 
         # No critical tasks, stay in solitude
         duration = (self.time_service.now() - start_time).total_seconds()
-        return SolitudeResult(
-            thoughts_processed=0,
-            errors=0,
-            duration_seconds=duration
-        )
+        return SolitudeResult(thoughts_processed=0, errors=0, duration_seconds=duration)
 
     def _check_critical_tasks(self) -> int:
         """Check for critical tasks that require immediate attention."""
@@ -122,10 +115,7 @@ class SolitudeProcessor(BaseProcessor):
         for task in pending_tasks:
             if task.priority >= self.critical_priority_threshold:
                 critical_count += 1
-                logger.info(
-                    f"Critical task found: {task.task_id} "
-                    f"(Priority: {task.priority}) - {task.description}"
-                )
+                logger.info(f"Critical task found: {task.task_id} " f"(Priority: {task.priority}) - {task.description}")
 
         return critical_count
 
@@ -183,11 +173,7 @@ class SolitudeProcessor(BaseProcessor):
             if task_types:
                 most_common = max(task_types.items(), key=lambda x: x[1])
                 reflection_result.patterns_identified.append(
-                    TaskTypePattern(
-                        pattern="most_common_task_type",
-                        value=most_common[0],
-                        count=most_common[1]
-                    )
+                    TaskTypePattern(pattern="most_common_task_type", value=most_common[0], count=most_common[1])
                 )
 
             self.reflection_data.tasks_reviewed += len(recent_completed)
@@ -209,9 +195,8 @@ class SolitudeProcessor(BaseProcessor):
         """
         conditions = ExitConditions()
 
-
         state_duration = 0
-        if hasattr(self, 'state_manager'):
+        if hasattr(self, "state_manager"):
             state_duration = self.state_manager.get_state_duration()
 
         if state_duration > 1800:
@@ -225,13 +210,12 @@ class SolitudeProcessor(BaseProcessor):
             conditions.reason = f"Accumulated {pending_count} pending tasks"
             return conditions
 
-
         return conditions
-
 
     async def start_processing(self, num_rounds: Optional[int] = None) -> None:
         """Start the solitude processing loop."""
         import asyncio
+
         round_num = 0
         self._running = True
 
@@ -257,20 +241,20 @@ class SolitudeProcessor(BaseProcessor):
             reflection_data=self.reflection_data,
             critical_threshold=self.critical_priority_threshold,
             total_rounds=self.metrics.rounds_completed,
-            cleanup_performed=self.reflection_data.cleanup_performed
+            cleanup_performed=self.reflection_data.cleanup_performed,
         )
         return ProcessorInfo(
             processor_type="solitude",
             supported_states=[state.value for state in self.get_supported_states()],
-            is_running=getattr(self, '_running', False),
+            is_running=getattr(self, "_running", False),
             solitude_stats=solitude_stats,
             metrics=self.metrics,
-            critical_threshold=self.critical_priority_threshold
+            critical_threshold=self.critical_priority_threshold,
         )
 
     def _ready_to_exit_solitude(self) -> bool:
         """Check if agent has had enough solitude time."""
-        if not hasattr(self, 'solitude_start_time') or not self.solitude_start_time:
+        if not hasattr(self, "solitude_start_time") or not self.solitude_start_time:
             return True  # No start time tracked, can exit
 
         # Minimum solitude duration based on reason
@@ -280,16 +264,20 @@ class SolitudeProcessor(BaseProcessor):
             "boundary_setting": 15,
             "self_care": 10,
             "user_requested": 5,
-        }.get(str(getattr(self, 'solitude_reason', None)), 5)
+        }.get(str(getattr(self, "solitude_reason", None)), 5)
 
-        duration = ((self._time_service.now() if self._time_service else datetime.now(timezone.utc)) - self.solitude_start_time).total_seconds() / 60
+        duration = (
+            (self._time_service.now() if self._time_service else datetime.now(timezone.utc)) - self.solitude_start_time
+        ).total_seconds() / 60
         return duration >= min_duration_minutes
 
     def _get_solitude_duration_minutes(self) -> float:
         """Get how long we've been in solitude."""
-        if not hasattr(self, 'solitude_start_time') or not self.solitude_start_time:
+        if not hasattr(self, "solitude_start_time") or not self.solitude_start_time:
             return 0.0
-        return ((self._time_service.now() if self._time_service else datetime.now(timezone.utc)) - self.solitude_start_time).total_seconds() / 60
+        return (
+            (self._time_service.now() if self._time_service else datetime.now(timezone.utc)) - self.solitude_start_time
+        ).total_seconds() / 60
 
     def set_solitude_reason(self, reason: str) -> None:
         """Set why the agent entered solitude."""
@@ -301,6 +289,7 @@ class SolitudeProcessor(BaseProcessor):
         """Initialize time service from registry."""
         try:
             from ciris_engine.schemas.runtime.enums import ServiceType
+
             # Get time service synchronously
             services = service_registry.get_services_by_type(ServiceType.TIME)
             if services:
@@ -309,4 +298,3 @@ class SolitudeProcessor(BaseProcessor):
                 logger.warning("TimeService not found in registry, time operations may fail")
         except Exception as e:
             logger.error(f"Failed to get TimeService: {e}")
-

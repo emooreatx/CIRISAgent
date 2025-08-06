@@ -1,9 +1,11 @@
 """Discord thread management for organized conversations."""
-import discord
+
 import logging
-from typing import Dict, Optional, List, Any, TYPE_CHECKING
 from datetime import timedelta
 from enum import Enum
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+import discord
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
@@ -13,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 class ThreadType(Enum):
     """Types of threads for different conversations."""
+
     GUIDANCE = "guidance"
     DEFERRAL = "deferral"
     APPROVAL = "approval"
@@ -24,9 +27,12 @@ class ThreadType(Enum):
 class DiscordThreadManager:
     """Manages Discord threads for conversation organization."""
 
-    def __init__(self, client: Optional[discord.Client] = None,
-                 time_service: Optional["TimeServiceProtocol"] = None,
-                 auto_archive_duration: int = 1440):  # 24 hours
+    def __init__(
+        self,
+        client: Optional[discord.Client] = None,
+        time_service: Optional["TimeServiceProtocol"] = None,
+        auto_archive_duration: int = 1440,
+    ):  # 24 hours
         """Initialize thread manager.
 
         Args:
@@ -45,6 +51,7 @@ class DiscordThreadManager:
         # Ensure we have a time service
         if time_service is None:
             from ciris_engine.logic.services.lifecycle.time import TimeService
+
             self._time_service = TimeService()
         else:
             self._time_service = time_service
@@ -57,10 +64,14 @@ class DiscordThreadManager:
         """
         self.client = client
 
-    async def create_thread(self, channel_id: str, name: str,
-                          thread_type: ThreadType,
-                          initial_message: Optional[str] = None,
-                          metadata: Optional[Dict[str, Any]] = None) -> Optional[discord.Thread]:
+    async def create_thread(
+        self,
+        channel_id: str,
+        name: str,
+        thread_type: ThreadType,
+        initial_message: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Optional[discord.Thread]:
         """Create a new thread in a channel.
 
         Args:
@@ -95,15 +106,14 @@ class DiscordThreadManager:
                 # Send message first, then create thread from it
                 message = await channel.send(initial_message)
                 thread = await message.create_thread(
-                    name=thread_name,
-                    auto_archive_duration=self.auto_archive_duration  # type: ignore[arg-type]
+                    name=thread_name, auto_archive_duration=self.auto_archive_duration  # type: ignore[arg-type]
                 )
             else:
                 # Create thread directly
                 thread = await channel.create_thread(
                     name=thread_name,
                     auto_archive_duration=self.auto_archive_duration,  # type: ignore[arg-type]
-                    type=discord.ChannelType.public_thread
+                    type=discord.ChannelType.public_thread,
                 )
 
             # Track thread
@@ -116,7 +126,7 @@ class DiscordThreadManager:
                 "created_at": self._time_service.now(),
                 "parent_channel_id": channel_id,
                 "key": thread_key,
-                **(metadata or {})
+                **(metadata or {}),
             }
 
             logger.info(f"Created thread '{thread_name}' in channel {channel_id}")
@@ -126,9 +136,9 @@ class DiscordThreadManager:
             logger.exception(f"Failed to create thread: {e}")
             return None
 
-    async def get_or_create_thread(self, channel_id: str, name: str,
-                                 thread_type: ThreadType,
-                                 metadata: Optional[Dict[str, Any]] = None) -> Optional[discord.Thread]:
+    async def get_or_create_thread(
+        self, channel_id: str, name: str, thread_type: ThreadType, metadata: Optional[Dict[str, Any]] = None
+    ) -> Optional[discord.Thread]:
         """Get existing thread or create new one.
 
         Args:
@@ -168,8 +178,9 @@ class DiscordThreadManager:
         # Create new thread
         return await self.create_thread(channel_id, name, thread_type, metadata=metadata)
 
-    async def send_to_thread(self, thread: discord.Thread, content: Optional[str] = None,
-                           embed: Optional[discord.Embed] = None) -> Optional[discord.Message]:
+    async def send_to_thread(
+        self, thread: discord.Thread, content: Optional[str] = None, embed: Optional[discord.Embed] = None
+    ) -> Optional[discord.Message]:
         """Send a message to a thread.
 
         Args:
@@ -215,7 +226,7 @@ class DiscordThreadManager:
             name=thread_name,
             thread_type=ThreadType.GUIDANCE,
             initial_message=initial_msg,
-            metadata=context
+            metadata=context,
         )
 
     async def create_task_thread(self, channel_id: str, task: Dict[str, Any]) -> Optional[discord.Thread]:
@@ -243,7 +254,7 @@ class DiscordThreadManager:
             name=thread_name,
             thread_type=ThreadType.TASK,
             initial_message=initial_msg,
-            metadata=task
+            metadata=task,
         )
 
     async def archive_old_threads(self, hours: int = 24) -> int:

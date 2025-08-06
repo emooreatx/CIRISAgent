@@ -4,7 +4,7 @@ services:
   # Note: Nginx routing is handled by CIRISManager (separate repository)
   # For standalone deployment, agents are accessed directly
   # For managed deployment, CIRISManager provides nginx routing
-  
+
   # Development: Single Datum agent with Mock LLM for testing
   agent-datum:
     image: ghcr.io/cirisai/ciris-agent:latest

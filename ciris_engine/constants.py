@@ -1,11 +1,13 @@
 """Central constants for CIRIS."""
+
 from pathlib import Path
 
 # Version information
-CIRIS_VERSION = "1.0.4-beta"
+CIRIS_VERSION = "1.1.0-beta"
 CIRIS_VERSION_MAJOR = 1
-CIRIS_VERSION_MINOR = 0
-CIRIS_VERSION_PATCH = 4
+CIRIS_VERSION_MINOR = 1
+CIRIS_VERSION_PATCH = 0
+CIRIS_VERSION_BUILD = 0  # Build number for incremental improvements
 CIRIS_VERSION_STAGE = "beta"
 CIRIS_CODENAME = "Graceful Guardian"  # Codename for this release
 
@@ -14,7 +16,7 @@ DEFAULT_WA = "CIRIS"
 DEFAULT_TEMPLATE = "default"
 DEFAULT_TEMPLATE_PATH = Path("ciris_templates")
 
-# Model defaults  
+# Model defaults
 DEFAULT_OPENAI_MODEL_NAME = "gpt-4o-mini"
 
 # Prompt defaults
@@ -31,4 +33,4 @@ DEFAULT_API_HOST = "127.0.0.1"  # Secure default - localhost only
 DEFAULT_API_PORT = 8080
 
 # Timezone and datetime parsing constants
-UTC_TIMEZONE_SUFFIX = '+00:00'
+UTC_TIMEZONE_SUFFIX = "+00:00"

@@ -1,28 +1,12 @@
 """DMA decision schemas for contract-driven architecture."""
 
-from .decisions import (
-    PDMADecision,
-    CSDMADecision,
-    DSDMADecision,
-    ActionSelectionDecision,
-)
-from .faculty import (
-    FacultyContext,
-    FacultyResult,
-    FacultyEvaluationSet,
-    ConscienceFailureContext,
-    EnhancedDMAInputs,
-)
-from .prompts import (
-    PromptTemplate,
-    PromptCollection,
-    PromptVariable,
-    PromptMetadata,
-)
+from .decisions import ActionSelectionDecision, CSDMADecision, DSDMADecision, PDMADecision
+from .faculty import ConscienceFailureContext, EnhancedDMAInputs, FacultyContext, FacultyEvaluationSet, FacultyResult
+from .prompts import PromptCollection, PromptMetadata, PromptTemplate, PromptVariable
 
 __all__ = [
     "PDMADecision",
-    "CSDMADecision", 
+    "CSDMADecision",
     "DSDMADecision",
     "ActionSelectionDecision",
     "FacultyContext",

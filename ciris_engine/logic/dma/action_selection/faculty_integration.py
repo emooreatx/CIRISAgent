@@ -1,18 +1,20 @@
 """Faculty integration for Action Selection PDMA."""
 
 import logging
-from typing import Dict, Any, Optional
-from ciris_engine.schemas.runtime.models import Thought
-from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from typing import Any, Dict, Optional
+
+from ciris_engine.protocols.faculties import EpistemicFaculty
 from ciris_engine.schemas.dma.faculty import (
-    FacultyContext,
-    FacultyEvaluationSet,
     ConscienceFailureContext,
     EnhancedDMAInputs,
+    FacultyContext,
+    FacultyEvaluationSet,
 )
-from ciris_engine.protocols.faculties import EpistemicFaculty
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from ciris_engine.schemas.runtime.models import Thought
 
 logger = logging.getLogger(__name__)
+
 
 class FacultyIntegration:
     """Handles epistemic faculty integration for enhanced action selection."""
@@ -21,9 +23,7 @@ class FacultyIntegration:
         self.faculties = faculties
 
     async def apply_faculties_to_content(
-        self,
-        content: str,
-        context: Optional[FacultyContext] = None
+        self, content: str, context: Optional[FacultyContext] = None
     ) -> FacultyEvaluationSet:
         """Apply available epistemic faculties to content - consolidated approach."""
         results = FacultyEvaluationSet()
@@ -31,21 +31,21 @@ class FacultyIntegration:
         # Group 1: Content Analysis Faculties (entropy, coherence)
         # These analyze the output content and need minimal context
         content_faculties = {
-            name: faculty for name, faculty in self.faculties.items()
-            if name in ["entropy", "coherence"]
+            name: faculty for name, faculty in self.faculties.items() if name in ["entropy", "coherence"]
         }
 
         # Group 2: Decision Analysis Faculties (optimization_veto, epistemic_humility)
         # These analyze the action decision and need full identity context
         decision_faculties = {
-            name: faculty for name, faculty in self.faculties.items()
+            name: faculty
+            for name, faculty in self.faculties.items()
             if name in ["optimization_veto", "epistemic_humility"]
         }
 
         # Call content faculties with minimal context (just the content)
         minimal_context = FacultyContext(
             evaluation_context=context.evaluation_context if context else "content_analysis",
-            thought_metadata=context.thought_metadata if context else {}
+            thought_metadata=context.thought_metadata if context else {},
         )
 
         for name, faculty in content_faculties.items():
@@ -88,7 +88,7 @@ class FacultyIntegration:
         self,
         original_thought: Thought,
         triaged_inputs: Dict[str, Any],
-        conscience_failure_context: Optional[ConscienceFailureContext] = None
+        conscience_failure_context: Optional[ConscienceFailureContext] = None,
     ) -> EnhancedDMAInputs:
         """Enhance triaged inputs with faculty evaluations."""
 
@@ -129,18 +129,19 @@ class FacultyIntegration:
             evaluation_context="faculty_enhanced_action_selection",
             thought_metadata={
                 "thought_id": original_thought.thought_id,
-                "thought_type": original_thought.thought_type.value if hasattr(original_thought.thought_type, 'value') else str(original_thought.thought_type),
-                "source_task_id": original_thought.source_task_id
+                "thought_type": (
+                    original_thought.thought_type.value
+                    if hasattr(original_thought.thought_type, "value")
+                    else str(original_thought.thought_type)
+                ),
+                "source_task_id": original_thought.source_task_id,
             },
             **identity_context,
             conscience_failure_reason=conscience_failure_context.failure_reason if conscience_failure_context else None,
-            conscience_guidance=conscience_failure_context.retry_guidance if conscience_failure_context else None
+            conscience_guidance=conscience_failure_context.retry_guidance if conscience_failure_context else None,
         )
 
-        faculty_results = await self.apply_faculties_to_content(
-            content=str(original_thought.content),
-            context=context
-        )
+        faculty_results = await self.apply_faculties_to_content(content=str(original_thought.content), context=context)
 
         logger.debug(f"Faculty evaluation results for thought {original_thought.thought_id}: {faculty_results}")
 
@@ -156,7 +157,7 @@ class FacultyIntegration:
             faculty_evaluations=faculty_results,
             faculty_enhanced=True,
             recursive_evaluation=False,
-            conscience_context=conscience_failure_context
+            conscience_context=conscience_failure_context,
         )
 
         # Copy any additional fields from triaged_inputs
@@ -167,10 +168,7 @@ class FacultyIntegration:
         return enhanced_inputs
 
     def add_faculty_metadata_to_result(
-        self,
-        result: ActionSelectionDMAResult,
-        faculty_enhanced: bool = False,
-        recursive_evaluation: bool = False
+        self, result: ActionSelectionDMAResult, faculty_enhanced: bool = False, recursive_evaluation: bool = False
     ) -> ActionSelectionDMAResult:
         """Add faculty-related metadata to the action selection result."""
 
@@ -188,5 +186,5 @@ class FacultyIntegration:
             selected_action=result.selected_action,
             action_parameters=result.action_parameters,
             rationale=updated_rationale,
-            resource_usage=result.resource_usage
+            resource_usage=result.resource_usage,
         )

@@ -1,16 +1,14 @@
 import logging
-from typing import Dict, Optional, Type, Any
+from typing import Any, Dict, Optional, Type
 
 from ciris_engine.logic.registries.base import ServiceRegistry
-from ciris_engine.protocols.dma.base import (
-    PDMAProtocol as EthicalDMAInterface,
-    CSDMAProtocol as CSDMAInterface,
-    ActionSelectionDMAProtocol as ActionSelectionDMAInterface,
-)
+from ciris_engine.protocols.dma.base import ActionSelectionDMAProtocol as ActionSelectionDMAInterface
+from ciris_engine.protocols.dma.base import CSDMAProtocol as CSDMAInterface
+from ciris_engine.protocols.dma.base import PDMAProtocol as EthicalDMAInterface
 from ciris_engine.protocols.faculties import EpistemicFaculty
+from ciris_engine.schemas.config.agent import AgentTemplate
 
 from .dsdma_base import BaseDSDMA
-from ciris_engine.schemas.config.agent import AgentTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -25,21 +23,25 @@ ACTION_SELECTION_DMA_REGISTRY: Dict[str, Type[ActionSelectionDMAInterface]] = {}
 
 try:
     from .pdma import EthicalPDMAEvaluator
+
     ETHICAL_DMA_REGISTRY["EthicalPDMAEvaluator"] = EthicalPDMAEvaluator
 except ImportError:
     pass
 
 try:
     from .csdma import CSDMAEvaluator
+
     CSDMA_REGISTRY["CSDMAEvaluator"] = CSDMAEvaluator
 except ImportError:
     pass
 
 try:
     from .action_selection_pdma import ActionSelectionPDMAEvaluator
+
     ACTION_SELECTION_DMA_REGISTRY["ActionSelectionPDMAEvaluator"] = ActionSelectionPDMAEvaluator
 except ImportError:
     pass
+
 
 def create_dma(
     dma_type: str,
@@ -49,7 +51,7 @@ def create_dma(
     model_name: Optional[str] = None,
     prompt_overrides: Optional[Dict[str, str]] = None,
     faculties: Optional[Dict[str, EpistemicFaculty]] = None,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> Any:
     """Create a DMA instance of the specified type.
 
@@ -66,10 +68,10 @@ def create_dma(
         DMA instance or None if creation fails
     """
     registries = {
-        'ethical': ETHICAL_DMA_REGISTRY,
-        'csdma': CSDMA_REGISTRY,
-        'dsdma': DSDMA_CLASS_REGISTRY,
-        'action_selection': ACTION_SELECTION_DMA_REGISTRY,
+        "ethical": ETHICAL_DMA_REGISTRY,
+        "csdma": CSDMA_REGISTRY,
+        "dsdma": DSDMA_CLASS_REGISTRY,
+        "action_selection": ACTION_SELECTION_DMA_REGISTRY,
     }
 
     registry = registries.get(dma_type)
@@ -83,22 +85,20 @@ def create_dma(
         return None
 
     try:
-        constructor_args = {
-            'service_registry': service_registry,
-            **kwargs
-        }
+        constructor_args = {"service_registry": service_registry, **kwargs}
 
         if model_name is not None:
-            constructor_args['model_name'] = model_name
+            constructor_args["model_name"] = model_name
         if prompt_overrides is not None:
-            constructor_args['prompt_overrides'] = prompt_overrides
+            constructor_args["prompt_overrides"] = prompt_overrides
         if faculties is not None:
-            constructor_args['faculties'] = faculties
+            constructor_args["faculties"] = faculties
 
         return dma_class(**constructor_args)
     except Exception as e:
         logger.error(f"Failed to create {dma_type} DMA {dma_identifier}: {e}")
         return None
+
 
 def create_dsdma_from_identity(
     identity: Optional[AgentTemplate],
@@ -130,8 +130,8 @@ def create_dsdma_from_identity(
 
     # Always use BaseDSDMA now
     dma_result = create_dma(
-        dma_type='dsdma',
-        dma_identifier='BaseDSDMA',  # Always use BaseDSDMA
+        dma_type="dsdma",
+        dma_identifier="BaseDSDMA",  # Always use BaseDSDMA
         service_registry=service_registry,
         model_name=model_name,
         prompt_overrides=None,

@@ -1,30 +1,33 @@
 """Context building utilities for Action Selection PDMA."""
 
 import logging
-from typing import Dict, Any, Optional, List, Union
-from ciris_engine.schemas.runtime.models import Thought
-from ciris_engine.schemas.dma.results import EthicalDMAResult, CSDMAResult, DSDMAResult
-from ciris_engine.schemas.dma.prompts import PromptCollection
+from typing import Any, Dict, List, Optional, Union
+
+from ciris_engine.logic.formatters import format_system_snapshot, format_user_profiles
 from ciris_engine.schemas.dma.faculty import ConscienceFailureContext, EnhancedDMAInputs
+from ciris_engine.schemas.dma.prompts import PromptCollection
+from ciris_engine.schemas.dma.results import CSDMAResult, DSDMAResult, EthicalDMAResult
 from ciris_engine.schemas.runtime.enums import HandlerActionType
-from ciris_engine.logic.formatters import format_user_profiles, format_system_snapshot
+from ciris_engine.schemas.runtime.models import Thought
 
 logger = logging.getLogger(__name__)
+
 
 class ActionSelectionContextBuilder:
     """Builds context for action selection evaluation."""
 
-    def __init__(self, prompts: Union[Dict[str, str], PromptCollection], service_registry: Optional[Any] = None, bus_manager: Optional[Any] = None):
+    def __init__(
+        self,
+        prompts: Union[Dict[str, str], PromptCollection],
+        service_registry: Optional[Any] = None,
+        bus_manager: Optional[Any] = None,
+    ):
         self.prompts = prompts
         self.service_registry = service_registry
         self.bus_manager = bus_manager
         self._instruction_generator: Optional[Any] = None
 
-    def build_main_user_content(
-        self,
-        triaged_inputs: EnhancedDMAInputs,
-        agent_name: Optional[str] = None
-    ) -> str:
+    def build_main_user_content(self, triaged_inputs: EnhancedDMAInputs, agent_name: Optional[str] = None) -> str:
         """Build the main user content for LLM evaluation."""
 
         # Extract core components from typed input
@@ -47,40 +50,34 @@ class ActionSelectionContextBuilder:
         _dsdma_summary_str = self._build_dsdma_summary(dsdma_result)
 
         # Build ponder context
-        _ponder_notes_str = self._build_ponder_context(
-            original_thought, current_thought_depth
-        )
+        _ponder_notes_str = self._build_ponder_context(original_thought, current_thought_depth)
 
         # Build final attempt advisory
-        _final_ponder_advisory = self._build_final_attempt_advisory(
-            current_thought_depth, max_rounds, agent_name
-        )
+        _final_ponder_advisory = self._build_final_attempt_advisory(current_thought_depth, max_rounds, agent_name)
 
         # Build guidance sections
         _guidance_sections = self._build_guidance_sections(agent_name, permitted_actions)
 
         # Build system context
         processing_context = triaged_inputs.processing_context
-        user_profile_context_str, system_snapshot_context_str = self._build_system_context(
-            processing_context
-        )
+        user_profile_context_str, system_snapshot_context_str = self._build_system_context(processing_context)
 
         # Build startup guidance
         _startup_guidance = self._build_startup_guidance(original_thought)
 
         # Build conscience feedback guidance if available
-        conscience_feedback = getattr(triaged_inputs, 'conscience_feedback', None)
+        conscience_feedback = getattr(triaged_inputs, "conscience_feedback", None)
         _conscience_guidance = self._build_conscience_guidance(conscience_feedback)
-        
+
         # Get reject thought guidance
         _reject_thought_guidance = self._get_reject_thought_guidance()
-        
+
         # Extract all guidance sections for template formatting
-        _action_parameter_schemas = _guidance_sections.get('action_parameter_schemas', '')
-        _action_parameters_speak_csdma_guidance = _guidance_sections.get('action_parameters_speak_csdma_guidance', '')
-        _action_parameters_ponder_guidance = _guidance_sections.get('action_parameters_ponder_guidance', '')
-        _action_parameters_observe_guidance = _guidance_sections.get('action_parameters_observe_guidance', '')
-        _rationale_csdma_guidance = _guidance_sections.get('rationale_csdma_guidance', '')
+        _action_parameter_schemas = _guidance_sections.get("action_parameter_schemas", "")
+        _action_parameters_speak_csdma_guidance = _guidance_sections.get("action_parameters_speak_csdma_guidance", "")
+        _action_parameters_ponder_guidance = _guidance_sections.get("action_parameters_ponder_guidance", "")
+        _action_parameters_observe_guidance = _guidance_sections.get("action_parameters_observe_guidance", "")
+        _rationale_csdma_guidance = _guidance_sections.get("rationale_csdma_guidance", "")
 
         # Assemble final content
         main_user_content = """
@@ -142,7 +139,7 @@ Adhere strictly to the schema for your JSON output.
             system_snapshot_context_str=system_snapshot_context_str,
             ethical_summary=_ethical_summary,
             csdma_summary=_csdma_summary,
-            dsdma_summary_str=_dsdma_summary_str
+            dsdma_summary_str=_dsdma_summary_str,
         )
         return formatted_content.strip()
 
@@ -181,10 +178,11 @@ Adhere strictly to the schema for your JSON output.
                 # Get tools from service registry if available
                 if self.service_registry:
                     from ciris_engine.schemas.runtime.enums import ServiceType
+
                     tool_services = self.service_registry.get_services_by_type(ServiceType.TOOL)
                     _all_tools: List[str] = []
                     for service in tool_services:
-                        if hasattr(service, 'get_available_tools'):
+                        if hasattr(service, "get_available_tools"):
                             # This is an async method, so we need to handle it properly
                             # For now, we'll skip the async call since we're in a sync context
                             # The dynamic instruction generator will handle this better
@@ -200,12 +198,8 @@ Adhere strictly to the schema for your JSON output.
         conflicts_str = "None"
         resolution_str = "None"
         if isinstance(ethical_pdma_result.alignment_check, dict):
-            conflicts_str = str(
-                ethical_pdma_result.alignment_check.get("conflicts", "None")
-            )
-            resolution_str = str(
-                ethical_pdma_result.alignment_check.get("resolution", "None")
-            )
+            conflicts_str = str(ethical_pdma_result.alignment_check.get("conflicts", "None"))
+            resolution_str = str(ethical_pdma_result.alignment_check.get("resolution", "None"))
 
         return f"Ethical PDMA Stance: {ethical_pdma_result.decision}. Key Conflicts: {conflicts_str}. Resolution: {resolution_str}."
 
@@ -224,22 +218,16 @@ Adhere strictly to the schema for your JSON output.
             f"Reasoning: {dsdma_result.reasoning}"
         )
 
-    def _build_ponder_context(
-        self,
-        original_thought: Thought,
-        current_thought_depth: int
-    ) -> str:
+    def _build_ponder_context(self, original_thought: Thought, current_thought_depth: int) -> str:
         """Build ponder context string."""
         notes_list = original_thought.ponder_notes if original_thought.ponder_notes else []
 
         if notes_list:
-            ponder_notes_str = (
-                "\n\nIMPORTANT CONTEXT FROM PREVIOUS ACTION ROUNDS:\n"
-            )
-            ponder_notes_str += f"This thought has been pondered {current_thought_depth} time(s). PLEASE TRY AND ACT (SPEAK) NOW\n"
+            ponder_notes_str = "\n\nIMPORTANT CONTEXT FROM PREVIOUS ACTION ROUNDS:\n"
             ponder_notes_str += (
-                "The following key questions were previously identified:\n"
+                f"This thought has been pondered {current_thought_depth} time(s). PLEASE TRY AND ACT (SPEAK) NOW\n"
             )
+            ponder_notes_str += "The following key questions were previously identified:\n"
             for i, q_note in enumerate(notes_list):
                 ponder_notes_str += f"{i+1}. {q_note}\n"
             ponder_notes_str += (
@@ -254,10 +242,7 @@ Adhere strictly to the schema for your JSON output.
         return ""
 
     def _build_final_attempt_advisory(
-        self,
-        current_thought_depth: int,
-        max_rounds: int,
-        agent_name: Optional[str]
+        self, current_thought_depth: int, max_rounds: int, agent_name: Optional[str]
     ) -> str:
         """Build final attempt advisory."""
         is_final_attempt_round = current_thought_depth >= max_rounds - 1
@@ -265,9 +250,7 @@ Adhere strictly to the schema for your JSON output.
         if not is_final_attempt_round:
             return ""
 
-        final_ponder_advisory_template = self._get_agent_specific_prompt(
-            "final_ponder_advisory", agent_name
-        )
+        final_ponder_advisory_template = self._get_agent_specific_prompt("final_ponder_advisory", agent_name)
         try:
             return final_ponder_advisory_template.format(
                 current_thought_depth_plus_1=current_thought_depth + 1,
@@ -279,28 +262,26 @@ Adhere strictly to the schema for your JSON output.
             )
             return "\nIMPORTANT FINAL ATTEMPT: Attempt to provide a terminal action."
 
-    def _build_guidance_sections(self, agent_name: Optional[str], permitted_actions: List[HandlerActionType]) -> Dict[str, str]:
+    def _build_guidance_sections(
+        self, agent_name: Optional[str], permitted_actions: List[HandlerActionType]
+    ) -> Dict[str, str]:
         """Build all guidance sections."""
         return {
-            'action_alignment_csdma_guidance': self._get_agent_specific_prompt(
-                "csdma_ambiguity_guidance", agent_name
-            ),
-            'action_alignment_example': self._get_agent_specific_prompt(
+            "action_alignment_csdma_guidance": self._get_agent_specific_prompt("csdma_ambiguity_guidance", agent_name),
+            "action_alignment_example": self._get_agent_specific_prompt(
                 "csdma_ambiguity_alignment_example", agent_name
             ),
-            'action_parameters_speak_csdma_guidance': self._get_agent_specific_prompt(
+            "action_parameters_speak_csdma_guidance": self._get_agent_specific_prompt(
                 "action_params_speak_csdma_guidance", agent_name
             ),
-            'action_parameters_ponder_guidance': self._get_agent_specific_prompt(
+            "action_parameters_ponder_guidance": self._get_agent_specific_prompt(
                 "action_params_ponder_guidance", agent_name
             ),
-            'action_parameters_observe_guidance': self._get_agent_specific_prompt(
+            "action_parameters_observe_guidance": self._get_agent_specific_prompt(
                 "action_params_observe_guidance", agent_name
             ),
-            'rationale_csdma_guidance': self._get_agent_specific_prompt(
-                "rationale_csdma_guidance", agent_name
-            ),
-            'action_parameter_schemas': self._get_dynamic_action_schemas(permitted_actions),
+            "rationale_csdma_guidance": self._get_agent_specific_prompt("rationale_csdma_guidance", agent_name),
+            "action_parameter_schemas": self._get_dynamic_action_schemas(permitted_actions),
         }
 
     def _build_system_context(self, processing_context_data: Any) -> tuple[str, str]:
@@ -309,17 +290,10 @@ Adhere strictly to the schema for your JSON output.
         system_snapshot_context_str = ""
 
         if processing_context_data:
-            if (
-                hasattr(processing_context_data, "system_snapshot")
-                and processing_context_data.system_snapshot
-            ):
-                user_profiles_data = getattr(
-                    processing_context_data.system_snapshot, "user_profiles", None
-                )
+            if hasattr(processing_context_data, "system_snapshot") and processing_context_data.system_snapshot:
+                user_profiles_data = getattr(processing_context_data.system_snapshot, "user_profiles", None)
                 user_profile_context_str = format_user_profiles(user_profiles_data)
-                system_snapshot_context_str = format_system_snapshot(
-                    processing_context_data.system_snapshot
-                )
+                system_snapshot_context_str = format_system_snapshot(processing_context_data.system_snapshot)
 
         return user_profile_context_str, system_snapshot_context_str
 
@@ -333,7 +307,9 @@ Adhere strictly to the schema for your JSON output.
             )
         return ""
 
-    def _build_conscience_guidance(self, conscience_feedback: Optional[Union[Dict[str, Any], ConscienceFailureContext]]) -> str:
+    def _build_conscience_guidance(
+        self, conscience_feedback: Optional[Union[Dict[str, Any], ConscienceFailureContext]]
+    ) -> str:
         """Build conscience guidance from feedback if available."""
         if not conscience_feedback:
             return ""
@@ -349,9 +325,7 @@ Adhere strictly to the schema for your JSON output.
         """Get reject thought guidance."""
         return "\nNote on 'Reject Thought': Use this action sparingly, primarily if the original thought is nonsensical, impossible to act upon even with clarification, or fundamentally misaligned with the agent's purpose. Prefer 'Ponder' or 'Speak' for clarification if possible."
 
-    def _get_agent_specific_prompt(
-        self, base_key: str, agent_name: Optional[str]
-    ) -> str:
+    def _get_agent_specific_prompt(self, base_key: str, agent_name: Optional[str]) -> str:
         """Get agent-specific prompt variation, falling back to base key."""
         # Handle both dict and PromptCollection
         if isinstance(self.prompts, PromptCollection):
@@ -368,9 +342,7 @@ Adhere strictly to the schema for your JSON output.
             if base_key in self.prompts:
                 return self.prompts[base_key]
 
-        logger.warning(
-            f"Prompt key for '{base_key}' (agent: {agent_name}) not found. Using empty string."
-        )
+        logger.warning(f"Prompt key for '{base_key}' (agent: {agent_name}) not found. Using empty string.")
         return ""
 
     def _get_dynamic_action_schemas(self, permitted_actions: List[HandlerActionType]) -> str:
@@ -378,7 +350,10 @@ Adhere strictly to the schema for your JSON output.
         try:
             # Lazy initialize the instruction generator
             if self._instruction_generator is None:
-                from ciris_engine.logic.dma.action_selection.action_instruction_generator import ActionInstructionGenerator
+                from ciris_engine.logic.dma.action_selection.action_instruction_generator import (
+                    ActionInstructionGenerator,
+                )
+
                 self._instruction_generator = ActionInstructionGenerator(self.service_registry, self.bus_manager)
 
             # Generate dynamic instructions

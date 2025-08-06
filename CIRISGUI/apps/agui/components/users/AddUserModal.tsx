@@ -21,7 +21,7 @@ export function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (password !== confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -31,7 +31,7 @@ export function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
       setError('Password must be at least 8 characters long');
       return;
     }
-    
+
     try {
       setCreating(true);
       setError(null);

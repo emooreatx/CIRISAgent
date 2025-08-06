@@ -1,32 +1,25 @@
 """Refactored Action Selection PDMA - Modular and Clean."""
 
 import logging
-from typing import Dict, Any, Optional, cast, Union
 from pathlib import Path
+from typing import Any, Dict, Optional, Union, cast
 
-from ciris_engine.schemas.runtime.models import Thought
-from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
-from ciris_engine.schemas.dma.faculty import (
-    ConscienceFailureContext,
-    EnhancedDMAInputs,
-    FacultyEvaluationSet,
-)
-from ciris_engine.schemas.dma.prompts import PromptCollection
-from ciris_engine.schemas.actions.parameters import PonderParams
-from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.constants import DEFAULT_OPENAI_MODEL_NAME
+from ciris_engine.logic.formatters import format_system_prompt_blocks, format_system_snapshot, format_user_profiles
 from ciris_engine.logic.registries.base import ServiceRegistry
+from ciris_engine.logic.utils import COVENANT_TEXT
 from ciris_engine.protocols.dma.base import ActionSelectionDMAProtocol
 from ciris_engine.protocols.faculties import EpistemicFaculty
-from ciris_engine.logic.utils import COVENANT_TEXT
-from ciris_engine.logic.formatters import format_system_prompt_blocks, format_user_profiles, format_system_snapshot
+from ciris_engine.schemas.actions.parameters import PonderParams
+from ciris_engine.schemas.dma.faculty import ConscienceFailureContext, EnhancedDMAInputs
+from ciris_engine.schemas.dma.prompts import PromptCollection
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.schemas.runtime.models import Thought
 
-from .base_dma import BaseDMA
-from .action_selection import (
-    ActionSelectionContextBuilder,
-    ActionSelectionSpecialCases,
-)
+from .action_selection import ActionSelectionContextBuilder, ActionSelectionSpecialCases
 from .action_selection.faculty_integration import FacultyIntegration
-from ciris_engine.constants import DEFAULT_OPENAI_MODEL_NAME
+from .base_dma import BaseDMA
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +28,7 @@ DEFAULT_TEMPLATE = """{system_header}
 {decision_format}
 
 {closing_reminder}"""
+
 
 class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAProtocol):
     """
@@ -59,7 +53,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAProtocol):
         max_retries: int = 2,
         prompt_overrides: Optional[Union[Dict[str, str], PromptCollection]] = None,
         faculties: Optional[Dict[str, EpistemicFaculty]] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         """Initialize ActionSelectionPDMAEvaluator."""
         super().__init__(
@@ -68,15 +62,17 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAProtocol):
             max_retries=max_retries,
             prompt_overrides=prompt_overrides,
             faculties=faculties,
-            **kwargs
+            **kwargs,
         )
 
         self.context_builder = ActionSelectionContextBuilder(self.prompts, service_registry, self.sink)
         self.faculty_integration = FacultyIntegration(faculties) if faculties else None
 
-    async def evaluate(self, input_data: EnhancedDMAInputs, enable_recursive_evaluation: bool = False) -> ActionSelectionDMAResult:
+    async def evaluate(
+        self, input_data: EnhancedDMAInputs, enable_recursive_evaluation: bool = False
+    ) -> ActionSelectionDMAResult:
         """Evaluate triaged inputs and select optimal action."""
-        
+
         if not input_data:
             raise ValueError("input_data is required")
 
@@ -95,15 +91,15 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAProtocol):
             # Add faculty metadata if applicable
             faculty_enhanced = getattr(input_data, "faculty_enhanced", False)
             recursive_evaluation = getattr(input_data, "recursive_evaluation", False)
-            
+
             if self.faculty_integration and faculty_enhanced:
                 result = self.faculty_integration.add_faculty_metadata_to_result(
-                    result,
-                    faculty_enhanced=True,
-                    recursive_evaluation=recursive_evaluation
+                    result, faculty_enhanced=True, recursive_evaluation=recursive_evaluation
                 )
 
-            logger.info(f"Action selection successful for thought {original_thought.thought_id}: {result.selected_action.value}")
+            logger.info(
+                f"Action selection successful for thought {original_thought.thought_id}: {result.selected_action.value}"
+            )
             return result
 
         except Exception as e:
@@ -113,12 +109,14 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAProtocol):
     async def recursive_evaluate_with_faculties(
         self,
         input_data: Union[Dict[str, Any], EnhancedDMAInputs],
-        conscience_failure_context: Union[Dict[str, Any], ConscienceFailureContext]
+        conscience_failure_context: Union[Dict[str, Any], ConscienceFailureContext],
     ) -> ActionSelectionDMAResult:
         """Perform recursive evaluation using epistemic faculties."""
 
         if not self.faculty_integration:
-            logger.warning("Recursive evaluation requested but no faculties available. Falling back to regular evaluation.")
+            logger.warning(
+                "Recursive evaluation requested but no faculties available. Falling back to regular evaluation."
+            )
             return await self.evaluate(input_data, enable_recursive_evaluation=False)
 
         original_thought: Thought = input_data.original_thought
@@ -128,7 +126,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAProtocol):
         if isinstance(conscience_failure_context, dict):
             conscience_failure_context = ConscienceFailureContext(
                 failure_reason=conscience_failure_context.get("failure_reason", "Unknown"),
-                retry_guidance=conscience_failure_context.get("retry_guidance", "")
+                retry_guidance=conscience_failure_context.get("retry_guidance", ""),
             )
 
         # Convert input_data to dict for faculty integration if needed
@@ -137,13 +135,15 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAProtocol):
         enhanced_inputs = await self.faculty_integration.enhance_evaluation_with_faculties(
             original_thought=original_thought,
             triaged_inputs=input_dict,
-            conscience_failure_context=conscience_failure_context
+            conscience_failure_context=conscience_failure_context,
         )
         enhanced_inputs.recursive_evaluation = True
 
         return await self.evaluate(enhanced_inputs, enable_recursive_evaluation=False)
 
-    async def _handle_special_cases(self, input_data: Union[Dict[str, Any], EnhancedDMAInputs]) -> Optional[ActionSelectionDMAResult]:
+    async def _handle_special_cases(
+        self, input_data: Union[Dict[str, Any], EnhancedDMAInputs]
+    ) -> Optional[ActionSelectionDMAResult]:
         """Handle special cases that override normal evaluation."""
 
         # Check for forced ponder
@@ -159,27 +159,24 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAProtocol):
         return None
 
     async def _perform_main_evaluation(
-        self,
-        input_data: EnhancedDMAInputs,
-        enable_recursive_evaluation: bool
+        self, input_data: EnhancedDMAInputs, enable_recursive_evaluation: bool
     ) -> ActionSelectionDMAResult:
         """Perform the main LLM-based evaluation."""
 
-
         agent_identity = getattr(input_data, "agent_identity", {})
-        agent_name = agent_identity.get("agent_name", "CIRISAgent") if isinstance(agent_identity, dict) else getattr(agent_identity, "agent_name", "CIRISAgent")
-
-        main_user_content = self.context_builder.build_main_user_content(
-            input_data, agent_name
+        agent_name = (
+            agent_identity.get("agent_name", "CIRISAgent")
+            if isinstance(agent_identity, dict)
+            else getattr(agent_identity, "agent_name", "CIRISAgent")
         )
+
+        main_user_content = self.context_builder.build_main_user_content(input_data, agent_name)
 
         # Get faculty evaluations from typed input
         faculty_evaluations = input_data.faculty_evaluations
 
         if faculty_evaluations and self.faculty_integration:
-            faculty_insights = self.faculty_integration.build_faculty_insights_string(
-                faculty_evaluations
-            )
+            faculty_insights = self.faculty_integration.build_faculty_insights_string(faculty_evaluations)
             main_user_content += faculty_insights
 
         system_message = self._build_system_message(input_data)
@@ -189,7 +186,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAProtocol):
 
         # Prepend thought type to covenant for rock-solid follow-up detection
         covenant_with_metadata = COVENANT_TEXT
-        if original_thought and hasattr(original_thought, 'thought_type'):
+        if original_thought and hasattr(original_thought, "thought_type"):
             covenant_with_metadata = f"THOUGHT_TYPE={original_thought.thought_type.value}\n\n{COVENANT_TEXT}"
 
         messages = [
@@ -199,12 +196,9 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAProtocol):
         ]
 
         result_tuple = await self.call_llm_structured(
-            messages=messages,
-            response_model=ActionSelectionDMAResult,
-            max_tokens=1500,
-            temperature=0.0
+            messages=messages, response_model=ActionSelectionDMAResult, max_tokens=1500, temperature=0.0
         )
-        
+
         # Extract the result from the tuple and cast to the correct type
         final_result = cast(ActionSelectionDMAResult, result_tuple[0])
 
@@ -229,9 +223,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAProtocol):
             if isinstance(processing_context, dict):
                 system_snapshot = processing_context.get("system_snapshot")
                 if system_snapshot:
-                    user_profiles_block = format_user_profiles(
-                        system_snapshot.get("user_profiles")
-                    )
+                    user_profiles_block = format_user_profiles(system_snapshot.get("user_profiles"))
                     system_snapshot_block = format_system_snapshot(system_snapshot)
                 identity_block = processing_context.get("identity_context", "")
             else:
@@ -253,7 +245,7 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAProtocol):
             system_header = self.prompts.get("system_header", "")
             decision_format = self.prompts.get("decision_format", "")
             closing_reminder = self.prompts.get("closing_reminder", "")
-        
+
         system_guidance = DEFAULT_TEMPLATE.format(
             system_header=system_header,
             decision_format=decision_format,
@@ -272,14 +264,12 @@ class ActionSelectionPDMAEvaluator(BaseDMA, ActionSelectionDMAProtocol):
     def _create_fallback_result(self, error_message: str) -> ActionSelectionDMAResult:
         """Create a fallback result for error cases."""
 
-        fallback_params = PonderParams(
-            questions=[f"System error during action selection: {error_message}"]
-        )
+        fallback_params = PonderParams(questions=[f"System error during action selection: {error_message}"])
 
         return ActionSelectionDMAResult(
             selected_action=HandlerActionType.PONDER,
             action_parameters=fallback_params,
-            rationale=f"Fallback due to error: {error_message}"
+            rationale=f"Fallback due to error: {error_message}",
         )
 
     def __repr__(self) -> str:

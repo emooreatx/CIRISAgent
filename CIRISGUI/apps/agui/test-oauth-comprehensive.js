@@ -8,18 +8,18 @@ async function sleep(ms) {
 async function testOAuthComprehensive() {
   const API_URL = 'http://localhost:8080';
   const GUI_URL = 'http://localhost:3000';
-  
+
   console.log('=== Comprehensive OAuth Permission Test ===\n');
-  
+
   try {
     // 1. Test GUI pages are accessible
     console.log('1. Testing GUI pages...');
     const pages = ['/login', '/users', '/comms'];
     for (const page of pages) {
       try {
-        await axios.get(`${GUI_URL}${page}`, { 
+        await axios.get(`${GUI_URL}${page}`, {
           maxRedirects: 5,
-          validateStatus: (status) => status < 500 
+          validateStatus: (status) => status < 500
         });
         console.log(`✓ ${page} is accessible`);
       } catch (error) {
@@ -29,7 +29,7 @@ async function testOAuthComprehensive() {
 
     // 2. Test API OAuth endpoints
     console.log('\n2. Testing API OAuth endpoints...');
-    
+
     // Login as admin
     const loginResponse = await axios.post(`${API_URL}/v1/auth/login`, {
       username: 'admin',
@@ -49,7 +49,7 @@ async function testOAuthComprehensive() {
       headers: { 'Authorization': `Bearer ${adminToken}` }
     });
     console.log(`✓ Users list endpoint working (${usersResponse.data.total_count} users)`);
-    
+
     // Check for OAuth users
     const oauthUsers = usersResponse.data.items.filter(u => u.auth_type === 'oauth');
     console.log(`  - OAuth users: ${oauthUsers.length}`);
@@ -85,14 +85,14 @@ async function testOAuthComprehensive() {
     console.log('✅ Permission Requests: Endpoint working');
     console.log('✅ User Filtering: OAuth observers excluded from main list');
     console.log('✅ Error Handling: Enhanced 403 responses implemented');
-    
+
     console.log('\n📋 Features Implemented:');
     console.log('- PermissionRequest component with Discord invite link');
     console.log('- Permission Requests tab in Users page');
     console.log('- Enhanced CIRISPermissionDeniedError in SDK');
     console.log('- Safe image rendering with fallback');
     console.log('- OAuth user filtering (excludes observers)');
-    
+
     console.log('\n🔗 You can now test manually:');
     console.log(`1. Open ${GUI_URL}/login`);
     console.log('2. Login as admin/ciris_admin_password');

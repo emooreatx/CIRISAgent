@@ -11,9 +11,8 @@ Key principles:
 - Fail Secure: Telemetry failures don't affect agent operation
 """
 
-from .resource_monitor import ResourceMonitor, ResourceSignalBus
 from .core import BasicTelemetryCollector
-from .security import SecurityFilter
+
 # Note: collectors module not yet implemented
 # from .collectors import (
 #     BaseCollector,
@@ -26,6 +25,8 @@ from .security import SecurityFilter
 #     MetricData
 # )
 from .log_collector import LogCorrelationCollector, TSDBLogHandler
+from .resource_monitor import ResourceMonitor, ResourceSignalBus
+from .security import SecurityFilter
 
 __all__ = [
     "ResourceMonitor",

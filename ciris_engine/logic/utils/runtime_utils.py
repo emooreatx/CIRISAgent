@@ -4,18 +4,20 @@ import asyncio
 import logging
 import signal
 from pathlib import Path
-from typing import Optional, Any, Dict
+from typing import Any, Dict, Optional
+
+from ciris_engine.schemas.config.essential import EssentialConfig
 
 from ..config.bootstrap import ConfigBootstrap
 from ..runtime.ciris_runtime import CIRISRuntime
-from ciris_engine.schemas.config.essential import EssentialConfig
+
 
 async def load_config(config_path: Optional[str], cli_overrides: Optional[Dict[str, Any]] = None) -> EssentialConfig:
     """Load essential configuration using the new bootstrap system."""
     return await ConfigBootstrap.load_essential_config(
-        config_path=Path(config_path) if config_path else None,
-        cli_overrides=cli_overrides
+        config_path=Path(config_path) if config_path else None, cli_overrides=cli_overrides
     )
+
 
 async def run_with_shutdown_handler(runtime: CIRISRuntime, num_rounds: Optional[int] = None) -> None:
     """Run the runtime and handle shutdown signals gracefully."""
@@ -43,7 +45,9 @@ async def run_with_shutdown_handler(runtime: CIRISRuntime, num_rounds: Optional[
     except Exception as e:
         logging.critical(f"Runtime execution failed: {e}", exc_info=True)
         # Ensure shutdown is requested if a top-level error occurs in runtime.run() itself
-        if runtime._shutdown_event is None or not runtime._shutdown_event.is_set():  # Accessing protected member for check
+        if (
+            runtime._shutdown_event is None or not runtime._shutdown_event.is_set()
+        ):  # Accessing protected member for check
             runtime.request_shutdown(f"Runtime error: {e}")
         await runtime.shutdown()  # Attempt graceful shutdown
     finally:

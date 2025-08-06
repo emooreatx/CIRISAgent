@@ -55,12 +55,12 @@ python main.py --adapter discord --template datum
 Example first interaction:
 ```
 You: Hello!
-CIRIS: Hello! I'm CIRIS, an AI agent designed to assist while explaining my reasoning. 
-I operate under a Wise Authority system that ensures I seek approval for significant 
+CIRIS: Hello! I'm CIRIS, an AI agent designed to assist while explaining my reasoning.
+I operate under a Wise Authority system that ensures I seek approval for significant
 actions. How may I help you today?
 
 You: exit
-CIRIS: I need permission to shut down. This action requires approval from the Wise 
+CIRIS: I need permission to shut down. This action requires approval from the Wise
 Authority system. Do you approve this shutdown? (yes/no)
 You: yes
 CIRIS: Shutdown approved. Goodbye!

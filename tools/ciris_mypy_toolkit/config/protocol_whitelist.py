@@ -5,14 +5,14 @@ This module defines patterns that should be excluded from protocol compliance ch
 These are legitimate uses of Any that don't violate CIRIS type safety principles.
 """
 
-from typing import Dict, List, Pattern
 import re
+from typing import Dict, List, Pattern
 
 # Decorator patterns that legitimately use Any for *args and **kwargs
 DECORATOR_PATTERNS: List[Pattern[str]] = [
     # Async decorator wrappers
     re.compile(r"async def \w+_wrapper\(\*args: Any, \*\*kwargs: Any\) -> Any:"),
-    # Sync decorator wrappers  
+    # Sync decorator wrappers
     re.compile(r"def \w+_wrapper\(\*args: Any, \*\*kwargs: Any\) -> Any:"),
     # Generic decorators
     re.compile(r"def decorator\(.*\) -> Callable\[\[.*\], Any\]:"),
@@ -33,7 +33,7 @@ SERVICE_WHITELIST: Dict[str, List[str]] = {
     "AuthenticationService": [
         # Authentication decorators need Any for flexibility
         "require_scope",
-        "require_role", 
+        "require_role",
         "require_channel_permission",
         "verify_kill_switch_command",
     ],
@@ -45,15 +45,16 @@ SERVICE_WHITELIST: Dict[str, List[str]] = {
     ],
 }
 
+
 def is_whitelisted(service_name: str, line: str, context: str) -> bool:
     """
     Check if a specific Any usage should be whitelisted.
-    
+
     Args:
         service_name: Name of the service being checked
         line: Line number where Any is used
         context: The code context containing Any
-        
+
     Returns:
         True if this usage should be whitelisted, False otherwise
     """
@@ -61,16 +62,16 @@ def is_whitelisted(service_name: str, line: str, context: str) -> bool:
     for pattern in DECORATOR_PATTERNS:
         if pattern.search(context):
             return True
-    
+
     # Check function patterns
     for pattern in FUNCTION_PATTERNS:
         if pattern.search(context):
             return True
-    
+
     # Check service-specific whitelist
     if service_name in SERVICE_WHITELIST:
         # For now, whitelist all Any usage in these services
         # Could be more specific by checking method names
         return True
-    
+
     return False

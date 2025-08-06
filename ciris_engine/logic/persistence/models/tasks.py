@@ -1,16 +1,18 @@
 import json
-from typing import List, Optional, Any, TYPE_CHECKING
-from ciris_engine.logic.persistence import get_db_connection
+import logging
+from typing import TYPE_CHECKING, Any, List, Optional
+
+from ciris_engine.logic.persistence.db import get_db_connection
 from ciris_engine.logic.persistence.utils import map_row_to_task
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.runtime.enums import TaskStatus
 from ciris_engine.schemas.runtime.models import Task
-from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-import logging
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services.infrastructure.authentication import AuthenticationServiceProtocol
 
 logger = logging.getLogger(__name__)
+
 
 def get_tasks_by_status(status: TaskStatus, db_path: Optional[str] = None) -> List[Task]:
     """Returns all tasks with the given status from the tasks table as Task objects."""
@@ -30,6 +32,7 @@ def get_tasks_by_status(status: TaskStatus, db_path: Optional[str] = None) -> Li
         logger.exception(f"Failed to get tasks with status {status_val}: {e}")
     return tasks_list
 
+
 def get_all_tasks(db_path: Optional[str] = None) -> List[Task]:
     sql = "SELECT * FROM tasks ORDER BY created_at ASC"
     tasks_list: List[Any] = []
@@ -44,8 +47,9 @@ def get_all_tasks(db_path: Optional[str] = None) -> List[Task]:
         logger.exception(f"Failed to get all tasks: {e}")
     return tasks_list
 
+
 def add_task(task: Task, db_path: Optional[str] = None) -> str:
-    task_dict = task.model_dump(mode='json')
+    task_dict = task.model_dump(mode="json")
     sql = """
         INSERT INTO tasks (task_id, channel_id, description, status, priority, created_at, updated_at,
                            parent_task_id, context_json, outcome_json, signed_by, signature, signed_at)
@@ -71,6 +75,7 @@ def add_task(task: Task, db_path: Optional[str] = None) -> str:
         logger.exception(f"Failed to add task {task.task_id}: {e}")
         raise
 
+
 def get_task_by_id(task_id: str, db_path: Optional[str] = None) -> Optional[Task]:
     sql = "SELECT * FROM tasks WHERE task_id = ?"
     try:
@@ -85,7 +90,10 @@ def get_task_by_id(task_id: str, db_path: Optional[str] = None) -> Optional[Task
         logger.exception(f"Failed to get task {task_id}: {e}")
         return None
 
-def update_task_status(task_id: str, new_status: TaskStatus, time_service: TimeServiceProtocol, db_path: Optional[str] = None) -> bool:
+
+def update_task_status(
+    task_id: str, new_status: TaskStatus, time_service: TimeServiceProtocol, db_path: Optional[str] = None
+) -> bool:
     sql = "UPDATE tasks SET status = ?, updated_at = ? WHERE task_id = ?"
     params = (new_status.value, time_service.now_iso(), task_id)
     try:
@@ -101,10 +109,14 @@ def update_task_status(task_id: str, new_status: TaskStatus, time_service: TimeS
         logger.exception(f"Failed to update task status for {task_id}: {e}")
         return False
 
+
 def task_exists(task_id: str, db_path: Optional[str] = None) -> bool:
     return get_task_by_id(task_id, db_path=db_path) is not None
 
-async def add_system_task(task: Task, auth_service: Optional["AuthenticationServiceProtocol"] = None, db_path: Optional[str] = None) -> str:
+
+async def add_system_task(
+    task: Task, auth_service: Optional["AuthenticationServiceProtocol"] = None, db_path: Optional[str] = None
+) -> str:
     """Add a system task with automatic signing by the system WA.
 
     This should be used by authorized processors (wakeup, dream, shutdown) to create
@@ -137,29 +149,34 @@ async def add_system_task(task: Task, auth_service: Optional["AuthenticationServ
     # Add the task (with or without signature)
     return add_task(task, db_path=db_path)
 
+
 def get_recent_completed_tasks(limit: int = 10, db_path: Optional[str] = None) -> List[Task]:
     tasks_list = get_all_tasks(db_path=db_path)
-    completed = [t for t in tasks_list if getattr(t, 'status', None) == TaskStatus.COMPLETED]
-    completed_sorted = sorted(completed, key=lambda t: getattr(t, 'updated_at', ''), reverse=True)
+    completed = [t for t in tasks_list if getattr(t, "status", None) == TaskStatus.COMPLETED]
+    completed_sorted = sorted(completed, key=lambda t: getattr(t, "updated_at", ""), reverse=True)
     return completed_sorted[:limit]
+
 
 def get_top_tasks(limit: int = 10, db_path: Optional[str] = None) -> List[Task]:
     tasks_list = get_all_tasks(db_path=db_path)
-    sorted_tasks = sorted(tasks_list, key=lambda t: (-getattr(t, 'priority', 0), getattr(t, 'created_at', '')))
+    sorted_tasks = sorted(tasks_list, key=lambda t: (-getattr(t, "priority", 0), getattr(t, "created_at", "")))
     return sorted_tasks[:limit]
+
 
 def get_pending_tasks_for_activation(limit: int = 10, db_path: Optional[str] = None) -> List[Task]:
     """Get pending tasks ordered by priority (highest first) then by creation date, with optional limit."""
     pending_tasks = get_tasks_by_status(TaskStatus.PENDING, db_path=db_path)
     # Sort by priority (descending) then by created_at (ascending for oldest first)
-    sorted_tasks = sorted(pending_tasks, key=lambda t: (-getattr(t, 'priority', 0), getattr(t, 'created_at', '')))
+    sorted_tasks = sorted(pending_tasks, key=lambda t: (-getattr(t, "priority", 0), getattr(t, "created_at", "")))
     return sorted_tasks[:limit]
+
 
 def count_tasks(status: Optional[TaskStatus] = None, db_path: Optional[str] = None) -> int:
     tasks_list = get_all_tasks(db_path=db_path)
     if status:
-        return sum(1 for t in tasks_list if getattr(t, 'status', None) == status)
+        return sum(1 for t in tasks_list if getattr(t, "status", None) == status)
     return len(tasks_list)
+
 
 def delete_tasks_by_ids(task_ids: List[str], db_path: Optional[str] = None) -> bool:
     """Deletes tasks and their associated thoughts and feedback_mappings with the given IDs from the database."""
@@ -169,14 +186,19 @@ def delete_tasks_by_ids(task_ids: List[str], db_path: Optional[str] = None) -> b
 
     logger.warning(f"DELETE_OPERATION: delete_tasks_by_ids called with {len(task_ids)} tasks: {task_ids}")
     import traceback
+
     logger.warning(f"DELETE_OPERATION: Called from: {''.join(traceback.format_stack()[-3:-1])}")
 
-    placeholders = ','.join('?' for _ in task_ids)
+    placeholders = ",".join("?" for _ in task_ids)
 
     sql_get_thought_ids = f"SELECT thought_id FROM thoughts WHERE source_task_id IN ({placeholders})"  # nosec B608 - placeholders are '?' strings
     sql_delete_feedback_mappings = "DELETE FROM feedback_mappings WHERE target_thought_id IN ({})"
-    sql_delete_thoughts = f"DELETE FROM thoughts WHERE source_task_id IN ({placeholders})"  # nosec B608 - placeholders are '?' strings
-    sql_delete_tasks = f"DELETE FROM tasks WHERE task_id IN ({placeholders})"  # nosec B608 - placeholders are '?' strings
+    sql_delete_thoughts = (
+        f"DELETE FROM thoughts WHERE source_task_id IN ({placeholders})"  # nosec B608 - placeholders are '?' strings
+    )
+    sql_delete_tasks = (
+        f"DELETE FROM tasks WHERE task_id IN ({placeholders})"  # nosec B608 - placeholders are '?' strings
+    )
 
     deleted_count = 0
     try:
@@ -185,13 +207,17 @@ def delete_tasks_by_ids(task_ids: List[str], db_path: Optional[str] = None) -> b
 
             cursor.execute(sql_get_thought_ids, task_ids)
             thought_rows = cursor.fetchall()
-            thought_ids_to_delete = [row['thought_id'] for row in thought_rows]
+            thought_ids_to_delete = [row["thought_id"] for row in thought_rows]
 
             if thought_ids_to_delete:
-                feedback_placeholders = ','.join('?' for _ in thought_ids_to_delete)
-                current_sql_delete_feedback_mappings = sql_delete_feedback_mappings.format(feedback_placeholders)  # nosec B608 - placeholders are '?' strings
+                feedback_placeholders = ",".join("?" for _ in thought_ids_to_delete)
+                current_sql_delete_feedback_mappings = sql_delete_feedback_mappings.format(
+                    feedback_placeholders
+                )  # nosec B608 - placeholders are '?' strings
                 cursor.execute(current_sql_delete_feedback_mappings, thought_ids_to_delete)
-                logger.info(f"Deleted {cursor.rowcount} associated feedback mappings for thought IDs: {thought_ids_to_delete}.")
+                logger.info(
+                    f"Deleted {cursor.rowcount} associated feedback mappings for thought IDs: {thought_ids_to_delete}."
+                )
             else:
                 logger.info(f"No associated feedback mappings found for task IDs: {task_ids}.")
 
@@ -213,6 +239,7 @@ def delete_tasks_by_ids(task_ids: List[str], db_path: Optional[str] = None) -> b
     except Exception as e:
         logger.exception(f"Failed to delete tasks with IDs {task_ids}: {e}")
         return False
+
 
 def get_tasks_older_than(older_than_timestamp: str, db_path: Optional[str] = None) -> List[Task]:
     """Get all tasks with created_at older than the given ISO timestamp, returning Task objects."""

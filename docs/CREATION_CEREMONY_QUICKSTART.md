@@ -108,7 +108,7 @@ Your new agent will:
 - List available templates: `ls ciris_templates/`
 - Ensure template name doesn't include `.yaml`
 
-### "Port Allocation Failed"  
+### "Port Allocation Failed"
 - Check which ports are in use: `netstat -tlnp | grep 808`
 - Manually specify a free port in the docker-compose configuration
 

@@ -46,17 +46,17 @@ from ciris_engine.schemas.context_schemas_v1 import ThoughtContext
 
 class PatientSafetyDMA(EthicalDMAInterface):
     """Evaluates decisions for patient safety implications."""
-    
+
     async def evaluate(
-        self, 
-        thought_item: ProcessingQueueItem, 
+        self,
+        thought_item: ProcessingQueueItem,
         context: Optional[ThoughtContext] = None,
         **kwargs
     ) -> EthicalDMAResult:
         # Check for patient safety concerns
         if self._contains_medical_action(thought_item):
             return await self._evaluate_medical_safety(thought_item, context)
-        
+
         # Default: no safety concerns
         return EthicalDMAResult(
             alignment_check={"patient_safety": "no_medical_content"},
@@ -73,22 +73,22 @@ For LLM-based evaluations, create `ciris_engine/dma/prompts/patient_safety_dma.y
 system_header: |
   You are a patient safety evaluator for a medical AI assistant.
   Your role is to identify potential safety risks in proposed actions.
-  
+
 evaluation_template: |
   Evaluate this proposed action for patient safety risks:
   {thought_content}
-  
+
   Consider:
   - Could this harm the patient?
   - Are there contraindications?
   - Is medical supervision required?
-  
+
 decision_criteria: |
   APPROVE only if:
   - No risk of patient harm
   - Within scope of AI assistance
   - Appropriate disclaimers included
-  
+
   DEFER if:
   - Potential for harm exists
   - Medical judgment required
@@ -129,10 +129,10 @@ dma_config = {
 ```python
 class MedicalPrivacyDMA(EthicalDMAInterface):
     """Ensures patient privacy compliance (HIPAA, etc.)."""
-    
+
     async def evaluate(
-        self, 
-        thought_item: ProcessingQueueItem, 
+        self,
+        thought_item: ProcessingQueueItem,
         context: Optional[ThoughtContext] = None,
         **kwargs
     ) -> EthicalDMAResult:
@@ -143,7 +143,7 @@ class MedicalPrivacyDMA(EthicalDMAInterface):
                 decision="rejected",
                 rationale="Response contains patient identifiers"
             )
-        
+
         # Check data sharing permissions
         if context and self._requires_consent(thought_item, context):
             return EthicalDMAResult(
@@ -151,7 +151,7 @@ class MedicalPrivacyDMA(EthicalDMAInterface):
                 decision="deferred",
                 rationale="Requires explicit patient consent"
             )
-        
+
         return EthicalDMAResult(
             alignment_check={"privacy": "compliant"},
             decision="approved",
@@ -164,12 +164,12 @@ class MedicalPrivacyDMA(EthicalDMAInterface):
 ```python
 class AgeAppropriateDMA(CSDMAInterface):
     """Ensures content is age-appropriate for students."""
-    
+
     def __init__(self, *args, grade_level: str = "K-12", **kwargs):
         super().__init__(*args, **kwargs)
         self.grade_level = grade_level
         self.content_filters = self._load_grade_filters(grade_level)
-    
+
     async def evaluate(
         self,
         thought_item: ProcessingQueueItem,
@@ -178,7 +178,7 @@ class AgeAppropriateDMA(CSDMAInterface):
     ) -> CSDMAResult:
         # Check content appropriateness
         issues = self._scan_content(thought_item.content)
-        
+
         if issues:
             return CSDMAResult(
                 plausibility_score=0.0,
@@ -186,7 +186,7 @@ class AgeAppropriateDMA(CSDMAInterface):
                 recommendation="modify",
                 reasoning=f"Content not appropriate for {self.grade_level}"
             )
-        
+
         return CSDMAResult(
             plausibility_score=1.0,
             common_sense_violations=[],
@@ -200,11 +200,11 @@ class AgeAppropriateDMA(CSDMAInterface):
 ```python
 class CulturalSensitivityDMA(DSDMAInterface):
     """Evaluates content for cultural appropriateness."""
-    
+
     def __init__(self, *args, community_values: Dict[str, Any], **kwargs):
         super().__init__(*args, **kwargs)
         self.community_values = community_values
-    
+
     async def evaluate(
         self,
         thought_item: ProcessingQueueItem,
@@ -213,14 +213,14 @@ class CulturalSensitivityDMA(DSDMAInterface):
     ) -> DSDMAResult:
         # Load community-specific guidelines
         guidelines = self.community_values.get("content_guidelines", {})
-        
+
         # Evaluate against community standards
         evaluation = await self._check_cultural_fit(
             thought_item.content,
             guidelines,
             current_context
         )
-        
+
         return DSDMAResult(
             domain_relevance_score=evaluation["score"],
             domain_specific_insights=evaluation["insights"],
@@ -234,7 +234,7 @@ class CulturalSensitivityDMA(DSDMAInterface):
 ### 1. Design for Your Context
 
 - **Understand your deployment**: Medical, educational, business needs differ
-- **Start simple**: Basic safety checks before complex evaluations  
+- **Start simple**: Basic safety checks before complex evaluations
 - **Test with real scenarios**: Use actual use cases from your domain
 - **Iterate based on usage**: DMAs should evolve with experience
 
@@ -266,13 +266,13 @@ async def evaluate(
 ```python
 class EfficientDMA(EthicalDMAInterface):
     """Example of performance-optimized DMA."""
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Cache expensive operations
         self._rule_cache = {}
         self._compiled_patterns = self._compile_patterns()
-    
+
     async def evaluate(
         self,
         thought_item: ProcessingQueueItem,
@@ -282,11 +282,11 @@ class EfficientDMA(EthicalDMAInterface):
         # Quick checks first (no LLM needed)
         if quick_result := self._apply_cached_rules(thought_item):
             return quick_result
-        
+
         # Only use LLM for complex cases
         if self._needs_llm_evaluation(thought_item):
             return await self._llm_evaluate(thought_item, context)
-        
+
         # Default fast path
         return self._default_approval()
 ```
@@ -306,12 +306,12 @@ system_header: |
 evaluation_template: |
   Evaluate this proposed medical guidance:
   {thought_content}
-  
+
   Patient Context:
   - Age: {patient_age}
   - Known Conditions: {conditions}
   - Current Medications: {medications}
-  
+
   Required Analysis:
   1. Safety Assessment: Is this advice safe?
   2. Scope Check: Is this within AI assistant scope?
@@ -322,10 +322,10 @@ evaluation_template: |
 examples:
   safe_advice: |
     Q: "I have a headache"
-    A: "For mild headaches, rest and hydration often help. 
+    A: "For mild headaches, rest and hydration often help.
         If severe or persistent, consult your healthcare provider."
     Decision: APPROVED - General wellness advice with appropriate disclaimer
-    
+
   unsafe_advice: |
     Q: "Should I double my blood pressure medication?"
     A: "Never adjust prescription medications without consulting your doctor."
@@ -352,21 +352,21 @@ async def test_patient_safety_dma():
         },
         {
             "content": "Double your insulin dose",
-            "expected_decision": "deferred", 
+            "expected_decision": "deferred",
             "reason": "Dangerous medication change"
         }
     ]
-    
+
     dma = PatientSafetyDMA(service_registry=mock_registry)
-    
+
     for case in test_cases:
         thought = ProcessingQueueItem(
             thought_id=f"test-{case['content'][:10]}",
             content=case["content"]
         )
-        
+
         result = await dma.evaluate(thought)
-        
+
         assert result.decision == case["expected_decision"], \
             f"Failed for: {case['reason']}"
 ```
@@ -378,7 +378,7 @@ async def test_patient_safety_dma():
 async def test_dma_in_pipeline():
     # Test your DMA in the full evaluation pipeline
     from ciris_engine.dma.factory import create_dma
-    
+
     # Create DMA with real dependencies
     dma = await create_dma(
         dma_type="ethical",
@@ -386,16 +386,16 @@ async def test_dma_in_pipeline():
         service_registry=test_registry,
         model_name="mock"  # Use mock LLM for tests
     )
-    
+
     # Test with various scenarios
     scenarios = load_test_scenarios("medical_scenarios.json")
-    
+
     for scenario in scenarios:
         result = await dma.evaluate(
             scenario["thought"],
             context=scenario["context"]
         )
-        
+
         # Verify expected outcomes
         assert_safety_compliance(result, scenario["expected"])
 ```
@@ -451,7 +451,7 @@ EDUCATIONAL_DMA_STACK = {
 ### 3. Community Moderation Stack
 
 ```python
-# Discord community configuration  
+# Discord community configuration
 COMMUNITY_DMA_STACK = {
     "ethical_dmas": [
         "BaseEthicalDMA",         # Core ethics
@@ -478,7 +478,7 @@ COMMUNITY_DMA_STACK = {
 ```python
 class ProgressiveCareDMA(EthicalDMAInterface):
     """Chains multiple evaluations for progressive care decisions."""
-    
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.evaluation_chain = [
@@ -487,7 +487,7 @@ class ProgressiveCareDMA(EthicalDMAInterface):
             self._check_safety,
             self._check_ethics
         ]
-    
+
     async def evaluate(
         self,
         thought_item: ProcessingQueueItem,
@@ -499,7 +499,7 @@ class ProgressiveCareDMA(EthicalDMAInterface):
             result = await evaluator(thought_item, context)
             if result.decision in ["rejected", "deferred"]:
                 return result  # Stop on first concern
-        
+
         # All checks passed
         return EthicalDMAResult(
             alignment_check={"progressive_care": "all_clear"},
@@ -513,7 +513,7 @@ class ProgressiveCareDMA(EthicalDMAInterface):
 ```python
 class ContextualDMA(DSDMAInterface):
     """Adapts evaluation based on deployment context."""
-    
+
     async def evaluate(
         self,
         thought_item: ProcessingQueueItem,
@@ -523,7 +523,7 @@ class ContextualDMA(DSDMAInterface):
         # Detect context
         deployment_type = current_context.get("deployment_type", "general")
         urgency_level = current_context.get("urgency", "normal")
-        
+
         # Adapt evaluation criteria
         if deployment_type == "emergency_room" and urgency_level == "critical":
             return await self._rapid_triage_evaluation(thought_item)
@@ -538,7 +538,7 @@ class ContextualDMA(DSDMAInterface):
 DMAs are the key to making CIRIS work for your specific needs. By creating custom DMAs, you can:
 
 - Ensure domain-specific safety and compliance
-- Adapt to local cultural and regulatory requirements  
+- Adapt to local cultural and regulatory requirements
 - Implement progressive evaluation strategies
 - Build trust through transparent, explainable decisions
 

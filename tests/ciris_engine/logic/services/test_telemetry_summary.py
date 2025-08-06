@@ -1,14 +1,15 @@
 """Tests for telemetry summary functionality."""
 
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
+from unittest.mock import AsyncMock, Mock
+
 import pytest
 import pytest_asyncio
-from datetime import datetime, timedelta, timezone
-from unittest.mock import Mock, AsyncMock, patch
-from typing import List, Dict, Any, Optional
 
+from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.services.graph.telemetry_service import GraphTelemetryService
 from ciris_engine.schemas.runtime.system_context import TelemetrySummary
-from ciris_engine.logic.buses.memory_bus import MemoryBus
 
 
 class TestTelemetrySummary:
@@ -30,52 +31,57 @@ class TestTelemetrySummary:
     @pytest_asyncio.fixture
     async def telemetry_service(self, mock_memory_bus: Mock, mock_time_service: Mock) -> GraphTelemetryService:
         """Create telemetry service with mocks."""
-        service = GraphTelemetryService(
-            memory_bus=mock_memory_bus,
-            time_service=mock_time_service
-        )
+        service = GraphTelemetryService(memory_bus=mock_memory_bus, time_service=mock_time_service)
         # Set start time for uptime calculation
-        setattr(service, '_start_time', datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc))
+        setattr(service, "_start_time", datetime(2024, 1, 1, 0, 0, 0, tzinfo=timezone.utc))
         return service
 
-    def create_mock_metrics(self, base_time: datetime, metric_name: str,
-                           values: List[float], service: str = "test_service") -> List[Dict[str, Any]]:
+    def create_mock_metrics(
+        self, base_time: datetime, metric_name: str, values: List[float], service: str = "test_service"
+    ) -> List[Dict[str, Any]]:
         """Helper to create mock metric data."""
         metrics = []
         for i, value in enumerate(values):
             # Create timestamps that are within the last hour
             timestamp = base_time - timedelta(minutes=i * 5)  # Space out by 5 minutes
-            metrics.append({
-                "metric_name": metric_name,
-                "value": value,
-                "timestamp": timestamp.isoformat(),  # Convert to ISO format string
-                "tags": {"service": service}
-            })
+            metrics.append(
+                {
+                    "metric_name": metric_name,
+                    "value": value,
+                    "timestamp": timestamp.isoformat(),  # Convert to ISO format string
+                    "tags": {"service": service},
+                }
+            )
         return metrics
 
     @pytest.mark.asyncio
-    async def test_get_telemetry_summary_basic(self, telemetry_service: GraphTelemetryService, mock_time_service: Mock) -> None:
+    async def test_get_telemetry_summary_basic(
+        self, telemetry_service: GraphTelemetryService, mock_time_service: Mock
+    ) -> None:
         """Test basic telemetry summary generation."""
+
         # Mock query_metrics to return test data
-        async def mock_query_metrics(metric_name: str, start_time: datetime, end_time: datetime, tags: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        async def mock_query_metrics(
+            metric_name: str, start_time: datetime, end_time: datetime, tags: Optional[Dict[str, Any]] = None
+        ) -> List[Dict[str, Any]]:
             # Always ensure we return metrics with the correct metric_name
             if metric_name == "llm.tokens.total":
                 return self.create_mock_metrics(
                     mock_time_service.now(),
                     "llm.tokens.total",  # Use exact metric name
-                    [100, 200, 150, 300]  # 750 total
+                    [100, 200, 150, 300],  # 750 total
                 )
             elif metric_name == "llm.cost.cents":
                 return self.create_mock_metrics(
                     mock_time_service.now(),
                     "llm.cost.cents",  # Use exact metric name
-                    [1.5, 3.0, 2.25, 4.5]  # 11.25 total
+                    [1.5, 3.0, 2.25, 4.5],  # 11.25 total
                 )
             elif metric_name == "llm.environmental.carbon_grams":
                 return self.create_mock_metrics(
                     mock_time_service.now(),
                     "llm.environmental.carbon_grams",  # Use exact metric name
-                    [0.15, 0.30, 0.225, 0.45]  # 1.125 total
+                    [0.15, 0.30, 0.225, 0.45],  # 1.125 total
                 )
             # Return empty list for other metric types that get_telemetry_summary queries
             return []
@@ -93,18 +99,18 @@ class TestTelemetrySummary:
         assert summary.uptime_seconds == 43200.0  # 12 hours
 
     @pytest.mark.asyncio
-    async def test_telemetry_summary_caching(self, telemetry_service: GraphTelemetryService, mock_time_service: Mock) -> None:
+    async def test_telemetry_summary_caching(
+        self, telemetry_service: GraphTelemetryService, mock_time_service: Mock
+    ) -> None:
         """Test that telemetry summary uses caching."""
         call_count = 0
 
-        async def mock_query_metrics(metric_name: str, start_time: datetime, end_time: datetime, tags: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        async def mock_query_metrics(
+            metric_name: str, start_time: datetime, end_time: datetime, tags: Optional[Dict[str, Any]] = None
+        ) -> List[Dict[str, Any]]:
             nonlocal call_count
             call_count += 1
-            return self.create_mock_metrics(
-                mock_time_service.now(),
-                metric_name,
-                [100]
-            )
+            return self.create_mock_metrics(mock_time_service.now(), metric_name, [100])
 
         telemetry_service.query_metrics = mock_query_metrics
 
@@ -130,10 +136,15 @@ class TestTelemetrySummary:
         assert call_count > initial_calls  # New queries made
 
     @pytest.mark.asyncio
-    async def test_telemetry_summary_error_handling(self, telemetry_service: GraphTelemetryService, mock_time_service: Mock) -> None:
+    async def test_telemetry_summary_error_handling(
+        self, telemetry_service: GraphTelemetryService, mock_time_service: Mock
+    ) -> None:
         """Test telemetry summary handles errors gracefully."""
+
         # Mock query_metrics to raise an error
-        async def mock_query_metrics(metric_name: str, start_time: datetime, end_time: datetime, tags: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        async def mock_query_metrics(
+            metric_name: str, start_time: datetime, end_time: datetime, tags: Optional[Dict[str, Any]] = None
+        ) -> List[Dict[str, Any]]:
             raise Exception("Database error")
 
         telemetry_service.query_metrics = mock_query_metrics
@@ -147,28 +158,42 @@ class TestTelemetrySummary:
         assert summary.messages_processed_24h == 0
 
     @pytest.mark.asyncio
-    async def test_telemetry_summary_service_breakdown(self, telemetry_service: GraphTelemetryService, mock_time_service: Mock) -> None:
+    async def test_telemetry_summary_service_breakdown(
+        self, telemetry_service: GraphTelemetryService, mock_time_service: Mock
+    ) -> None:
         """Test service call breakdown in telemetry summary."""
-        async def mock_query_metrics(metric_name: str, start_time: datetime, end_time: datetime, tags: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+
+        async def mock_query_metrics(
+            metric_name: str, start_time: datetime, end_time: datetime, tags: Optional[Dict[str, Any]] = None
+        ) -> List[Dict[str, Any]]:
             if metric_name == "llm.tokens.total":
                 metrics = []
                 # Create metrics from different services
                 for service in ["openai", "anthropic", "local"]:
-                    metrics.extend(self.create_mock_metrics(
-                        mock_time_service.now(),
-                        metric_name,
-                        [100, 200],
-                        service=service
-                    ))
+                    metrics.extend(
+                        self.create_mock_metrics(mock_time_service.now(), metric_name, [100, 200], service=service)
+                    )
                 return metrics
             elif metric_name == "llm.latency.ms":
                 return [
-                    {"metric_name": metric_name, "value": 150.0, "timestamp": mock_time_service.now().isoformat(),
-                     "tags": {"service": "openai"}},
-                    {"metric_name": metric_name, "value": 200.0, "timestamp": mock_time_service.now().isoformat(),
-                     "tags": {"service": "openai"}},
-                    {"metric_name": metric_name, "value": 100.0, "timestamp": mock_time_service.now().isoformat(),
-                     "tags": {"service": "anthropic"}},
+                    {
+                        "metric_name": metric_name,
+                        "value": 150.0,
+                        "timestamp": mock_time_service.now().isoformat(),
+                        "tags": {"service": "openai"},
+                    },
+                    {
+                        "metric_name": metric_name,
+                        "value": 200.0,
+                        "timestamp": mock_time_service.now().isoformat(),
+                        "tags": {"service": "openai"},
+                    },
+                    {
+                        "metric_name": metric_name,
+                        "value": 100.0,
+                        "timestamp": mock_time_service.now().isoformat(),
+                        "tags": {"service": "anthropic"},
+                    },
                 ]
             return []
 
@@ -197,7 +222,6 @@ class TestResourceUsageCalculation:
 
     def test_llama_model_cost_calculation(self) -> None:
         """Test cost calculation for Llama models."""
-        from ciris_engine.schemas.runtime.resources import ResourceUsage
 
         # Simulate the cost calculation logic
         model_name = "meta-llama/Llama-4-Scout-17B-16E-Instruct"
@@ -212,7 +236,7 @@ class TestResourceUsageCalculation:
         total_cost_cents = input_cost_cents + output_cost_cents
 
         assert input_cost_cents == 10.0  # $0.10
-        assert output_cost_cents == 5.0   # $0.05
+        assert output_cost_cents == 5.0  # $0.05
         assert total_cost_cents == 15.0  # $0.15
 
     def test_carbon_footprint_calculation(self) -> None:
@@ -229,14 +253,14 @@ class TestResourceUsageCalculation:
         carbon_grams = energy_kwh * 500.0  # 500g CO2 per kWh
 
         assert energy_kwh == 0.002  # 0.002 kWh
-        assert carbon_grams == 1.0   # 1g CO2
+        assert carbon_grams == 1.0  # 1g CO2
 
     def test_openai_model_costs(self) -> None:
         """Test cost calculations for various OpenAI models."""
         test_cases = [
             ("gpt-4o-mini", 1_000_000, 1_000_000, 15.0, 60.0),  # $0.15 + $0.60
-            ("gpt-4o", 1_000_000, 1_000_000, 250.0, 1000.0),    # $2.50 + $10.00
-            ("gpt-3.5-turbo", 1_000_000, 1_000_000, 50.0, 150.0), # $0.50 + $1.50
+            ("gpt-4o", 1_000_000, 1_000_000, 250.0, 1000.0),  # $2.50 + $10.00
+            ("gpt-3.5-turbo", 1_000_000, 1_000_000, 50.0, 150.0),  # $0.50 + $1.50
         ]
 
         for model_name, input_tokens, output_tokens, expected_input_cost, expected_output_cost in test_cases:
@@ -272,7 +296,7 @@ class TestSystemSnapshotIntegration:
             cost_last_hour_cents=50.0,
             carbon_last_hour_grams=10.0,
             messages_processed_24h=100,
-            errors_24h=2
+            errors_24h=2,
         )
         mock_telemetry_service.get_telemetry_summary = AsyncMock(return_value=mock_telemetry_summary)
 
@@ -281,10 +305,7 @@ class TestSystemSnapshotIntegration:
 
         # Build snapshot
         snapshot = await build_system_snapshot(
-            task=None,
-            thought=None,
-            resource_monitor=mock_resource_monitor,
-            telemetry_service=mock_telemetry_service
+            task=None, thought=None, resource_monitor=mock_resource_monitor, telemetry_service=mock_telemetry_service
         )
 
         # Verify telemetry is included
@@ -312,15 +333,11 @@ class TestSystemSnapshotIntegration:
             thoughts_current_hour=20,
             errors_24h=5,
             error_rate_percent=2.5,
-            service_calls={"openai": 100, "memory": 50}
+            service_calls={"openai": 100, "memory": 50},
         )
 
         snapshot = SystemSnapshot(
-            system_counts={
-                "pending_tasks": 5,
-                "total_tasks": 100
-            },
-            telemetry_summary=telemetry_summary
+            system_counts={"pending_tasks": 5, "total_tasks": 100}, telemetry_summary=telemetry_summary
         )
 
         # Format the snapshot

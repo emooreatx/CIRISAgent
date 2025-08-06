@@ -21,7 +21,7 @@ interface CategoryDoc {
 
 export default function DocsPage() {
   const [activeCategory, setActiveCategory] = useState('overview');
-  
+
   const documentation: Record<string, CategoryDoc> = {
     overview: {
       title: 'API Overview',
@@ -585,7 +585,7 @@ export default function DocsPage() {
               <div className="px-4 py-5 sm:p-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">{activeDoc.title}</h2>
                 <p className="text-gray-600 mb-6">{activeDoc.description}</p>
-                
+
                 {activeDoc.baseUrl !== 'http://localhost:8080' && (
                   <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                     <span className="text-sm font-medium text-gray-700">Base URL: </span>
@@ -612,22 +612,22 @@ export default function DocsPage() {
                         </div>
                         <span className="text-xs text-gray-500">{endpoint.auth}</span>
                       </div>
-                      
+
                       <p className="text-sm text-gray-600 mb-3">{endpoint.description}</p>
-                      
+
                       {endpoint.params && (
                         <div className="mb-3">
                           <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Parameters</h4>
                           <div className="bg-gray-50 rounded p-3">
                             <pre className="text-xs text-gray-600 whitespace-pre-wrap">
-                              {typeof endpoint.params === 'object' 
+                              {typeof endpoint.params === 'object'
                                 ? JSON.stringify(endpoint.params, null, 2)
                                 : endpoint.params}
                             </pre>
                           </div>
                         </div>
                       )}
-                      
+
                       {endpoint.response && (
                         <div>
                           <h4 className="text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Response</h4>

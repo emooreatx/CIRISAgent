@@ -8,10 +8,12 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class ResourceAction(str, Enum):
     """Actions to take when a resource limit is exceeded"""
+
     LOG = "log"
     WARN = "warn"
     THROTTLE = "throttle"
@@ -19,65 +21,59 @@ class ResourceAction(str, Enum):
     REJECT = "reject"
     SHUTDOWN = "shutdown"
 
+
 class ResourceLimit(BaseModel):
     """Configuration for a single resource"""
+
     limit: int = Field(description="Hard limit value")
     warning: int = Field(description="Warning threshold")
     critical: int = Field(description="Critical threshold")
     action: ResourceAction = Field(default=ResourceAction.DEFER, description="Action when limit exceeded")
     cooldown_seconds: int = Field(default=60, ge=0, description="Cooldown period in seconds")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 def _memory_mb_limit() -> ResourceLimit:
     return ResourceLimit(limit=4096, warning=3072, critical=3840)
 
+
 def _cpu_percent_limit() -> ResourceLimit:
     return ResourceLimit(limit=80, warning=60, critical=75, action=ResourceAction.THROTTLE)
+
 
 def _tokens_hour_limit() -> ResourceLimit:
     return ResourceLimit(limit=10000, warning=8000, critical=9500)
 
+
 def _tokens_day_limit() -> ResourceLimit:
     return ResourceLimit(limit=100000, warning=80000, critical=95000, action=ResourceAction.REJECT)
+
 
 def _disk_mb_limit() -> ResourceLimit:
     return ResourceLimit(limit=100, warning=80, critical=95, action=ResourceAction.WARN)
 
+
 def _thoughts_active_limit() -> ResourceLimit:
     return ResourceLimit(limit=50, warning=40, critical=48)
 
+
 class ResourceBudget(BaseModel):
     """Limits for all monitored resources"""
-    memory_mb: ResourceLimit = Field(
-        default_factory=_memory_mb_limit,
-        description="Memory usage limits in MB"
-    )
-    cpu_percent: ResourceLimit = Field(
-        default_factory=_cpu_percent_limit,
-        description="CPU usage limits in percent"
-    )
-    tokens_hour: ResourceLimit = Field(
-        default_factory=_tokens_hour_limit,
-        description="Token usage per hour"
-    )
-    tokens_day: ResourceLimit = Field(
-        default_factory=_tokens_day_limit,
-        description="Token usage per day"
-    )
-    disk_mb: ResourceLimit = Field(
-        default_factory=_disk_mb_limit,
-        description="Disk usage limits in MB"
-    )
-    thoughts_active: ResourceLimit = Field(
-        default_factory=_thoughts_active_limit,
-        description="Active thoughts limit"
-    )
 
-    model_config = ConfigDict(extra = "forbid")
+    memory_mb: ResourceLimit = Field(default_factory=_memory_mb_limit, description="Memory usage limits in MB")
+    cpu_percent: ResourceLimit = Field(default_factory=_cpu_percent_limit, description="CPU usage limits in percent")
+    tokens_hour: ResourceLimit = Field(default_factory=_tokens_hour_limit, description="Token usage per hour")
+    tokens_day: ResourceLimit = Field(default_factory=_tokens_day_limit, description="Token usage per day")
+    disk_mb: ResourceLimit = Field(default_factory=_disk_mb_limit, description="Disk usage limits in MB")
+    thoughts_active: ResourceLimit = Field(default_factory=_thoughts_active_limit, description="Active thoughts limit")
+
+    model_config = ConfigDict(extra="forbid")
+
 
 class ResourceSnapshot(BaseModel):
     """Current resource usage snapshot"""
+
     memory_mb: int = Field(default=0, ge=0, description="Memory usage in MB")
     memory_percent: int = Field(default=0, ge=0, le=100, description="Memory usage percentage")
     cpu_percent: int = Field(default=0, ge=0, le=100, description="CPU usage percentage")
@@ -92,7 +88,8 @@ class ResourceSnapshot(BaseModel):
     warnings: List[str] = Field(default_factory=list, description="Active warnings")
     critical: List[str] = Field(default_factory=list, description="Critical issues")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class ResourceCost(BaseModel):
     """Environmental and financial cost of AI operations"""
@@ -116,7 +113,9 @@ class ResourceCost(BaseModel):
     energy_per_token_kwh: float = Field(default=0.00001, description="Energy per token in kWh")
 
     # Metadata
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When costs were calculated")
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="When costs were calculated"
+    )
     model_used: Optional[str] = Field(default=None, description="Model that incurred these costs")
 
     def calculate_from_tokens(self, tokens: int, model: Optional[str] = None) -> None:
@@ -129,7 +128,7 @@ class ResourceCost(BaseModel):
         self.model_used = model
         self.timestamp = datetime.now(timezone.utc)
 
-    def add_usage(self, other: 'ResourceCost') -> None:
+    def add_usage(self, other: "ResourceCost") -> None:
         """Add another resource cost to this one"""
         self.tokens_used += other.tokens_used
         self.cost_cents += other.cost_cents
@@ -152,20 +151,24 @@ class ResourceCost(BaseModel):
         """Get carbon emissions in kilograms"""
         return self.carbon_g / 1000.0
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
 
 
 class ResourceAlert(BaseModel):
     """Resource usage alert"""
+
     resource_type: str = Field(description="Type of resource (memory, cpu, tokens, etc.)")
     current_value: float = Field(description="Current usage value")
     limit_value: float = Field(description="Configured limit")
     severity: str = Field(description="Alert severity (warning, critical)")
     action_taken: ResourceAction = Field(description="Action taken in response")
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When alert was triggered")
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="When alert was triggered"
+    )
     message: str = Field(description="Human-readable alert message")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 __all__ = [
     "ResourceAction",

@@ -8,23 +8,33 @@ from typing import Deque, Dict, Optional, Tuple
 from uuid import uuid4
 
 from ciris_engine.logic.adapters.base import Service
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot
-from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, CorrelationType, MetricData
 from ciris_engine.logic.persistence.models.correlations import add_correlation
-from .security import SecurityFilter
 from ciris_engine.logic.services.lifecycle.time import TimeService
+from ciris_engine.schemas.runtime.system_context import SystemSnapshot
+from ciris_engine.schemas.telemetry.core import (
+    CorrelationType,
+    MetricData,
+    ServiceCorrelation,
+    ServiceCorrelationStatus,
+)
+
+from .security import SecurityFilter
 
 logger = logging.getLogger(__name__)
+
 
 class BasicTelemetryCollector(Service):
     """Collects and exposes basic telemetry for agent introspection."""
 
-    def __init__(self, buffer_size: int = 1000, security_filter: SecurityFilter | None = None, time_service: TimeService | None = None) -> None:
+    def __init__(
+        self,
+        buffer_size: int = 1000,
+        security_filter: SecurityFilter | None = None,
+        time_service: TimeService | None = None,
+    ) -> None:
         super().__init__()
         self.buffer_size = buffer_size
-        self._history: Dict[str, Deque[Tuple[datetime, float]]] = defaultdict(
-            lambda: deque(maxlen=self.buffer_size)
-        )
+        self._history: Dict[str, Deque[Tuple[datetime, float]]] = defaultdict(lambda: deque(maxlen=self.buffer_size))
         self._filter = security_filter or SecurityFilter()
         self._time_service = time_service or TimeService()
         self.start_time = self._time_service.now()
@@ -44,7 +54,7 @@ class BasicTelemetryCollector(Service):
         value: float = 1.0,
         tags: Optional[Dict[str, str]] = None,
         path_type: Optional[str] = None,  # hot, cold, critical
-        source_module: Optional[str] = None
+        source_module: Optional[str] = None,
     ) -> None:
         sanitized = self._filter.sanitize(metric_name, value)
         if sanitized is None:
@@ -57,31 +67,29 @@ class BasicTelemetryCollector(Service):
 
         # Auto-detect path type based on metric name patterns if not provided
         if path_type is None:
-            if any(critical in name for critical in ['error', 'critical', 'security', 'auth', 'circuit_breaker']):
-                path_type = 'critical'
-            elif any(hot in name for hot in ['thought_processing', 'handler_invoked', 'action_selected', 'dma_']):
-                path_type = 'hot'
-            elif any(cold in name for cold in ['memory_', 'persistence_', 'context_fetch', 'service_lookup']):
-                path_type = 'cold'
+            if any(critical in name for critical in ["error", "critical", "security", "auth", "circuit_breaker"]):
+                path_type = "critical"
+            elif any(hot in name for hot in ["thought_processing", "handler_invoked", "action_selected", "dma_"]):
+                path_type = "hot"
+            elif any(cold in name for cold in ["memory_", "persistence_", "context_fetch", "service_lookup"]):
+                path_type = "cold"
             else:
-                path_type = 'normal'
+                path_type = "normal"
 
         metric_entry = {
-            'timestamp': timestamp,
-            'value': float(val),
-            'tags': tags or {},
-            'path_type': path_type,
-            'source_module': source_module or 'unknown'
+            "timestamp": timestamp,
+            "value": float(val),
+            "tags": tags or {},
+            "path_type": path_type,
+            "source_module": source_module or "unknown",
         }
 
         # Store both simple format for backward compatibility and enhanced format
         self._history[name].append((timestamp, float(val)))
 
         # Store enhanced metrics in separate history for TSDB capabilities
-        if not hasattr(self, '_enhanced_history'):
-            self._enhanced_history: Dict[str, Deque[dict]] = defaultdict(
-                lambda: deque(maxlen=self.buffer_size)
-            )
+        if not hasattr(self, "_enhanced_history"):
+            self._enhanced_history: Dict[str, Deque[dict]] = defaultdict(lambda: deque(maxlen=self.buffer_size))
 
         self._enhanced_history[name].append(metric_entry)
 
@@ -89,8 +97,8 @@ class BasicTelemetryCollector(Service):
         try:
             # Include path_type and source_module in tags instead of metadata
             combined_tags = tags.copy() if tags else {}
-            combined_tags['path_type'] = path_type
-            combined_tags['source_module'] = source_module or 'unknown'
+            combined_tags["path_type"] = path_type
+            combined_tags["source_module"] = source_module or "unknown"
 
             metric_correlation = ServiceCorrelation(
                 correlation_id=str(uuid4()),
@@ -100,16 +108,13 @@ class BasicTelemetryCollector(Service):
                 correlation_type=CorrelationType.METRIC_DATAPOINT,
                 timestamp=timestamp,
                 metric_data=MetricData(
-                    metric_name=name,
-                    metric_value=float(val),
-                    metric_unit="count",  # Default unit
-                    metric_type="gauge"
+                    metric_name=name, metric_value=float(val), metric_unit="count", metric_type="gauge"  # Default unit
                 ),
                 tags=combined_tags,
                 status=ServiceCorrelationStatus.COMPLETED,
                 retention_policy=self._get_retention_policy(path_type),
                 created_at=timestamp,
-                updated_at=timestamp
+                updated_at=timestamp,
             )
 
             # Store asynchronously without blocking metric recording
@@ -132,10 +137,9 @@ class BasicTelemetryCollector(Service):
 
         # Create telemetry summary
         from ciris_engine.schemas.runtime.system_context import TelemetrySummary
+
         telemetry = TelemetrySummary(
-            window_start=cutoff_24h,
-            window_end=now,
-            uptime_seconds=(now - self.start_time).total_seconds()
+            window_start=cutoff_24h, window_end=now, uptime_seconds=(now - self.start_time).total_seconds()
         )
 
         # Count metrics for different time windows
@@ -176,11 +180,11 @@ class BasicTelemetryCollector(Service):
 
     def _get_retention_policy(self, path_type: Optional[str]) -> str:
         """Determine retention policy based on path type."""
-        if path_type == 'critical':
-            return 'raw'  # Keep all critical metrics
-        elif path_type == 'hot':
-            return 'raw'  # Keep hot path metrics for performance analysis
-        elif path_type == 'cold':
-            return 'aggregated'  # Aggregate cold path metrics
+        if path_type == "critical":
+            return "raw"  # Keep all critical metrics
+        elif path_type == "hot":
+            return "raw"  # Keep hot path metrics for performance analysis
+        elif path_type == "cold":
+            return "aggregated"  # Aggregate cold path metrics
         else:
-            return 'aggregated'  # Default to aggregated
+            return "aggregated"  # Default to aggregated

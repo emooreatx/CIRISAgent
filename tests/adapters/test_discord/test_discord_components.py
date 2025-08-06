@@ -1,18 +1,18 @@
 """Unit tests for individual Discord adapter components."""
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from datetime import datetime, timezone, timedelta
-import discord
-import base64
-import json
 
-from ciris_engine.logic.adapters.discord.discord_vision_helper import DiscordVisionHelper
+from datetime import datetime, timedelta, timezone
+from typing import Any
+from unittest.mock import AsyncMock, Mock, patch
+
+import discord
+import pytest
+
+from ciris_engine.logic.adapters.discord.discord_audit import DiscordAuditLogger
+from ciris_engine.logic.adapters.discord.discord_embed_formatter import DiscordEmbedFormatter, EmbedType
 from ciris_engine.logic.adapters.discord.discord_error_handler import DiscordErrorHandler, ErrorSeverity
 from ciris_engine.logic.adapters.discord.discord_rate_limiter import DiscordRateLimiter
-from ciris_engine.logic.adapters.discord.discord_embed_formatter import DiscordEmbedFormatter, EmbedType
 from ciris_engine.logic.adapters.discord.discord_thread_manager import DiscordThreadManager, ThreadType
-from ciris_engine.logic.adapters.discord.discord_audit import DiscordAuditLogger
-from typing import Any, Dict, Optional
+from ciris_engine.logic.adapters.discord.discord_vision_helper import DiscordVisionHelper
 
 
 class TestDiscordVisionHelper:
@@ -21,14 +21,14 @@ class TestDiscordVisionHelper:
     @pytest.fixture
     def vision_helper(self) -> DiscordVisionHelper:
         """Create vision helper with mocked API key."""
-        with patch.dict('os.environ', {'CIRIS_OPENAI_VISION_KEY': 'test_key'}):
+        with patch.dict("os.environ", {"CIRIS_OPENAI_VISION_KEY": "test_key"}):
             return DiscordVisionHelper()
 
     @pytest.mark.asyncio
     async def test_vision_helper_initialization(self, vision_helper: DiscordVisionHelper) -> None:
         """Test vision helper initializes with API key."""
         assert vision_helper.is_available() is True
-        assert vision_helper.api_key == 'test_key'
+        assert vision_helper.api_key == "test_key"
 
     @pytest.mark.asyncio
     async def test_process_image_attachment(self, vision_helper: DiscordVisionHelper) -> None:
@@ -50,7 +50,7 @@ class TestDiscordVisionHelper:
             return "This is a test image description"
 
         # Patch the _process_single_image method directly
-        with patch.object(vision_helper, '_process_single_image', side_effect=mock_process_single_image):
+        with patch.object(vision_helper, "_process_single_image", side_effect=mock_process_single_image):
             # Process image
             result = await vision_helper.process_message_images(mock_message)
 
@@ -61,7 +61,7 @@ class TestDiscordVisionHelper:
     @pytest.mark.asyncio
     async def test_vision_helper_no_api_key(self) -> None:
         """Test vision helper without API key."""
-        with patch.dict('os.environ', {}, clear=True):
+        with patch.dict("os.environ", {}, clear=True):
             helper = DiscordVisionHelper()
             assert helper.is_available() is False
 
@@ -83,9 +83,7 @@ class TestDiscordErrorHandler:
         """Test handling channel not found error."""
         error = discord.NotFound(Mock(), "Channel not found")
 
-        result = error_handler.handle_channel_error(
-            "123456789", error, "send_message"
-        )
+        result = error_handler.handle_channel_error("123456789", error, "send_message")
 
         assert result.severity == ErrorSeverity.HIGH
         assert result.can_retry is False
@@ -97,9 +95,7 @@ class TestDiscordErrorHandler:
         """Test handling permission denied error."""
         error = discord.Forbidden(Mock(), "Missing permissions")
 
-        result = error_handler.handle_channel_error(
-            "123456789", error, "send_message"
-        )
+        result = error_handler.handle_channel_error("123456789", error, "send_message")
 
         assert result.severity == ErrorSeverity.HIGH
         assert result.can_retry is False
@@ -113,9 +109,7 @@ class TestDiscordErrorHandler:
         mock_response.status = 429
         error = discord.HTTPException(mock_response, "Rate limited")
 
-        result = error_handler.handle_channel_error(
-            "123456789", error, "send_message"
-        )
+        result = error_handler.handle_channel_error("123456789", error, "send_message")
 
         assert result.severity == ErrorSeverity.MEDIUM
         assert result.can_retry is True
@@ -146,7 +140,7 @@ class TestDiscordRateLimiter:
     async def test_global_rate_limit(self, rate_limiter: DiscordRateLimiter) -> None:
         """Test global rate limiting."""
         # Mock time to avoid actual sleeps
-        with patch('asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             # Make requests up to limit
             for _ in range(50):
                 await rate_limiter.acquire("/channels/123/messages", "POST")
@@ -169,7 +163,7 @@ class TestDiscordRateLimiter:
         headers = {
             "X-RateLimit-Remaining": "10",
             "X-RateLimit-Reset": str(datetime.now().timestamp() + 60),
-            "X-RateLimit-Bucket": "test_bucket"
+            "X-RateLimit-Bucket": "test_bucket",
         }
 
         rate_limiter.update_from_response("/channels/123/messages", headers)
@@ -184,27 +178,23 @@ class TestDiscordEmbedFormatter:
 
     def test_create_base_embed(self) -> None:
         """Test creating base embed."""
-        embed = DiscordEmbedFormatter.create_base_embed(
-            EmbedType.INFO,
-            "Test Title",
-            "Test Description"
-        )
+        embed = DiscordEmbedFormatter.create_base_embed(EmbedType.INFO, "Test Title", "Test Description")
 
         assert "ℹ️" in embed.title
         assert "Test Title" in embed.title
         assert embed.description == "Test Description"
-        assert embed.color.value == 0x3498db
+        assert embed.color.value == 0x3498DB
 
     def test_format_guidance_request(self) -> None:
         """Test formatting guidance request."""
         from ciris_engine.schemas.adapters.discord import DiscordGuidanceData
-        
+
         context = DiscordGuidanceData(
             deferral_id="defer123",
             thought_id="thought123",
             task_id="task456",
             reason="Should I proceed?",
-            context={"urgency": "high"}
+            context={"urgency": "high"},
         )
 
         embed = DiscordEmbedFormatter.format_guidance_request(context)
@@ -222,13 +212,13 @@ class TestDiscordEmbedFormatter:
     def test_format_approval_request(self) -> None:
         """Test formatting approval request."""
         from ciris_engine.schemas.adapters.discord import DiscordApprovalData
-        
+
         context = DiscordApprovalData(
             action="Delete File",
             requester_id="user123",
             task_id="task789",
             action_name="delete_file",
-            action_params={"file": "test.txt", "force": True}
+            action_params={"file": "test.txt", "force": True},
         )
 
         embed = DiscordEmbedFormatter.format_approval_request("Delete File", context)
@@ -244,45 +234,25 @@ class TestDiscordEmbedFormatter:
     def test_format_tool_execution(self) -> None:
         """Test formatting tool execution."""
         # Test in-progress
-        embed = DiscordEmbedFormatter.format_tool_execution(
-            "test_tool",
-            {"param1": "value1"},
-            None
-        )
+        embed = DiscordEmbedFormatter.format_tool_execution("test_tool", {"param1": "value1"}, None)
         assert "🔧" in embed.title
         assert "Executing..." in embed.description
 
         # Test success
         from ciris_engine.schemas.adapters.discord import DiscordToolResult
-        
+
         result = DiscordToolResult(
-            success=True,
-            output="Operation completed",
-            execution_time=123.45,
-            status="completed"
+            success=True, output="Operation completed", execution_time=123.45, status="completed"
         )
-        embed = DiscordEmbedFormatter.format_tool_execution(
-            "test_tool",
-            {"param1": "value1"},
-            result
-        )
+        embed = DiscordEmbedFormatter.format_tool_execution("test_tool", {"param1": "value1"}, result)
         assert "✅" in embed.title
-        assert embed.color.value == 0x2ecc71
+        assert embed.color.value == 0x2ECC71
 
         # Test failure
-        result = DiscordToolResult(
-            success=False,
-            error="Operation failed",
-            execution_time=50.0,
-            status="failed"
-        )
-        embed = DiscordEmbedFormatter.format_tool_execution(
-            "test_tool",
-            {"param1": "value1"},
-            result
-        )
+        result = DiscordToolResult(success=False, error="Operation failed", execution_time=50.0, status="failed")
+        embed = DiscordEmbedFormatter.format_tool_execution("test_tool", {"param1": "value1"}, result)
         assert "❌" in embed.title
-        assert embed.color.value == 0xe74c3c
+        assert embed.color.value == 0xE74C3C
 
 
 class TestDiscordThreadManager:
@@ -307,23 +277,23 @@ class TestDiscordThreadManager:
 
         # Mock message for initial_message flow
         mock_message = Mock()
+
         async def message_create_thread(*args: Any, **kwargs: Any) -> Any:
             return mock_thread
+
         mock_message.create_thread = message_create_thread
 
         # Mock channel.send to return the message
         async def channel_send(*args: Any, **kwargs: Any) -> Any:
             return mock_message
+
         mock_channel.send = channel_send
 
         thread_manager.client.get_channel = Mock(return_value=mock_channel)
 
         # Create thread
         thread = await thread_manager.create_thread(
-            "123456789",
-            "Test Thread",
-            ThreadType.GUIDANCE,
-            initial_message="Initial message"
+            "123456789", "Test Thread", ThreadType.GUIDANCE, initial_message="Initial message"
         )
 
         assert thread is not None
@@ -344,11 +314,7 @@ class TestDiscordThreadManager:
         thread_manager._active_threads[thread_key] = mock_thread
 
         # Get existing thread
-        thread = await thread_manager.get_or_create_thread(
-            "123456789",
-            "Test",
-            ThreadType.GUIDANCE
-        )
+        thread = await thread_manager.get_or_create_thread("123456789", "Test", ThreadType.GUIDANCE)
 
         assert thread == mock_thread
 
@@ -362,16 +328,13 @@ class TestDiscordThreadManager:
         old_thread.edit = AsyncMock()
 
         thread_manager._active_threads["old_thread"] = old_thread
-        thread_manager._thread_metadata[111] = {
-            "created_at": datetime.now(timezone.utc) - timedelta(hours=25)
-        }
+        thread_manager._thread_metadata[111] = {"created_at": datetime.now(timezone.utc) - timedelta(hours=25)}
 
         # Archive old threads
         count = await thread_manager.archive_old_threads(hours=24)
 
         assert count == 1
         old_thread.edit.assert_called_once_with(archived=True, reason="Auto-archive after 24 hours")
-
 
 
 class TestDiscordAuditLogger:
@@ -396,7 +359,7 @@ class TestDiscordAuditLogger:
             operation="send_message",
             actor="user123",
             context={"channel_id": "456", "correlation_id": "abc123"},
-            success=True
+            success=True,
         )
 
         # Verify audit service was called
@@ -415,13 +378,9 @@ class TestDiscordAuditLogger:
     async def test_log_operation_without_audit_service(self, audit_logger: DiscordAuditLogger) -> None:
         """Test logging falls back to standard logging."""
         # No audit service set
-        with patch('ciris_engine.logic.adapters.discord.discord_audit.logger') as mock_logger:
+        with patch("ciris_engine.logic.adapters.discord.discord_audit.logger") as mock_logger:
             await audit_logger.log_operation(
-                operation="test_op",
-                actor="user123",
-                context={},
-                success=False,
-                error_message="Test error"
+                operation="test_op", actor="user123", context={}, success=False, error_message="Test error"
             )
 
             # Should use standard logging

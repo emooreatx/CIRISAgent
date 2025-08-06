@@ -3,13 +3,17 @@ Feedback schemas for Wise Authority feedback processing.
 
 Provides type-safe structures for WA feedback and directives.
 """
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Dict, List, Optional, Union
-from enum import Enum
+
 from datetime import datetime, timezone
+from enum import Enum
+from typing import Dict, List, Optional, Union
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class FeedbackType(str, Enum):
     """Types of WA feedback."""
+
     IDENTITY_UPDATE = "identity_update"
     ENVIRONMENT_UPDATE = "environment_update"
     MEMORY_CORRECTION = "memory_correction"
@@ -17,24 +21,30 @@ class FeedbackType(str, Enum):
     POLICY_CLARIFICATION = "policy_clarification"
     SYSTEM_DIRECTIVE = "system_directive"
 
+
 class FeedbackSource(str, Enum):
     """Source of the feedback."""
+
     WISE_AUTHORITY = "wise_authority"
     HUMAN_OPERATOR = "human_operator"
     SYSTEM_MONITOR = "system_monitor"
     PEER_AGENT = "peer_agent"
 
+
 class FeedbackDirective(BaseModel):
     """Specific directive within feedback."""
+
     action: str = Field(..., description="Action: update, delete, add, override, etc.")
     target: str = Field(..., description="What to act on")
     data: Union[Dict[str, str], str, List[str]] = Field(..., description="Directive data")
     reasoning: Optional[str] = Field(None, description="Reasoning for directive")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class WiseAuthorityFeedback(BaseModel):
     """Structured feedback from WA on deferred decisions."""
+
     feedback_id: str = Field(..., description="Unique feedback ID")
 
     # Original context
@@ -65,10 +75,12 @@ class WiseAuthorityFeedback(BaseModel):
     processed_at: Optional[datetime] = Field(None, description="Processing time")
     processing_result: Dict[str, str] = Field(default_factory=dict, description="Processing results")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class FeedbackMapping(BaseModel):
     """Maps feedback to original context for processing."""
+
     mapping_id: str = Field(..., description="Unique mapping ID")
     feedback_id: str = Field(..., description="Feedback ID")
 
@@ -83,25 +95,30 @@ class FeedbackMapping(BaseModel):
 
     created_at: datetime = Field(..., description="Creation time")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class FeedbackProcessingRequest(BaseModel):
     """Request to process feedback."""
+
     feedback_id: str = Field(..., description="Feedback to process")
     force: bool = Field(False, description="Force reprocessing")
     dry_run: bool = Field(False, description="Validate without applying")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class FeedbackProcessingResult(BaseModel):
     """Result of feedback processing."""
+
     success: bool = Field(..., description="Whether processing succeeded")
     feedback_id: str = Field(..., description="Processed feedback ID")
     actions_taken: List[str] = Field(..., description="Actions performed")
     errors: List[str] = Field(default_factory=list, description="Errors encountered")
     warnings: List[str] = Field(default_factory=list, description="Warnings")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 __all__ = [
     "FeedbackType",
@@ -110,5 +127,5 @@ __all__ = [
     "WiseAuthorityFeedback",
     "FeedbackMapping",
     "FeedbackProcessingRequest",
-    "FeedbackProcessingResult"
+    "FeedbackProcessingResult",
 ]

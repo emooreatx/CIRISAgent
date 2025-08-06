@@ -3,22 +3,23 @@ Agent interaction endpoints for CIRIS API v3.0 (Simplified).
 
 Core endpoints for natural agent interaction.
 """
+
 import asyncio
 import logging
 import uuid
-from typing import List, Optional, Any, Dict
 from datetime import datetime, timezone
-from fastapi import APIRouter, Request, HTTPException, Depends, Query
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
+from ciris_engine.schemas.api.agent import AgentLineage, MessageContext, ServiceAvailability
+from ciris_engine.schemas.api.auth import ROLE_PERMISSIONS, Permission, UserRole
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ciris_engine.schemas.runtime.messages import IncomingMessage
-from ..dependencies.auth import require_observer, AuthContext
-from ciris_engine.schemas.api.auth import UserRole, ROLE_PERMISSIONS, Permission
-from ciris_engine.schemas.api.agent import (
-    MessageContext, AgentLineage, ServiceAvailability
-)
-from ..constants import ERROR_MEMORY_SERVICE_NOT_AVAILABLE, DESC_CURRENT_COGNITIVE_STATE
+
+from ..constants import DESC_CURRENT_COGNITIVE_STATE, ERROR_MEMORY_SERVICE_NOT_AVAILABLE
+from ..dependencies.auth import AuthContext, require_observer
 
 logger = logging.getLogger(__name__)
 
@@ -26,38 +27,48 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 
 # Request/Response schemas
 
+
 class InteractRequest(BaseModel):
     """Request to interact with the agent."""
+
     message: str = Field(..., description="Message to send to the agent")
     context: Optional[MessageContext] = Field(None, description="Optional context")
 
+
 class InteractResponse(BaseModel):
     """Response from agent interaction."""
+
     message_id: str = Field(..., description="Unique message ID")
     response: str = Field(..., description="Agent's response")
     state: str = Field(..., description="Agent's cognitive state after processing")
     processing_time_ms: int = Field(..., description="Time taken to process")
 
+
 class ConversationMessage(BaseModel):
     """Message in conversation history."""
+
     id: str = Field(..., description="Message ID")
     author: str = Field(..., description="Message author")
     content: str = Field(..., description="Message content")
     timestamp: datetime = Field(..., description="When sent")
     is_agent: bool = Field(..., description="Whether this was from the agent")
 
+
 class ConversationHistory(BaseModel):
     """Conversation history."""
+
     messages: List[ConversationMessage] = Field(..., description="Message history")
     total_count: int = Field(..., description="Total messages")
     has_more: bool = Field(..., description="Whether more messages exist")
 
+
 class AgentStatus(BaseModel):
     """Agent status and cognitive state."""
+
     # Core identity
     agent_id: str = Field(..., description="Agent identifier")
     name: str = Field(..., description="Agent name")
-    
+
     # Version information
     version: str = Field(..., description="CIRIS version (e.g., 1.0.4-beta)")
     codename: str = Field(..., description="Release codename")
@@ -77,8 +88,10 @@ class AgentStatus(BaseModel):
     memory_usage_mb: float = Field(..., description="Current memory usage in MB")
     multi_provider_services: Optional[dict] = Field(None, description="Services with provider counts")
 
+
 class AgentIdentity(BaseModel):
     """Agent identity and capabilities."""
+
     # Identity
     agent_id: str = Field(..., description="Unique agent identifier")
     name: str = Field(..., description="Agent name")
@@ -93,8 +106,10 @@ class AgentIdentity(BaseModel):
     services: ServiceAvailability = Field(..., description="Service availability")
     permissions: List[str] = Field(..., description="Agent permissions")
 
+
 class ChannelInfo(BaseModel):
     """Information about a communication channel."""
+
     channel_id: str = Field(..., description="Unique channel identifier")
     channel_type: str = Field(..., description="Type of channel (discord, api, cli)")
     display_name: str = Field(..., description="Human-readable channel name")
@@ -103,10 +118,13 @@ class ChannelInfo(BaseModel):
     last_activity: Optional[datetime] = Field(None, description="Last message in channel")
     message_count: int = Field(0, description="Total messages in channel")
 
+
 class ChannelList(BaseModel):
     """List of active channels."""
+
     channels: List[ChannelInfo] = Field(..., description="List of channels")
     total_count: int = Field(..., description="Total number of channels")
+
 
 # Message tracking for interact functionality
 _message_responses: dict[str, str] = {}
@@ -123,36 +141,37 @@ async def store_message_response(message_id: str, response: str) -> None:
 
 # Endpoints
 
+
 @router.post("/interact", response_model=SuccessResponse[InteractResponse])
 async def interact(
-    request: Request,
-    body: InteractRequest,
-    auth: AuthContext = Depends(require_observer)
+    request: Request, body: InteractRequest, auth: AuthContext = Depends(require_observer)
 ) -> SuccessResponse[InteractResponse]:
     """
     Send message and get response.
 
     This endpoint combines the old send/ask functionality into a single interaction.
     It sends the message and waits for the agent's response (with a reasonable timeout).
-    
+
     Requires: SEND_MESSAGES permission (ADMIN+ by default, or OBSERVER with explicit grant)
     """
     # Check if user has permission to send messages
     if not auth.has_permission(Permission.SEND_MESSAGES):
         # Get auth service to check permission request status
         # Note: We can't use dependency injection here, so we'll access it directly
-        auth_service = request.app.state.auth_service if hasattr(request.app.state, 'auth_service') else None
+        auth_service = request.app.state.auth_service if hasattr(request.app.state, "auth_service") else None
         user = auth_service.get_user(auth.user_id) if auth_service else None
-        
+
         # If user is an OAuth user without a permission request, automatically create one
         if user and user.auth_type == "oauth" and user.permission_requested_at is None:
             # Set permission request timestamp
             user.permission_requested_at = datetime.now(timezone.utc)
             # Store the updated user
             auth_service._users[user.wa_id] = user
-            
-            logger.info(f"Auto-created permission request for OAuth user {user.oauth_email or user.name} (ID: {user.wa_id})")
-        
+
+            logger.info(
+                f"Auto-created permission request for OAuth user {user.oauth_email or user.name} (ID: {user.wa_id})"
+            )
+
         # Build detailed error response
         error_detail = {
             "error": "insufficient_permissions",
@@ -160,13 +179,10 @@ async def interact(
             "discord_invite": "https://discord.gg/A3HVPMWd",
             "can_request_permissions": user.permission_requested_at is None if user else True,
             "permission_requested": user.permission_requested_at is not None if user else False,
-            "requested_at": user.permission_requested_at.isoformat() if user and user.permission_requested_at else None
+            "requested_at": user.permission_requested_at.isoformat() if user and user.permission_requested_at else None,
         }
-        
-        raise HTTPException(
-            status_code=403,
-            detail=error_detail
-        )
+
+        raise HTTPException(status_code=403, detail=error_detail)
     # Create unique IDs
     message_id = str(uuid.uuid4())
     channel_id = f"api_{auth.user_id}"  # User-specific channel
@@ -180,23 +196,23 @@ async def interact(
         author_name=auth.user_id,
         content=body.message,
         channel_id=channel_id,
-        timestamp=datetime.now(timezone.utc).isoformat()
+        timestamp=datetime.now(timezone.utc).isoformat(),
     )
 
     # Track timing
     start_time = datetime.now(timezone.utc)
 
     # Route message through adapter's handler
-    if hasattr(request.app.state, 'on_message'):
+    if hasattr(request.app.state, "on_message"):
         await request.app.state.on_message(msg)
     else:
         raise HTTPException(status_code=503, detail="Message handler not configured")
 
     # Get timeout from config or use default
     timeout = 55.0  # default timeout for longer processing
-    if hasattr(request.app.state, 'api_config'):
+    if hasattr(request.app.state, "api_config"):
         timeout = request.app.state.api_config.interaction_timeout
-    
+
     # Wait for response with timeout
     try:
         await asyncio.wait_for(event.wait(), timeout=timeout)
@@ -214,15 +230,15 @@ async def interact(
 
         # Get current cognitive state
         cognitive_state = "WORK"
-        runtime = getattr(request.app.state, 'runtime', None)
-        if runtime and hasattr(runtime, 'state_manager'):
+        runtime = getattr(request.app.state, "runtime", None)
+        if runtime and hasattr(runtime, "state_manager"):
             cognitive_state = runtime.state_manager.current_state
 
         response = InteractResponse(
             message_id=message_id,
             response=response_content,
             state=cognitive_state,
-            processing_time_ms=processing_time_ms
+            processing_time_ms=processing_time_ms,
         )
 
         return SuccessResponse(data=response)
@@ -237,17 +253,18 @@ async def interact(
             message_id=message_id,
             response="Still processing. Check back later. Agent response is not guaranteed.",
             state="WORK",
-            processing_time_ms=int(timeout * 1000)  # Use actual timeout value
+            processing_time_ms=int(timeout * 1000),  # Use actual timeout value
         )
 
         return SuccessResponse(data=response)
+
 
 @router.get("/history", response_model=SuccessResponse[ConversationHistory])
 async def get_history(
     request: Request,
     limit: int = Query(50, ge=1, le=200, description="Maximum messages to return"),
     before: Optional[datetime] = Query(None, description="Get messages before this time"),
-    auth: AuthContext = Depends(require_observer)
+    auth: AuthContext = Depends(require_observer),
 ) -> SuccessResponse[ConversationHistory]:
     """
     Conversation history.
@@ -256,79 +273,93 @@ async def get_history(
     """
     # Use user-specific channel
     channel_id = f"api_{auth.user_id}"
-    
+
     # For admin users and above, also include the default API channel (home)
     channels_to_query = [channel_id]
-    if auth.role in ['ADMIN', 'AUTHORITY', 'SYSTEM_ADMIN']:
+    if auth.role in ["ADMIN", "AUTHORITY", "SYSTEM_ADMIN"]:
         # Get default API channel from config
-        api_host = getattr(request.app.state, 'api_host', '127.0.0.1')
-        api_port = getattr(request.app.state, 'api_port', '8080')
+        api_host = getattr(request.app.state, "api_host", "127.0.0.1")
+        api_port = getattr(request.app.state, "api_port", "8080")
         default_channel = f"api_{api_host}_{api_port}"
         channels_to_query.append(default_channel)
-        
+
         # Also add common variations of the API channel
         # This ensures we catch messages regardless of how the channel was recorded
-        channels_to_query.extend([
-            f"api_0.0.0.0_{api_port}",      # Bind address
-            f"api_127.0.0.1_{api_port}",    # Localhost
-            f"api_localhost_{api_port}",     # Hostname variant
-        ])
-    
+        channels_to_query.extend(
+            [
+                f"api_0.0.0.0_{api_port}",  # Bind address
+                f"api_127.0.0.1_{api_port}",  # Localhost
+                f"api_localhost_{api_port}",  # Hostname variant
+            ]
+        )
+
     logger.info(f"History query for user {auth.user_id} with role {auth.role}, channels: {channels_to_query}")
-    
+
     # Check for mock message history first
-    message_history = getattr(request.app.state, 'message_history', None)
+    message_history = getattr(request.app.state, "message_history", None)
     if message_history is not None:
         # Filter messages for this user (including default channel for admins)
-        user_messages = [m for m in message_history if m.get('channel_id') in channels_to_query]
-        
+        user_messages = [m for m in message_history if m.get("channel_id") in channels_to_query]
+
         # Convert to response format
         messages = []
-        
+
         # First, expand all messages (user + response pairs)
         all_messages = []
         for msg in user_messages:
             # Add user message
-            all_messages.append(ConversationMessage(
-                id=msg['message_id'],
-                author=msg['author_id'],
-                content=msg['content'],
-                timestamp=datetime.fromisoformat(msg['timestamp']) if isinstance(msg['timestamp'], str) else msg['timestamp'],
-                is_agent=False
-            ))
+            all_messages.append(
+                ConversationMessage(
+                    id=msg["message_id"],
+                    author=msg["author_id"],
+                    content=msg["content"],
+                    timestamp=(
+                        datetime.fromisoformat(msg["timestamp"])
+                        if isinstance(msg["timestamp"], str)
+                        else msg["timestamp"]
+                    ),
+                    is_agent=False,
+                )
+            )
             # Add agent response if exists
-            if msg.get('response'):
-                all_messages.append(ConversationMessage(
-                    id=f"{msg['message_id']}_response",
-                    author="Scout",
-                    content=msg['response'],
-                    timestamp=datetime.fromisoformat(msg['timestamp']) if isinstance(msg['timestamp'], str) else msg['timestamp'],
-                    is_agent=True
-                ))
-        
+            if msg.get("response"):
+                all_messages.append(
+                    ConversationMessage(
+                        id=f"{msg['message_id']}_response",
+                        author="Scout",
+                        content=msg["response"],
+                        timestamp=(
+                            datetime.fromisoformat(msg["timestamp"])
+                            if isinstance(msg["timestamp"], str)
+                            else msg["timestamp"]
+                        ),
+                        is_agent=True,
+                    )
+                )
+
         # Now take only the last 'limit' messages
         if len(all_messages) > limit:
             messages = all_messages[-limit:]
         else:
             messages = all_messages
-        
+
         history = ConversationHistory(
             messages=messages,
             total_count=len(user_messages),
-            has_more=len(user_messages) > len(messages)  # Fixed: has_more should be based on actual truncation
+            has_more=len(user_messages) > len(messages),  # Fixed: has_more should be based on actual truncation
         )
-        
+
         return SuccessResponse(data=history)
 
     # Get communication service
-    comm_service = getattr(request.app.state, 'communication_service', None)
+    comm_service = getattr(request.app.state, "communication_service", None)
     if not comm_service:
         # Fallback: query from memory
-        memory_service = getattr(request.app.state, 'memory_service', None)
+        memory_service = getattr(request.app.state, "memory_service", None)
         if memory_service:
             # Query conversation nodes from memory
-            from ciris_engine.schemas.services.operations import MemoryQuery
             from ciris_engine.schemas.services.graph_core import GraphScope, NodeType
+            from ciris_engine.schemas.services.operations import MemoryQuery
 
             # MemoryQuery expects node_id, not filters
             # For conversation history, we'll need to use a different approach
@@ -338,7 +369,7 @@ async def get_history(
                 scope=GraphScope.LOCAL,
                 type=NodeType.CONVERSATION_SUMMARY,
                 include_edges=True,
-                depth=1
+                depth=1,
             )
 
             nodes = await memory_service.recall(query)
@@ -347,33 +378,31 @@ async def get_history(
             messages = []
             for node in nodes:
                 attrs = node.attributes
-                messages.append(ConversationMessage(
-                    id=attrs.get('message_id', node.id),
-                    author=attrs.get('author', 'unknown'),
-                    content=attrs.get('content', ''),
-                    timestamp=datetime.fromisoformat(attrs.get('timestamp', node.created_at)),
-                    is_agent=attrs.get('is_agent', False)
-                ))
+                messages.append(
+                    ConversationMessage(
+                        id=attrs.get("message_id", node.id),
+                        author=attrs.get("author", "unknown"),
+                        content=attrs.get("content", ""),
+                        timestamp=datetime.fromisoformat(attrs.get("timestamp", node.created_at)),
+                        is_agent=attrs.get("is_agent", False),
+                    )
+                )
 
-            history = ConversationHistory(
-                messages=messages,
-                total_count=len(messages),
-                has_more=len(messages) == limit
-            )
+            history = ConversationHistory(messages=messages, total_count=len(messages), has_more=len(messages) == limit)
 
             return SuccessResponse(data=history)
 
     try:
         # Fetch messages from communication service (fetch more to allow filtering)
         fetch_limit = limit * 2 if before else limit
-        
+
         # Fetch messages from all relevant channels
         fetched_messages: List[Dict[str, Any]] = []
         for channel in channels_to_query:
             try:
                 logger.info(f"Fetching messages from channel: {channel}")
                 if comm_service is None:
-                    logger.warning(f"Communication service is not available")
+                    logger.warning("Communication service is not available")
                     continue
                 channel_messages = await comm_service.fetch_messages(channel, limit=fetch_limit)
                 logger.info(f"Retrieved {len(channel_messages)} messages from {channel}")
@@ -382,15 +411,27 @@ async def get_history(
                 # If a channel doesn't exist or has no messages, continue
                 logger.warning(f"Failed to fetch from channel {channel}: {e}")
                 continue
-        
+
         # Sort messages by timestamp (newest first)
-        sorted_messages = sorted(fetched_messages, 
-                         key=lambda m: m.timestamp if isinstance(m.timestamp, datetime) else datetime.fromisoformat(str(m.timestamp)) if m.timestamp else datetime.now(timezone.utc), 
-                         reverse=True)
+        sorted_messages = sorted(
+            fetched_messages,
+            key=lambda m: (
+                m.timestamp
+                if isinstance(m.timestamp, datetime)
+                else datetime.fromisoformat(str(m.timestamp)) if m.timestamp else datetime.now(timezone.utc)
+            ),
+            reverse=True,
+        )
 
         # Filter by time if specified
         if before:
-            filtered_messages = [m for m in sorted_messages if m.timestamp and (m.timestamp if isinstance(m.timestamp, datetime) else datetime.fromisoformat(str(m.timestamp))) < before]
+            filtered_messages = [
+                m
+                for m in sorted_messages
+                if m.timestamp
+                and (m.timestamp if isinstance(m.timestamp, datetime) else datetime.fromisoformat(str(m.timestamp)))
+                < before
+            ]
         else:
             filtered_messages = sorted_messages
 
@@ -399,58 +440,62 @@ async def get_history(
         for msg in filtered_messages[:limit]:  # Apply limit after filtering
             # Safely access model attributes
             timestamp_val = msg.timestamp
-            msg_timestamp = timestamp_val if isinstance(timestamp_val, datetime) else datetime.fromisoformat(str(timestamp_val)) if timestamp_val else datetime.now(timezone.utc)
-            
-            conv_messages.append(ConversationMessage(
-                id=str(msg.message_id or ""),
-                author=str(msg.author_name or msg.author_id or ""),
-                content=str(msg.content or ""),
-                timestamp=msg_timestamp,
-                is_agent=bool(getattr(msg, "is_agent_message", False) or getattr(msg, "is_bot", False))
-            ))
+            msg_timestamp = (
+                timestamp_val
+                if isinstance(timestamp_val, datetime)
+                else datetime.fromisoformat(str(timestamp_val)) if timestamp_val else datetime.now(timezone.utc)
+            )
+
+            conv_messages.append(
+                ConversationMessage(
+                    id=str(msg.message_id or ""),
+                    author=str(msg.author_name or msg.author_id or ""),
+                    content=str(msg.content or ""),
+                    timestamp=msg_timestamp,
+                    is_agent=bool(getattr(msg, "is_agent_message", False) or getattr(msg, "is_bot", False)),
+                )
+            )
 
         # Build response
         history = ConversationHistory(
             messages=conv_messages,
             total_count=len(filtered_messages),  # Total before limiting
-            has_more=len(filtered_messages) > limit
+            has_more=len(filtered_messages) > limit,
         )
 
         return SuccessResponse(data=history)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/status", response_model=SuccessResponse[AgentStatus])
-async def get_status(
-    request: Request,
-    auth: AuthContext = Depends(require_observer)
-) -> SuccessResponse[AgentStatus]:
+async def get_status(request: Request, auth: AuthContext = Depends(require_observer)) -> SuccessResponse[AgentStatus]:
     """
     Agent status and cognitive state.
 
     Get comprehensive agent status including state, metrics, and current activity.
     """
     # Get runtime info
-    runtime = getattr(request.app.state, 'runtime', None)
+    runtime = getattr(request.app.state, "runtime", None)
     if not runtime:
         raise HTTPException(status_code=503, detail="Runtime not available")
 
     try:
         # Get cognitive state
         cognitive_state = "WORK"
-        if hasattr(runtime, 'state_manager'):
+        if hasattr(runtime, "state_manager"):
             cognitive_state = runtime.state_manager.current_state
 
         # Get uptime
-        time_service = getattr(request.app.state, 'time_service', None)
+        time_service = getattr(request.app.state, "time_service", None)
         uptime = 0.0
         if time_service:
             # Try to get uptime from time service status
-            if hasattr(time_service, 'get_status'):
+            if hasattr(time_service, "get_status"):
                 time_status = time_service.get_status()
-                if hasattr(time_status, 'uptime_seconds'):
+                if hasattr(time_status, "uptime_seconds"):
                     uptime = time_status.uptime_seconds
-            elif hasattr(time_service, '_start_time') and hasattr(time_service, 'now'):
+            elif hasattr(time_service, "_start_time") and hasattr(time_service, "now"):
                 # Calculate uptime manually
                 uptime = (time_service.now() - time_service._start_time).total_seconds()
 
@@ -461,76 +506,80 @@ async def get_status(
             # Import persistence functions
             from ciris_engine.logic import persistence
             from ciris_engine.schemas.runtime.enums import TaskStatus
-            
+
             # Get completed tasks - wakeup tasks have specific patterns
             completed_tasks = persistence.get_tasks_by_status(TaskStatus.COMPLETED)
-            
+
             # Count tasks that start with WAKEUP-related prefixes
-            wakeup_prefixes = ['VERIFY_IDENTITY', 'VALIDATE_INTEGRITY', 'EVALUATE_RESILIENCE', 
-                             'ACCEPT_INCOMPLETENESS', 'EXPRESS_GRATITUDE']
-            
+            wakeup_prefixes = [
+                "VERIFY_IDENTITY",
+                "VALIDATE_INTEGRITY",
+                "EVALUATE_RESILIENCE",
+                "ACCEPT_INCOMPLETENESS",
+                "EXPRESS_GRATITUDE",
+            ]
+
             for task in completed_tasks:
                 if any(task.task_id.startswith(prefix) for prefix in wakeup_prefixes):
                     messages_processed += 1
-            
+
             # If no wakeup tasks found, show at least 5 if system has been initialized
             if messages_processed == 0 and uptime > 60:  # If running for more than a minute
                 messages_processed = 5  # Standard wakeup cycle completes 5 tasks
-                
+
         except Exception as e:
             logger.warning(f"Failed to count completed tasks: {e}")
 
         # Get current task from task scheduler if available
         current_task = None
-        task_scheduler = getattr(request.app.state, 'task_scheduler', None)
-        if task_scheduler and hasattr(task_scheduler, 'get_current_task'):
+        task_scheduler = getattr(request.app.state, "task_scheduler", None)
+        if task_scheduler and hasattr(task_scheduler, "get_current_task"):
             current_task = await task_scheduler.get_current_task()
 
         # Get resource usage
-        resource_monitor = getattr(request.app.state, 'resource_monitor', None)
+        resource_monitor = getattr(request.app.state, "resource_monitor", None)
         memory_usage_mb = 0.0
-        if resource_monitor and hasattr(resource_monitor, 'snapshot'):
+        if resource_monitor and hasattr(resource_monitor, "snapshot"):
             memory_usage_mb = float(resource_monitor.snapshot.memory_mb)
 
         # Count active services - CIRIS has 19 total services
         # The service registry only tracks multi-provider services (7 of them)
-        service_registry = getattr(request.app.state, 'service_registry', None)
+        service_registry = getattr(request.app.state, "service_registry", None)
         multi_provider_count = 0
         multi_provider_services = {}
-        
+
         if service_registry:
             from ciris_engine.schemas.runtime.enums import ServiceType
+
             for service_type in ServiceType:
                 providers = service_registry.get_services_by_type(service_type)
                 count = len(providers)
                 if count > 0:
                     multi_provider_count += count
                     # Store the service type and provider count
-                    multi_provider_services[service_type.value] = {
-                        "providers": count,
-                        "type": "multi-provider"
-                    }
-        
+                    multi_provider_services[service_type.value] = {"providers": count, "type": "multi-provider"}
+
         # CIRIS has AT LEAST 19 service types:
         # - Multi-provider services can have multiple instances
-        # - 12 singleton services (direct access) 
+        # - 12 singleton services (direct access)
         # Total active = registry count + 12 singletons
         services_active = multi_provider_count + 12
 
         # Get agent identity
         agent_id = "ciris_agent"
         agent_name = "CIRIS"
-        if hasattr(runtime, 'agent_identity') and runtime.agent_identity:
+        if hasattr(runtime, "agent_identity") and runtime.agent_identity:
             agent_id = runtime.agent_identity.agent_id
             # Try to get name from various sources
-            if hasattr(runtime.agent_identity, 'name'):
+            if hasattr(runtime.agent_identity, "name"):
                 agent_name = runtime.agent_identity.name
-            elif hasattr(runtime.agent_identity, 'core_profile'):
+            elif hasattr(runtime.agent_identity, "core_profile"):
                 # Use first part of description or role as name
-                agent_name = runtime.agent_identity.core_profile.description.split('.')[0]
-        
+                agent_name = runtime.agent_identity.core_profile.description.split(".")[0]
+
         # Get version information
-        from ciris_engine.constants import CIRIS_VERSION, CIRIS_CODENAME
+        from ciris_engine.constants import CIRIS_CODENAME, CIRIS_VERSION
+
         try:
             from version import __version__ as code_hash
         except ImportError:
@@ -549,7 +598,7 @@ async def get_status(
             current_task=current_task,
             services_active=services_active,
             memory_usage_mb=memory_usage_mb,
-            multi_provider_services=multi_provider_services
+            multi_provider_services=multi_provider_services,
         )
 
         return SuccessResponse(data=status)
@@ -557,10 +606,10 @@ async def get_status(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/identity", response_model=SuccessResponse[AgentIdentity])
 async def get_identity(
-    request: Request,
-    auth: AuthContext = Depends(require_observer)
+    request: Request, auth: AuthContext = Depends(require_observer)
 ) -> SuccessResponse[AgentIdentity]:
     """
     Agent identity and capabilities.
@@ -568,20 +617,16 @@ async def get_identity(
     Get comprehensive agent identity including capabilities, tools, and permissions.
     """
     # Get memory service to query identity
-    memory_service = getattr(request.app.state, 'memory_service', None)
+    memory_service = getattr(request.app.state, "memory_service", None)
     if not memory_service:
         raise HTTPException(status_code=503, detail=ERROR_MEMORY_SERVICE_NOT_AVAILABLE)
 
     try:
         # Query identity from graph
-        from ciris_engine.schemas.services.operations import MemoryQuery
         from ciris_engine.schemas.services.graph_core import GraphScope
+        from ciris_engine.schemas.services.operations import MemoryQuery
 
-        query = MemoryQuery(
-            node_id="agent/identity",
-            scope=GraphScope.IDENTITY,
-            include_edges=False
-        )
+        query = MemoryQuery(node_id="agent/identity", scope=GraphScope.IDENTITY, include_edges=False)
 
         nodes = await memory_service.recall(query)
 
@@ -592,86 +637,99 @@ async def get_identity(
             identity_data = identity_node.attributes
         else:
             # Fallback to runtime identity
-            runtime = getattr(request.app.state, 'runtime', None)
-            if runtime and hasattr(runtime, 'agent_identity'):
+            runtime = getattr(request.app.state, "runtime", None)
+            if runtime and hasattr(runtime, "agent_identity"):
                 identity = runtime.agent_identity
                 identity_data = {
-                    'agent_id': identity.agent_id,
-                    'name': getattr(identity, 'name', identity.core_profile.description.split('.')[0]),
-                    'purpose': getattr(identity, 'purpose', identity.core_profile.description),
-                    'created_at': identity.identity_metadata.created_at.isoformat(),
-                    'lineage': {
-                        'model': identity.identity_metadata.model,
-                        'version': identity.identity_metadata.version,
-                        'parent_id': getattr(identity.identity_metadata, 'parent_id', None),
-                        'creation_context': getattr(identity.identity_metadata, 'creation_context', 'default'),
-                        'adaptations': getattr(identity.identity_metadata, 'adaptations', [])
+                    "agent_id": identity.agent_id,
+                    "name": getattr(identity, "name", identity.core_profile.description.split(".")[0]),
+                    "purpose": getattr(identity, "purpose", identity.core_profile.description),
+                    "created_at": identity.identity_metadata.created_at.isoformat(),
+                    "lineage": {
+                        "model": identity.identity_metadata.model,
+                        "version": identity.identity_metadata.version,
+                        "parent_id": getattr(identity.identity_metadata, "parent_id", None),
+                        "creation_context": getattr(identity.identity_metadata, "creation_context", "default"),
+                        "adaptations": getattr(identity.identity_metadata, "adaptations", []),
                     },
-                    'variance_threshold': 0.2
+                    "variance_threshold": 0.2,
                 }
 
         # Get capabilities
 
         # Get tool service for available tools
-        tool_service = getattr(request.app.state, 'tool_service', None)
+        tool_service = getattr(request.app.state, "tool_service", None)
         tools = []
         if tool_service:
             tools = await tool_service.list_tools()
 
         # Get handlers (these are the core action handlers)
         handlers = [
-            "observe", "speak", "tool", "reject", "ponder",
-            "defer", "memorize", "recall", "forget", "task_complete"
+            "observe",
+            "speak",
+            "tool",
+            "reject",
+            "ponder",
+            "defer",
+            "memorize",
+            "recall",
+            "forget",
+            "task_complete",
         ]
 
         # Get service availability
         services = ServiceAvailability()
-        service_registry = getattr(request.app.state, 'service_registry', None)
+        service_registry = getattr(request.app.state, "service_registry", None)
         if service_registry:
             from ciris_engine.schemas.runtime.enums import ServiceType
+
             for service_type in ServiceType:
                 providers = service_registry.get_services_by_type(service_type)
                 count = len(providers)
                 # Map to service categories
-                if 'graph' in service_type.value.lower() or service_type.value == 'MEMORY':
+                if "graph" in service_type.value.lower() or service_type.value == "MEMORY":
                     services.graph += count
-                elif service_type.value in ['LLM', 'SECRETS']:
+                elif service_type.value in ["LLM", "SECRETS"]:
                     services.core += count
-                elif service_type.value in ['TIME', 'SHUTDOWN', 'INITIALIZATION', 'VISIBILITY', 
-                                           'AUTHENTICATION', 'RESOURCE_MONITOR', 'RUNTIME_CONTROL']:
+                elif service_type.value in [
+                    "TIME",
+                    "SHUTDOWN",
+                    "INITIALIZATION",
+                    "VISIBILITY",
+                    "AUTHENTICATION",
+                    "RESOURCE_MONITOR",
+                    "RUNTIME_CONTROL",
+                ]:
                     services.infrastructure += count
-                elif service_type.value == 'WISE_AUTHORITY':
+                elif service_type.value == "WISE_AUTHORITY":
                     services.governance += count
                 else:
                     services.special += count
 
         # Get permissions (agent's core capabilities)
-        permissions = [
-            "communicate", "use_tools", "access_memory",
-            "observe_environment", "learn", "adapt"
-        ]
+        permissions = ["communicate", "use_tools", "access_memory", "observe_environment", "learn", "adapt"]
 
         # Build response
-        lineage_data = identity_data.get('lineage', {})
+        lineage_data = identity_data.get("lineage", {})
         lineage = AgentLineage(
-            model=lineage_data.get('model', 'unknown'),
-            version=lineage_data.get('version', '1.0'),
-            parent_id=lineage_data.get('parent_id'),
-            creation_context=lineage_data.get('creation_context', 'default'),
-            adaptations=lineage_data.get('adaptations', [])
+            model=lineage_data.get("model", "unknown"),
+            version=lineage_data.get("version", "1.0"),
+            parent_id=lineage_data.get("parent_id"),
+            creation_context=lineage_data.get("creation_context", "default"),
+            adaptations=lineage_data.get("adaptations", []),
         )
-        
+
         response = AgentIdentity(
-            agent_id=identity_data.get('agent_id', 'ciris_agent'),
-            name=identity_data.get('name', 'CIRIS'),
-            purpose=identity_data.get('purpose', 'Autonomous AI agent'),
-            created_at=datetime.fromisoformat(identity_data.get('created_at', datetime.now(timezone.utc).isoformat())),
+            agent_id=identity_data.get("agent_id", "ciris_agent"),
+            name=identity_data.get("name", "CIRIS"),
+            purpose=identity_data.get("purpose", "Autonomous AI agent"),
+            created_at=datetime.fromisoformat(identity_data.get("created_at", datetime.now(timezone.utc).isoformat())),
             lineage=lineage,
-            variance_threshold=identity_data.get('variance_threshold', 0.2),
+            variance_threshold=identity_data.get("variance_threshold", 0.2),
             tools=tools,
             handlers=handlers,
             services=services,
-            permissions=permissions
+            permissions=permissions,
         )
 
         return SuccessResponse(data=response)
@@ -681,174 +739,183 @@ async def get_identity(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/channels", response_model=SuccessResponse[ChannelList])
-async def get_channels(
-    request: Request,
-    auth: AuthContext = Depends(require_observer)
-) -> SuccessResponse[ChannelList]:
+async def get_channels(request: Request, auth: AuthContext = Depends(require_observer)) -> SuccessResponse[ChannelList]:
     """
     List active communication channels.
-    
+
     Get all channels where the agent is currently active or has been active.
     """
     channels = []
-    
+
     try:
         # Get runtime
-        runtime = getattr(request.app.state, 'runtime', None)
-        
+        runtime = getattr(request.app.state, "runtime", None)
+
         # First check bootstrap adapters
-        if runtime and hasattr(runtime, 'adapters'):
+        if runtime and hasattr(runtime, "adapters"):
             logger.info(f"Checking {len(runtime.adapters)} bootstrap adapters for channels")
             for adapter in runtime.adapters:
-                logger.info(f"Checking adapter: {adapter.__class__.__name__}, has get_active_channels: {hasattr(adapter, 'get_active_channels')}")
-                if hasattr(adapter, 'get_active_channels'):
+                logger.info(
+                    f"Checking adapter: {adapter.__class__.__name__}, has get_active_channels: {hasattr(adapter, 'get_active_channels')}"
+                )
+                if hasattr(adapter, "get_active_channels"):
                     # Get channels from this adapter
                     adapter_channels = await adapter.get_active_channels()
-                    
+
                     for ch in adapter_channels:
                         # Convert adapter channel info to our format
                         # Handle both dict and Pydantic model formats
-                        if hasattr(ch, 'channel_id'):
+                        if hasattr(ch, "channel_id"):
                             # Pydantic model (e.g., DiscordChannelInfo)
                             channel_info = ChannelInfo(
                                 channel_id=ch.channel_id,
-                                channel_type=getattr(ch, 'channel_type', adapter.__class__.__name__.lower().replace('platform', '')),
-                                display_name=getattr(ch, 'display_name', ch.channel_id),
-                                is_active=getattr(ch, 'is_active', True),
-                                created_at=getattr(ch, 'created_at', None),
-                                last_activity=getattr(ch, 'last_activity', None),
-                                message_count=getattr(ch, 'message_count', 0)
+                                channel_type=getattr(
+                                    ch, "channel_type", adapter.__class__.__name__.lower().replace("platform", "")
+                                ),
+                                display_name=getattr(ch, "display_name", ch.channel_id),
+                                is_active=getattr(ch, "is_active", True),
+                                created_at=getattr(ch, "created_at", None),
+                                last_activity=getattr(ch, "last_activity", None),
+                                message_count=getattr(ch, "message_count", 0),
                             )
                         else:
                             # Dict format (legacy)
                             channel_info = ChannelInfo(
-                                channel_id=ch.get('channel_id', ''),
-                                channel_type=ch.get('channel_type', adapter.__class__.__name__.lower().replace('platform', '')),
-                                display_name=ch.get('display_name', ch.get('channel_id', '')),
-                                is_active=ch.get('is_active', True),
-                                created_at=ch.get('created_at'),
-                                last_activity=ch.get('last_activity'),
-                                message_count=ch.get('message_count', 0)
+                                channel_id=ch.get("channel_id", ""),
+                                channel_type=ch.get(
+                                    "channel_type", adapter.__class__.__name__.lower().replace("platform", "")
+                                ),
+                                display_name=ch.get("display_name", ch.get("channel_id", "")),
+                                is_active=ch.get("is_active", True),
+                                created_at=ch.get("created_at"),
+                                last_activity=ch.get("last_activity"),
+                                message_count=ch.get("message_count", 0),
                             )
                         channels.append(channel_info)
-        
+
         # Also check RuntimeControlService's adapter_manager for dynamically loaded adapters
         # Use the main runtime control service which has the actual adapter_manager
-        control_service = getattr(request.app.state, 'main_runtime_control_service', None)
+        control_service = getattr(request.app.state, "main_runtime_control_service", None)
         logger.info(f"Looking for main_runtime_control_service: found={control_service is not None}")
         if control_service:
             logger.info(f"Got main runtime control service: {control_service.__class__.__name__}")
         else:
             logger.info("main_runtime_control_service not found in app.state, trying fallback")
             # Fallback to getting it from service registry
-            if runtime and hasattr(runtime, 'service_registry') and runtime.service_registry:
+            if runtime and hasattr(runtime, "service_registry") and runtime.service_registry:
                 from ciris_engine.schemas.runtime.enums import ServiceType
+
                 # Get runtime control service - use get_services_by_type to get all providers
                 providers = runtime.service_registry.get_services_by_type(ServiceType.RUNTIME_CONTROL)
                 if providers:
                     control_service = providers[0]  # Use the first provider
                     logger.info(f"Got control service from registry: {control_service.__class__.__name__}")
-        
+
         if control_service:
             # Access adapter_manager directly
-            if hasattr(control_service, 'adapter_manager') and control_service.adapter_manager:
+            if hasattr(control_service, "adapter_manager") and control_service.adapter_manager:
                 adapter_manager = control_service.adapter_manager
-                logger.info(f"Found adapter_manager on control service")
-                
-                if hasattr(adapter_manager, 'loaded_adapters'):
+                logger.info("Found adapter_manager on control service")
+
+                if hasattr(adapter_manager, "loaded_adapters"):
                     loaded = adapter_manager.loaded_adapters
                     logger.info(f"Checking {len(loaded)} dynamically loaded adapters")
                     logger.info(f"Adapter manager class: {adapter_manager.__class__.__name__}")
                     logger.info(f"Adapter manager id: {id(adapter_manager)}")
-                    
+
                     for adapter_id, instance in loaded.items():
                         adapter = instance.adapter
-                        logger.info(f"Checking adapter {adapter_id}: {adapter.__class__.__name__}, has get_active_channels: {hasattr(adapter, 'get_active_channels')}")
-                        
-                        if hasattr(adapter, 'get_active_channels'):
+                        logger.info(
+                            f"Checking adapter {adapter_id}: {adapter.__class__.__name__}, has get_active_channels: {hasattr(adapter, 'get_active_channels')}"
+                        )
+
+                        if hasattr(adapter, "get_active_channels"):
                             try:
                                 adapter_channels = await adapter.get_active_channels()
                                 logger.info(f"Adapter {adapter_id} returned {len(adapter_channels)} channels")
-                                
+
                                 for ch in adapter_channels:
                                     # Handle both dict and Pydantic model formats
-                                    ch_id = ch.channel_id if hasattr(ch, 'channel_id') else ch.get('channel_id', '')
-                                    
+                                    ch_id = ch.channel_id if hasattr(ch, "channel_id") else ch.get("channel_id", "")
+
                                     # Avoid duplicates
                                     if not any(existing.channel_id == ch_id for existing in channels):
-                                        if hasattr(ch, 'channel_id'):
+                                        if hasattr(ch, "channel_id"):
                                             # Pydantic model
                                             channel_info = ChannelInfo(
                                                 channel_id=ch.channel_id,
-                                                channel_type=getattr(ch, 'channel_type', instance.adapter_type),
-                                                display_name=getattr(ch, 'display_name', ch.channel_id),
-                                                is_active=getattr(ch, 'is_active', True),
-                                                created_at=getattr(ch, 'created_at', None),
-                                                last_activity=getattr(ch, 'last_activity', None),
-                                                message_count=getattr(ch, 'message_count', 0)
+                                                channel_type=getattr(ch, "channel_type", instance.adapter_type),
+                                                display_name=getattr(ch, "display_name", ch.channel_id),
+                                                is_active=getattr(ch, "is_active", True),
+                                                created_at=getattr(ch, "created_at", None),
+                                                last_activity=getattr(ch, "last_activity", None),
+                                                message_count=getattr(ch, "message_count", 0),
                                             )
                                         else:
                                             # Dict format
                                             channel_info = ChannelInfo(
-                                                channel_id=ch.get('channel_id', ''),
-                                                channel_type=ch.get('channel_type', instance.adapter_type),
-                                                display_name=ch.get('display_name', ch.get('channel_id', '')),
-                                                is_active=ch.get('is_active', True),
-                                                created_at=ch.get('created_at'),
-                                                last_activity=ch.get('last_activity'),
-                                                message_count=ch.get('message_count', 0)
+                                                channel_id=ch.get("channel_id", ""),
+                                                channel_type=ch.get("channel_type", instance.adapter_type),
+                                                display_name=ch.get("display_name", ch.get("channel_id", "")),
+                                                is_active=ch.get("is_active", True),
+                                                created_at=ch.get("created_at"),
+                                                last_activity=ch.get("last_activity"),
+                                                message_count=ch.get("message_count", 0),
                                             )
                                         channels.append(channel_info)
                             except Exception as e:
                                 logger.error(f"Error getting channels from adapter {adapter_id}: {e}", exc_info=True)
             else:
                 logger.warning("Control service has no adapter_manager")
-        
+
         # Also check if there's a default API channel
-        api_host = getattr(request.app.state, 'api_host', '127.0.0.1')
-        api_port = getattr(request.app.state, 'api_port', '8080')
+        api_host = getattr(request.app.state, "api_host", "127.0.0.1")
+        api_port = getattr(request.app.state, "api_port", "8080")
         api_channel_id = f"api_{api_host}_{api_port}"
-        
+
         # Check if API channel is already in the list
         if not any(ch.channel_id == api_channel_id for ch in channels):
             # Add the default API channel
-            channels.append(ChannelInfo(
-                channel_id=api_channel_id,
-                channel_type="api",
-                display_name=f"API Channel ({api_host}:{api_port})",
-                is_active=True,
-                created_at=None,
-                last_activity=datetime.now(timezone.utc),
-                message_count=0
-            ))
-        
+            channels.append(
+                ChannelInfo(
+                    channel_id=api_channel_id,
+                    channel_type="api",
+                    display_name=f"API Channel ({api_host}:{api_port})",
+                    is_active=True,
+                    created_at=None,
+                    last_activity=datetime.now(timezone.utc),
+                    message_count=0,
+                )
+            )
+
         # Add user-specific API channel if different
         user_channel_id = f"api_{auth.user_id}"
         if not any(ch.channel_id == user_channel_id for ch in channels):
-            channels.append(ChannelInfo(
-                channel_id=user_channel_id,
-                channel_type="api",
-                display_name=f"API Channel ({auth.user_id})",
-                is_active=True,
-                created_at=None,
-                last_activity=None,
-                message_count=0
-            ))
-        
+            channels.append(
+                ChannelInfo(
+                    channel_id=user_channel_id,
+                    channel_type="api",
+                    display_name=f"API Channel ({auth.user_id})",
+                    is_active=True,
+                    created_at=None,
+                    last_activity=None,
+                    message_count=0,
+                )
+            )
+
         # Sort channels by type and then by id
         channels.sort(key=lambda x: (x.channel_type, x.channel_id))
-        
-        channel_list = ChannelList(
-            channels=channels,
-            total_count=len(channels)
-        )
-        
+
+        channel_list = ChannelList(channels=channels, total_count=len(channels))
+
         return SuccessResponse(data=channel_list)
-        
+
     except Exception as e:
         logger.error(f"Failed to get channels: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
 
 # Helper function to notify interact responses
 async def notify_interact_response(message_id: str, content: str) -> None:
@@ -861,13 +928,14 @@ async def notify_interact_response(message_id: str, content: str) -> None:
 # WebSocket endpoint for streaming
 from fastapi import WebSocket, WebSocketDisconnect
 
+
 @router.websocket("/stream")
 async def websocket_stream(
     websocket: WebSocket,
 ) -> None:
     """
     WebSocket endpoint for real-time updates.
-    
+
     Clients can subscribe to different channels:
     - messages: Agent messages and responses
     - telemetry: Real-time metrics
@@ -876,85 +944,86 @@ async def websocket_stream(
     """
     # Extract authorization header from WebSocket request
     authorization = websocket.headers.get("authorization")
-    
+
     if not authorization:
         await websocket.close(code=1008, reason="Missing authorization header")
         return
-    
+
     # Get auth service from app state
-    auth_service = getattr(websocket.app.state, 'auth_service', None)
+    auth_service = getattr(websocket.app.state, "auth_service", None)
     if not auth_service:
         await websocket.close(code=1011, reason="Auth service not initialized")
         return
-    
+
     # Validate bearer token
     if not authorization.startswith("Bearer "):
         await websocket.close(code=1008, reason="Invalid authorization format")
         return
-    
+
     api_key = authorization[7:]  # Remove "Bearer " prefix
-    
+
     # Validate API key
     key_info = auth_service.validate_api_key(api_key)
     if not key_info:
         await websocket.close(code=1008, reason="Invalid API key")
         return
-    
+
     # Create auth context
     auth_context = AuthContext(
         user_id=key_info.user_id,
         role=key_info.role,
         permissions=ROLE_PERMISSIONS.get(key_info.role, set()),
         api_key_id=auth_service._get_key_id(api_key),
-        authenticated_at=datetime.now(timezone.utc)
+        authenticated_at=datetime.now(timezone.utc),
     )
-    
+
     # Check minimum role requirement (OBSERVER)
     if not auth_context.role.has_permission(UserRole.OBSERVER):
         await websocket.close(code=1008, reason="Insufficient permissions")
         return
-    
+
     await websocket.accept()
     client_id = f"ws_{id(websocket)}"
-    
+
     # Get communication service to register WebSocket
-    comm_service = getattr(websocket.app.state, 'communication_service', None)
-    if comm_service and hasattr(comm_service, 'register_websocket'):
+    comm_service = getattr(websocket.app.state, "communication_service", None)
+    if comm_service and hasattr(comm_service, "register_websocket"):
         comm_service.register_websocket(client_id, websocket)
-    
+
     subscribed_channels = set(["messages"])  # Default subscription
-    
+
     try:
         while True:
             # Receive and process client messages
             data = await websocket.receive_json()
-            
+
             if data.get("action") == "subscribe":
                 channels = data.get("channels", [])
                 subscribed_channels.update(channels)
-                await websocket.send_json({
-                    "type": "subscription_update",
-                    "channels": list(subscribed_channels),
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                })
-            
+                await websocket.send_json(
+                    {
+                        "type": "subscription_update",
+                        "channels": list(subscribed_channels),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
+
             elif data.get("action") == "unsubscribe":
                 channels = data.get("channels", [])
                 subscribed_channels.difference_update(channels)
-                await websocket.send_json({
-                    "type": "subscription_update", 
-                    "channels": list(subscribed_channels),
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                })
-            
+                await websocket.send_json(
+                    {
+                        "type": "subscription_update",
+                        "channels": list(subscribed_channels),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    }
+                )
+
             elif data.get("action") == "ping":
-                await websocket.send_json({
-                    "type": "pong",
-                    "timestamp": datetime.now(timezone.utc).isoformat()
-                })
-                
+                await websocket.send_json({"type": "pong", "timestamp": datetime.now(timezone.utc).isoformat()})
+
     except WebSocketDisconnect:
         # Clean up on disconnect
-        if comm_service and hasattr(comm_service, 'unregister_websocket'):
+        if comm_service and hasattr(comm_service, "unregister_websocket"):
             comm_service.unregister_websocket(client_id)
         logger.info(f"WebSocket client {client_id} disconnected")

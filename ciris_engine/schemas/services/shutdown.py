@@ -3,19 +3,25 @@ Emergency shutdown schemas.
 
 Provides secure kill switch functionality for WA-authorized emergency shutdown.
 """
-from typing import List, Optional
+
 from datetime import datetime
-from pydantic import BaseModel, Field
 from enum import Enum
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
+
 
 class EmergencyCommandType(str, Enum):
     """Types of emergency commands."""
+
     SHUTDOWN_NOW = "SHUTDOWN_NOW"
     FREEZE = "FREEZE"  # Stop all processing but maintain state
     SAFE_MODE = "SAFE_MODE"  # Minimal functionality only
 
+
 class WASignedCommand(BaseModel):
     """A command signed by a Wise Authority."""
+
     command_id: str = Field(..., description="Unique command identifier")
     command_type: EmergencyCommandType = Field(..., description="Type of emergency command")
 
@@ -39,8 +45,10 @@ class WASignedCommand(BaseModel):
     parent_command_id: Optional[str] = Field(None, description="Parent command if relayed")
     relay_chain: List[str] = Field(default_factory=list, description="WA IDs in relay chain")
 
+
 class EmergencyShutdownStatus(BaseModel):
     """Status of emergency shutdown process."""
+
     command_received: datetime = Field(..., description="When command was received")
     command_verified: bool = Field(..., description="Whether signature was verified")
     verification_error: Optional[str] = Field(None, description="Error if verification failed")
@@ -55,14 +63,15 @@ class EmergencyShutdownStatus(BaseModel):
     shutdown_completed: Optional[datetime] = Field(None, description="When shutdown finished")
     exit_code: Optional[int] = Field(None, description="Process exit code")
 
+
 class KillSwitchConfig(BaseModel):
     """Configuration for kill switch functionality."""
+
     enabled: bool = Field(True, description="Whether kill switch is active")
 
     # Root WA keys
     root_wa_public_keys: List[str] = Field(
-        default_factory=list,
-        description="Public keys of root WAs who can issue SHUTDOWN_NOW"
+        default_factory=list, description="Public keys of root WAs who can issue SHUTDOWN_NOW"
     )
 
     # Trust chain

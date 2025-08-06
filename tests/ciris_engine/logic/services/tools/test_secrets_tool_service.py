@@ -1,14 +1,13 @@
 """Tests for SecretsToolService."""
 
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
 import pytest_asyncio
-from unittest.mock import Mock, AsyncMock, patch, mock_open
-from pathlib import Path
 
-from ciris_engine.logic.services.tools.secrets_tool_service import SecretsToolService
 from ciris_engine.logic.secrets.service import SecretsService
-from ciris_engine.schemas.adapters.tools import ToolExecutionResult, ToolExecutionStatus, ToolResult
-from ciris_engine.schemas.secrets.core import SecretReference
+from ciris_engine.logic.services.tools.secrets_tool_service import SecretsToolService
+from ciris_engine.schemas.adapters.tools import ToolExecutionResult, ToolExecutionStatus
 
 
 class TestSecretsToolService:
@@ -29,6 +28,7 @@ class TestSecretsToolService:
     def mock_time_service(self):
         """Create a mock time service."""
         from datetime import datetime
+
         mock = Mock()
         mock.now.return_value = datetime(2024, 1, 1, 12, 0, 0)
         return mock
@@ -36,10 +36,7 @@ class TestSecretsToolService:
     @pytest_asyncio.fixture
     async def tool_service(self, mock_secrets_service, mock_time_service):
         """Create the tool service."""
-        service = SecretsToolService(
-            secrets_service=mock_secrets_service,
-            time_service=mock_time_service
-        )
+        service = SecretsToolService(secrets_service=mock_secrets_service, time_service=mock_time_service)
         await service.start()
         return service
 
@@ -75,11 +72,9 @@ class TestSecretsToolService:
         # Setup mock - use retrieve_secret (async method)
         mock_secrets_service.retrieve_secret.return_value = "my-secret-value"
 
-        result = await tool_service.execute_tool("recall_secret", {
-            "secret_uuid": "test-uuid",
-            "purpose": "testing",
-            "decrypt": True
-        })
+        result = await tool_service.execute_tool(
+            "recall_secret", {"secret_uuid": "test-uuid", "purpose": "testing", "decrypt": True}
+        )
 
         assert isinstance(result, ToolExecutionResult)
         assert result.status == ToolExecutionStatus.COMPLETED
@@ -91,11 +86,9 @@ class TestSecretsToolService:
     async def test_update_secrets_filter_add_pattern(self, tool_service, mock_secrets_service):
         """Test adding a pattern to secrets filter - currently disabled."""
         # Filter operations are intentionally disabled in the implementation
-        result = await tool_service.execute_tool("update_secrets_filter", {
-            "operation": "add_pattern",
-            "pattern": "API_KEY=.*",
-            "pattern_type": "regex"
-        })
+        result = await tool_service.execute_tool(
+            "update_secrets_filter", {"operation": "add_pattern", "pattern": "API_KEY=.*", "pattern_type": "regex"}
+        )
 
         # The implementation returns FAILED status for filter operations
         assert result.status == ToolExecutionStatus.FAILED
@@ -105,10 +98,9 @@ class TestSecretsToolService:
     @pytest.mark.asyncio
     async def test_update_secrets_filter_remove_pattern(self, tool_service, mock_secrets_service):
         """Test removing a pattern from secrets filter - currently disabled."""
-        result = await tool_service.execute_tool("update_secrets_filter", {
-            "operation": "remove_pattern",
-            "pattern": "API_KEY=.*"
-        })
+        result = await tool_service.execute_tool(
+            "update_secrets_filter", {"operation": "remove_pattern", "pattern": "API_KEY=.*"}
+        )
 
         assert result.status == ToolExecutionStatus.FAILED
         assert result.success is False
@@ -117,10 +109,7 @@ class TestSecretsToolService:
     @pytest.mark.asyncio
     async def test_update_secrets_filter_enable(self, tool_service, mock_secrets_service):
         """Test enabling/disabling secrets filter - currently disabled."""
-        result = await tool_service.execute_tool("update_secrets_filter", {
-            "operation": "enable",
-            "enabled": True
-        })
+        result = await tool_service.execute_tool("update_secrets_filter", {"operation": "enable", "enabled": True})
 
         assert result.status == ToolExecutionStatus.FAILED
         assert result.success is False
@@ -129,9 +118,7 @@ class TestSecretsToolService:
     @pytest.mark.asyncio
     async def test_update_secrets_filter_list_patterns(self, tool_service, mock_secrets_service):
         """Test listing patterns - returns empty list but succeeds."""
-        result = await tool_service.execute_tool("update_secrets_filter", {
-            "operation": "list_patterns"
-        })
+        result = await tool_service.execute_tool("update_secrets_filter", {"operation": "list_patterns"})
 
         # list_patterns succeeds but returns empty list
         assert result.status == ToolExecutionStatus.COMPLETED
@@ -145,10 +132,9 @@ class TestSecretsToolService:
         # Setup mock to return None (not found)
         mock_secrets_service.retrieve_secret.return_value = None
 
-        result = await tool_service.execute_tool("recall_secret", {
-            "secret_uuid": "non-existent-uuid",
-            "purpose": "testing"
-        })
+        result = await tool_service.execute_tool(
+            "recall_secret", {"secret_uuid": "non-existent-uuid", "purpose": "testing"}
+        )
 
         assert result.status == ToolExecutionStatus.FAILED
         assert result.success is False
@@ -160,11 +146,9 @@ class TestSecretsToolService:
         # Setup mock
         mock_secrets_service.retrieve_secret.return_value = "my-secret-value"
 
-        result = await tool_service.execute_tool("recall_secret", {
-            "secret_uuid": "test-uuid",
-            "purpose": "verification",
-            "decrypt": False
-        })
+        result = await tool_service.execute_tool(
+            "recall_secret", {"secret_uuid": "test-uuid", "purpose": "verification", "decrypt": False}
+        )
 
         assert result.status == ToolExecutionStatus.COMPLETED
         assert result.success is True
@@ -187,8 +171,9 @@ class TestSecretsToolService:
 - Log all errors for debugging
 """
 
-        with patch("pathlib.Path.exists", return_value=True), \
-             patch("pathlib.Path.read_text", return_value=mock_content):
+        with patch("pathlib.Path.exists", return_value=True), patch(
+            "pathlib.Path.read_text", return_value=mock_content
+        ):
 
             result = await tool_service.execute_tool("self_help", {})
 
@@ -211,8 +196,9 @@ class TestSecretsToolService:
     @pytest.mark.asyncio
     async def test_self_help_read_error(self, tool_service):
         """Test self_help when file read fails."""
-        with patch("pathlib.Path.exists", return_value=True), \
-             patch("pathlib.Path.read_text", side_effect=IOError("Permission denied")):
+        with patch("pathlib.Path.exists", return_value=True), patch(
+            "pathlib.Path.read_text", side_effect=IOError("Permission denied")
+        ):
 
             result = await tool_service.execute_tool("self_help", {})
 
@@ -224,25 +210,24 @@ class TestSecretsToolService:
     async def test_validate_parameters(self, tool_service):
         """Test parameter validation for all tools."""
         # Test recall_secret validation
-        assert await tool_service.validate_parameters("recall_secret", {
-            "secret_uuid": "test",
-            "purpose": "test"
-        }) is True
-        assert await tool_service.validate_parameters("recall_secret", {
-            "secret_uuid": "test"
-        }) is False  # Missing purpose
+        assert (
+            await tool_service.validate_parameters("recall_secret", {"secret_uuid": "test", "purpose": "test"}) is True
+        )
+        assert (
+            await tool_service.validate_parameters("recall_secret", {"secret_uuid": "test"}) is False
+        )  # Missing purpose
 
         # Test update_secrets_filter validation
-        assert await tool_service.validate_parameters("update_secrets_filter", {
-            "operation": "list_patterns"
-        }) is True
-        assert await tool_service.validate_parameters("update_secrets_filter", {
-            "operation": "add_pattern",
-            "pattern": "test"
-        }) is True
-        assert await tool_service.validate_parameters("update_secrets_filter", {
-            "operation": "add_pattern"
-        }) is False  # Missing pattern
+        assert await tool_service.validate_parameters("update_secrets_filter", {"operation": "list_patterns"}) is True
+        assert (
+            await tool_service.validate_parameters(
+                "update_secrets_filter", {"operation": "add_pattern", "pattern": "test"}
+            )
+            is True
+        )
+        assert (
+            await tool_service.validate_parameters("update_secrets_filter", {"operation": "add_pattern"}) is False
+        )  # Missing pattern
 
         # Test self_help validation (no params required)
         assert await tool_service.validate_parameters("self_help", {}) is True
@@ -260,10 +245,7 @@ class TestSecretsToolService:
     @pytest.mark.asyncio
     async def test_service_lifecycle(self, mock_secrets_service, mock_time_service):
         """Test service start and stop."""
-        service = SecretsToolService(
-            secrets_service=mock_secrets_service,
-            time_service=mock_time_service
-        )
+        service = SecretsToolService(secrets_service=mock_secrets_service, time_service=mock_time_service)
 
         # Test start
         await service.start()

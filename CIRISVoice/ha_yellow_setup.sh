@@ -49,13 +49,13 @@ mkdir -p /addons
 if [ -d "/addons/$ADDON_NAME" ]; then
     print_warning "Addon directory exists. Updating..."
     cd /addons/$ADDON_NAME
-    
+
     # Save any local changes
     if [ -f "config.yaml" ]; then
         cp config.yaml config.yaml.backup
         print_status "Backed up existing config to config.yaml.backup"
     fi
-    
+
     # Re-clone to get latest
     cd /addons
     rm -rf temp 2>/dev/null || true
@@ -64,7 +64,7 @@ if [ -d "/addons/$ADDON_NAME" ]; then
         print_error "Failed to clone repository"
         exit 1
     }
-    
+
     # Copy updated files
     if [ -d "temp/CIRISVoice" ]; then
         cp -r temp/CIRISVoice/src $ADDON_NAME/ 2>/dev/null || print_warning "No src directory found"
@@ -78,34 +78,34 @@ if [ -d "/addons/$ADDON_NAME" ]; then
         print_warning "Repository structure:"
         ls -la temp/
     fi
-    
+
     rm -rf temp
 else
     print_status "Creating addon directory..."
     mkdir -p /addons/$ADDON_NAME
     cd /addons
-    
+
     print_status "Cloning CIRIS repository..."
     git clone --depth 1 $REPO_URL temp || {
         print_error "Failed to clone repository"
         exit 1
     }
-    
+
     # Copy what we need
     print_status "Setting up addon structure..."
-    
+
     if [ -d "temp/CIRISVoice" ]; then
         # Copy the Python application files
         cp -r temp/CIRISVoice/src $ADDON_NAME/ 2>/dev/null || print_warning "No src directory found"
         cp temp/CIRISVoice/requirements.txt $ADDON_NAME/ 2>/dev/null || print_warning "No requirements.txt found"
         cp temp/CIRISVoice/config.example.yaml $ADDON_NAME/ 2>/dev/null || print_warning "No config.example.yaml found"
-        
+
         # Copy the addon Docker files
         cp temp/CIRISVoice/docker-addon/* $ADDON_NAME/ 2>/dev/null || print_warning "No docker-addon files found"
-        
+
         # Copy SDK for local installation
         cp -r temp/ciris_sdk $ADDON_NAME/sdk/ 2>/dev/null || print_warning "No SDK directory found"
-        
+
         print_status "Files copied successfully"
     else
         print_error "CIRISVoice directory not found in repository!"
@@ -114,7 +114,7 @@ else
         rm -rf temp
         exit 1
     fi
-    
+
     rm -rf temp
 fi
 

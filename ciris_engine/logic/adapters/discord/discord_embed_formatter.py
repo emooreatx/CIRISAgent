@@ -1,48 +1,81 @@
 """Discord embed formatting component for rich message presentation."""
-import discord
-from typing import List, Optional
+
 from datetime import datetime, timezone
 from enum import Enum
-from .constants import (
-    FIELD_NAME_TASK_ID, FIELD_NAME_THOUGHT_ID, FIELD_NAME_DEFERRAL_ID,
-    FIELD_NAME_DEFER_UNTIL, FIELD_NAME_CONTEXT, FIELD_NAME_REQUESTER,
-    FIELD_NAME_ACTION_TYPE, FIELD_NAME_PARAMETERS, FIELD_NAME_OUTPUT,
-    FIELD_NAME_ERROR, FIELD_NAME_EXECUTION_TIME, FIELD_NAME_PRIORITY,
-    FIELD_NAME_PROGRESS, FIELD_NAME_CREATED, FIELD_NAME_SUBTASKS,
-    FIELD_NAME_ACTOR, FIELD_NAME_SERVICE, FIELD_NAME_TIME,
-    FIELD_NAME_RESULT, FIELD_NAME_OPERATION, FIELD_NAME_SEVERITY,
-    FIELD_NAME_RETRYABLE, FIELD_NAME_SUGGESTED_FIX, EMBED_HOW_TO_RESPOND,
-    EMBED_RESPOND_INSTRUCTIONS, STATUS_MESSAGE_EXECUTING, STATUS_MESSAGE_COMPLETED,
-    STATUS_MESSAGE_FAILED, STATUS_MESSAGE_SUCCESS, STATUS_MESSAGE_FAILED_WITH_ICON,
-    STATUS_EMOJI_PENDING, STATUS_EMOJI_IN_PROGRESS, STATUS_EMOJI_COMPLETED,
-    STATUS_EMOJI_FAILED, STATUS_EMOJI_DEFERRED, STATUS_EMOJI_UNKNOWN,
-    DEFAULT_PAGE_SIZE
-)
+from typing import List, Optional
+
+import discord
+
 from ciris_engine.schemas.adapters.discord import (
-    DiscordGuidanceData, DiscordApprovalData, DiscordToolResult,
-    DiscordTaskData, DiscordAuditData, DiscordErrorInfo
+    DiscordApprovalData,
+    DiscordAuditData,
+    DiscordErrorInfo,
+    DiscordGuidanceData,
+    DiscordTaskData,
+    DiscordToolResult,
 )
+
+from .constants import (
+    DEFAULT_PAGE_SIZE,
+    EMBED_HOW_TO_RESPOND,
+    EMBED_RESPOND_INSTRUCTIONS,
+    FIELD_NAME_ACTION_TYPE,
+    FIELD_NAME_ACTOR,
+    FIELD_NAME_CONTEXT,
+    FIELD_NAME_CREATED,
+    FIELD_NAME_DEFER_UNTIL,
+    FIELD_NAME_DEFERRAL_ID,
+    FIELD_NAME_ERROR,
+    FIELD_NAME_EXECUTION_TIME,
+    FIELD_NAME_OPERATION,
+    FIELD_NAME_OUTPUT,
+    FIELD_NAME_PARAMETERS,
+    FIELD_NAME_PRIORITY,
+    FIELD_NAME_PROGRESS,
+    FIELD_NAME_REQUESTER,
+    FIELD_NAME_RESULT,
+    FIELD_NAME_RETRYABLE,
+    FIELD_NAME_SERVICE,
+    FIELD_NAME_SEVERITY,
+    FIELD_NAME_SUBTASKS,
+    FIELD_NAME_SUGGESTED_FIX,
+    FIELD_NAME_TASK_ID,
+    FIELD_NAME_THOUGHT_ID,
+    FIELD_NAME_TIME,
+    STATUS_EMOJI_COMPLETED,
+    STATUS_EMOJI_DEFERRED,
+    STATUS_EMOJI_FAILED,
+    STATUS_EMOJI_IN_PROGRESS,
+    STATUS_EMOJI_PENDING,
+    STATUS_EMOJI_UNKNOWN,
+    STATUS_MESSAGE_COMPLETED,
+    STATUS_MESSAGE_EXECUTING,
+    STATUS_MESSAGE_FAILED,
+    STATUS_MESSAGE_FAILED_WITH_ICON,
+    STATUS_MESSAGE_SUCCESS,
+)
+
 
 class EmbedType(Enum):
     """Types of embeds for different purposes."""
-    INFO = ("ℹ️", 0x3498db)          # Blue
-    SUCCESS = ("✅", 0x2ecc71)       # Green
-    WARNING = ("⚠️", 0xf39c12)       # Orange
-    ERROR = ("❌", 0xe74c3c)         # Red
-    GUIDANCE = ("🤔", 0x9b59b6)      # Purple
-    DEFERRAL = ("⏳", 0x95a5a6)      # Gray
-    APPROVAL = ("🔒", 0xe67e22)      # Dark orange
-    TOOL = ("🔧", 0x1abc9c)          # Turquoise
-    AUDIT = ("📋", 0x34495e)         # Dark gray
-    TASK = ("📝", 0x3498db)          # Blue
+
+    INFO = ("ℹ️", 0x3498DB)  # Blue
+    SUCCESS = ("✅", 0x2ECC71)  # Green
+    WARNING = ("⚠️", 0xF39C12)  # Orange
+    ERROR = ("❌", 0xE74C3C)  # Red
+    GUIDANCE = ("🤔", 0x9B59B6)  # Purple
+    DEFERRAL = ("⏳", 0x95A5A6)  # Gray
+    APPROVAL = ("🔒", 0xE67E22)  # Dark orange
+    TOOL = ("🔧", 0x1ABC9C)  # Turquoise
+    AUDIT = ("📋", 0x34495E)  # Dark gray
+    TASK = ("📝", 0x3498DB)  # Blue
 
 
 class DiscordEmbedFormatter:
     """Formats messages as rich Discord embeds."""
 
     @staticmethod
-    def create_base_embed(embed_type: EmbedType, title: str,
-                         description: Optional[str] = None) -> discord.Embed:
+    def create_base_embed(embed_type: EmbedType, title: str, description: Optional[str] = None) -> discord.Embed:
         """Create a base embed with consistent styling.
 
         Args:
@@ -56,10 +89,7 @@ class DiscordEmbedFormatter:
         icon, color = embed_type.value
 
         embed = discord.Embed(
-            title=f"{icon} {title}",
-            description=description,
-            color=color,
-            timestamp=datetime.now(timezone.utc)
+            title=f"{icon} {title}", description=description, color=color, timestamp=datetime.now(timezone.utc)
         )
 
         return embed
@@ -74,19 +104,17 @@ class DiscordEmbedFormatter:
         Returns:
             Formatted embed
         """
-        embed = cls.create_base_embed(
-            EmbedType.GUIDANCE,
-            "Guidance Request",
-            context.reason
-        )
+        embed = cls.create_base_embed(EmbedType.GUIDANCE, "Guidance Request", context.reason)
 
         # Add context fields
         embed.add_field(name=FIELD_NAME_THOUGHT_ID, value=f"`{context.thought_id}`", inline=True)
         embed.add_field(name=FIELD_NAME_TASK_ID, value=f"`{context.task_id}`", inline=True)
-        
+
         if context.defer_until:
-            embed.add_field(name=FIELD_NAME_DEFER_UNTIL, value=f"<t:{int(context.defer_until.timestamp())}:R>", inline=True)
-        
+            embed.add_field(
+                name=FIELD_NAME_DEFER_UNTIL, value=f"<t:{int(context.defer_until.timestamp())}:R>", inline=True
+            )
+
         if context.context:
             context_str = "\n".join(f"**{k}**: {v}" for k, v in list(context.context.items())[:5])
             embed.add_field(name=FIELD_NAME_CONTEXT, value=context_str[:1024], inline=False)
@@ -104,11 +132,7 @@ class DiscordEmbedFormatter:
         Returns:
             Formatted embed
         """
-        embed = cls.create_base_embed(
-            EmbedType.DEFERRAL,
-            "Decision Deferred",
-            deferral.reason
-        )
+        embed = cls.create_base_embed(EmbedType.DEFERRAL, "Decision Deferred", deferral.reason)
 
         # Add deferral details
         embed.add_field(name=FIELD_NAME_DEFERRAL_ID, value=f"`{deferral.deferral_id}`", inline=True)
@@ -116,7 +140,9 @@ class DiscordEmbedFormatter:
         embed.add_field(name=FIELD_NAME_THOUGHT_ID, value=f"`{deferral.thought_id}`", inline=True)
 
         if deferral.defer_until:
-            embed.add_field(name=FIELD_NAME_DEFER_UNTIL, value=f"<t:{int(deferral.defer_until.timestamp())}:R>", inline=True)
+            embed.add_field(
+                name=FIELD_NAME_DEFER_UNTIL, value=f"<t:{int(deferral.defer_until.timestamp())}:R>", inline=True
+            )
 
         if deferral.context:
             context_str = "\n".join(f"**{k}**: {v}" for k, v in list(deferral.context.items())[:5])
@@ -135,11 +161,7 @@ class DiscordEmbedFormatter:
         Returns:
             Formatted embed
         """
-        embed = cls.create_base_embed(
-            EmbedType.APPROVAL,
-            "Approval Required",
-            f"Action: **{action}**"
-        )
+        embed = cls.create_base_embed(EmbedType.APPROVAL, "Approval Required", f"Action: **{action}**")
 
         # Add context
         embed.add_field(name=FIELD_NAME_REQUESTER, value=context.requester_id, inline=True)
@@ -157,17 +179,14 @@ class DiscordEmbedFormatter:
             params_str = "\n".join(f"• **{k}**: {v}" for k, v in list(context.action_params.items())[:5])
             embed.add_field(name=FIELD_NAME_PARAMETERS, value=params_str[:1024], inline=False)
 
-        embed.add_field(
-            name=EMBED_HOW_TO_RESPOND,
-            value=EMBED_RESPOND_INSTRUCTIONS,
-            inline=False
-        )
+        embed.add_field(name=EMBED_HOW_TO_RESPOND, value=EMBED_RESPOND_INSTRUCTIONS, inline=False)
 
         return embed
 
     @classmethod
-    def format_tool_execution(cls, tool_name: str, parameters: dict[str, str],
-                            result: Optional[DiscordToolResult] = None) -> discord.Embed:
+    def format_tool_execution(
+        cls, tool_name: str, parameters: dict[str, str], result: Optional[DiscordToolResult] = None
+    ) -> discord.Embed:
         """Format tool execution information as an embed.
 
         Args:
@@ -188,11 +207,7 @@ class DiscordEmbedFormatter:
             embed_type = EmbedType.ERROR
             status = STATUS_MESSAGE_FAILED
 
-        embed = cls.create_base_embed(
-            embed_type,
-            f"Tool: {tool_name}",
-            status
-        )
+        embed = cls.create_base_embed(embed_type, f"Tool: {tool_name}", status)
 
         # Add parameters
         if parameters:
@@ -228,13 +243,13 @@ class DiscordEmbedFormatter:
             "in_progress": STATUS_EMOJI_IN_PROGRESS,
             "completed": STATUS_EMOJI_COMPLETED,
             "failed": STATUS_EMOJI_FAILED,
-            "deferred": STATUS_EMOJI_DEFERRED
+            "deferred": STATUS_EMOJI_DEFERRED,
         }.get(task.status, STATUS_EMOJI_UNKNOWN)
 
         embed = cls.create_base_embed(
             EmbedType.TASK,
             f"Task Status: {status_emoji} {task.status.replace('_', ' ').title()}",
-            task.description or "Task in progress"
+            task.description or "Task in progress",
         )
 
         # Add task details
@@ -249,8 +264,7 @@ class DiscordEmbedFormatter:
 
         if task.subtasks:
             subtask_str = "\n".join(
-                f"{'✅' if st.get('completed') else '⬜'} {st.get('name', 'Subtask')}"
-                for st in task.subtasks[:5]
+                f"{'✅' if st.get('completed') else '⬜'} {st.get('name', 'Subtask')}" for st in task.subtasks[:5]
             )
             embed.add_field(name=FIELD_NAME_SUBTASKS, value=subtask_str, inline=False)
 
@@ -266,11 +280,7 @@ class DiscordEmbedFormatter:
         Returns:
             Formatted embed
         """
-        embed = cls.create_base_embed(
-            EmbedType.AUDIT,
-            "Audit Log Entry",
-            audit.action
-        )
+        embed = cls.create_base_embed(EmbedType.AUDIT, "Audit Log Entry", audit.action)
 
         # Add audit details
         embed.add_field(name=FIELD_NAME_ACTOR, value=audit.actor, inline=True)
@@ -284,7 +294,11 @@ class DiscordEmbedFormatter:
             embed.add_field(name=FIELD_NAME_CONTEXT, value=context_str[:1024], inline=False)
 
         if audit.success is not None:
-            embed.add_field(name=FIELD_NAME_RESULT, value=STATUS_MESSAGE_SUCCESS if audit.success else STATUS_MESSAGE_FAILED_WITH_ICON, inline=True)
+            embed.add_field(
+                name=FIELD_NAME_RESULT,
+                value=STATUS_MESSAGE_SUCCESS if audit.success else STATUS_MESSAGE_FAILED_WITH_ICON,
+                inline=True,
+            )
 
         return embed
 
@@ -302,14 +316,10 @@ class DiscordEmbedFormatter:
             "low": EmbedType.INFO,
             "medium": EmbedType.WARNING,
             "high": EmbedType.ERROR,
-            "critical": EmbedType.ERROR
+            "critical": EmbedType.ERROR,
         }.get(error_info.severity.value, EmbedType.ERROR)
 
-        embed = cls.create_base_embed(
-            embed_type,
-            f"Error: {error_info.error_type}",
-            error_info.message
-        )
+        embed = cls.create_base_embed(embed_type, f"Error: {error_info.error_type}", error_info.message)
 
         # Add error details
         if error_info.operation:
@@ -324,9 +334,14 @@ class DiscordEmbedFormatter:
         return embed
 
     @classmethod
-    def create_paginated_embed(cls, title: str, items: List[str],
-                             page: int = 1, per_page: int = DEFAULT_PAGE_SIZE,
-                             embed_type: EmbedType = EmbedType.INFO) -> discord.Embed:
+    def create_paginated_embed(
+        cls,
+        title: str,
+        items: List[str],
+        page: int = 1,
+        per_page: int = DEFAULT_PAGE_SIZE,
+        embed_type: EmbedType = EmbedType.INFO,
+    ) -> discord.Embed:
         """Create a paginated embed for lists.
 
         Args:
@@ -347,11 +362,7 @@ class DiscordEmbedFormatter:
 
         page_items = items[start_idx:end_idx]
 
-        embed = cls.create_base_embed(
-            embed_type,
-            title,
-            "\n".join(page_items)
-        )
+        embed = cls.create_base_embed(embed_type, title, "\n".join(page_items))
 
         embed.set_footer(text=f"Page {page}/{total_pages} • Total items: {len(items)}")
 

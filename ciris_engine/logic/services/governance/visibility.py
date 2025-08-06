@@ -11,28 +11,25 @@ This is one of three observability pillars:
 VisibilityService focuses exclusively on reasoning traces and decision history.
 It does NOT provide service health, metrics, or general system status.
 """
-from typing import List, Optional, Dict, Any
-from datetime import datetime
 
-from ciris_engine.protocols.services import VisibilityServiceProtocol
-from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.protocols.runtime.base import ServiceProtocol
-from ciris_engine.logic.services.base_service import BaseService
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
-from ciris_engine.schemas.runtime.enums import ServiceType
-from ciris_engine.schemas.services.visibility import (
-    VisibilitySnapshot, ReasoningTrace, TaskDecisionHistory
-)
-from ciris_engine.schemas.runtime.models import Task, Thought
-from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
+from datetime import datetime
+from typing import List
+
 from ciris_engine.logic.buses import BusManager
 from ciris_engine.logic.persistence import (
     get_task_by_id,
-    get_thoughts_by_task_id,
-    get_thoughts_by_status,
     get_tasks_by_status,
-    get_thought_by_id
+    get_thought_by_id,
+    get_thoughts_by_status,
+    get_thoughts_by_task_id,
 )
+from ciris_engine.logic.services.base_service import BaseService
+from ciris_engine.protocols.services import VisibilityServiceProtocol
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.runtime.enums import ServiceType, TaskStatus, ThoughtStatus
+from ciris_engine.schemas.runtime.models import Task, Thought
+from ciris_engine.schemas.services.visibility import ReasoningTrace, TaskDecisionHistory, VisibilitySnapshot
+
 
 class VisibilityService(BaseService, VisibilityServiceProtocol):
     """Service providing agent reasoning transparency."""
@@ -53,27 +50,20 @@ class VisibilityService(BaseService, VisibilityServiceProtocol):
 
     def _get_actions(self) -> List[str]:
         """Get list of actions this service provides."""
-        return [
-            "get_current_state",
-            "get_reasoning_trace",
-            "get_decision_history",
-            "explain_action"
-        ]
-
+        return ["get_current_state", "get_reasoning_trace", "get_decision_history", "explain_action"]
 
     def get_service_type(self) -> ServiceType:
         """Get the service type enum value."""
         return ServiceType.VISIBILITY
-    
+
     def _check_dependencies(self) -> bool:
         """Check if all required dependencies are available."""
         return self.bus is not None and self._db_path is not None
-    
+
     def _register_dependencies(self) -> None:
         """Register service dependencies."""
         super()._register_dependencies()
         self._dependencies.add("BusManager")
-
 
     async def get_current_state(self) -> VisibilitySnapshot:
         """Get current agent state snapshot."""
@@ -112,14 +102,14 @@ class VisibilityService(BaseService, VisibilityServiceProtocol):
             max_depth = 0
             for thought in active_thoughts:
                 depth = 1
-                parent_id = getattr(thought, 'parent_thought_id', None)
+                parent_id = getattr(thought, "parent_thought_id", None)
                 while parent_id:
                     depth += 1
                     # Find parent thought
                     parent_found = False
                     for t in active_thoughts:
                         if t.thought_id == parent_id:
-                            parent_id = getattr(t, 'parent_thought_id', None)
+                            parent_id = getattr(t, "parent_thought_id", None)
                             parent_found = True
                             break
                     if not parent_found:
@@ -132,7 +122,7 @@ class VisibilityService(BaseService, VisibilityServiceProtocol):
             current_task=current_task,
             active_thoughts=active_thoughts,
             recent_decisions=recent_decisions,
-            reasoning_depth=reasoning_depth
+            reasoning_depth=reasoning_depth,
         )
 
     async def get_reasoning_trace(self, task_id: str) -> ReasoningTrace:
@@ -152,12 +142,12 @@ class VisibilityService(BaseService, VisibilityServiceProtocol):
                     updated_at=self._now().isoformat(),
                     parent_task_id=None,
                     context=None,
-                    outcome=None
+                    outcome=None,
                 ),
                 thought_steps=[],
                 total_thoughts=0,
                 actions_taken=[],
-                processing_time_ms=0.0
+                processing_time_ms=0.0,
             )
 
         # Get all thoughts for this task from persistence
@@ -174,7 +164,10 @@ class VisibilityService(BaseService, VisibilityServiceProtocol):
                     conscience_results = None
                     if thought.final_action and thought.final_action.action_type not in ["TASK_COMPLETE", "REJECT"]:
                         # Conscience results are stored in the final_action
-                        if hasattr(thought.final_action, 'conscience_results') and thought.final_action.conscience_results:
+                        if (
+                            hasattr(thought.final_action, "conscience_results")
+                            and thought.final_action.conscience_results
+                        ):
                             conscience_results = thought.final_action.conscience_results
 
                     # Handler result is represented by the thought's status and final_action
@@ -188,7 +181,10 @@ class VisibilityService(BaseService, VisibilityServiceProtocol):
                     # Get followup thought IDs by checking parent_thought_id
                     followup_thoughts = []
                     for other_thought in thoughts:
-                        if hasattr(other_thought, 'parent_thought_id') and other_thought.parent_thought_id == thought.thought_id:
+                        if (
+                            hasattr(other_thought, "parent_thought_id")
+                            and other_thought.parent_thought_id == thought.thought_id
+                        ):
                             followup_thoughts.append(other_thought.thought_id)
 
                     # Create thought step
@@ -196,7 +192,7 @@ class VisibilityService(BaseService, VisibilityServiceProtocol):
                         thought=thought,
                         conscience_results=conscience_results,
                         handler_result=handler_result,
-                        followup_thoughts=followup_thoughts
+                        followup_thoughts=followup_thoughts,
                     )
                     thought_steps.append(step)
 
@@ -225,7 +221,7 @@ class VisibilityService(BaseService, VisibilityServiceProtocol):
             thought_steps=thought_steps,
             total_thoughts=len(thought_steps),
             actions_taken=actions_taken,
-            processing_time_ms=processing_time_ms
+            processing_time_ms=processing_time_ms,
         )
 
     async def get_decision_history(self, task_id: str) -> TaskDecisionHistory:
@@ -275,13 +271,13 @@ class VisibilityService(BaseService, VisibilityServiceProtocol):
                             alternatives_considered=list(set(alternatives)),
                             executed=executed,
                             result=result,
-                            success=success
+                            success=success,
                         )
                         decisions.append(decision)
 
                 except Exception:
-                        # Skip malformed thoughts
-                        pass
+                    # Skip malformed thoughts
+                    pass
         except Exception:
             pass
 
@@ -304,7 +300,7 @@ class VisibilityService(BaseService, VisibilityServiceProtocol):
             total_decisions=len(decisions),
             successful_decisions=successful_decisions,
             final_status=final_status,
-            completion_time=completion_time
+            completion_time=completion_time,
         )
 
     async def explain_action(self, action_id: str) -> str:
@@ -320,7 +316,7 @@ class VisibilityService(BaseService, VisibilityServiceProtocol):
                     explanation += f"Reasoning: {thought.final_action.reasoning}\n"
 
                     # Add conscience results if available
-                    if hasattr(thought.final_action, 'conscience_results') and thought.final_action.conscience_results:
+                    if hasattr(thought.final_action, "conscience_results") and thought.final_action.conscience_results:
                         explanation += "\nConscience evaluation: Available"
 
                     return explanation

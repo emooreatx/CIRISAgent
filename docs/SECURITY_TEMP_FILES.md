@@ -70,7 +70,7 @@ fd, temp_path = tempfile.mkstemp(prefix='ciris_')
 try:
     # Ensure only owner can read/write
     os.chmod(temp_path, 0o600)
-    
+
     with os.fdopen(fd, 'w') as f:
         f.write("sensitive data")
 finally:
@@ -100,7 +100,7 @@ class TestMyFeature(unittest.TestCase):
     def setUp(self):
         # Create test-specific temp directory
         self.test_dir = tempfile.mkdtemp(prefix='test_ciris_')
-        
+
     def tearDown(self):
         # Clean up
         shutil.rmtree(self.test_dir, ignore_errors=True)

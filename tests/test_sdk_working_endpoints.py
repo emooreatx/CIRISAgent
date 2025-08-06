@@ -5,14 +5,13 @@ Unit tests for CIRIS SDK endpoints that are currently working.
 This file contains only the tests that pass with the current API implementation.
 As more endpoints are fixed, tests can be moved from test_sdk_endpoints.py to here.
 """
-import asyncio
+import socket
+
 import pytest
 import pytest_asyncio
-import socket
-from datetime import datetime, timezone
 
 from ciris_sdk import CIRISClient
-from ciris_sdk.exceptions import CIRISAuthenticationError, CIRISAPIError
+from ciris_sdk.exceptions import CIRISAPIError
 
 
 # Skip all tests in this module if API is not available
@@ -21,7 +20,7 @@ def check_api_available():
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(1)
-        result = sock.connect_ex(('localhost', 8080))
+        result = sock.connect_ex(("localhost", 8080))
         sock.close()
         return result == 0
     except Exception:
@@ -34,7 +33,7 @@ pytestmark = pytest.mark.skipif(not check_api_available(), reason="API not runni
 
 class TestWorkingSDKEndpoints:
     """Tests for SDK endpoints that currently work."""
-    
+
     @pytest_asyncio.fixture
     async def client(self):
         """Create authenticated CIRIS client."""
@@ -43,7 +42,7 @@ class TestWorkingSDKEndpoints:
             # SDK doesn't auto-update transport token yet, so manually set it
             client._transport.set_api_key(response.access_token)
             yield client
-    
+
     @pytest_asyncio.fixture
     async def unauthenticated_client(self):
         """Create unauthenticated CIRIS client."""
@@ -51,7 +50,7 @@ class TestWorkingSDKEndpoints:
             yield client
 
     # ========== Authentication Tests (4 endpoints) ==========
-    
+
     @pytest.mark.asyncio
     async def test_auth_login(self, unauthenticated_client):
         """Test POST /v1/auth/login."""
@@ -62,22 +61,23 @@ class TestWorkingSDKEndpoints:
         # Check transport has the token
         assert unauthenticated_client._transport.api_key is not None
         assert unauthenticated_client._transport.api_key.startswith("ciris_system_admin_")
-        
+
         # Test failed login - SDK raises generic CIRISAPIError for 401
         from ciris_sdk.exceptions import CIRISAPIError
+
         with pytest.raises(CIRISAPIError) as exc_info:
             await unauthenticated_client.auth.login("invalid", "wrong")
         assert exc_info.value.status_code == 401
-    
+
     @pytest.mark.asyncio
     async def test_auth_logout(self, client):
         """Test POST /v1/auth/logout."""
         # Should succeed with authenticated client
         await client.auth.logout()
-        
+
         # SDK doesn't automatically clear token on logout
         # This would be a nice feature to add in the future
-    
+
     @pytest.mark.asyncio
     async def test_auth_me(self, client):
         """Test GET /v1/auth/me."""
@@ -89,27 +89,27 @@ class TestWorkingSDKEndpoints:
         # Check some expected permissions
         assert "emergency_shutdown" in user_info.permissions
         assert "full_access" in user_info.permissions  # SYSTEM_ADMIN has full_access
-    
+
     @pytest.mark.asyncio
     async def test_auth_refresh(self, client):
         """Test POST /v1/auth/refresh."""
         # Get current token
         old_token = client._transport.api_key
-        
+
         # Refresh token
         response = await client.auth.refresh_token()
         assert response.access_token
         assert response.role == "SYSTEM_ADMIN"
-        
+
         # Manually update client token (SDK should do this automatically in future)
         client._transport.set_api_key(response.access_token)
-        
+
         # Verify new token works
         user_info = await client.auth.get_current_user()
         assert user_info.user_id == "wa-system-admin"
 
     # ========== System Tests (1 endpoint) ==========
-    
+
     @pytest.mark.asyncio
     async def test_system_health_no_auth(self, unauthenticated_client):
         """Test GET /v1/system/health (no auth required)."""
@@ -117,10 +117,10 @@ class TestWorkingSDKEndpoints:
         assert health.status in ["healthy", "degraded", "critical", "initializing"]
         assert health.version == "1.0.2"
         assert health.uptime_seconds >= 0
-        assert hasattr(health, 'services')
+        assert hasattr(health, "services")
         assert health.initialization_complete is True
-        assert hasattr(health, 'timestamp')
-    
+        assert hasattr(health, "timestamp")
+
     @pytest.mark.asyncio
     async def test_system_health_with_auth(self, client):
         """Test GET /v1/system/health with authentication."""
@@ -130,41 +130,41 @@ class TestWorkingSDKEndpoints:
         assert health.version == "1.0.2"
 
     # ========== Integration Tests ==========
-    
+
     @pytest.mark.asyncio
     async def test_full_auth_flow(self, unauthenticated_client):
         """Test complete authentication workflow."""
         client = unauthenticated_client
-        
+
         # 1. Clear any existing auth
         client._transport.api_key = None
-        
+
         # 2. Login
         response = await client.auth.login("admin", "ciris_admin_password")
         # SDK doesn't auto-update transport token yet, so manually set it
         client._transport.set_api_key(response.access_token)
         assert client._transport.api_key is not None
         token1 = client._transport.api_key
-        
+
         # 3. Verify authenticated
         user = await client.auth.get_current_user()
         assert user.role == "SYSTEM_ADMIN"
-        
+
         # 4. Refresh token
         response = await client.auth.refresh_token()
         client._transport.set_api_key(response.access_token)
         token2 = client._transport.api_key
         assert token2 != token1
-        
+
         # 5. Verify new token works
         user = await client.auth.get_current_user()
         assert user.role == "SYSTEM_ADMIN"
-        
+
         # 6. Logout
         await client.auth.logout()
         # SDK doesn't automatically clear token on logout
         # The token is invalidated on the server side but still stored locally
-        
+
         # 7. Verify logged out (token is invalid server-side)
         with pytest.raises(CIRISAPIError) as exc_info:
             await client.auth.get_current_user()

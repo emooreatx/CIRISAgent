@@ -28,7 +28,7 @@ export default function RuntimeControlPage() {
       ]);
       // TODO: Processing queue endpoint doesn't exist in SDK yet
       const queueResp = { queue_size: 0, processing: false };
-      
+
       setRuntimeStatus(statusResp);
       setAdapters(adaptersResp.adapters || []);
       setQueueStatus(queueResp);
@@ -87,7 +87,7 @@ export default function RuntimeControlPage() {
       if (newAdapterConfig.trim()) {
         config = JSON.parse(newAdapterConfig);
       }
-      
+
       // TODO: loadAdapter endpoint not in SDK yet
       const result = await cirisClient.system.registerAdapter(
         newAdapterType,
@@ -146,14 +146,14 @@ export default function RuntimeControlPage() {
           <button onClick={handlePause} style={{ marginRight: 10 }}>Pause</button>
           <button onClick={handleResume}>Resume</button>
         </div>
-        
+
         {queueStatus && (
           <div style={{ marginBottom: 15, padding: 10, background: '#f8f8f8', borderRadius: 4 }}>
-            <strong>Queue Status:</strong> {queueStatus.queue_size || 0} items, 
+            <strong>Queue Status:</strong> {queueStatus.queue_size || 0} items,
             Processing: {queueStatus.processing ? 'Yes' : 'No'}
           </div>
         )}
-        
+
         {processorResult && (
           <pre style={{ background: '#f0f0f0', padding: 10, borderRadius: 4, fontSize: 12 }}>
             {JSON.stringify(processorResult, null, 2)}
@@ -164,7 +164,7 @@ export default function RuntimeControlPage() {
       {/* Adapter Management */}
       <section style={{ marginBottom: 30, padding: 15, border: '1px solid #ddd', borderRadius: 5 }}>
         <h2>Adapter Management</h2>
-        
+
         {/* Load New Adapter */}
         <div style={{ marginBottom: 20 }}>
           <h3>Load New Adapter</h3>
@@ -225,7 +225,7 @@ export default function RuntimeControlPage() {
                       <td style={{ border: '1px solid #ddd', padding: 8 }}>{adapter.adapter_id}</td>
                       <td style={{ border: '1px solid #ddd', padding: 8 }}>{adapter.adapter}</td>
                       <td style={{ border: '1px solid #ddd', padding: 8 }}>
-                        <span style={{ 
+                        <span style={{
                           color: adapter.is_running ? 'green' : 'red',
                           fontWeight: 'bold'
                         }}>
@@ -235,7 +235,7 @@ export default function RuntimeControlPage() {
                       <td style={{ border: '1px solid #ddd', padding: 8 }}>{adapter.health_status}</td>
                       <td style={{ border: '1px solid #ddd', padding: 8 }}>{adapter.services_count}</td>
                       <td style={{ border: '1px solid #ddd', padding: 8 }}>
-                        <button 
+                        <button
                           onClick={() => handleUnloadAdapter(adapter.adapter_id)}
                           style={{ fontSize: 12 }}
                         >

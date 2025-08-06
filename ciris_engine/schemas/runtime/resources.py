@@ -3,8 +3,11 @@ Resource tracking schemas for CIRIS Trinity Architecture.
 
 Environmental and financial impact tracking for responsible AI.
 """
+
 from typing import Optional
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class ResourceUsage(BaseModel):
     """Track LLM resource utilization with environmental awareness."""
@@ -25,5 +28,6 @@ class ResourceUsage(BaseModel):
     model_used: Optional[str] = Field(default=None, description="Model that incurred these costs")
 
     model_config = ConfigDict(extra="forbid")
+
 
 __all__ = ["ResourceUsage"]

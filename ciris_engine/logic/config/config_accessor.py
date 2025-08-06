@@ -4,14 +4,16 @@ Unified Configuration Access with Graph + Bootstrap Fallback.
 Provides a consistent interface for services to access configuration,
 whether from the graph or bootstrap phase.
 """
+
 import logging
-from typing import Any, Optional, Dict
 from pathlib import Path
+from typing import Any, Dict, Optional
 
 from ciris_engine.protocols.services.graph.config import GraphConfigServiceProtocol
 from ciris_engine.schemas.config.essential import EssentialConfig
 
 logger = logging.getLogger(__name__)
+
 
 class ConfigAccessor:
     """
@@ -23,11 +25,7 @@ class ConfigAccessor:
     - Type-safe access patterns
     """
 
-    def __init__(
-        self,
-        graph_config: Optional[GraphConfigServiceProtocol],
-        bootstrap_config: EssentialConfig
-    ):
+    def __init__(self, graph_config: Optional[GraphConfigServiceProtocol], bootstrap_config: EssentialConfig):
         """
         Initialize config accessor.
 
@@ -45,11 +43,7 @@ class ConfigAccessor:
         self._graph_available = True
         logger.info("GraphConfigService now available for configuration")
 
-    async def get(
-        self,
-        key: str,
-        default: Any = None
-    ) -> Any:
+    async def get(self, key: str, default: Any = None) -> Any:
         """
         Get configuration value.
 
@@ -66,7 +60,7 @@ class ConfigAccessor:
                 node = await self.graph.get_config(key)
                 if node and node.value:
                     # Handle ConfigValue wrapper
-                    if hasattr(node.value, 'string_value'):
+                    if hasattr(node.value, "string_value"):
                         # It's a ConfigValue object
                         if node.value.string_value is not None:
                             return node.value.string_value
@@ -91,14 +85,14 @@ class ConfigAccessor:
 
     def _get_from_bootstrap(self, key: str, default: Any = None) -> Any:
         """Get value from bootstrap config."""
-        parts = key.split('.')
+        parts = key.split(".")
         value = self.bootstrap
 
         try:
             for part in parts:
                 if hasattr(value, part):
                     value = getattr(value, part)
-                elif hasattr(value, '__getitem__'):
+                elif hasattr(value, "__getitem__"):
                     try:
                         value = value[part]
                     except (KeyError, TypeError):
@@ -139,7 +133,7 @@ class ConfigAccessor:
         if isinstance(value, bool):
             return value
         if isinstance(value, str):
-            return value.lower() in ('true', '1', 'yes', 'on')
+            return value.lower() in ("true", "1", "yes", "on")
         return bool(value)
 
     async def get_str(self, key: str, default: str = "") -> str:
@@ -183,7 +177,7 @@ class ConfigAccessor:
 
     def _get_section_from_bootstrap(self, prefix: str) -> Dict[str, Any]:
         """Get config section from bootstrap."""
-        parts = prefix.split('.')
+        parts = prefix.split(".")
         value = self.bootstrap
 
         try:
@@ -194,11 +188,11 @@ class ConfigAccessor:
                     return {}
 
             # Convert to dict if it's a Pydantic model
-            if hasattr(value, 'model_dump'):
+            if hasattr(value, "model_dump"):
                 return value.model_dump()
-            elif hasattr(value, 'dict'):
+            elif hasattr(value, "dict"):
                 return value.dict()
-            elif hasattr(value, '__getitem__') and hasattr(value, 'keys'):
+            elif hasattr(value, "__getitem__") and hasattr(value, "keys"):
                 return dict(value)
             else:
                 return {}

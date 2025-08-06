@@ -29,7 +29,7 @@ Centralized configuration and constants for the CIRIS engine.
 DISCORD_CHANNEL_ID: str         # Primary Discord channel
 API_CHANNEL_ID: str             # API communication channel
 
-# User Configuration  
+# User Configuration
 DEFAULT_WA_USER: str            # Default Wise Authority user
 API_USER_ID: str                # API user identification
 
@@ -92,7 +92,7 @@ Enriches contexts with user profile data through external GraphQL services.
 ```python
 class GraphQLClient:
     """HTTP client for GraphQL endpoints with timeout handling"""
-    
+
 class GraphQLContextProvider:
     """Main service for context enrichment with user profiles"""
 ```
@@ -186,7 +186,7 @@ Global shutdown coordination for graceful application termination.
 ```python
 class ShutdownManager:
     """Centralized shutdown coordination with handler registration"""
-    
+
     def request_shutdown(self, reason: str = "Unknown") -> None
     async def shutdown_handlers(self) -> None
     def register_shutdown_handler(self, handler: Callable) -> None

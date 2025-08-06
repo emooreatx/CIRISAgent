@@ -12,19 +12,19 @@ interface AdapterConfigModalProps {
   isPending?: boolean;
 }
 
-export function AdapterConfigModal({ 
+export function AdapterConfigModal({
   adapterType,
   adapterId,
   isEdit = false,
-  config, 
-  setConfig, 
-  onSubmit, 
+  config,
+  setConfig,
+  onSubmit,
   onClose,
-  isPending = false 
+  isPending = false
 }: AdapterConfigModalProps) {
   const [showAdvanced, setShowAdvanced] = React.useState(false);
   const [jsonError, setJsonError] = React.useState<string | null>(null);
-  
+
   const handleSubmit = () => {
     // Validation based on adapter type
     if (adapterType === 'discord') {
@@ -46,7 +46,7 @@ export function AdapterConfigModal({
         return;
       }
     }
-    
+
     onSubmit(adapterType, config);
   };
 
@@ -72,13 +72,13 @@ export function AdapterConfigModal({
 
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999 }}>
-      <div style={{ 
-        position: 'absolute', 
-        top: '50%', 
-        left: '50%', 
-        transform: 'translate(-50%, -50%)', 
-        backgroundColor: 'white', 
-        padding: '30px', 
+      <div style={{
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        backgroundColor: 'white',
+        padding: '30px',
         borderRadius: '8px',
         maxWidth: '500px',
         width: '90%',
@@ -88,7 +88,7 @@ export function AdapterConfigModal({
         <h3 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '15px' }}>
           {isEdit ? 'Edit' : 'Configure'} {adapterType.charAt(0).toUpperCase() + adapterType.slice(1)} Adapter {adapterId ? `(${adapterId})` : ''}
         </h3>
-        
+
         {/* Discord Configuration */}
         {adapterType === 'discord' && (
           <>
@@ -104,7 +104,7 @@ export function AdapterConfigModal({
                 placeholder={isEdit ? '••••••••' : 'Your Discord bot token'}
               />
             </div>
-            
+
             <div style={fieldStyle}>
               <label style={labelStyle}>
                 Server ID <span style={{ color: 'red' }}>*</span>
@@ -117,7 +117,7 @@ export function AdapterConfigModal({
                 placeholder="Discord server/guild ID"
               />
             </div>
-            
+
             <div style={fieldStyle}>
               <label style={labelStyle}>Home Channel ID</label>
               <input
@@ -128,7 +128,7 @@ export function AdapterConfigModal({
                 placeholder="Primary channel for agent"
               />
             </div>
-            
+
             <div style={fieldStyle}>
               <label style={labelStyle}>Deferral Channel ID</label>
               <input
@@ -139,21 +139,21 @@ export function AdapterConfigModal({
                 placeholder="Channel for deferred messages"
               />
             </div>
-            
+
             <div style={fieldStyle}>
               <label style={labelStyle}>Monitored Channel IDs (comma-separated)</label>
               <input
                 type="text"
                 value={Array.isArray(config.monitored_channel_ids) ? config.monitored_channel_ids.join(', ') : ''}
-                onChange={(e) => setConfig({ 
-                  ...config, 
-                  monitored_channel_ids: e.target.value ? e.target.value.split(',').map(s => s.trim()) : [] 
+                onChange={(e) => setConfig({
+                  ...config,
+                  monitored_channel_ids: e.target.value ? e.target.value.split(',').map(s => s.trim()) : []
                 })}
                 style={inputStyle}
                 placeholder="Channel IDs to monitor"
               />
             </div>
-            
+
             <div style={fieldStyle}>
               <label>
                 <input
@@ -165,7 +165,7 @@ export function AdapterConfigModal({
                 Respond to Mentions
               </label>
             </div>
-            
+
             <div style={fieldStyle}>
               <label>
                 <input
@@ -179,7 +179,7 @@ export function AdapterConfigModal({
             </div>
           </>
         )}
-        
+
         {/* API Configuration */}
         {adapterType === 'api' && (
           <>
@@ -195,7 +195,7 @@ export function AdapterConfigModal({
                 placeholder="0.0.0.0"
               />
             </div>
-            
+
             <div style={fieldStyle}>
               <label style={labelStyle}>
                 Port <span style={{ color: 'red' }}>*</span>
@@ -208,7 +208,7 @@ export function AdapterConfigModal({
                 placeholder="8080"
               />
             </div>
-            
+
             <div style={fieldStyle}>
               <label style={labelStyle}>CORS Origins</label>
               <input
@@ -219,7 +219,7 @@ export function AdapterConfigModal({
                 placeholder="*, http://localhost:3000"
               />
             </div>
-            
+
             <div style={fieldStyle}>
               <label>
                 <input
@@ -231,7 +231,7 @@ export function AdapterConfigModal({
                 Enable Authentication
               </label>
             </div>
-            
+
             <div style={fieldStyle}>
               <label>
                 <input
@@ -245,7 +245,7 @@ export function AdapterConfigModal({
             </div>
           </>
         )}
-        
+
         {/* CLI Configuration */}
         {adapterType === 'cli' && (
           <>
@@ -259,7 +259,7 @@ export function AdapterConfigModal({
                 placeholder="> "
               />
             </div>
-            
+
             <div style={fieldStyle}>
               <label style={labelStyle}>History File</label>
               <input
@@ -270,7 +270,7 @@ export function AdapterConfigModal({
                 placeholder=".ciris_history"
               />
             </div>
-            
+
             <div style={fieldStyle}>
               <label>
                 <input
@@ -284,7 +284,7 @@ export function AdapterConfigModal({
             </div>
           </>
         )}
-        
+
         {/* Advanced JSON Editor */}
         <div style={{ marginTop: '20px', borderTop: '1px solid #e5e7eb', paddingTop: '20px' }}>
           <button
@@ -308,7 +308,7 @@ export function AdapterConfigModal({
             <span>Advanced Configuration (JSON)</span>
             <span style={{ fontSize: '12px' }}>{showAdvanced ? '▼' : '▶'}</span>
           </button>
-          
+
           {showAdvanced && (
             <div style={{ marginTop: '15px' }}>
               <label style={{ ...labelStyle, marginBottom: '10px' }}>
@@ -346,13 +346,13 @@ export function AdapterConfigModal({
             </div>
           )}
         </div>
-        
+
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '20px' }}>
           <button
             onClick={onClose}
-            style={{ 
-              padding: '8px 16px', 
-              border: '1px solid #ccc', 
+            style={{
+              padding: '8px 16px',
+              border: '1px solid #ccc',
               borderRadius: '4px',
               backgroundColor: 'white',
               cursor: 'pointer'
@@ -363,10 +363,10 @@ export function AdapterConfigModal({
           <button
             onClick={handleSubmit}
             disabled={isPending}
-            style={{ 
-              padding: '8px 16px', 
-              backgroundColor: isPending ? '#ccc' : '#4f46e5', 
-              color: 'white', 
+            style={{
+              padding: '8px 16px',
+              backgroundColor: isPending ? '#ccc' : '#4f46e5',
+              color: 'white',
               border: 'none',
               borderRadius: '4px',
               cursor: isPending ? 'not-allowed' : 'pointer'

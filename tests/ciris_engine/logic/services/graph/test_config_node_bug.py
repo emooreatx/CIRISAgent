@@ -1,10 +1,11 @@
 """Test that specifically reproduces the ConfigNode bug with GraphNodeAttributes."""
 
-import pytest
 from datetime import datetime, timezone
 
-from ciris_engine.schemas.services.nodes import ConfigNode, ConfigValue
-from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType, GraphNodeAttributes
+import pytest
+
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphNodeAttributes, GraphScope, NodeType
+from ciris_engine.schemas.services.nodes import ConfigNode
 
 
 def test_config_node_from_graph_node_with_graphnodeattributes():
@@ -23,11 +24,11 @@ def test_config_node_from_graph_node_with_graphnodeattributes():
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
             created_by="test_user",
-            tags=["config:test"]
+            tags=["config:test"],
         ),
         version=1,
         updated_by="test_user",
-        updated_at=datetime.now(timezone.utc)
+        updated_at=datetime.now(timezone.utc),
     )
 
     # This should fail with the bug
@@ -50,11 +51,11 @@ def test_config_node_from_graph_node_with_dict():
             "tags": ["config:test"],
             "key": "test.key",
             "value": {"string_value": "test_value"},
-            "node_class": "ConfigNode"
+            "node_class": "ConfigNode",
         },
         version=1,
         updated_by="test_user",
-        updated_at=now
+        updated_at=now,
     )
 
     # This should work

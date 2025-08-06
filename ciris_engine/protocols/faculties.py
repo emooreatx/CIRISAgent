@@ -1,9 +1,10 @@
 """Epistemic Faculty Protocol for Conscience Integration."""
 
-from typing import Protocol, Optional, List
 from abc import abstractmethod
+from typing import List, Optional, Protocol
 
-from ciris_engine.schemas.dma.faculty import FacultyResult, FacultyContext
+from ciris_engine.schemas.dma.faculty import FacultyContext, FacultyResult
+
 
 class EpistemicFaculty(Protocol):
     """Protocol for epistemic faculties used in conscience bounce mechanism."""

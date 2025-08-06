@@ -11,7 +11,7 @@ export const Alert = ({ children, variant = 'default', className = '' }: AlertPr
     default: 'bg-blue-50 text-blue-900 border-blue-200',
     destructive: 'bg-red-50 text-red-900 border-red-200'
   }
-  
+
   return (
     <div className={`relative w-full rounded-lg border p-4 ${variants[variant]} ${className}`}>
       {children}

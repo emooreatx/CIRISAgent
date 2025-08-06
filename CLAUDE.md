@@ -28,14 +28,14 @@ This ensures type safety, validation, and clear contracts throughout the system.
    # ❌ Bad
    def process_data(data: Dict[str, Any]) -> Dict[str, Any]:
        return {"result": data.get("value", 0) * 2}
-   
+
    # ✅ Good
    class ProcessRequest(BaseModel):
        value: int = 0
-   
+
    class ProcessResponse(BaseModel):
        result: int
-   
+
    def process_data(data: ProcessRequest) -> ProcessResponse:
        return ProcessResponse(result=data.value * 2)
    ```
@@ -44,12 +44,12 @@ This ensures type safety, validation, and clear contracts throughout the system.
    ```python
    # ❌ Bad
    metrics: Dict[str, Any] = {"cpu": 0.5, "memory": 1024}
-   
+
    # ✅ Good
    class SystemMetrics(BaseModel):
        cpu: float = Field(..., ge=0, le=1, description="CPU usage 0-1")
        memory: int = Field(..., gt=0, description="Memory in MB")
-   
+
    metrics = SystemMetrics(cpu=0.5, memory=1024)
    ```
 
@@ -66,13 +66,13 @@ This ensures type safety, validation, and clear contracts throughout the system.
    ```python
    # ❌ Bad
    status = "active"  # Magic string
-   
+
    # ✅ Good
    class ServiceStatus(str, Enum):
        ACTIVE = "active"
        INACTIVE = "inactive"
        ERROR = "error"
-   
+
    status = ServiceStatus.ACTIVE
    ```
 
@@ -93,7 +93,7 @@ Example for Datum + Google:
 https://agents.ciris.ai/v1/auth/oauth/datum/google/callback
 ```
 
-**REMEMBER:** 
+**REMEMBER:**
 - Agent ID comes BEFORE provider
 - /v1/ is at the ROOT level
 - This is the DEFAULT route (not /api/{agent}/v1/)
@@ -215,6 +215,27 @@ python tools/test_runner.py results    # Summary when done
 # Debug Tools (run inside container)
 docker exec <container> python debug_tools.py  # Interactive debugging
 ```
+
+### Critical: Bash Command Timeout
+
+**The default Bash tool timeout is 2 minutes (120 seconds).** For long-running commands like CI/CD monitoring, Docker builds, or test suites, use the timeout parameter:
+
+```bash
+# Example: Monitor CI/CD with 10-minute timeout
+gh run watch --repo CIRISAI/CIRISAgent  # timeout: 600000ms
+
+# Example: Run full test suite with 5-minute timeout
+python -m pytest tests/  # timeout: 300000ms
+
+# Maximum allowed timeout is 600000ms (10 minutes)
+```
+
+This is crucial for commands that:
+- Monitor CI/CD workflows
+- Build Docker images
+- Run comprehensive test suites
+- Watch for deployment completions
+- Execute database migrations
 
 ### Local Development Setup
 ```bash
@@ -342,13 +363,13 @@ show_handler_metrics()                # Display handler execution counts and tim
    ```python
    # In the Python shell:
    from debug_tools import *
-   
+
    # Find recent traces
    list_traces(limit=10)
-   
+
    # Examine a specific trace hierarchy
    show_correlations(trace_id="your-trace-id")
-   
+
    # Check for stuck thoughts
    show_thoughts(status='PENDING')
    show_thoughts(status='PROCESSING')
@@ -439,7 +460,7 @@ docker exec <container> tail -n 100 /app/logs/incidents_latest.log
 When debugging issues, especially "smoking guns", follow this RCA methodology:
 
 1. **Preserve the Crime Scene**: Don't clean up stuck tasks or errors immediately - they reveal system behavior
-2. **Use Debug Tools First**: 
+2. **Use Debug Tools First**:
    ```python
    docker exec container python debug_tools.py
    # Then explore with commands like:
@@ -453,7 +474,7 @@ When debugging issues, especially "smoking guns", follow this RCA methodology:
 **Example RCA Success**: ObserveHandler Issue
 - **Symptom**: 35 tasks stuck in ACTIVE state
 - **Initial Instinct**: Clean them up ❌
-- **RCA Approach**: 
+- **RCA Approach**:
   1. Used debug_tools to examine stuck tasks
   2. Found they all had observation thoughts with no follow-ups
   3. Added debug logging to trace the flow
@@ -474,7 +495,7 @@ When debugging issues, especially "smoking guns", follow this RCA methodology:
 ### Mock LLM Behavior
 The mock LLM may not always respond with a message - **this is by design**:
 - **DEFER**: Task is deferred, no message sent back
-- **REJECT**: Request is rejected, no message sent back  
+- **REJECT**: Request is rejected, no message sent back
 - **TASK_COMPLETE**: Task marked complete, no message sent back
 - **OBSERVE**: Observation registered, no immediate message
 
@@ -608,7 +629,7 @@ That's it. CIRISManager handles everything else:
 **Deployment Process**:
 1. **Create PR**: `gh pr create --repo CIRISAI/CIRISAgent`
 2. **Merge PR**: `gh pr merge <PR#> --repo CIRISAI/CIRISAgent --merge --admin`
-3. **Automatic deployment**: 
+3. **Automatic deployment**:
    - GitHub Actions builds and tests
    - Pushes images to ghcr.io
    - Notifies CIRISManager via API
@@ -681,14 +702,14 @@ CIRIS follows strict type safety principles to ensure code reliability and maint
    # ❌ Bad - Using Dict[str, Any]
    def process_data(data: Dict[str, Any]) -> Dict[str, Any]:
        return {"result": data.get("value", 0) * 2}
-   
+
    # ✅ Good - Using Pydantic models
    class ProcessInput(BaseModel):
        value: float = Field(default=0.0)
-   
+
    class ProcessOutput(BaseModel):
        result: float
-   
+
    def process_data(data: ProcessInput) -> ProcessOutput:
        return ProcessOutput(result=data.value * 2)
    ```

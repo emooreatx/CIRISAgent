@@ -1,16 +1,20 @@
 """
 Comprehensive test for the mock LLM service to verify response schema compatibility.
 """
-import pytest
+
 import json
 
-from tests.adapters.mock_llm import MockLLMClient
-from ciris_engine.schemas.dma.results import (
-    EthicalDMAResult, CSDMAResult, DSDMAResult, ActionSelectionDMAResult
-)
-from ciris_engine.schemas.conscience.core import OptimizationVetoResult, EpistemicHumilityResult
-from ciris_engine.schemas.conscience.core import EntropyCheckResult, CoherenceCheckResult
+import pytest
+
 from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
+from ciris_engine.schemas.conscience.core import (
+    CoherenceCheckResult,
+    EntropyCheckResult,
+    EpistemicHumilityResult,
+    OptimizationVetoResult,
+)
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult, CSDMAResult, DSDMAResult, EthicalDMAResult
+from tests.adapters.mock_llm import MockLLMClient
 
 
 class TestMockLLMComprehensive:
@@ -27,13 +31,13 @@ class TestMockLLMComprehensive:
         response = await mock_client._create(response_model=EthicalDMAResult)
 
         assert isinstance(response, EthicalDMAResult)
-        assert hasattr(response, 'choices')
-        assert hasattr(response, 'finish_reason')
-        assert hasattr(response, '_raw_response')
+        assert hasattr(response, "choices")
+        assert hasattr(response, "finish_reason")
+        assert hasattr(response, "_raw_response")
 
         # Verify the response has expected fields
-        assert hasattr(response, 'alignment_check')
-        assert hasattr(response, 'decision')
+        assert hasattr(response, "alignment_check")
+        assert hasattr(response, "decision")
 
     @pytest.mark.asyncio
     async def test_cs_dma_result(self, mock_client):
@@ -41,13 +45,13 @@ class TestMockLLMComprehensive:
         response = await mock_client._create(response_model=CSDMAResult)
 
         assert isinstance(response, CSDMAResult)
-        assert hasattr(response, 'choices')
-        assert hasattr(response, 'finish_reason')
-        assert hasattr(response, '_raw_response')
+        assert hasattr(response, "choices")
+        assert hasattr(response, "finish_reason")
+        assert hasattr(response, "_raw_response")
 
         # Verify the response has expected fields
-        assert hasattr(response, 'plausibility_score')
-        assert hasattr(response, 'flags')
+        assert hasattr(response, "plausibility_score")
+        assert hasattr(response, "flags")
 
     @pytest.mark.asyncio
     async def test_ds_dma_result(self, mock_client):
@@ -55,13 +59,13 @@ class TestMockLLMComprehensive:
         response = await mock_client._create(response_model=DSDMAResult)
 
         assert isinstance(response, DSDMAResult)
-        assert hasattr(response, 'choices')
-        assert hasattr(response, 'finish_reason')
-        assert hasattr(response, '_raw_response')
+        assert hasattr(response, "choices")
+        assert hasattr(response, "finish_reason")
+        assert hasattr(response, "_raw_response")
 
         # Verify the response has expected fields
-        assert hasattr(response, 'domain')
-        assert hasattr(response, 'domain_alignment')
+        assert hasattr(response, "domain")
+        assert hasattr(response, "domain_alignment")
 
     @pytest.mark.asyncio
     async def test_action_selection_result(self, mock_client):
@@ -69,14 +73,14 @@ class TestMockLLMComprehensive:
         response = await mock_client._create(response_model=ActionSelectionDMAResult)
 
         assert isinstance(response, ActionSelectionDMAResult)
-        assert hasattr(response, 'choices')
-        assert hasattr(response, 'finish_reason')
-        assert hasattr(response, '_raw_response')
+        assert hasattr(response, "choices")
+        assert hasattr(response, "finish_reason")
+        assert hasattr(response, "_raw_response")
 
         # Verify the response has expected fields
-        assert hasattr(response, 'selected_action')
-        assert hasattr(response, 'action_parameters')
-        assert hasattr(response, 'rationale')
+        assert hasattr(response, "selected_action")
+        assert hasattr(response, "action_parameters")
+        assert hasattr(response, "rationale")
 
     @pytest.mark.asyncio
     async def test_dsdma_llm_output(self, mock_client):
@@ -84,9 +88,9 @@ class TestMockLLMComprehensive:
         response = await mock_client._create(response_model=BaseDSDMA.LLMOutputForDSDMA)
 
         assert isinstance(response, BaseDSDMA.LLMOutputForDSDMA)
-        assert hasattr(response, 'choices')
-        assert hasattr(response, 'finish_reason')
-        assert hasattr(response, '_raw_response')
+        assert hasattr(response, "choices")
+        assert hasattr(response, "finish_reason")
+        assert hasattr(response, "_raw_response")
 
     @pytest.mark.asyncio
     async def test_optimization_veto_result(self, mock_client):
@@ -94,13 +98,13 @@ class TestMockLLMComprehensive:
         response = await mock_client._create(response_model=OptimizationVetoResult)
 
         assert isinstance(response, OptimizationVetoResult)
-        assert hasattr(response, 'choices')
-        assert hasattr(response, 'finish_reason')
-        assert hasattr(response, '_raw_response')
+        assert hasattr(response, "choices")
+        assert hasattr(response, "finish_reason")
+        assert hasattr(response, "_raw_response")
 
         # Verify the response has expected fields
-        assert hasattr(response, 'decision')
-        assert hasattr(response, 'justification')
+        assert hasattr(response, "decision")
+        assert hasattr(response, "justification")
 
     @pytest.mark.asyncio
     async def test_epistemic_humility_result(self, mock_client):
@@ -108,13 +112,13 @@ class TestMockLLMComprehensive:
         response = await mock_client._create(response_model=EpistemicHumilityResult)
 
         assert isinstance(response, EpistemicHumilityResult)
-        assert hasattr(response, 'choices')
-        assert hasattr(response, 'finish_reason')
-        assert hasattr(response, '_raw_response')
+        assert hasattr(response, "choices")
+        assert hasattr(response, "finish_reason")
+        assert hasattr(response, "_raw_response")
 
         # Verify the response has expected fields
-        assert hasattr(response, 'epistemic_certainty')
-        assert hasattr(response, 'reflective_justification')
+        assert hasattr(response, "epistemic_certainty")
+        assert hasattr(response, "reflective_justification")
 
     @pytest.mark.asyncio
     async def test_entropy_result(self, mock_client):
@@ -122,12 +126,12 @@ class TestMockLLMComprehensive:
         response = await mock_client._create(response_model=EntropyCheckResult)
 
         assert isinstance(response, EntropyCheckResult)
-        assert hasattr(response, 'choices')
-        assert hasattr(response, 'finish_reason')
-        assert hasattr(response, '_raw_response')
+        assert hasattr(response, "choices")
+        assert hasattr(response, "finish_reason")
+        assert hasattr(response, "_raw_response")
 
         # Verify the response has expected fields
-        assert hasattr(response, 'entropy_score')
+        assert hasattr(response, "entropy_score")
         assert response.entropy_score == 0.1  # From mock response
 
     @pytest.mark.asyncio
@@ -136,12 +140,12 @@ class TestMockLLMComprehensive:
         response = await mock_client._create(response_model=CoherenceCheckResult)
 
         assert isinstance(response, CoherenceCheckResult)
-        assert hasattr(response, 'choices')
-        assert hasattr(response, 'finish_reason')
-        assert hasattr(response, '_raw_response')
+        assert hasattr(response, "choices")
+        assert hasattr(response, "finish_reason")
+        assert hasattr(response, "_raw_response")
 
         # Verify the response has expected fields
-        assert hasattr(response, 'coherence_score')
+        assert hasattr(response, "coherence_score")
         assert response.coherence_score == 0.9  # From mock response
 
     @pytest.mark.asyncio
@@ -156,7 +160,7 @@ class TestMockLLMComprehensive:
             EpistemicHumilityResult,
             ActionSelectionDMAResult,
             EntropyCheckResult,
-            CoherenceCheckResult
+            CoherenceCheckResult,
         ]
 
         for schema in test_schemas:
@@ -164,7 +168,7 @@ class TestMockLLMComprehensive:
 
             # Test that the response can be converted to dict and serialized
             try:
-                if hasattr(response, 'model_dump'):
+                if hasattr(response, "model_dump"):
                     response_dict = response.model_dump(mode="json")
                     json.dumps(response_dict)
                 else:
@@ -186,6 +190,6 @@ class TestMockLLMComprehensive:
 
         # Both should have required instructor attributes
         for response in [response1, response2]:
-            assert hasattr(response, 'choices')
-            assert hasattr(response, 'finish_reason')
-            assert hasattr(response, '_raw_response')
+            assert hasattr(response, "choices")
+            assert hasattr(response, "finish_reason")
+            assert hasattr(response, "_raw_response")

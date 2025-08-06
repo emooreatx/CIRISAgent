@@ -5,13 +5,14 @@ This protocol defines the interface that all state processors
 (WorkProcessor, PlayProcessor, DreamProcessor, etc.) must implement.
 """
 
-from typing import Protocol, List, Dict, Any, Optional, TYPE_CHECKING
 from abc import abstractmethod
+from typing import TYPE_CHECKING, List, Optional, Protocol
 
 if TYPE_CHECKING:
-    from ciris_engine.schemas.processors.results import ProcessingResult
-    from ciris_engine.schemas.processors.error import ErrorContext, ErrorHandlingResult, ProcessorConfig
     from ciris_engine.schemas.processors.base import ProcessorMetrics
+    from ciris_engine.schemas.processors.error import ErrorContext, ErrorHandlingResult, ProcessorConfig
+    from ciris_engine.schemas.processors.results import ProcessingResult
+
 
 class ProcessorProtocol(Protocol):
     """

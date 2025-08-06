@@ -36,13 +36,13 @@ fi
 if [[ "${STT_PROVIDER}" == "google" ]] || [[ "${TTS_PROVIDER}" == "google" ]]; then
     # Check if Google Cloud key is provided in config
     GOOGLE_KEY_JSON=$(bashio::config 'google_cloud_key' || echo "")
-    
+
     if [ -n "${GOOGLE_KEY_JSON}" ]; then
         # Save the key to a file - use printf to handle escape sequences properly
         printf '%s' "${GOOGLE_KEY_JSON}" > /data/google_cloud_key.json
         export GOOGLE_APPLICATION_CREDENTIALS="/data/google_cloud_key.json"
         bashio::log.info "Using Google Cloud key from addon configuration"
-        
+
         # Verify the JSON is valid
         if python3 -m json.tool /data/google_cloud_key.json > /dev/null 2>&1; then
             bashio::log.info "Google Cloud key JSON is valid"

@@ -1,9 +1,11 @@
 """Discord Vision Helper for processing images with GPT-4 Vision."""
-import os
-import logging
+
 import base64
+import logging
+import os
+from typing import Any, Dict, List, Optional
+
 import aiohttp
-from typing import List, Dict, Optional, Any
 import discord
 
 logger = logging.getLogger(__name__)
@@ -43,8 +45,7 @@ class DiscordVisionHelper:
 
         # Filter for image attachments
         image_attachments = [
-            att for att in message.attachments
-            if att.content_type and att.content_type.startswith("image/")
+            att for att in message.attachments if att.content_type and att.content_type.startswith("image/")
         ]
 
         if not image_attachments:
@@ -87,38 +88,33 @@ class DiscordVisionHelper:
                         return f"Failed to download image (HTTP {response.status})"
 
                     image_data = await response.read()
-                    base64_image = base64.b64encode(image_data).decode('utf-8')
+                    base64_image = base64.b64encode(image_data).decode("utf-8")
 
             # Prepare the API request
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
+            headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
 
             payload = {
                 "model": self.model,
                 "messages": [
                     {
                         "role": "system",
-                        "content": "You are a helpful assistant that describes images clearly and concisely. Focus on the main subjects, actions, text, and any notable details."
+                        "content": "You are a helpful assistant that describes images clearly and concisely. Focus on the main subjects, actions, text, and any notable details.",
                     },
                     {
                         "role": "user",
                         "content": [
                             {
                                 "type": "text",
-                                "text": "Please describe this image in detail. If there is any text in the image, transcribe it exactly."
+                                "text": "Please describe this image in detail. If there is any text in the image, transcribe it exactly.",
                             },
                             {
                                 "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{attachment.content_type};base64,{base64_image}"
-                                }
-                            }
-                        ]
-                    }
+                                "image_url": {"url": f"data:{attachment.content_type};base64,{base64_image}"},
+                            },
+                        ],
+                    },
                 ],
-                "max_tokens": 500
+                "max_tokens": 500,
             }
 
             # Call GPT-4 Vision API
@@ -221,5 +217,5 @@ class DiscordVisionHelper:
             "available": self.is_available(),
             "model": self.model,
             "max_image_size_mb": self.max_image_size / 1024 / 1024,
-            "api_key_configured": bool(self.api_key)
+            "api_key_configured": bool(self.api_key),
         }

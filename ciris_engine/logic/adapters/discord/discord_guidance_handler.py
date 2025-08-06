@@ -1,21 +1,27 @@
 """Discord guidance handling component for wise authority operations."""
+
+import logging
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
 import discord
 from discord import ui
-import logging
-from typing import List, Optional, TYPE_CHECKING, Any, Dict
 
 if TYPE_CHECKING:
-    from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
     from ciris_engine.protocols.services.graph.memory import MemoryServiceProtocol
+    from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
+
 
 class DiscordGuidanceHandler:
     """Handles Discord wise authority guidance and deferral operations."""
 
-    def __init__(self, client: Optional[discord.Client] = None,
-                 time_service: Optional["TimeServiceProtocol"] = None,
-                 memory_service: Optional["MemoryServiceProtocol"] = None) -> None:
+    def __init__(
+        self,
+        client: Optional[discord.Client] = None,
+        time_service: Optional["TimeServiceProtocol"] = None,
+        memory_service: Optional["MemoryServiceProtocol"] = None,
+    ) -> None:
         """Initialize the guidance handler.
 
         Args:
@@ -31,6 +37,7 @@ class DiscordGuidanceHandler:
         # Ensure we have a time service
         if time_service is None:
             from ciris_engine.logic.services.lifecycle.time import TimeService
+
             self._time_service = TimeService()
         else:
             self._time_service = time_service
@@ -136,7 +143,7 @@ class DiscordGuidanceHandler:
 
         request_content = f"[CIRIS Guidance Request]\nContext: ```json\n{context}\n```"
 
-        if not hasattr(channel, 'send'):
+        if not hasattr(channel, "send"):
             logger.error(f"Channel {deferral_channel_id} does not support sending messages")
             return {"guidance": None}
 
@@ -150,7 +157,7 @@ class DiscordGuidanceHandler:
             if i == 0:
                 request_message = sent_msg  # Track first message for replies
 
-        if hasattr(channel, 'history'):
+        if hasattr(channel, "history"):
             async for message in channel.history(limit=10):
                 if message.author.bot or (request_message and message.id == request_message.id):
                     continue
@@ -162,29 +169,27 @@ class DiscordGuidanceHandler:
 
                 guidance_content = message.content.strip()
 
-                is_reply = bool(hasattr(message, 'reference') and
-                               message.reference and
-                               request_message and
-                               hasattr(message.reference, 'message_id') and
-                               message.reference.message_id == request_message.id)
+                is_reply = bool(
+                    hasattr(message, "reference")
+                    and message.reference
+                    and request_message
+                    and hasattr(message.reference, "message_id")
+                    and message.reference.message_id == request_message.id
+                )
 
                 return {
                     "guidance": guidance_content,
                     "is_reply": is_reply,
                     "is_unsolicited": not is_reply,
                     "author_id": str(message.author.id),
-                    "author_name": message.author.display_name
+                    "author_name": message.author.display_name,
                 }
 
         logger.warning("No guidance found in deferral channel")
         return {"guidance": None}
 
     async def send_deferral_to_channel(
-        self,
-        deferral_channel_id: str,
-        thought_id: str,
-        reason: str,
-        context: Optional[dict] = None
+        self, deferral_channel_id: str, thought_id: str, reason: str, context: Optional[dict] = None
     ) -> None:
         """Send a deferral report to a Discord channel with helper buttons.
 
@@ -209,7 +214,7 @@ class DiscordGuidanceHandler:
             title="CIRIS Deferral Report",
             description=f"**Reason:** {reason}",
             color=discord.Color.orange(),
-            timestamp=self._time_service.now()
+            timestamp=self._time_service.now(),
         )
 
         embed.add_field(name="Thought ID", value=f"`{thought_id}`", inline=True)
@@ -219,7 +224,7 @@ class DiscordGuidanceHandler:
                 embed.add_field(name="Task ID", value=f"`{context['task_id']}`", inline=True)
 
             if "priority" in context:
-                embed.add_field(name="Priority", value=context['priority'], inline=True)
+                embed.add_field(name="Priority", value=context["priority"], inline=True)
 
             if "task_description" in context:
                 task_desc = self._truncate_text(context["task_description"], 1024)
@@ -230,7 +235,7 @@ class DiscordGuidanceHandler:
                 embed.add_field(name="Thought Content", value=thought_content, inline=False)
 
             if "attempted_action" in context:
-                embed.add_field(name="Attempted Action", value=context['attempted_action'], inline=True)
+                embed.add_field(name="Attempted Action", value=context["attempted_action"], inline=True)
 
             if "max_rounds_reached" in context and context["max_rounds_reached"]:
                 embed.add_field(name="Note", value="Maximum processing rounds reached", inline=False)
@@ -256,7 +261,7 @@ class DiscordGuidanceHandler:
             "**[CIRIS Deferral Report]**",
             f"**Thought ID:** `{thought_id}`",
             f"**Reason:** {reason}",
-            f"**Timestamp:** {self._time_service.now_iso()}"
+            f"**Timestamp:** {self._time_service.now_iso()}",
         ]
 
         if context:
@@ -298,7 +303,7 @@ class DiscordGuidanceHandler:
         """
         if len(text) <= max_length:
             return text
-        return text[:max_length - 3] + "..."
+        return text[: max_length - 3] + "..."
 
     def _split_message(self, content: str, max_length: int = 1950) -> List[str]:
         """Split a message into chunks that fit Discord's character limit.
@@ -314,7 +319,7 @@ class DiscordGuidanceHandler:
             return [content]
 
         chunks = []
-        lines = content.split('\n')
+        lines = content.split("\n")
         current_chunk = ""
 
         for line in lines:
@@ -324,13 +329,13 @@ class DiscordGuidanceHandler:
                     current_chunk = ""
 
                 for i in range(0, len(line), max_length):
-                    chunks.append(line[i:i + max_length])
+                    chunks.append(line[i : i + max_length])
             else:
                 if len(current_chunk) + len(line) + 1 > max_length:
                     chunks.append(current_chunk.rstrip())
-                    current_chunk = line + '\n'
+                    current_chunk = line + "\n"
                 else:
-                    current_chunk += line + '\n'
+                    current_chunk += line + "\n"
 
         if current_chunk:
             chunks.append(current_chunk.rstrip())
@@ -359,6 +364,7 @@ class DiscordGuidanceHandler:
             logger.error(f"Could not resolve Discord channel {channel_id}")
             return None
 
+
 class DeferralHelperView(ui.View):
     """Simple Discord UI View with helper buttons for deferral responses."""
 
@@ -371,16 +377,14 @@ class DeferralHelperView(ui.View):
     async def approve_button(self, interaction: discord.Interaction, button: ui.Button) -> None:
         """Provide template response for approval."""
         await interaction.response.send_message(
-            f"To approve this deferral, reply with:\n```\nAPPROVE {self.thought_id}\n```",
-            ephemeral=True
+            f"To approve this deferral, reply with:\n```\nAPPROVE {self.thought_id}\n```", ephemeral=True
         )
 
     @ui.button(label="Reject", style=discord.ButtonStyle.danger, emoji="❌")
     async def reject_button(self, interaction: discord.Interaction, button: ui.Button) -> None:
         """Provide template response for rejection."""
         await interaction.response.send_message(
-            f"To reject this deferral, reply with:\n```\nREJECT {self.thought_id}\n```",
-            ephemeral=True
+            f"To reject this deferral, reply with:\n```\nREJECT {self.thought_id}\n```", ephemeral=True
         )
 
     @ui.button(label="Request Info", style=discord.ButtonStyle.secondary, emoji="❓")
@@ -415,7 +419,9 @@ class DeferralHelperView(ui.View):
 
         # Add processing rounds info
         if "current_round" in self.context:
-            info_lines.append(f"\n**Processing Round:** {self.context['current_round']}/{self.context.get('max_rounds', 5)}")
+            info_lines.append(
+                f"\n**Processing Round:** {self.context['current_round']}/{self.context.get('max_rounds', 5)}"
+            )
 
         # Add attempted actions if available
         if "attempted_actions" in self.context:
@@ -424,7 +430,9 @@ class DeferralHelperView(ui.View):
                 info_lines.append(f"- {action}")
 
         # Add template for requesting more info
-        info_lines.append(f"\n**To request specific information:**\n```\nINFO {self.thought_id} - [your question here]\n```")
+        info_lines.append(
+            f"\n**To request specific information:**\n```\nINFO {self.thought_id} - [your question here]\n```"
+        )
 
         # Join all lines and ensure it fits Discord's limit
         full_message = "\n".join(info_lines)
@@ -432,13 +440,10 @@ class DeferralHelperView(ui.View):
             # Truncate to fit Discord's message limit
             full_message = full_message[:1997] + "..."
 
-        await interaction.response.send_message(
-            full_message,
-            ephemeral=True
-        )
+        await interaction.response.send_message(full_message, ephemeral=True)
 
     def _truncate_text(self, text: str, max_length: int) -> str:
         """Truncate text to a maximum length with ellipsis."""
         if len(text) <= max_length:
             return text
-        return text[:max_length - 3] + "..."
+        return text[: max_length - 3] + "..."

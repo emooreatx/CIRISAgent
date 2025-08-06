@@ -1,38 +1,32 @@
 import asyncio
 import logging
-from typing import Dict, Optional, TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from ciris_engine.logic.dma.pdma import EthicalPDMAEvaluator
-from ciris_engine.schemas.processors.dma import (
-    DMAMetadata, InitialDMAResults, DMAError, DMAErrors
-)
-from ciris_engine.logic.dma.csdma import CSDMAEvaluator
-from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
 from ciris_engine.logic.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
+from ciris_engine.logic.dma.csdma import CSDMAEvaluator
 from ciris_engine.logic.dma.dma_executor import (
-    run_pdma,
-    run_csdma,
-    run_dsdma,
     run_action_selection_pdma,
+    run_csdma,
     run_dma_with_retries,
+    run_dsdma,
+    run_pdma,
 )
-from ciris_engine.schemas.dma.results import (
-    ActionSelectionDMAResult,
-    EthicalDMAResult,
-    CSDMAResult,
-    DSDMAResult,
-)
-from ciris_engine.schemas.dma.faculty import EnhancedDMAInputs
-from ciris_engine.schemas.processors.core import DMAResults
+from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
+from ciris_engine.logic.dma.pdma import EthicalPDMAEvaluator
+from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
 from ciris_engine.logic.registries.circuit_breaker import CircuitBreaker
 from ciris_engine.logic.utils.channel_utils import extract_channel_id
-from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
+from ciris_engine.schemas.dma.faculty import EnhancedDMAInputs
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult, CSDMAResult, DSDMAResult, EthicalDMAResult
+from ciris_engine.schemas.processors.core import DMAResults
+from ciris_engine.schemas.processors.dma import DMAError, DMAErrors, DMAMetadata, InitialDMAResults
 from ciris_engine.schemas.runtime.models import Thought
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
+
 
 class DMAOrchestrator:
     def __init__(
@@ -55,12 +49,8 @@ class DMAOrchestrator:
         self.llm_service = llm_service
         self.memory_service = memory_service
 
-        self.retry_limit = (
-            getattr(app_config.workflow, "DMA_RETRY_LIMIT", 3) if app_config else 3
-        )
-        self.timeout_seconds = (
-            getattr(app_config.workflow, "DMA_TIMEOUT_SECONDS", 30.0) if app_config else 30.0
-        )
+        self.retry_limit = getattr(app_config.workflow, "DMA_RETRY_LIMIT", 3) if app_config else 3
+        self.timeout_seconds = getattr(app_config.workflow, "DMA_TIMEOUT_SECONDS", 30.0) if app_config else 30.0
 
         self._circuit_breakers: Dict[str, CircuitBreaker] = {
             "ethical_pdma": CircuitBreaker("ethical_pdma"),
@@ -130,11 +120,7 @@ class DMAOrchestrator:
                     results.dsdma = result
             except Exception as e:
                 logger.error(f"DMA '{name}' failed: {e}", exc_info=True)
-                error = DMAError(
-                    dma_name=name,
-                    error_message=str(e),
-                    error_type=type(e).__name__
-                )
+                error = DMAError(dma_name=name, error_message=str(e), error_type=type(e).__name__)
                 if name == "ethical_pdma":
                     errors.ethical_pdma = error
                 elif name == "csdma":
@@ -248,7 +234,7 @@ class DMAOrchestrator:
         actual_thought: Thought,
         processing_context: Any,  # ProcessingThoughtContext, but using Any to avoid circular import
         dma_results: InitialDMAResults,
-        profile_name: str
+        profile_name: str,
     ) -> ActionSelectionDMAResult:
         """Run ActionSelectionPDMAEvaluator sequentially after DMAs."""
         # Create properly typed EnhancedDMAInputs
@@ -258,14 +244,14 @@ class DMAOrchestrator:
             ethical_pdma_result=dma_results.ethical_pdma,
             csdma_result=dma_results.csdma,
             dsdma_result=dma_results.dsdma,
-            current_thought_depth=getattr(actual_thought, 'thought_depth', 0),
+            current_thought_depth=getattr(actual_thought, "thought_depth", 0),
             max_rounds=5,  # Default max rounds
             faculty_enhanced=False,
-            recursive_evaluation=False
+            recursive_evaluation=False,
         )
 
         # Check if this is a conscience retry from the context
-        if hasattr(processing_context, 'is_conscience_retry') and processing_context.is_conscience_retry:
+        if hasattr(processing_context, "is_conscience_retry") and processing_context.is_conscience_retry:
             triaged.recursive_evaluation = True
 
         channel_id = None
@@ -275,16 +261,15 @@ class DMAOrchestrator:
             channel_id = extract_channel_id(processing_context.system_snapshot.channel_context)
 
         if not channel_id and processing_context.initial_task_context:
-            channel_context = getattr(processing_context.initial_task_context, 'channel_context', None)
+            channel_context = getattr(processing_context.initial_task_context, "channel_context", None)
             if channel_context:
                 channel_id = extract_channel_id(channel_context)
-
 
         # Update fields on the Pydantic model directly
         if triaged.current_thought_depth == 0:  # Only set if not already set
             triaged.current_thought_depth = actual_thought.thought_depth
 
-        if self.app_config and hasattr(self.app_config, 'workflow'):
+        if self.app_config and hasattr(self.app_config, "workflow"):
             if triaged.max_rounds == 5:  # Only update if still default
                 triaged.max_rounds = self.app_config.workflow.max_rounds
         else:
@@ -306,7 +291,7 @@ class DMAOrchestrator:
         triaged.permitted_actions = permitted_actions
 
         # Pass through conscience feedback if available
-        if hasattr(thought_item, 'conscience_feedback') and thought_item.conscience_feedback:
+        if hasattr(thought_item, "conscience_feedback") and thought_item.conscience_feedback:
             triaged.conscience_feedback = thought_item.conscience_feedback
 
         try:

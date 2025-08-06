@@ -41,7 +41,7 @@ async function runAllTests() {
 
   // 1. AUTH TESTS (7 methods)
   console.log('\n1. AUTH RESOURCE TESTS');
-  
+
   await test('auth.login', async () => {
     const user = await client.auth.login(USERNAME, PASSWORD);
     if (!user.user_id) throw new Error('No user_id returned');
@@ -345,7 +345,7 @@ async function runAllTests() {
   });
 
   await test('telemetry.query', async () => {
-    const results = await client.telemetry.query({ 
+    const results = await client.telemetry.query({
       metric_name: 'system.cpu',
       start_time: new Date(Date.now() - 3600000).toISOString()
     });
@@ -376,9 +376,9 @@ async function runAllTests() {
   });
 
   await test('audit.searchEntries', async () => {
-    const results = await client.audit.searchEntries({ 
+    const results = await client.audit.searchEntries({
       service: 'api',
-      page_size: 5 
+      page_size: 5
     });
     if (!results.items) throw new Error('No items array');
   });
@@ -455,7 +455,7 @@ async function runAllTests() {
   console.log(`Total tests: ${testsPassed + testsFailed}`);
   console.log(`Passed: ${testsPassed} ✅`);
   console.log(`Failed: ${testsFailed} ❌`);
-  
+
   if (errors.length > 0) {
     console.log('\nFailed tests:');
     errors.forEach(e => {

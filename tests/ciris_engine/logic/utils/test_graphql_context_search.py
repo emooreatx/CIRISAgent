@@ -2,13 +2,14 @@
 Unit tests for GraphQL context provider search functionality.
 Tests that the provider uses search instead of direct node lookups.
 """
-import pytest
-from unittest.mock import Mock, AsyncMock, MagicMock
-import asyncio
 
-from ciris_engine.logic.utils.graphql_context_provider import GraphQLContextProvider, GraphQLClient
-from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
-from ciris_engine.schemas.adapters.graphql_core import EnrichedContext, GraphQLUserProfile
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+
+from ciris_engine.logic.utils.graphql_context_provider import GraphQLContextProvider
+from ciris_engine.schemas.adapters.graphql_core import EnrichedContext
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 
 
 class TestGraphQLContextSearch:
@@ -27,9 +28,7 @@ class TestGraphQLContextSearch:
     def provider(self, mock_memory_service):
         """Create GraphQL context provider."""
         return GraphQLContextProvider(
-            graphql_client=None,
-            memory_service=mock_memory_service,
-            enable_remote_graphql=False
+            graphql_client=None, memory_service=mock_memory_service, enable_remote_graphql=False
         )
 
     @pytest.mark.asyncio
@@ -46,11 +45,7 @@ class TestGraphQLContextSearch:
             id="user/123456789",
             type=NodeType.USER,
             scope=GraphScope.LOCAL,
-            attributes={
-                "username": "TestUser",
-                "display_name": "Test User",
-                "user_id": "123456789"
-            }
+            attributes={"username": "TestUser", "display_name": "Test User", "user_id": "123456789"},
         )
         mock_memory_service.search.return_value = [user_node]
 
@@ -64,10 +59,10 @@ class TestGraphQLContextSearch:
         # Check the arguments - search(query, filters)
         if call_args.args:  # Positional args
             assert call_args.args[0] == "TestUser"
-            filters = call_args.kwargs.get('filters', call_args.args[1] if len(call_args.args) > 1 else None)
+            filters = call_args.kwargs.get("filters", call_args.args[1] if len(call_args.args) > 1 else None)
         else:  # Keyword args
-            assert call_args.kwargs['query'] == "TestUser"
-            filters = call_args.kwargs['filters']
+            assert call_args.kwargs["query"] == "TestUser"
+            filters = call_args.kwargs["filters"]
 
         assert filters is not None
         assert filters.node_type == NodeType.USER.value
@@ -99,20 +94,20 @@ class TestGraphQLContextSearch:
                 id="user/111",
                 type=NodeType.USER,
                 scope=GraphScope.LOCAL,
-                attributes={"username": "JohnDoe123", "user_id": "111"}
+                attributes={"username": "JohnDoe123", "user_id": "111"},
             ),
             GraphNode(
                 id="user/222",
                 type=NodeType.USER,
                 scope=GraphScope.LOCAL,
-                attributes={"username": "JohnDoe", "user_id": "222"}  # Exact match
+                attributes={"username": "JohnDoe", "user_id": "222"},  # Exact match
             ),
             GraphNode(
                 id="user/333",
                 type=NodeType.USER,
                 scope=GraphScope.LOCAL,
-                attributes={"display_name": "John Doe", "user_id": "333"}
-            )
+                attributes={"display_name": "John Doe", "user_id": "333"},
+            ),
         ]
         mock_memory_service.search.return_value = user_nodes
 
@@ -141,7 +136,7 @@ class TestGraphQLContextSearch:
         test_cases = [
             {"username": "TestUser", "user_id": "111"},
             {"display_name": "TestUser", "user_id": "222"},
-            {"name": "TestUser", "user_id": "333"}
+            {"name": "TestUser", "user_id": "333"},
         ]
 
         for attrs in test_cases:
@@ -150,10 +145,7 @@ class TestGraphQLContextSearch:
 
             # Mock search to return node with specific attribute
             user_node = GraphNode(
-                id=f"user/{attrs['user_id']}",
-                type=NodeType.USER,
-                scope=GraphScope.LOCAL,
-                attributes=attrs
+                id=f"user/{attrs['user_id']}", type=NodeType.USER, scope=GraphScope.LOCAL, attributes=attrs
             )
             mock_memory_service.search.return_value = [user_node]
 
@@ -208,19 +200,23 @@ class TestGraphQLContextSearch:
         async def mock_search(query, filters):
             search_calls.append(query)
             if query == "Author1":
-                return [GraphNode(
-                    id="user/111",
-                    type=NodeType.USER,
-                    scope=GraphScope.LOCAL,
-                    attributes={"username": "Author1", "user_id": "111"}
-                )]
+                return [
+                    GraphNode(
+                        id="user/111",
+                        type=NodeType.USER,
+                        scope=GraphScope.LOCAL,
+                        attributes={"username": "Author1", "user_id": "111"},
+                    )
+                ]
             elif query == "Author2":
-                return [GraphNode(
-                    id="user/222",
-                    type=NodeType.USER,
-                    scope=GraphScope.LOCAL,
-                    attributes={"username": "Author2", "user_id": "222"}
-                )]
+                return [
+                    GraphNode(
+                        id="user/222",
+                        type=NodeType.USER,
+                        scope=GraphScope.LOCAL,
+                        attributes={"username": "Author2", "user_id": "222"},
+                    )
+                ]
             return []
 
         mock_memory_service.search.side_effect = mock_search

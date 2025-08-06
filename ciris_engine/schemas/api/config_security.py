@@ -4,12 +4,15 @@ Configuration security and filtering for CIRIS API v2.0.
 Automatically detects and filters sensitive configuration values
 based on user role to prevent information leakage.
 """
+
 import re
-from typing import Dict, Any, List, Optional
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
+
 from pydantic import BaseModel, Field, field_serializer
 
 from .auth import UserRole
+
 
 class ConfigSecurity:
     """Configuration security and filtering rules."""
@@ -34,13 +37,11 @@ class ConfigSecurity:
         "jwt_secret",
         "encryption_key",
         "signing_key",
-
         # Database & Infrastructure
         "database_url",
         "redis_url",
         "mongodb_uri",
         "elasticsearch_url",
-
         # External Services
         "openai_api_key",
         "anthropic_api_key",
@@ -48,13 +49,11 @@ class ConfigSecurity:
         "discord_bot_token",
         "slack_bot_token",
         "telegram_bot_token",
-
         # Cloud Providers
         "aws_access_key_id",
         "aws_secret_access_key",
         "azure_client_secret",
         "gcp_service_account",
-
         # Other Sensitive
         "smtp_password",
         "webhook_secret",
@@ -84,12 +83,7 @@ class ConfigSecurity:
         return False
 
     @classmethod
-    def filter_value(
-        cls,
-        key: str,
-        value: Any,
-        role: UserRole
-    ) -> Any:
+    def filter_value(cls, key: str, value: Any, role: UserRole) -> Any:
         """
         Filter a single configuration value based on role.
 
@@ -120,10 +114,8 @@ class ConfigSecurity:
 
     @classmethod
     def filter_config(
-        cls,
-        config: Dict[str, Any],
-        role: UserRole
-    ) -> Dict[str, Any]:
+        cls, config: Dict[str, Union[str, int, float, bool, list, dict]], role: UserRole
+    ) -> Dict[str, Union[str, int, float, bool, list, dict]]:
         """
         Filter entire configuration dictionary based on role.
 
@@ -144,11 +136,7 @@ class ConfigSecurity:
         return filtered
 
     @classmethod
-    def get_visible_keys(
-        cls,
-        all_keys: List[str],
-        role: UserRole
-    ) -> Dict[str, bool]:
+    def get_visible_keys(cls, all_keys: List[str], role: UserRole) -> Dict[str, bool]:
         """
         Get visibility status for a list of keys.
 
@@ -175,8 +163,10 @@ class ConfigSecurity:
 
         return visibility
 
+
 class ConfigValueResponse(BaseModel):
     """Response for a single configuration value."""
+
     key: str = Field(..., description="Configuration key")
     value: Any = Field(..., description="Configuration value (may be redacted)")
     is_sensitive: bool = Field(..., description="Whether this is a sensitive key")
@@ -184,17 +174,21 @@ class ConfigValueResponse(BaseModel):
     last_updated: Optional[datetime] = Field(None, description="When value was last updated")
     updated_by: Optional[str] = Field(None, description="Who last updated this value")
 
-    @field_serializer('last_updated')
+    @field_serializer("last_updated")
     def serialize_last_updated(self, last_updated: Optional[datetime], _info: Any) -> Optional[str]:
         return last_updated.isoformat() if last_updated else None
 
+
 class ConfigListResponse(BaseModel):
     """Response for configuration list."""
-    configs: Dict[str, Any] = Field(..., description="Configuration values")
-    metadata: Dict[str, Any] = Field(..., description="Response metadata")
+
+    configs: Dict[str, Union[str, int, float, bool, list, dict]] = Field(..., description="Configuration values")
+    metadata: Dict[str, Union[str, int, float, bool]] = Field(..., description="Response metadata")
 
 
-def filter_config_for_role(config: Dict[str, Any], role: UserRole) -> Dict[str, Any]:
+def filter_config_for_role(
+    config: Dict[str, Union[str, int, float, bool, list, dict]], role: UserRole
+) -> Dict[str, Union[str, int, float, bool, list, dict]]:
     """
     Filter configuration values based on user role.
 
@@ -207,20 +201,26 @@ def filter_config_for_role(config: Dict[str, Any], role: UserRole) -> Dict[str, 
     """
     return ConfigSecurity.filter_config(config, role)
 
+
 class ConfigUpdateRequest(BaseModel):
     """Request to update configuration value."""
+
     value: Any = Field(..., description="New configuration value")
     comment: Optional[str] = Field(None, description="Optional comment about change")
 
+
 class ConfigUpdateResponse(BaseModel):
     """Response after configuration update."""
+
     success: bool = Field(..., description="Whether update succeeded")
     key: str = Field(..., description="Configuration key")
     message: str = Field(..., description="Status message")
     requires_restart: bool = Field(False, description="Whether change requires restart")
 
+
 class ConfigHistoryEntry(BaseModel):
     """Configuration change history entry."""
+
     key: str = Field(..., description="Configuration key")
     old_value: Any = Field(..., description="Previous value (may be redacted)")
     new_value: Any = Field(..., description="New value (may be redacted)")
@@ -228,12 +228,16 @@ class ConfigHistoryEntry(BaseModel):
     changed_by: str = Field(..., description="Who made the change")
     comment: Optional[str] = Field(None, description="Change comment")
 
+
 class ConfigValidationRequest(BaseModel):
     """Request to validate configuration changes."""
-    changes: Dict[str, Any] = Field(..., description="Proposed changes")
+
+    changes: Dict[str, Union[str, int, float, bool, list, dict]] = Field(..., description="Proposed changes")
+
 
 class ConfigValidationResponse(BaseModel):
     """Response from configuration validation."""
+
     valid: bool = Field(..., description="Whether all changes are valid")
     errors: Dict[str, str] = Field(default_factory=dict, description="Validation errors by key")
     warnings: Dict[str, str] = Field(default_factory=dict, description="Validation warnings by key")

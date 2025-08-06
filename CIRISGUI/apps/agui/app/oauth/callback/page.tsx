@@ -37,15 +37,15 @@ function OAuthCallbackContent() {
     try {
       // Extract provider from state (we'll encode it in the state parameter)
       const provider = state.split(':')[0];
-      
+
       const user = await cirisClient.auth.handleOAuthCallback(provider, code, state);
-      
+
       // Set the authentication state
       setUser(user);
-      
+
       // The handleOAuthCallback method already stores the token internally
       // No need to manually set token or localStorage as the SDK handles it
-      
+
       // Redirect to dashboard
       router.push('/dashboard');
     } catch (err) {
@@ -61,7 +61,7 @@ function OAuthCallbackContent() {
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
             OAuth Authentication
           </h2>
-          
+
           {processing ? (
             <div className="mt-8">
               <div className="inline-flex items-center">

@@ -143,7 +143,7 @@ export class Transport {
         status: response.status,
         statusText: response.statusText
       });
-      
+
       // Try to get error details
       try {
         const errorData = await response.json();
@@ -151,7 +151,7 @@ export class Transport {
       } catch (e) {
         console.error('Could not parse 401 error response');
       }
-      
+
       AuthStore.clearToken();
       if (this.onAuthError) {
         this.onAuthError();
@@ -201,7 +201,7 @@ export class Transport {
     // Handle errors
     if (!response.ok) {
       const errorData = data as ErrorResponse;
-      
+
       // Handle enhanced 403 permission denied errors
       if (response.status === 403 && 'error' in data && data.error === 'insufficient_permissions') {
         throw new CIRISPermissionDeniedError(
@@ -212,7 +212,7 @@ export class Transport {
           data.requested_at
         );
       }
-      
+
       throw new CIRISAPIError(
         response.status,
         errorData.detail || `HTTP ${response.status} error`,
@@ -255,7 +255,7 @@ export class Transport {
    */
   private buildURL(path: string, params?: Record<string, any>): string {
     let url: URL;
-    
+
     // Check if path is already an absolute URL
     if (path.startsWith('http://') || path.startsWith('https://')) {
       url = new URL(path);
@@ -267,7 +267,7 @@ export class Transport {
         // Remove '/v1' prefix and ensure path doesn't start with /
         path = path.substring(4); // This gives us 'auth/me' instead of '/auth/me'
       }
-      
+
       // Ensure baseURL ends with / for proper URL construction
       const base = this.baseURL.endsWith('/') ? this.baseURL : this.baseURL + '/';
       url = new URL(path, base);
@@ -374,7 +374,7 @@ export class Transport {
         // Token is already saved with metadata
         return;
       }
-      
+
       AuthStore.saveToken({
         access_token: token,
         token_type: 'Bearer',
@@ -383,7 +383,7 @@ export class Transport {
         role: '',
         created_at: Date.now()
       });
-      
+
       if (process.env.NODE_ENV === 'development') {
         console.log('[CIRIS SDK] Auth token updated');
       }

@@ -1,22 +1,21 @@
 """Unit tests for Discord adapter with comprehensive coverage."""
 
-import pytest
-import asyncio
-import tempfile
 import os
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+import tempfile
 from datetime import datetime, timezone
-from typing import Generator, Dict, Any, Optional
+from typing import Any, Dict, Generator, Optional
+from unittest.mock import AsyncMock, Mock, patch
+
 import discord
+import pytest
 from discord.ext import commands
 
-from ciris_engine.logic.adapters.discord.discord_adapter import DiscordAdapter
-from ciris_engine.logic.adapters.discord.discord_observer import DiscordObserver
 from ciris_engine.logic.adapters.discord.config import DiscordAdapterConfig
+from ciris_engine.logic.adapters.discord.discord_adapter import DiscordAdapter
 from ciris_engine.logic.adapters.discord.discord_error_handler import DiscordErrorHandler
-from ciris_engine.logic.adapters.discord.discord_connection_manager import ConnectionState
-from ciris_engine.schemas.services.core import ServiceStatus, ServiceCapabilities
+from ciris_engine.logic.adapters.discord.discord_observer import DiscordObserver
 from ciris_engine.logic.persistence import initialize_database
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 
 
 class TestDiscordAdapter:
@@ -26,19 +25,21 @@ class TestDiscordAdapter:
     def setup_test_db(self) -> Generator[str, None, None]:
         """Set up a temporary test database for each test."""
         # Create a temporary database file
-        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
             test_db_path = tmp_file.name
-        
+
         # Initialize the database with all required tables
         initialize_database(test_db_path)
-        
+
         # Patch get_db_connection to use our test database
-        with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn, \
-             patch('ciris_engine.logic.persistence.models.correlations.get_db_connection') as mock_get_conn2:
+        with patch("ciris_engine.logic.persistence.get_db_connection") as mock_get_conn, patch(
+            "ciris_engine.logic.persistence.models.correlations.get_db_connection"
+        ) as mock_get_conn2:
             import sqlite3
+
             # Return a context manager that yields a connection
             from contextlib import contextmanager
-            
+
             @contextmanager
             def get_test_connection(db_path: Optional[str] = None) -> Generator[Any, None, None]:
                 # Use the test db_path from outer scope, ignore the argument
@@ -48,12 +49,12 @@ class TestDiscordAdapter:
                     yield conn
                 finally:
                     conn.close()
-            
+
             mock_get_conn.side_effect = get_test_connection
             mock_get_conn2.side_effect = get_test_connection
-            
+
             yield test_db_path
-        
+
         # Clean up
         try:
             os.unlink(test_db_path)
@@ -64,10 +65,7 @@ class TestDiscordAdapter:
     def mock_time_service(self) -> Mock:
         """Create mock time service."""
         current_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        return Mock(
-            now=Mock(return_value=current_time),
-            now_iso=Mock(return_value=current_time.isoformat())
-        )
+        return Mock(now=Mock(return_value=current_time), now_iso=Mock(return_value=current_time.isoformat()))
 
     @pytest.fixture
     def mock_config(self) -> DiscordAdapterConfig:
@@ -77,26 +75,24 @@ class TestDiscordAdapter:
             monitored_channel_ids=["123456789"],
             home_channel_id="123456789",
             deferral_channel_id="987654321",
-            max_message_length=2000
+            max_message_length=2000,
         )
 
     @pytest.fixture
     def mock_services(self, mock_time_service: Mock) -> Dict[str, Mock]:
         """Create mock services."""
         return {
-            'time_service': mock_time_service,
-            'telemetry_service': Mock(memorize_metric=AsyncMock()),
-            'audit_service': Mock(audit_event=AsyncMock()),
-            'memory_bus': Mock(memorize=AsyncMock())
+            "time_service": mock_time_service,
+            "telemetry_service": Mock(memorize_metric=AsyncMock()),
+            "audit_service": Mock(audit_event=AsyncMock()),
+            "memory_bus": Mock(memorize=AsyncMock()),
         }
 
     @pytest.fixture
     def discord_adapter(self, mock_config: DiscordAdapterConfig, mock_services: Dict[str, Mock]) -> DiscordAdapter:
         """Create Discord adapter instance."""
         adapter = DiscordAdapter(
-            token=mock_config.bot_token,
-            time_service=mock_services['time_service'],
-            config=mock_config
+            token=mock_config.bot_token, time_service=mock_services["time_service"], config=mock_config
         )
         # Note: These services are injected through other mechanisms in production
         # For testing, we're mocking them directly
@@ -132,9 +128,9 @@ class TestDiscordAdapter:
         # Verify telemetry was emitted - check both possible metric names
         discord_adapter.bus_manager.memory.memorize_metric.assert_called()
         calls = discord_adapter.bus_manager.memory.memorize_metric.call_args_list
-        metric_names = [call[1]['metric_name'] for call in calls]
+        metric_names = [call[1]["metric_name"] for call in calls]
         # Could be either starting or started
-        assert any(name in ['discord.adapter.starting', 'discord.adapter.started'] for name in metric_names)
+        assert any(name in ["discord.adapter.starting", "discord.adapter.started"] for name in metric_names)
 
     @pytest.mark.asyncio
     async def test_stop(self, discord_adapter: DiscordAdapter) -> None:
@@ -157,16 +153,10 @@ class TestDiscordAdapter:
         mock_message = Mock(id=123)
         discord_adapter._message_handler.send_message_to_channel = AsyncMock(return_value=mock_message)
 
-        result = await discord_adapter.send_message(
-            "test_channel",
-            "Test message"
-        )
+        result = await discord_adapter.send_message("test_channel", "Test message")
 
         assert result is True
-        discord_adapter._message_handler.send_message_to_channel.assert_called_once_with(
-            "test_channel",
-            "Test message"
-        )
+        discord_adapter._message_handler.send_message_to_channel.assert_called_once_with("test_channel", "Test message")
 
     @pytest.mark.asyncio
     async def test_send_message_with_embed(self, discord_adapter: DiscordAdapter) -> None:
@@ -180,16 +170,10 @@ class TestDiscordAdapter:
 
         # Discord adapter's send_message doesn't support embeds directly
         # This would need to be done through a different method
-        result = await discord_adapter.send_message(
-            "test_channel",
-            "Test message"
-        )
+        result = await discord_adapter.send_message("test_channel", "Test message")
 
         assert result is True
-        discord_adapter._message_handler.send_message_to_channel.assert_called_once_with(
-            "test_channel",
-            "Test message"
-        )
+        discord_adapter._message_handler.send_message_to_channel.assert_called_once_with("test_channel", "Test message")
 
     @pytest.mark.asyncio
     async def test_send_message_too_long(self, discord_adapter: DiscordAdapter) -> None:
@@ -204,10 +188,7 @@ class TestDiscordAdapter:
         # Create long message
         long_message = "x" * 3000
 
-        result = await discord_adapter.send_message(
-            "test_channel",
-            long_message
-        )
+        result = await discord_adapter.send_message("test_channel", long_message)
 
         # Should still return True, message handler deals with splitting
         assert result is True
@@ -230,7 +211,9 @@ class TestDiscordAdapter:
         """Test channel manager when channel not found."""
         # Mock channel not found
         discord_adapter._channel_manager.client.get_channel = Mock(return_value=None)
-        discord_adapter._channel_manager.client.fetch_channel = AsyncMock(side_effect=discord.NotFound(Mock(), "Channel not found"))
+        discord_adapter._channel_manager.client.fetch_channel = AsyncMock(
+            side_effect=discord.NotFound(Mock(), "Channel not found")
+        )
 
         channel = await discord_adapter._channel_manager.resolve_channel("999999")
 
@@ -281,9 +264,7 @@ class TestDiscordAdapter:
         test_error = Exception("Test message error")
 
         # Use the error handler
-        error_info = discord_adapter._error_handler.handle_message_error(
-            test_error, "Test message", "test_channel"
-        )
+        error_info = discord_adapter._error_handler.handle_message_error(test_error, "Test message", "test_channel")
 
         assert error_info is not None
         assert "Test message error" in str(error_info)
@@ -305,13 +286,13 @@ class TestDiscordAdapter:
         """Test embed formatter functionality."""
         # Import the DiscordErrorInfo model and ErrorSeverity
         from ciris_engine.schemas.adapters.discord import DiscordErrorInfo, ErrorSeverity
-        
+
         # Test formatting an error embed
         error_info = DiscordErrorInfo(
             error_type="TestError",
             message="Test error message",
             severity=ErrorSeverity.MEDIUM,
-            operation="test_operation"
+            operation="test_operation",
         )
 
         embed = discord_adapter._embed_formatter.format_error_message(error_info)
@@ -400,14 +381,14 @@ class TestDiscordAdapter:
         discord_adapter.bus_manager = Mock()
         discord_adapter.bus_manager.memory = AsyncMock()
         discord_adapter.bus_manager.memory.memorize_metric = AsyncMock()
-        
+
         # Make sure connection manager reports not connected
         discord_adapter._connection_manager.is_connected = Mock(return_value=False)
-        
+
         # Sending a message should fail when not connected
         result = await discord_adapter.send_message("123456789", "Test message")
         assert result is False
-        
+
         # No telemetry is emitted when adapter is not connected
 
     @pytest.mark.asyncio
@@ -476,13 +457,14 @@ class TestDiscordObserver:
 
         # Create a Discord message
         from ciris_engine.schemas.runtime.messages import DiscordMessage
+
         msg = DiscordMessage(
             channel_id="test_channel",
             author_id="user123",
             author_name="TestUser",
             content="Hello",
             message_id="12345",
-            is_bot=False
+            is_bot=False,
         )
 
         # Mock the entire handle_incoming_message method to track calls
@@ -500,13 +482,14 @@ class TestDiscordObserver:
         """Test that messages from unmonitored channels are ignored."""
         # Create a Discord message from an unmonitored channel
         from ciris_engine.schemas.runtime.messages import DiscordMessage
+
         msg = DiscordMessage(
             channel_id="unmonitored_channel",
             author_id="user123",
             author_name="TestUser",
             content="Hello",
             message_id="12345",
-            is_bot=False
+            is_bot=False,
         )
 
         # Mock to verify it's not processed
@@ -547,11 +530,11 @@ class TestDiscordErrorHandler:
         """Test handling command not found error."""
         # Import the error severity enum
         from ciris_engine.schemas.adapters.discord import ErrorSeverity
-        
+
         error = commands.CommandNotFound("unknown")
         result = error_handler.handle_api_error(error, "command")
 
-        assert hasattr(result, 'severity')
+        assert hasattr(result, "severity")
         assert result.severity == ErrorSeverity.MEDIUM
 
     @pytest.mark.asyncio
@@ -560,25 +543,25 @@ class TestDiscordErrorHandler:
         mock_ctx = Mock()
         mock_ctx.send = AsyncMock()
 
-        error = commands.MissingPermissions(['manage_messages'])
+        error = commands.MissingPermissions(["manage_messages"])
         result = error_handler.handle_api_error(error, "command")
 
-        assert hasattr(result, 'severity')
-        assert hasattr(result, 'message')
+        assert hasattr(result, "severity")
+        assert hasattr(result, "message")
         # The error handler doesn't have special handling for MissingPermissions,
         # so check that the error message contains the error type at least
-        assert 'MissingPermissions' in result.message or 'error' in result.message.lower()
+        assert "MissingPermissions" in result.message or "error" in result.message.lower()
 
     @pytest.mark.asyncio
     async def test_handle_generic_error(self, error_handler):
         """Test handling generic error."""
         # Import the error severity enum
         from ciris_engine.schemas.adapters.discord import ErrorSeverity
-        
+
         error = Exception("Something went wrong")
         result = error_handler.handle_api_error(error, "test")
 
-        assert hasattr(result, 'severity')
+        assert hasattr(result, "severity")
         assert result.severity == ErrorSeverity.MEDIUM
 
     def test_format_error_message(self, error_handler):

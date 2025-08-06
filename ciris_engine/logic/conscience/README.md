@@ -20,8 +20,8 @@ Defines the protocol that all conscience components must implement:
 ```python
 class ConscienceInterface(Protocol):
     async def check(
-        self, 
-        action: ActionSelectionDMAResult, 
+        self,
+        action: ActionSelectionDMAResult,
         context: Dict[str, Any]
     ) -> ConscienceCheckResult:
         """Evaluate action and return conscience insights"""
@@ -33,9 +33,9 @@ Manages conscience component registration, prioritization, and execution:
 ```python
 class ConscienceRegistry:
     def register_conscience(
-        self, 
-        name: str, 
-        conscience: ConscienceInterface, 
+        self,
+        name: str,
+        conscience: ConscienceInterface,
         priority: int = 2,
         enabled: bool = True
     ) -> None:
@@ -50,10 +50,10 @@ Evaluates information density and coherence of responses.
 ```python
 class EntropyConscience:
     """Evaluates response entropy (information density)"""
-    
+
     # Configuration
     entropy_threshold: float = 0.40  # Max allowable entropy
-    
+
     # Evaluation
     # 0.0 = perfectly ordered, 1.0 = completely chaotic
     # Provides insights even when passing
@@ -69,10 +69,10 @@ Ensures logical consistency with CIRIS principles and prior context.
 ```python
 class CoherenceConscience:
     """Ensures logical and ethical coherence"""
-    
+
     # Configuration
     coherence_threshold: float = 0.60  # Min required coherence
-    
+
     # Evaluation
     # 0.0 = incoherent/harmful, 1.0 = perfectly aligned
     # Always provides alignment insights
@@ -88,7 +88,7 @@ Prevents over-optimization at the expense of human values.
 ```python
 class OptimizationVetoConscience:
     """Guards against harmful optimization"""
-    
+
     # Evaluates entropy reduction ratio
     # Assesses impact on human autonomy
     # Provides insights on value preservation
@@ -100,7 +100,7 @@ Promotes appropriate uncertainty acknowledgment.
 ```python
 class EpistemicHumilityConscience:
     """Encourages intellectual humility"""
-    
+
     # Assesses confidence levels
     # Identifies knowledge boundaries
     # Suggests when to defer or ponder
@@ -133,13 +133,13 @@ class ConscienceResult(BaseModel):
 async def process_thought_with_conscience(thought_item):
     # 1. DMA selects action
     action_result = await dma_orchestrator.select_action(thought_item)
-    
+
     # 2. Conscience evaluates (always runs)
     conscience_result = await apply_conscience(action_result, context)
-    
+
     # 3. Store insights for future decisions
     thought_context.conscience_insights = conscience_result.epistemic_data
-    
+
     # 4. If reconsideration suggested, retry with guidance
     if conscience_result.overridden:
         retry_result = await retry_with_conscience_guidance(
@@ -181,15 +181,15 @@ conscience_config:
   entropy:
     enabled: true
     threshold: 0.40
-    
+
   coherence:
     enabled: true
     threshold: 0.60
-    
+
   optimization_veto:
     enabled: true
     entropy_reduction_threshold: 0.30
-    
+
   epistemic_humility:
     enabled: true
     certainty_threshold: 0.70
@@ -263,11 +263,11 @@ async def test_conscience_flow():
     # Test that conscience results flow forward
     action = create_test_action("Hello world")
     conscience_result = await apply_conscience(action, context)
-    
+
     assert conscience_result.epistemic_data is not None
     assert "entropy" in conscience_result.epistemic_data
     assert "coherence" in conscience_result.epistemic_data
-    
+
     # Verify results enhance context
     enhanced_context = enhance_context_with_conscience(
         context, conscience_result

@@ -8,21 +8,16 @@ from typing import Callable, Deque, Dict, List, Optional, Tuple
 
 import psutil
 
-from ciris_engine.protocols.services import ServiceProtocol
+from ciris_engine.logic.persistence import get_db_connection
+from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
 from ciris_engine.protocols.services.infrastructure.resource_monitor import ResourceMonitorServiceProtocol
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.logic.persistence import get_db_connection
-from ciris_engine.schemas.services.resources_core import (
-    ResourceBudget,
-    ResourceLimit,
-    ResourceSnapshot,
-    ResourceAction,
-)
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
-from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
 from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.services.core import ServiceStatus
+from ciris_engine.schemas.services.resources_core import ResourceAction, ResourceBudget, ResourceLimit, ResourceSnapshot
 
 logger = logging.getLogger(__name__)
+
 
 class ResourceSignalBus:
     """Simple signal bus for resource events."""
@@ -45,10 +40,17 @@ class ResourceSignalBus:
             except Exception as exc:  # pragma: no cover - defensive
                 logger.error("Signal handler error: %s", exc)
 
+
 class ResourceMonitorService(BaseScheduledService, ResourceMonitorServiceProtocol):
     """Monitor system resources and enforce limits."""
 
-    def __init__(self, budget: ResourceBudget, db_path: str, time_service: TimeServiceProtocol, signal_bus: Optional[ResourceSignalBus] = None) -> None:
+    def __init__(
+        self,
+        budget: ResourceBudget,
+        db_path: str,
+        time_service: TimeServiceProtocol,
+        signal_bus: Optional[ResourceSignalBus] = None,
+    ) -> None:
         super().__init__(run_interval_seconds=1.0, time_service=time_service)
         self.budget = budget
         self.db_path = db_path
@@ -62,11 +64,11 @@ class ResourceMonitorService(BaseScheduledService, ResourceMonitorServiceProtoco
         self._last_action_time: Dict[str, datetime] = {}
         self._process = psutil.Process()
         self._monitoring = False  # For backward compatibility with tests
-    
+
     def get_service_type(self) -> ServiceType:
         """Get service type."""
         return ServiceType.VISIBILITY
-    
+
     def _get_actions(self) -> List[str]:
         """Get list of actions this service provides."""
         return [
@@ -75,23 +77,23 @@ class ResourceMonitorService(BaseScheduledService, ResourceMonitorServiceProtoco
             "memory_tracking",
             "token_rate_limiting",
             "thought_counting",
-            "resource_signals"
+            "resource_signals",
         ]
-    
+
     def _check_dependencies(self) -> bool:
         """Check if all dependencies are available."""
         return True  # Only needs time service which is provided in init
-    
+
     async def _on_start(self) -> None:
         """Called when service starts."""
         self._monitoring = True
         await super()._on_start()
-    
+
     async def _on_stop(self) -> None:
         """Called when service stops."""
         self._monitoring = False
         await super()._on_stop()
-    
+
     async def _run_scheduled_task(self) -> None:
         """Update resource snapshot and check limits."""
         await self._update_snapshot()
@@ -103,9 +105,7 @@ class ResourceMonitorService(BaseScheduledService, ResourceMonitorServiceProtoco
             self.snapshot.memory_mb = mem_info.rss // 1024 // 1024
         else:
             self.snapshot.memory_mb = 0
-        self.snapshot.memory_percent = (
-            self.snapshot.memory_mb * 100 // self.budget.memory_mb.limit
-        )
+        self.snapshot.memory_percent = self.snapshot.memory_mb * 100 // self.budget.memory_mb.limit
 
         if psutil and self._process:
             cpu_percent = self._process.cpu_percent(interval=0)
@@ -185,9 +185,7 @@ class ResourceMonitorService(BaseScheduledService, ResourceMonitorServiceProtoco
         try:
             conn = get_db_connection(self.db_path)
             cursor = conn.cursor()
-            cursor.execute(
-                "SELECT COUNT(*) FROM thoughts WHERE status IN ('pending', 'processing')"
-            )
+            cursor.execute("SELECT COUNT(*) FROM thoughts WHERE status IN ('pending', 'processing')")
             row = cursor.fetchone()
             return row[0] if row else 0
         except Exception:  # pragma: no cover - DB errors unlikely in tests
@@ -201,14 +199,14 @@ class ResourceMonitorService(BaseScheduledService, ResourceMonitorServiceProtoco
             "tokens_used_hour": float(self.snapshot.tokens_used_hour),
             "thoughts_active": float(self.snapshot.thoughts_active),
             "warnings": float(len(self.snapshot.warnings)),
-            "critical": float(len(self.snapshot.critical))
+            "critical": float(len(self.snapshot.critical)),
         }
-    
+
     async def is_healthy(self) -> bool:
         """Check if service is healthy."""
         # Service is healthy if no critical resource issues
         return self.snapshot.healthy
-    
+
     def get_status(self) -> ServiceStatus:
         """Get service status."""
         status = super().get_status()

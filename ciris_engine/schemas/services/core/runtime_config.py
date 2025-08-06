@@ -3,12 +3,16 @@ Runtime configuration schemas for runtime control service.
 
 Replaces Dict[str, Any] in runtime control operations.
 """
-from typing import Dict, List, Optional, Union
+
 from datetime import datetime, timezone
+from typing import Dict, List, Optional, Union
+
 from pydantic import BaseModel, Field
+
 
 class AdapterConfig(BaseModel):
     """Configuration for adapter instances."""
+
     adapter_type: str = Field(..., description="Type of adapter")
     adapter_id: str = Field(..., description="Unique adapter identifier")
     enabled: bool = Field(True, description="Whether adapter is enabled")
@@ -30,8 +34,10 @@ class AdapterConfig(BaseModel):
         default_factory=dict, description="Adapter-specific settings"
     )
 
+
 class ProcessorConfig(BaseModel):
     """Configuration for processor instances."""
+
     processor_type: str = Field(..., description="Type of processor")
     enabled: bool = Field(True, description="Whether processor is enabled")
 
@@ -48,8 +54,10 @@ class ProcessorConfig(BaseModel):
         default_factory=dict, description="Processor-specific settings"
     )
 
+
 class RuntimeConfig(BaseModel):
     """Complete runtime configuration."""
+
     version: str = Field(..., description="Config version")
     environment: str = Field("production", description="Runtime environment")
 
@@ -68,8 +76,10 @@ class RuntimeConfig(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+
 class ServiceInfo(BaseModel):
     """Information about a registered service."""
+
     service_name: str = Field(..., description="Service name")
     service_type: str = Field(..., description="Service type")
     status: str = Field(..., description="Service status")
@@ -88,8 +98,10 @@ class ServiceInfo(BaseModel):
     memory_usage_mb: Optional[float] = Field(None, description="Memory usage")
     cpu_usage_percent: Optional[float] = Field(None, description="CPU usage")
 
+
 class ServiceHealthReport(BaseModel):
     """Health report for services."""
+
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     overall_health: str = Field(..., description="Overall health status")
     healthy_services: int = Field(..., description="Number of healthy services")

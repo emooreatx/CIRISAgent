@@ -37,7 +37,7 @@ export default function AgentSelector() {
   const getAgentStatus = (agentId: string) => {
     const role = agentRoles.get(agentId);
     if (!role) return 'offline';
-    
+
     // Check if last checked was recent (within 5 minutes)
     const isRecent = new Date().getTime() - role.lastChecked.getTime() < 300000;
     return isRecent ? 'online' : 'unknown';
@@ -73,7 +73,7 @@ export default function AgentSelector() {
                 {agents.map((agent) => {
                   const role = agentRoles.get(agent.agent_id);
                   const status = getAgentStatus(agent.agent_id);
-                  
+
                   return (
                     <Listbox.Option
                       key={agent.agent_id}

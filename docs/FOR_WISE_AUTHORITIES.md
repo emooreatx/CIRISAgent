@@ -17,7 +17,7 @@ This is BETA software. As a Wise Authority, you are operating experimental AI sy
 - Medical advice
 - Any production or mission-critical applications
 
-**Copyright © 2025 Eric Moore and CIRIS L3C**  
+**Copyright © 2025 Eric Moore and CIRIS L3C**
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

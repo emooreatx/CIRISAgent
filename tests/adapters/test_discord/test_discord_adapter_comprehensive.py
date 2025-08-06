@@ -1,25 +1,20 @@
 """Comprehensive unit tests for Discord adapter."""
-import pytest
-import asyncio
-import tempfile
-import os
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timezone, timedelta
-import discord
-import json
 
-from ciris_engine.logic.adapters.discord.discord_adapter import DiscordAdapter
+import asyncio
+import os
+import tempfile
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, Mock, patch
+
+import discord
+import pytest
+
 from ciris_engine.logic.adapters.discord.config import DiscordAdapterConfig
-from ciris_engine.schemas.services.context import GuidanceContext, DeferralContext
-from ciris_engine.schemas.services.authority_core import (
-    DeferralRequest, DeferralResponse, GuidanceRequest,
-    DeferralApprovalContext
-)
+from ciris_engine.logic.adapters.discord.discord_adapter import DiscordAdapter
 from ciris_engine.logic.adapters.discord.discord_reaction_handler import ApprovalStatus
-from ciris_engine.schemas.adapters.tools import (
-    ToolExecutionResult, ToolExecutionStatus, ToolResult
-)
 from ciris_engine.logic.persistence import initialize_database
+from ciris_engine.schemas.adapters.tools import ToolExecutionResult, ToolExecutionStatus
+from ciris_engine.schemas.services.authority_core import DeferralApprovalContext
 
 
 @pytest.fixture
@@ -61,7 +56,7 @@ def discord_config():
     return DiscordAdapterConfig(
         deferral_channel_id="987654321",
         monitored_channel_ids=["123456789", "234567890"],
-        wa_user_ids=["111111111", "222222222"]
+        wa_user_ids=["111111111", "222222222"],
     )
 
 
@@ -73,7 +68,7 @@ def discord_adapter(mock_time_service, mock_bus_manager, mock_discord_client, di
         bot=mock_discord_client,
         time_service=mock_time_service,
         bus_manager=mock_bus_manager,
-        config=discord_config
+        config=discord_config,
     )
     # Override retry config for tests to avoid slow retries
     adapter.config["retry"]["discord_api"]["max_retries"] = 0
@@ -87,21 +82,22 @@ class TestDiscordAdapterCore:
     def setup_test_db(self):
         """Set up a temporary test database for each test."""
         # Create a temporary database file
-        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
             test_db_path = tmp_file.name
-        
+
         # Initialize the database with all required tables
         initialize_database(test_db_path)
-        
+
         # Patch get_db_connection at both import locations to use our test database
         # Need to patch it in multiple places where it's imported
-        with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn, \
-             patch('ciris_engine.logic.persistence.models.correlations.get_db_connection') as mock_get_conn2, \
-             patch('ciris_engine.logic.persistence.db.core.get_db_connection') as mock_get_conn3:
+        with patch("ciris_engine.logic.persistence.get_db_connection") as mock_get_conn, patch(
+            "ciris_engine.logic.persistence.models.correlations.get_db_connection"
+        ) as mock_get_conn2, patch("ciris_engine.logic.persistence.db.core.get_db_connection") as mock_get_conn3:
             import sqlite3
+
             # Return a context manager that yields a connection
             from contextlib import contextmanager
-            
+
             @contextmanager
             def get_test_connection(db_path=None):
                 # Use the test db_path from outer scope, ignore the argument
@@ -112,13 +108,13 @@ class TestDiscordAdapterCore:
                     yield conn
                 finally:
                     conn.close()
-            
+
             mock_get_conn.side_effect = get_test_connection
             mock_get_conn2.side_effect = get_test_connection
             mock_get_conn3.side_effect = get_test_connection
-            
+
             yield test_db_path
-        
+
         # Clean up
         try:
             os.unlink(test_db_path)
@@ -192,15 +188,17 @@ class TestDiscordAdapterCore:
         # Mock messages
         mock_messages = [
             Mock(
-                id=1, content="Message 1",
+                id=1,
+                content="Message 1",
                 author=Mock(id=111, display_name="User1", bot=False),
-                created_at=datetime.now(timezone.utc)
+                created_at=datetime.now(timezone.utc),
             ),
             Mock(
-                id=2, content="Message 2",
+                id=2,
+                content="Message 2",
                 author=Mock(id=222, display_name="User2", bot=False),
-                created_at=datetime.now(timezone.utc)
-            )
+                created_at=datetime.now(timezone.utc),
+            ),
         ]
 
         # Mock the get_correlations_by_channel function
@@ -209,18 +207,17 @@ class TestDiscordAdapterCore:
                 correlation_id="1",
                 action_type="observe",
                 request_data=Mock(parameters={"content": "Message 1", "author_id": "111", "author_name": "User1"}),
-                timestamp=Mock(isoformat=lambda: "2024-01-01T00:00:00")
+                timestamp=Mock(isoformat=lambda: "2024-01-01T00:00:00"),
             ),
             Mock(
                 correlation_id="2",
                 action_type="observe",
                 request_data=Mock(parameters={"content": "Message 2", "author_id": "222", "author_name": "User2"}),
-                timestamp=Mock(isoformat=lambda: "2024-01-01T00:01:00")
-            )
+                timestamp=Mock(isoformat=lambda: "2024-01-01T00:01:00"),
+            ),
         ]
-        
-        with patch('ciris_engine.logic.persistence.get_correlations_by_channel',
-                   return_value=mock_correlations):
+
+        with patch("ciris_engine.logic.persistence.get_correlations_by_channel", return_value=mock_correlations):
             messages = await discord_adapter.fetch_messages("123456789", limit=10)
 
             assert len(messages) == 2
@@ -294,7 +291,7 @@ class TestDiscordWiseAuthority:
             thought_id="thought456",
             action_name="test_action",
             action_params={"param": "value"},
-            requester_id="user789"
+            requester_id="user789",
         )
 
         # Mock approval callback
@@ -340,8 +337,8 @@ class TestDiscordWiseAuthority:
                     "defer_until": datetime.now(timezone.utc) + timedelta(hours=1),
                     "status": "pending",
                     "created_at": datetime.now(timezone.utc),
-                    "created_by": "user123"
-                }
+                    "created_by": "user123",
+                },
             )
         ]
 
@@ -374,7 +371,7 @@ class TestDiscordToolExecution:
             success=True,
             data={"output": "Tool output"},
             error=None,
-            correlation_id="test-correlation-123"
+            correlation_id="test-correlation-123",
         )
 
         discord_adapter._tool_handler.execute_tool = AsyncMock(return_value=mock_result)
@@ -393,9 +390,7 @@ class TestDiscordToolExecution:
     async def test_list_tools(self, discord_adapter):
         """Test listing available tools."""
         # Mock tool list
-        discord_adapter._tool_handler.get_available_tools = Mock(
-            return_value=["tool1", "tool2", "tool3"]
-        )
+        discord_adapter._tool_handler.get_available_tools = Mock(return_value=["tool1", "tool2", "tool3"])
 
         tools = discord_adapter.list_tools()
 
@@ -412,11 +407,12 @@ class TestDiscordConnectionResilience:
     async def test_connection_manager_reconnect(self, discord_adapter):
         """Test connection manager handles reconnection."""
         # Simulate disconnection
-        await discord_adapter._connection_manager._handle_disconnected(
-            Exception("Connection lost")
-        )
+        await discord_adapter._connection_manager._handle_disconnected(Exception("Connection lost"))
 
-        assert discord_adapter._connection_manager.state == discord_adapter._connection_manager.state.__class__.DISCONNECTED
+        assert (
+            discord_adapter._connection_manager.state
+            == discord_adapter._connection_manager.state.__class__.DISCONNECTED
+        )
 
         # Verify reconnection is scheduled
         assert discord_adapter._connection_manager.reconnect_attempts >= 0
@@ -427,14 +423,14 @@ class TestDiscordConnectionResilience:
         # Set the client in connection manager for proper health check
         discord_adapter._connection_manager.client = mock_discord_client
         mock_discord_client.is_closed.return_value = False
-        
+
         # With client not closed, should be healthy
         result = await discord_adapter.is_healthy()
         assert result is True
 
         # Mock closed connection
         mock_discord_client.is_closed.return_value = True
-        
+
         result = await discord_adapter.is_healthy()
         assert result is False
 
@@ -480,21 +476,22 @@ class TestDiscordAuditLogging:
     def setup_test_db(self):
         """Set up a temporary test database for each test."""
         # Create a temporary database file
-        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
             test_db_path = tmp_file.name
-        
+
         # Initialize the database with all required tables
         initialize_database(test_db_path)
-        
+
         # Patch get_db_connection at both import locations to use our test database
         # Need to patch it in multiple places where it's imported
-        with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn, \
-             patch('ciris_engine.logic.persistence.models.correlations.get_db_connection') as mock_get_conn2, \
-             patch('ciris_engine.logic.persistence.db.core.get_db_connection') as mock_get_conn3:
+        with patch("ciris_engine.logic.persistence.get_db_connection") as mock_get_conn, patch(
+            "ciris_engine.logic.persistence.models.correlations.get_db_connection"
+        ) as mock_get_conn2, patch("ciris_engine.logic.persistence.db.core.get_db_connection") as mock_get_conn3:
             import sqlite3
+
             # Return a context manager that yields a connection
             from contextlib import contextmanager
-            
+
             @contextmanager
             def get_test_connection(db_path=None):
                 # Use the test db_path from outer scope, ignore the argument
@@ -505,13 +502,13 @@ class TestDiscordAuditLogging:
                     yield conn
                 finally:
                     conn.close()
-            
+
             mock_get_conn.side_effect = get_test_connection
             mock_get_conn2.side_effect = get_test_connection
             mock_get_conn3.side_effect = get_test_connection
-            
+
             yield test_db_path
-        
+
         # Clean up
         try:
             os.unlink(test_db_path)

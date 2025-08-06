@@ -1,16 +1,10 @@
 """Governance service protocols."""
 
-from .wise_authority import WiseAuthorityServiceProtocol
-from .visibility import VisibilityServiceProtocol
-from .filter import AdaptiveFilterServiceProtocol
 from .communication import CommunicationServiceProtocol
-from .wa_auth import (
-    WAStore,
-    JWTService,
-    WACrypto,
-    WAAuthMiddleware,
-    OAuthService,
-)
+from .filter import AdaptiveFilterServiceProtocol
+from .visibility import VisibilityServiceProtocol
+from .wa_auth import JWTService, OAuthService, WAAuthMiddleware, WACrypto, WAStore
+from .wise_authority import WiseAuthorityServiceProtocol
 
 __all__ = [
     "WiseAuthorityServiceProtocol",

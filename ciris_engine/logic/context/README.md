@@ -42,25 +42,25 @@ class SystemSnapshot(BaseModel):
     # Current processing state
     current_task_details: Optional[TaskSummary]
     current_thought_summary: Optional[ThoughtSummary]
-    
+
     # Task management
     top_pending_tasks_summary: List[TaskSummary]
     recently_completed_tasks_summary: List[TaskSummary]
-    
+
     # User and community context
     user_profiles: Optional[Dict[str, UserProfile]]
     channel_id: Optional[str]
-    
+
     # Security integration
     detected_secrets: List[SecretReference]
     secrets_filter_version: int
     total_secrets_stored: int
-    
+
     # Performance monitoring
     telemetry: Optional[CompactTelemetry]
     resources: Optional[ResourceSnapshot]
     resource_actions_taken: Dict[str, int]
-    
+
     # System health
     system_counts: Dict[str, int]  # Tasks, thoughts, pending items
 ```
@@ -94,7 +94,7 @@ async def _build_secrets_snapshot(self) -> Dict[str, Any]:
     # Get recent secrets for context (limited to 10 for performance)
     all_secrets = await self.secrets_service.store.list_all_secrets()
     recent_secrets = sorted(all_secrets, key=lambda s: s.created_at, reverse=True)[:10]
-    
+
     # Convert to context-safe references
     detected_secrets = [
         SecretReference(
@@ -140,24 +140,24 @@ async def build_thought_context(
     task: Optional[Task] = None
 ) -> ThoughtContext:
     """Main entry point for comprehensive context building"""
-    
+
     # 1. Build comprehensive system snapshot
     system_snapshot = await self.build_system_snapshot(task, thought)
-    
+
     # 2. Extract user profiles from snapshot or GraphQL
     user_profiles = system_snapshot.user_profiles or {}
-    
+
     # 3. Aggregate task history from recent completions
     task_history = system_snapshot.recently_completed_tasks_summary or []
-    
+
     # 4. Get agent identity from memory service
     identity_context = None
     if self.memory_service:
         identity_context = self.memory_service.export_identity_context()
-    
+
     # 5. Preserve initial task context
     initial_task_context = getattr(task, 'context', None) if task else None
-    
+
     return ThoughtContext(
         system_snapshot=system_snapshot,
         user_profiles=user_profiles,
@@ -175,11 +175,11 @@ async def build_system_snapshot(
     thought: Any
 ) -> SystemSnapshot:
     """Comprehensive system state aggregation"""
-    
+
     # Current state
     current_task_details = TaskSummary(**task.model_dump()) if task else None
     current_thought_summary = ThoughtSummary(**thought.model_dump()) if thought else None
-    
+
     # System metrics from persistence
     all_tasks = persistence.get_all_tasks()
     all_thoughts = persistence.get_all_thoughts()
@@ -188,20 +188,20 @@ async def build_system_snapshot(
         "total_thoughts": len(all_thoughts),
         "pending_tasks": len([t for t in all_tasks if t.status == TaskStatus.PENDING])
     }
-    
+
     # Task management
     recent_completed = persistence.get_recent_completed_tasks(10)
     pending_tasks = persistence.get_pending_tasks(5)
-    
+
     # Multi-source channel resolution
     channel_id = self._resolve_channel_id(task, thought)
-    
+
     # Secrets integration
     secrets_data = await self._build_secrets_snapshot()
-    
+
     # User profiles via GraphQL enrichment
     user_profiles = await self._build_user_profiles(task, thought)
-    
+
     return SystemSnapshot(
         current_task_details=current_task_details,
         current_thought_summary=current_thought_summary,
@@ -225,7 +225,7 @@ class GraphQLContextProvider:
         if task and hasattr(task, 'context'):
             if author_name := getattr(task.context, 'author_name', None):
                 authors.add(author_name)
-        
+
         # Query external GraphQL endpoint for user data
         if self.enable_remote_graphql and self.client and authors:
             try:
@@ -241,14 +241,14 @@ class GraphQLContextProvider:
                 }
                 """
                 result = await self.client.query(query, {"names": list(authors)})
-                
+
                 # Convert to UserProfile objects
                 for user_data in result.get("data", {}).get("users", []):
                     profiles[user_data["name"]] = UserProfile(**user_data)
-                    
+
             except Exception as e:
                 logger.error(f"GraphQL enrichment failed: {e}")
-        
+
         # Fallback to memory service for missing users
         missing = authors - set(profiles.keys())
         if self.memory_service and missing:
@@ -275,16 +275,16 @@ class ThoughtProcessor:
     ) -> Optional[ActionSelectionResult]:
         # Fetch the full Thought object
         thought = await self._fetch_thought(thought_item.thought_id)
-        
+
         # Build comprehensive context - key integration point
         context = await self.context_builder.build_thought_context(thought)
-        
+
         # Store context for DMA executor
         if hasattr(context, "model_dump"):
             thought_item.initial_context = context.model_dump()
         else:
             thought_item.initial_context = context
-        
+
         # Context-aware DMA execution
         dma_results = await self.dma_orchestrator.run_dmas(
             thought_item, context, dsdma_context
@@ -298,23 +298,23 @@ class ThoughtProcessor:
 def _resolve_channel_id(self, task: Optional[Task], thought: Any) -> Optional[str]:
     """Multi-source channel ID resolution with fallbacks"""
     channel_id = None
-    
+
     # Priority 1: Task context
     if task and task.context:
         channel_id = getattr(task.context, 'channel_id', None)
-    
+
     # Priority 2: Thought context
     if not channel_id and thought.context:
         channel_id = getattr(thought.context, 'channel_id', None)
-    
+
     # Priority 3: Environment variable
     if not channel_id:
         channel_id = get_env_var("DISCORD_CHANNEL_ID")
-    
+
     # Priority 4: Application configuration
     if not channel_id and self.app_config:
         channel_id = getattr(self.app_config, 'discord_channel_id', None)
-    
+
     return channel_id
 ```
 
@@ -338,10 +338,10 @@ class CompactTelemetry(BaseModel):
     thoughts_24h: int = 0
     avg_latency_ms: int = 0
     uptime_hours: float = 0
-    
+
     # Resource monitoring (minimal footprint)
     resources: ResourceMetrics = Field(default_factory=ResourceMetrics)
-    
+
     # Key operational metrics
     guardrail_hits: int = 0
     deferrals_24h: int = 0
@@ -358,19 +358,19 @@ async def _build_secrets_snapshot(self) -> Dict[str, Any]:
     try:
         if not self.secrets_service:
             return self._empty_secrets_snapshot()
-        
+
         # Get secrets information for the snapshot
         all_secrets = await self.secrets_service.store.list_all_secrets()
-        
+
         # Process and limit data
         recent_secrets = sorted(all_secrets, key=lambda s: s.created_at, reverse=True)[:10]
-        
+
         return {
             "detected_secrets": [SecretReference(...) for secret in recent_secrets],
             "secrets_filter_version": filter_version,
             "total_secrets_stored": len(all_secrets)
         }
-        
+
     except Exception as e:
         logger.error(f"Error building secrets snapshot: {e}")
         return self._empty_secrets_snapshot()

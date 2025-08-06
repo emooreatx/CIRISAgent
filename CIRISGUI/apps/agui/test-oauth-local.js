@@ -3,7 +3,7 @@ const axios = require('axios');
 
 async function testOAuthFlow() {
   const API_URL = 'http://localhost:8080';
-  
+
   try {
     console.log('=== Testing OAuth Permission Flow ===\n');
 
@@ -23,7 +23,7 @@ async function testOAuthFlow() {
       if (error.response && error.response.status === 403) {
         console.log('✓ Got expected 403 error');
         console.log('Response:', error.response.data);
-        
+
         // Check for enhanced error response
         if (error.response.data.discord_invite) {
           console.log('✓ Discord invite link provided:', error.response.data.discord_invite);

@@ -1,13 +1,16 @@
 """
 Telemetry API response schemas - fully typed replacements for Dict[str, Any].
 """
-from typing import Optional, List, Dict, Any
+
 from datetime import datetime
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field, field_serializer
 
 
 class MetricTags(BaseModel):
     """Standard metric tags."""
+
     service: Optional[str] = Field(None, description="Source service")
     operation: Optional[str] = Field(None, description="Operation name")
     model: Optional[str] = Field(None, description="Model used (for LLM metrics)")
@@ -17,6 +20,7 @@ class MetricTags(BaseModel):
 
 class ServiceMetricValue(BaseModel):
     """Metric value broken down by service."""
+
     service_name: str = Field(..., description="Service name")
     value: float = Field(..., description="Metric value")
     percentage: Optional[float] = Field(None, description="Percentage of total")
@@ -24,6 +28,7 @@ class ServiceMetricValue(BaseModel):
 
 class ThoughtStep(BaseModel):
     """Individual thought step in reasoning."""
+
     step: int = Field(..., description="Step number")
     content: str = Field(..., description="Thought content")
     timestamp: datetime = Field(..., description="When thought occurred")
@@ -34,6 +39,7 @@ class ThoughtStep(BaseModel):
 
 class LogContext(BaseModel):
     """Structured log context."""
+
     trace_id: Optional[str] = Field(None, description="Trace ID for correlation")
     correlation_id: Optional[str] = Field(None, description="Correlation ID")
     user_id: Optional[str] = Field(None, description="User ID if applicable")
@@ -44,6 +50,7 @@ class LogContext(BaseModel):
 
 class QueryFilter(BaseModel):
     """Structured query filter."""
+
     field: str = Field(..., description="Field to filter on")
     operator: str = Field("eq", description="Filter operator (eq, gt, lt, contains, etc)")
     value: str = Field(..., description="Filter value")
@@ -51,6 +58,7 @@ class QueryFilter(BaseModel):
 
 class TelemetryQueryFilters(BaseModel):
     """Telemetry query filters."""
+
     metric_names: Optional[List[str]] = Field(None, description="Metrics to query")
     services: Optional[List[str]] = Field(None, description="Services to include")
     tags: Optional[Dict[str, str]] = Field(None, description="Tag filters")
@@ -60,6 +68,7 @@ class TelemetryQueryFilters(BaseModel):
 
 class QueryResult(BaseModel):
     """Individual query result."""
+
     id: str = Field(..., description="Result ID")
     type: str = Field(..., description="Result type")
     timestamp: datetime = Field(..., description="Result timestamp")
@@ -68,18 +77,20 @@ class QueryResult(BaseModel):
 
 class TimeSyncStatus(BaseModel):
     """Time synchronization status."""
+
     synchronized: bool = Field(..., description="Whether time is synchronized")
     drift_ms: float = Field(..., description="Time drift in milliseconds")
     last_sync: datetime = Field(..., description="Last sync timestamp")
     sync_source: str = Field(..., description="Sync source (system/mock/ntp)")
 
-    @field_serializer('last_sync')
+    @field_serializer("last_sync")
     def serialize_last_sync(self, dt: datetime, _info: Any) -> Optional[str]:
         return dt.isoformat() if dt else None
 
 
 class ServiceMetrics(BaseModel):
     """Service-specific metrics."""
+
     uptime_seconds: Optional[float] = Field(None, description="Service uptime")
     requests_handled: Optional[int] = Field(None, description="Total requests")
     error_count: Optional[int] = Field(None, description="Error count")

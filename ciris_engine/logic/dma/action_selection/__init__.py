@@ -1,8 +1,8 @@
 """Action Selection PDMA components."""
 
 from .context_builder import ActionSelectionContextBuilder
-from .special_cases import ActionSelectionSpecialCases
 from .faculty_integration import FacultyIntegration
+from .special_cases import ActionSelectionSpecialCases
 
 __all__ = [
     "ActionSelectionContextBuilder",

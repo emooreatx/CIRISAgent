@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from typing import Dict, List
 
 from ciris_engine.logic.registries.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+
 from .interface import ConscienceInterface
+
 
 @dataclass
 class conscienceEntry:
@@ -13,6 +15,7 @@ class conscienceEntry:
     priority: int = 0
     enabled: bool = True
     circuit_breaker: CircuitBreaker | None = None
+
 
 class conscienceRegistry:
     """Registry for dynamic conscience management."""

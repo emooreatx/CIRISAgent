@@ -5,25 +5,20 @@ Telemetry now uses memorize_metric() which stores data as correlations.
 The GraphTelemetryService routes all metrics through the memory bus.
 """
 
-import pytest
-import tempfile
 import os
-from datetime import datetime, timezone, timedelta
-from unittest.mock import Mock, AsyncMock, MagicMock
+import tempfile
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, Mock
 
+import pytest
+
+from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.services.graph.telemetry_service import GraphTelemetryService
 from ciris_engine.logic.services.lifecycle.time import TimeService
-from ciris_engine.schemas.services.graph.telemetry import (
-    TelemetrySnapshotResult, TelemetryData,
-    ResourceData, BehavioralData
-)
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
-from ciris_engine.schemas.runtime.system_context import UserProfile, ChannelContext
-from ciris_engine.schemas.services.operations import MemoryOpStatus, MemoryOpResult
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 from ciris_engine.schemas.runtime.resources import ResourceUsage
-from ciris_engine.schemas.telemetry.core import CorrelationType, MetricData
-from ciris_engine.logic.buses.memory_bus import MemoryBus
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.services.graph.telemetry import ResourceData, TelemetryData
+from ciris_engine.schemas.services.operations import MemoryOpResult, MemoryOpStatus
 
 
 @pytest.fixture
@@ -35,7 +30,7 @@ def time_service():
 @pytest.fixture
 def temp_db():
     """Create a temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
     yield db_path
     os.unlink(db_path)
@@ -47,18 +42,14 @@ def memory_bus():
     bus = Mock(spec=MemoryBus)
 
     # Mock memorize_metric to return success
-    bus.memorize_metric = AsyncMock(return_value=MemoryOpResult(
-        status=MemoryOpStatus.OK,
-        data={"node_id": "test-node-123"},
-        reason="Success"
-    ))
+    bus.memorize_metric = AsyncMock(
+        return_value=MemoryOpResult(status=MemoryOpStatus.OK, data={"node_id": "test-node-123"}, reason="Success")
+    )
 
     # Mock memorize to return success
-    bus.memorize = AsyncMock(return_value=MemoryOpResult(
-        status=MemoryOpStatus.OK,
-        data={"node_id": "test-node-456"},
-        reason="Success"
-    ))
+    bus.memorize = AsyncMock(
+        return_value=MemoryOpResult(status=MemoryOpStatus.OK, data={"node_id": "test-node-456"}, reason="Success")
+    )
 
     # Mock recall_timeseries to return empty list initially
     bus.recall_timeseries = AsyncMock(return_value=[])
@@ -84,28 +75,24 @@ async def test_telemetry_service_lifecycle(telemetry_service, memory_bus):
     # Should have recorded shutdown metric
     memory_bus.memorize_metric.assert_called()
     last_call = memory_bus.memorize_metric.call_args
-    assert last_call[1]['metric_name'] == 'telemetry_service.shutdown'
-    assert last_call[1]['value'] == 1.0
+    assert last_call[1]["metric_name"] == "telemetry_service.shutdown"
+    assert last_call[1]["value"] == 1.0
 
 
 @pytest.mark.asyncio
 async def test_telemetry_service_record_metric(telemetry_service, memory_bus):
     """Test recording a telemetry metric."""
     # Record a metric
-    await telemetry_service.record_metric(
-        metric_name="test.metric",
-        value=42.5,
-        tags={"environment": "test"}
-    )
+    await telemetry_service.record_metric(metric_name="test.metric", value=42.5, tags={"environment": "test"})
 
     # Verify memorize_metric was called correctly
     memory_bus.memorize_metric.assert_called_once()
     call_args = memory_bus.memorize_metric.call_args[1]
-    assert call_args['metric_name'] == 'test.metric'
-    assert call_args['value'] == 42.5
-    assert call_args['tags']['environment'] == 'test'
-    assert call_args['scope'] == 'local'
-    assert call_args['handler_name'] == 'telemetry_service'
+    assert call_args["metric_name"] == "test.metric"
+    assert call_args["value"] == 42.5
+    assert call_args["tags"]["environment"] == "test"
+    assert call_args["scope"] == "local"
+    assert call_args["handler_name"] == "telemetry_service"
 
 
 @pytest.mark.asyncio
@@ -116,34 +103,24 @@ async def test_telemetry_service_process_snapshot(telemetry_service, memory_bus)
     # So we need to test the internal methods directly
 
     # Test storing telemetry metrics
-    telemetry_data = TelemetryData(
-        metrics={"requests": 100, "errors": 5},
-        events={"startup": "completed"}
-    )
+    telemetry_data = TelemetryData(metrics={"requests": 100, "errors": 5}, events={"startup": "completed"})
 
     await telemetry_service._store_telemetry_metrics(
-        telemetry=telemetry_data,
-        thought_id="test-thought-123",
-        task_id="test-task-456"
+        telemetry=telemetry_data, thought_id="test-thought-123", task_id="test-task-456"
     )
 
     # Verify metrics were recorded
     assert memory_bus.memorize_metric.call_count >= 2  # At least 2 metrics
 
     # Test storing resource usage
-    resource_data = ResourceData(
-        llm={"tokens_used": 500, "cost_cents": 0.5}
-    )
+    resource_data = ResourceData(llm={"tokens_used": 500, "cost_cents": 0.5})
 
-    resource_usage = ResourceUsage(
-        tokens_used=500,
-        cost_cents=0.5
-    )
+    resource_usage = ResourceUsage(tokens_used=500, cost_cents=0.5)
 
     await telemetry_service._record_resource_usage("llm_service", resource_usage)
 
     # Verify resource metrics were recorded
-    metric_names = [call[1]['metric_name'] for call in memory_bus.memorize_metric.call_args_list]
+    metric_names = [call[1]["metric_name"] for call in memory_bus.memorize_metric.call_args_list]
     assert "llm_service.tokens_used" in metric_names
     assert "llm_service.cost_cents" in metric_names
 
@@ -166,28 +143,18 @@ async def test_telemetry_service_query_metrics(telemetry_service, memory_bus):
     memory_bus.recall_timeseries.return_value = mock_metrics
 
     # Query all metrics
-    metrics = await telemetry_service.query_metrics(
-        metric_name="query.test"
-    )
+    metrics = await telemetry_service.query_metrics(metric_name="query.test")
     assert len(metrics) == 5
 
     # Verify the bus was called correctly
     memory_bus.recall_timeseries.assert_called_with(
-        scope="local",
-        hours=24,  # Default
-        start_time=None,
-        end_time=None,
-        handler_name="telemetry_service"
+        scope="local", hours=24, start_time=None, end_time=None, handler_name="telemetry_service"  # Default
     )
 
     # Query with time range
     start_time = base_time + timedelta(seconds=2)
     end_time = base_time + timedelta(seconds=4)
-    metrics = await telemetry_service.query_metrics(
-        metric_name="query.test",
-        start_time=start_time,
-        end_time=end_time
-    )
+    metrics = await telemetry_service.query_metrics(metric_name="query.test", start_time=start_time, end_time=end_time)
     # Should filter to 3 metrics (seconds 2, 3, 4)
     assert len(metrics) == 3
 
@@ -204,17 +171,14 @@ async def test_telemetry_service_aggregation(telemetry_service, memory_bus):
         mock_metric = Mock()
         mock_metric.metric_name = "aggregate.test"
         mock_metric.value = float(value)
-        mock_metric.timestamp = base_time - timedelta(seconds=30-i)  # Return datetime, not string
+        mock_metric.timestamp = base_time - timedelta(seconds=30 - i)  # Return datetime, not string
         mock_metric.tags = {}
         mock_metrics.append(mock_metric)
 
     memory_bus.recall_timeseries.return_value = mock_metrics
 
     # Get aggregated stats
-    stats = await telemetry_service.get_metric_summary(
-        metric_name="aggregate.test",
-        window_minutes=60
-    )
+    stats = await telemetry_service.get_metric_summary(metric_name="aggregate.test", window_minutes=60)
 
     assert stats is not None
     assert stats["count"] == 5.0
@@ -229,24 +193,15 @@ async def test_telemetry_service_different_metric_types(telemetry_service, memor
     """Test recording different metric types."""
     # Counter - should accumulate
     for i in range(3):
-        await telemetry_service.record_metric(
-            metric_name="requests.total",
-            value=1
-        )
+        await telemetry_service.record_metric(metric_name="requests.total", value=1)
 
     # Gauge - point-in-time value
-    await telemetry_service.record_metric(
-        metric_name="memory.usage",
-        value=75.5
-    )
+    await telemetry_service.record_metric(metric_name="memory.usage", value=75.5)
 
     # Histogram - distribution
     response_times = [100, 150, 200, 250, 300]
     for rt in response_times:
-        await telemetry_service.record_metric(
-            metric_name="response.time",
-            value=rt
-        )
+        await telemetry_service.record_metric(metric_name="response.time", value=rt)
 
     # Verify metrics were recorded
     assert memory_bus.memorize_metric.call_count == 9  # 3 + 1 + 5
@@ -286,10 +241,7 @@ async def test_telemetry_service_status(telemetry_service, memory_bus):
 
     # Record some metrics to populate cache
     for i in range(10):
-        await telemetry_service.record_metric(
-            metric_name=f"status.metric{i}",
-            value=i
-        )
+        await telemetry_service.record_metric(metric_name=f"status.metric{i}", value=i)
 
     status = telemetry_service.get_status()
     assert status.metrics.get("total_metrics_cached", 0) > 0  # Correct metric name
@@ -301,37 +253,36 @@ async def test_telemetry_service_tags_and_metadata(telemetry_service, memory_bus
     """Test metric tags and metadata handling."""
     # Record metrics with different tags
     await telemetry_service.record_metric(
-        metric_name="api.requests",
-        value=1,
-        tags={"endpoint": "/users", "method": "GET", "status": "200"}
+        metric_name="api.requests", value=1, tags={"endpoint": "/users", "method": "GET", "status": "200"}
     )
 
     await telemetry_service.record_metric(
-        metric_name="api.requests",
-        value=1,
-        tags={"endpoint": "/users", "method": "POST", "status": "201"}
+        metric_name="api.requests", value=1, tags={"endpoint": "/users", "method": "POST", "status": "201"}
     )
 
     await telemetry_service.record_metric(
-        metric_name="api.requests",
-        value=1,
-        tags={"endpoint": "/products", "method": "GET", "status": "404"}
+        metric_name="api.requests", value=1, tags={"endpoint": "/products", "method": "GET", "status": "404"}
     )
 
     # Set up mock to return filtered results
     mock_metrics = [
-        Mock(metric_name="api.requests", value=1.0, timestamp=datetime.now(timezone.utc).isoformat(),
-             tags={"endpoint": "/users", "method": "GET", "status": "200"}),
-        Mock(metric_name="api.requests", value=1.0, timestamp=datetime.now(timezone.utc).isoformat(),
-             tags={"endpoint": "/users", "method": "POST", "status": "201"})
+        Mock(
+            metric_name="api.requests",
+            value=1.0,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            tags={"endpoint": "/users", "method": "GET", "status": "200"},
+        ),
+        Mock(
+            metric_name="api.requests",
+            value=1.0,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+            tags={"endpoint": "/users", "method": "POST", "status": "201"},
+        ),
     ]
     memory_bus.recall_timeseries.return_value = mock_metrics
 
     # Query with tag filter
-    metrics = await telemetry_service.query_metrics(
-        metric_name="api.requests",
-        tags={"endpoint": "/users"}
-    )
+    metrics = await telemetry_service.query_metrics(metric_name="api.requests", tags={"endpoint": "/users"})
     # Should get metrics for /users endpoint
     assert len(metrics) == 2
 
@@ -346,14 +297,12 @@ async def test_telemetry_service_performance_metrics(telemetry_service, memory_b
         "disk.io.read": 150.0,
         "disk.io.write": 75.0,
         "network.throughput.in": 1000.0,
-        "network.throughput.out": 500.0
+        "network.throughput.out": 500.0,
     }
 
     for metric_name, value in perf_metrics.items():
         await telemetry_service.record_metric(
-            metric_name=metric_name,
-            value=value,
-            tags={"host": "test-host", "region": "us-east-1"}
+            metric_name=metric_name, value=value, tags={"host": "test-host", "region": "us-east-1"}
         )
 
     # Verify all metrics were recorded
@@ -367,10 +316,7 @@ async def test_telemetry_service_error_handling(telemetry_service, memory_bus):
     memory_bus.memorize_metric.side_effect = Exception("Bus error")
 
     # Should not raise, just log error
-    await telemetry_service.record_metric(
-        metric_name="test.metric",
-        value=42
-    )
+    await telemetry_service.record_metric(metric_name="test.metric", value=42)
 
     # Reset for next test
     memory_bus.memorize_metric.side_effect = None
@@ -392,11 +338,7 @@ async def test_telemetry_service_batch_recording(telemetry_service, memory_bus):
 
     # Record 100 metrics
     for i in range(100):
-        await telemetry_service.record_metric(
-            metric_name="batch.test",
-            value=float(i),
-            tags={"batch_id": "test123"}
-        )
+        await telemetry_service.record_metric(metric_name="batch.test", value=float(i), tags={"batch_id": "test123"})
 
     # Verify all were recorded
     assert memory_bus.memorize_metric.call_count == 100
@@ -417,7 +359,7 @@ async def test_telemetry_service_resource_usage(telemetry_service, memory_bus):
         cost_cents=0.5,
         carbon_grams=0.1,
         energy_kwh=0.001,
-        model_used="test-model"
+        model_used="test-model",
     )
 
     await telemetry_service._record_resource_usage("llm_service", usage)
@@ -426,7 +368,7 @@ async def test_telemetry_service_resource_usage(telemetry_service, memory_bus):
     assert memory_bus.memorize_metric.call_count == 6
 
     # Check that each metric was recorded
-    metric_names = [call[1]['metric_name'] for call in memory_bus.memorize_metric.call_args_list]
+    metric_names = [call[1]["metric_name"] for call in memory_bus.memorize_metric.call_args_list]
     assert "llm_service.tokens_used" in metric_names
     assert "llm_service.tokens_input" in metric_names
     assert "llm_service.tokens_output" in metric_names

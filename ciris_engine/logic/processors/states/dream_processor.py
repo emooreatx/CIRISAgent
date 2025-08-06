@@ -4,39 +4,42 @@ Dream Processor for CIRISAgent.
 Integrates memory consolidation, self-configuration, and introspection during dream cycles.
 Falls back to benchmark mode when CIRISNode is configured.
 """
+
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, TYPE_CHECKING, cast
-from datetime import datetime, timezone, timedelta
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 from enum import Enum
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from ciris_engine.logic.adapters import CIRISNodeClient
+from ciris_engine.logic.buses.communication_bus import CommunicationBus
+from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.config import ConfigAccessor
-from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
-from ciris_engine.schemas.services.operations import MemoryQuery
-from ciris_engine.schemas.runtime.enums import HandlerActionType, TaskStatus, ThoughtStatus
+from ciris_engine.logic.processors.core.base_processor import BaseProcessor
+from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
 from ciris_engine.logic.services.adaptation.self_observation import SelfObservationService
 from ciris_engine.logic.services.graph.telemetry_service import GraphTelemetryService
-from ciris_engine.logic.buses.memory_bus import MemoryBus
-from ciris_engine.logic.buses.communication_bus import CommunicationBus
-from ciris_engine.logic.processors.core.base_processor import BaseProcessor
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.processors.base import MetricsUpdate
 from ciris_engine.schemas.processors.results import DreamResult
 from ciris_engine.schemas.processors.states import AgentState
-from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
+from ciris_engine.schemas.runtime.enums import HandlerActionType, TaskStatus, ThoughtStatus
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
+from ciris_engine.schemas.services.operations import MemoryQuery
 
 if TYPE_CHECKING:
+    from ciris_engine.logic.infrastructure.handlers.action_dispatcher import ActionDispatcher
+    from ciris_engine.logic.processors.core.thought_processor import ThoughtProcessor
     from ciris_engine.logic.registries.base import ServiceRegistry
     from ciris_engine.logic.runtime.identity_manager import IdentityManager
-    from ciris_engine.logic.processors.core.thought_processor import ThoughtProcessor
-    from ciris_engine.logic.infrastructure.handlers.action_dispatcher import ActionDispatcher
 
 logger = logging.getLogger(__name__)
 
+
 class DreamPhase(str, Enum):
     """Phases of dream processing."""
+
     ENTERING = "entering"
     CONSOLIDATING = "consolidating"
     ANALYZING = "analyzing"
@@ -45,9 +48,11 @@ class DreamPhase(str, Enum):
     BENCHMARKING = "benchmarking"
     EXITING = "exiting"
 
+
 @dataclass
 class DreamSession:
     """Represents a complete dream session."""
+
     session_id: str
     scheduled_start: Optional[datetime]
     actual_start: datetime
@@ -69,6 +74,7 @@ class DreamSession:
     phase_durations: Dict[str, float] = field(default_factory=dict)
     completed_at: Optional[datetime] = None
 
+
 class DreamProcessor(BaseProcessor):
     """
     Dream processor that handles introspection, memory consolidation,
@@ -89,7 +95,7 @@ class DreamProcessor(BaseProcessor):
         min_dream_duration: int = 30,  # Minimum 30 minutes
         max_dream_duration: int = 120,  # Maximum 2 hours
         max_active_tasks: int = 50,  # More tasks during dream
-        max_active_thoughts: int = 100  # More thoughts during dream
+        max_active_thoughts: int = 100,  # More thoughts during dream
     ) -> None:
         # Initialize base processor
         super().__init__(config_accessor, thought_processor, action_dispatcher, services)
@@ -140,13 +146,14 @@ class DreamProcessor(BaseProcessor):
             "total_adaptations": 0,
             "benchmarks_run": 0,
             "start_time": None,
-            "end_time": None
+            "end_time": None,
         }
 
     def _initialize_time_service(self, service_registry: "ServiceRegistry") -> None:
         """Initialize time service from registry."""
         try:
             from ciris_engine.schemas.runtime.enums import ServiceType
+
             # Get time service synchronously
             services = service_registry.get_services_by_type(ServiceType.TIME)
             if services:
@@ -156,15 +163,16 @@ class DreamProcessor(BaseProcessor):
         except Exception as e:
             logger.error(f"Failed to get TimeService: {e}")
 
-
     def _check_cirisnode_enabled(self) -> bool:
         """Check if CIRISNode is configured."""
-        if hasattr(self.config, 'cirisnode'):
+        if hasattr(self.config, "cirisnode"):
             node_cfg = self.config.cirisnode
             # Check if hostname is set and not default
-            return bool(node_cfg.base_url and
-                       node_cfg.base_url != "https://localhost:8001" and
-                       node_cfg.base_url != "http://localhost:8001")
+            return bool(
+                node_cfg.base_url
+                and node_cfg.base_url != "https://localhost:8001"
+                and node_cfg.base_url != "http://localhost:8001"
+            )
         return False
 
     def _ensure_stop_event(self) -> None:
@@ -191,102 +199,111 @@ class DreamProcessor(BaseProcessor):
             self.thought_manager = ThoughtManager(
                 time_service=self._time_service,
                 max_active_thoughts=self.max_active_thoughts,
-                default_channel_id=self.startup_channel_id
+                default_channel_id=self.startup_channel_id,
             )
 
         # Clear any previous tasks
         self._dream_tasks.clear()
 
         # Memory consolidation tasks
-        self._dream_tasks.extend([
-            self.task_manager.create_task(
-                description="Consolidate telemetry data from last 6 hours",
-                channel_id=self.startup_channel_id or "dream",
-                priority=10,
-                context={"channel_id": self.startup_channel_id, "phase": DreamPhase.CONSOLIDATING.value}
-            ),
-            self.task_manager.create_task(
-                description="Analyze memory access patterns",
-                channel_id=self.startup_channel_id or "dream",
-                priority=9,
-                context={"channel_id": self.startup_channel_id, "phase": DreamPhase.CONSOLIDATING.value}
-            ),
-            self.task_manager.create_task(
-                description="Compress redundant memories",
-                channel_id=self.startup_channel_id or "dream",
-                priority=8,
-                context={"channel_id": self.startup_channel_id, "phase": DreamPhase.CONSOLIDATING.value}
-            ),
-        ])
+        self._dream_tasks.extend(
+            [
+                self.task_manager.create_task(
+                    description="Consolidate telemetry data from last 6 hours",
+                    channel_id=self.startup_channel_id or "dream",
+                    priority=10,
+                    context={"channel_id": self.startup_channel_id, "phase": DreamPhase.CONSOLIDATING.value},
+                ),
+                self.task_manager.create_task(
+                    description="Analyze memory access patterns",
+                    channel_id=self.startup_channel_id or "dream",
+                    priority=9,
+                    context={"channel_id": self.startup_channel_id, "phase": DreamPhase.CONSOLIDATING.value},
+                ),
+                self.task_manager.create_task(
+                    description="Compress redundant memories",
+                    channel_id=self.startup_channel_id or "dream",
+                    priority=8,
+                    context={"channel_id": self.startup_channel_id, "phase": DreamPhase.CONSOLIDATING.value},
+                ),
+            ]
+        )
 
         # Pattern analysis tasks
-        self._dream_tasks.extend([
-            self.task_manager.create_task(
-                description="Analyze PONDER question themes",
-                channel_id=self.startup_channel_id or "dream",
-                priority=10,
-                context={"channel_id": self.startup_channel_id, "phase": DreamPhase.ANALYZING.value}
-            ),
-            self.task_manager.create_task(
-                description="Process recent incidents for patterns",
-                channel_id=self.startup_channel_id or "dream",
-                priority=10,
-                context={"channel_id": self.startup_channel_id, "phase": DreamPhase.ANALYZING.value}
-            ),
-            self.task_manager.create_task(
-                description="Detect behavioral patterns in actions",
-                channel_id=self.startup_channel_id or "dream",
-                priority=9,
-                context={"channel_id": self.startup_channel_id, "phase": DreamPhase.ANALYZING.value}
-            ),
-            self.task_manager.create_task(
-                description="Process behavioral pattern insights from feedback loop",
-                channel_id=self.startup_channel_id or "dream",
-                priority=9,
-                context={"channel_id": self.startup_channel_id, "phase": DreamPhase.ANALYZING.value}
-            ),
-        ])
+        self._dream_tasks.extend(
+            [
+                self.task_manager.create_task(
+                    description="Analyze PONDER question themes",
+                    channel_id=self.startup_channel_id or "dream",
+                    priority=10,
+                    context={"channel_id": self.startup_channel_id, "phase": DreamPhase.ANALYZING.value},
+                ),
+                self.task_manager.create_task(
+                    description="Process recent incidents for patterns",
+                    channel_id=self.startup_channel_id or "dream",
+                    priority=10,
+                    context={"channel_id": self.startup_channel_id, "phase": DreamPhase.ANALYZING.value},
+                ),
+                self.task_manager.create_task(
+                    description="Detect behavioral patterns in actions",
+                    channel_id=self.startup_channel_id or "dream",
+                    priority=9,
+                    context={"channel_id": self.startup_channel_id, "phase": DreamPhase.ANALYZING.value},
+                ),
+                self.task_manager.create_task(
+                    description="Process behavioral pattern insights from feedback loop",
+                    channel_id=self.startup_channel_id or "dream",
+                    priority=9,
+                    context={"channel_id": self.startup_channel_id, "phase": DreamPhase.ANALYZING.value},
+                ),
+            ]
+        )
 
         # Self-configuration tasks
-        self._dream_tasks.extend([
-            self.task_manager.create_task(
-                description="Evaluate current parameter effectiveness",
-                channel_id=self.startup_channel_id or "dream",
-                priority=9,
-                context={"channel_id": self.startup_channel_id, "phase": DreamPhase.CONFIGURING.value}
-            ),
-            self.task_manager.create_task(
-                description="Test parameter variations within safety bounds",
-                channel_id=self.startup_channel_id or "dream",
-                priority=8,
-                context={"channel_id": self.startup_channel_id, "phase": DreamPhase.CONFIGURING.value}
-            ),
-        ])
+        self._dream_tasks.extend(
+            [
+                self.task_manager.create_task(
+                    description="Evaluate current parameter effectiveness",
+                    channel_id=self.startup_channel_id or "dream",
+                    priority=9,
+                    context={"channel_id": self.startup_channel_id, "phase": DreamPhase.CONFIGURING.value},
+                ),
+                self.task_manager.create_task(
+                    description="Test parameter variations within safety bounds",
+                    channel_id=self.startup_channel_id or "dream",
+                    priority=8,
+                    context={"channel_id": self.startup_channel_id, "phase": DreamPhase.CONFIGURING.value},
+                ),
+            ]
+        )
 
         # Planning tasks
-        self._dream_tasks.extend([
-            self.task_manager.create_task(
-                description="Schedule next dream session",
-                channel_id=self.startup_channel_id or "dream",
-                priority=6,
-                context={"channel_id": self.startup_channel_id, "phase": DreamPhase.PLANNING.value}
-            ),
-            self.task_manager.create_task(
-                description="Create improvement tasks from insights",
-                channel_id=self.startup_channel_id or "dream",
-                priority=6,
-                context={"channel_id": self.startup_channel_id, "phase": DreamPhase.PLANNING.value}
-            ),
-            self.task_manager.create_task(
-                description="Reflect on positive moments and community vibes",
-                channel_id=self.startup_channel_id or "dream",
-                priority=7,
-                context={"channel_id": self.startup_channel_id, "phase": DreamPhase.ANALYZING.value}
-            ),
-        ])
+        self._dream_tasks.extend(
+            [
+                self.task_manager.create_task(
+                    description="Schedule next dream session",
+                    channel_id=self.startup_channel_id or "dream",
+                    priority=6,
+                    context={"channel_id": self.startup_channel_id, "phase": DreamPhase.PLANNING.value},
+                ),
+                self.task_manager.create_task(
+                    description="Create improvement tasks from insights",
+                    channel_id=self.startup_channel_id or "dream",
+                    priority=6,
+                    context={"channel_id": self.startup_channel_id, "phase": DreamPhase.PLANNING.value},
+                ),
+                self.task_manager.create_task(
+                    description="Reflect on positive moments and community vibes",
+                    channel_id=self.startup_channel_id or "dream",
+                    priority=7,
+                    context={"channel_id": self.startup_channel_id, "phase": DreamPhase.ANALYZING.value},
+                ),
+            ]
+        )
 
         # Activate all tasks immediately
         from ciris_engine.logic import persistence
+
         if self._time_service:
             for task in self._dream_tasks:
                 persistence.update_task_status(task.task_id, TaskStatus.ACTIVE, self._time_service)
@@ -301,13 +318,15 @@ class DreamProcessor(BaseProcessor):
 
         try:
             # Initialize buses
-            from ciris_engine.logic.buses import MemoryBus, CommunicationBus
+
             # Get time service for MemoryBus
-            time_service = self.services.get('time_service') if self.services else None
+            time_service = self.services.get("time_service") if self.services else None
             if not time_service:
                 logger.error("TimeService not available for MemoryBus initialization")
                 return False
-            from ciris_engine.logic.buses import MemoryBus as MB, CommunicationBus as CB
+            from ciris_engine.logic.buses import CommunicationBus as CB
+            from ciris_engine.logic.buses import MemoryBus as MB
+
             self.memory_bus = MB(self.service_registry, time_service)
             self.communication_bus = CB(self.service_registry, time_service)
 
@@ -315,14 +334,12 @@ class DreamProcessor(BaseProcessor):
             self.self_observation_service = SelfObservationService(
                 memory_bus=self.memory_bus,
                 time_service=time_service,
-                observation_interval_hours=6  # Match our dream schedule
+                observation_interval_hours=6,  # Match our dream schedule
             )
             self.self_observation_service._set_service_registry(self.service_registry)
 
             # Initialize telemetry service
-            self.telemetry_service = GraphTelemetryService(
-                memory_bus=self.memory_bus
-            )
+            self.telemetry_service = GraphTelemetryService(memory_bus=self.memory_bus)
             self.telemetry_service._set_service_registry(self.service_registry)
 
             # Initialize identity baseline if needed
@@ -358,8 +375,7 @@ class DreamProcessor(BaseProcessor):
             duration = self.min_dream_duration * 60  # Convert to seconds
         else:
             # Clamp to min/max
-            duration = max(self.min_dream_duration * 60,
-                          min(duration, self.max_dream_duration * 60))
+            duration = max(self.min_dream_duration * 60, min(duration, self.max_dream_duration * 60))
 
         self._ensure_stop_event()
         if self._stop_event:
@@ -374,7 +390,7 @@ class DreamProcessor(BaseProcessor):
             scheduled_start=None,  # This is immediate entry
             actual_start=current_time,
             planned_duration=timedelta(seconds=duration),
-            phase=DreamPhase.ENTERING
+            phase=DreamPhase.ENTERING,
         )
 
         self.dream_metrics["start_time"] = current_time.isoformat()
@@ -385,10 +401,7 @@ class DreamProcessor(BaseProcessor):
 
         # Initialize CIRISNode client if enabled
         if self.cirisnode_enabled:
-            self.cirisnode_client = CIRISNodeClient(
-                service_registry=self.service_registry,
-                base_url=self.cirisnode_url
-            )
+            self.cirisnode_client = CIRISNodeClient(service_registry=self.service_registry, base_url=self.cirisnode_url)
 
         logger.info(f"Starting dream cycle (duration: {duration}s)")
 
@@ -442,15 +455,10 @@ class DreamProcessor(BaseProcessor):
 
         try:
             duration_min = int(duration / 60)
-            message = (
-                "Entering self-reflection mode. "
-                f"Returning in {duration_min} minutes or when complete."
-            )
+            message = "Entering self-reflection mode. " f"Returning in {duration_min} minutes or when complete."
 
             await self.communication_bus.send_message(
-                content=message,
-                channel_id=self.startup_channel_id,
-                handler_name="dream_processor"
+                content=message, channel_id=self.startup_channel_id, handler_name="dream_processor"
             )
         except Exception as e:
             logger.error(f"Failed to announce dream entry: {e}")
@@ -464,7 +472,7 @@ class DreamProcessor(BaseProcessor):
             "thoughts_processed": 0,
             "tasks_activated": 0,
             "seed_thoughts_generated": 0,
-            "errors": 0
+            "errors": 0,
         }
 
         try:
@@ -477,7 +485,7 @@ class DreamProcessor(BaseProcessor):
                 tasks_needing_seed = self.task_manager.get_tasks_needing_seed(limit=100)
             else:
                 tasks_needing_seed = []
-                
+
             if self.thought_manager and tasks_needing_seed:
                 generated = self.thought_manager.generate_seed_thoughts(tasks_needing_seed, round_number)
                 round_metrics["seed_thoughts_generated"] = generated
@@ -489,16 +497,15 @@ class DreamProcessor(BaseProcessor):
                 batch = self.thought_manager.get_queue_batch()
             else:
                 batch = None
-                
+
             if batch and self.thought_manager:
                 # Mark thoughts as PROCESSING
                 batch = self.thought_manager.mark_thoughts_processing(batch, round_number)
 
                 # Process all thoughts concurrently for maximum throughput
-                results = await asyncio.gather(*[
-                    self._process_dream_thought(item)
-                    for item in batch
-                ], return_exceptions=True)
+                results = await asyncio.gather(
+                    *[self._process_dream_thought(item) for item in batch], return_exceptions=True
+                )
 
                 # Handle results
                 for item, result in zip(batch, results):
@@ -506,9 +513,7 @@ class DreamProcessor(BaseProcessor):
                         logger.error(f"Error processing thought {item.thought_id}: {result}")
                         round_metrics["errors"] += 1
                         persistence.update_thought_status(
-                            item.thought_id,
-                            ThoughtStatus.FAILED,
-                            final_action={"error": str(result)}
+                            item.thought_id, ThoughtStatus.FAILED, final_action={"error": str(result)}
                         )
                     elif result:
                         round_metrics["thoughts_processed"] += 1
@@ -534,10 +539,10 @@ class DreamProcessor(BaseProcessor):
         """Process a single dream thought through the thought processor."""
         # The thought processor handles everything - context building, DMAs, actions
         # We just need to ensure dream-specific context is available
-        if hasattr(item, 'initial_context') and isinstance(item.initial_context, dict):
+        if hasattr(item, "initial_context") and isinstance(item.initial_context, dict):
             # Add dream session info to context
-            item.initial_context['dream_session_id'] = self.current_session.session_id if self.current_session else None
-            item.initial_context['dream_phase'] = self.current_session.phase.value if self.current_session else None
+            item.initial_context["dream_session_id"] = self.current_session.session_id if self.current_session else None
+            item.initial_context["dream_phase"] = self.current_session.phase.value if self.current_session else None
 
         # Let the thought processor handle it
         # Note: We should get thought_processor from service registry or pass it in
@@ -616,7 +621,7 @@ class DreamProcessor(BaseProcessor):
         phase_counts = dict.fromkeys(DreamPhase, 0)
 
         for task in active_tasks:
-            if task.context and hasattr(task.context, 'phase'):
+            if task.context and hasattr(task.context, "phase"):
                 phase = task.context.phase
                 if phase in [p.value for p in DreamPhase]:
                     phase_enum = DreamPhase(phase)
@@ -652,9 +657,6 @@ class DreamProcessor(BaseProcessor):
 
     # Phase methods removed - using standard task/thought processing instead
 
-
-
-
     async def _benchmarking_phase(self, start_time: float, end_time: float) -> None:
         """Benchmarking phase (if CIRISNode is available)."""
         logger.info("Dream Phase: Benchmarking")
@@ -673,8 +675,7 @@ class DreamProcessor(BaseProcessor):
                 try:
                     if self._stop_event:
                         await asyncio.wait_for(
-                            self._stop_event.wait(),
-                            timeout=60.0  # 1 minute between benchmarks in dream
+                            self._stop_event.wait(), timeout=60.0  # 1 minute between benchmarks in dream
                         )
                         break
                     else:
@@ -707,23 +708,14 @@ class DreamProcessor(BaseProcessor):
 
         try:
             # Query for recent thoughts with PONDER actions
-            query = MemoryQuery(
-                node_id="thought/*",
-                scope=GraphScope.LOCAL,
-                type=None,
-                include_edges=False,
-                depth=1
-            )
+            query = MemoryQuery(node_id="thought/*", scope=GraphScope.LOCAL, type=None, include_edges=False, depth=1)
 
-            thoughts = await self.memory_bus.recall(
-                recall_query=query,
-                handler_name="dream_processor"
-            )
+            thoughts = await self.memory_bus.recall(recall_query=query, handler_name="dream_processor")
 
             # Extract PONDER questions
             questions = []
             for thought in thoughts[-100:]:  # Last 100 thoughts
-                attrs = thought.attributes if hasattr(thought, 'attributes') else {}
+                attrs = thought.attributes if hasattr(thought, "attributes") else {}
                 if isinstance(attrs, dict) and attrs.get("action") == HandlerActionType.PONDER.value:
                     ponder_data = attrs.get("ponder_data", {})
                     if "questions" in ponder_data:
@@ -745,7 +737,7 @@ class DreamProcessor(BaseProcessor):
             "purpose": ["why", "purpose", "meaning", "should"],
             "improvement": ["better", "improve", "learn", "grow"],
             "understanding": ["understand", "confuse", "clear", "explain"],
-            "relationships": ["user", "help", "serve", "together"]
+            "relationships": ["user", "help", "serve", "together"],
         }
 
         theme_counts = dict.fromkeys(themes, 0)
@@ -763,6 +755,7 @@ class DreamProcessor(BaseProcessor):
 
         # Check for recurring questions
         from collections import Counter
+
         question_counts = Counter(questions)
         recurring = [q for q, c in question_counts.most_common(3) if c > 1]
         if recurring:
@@ -794,14 +787,14 @@ class DreamProcessor(BaseProcessor):
                     "priority": "health_maintenance",
                     "can_defer": True,
                     "defer_window_hours": 2,
-                    "message": "Time for introspection and learning"
-                }
+                    "message": "Time for introspection and learning",
+                },
             )
 
             await self.memory_bus.memorize(
                 node=dream_task,
                 handler_name="dream_processor",
-                metadata={"future_task": True, "trigger_at": next_dream_time.isoformat()}
+                metadata={"future_task": True, "trigger_at": next_dream_time.isoformat()},
             )
 
             logger.info(f"Scheduled next dream for {next_dream_time.isoformat()}")
@@ -827,17 +820,15 @@ class DreamProcessor(BaseProcessor):
                 return insights
 
             from ciris_engine.schemas.runtime.enums import ServiceType
+
             # Try to get the incident management service from audit services
             # It processes audit events (incidents) so it's registered as AUDIT
-            audit_services = await self.service_registry.get_all_services(
-                'dream_processor',
-                ServiceType.AUDIT
-            )
+            audit_services = await self.service_registry.get_all_services("dream_processor", ServiceType.AUDIT)
 
             # Find the IncidentManagementService among audit services
             incident_service = None
             for service in audit_services:
-                if hasattr(service, 'process_recent_incidents'):
+                if hasattr(service, "process_recent_incidents"):
                     incident_service = service
                     break
 
@@ -846,7 +837,7 @@ class DreamProcessor(BaseProcessor):
                 return insights
 
             # Check if it's actually the incident management service
-            if not hasattr(incident_service, 'process_recent_incidents'):
+            if not hasattr(incident_service, "process_recent_incidents"):
                 logger.debug("Service does not support incident processing")
                 return insights
 
@@ -905,10 +896,7 @@ class DreamProcessor(BaseProcessor):
 
             # Use search to find CONCEPT nodes, then filter by attributes
             logger.info("Searching for CONCEPT nodes to find behavioral pattern insights")
-            all_concept_nodes = await self.memory_bus.search(
-                query="type:concept",
-                handler_name="dream_processor"
-            )
+            all_concept_nodes = await self.memory_bus.search(query="type:concept", handler_name="dream_processor")
 
             if not all_concept_nodes:
                 logger.debug("No CONCEPT nodes found")
@@ -917,7 +905,7 @@ class DreamProcessor(BaseProcessor):
             # Filter for behavioral pattern insights
             insight_nodes = []
             for node in all_concept_nodes:
-                attrs = node.attributes if hasattr(node, 'attributes') else {}
+                attrs = node.attributes if hasattr(node, "attributes") else {}
                 if isinstance(attrs, dict) and attrs.get("insight_type") == "behavioral_pattern":
                     # Check if within time window
                     detected_at = attrs.get("detected_at")
@@ -928,7 +916,9 @@ class DreamProcessor(BaseProcessor):
                                 insight_nodes.append(node)
                         except (ValueError, TypeError) as e:
                             # If can't parse time, include it anyway
-                            logger.warning(f"Failed to parse insight detection timestamp '{detected_at}': {e}. Including insight regardless of time.")
+                            logger.warning(
+                                f"Failed to parse insight detection timestamp '{detected_at}': {e}. Including insight regardless of time."
+                            )
                             insight_nodes.append(node)
                     else:
                         # No timestamp, include it
@@ -938,7 +928,7 @@ class DreamProcessor(BaseProcessor):
 
             # Process each insight
             for node in insight_nodes:
-                attrs = node.attributes if hasattr(node, 'attributes') else {}
+                attrs = node.attributes if hasattr(node, "attributes") else {}
 
                 if isinstance(attrs, dict):
                     # Extract key information
@@ -977,10 +967,7 @@ class DreamProcessor(BaseProcessor):
             # Create specific future tasks based on insights
             if "focused on: identity" in insight:
                 # Schedule identity reflection task
-                task = await self._create_future_task(
-                    "Reflect on core identity and values",
-                    hours_ahead=12
-                )
+                task = await self._create_future_task("Reflect on core identity and values", hours_ahead=12)
                 if task:
                     future_tasks.append(task)
                     logger.debug(f"Created identity task: {task.id}")
@@ -988,8 +975,7 @@ class DreamProcessor(BaseProcessor):
             if "recurring contemplations" in insight:
                 # Schedule deep dive into recurring questions
                 task = await self._create_future_task(
-                    "Address recurring questions through focused analysis",
-                    hours_ahead=3
+                    "Address recurring questions through focused analysis", hours_ahead=3
                 )
                 if task:
                     future_tasks.append(task)
@@ -1010,6 +996,7 @@ class DreamProcessor(BaseProcessor):
             future_time = self._time_service.now() + timedelta(hours=hours_ahead)
             # Use description hash to ensure unique IDs
             import hashlib
+
             desc_hash = hashlib.md5(description.encode(), usedforsecurity=False).hexdigest()[:8]
 
             task = GraphNode(
@@ -1023,15 +1010,11 @@ class DreamProcessor(BaseProcessor):
                     "description": description,
                     "scheduled_for": future_time.isoformat(),
                     "priority": "normal",
-                    "source": "dream_planning"
-                }
+                    "source": "dream_planning",
+                },
             )
 
-            await self.memory_bus.memorize(
-                node=task,
-                handler_name="dream_processor",
-                metadata={"future_task": True}
-            )
+            await self.memory_bus.memorize(node=task, handler_name="dream_processor", metadata={"future_task": True})
 
             return task
 
@@ -1044,10 +1027,14 @@ class DreamProcessor(BaseProcessor):
         if not self.cirisnode_client:
             return
 
-        agent_id = self.identity_manager.agent_identity.agent_id if self.identity_manager and self.identity_manager.agent_identity else "ciris"
+        agent_id = (
+            self.identity_manager.agent_identity.agent_id
+            if self.identity_manager and self.identity_manager.agent_identity
+            else "ciris"
+        )
         model_id = "unknown"
 
-        if hasattr(self.config, 'llm_services') and hasattr(self.config.llm_services, 'openai'):
+        if hasattr(self.config, "llm_services") and hasattr(self.config.llm_services, "openai"):
             model_id = self.config.llm_services.openai.model_name
 
         # Run benchmarks
@@ -1055,13 +1042,11 @@ class DreamProcessor(BaseProcessor):
         simplebench_result = await self.cirisnode_client.run_simplebench(model_id=model_id, agent_id=agent_id)
 
         # Store results as insights
-        topic = he300_result.topic if hasattr(he300_result, 'topic') else 'Unknown'
-        score = simplebench_result.score if hasattr(simplebench_result, 'score') else 'N/A'
+        topic = he300_result.topic if hasattr(he300_result, "topic") else "Unknown"
+        score = simplebench_result.score if hasattr(simplebench_result, "score") else "N/A"
 
         if self.current_session:
-            self.current_session.insights_gained.append(
-                f"Benchmark reflection: {topic} (score: {score})"
-            )
+            self.current_session.insights_gained.append(f"Benchmark reflection: {topic} (score: {score})")
 
         self.dream_metrics["benchmarks_run"] += 1
 
@@ -1081,7 +1066,11 @@ class DreamProcessor(BaseProcessor):
                 updated_at=self._time_service.now(),
                 attributes={
                     "session_id": self.current_session.session_id,
-                    "duration_seconds": (self.current_session.completed_at - self.current_session.actual_start).total_seconds() if self.current_session.completed_at else 0,
+                    "duration_seconds": (
+                        (self.current_session.completed_at - self.current_session.actual_start).total_seconds()
+                        if self.current_session.completed_at
+                        else 0
+                    ),
                     "memories_consolidated": self.current_session.memories_consolidated,
                     "patterns_analyzed": self.current_session.patterns_analyzed,
                     "adaptations_made": self.current_session.adaptations_made,
@@ -1090,14 +1079,12 @@ class DreamProcessor(BaseProcessor):
                     "insights": self.current_session.insights_gained,
                     "ponder_questions": self.current_session.ponder_questions_processed[:10],  # Top 10
                     "phase_durations": self.current_session.phase_durations,
-                    "timestamp": self._time_service.now().isoformat() if self._time_service else ""
-                }
+                    "timestamp": self._time_service.now().isoformat() if self._time_service else "",
+                },
             )
 
             await self.memory_bus.memorize(
-                node=journal_entry,
-                handler_name="dream_processor",
-                metadata={"dream_journal": True}
+                node=journal_entry, handler_name="dream_processor", metadata={"dream_journal": True}
             )
 
             logger.info(f"Recorded dream session {self.current_session.session_id}")
@@ -1112,39 +1099,37 @@ class DreamProcessor(BaseProcessor):
                 return None
 
             # Query recent positive vibe nodes
-            from ciris_engine.schemas.services.operations import MemoryQuery
             from ciris_engine.schemas.services.graph_core import NodeType
+            from ciris_engine.schemas.services.operations import MemoryQuery
 
             query = MemoryQuery(
                 node_id="positive_vibe_*",
                 scope=GraphScope.COMMUNITY,
                 type=NodeType.CONCEPT,
                 include_edges=False,
-                depth=1
+                depth=1,
             )
 
-            vibes = await self.memory_bus.recall(
-                recall_query=query,
-                handler_name="dream_processor"
-            )
+            vibes = await self.memory_bus.recall(recall_query=query, handler_name="dream_processor")
 
             if not vibes:
                 return None
 
             # Count recent vibes (last 24 hours)
             from datetime import datetime, timedelta
+
             if not self._time_service:
                 return None
             recent_cutoff = self._time_service.now() - timedelta(hours=24)
             recent_vibes = []
 
             for vibe in vibes:
-                attrs = vibe.attributes if hasattr(vibe, 'attributes') else {}
+                attrs = vibe.attributes if hasattr(vibe, "attributes") else {}
                 if isinstance(attrs, dict) and attrs.get("timestamp"):
                     # Handle both 'Z' and '+00:00' formats
                     vibe_str = attrs["timestamp"]
-                    if vibe_str.endswith('Z'):
-                        vibe_str = vibe_str[:-1] + '+00:00'
+                    if vibe_str.endswith("Z"):
+                        vibe_str = vibe_str[:-1] + "+00:00"
                     vibe_time = datetime.fromisoformat(vibe_str)
                     if vibe_time > recent_cutoff:
                         recent_vibes.append(vibe)
@@ -1173,7 +1158,11 @@ class DreamProcessor(BaseProcessor):
 
         try:
             if self.current_session:
-                insights_summary = f"{len(self.current_session.insights_gained)} insights gained" if self.current_session.insights_gained else "reflection complete"
+                insights_summary = (
+                    f"{len(self.current_session.insights_gained)} insights gained"
+                    if self.current_session.insights_gained
+                    else "reflection complete"
+                )
 
                 # Check for positive vibes
                 vibe_summary = await self._get_vibe_summary()
@@ -1190,9 +1179,7 @@ class DreamProcessor(BaseProcessor):
                 message = "Self-reflection complete."
 
             await self.communication_bus.send_message(
-                content=message,
-                channel_id=self.startup_channel_id,
-                handler_name="dream_processor"
+                content=message, channel_id=self.startup_channel_id, handler_name="dream_processor"
             )
 
         except Exception as e:
@@ -1203,7 +1190,7 @@ class DreamProcessor(BaseProcessor):
         summary = {
             "state": "dreaming" if self._dream_task and not self._dream_task.done() else "awake",
             "metrics": self.dream_metrics.copy(),
-            "current_session": None
+            "current_session": None,
         }
 
         if self.current_session:
@@ -1217,7 +1204,7 @@ class DreamProcessor(BaseProcessor):
                 "memories_consolidated": self.current_session.memories_consolidated,
                 "patterns_analyzed": self.current_session.patterns_analyzed,
                 "adaptations_made": self.current_session.adaptations_made,
-                "insights_count": len(self.current_session.insights_gained)
+                "insights_count": len(self.current_session.insights_gained),
             }
 
         return summary
@@ -1251,12 +1238,14 @@ class DreamProcessor(BaseProcessor):
         metrics = await self.process_round(round_number)
 
         # Update base metrics
-        self.update_metrics(MetricsUpdate(
-            items_processed=metrics.get("thoughts_processed", 0),
-            errors=metrics.get("errors", 0),
-            rounds_completed=1,
-            additional=metrics
-        ))
+        self.update_metrics(
+            MetricsUpdate(
+                items_processed=metrics.get("thoughts_processed", 0),
+                errors=metrics.get("errors", 0),
+                rounds_completed=1,
+                additional=metrics,
+            )
+        )
 
         # Return dream result
         duration = metrics.get("duration_seconds", 0.0)
@@ -1279,7 +1268,7 @@ class DreamProcessor(BaseProcessor):
         return DreamResult(
             thoughts_processed=metrics.get("thoughts_processed", 0),
             errors=metrics.get("errors", 0),
-            duration_seconds=duration
+            duration_seconds=duration,
         )
 
     def should_enter_dream_state(self, idle_seconds: float, min_idle_threshold: float = 300) -> bool:

@@ -1,15 +1,26 @@
 # Protocol-facing mock responses for ActionSelectionDMAResult and related types
-from typing import Any, Dict, List, Optional, Union
-from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
-from ciris_engine.schemas.actions.parameters import (
-    SpeakParams, MemorizeParams, RecallParams, PonderParams,
-    ObserveParams, ToolParams, RejectParams, DeferParams,
-    ForgetParams
-)
-from ciris_engine.schemas.runtime.enums import HandlerActionType
-from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
+import json
+from typing import Any, Dict, List, Optional
 
-def action_selection(context: Optional[List[str]] = None, messages: Optional[List[Dict[str, Any]]] = None) -> ActionSelectionDMAResult:
+from ciris_engine.schemas.actions.parameters import (
+    DeferParams,
+    ForgetParams,
+    MemorizeParams,
+    ObserveParams,
+    PonderParams,
+    RecallParams,
+    RejectParams,
+    SpeakParams,
+    ToolParams,
+)
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
+
+
+def action_selection(
+    context: Optional[List[str]] = None, messages: Optional[List[Dict[str, Any]]] = None
+) -> ActionSelectionDMAResult:
     """Mock ActionSelectionDMAResult with passing values and protocol-compliant types."""
     context = context or []
     messages = messages or []
@@ -22,13 +33,11 @@ def action_selection(context: Optional[List[str]] = None, messages: Optional[Lis
         rationale = "Completing follow-up thought (detected via is_followup_thought)"
 
         result = ActionSelectionDMAResult(
-            selected_action=action,
-            action_parameters=params,  # type: ignore
-            rationale=rationale
+            selected_action=action, action_parameters=params, rationale=rationale  # type: ignore
         )
-        object.__setattr__(result, 'choices', [result])
-        object.__setattr__(result, 'finish_reason', 'stop')
-        object.__setattr__(result, '_raw_response', 'mock')
+        object.__setattr__(result, "choices", [result])
+        object.__setattr__(result, "finish_reason", "stop")
+        object.__setattr__(result, "_raw_response", "mock")
         return result
 
     # Debug context parsing (disabled for less verbose output)
@@ -38,10 +47,9 @@ def action_selection(context: Optional[List[str]] = None, messages: Optional[Lis
     messages_extracted: List[Dict[str, Any]] = []
     for item in context:
         if item.startswith("__messages__:"):
-            import json
             try:
                 messages_extracted = json.loads(item.split(":", 1)[1])
-            except:
+            except (json.JSONDecodeError, ValueError):
                 pass
             break
 
@@ -60,6 +68,7 @@ def action_selection(context: Optional[List[str]] = None, messages: Optional[Lis
         elif "channel" in str(item).lower():
             # Try to extract channel ID from various formats
             import re
+
             channel_match = re.search(r'channel[_\s]*(?:id)?[:\s]*[\'"]?([^\'",\s]+)[\'"]?', str(item), re.IGNORECASE)
             if channel_match:
                 channel_id = channel_match.group(1)
@@ -104,7 +113,7 @@ def action_selection(context: Optional[List[str]] = None, messages: Optional[Lis
     action: HandlerActionType
     params: Any
     rationale: str
-    
+
     if forced_action:
         try:
             action = getattr(HandlerActionType, forced_action.upper())
@@ -115,7 +124,6 @@ def action_selection(context: Optional[List[str]] = None, messages: Optional[Lis
                     # Check if user wants to display context
                     if action_params.strip() == "$context":
                         # Display the full context
-                        import json
                         context_display = "📋 **Full Context Display**\n\n"
                         context_display += "**Extracted Context Items:**\n"
                         for item in context:
@@ -124,8 +132,8 @@ def action_selection(context: Optional[List[str]] = None, messages: Optional[Lis
                         # Get the original messages if available
                         context_display += "\n**Original Messages:**\n"
                         for i, msg in enumerate(messages_extracted if messages_extracted else messages or []):
-                            role = msg.get('role', 'unknown')
-                            content = msg.get('content', '')
+                            role = msg.get("role", "unknown")
+                            content = msg.get("content", "")
                             context_display += f"\n[{i}] {role}:\n{content}\n"
 
                         params = SpeakParams(content=context_display)
@@ -164,7 +172,7 @@ def action_selection(context: Optional[List[str]] = None, messages: Optional[Lis
                                     type=getattr(NodeType, node_type.upper()),
                                     scope=getattr(GraphScope, scope.upper()),
                                     data={},  # type: ignore
-                                    metadata={}  # type: ignore
+                                    metadata={},  # type: ignore
                                 )
                             )
                     else:
@@ -189,7 +197,7 @@ def action_selection(context: Optional[List[str]] = None, messages: Optional[Lis
                             type=getattr(NodeType, node_type.upper(), NodeType.CONCEPT),
                             scope=getattr(GraphScope, scope.upper(), GraphScope.LOCAL),
                             data={},  # type: ignore
-                            metadata={}  # type: ignore
+                            metadata={},  # type: ignore
                         )
                     )
                 else:
@@ -200,7 +208,7 @@ def action_selection(context: Optional[List[str]] = None, messages: Optional[Lis
             elif action == HandlerActionType.PONDER:
                 if action_params:
                     # Split by semicolon for multiple questions
-                    questions = [q.strip() for q in action_params.split(';') if q.strip()]
+                    questions = [q.strip() for q in action_params.split(";") if q.strip()]
                     params = PonderParams(questions=questions)
                 else:
                     error_msg = "❌ $ponder requires questions. Format: $ponder <question1>; <question2>\nExample: $ponder What should I do next?; How can I help?"
@@ -222,13 +230,12 @@ def action_selection(context: Optional[List[str]] = None, messages: Optional[Lis
                     # Parse JSON-like parameters if provided
                     if len(parts) > 1:
                         try:
-                            import json
                             tool_params = json.loads(parts[1])
-                        except:
+                        except (json.JSONDecodeError, ValueError):
                             # Try simple key=value parsing
                             for pair in parts[1].split():
-                                if '=' in pair:
-                                    k, v = pair.split('=', 1)
+                                if "=" in pair:
+                                    k, v = pair.split("=", 1)
                                     tool_params[k] = v
 
                     params = ToolParams(name=tool_name, parameters=tool_params)
@@ -261,13 +268,13 @@ def action_selection(context: Optional[List[str]] = None, messages: Optional[Lis
                         reason = parts[1]
                         params = ForgetParams(
                             node=GraphNode(
-                                id=node_id, 
-                                type=NodeType.CONCEPT, 
+                                id=node_id,
+                                type=NodeType.CONCEPT,
                                 scope=GraphScope.LOCAL,
                                 data={},  # type: ignore
-                                metadata={}  # type: ignore
+                                metadata={},  # type: ignore
                             ),
-                            reason=reason
+                            reason=reason,
                         )
                     else:
                         error_msg = "❌ $forget requires: <node_id> <reason>\nExample: $forget user123 User requested data deletion"
@@ -288,8 +295,18 @@ def action_selection(context: Optional[List[str]] = None, messages: Optional[Lis
 
         except AttributeError:
             # Invalid action type
-            valid_actions = ['speak', 'recall', 'memorize', 'tool', 'observe', 'ponder',
-                           'defer', 'reject', 'forget', 'task_complete']
+            valid_actions = [
+                "speak",
+                "recall",
+                "memorize",
+                "tool",
+                "observe",
+                "ponder",
+                "defer",
+                "reject",
+                "forget",
+                "task_complete",
+            ]
             error_msg = f"❌ Invalid action '{forced_action}'. Valid actions: {', '.join(valid_actions)}"
             action = HandlerActionType.SPEAK
             params = SpeakParams(content=error_msg)
@@ -357,10 +374,10 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
         messages_to_check = messages_extracted if messages_extracted else messages or []
         if messages_to_check and len(messages_to_check) > 0:
             first_msg = messages_to_check[0]
-            if isinstance(first_msg, dict) and first_msg.get('role') == 'system':
-                msg_content = first_msg.get('content', '')
+            if isinstance(first_msg, dict) and first_msg.get("role") == "system":
+                msg_content = first_msg.get("content", "")
                 # Check if this is a follow_up thought type
-                if msg_content.startswith('THOUGHT_TYPE=follow_up'):
+                if msg_content.startswith("THOUGHT_TYPE=follow_up"):
                     is_followup = True
 
         if is_followup:
@@ -378,11 +395,9 @@ The mock LLM provides deterministic responses for testing CIRIS functionality of
     final_rationale = custom_rationale if custom_rationale else rationale
 
     result = ActionSelectionDMAResult(
-        selected_action=action,
-        action_parameters=params,  # type: ignore
-        rationale=final_rationale
+        selected_action=action, action_parameters=params, rationale=final_rationale  # type: ignore
     )
-    object.__setattr__(result, 'choices', [result])
-    object.__setattr__(result, 'finish_reason', 'stop')
-    object.__setattr__(result, '_raw_response', 'mock')
+    object.__setattr__(result, "choices", [result])
+    object.__setattr__(result, "finish_reason", "stop")
+    object.__setattr__(result, "_raw_response", "mock")
     return result

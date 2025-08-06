@@ -1,24 +1,23 @@
 """Audit Service Protocol."""
 
-from typing import Protocol, List, Optional
 from abc import abstractmethod
 from datetime import datetime
+from typing import List, Optional, Protocol
+
+from ciris_engine.schemas.runtime.audit import AuditActionContext
+from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.schemas.services.graph.audit import AuditQuery, VerificationReport
+from ciris_engine.schemas.services.nodes import AuditEntry
 
 from ...runtime.base import GraphServiceProtocol
-from ciris_engine.schemas.services.nodes import AuditEntry
-from ciris_engine.schemas.services.graph.audit import AuditQuery, VerificationReport
-from ciris_engine.schemas.runtime.enums import HandlerActionType
-from ciris_engine.schemas.runtime.audit import AuditActionContext
+
 
 class AuditServiceProtocol(GraphServiceProtocol, Protocol):
     """Protocol for audit service."""
 
     @abstractmethod
     async def log_action(
-        self,
-        action_type: HandlerActionType,
-        context: AuditActionContext,
-        outcome: Optional[str] = None
+        self, action_type: HandlerActionType, context: AuditActionContext, outcome: Optional[str] = None
     ) -> None:
         """Log an action to the audit trail."""
         ...
@@ -30,30 +29,20 @@ class AuditServiceProtocol(GraphServiceProtocol, Protocol):
 
     @abstractmethod
     async def log_conscience_event(
-        self,
-        thought_id: str,
-        decision: str,
-        reasoning: str,
-        metadata: Optional[dict] = None
+        self, thought_id: str, decision: str, reasoning: str, metadata: Optional[dict] = None
     ) -> None:
         """Log a conscience decision event."""
         ...
 
     @abstractmethod
     async def get_audit_trail(
-        self,
-        entity_id: Optional[str] = None,
-        hours: int = 24,
-        action_types: Optional[List[str]] = None
+        self, entity_id: Optional[str] = None, hours: int = 24, action_types: Optional[List[str]] = None
     ) -> List[AuditEntry]:
         """Get audit trail for an entity."""
         ...
 
     @abstractmethod
-    async def query_audit_trail(
-        self,
-        query: AuditQuery
-    ) -> List[AuditEntry]:
+    async def query_audit_trail(self, query: AuditQuery) -> List[AuditEntry]:
         """Query audit trail with advanced filters."""
         ...
 
@@ -69,10 +58,7 @@ class AuditServiceProtocol(GraphServiceProtocol, Protocol):
 
     @abstractmethod
     async def export_audit_data(
-        self,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None,
-        format: str = 'jsonl'
+        self, start_time: Optional[datetime] = None, end_time: Optional[datetime] = None, format: str = "jsonl"
     ) -> str:
         """Export audit data."""
         ...
@@ -83,7 +69,7 @@ class AuditServiceProtocol(GraphServiceProtocol, Protocol):
         event_type: Optional[str] = None,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[dict]:
         """Query audit events."""
         ...
@@ -92,4 +78,3 @@ class AuditServiceProtocol(GraphServiceProtocol, Protocol):
     async def get_event_by_id(self, event_id: str) -> Optional[dict]:
         """Get specific audit event."""
         ...
-

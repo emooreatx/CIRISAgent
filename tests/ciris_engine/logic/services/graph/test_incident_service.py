@@ -1,18 +1,22 @@
 """Unit tests for Incident Management Service."""
 
+from datetime import datetime, timedelta, timezone
+from typing import Any, Optional
+from unittest.mock import AsyncMock, Mock
+
 import pytest
-from datetime import datetime, timezone, timedelta
-from unittest.mock import Mock, AsyncMock, MagicMock, ANY
 
 from ciris_engine.logic.services.graph.incident_service import IncidentManagementService
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.schemas.services.graph.incident import (
-    IncidentSeverity, IncidentStatus, IncidentNode, ProblemNode, IncidentInsightNode
+    IncidentInsightNode,
+    IncidentNode,
+    IncidentSeverity,
+    IncidentStatus,
+    ProblemNode,
 )
-from typing import Dict, Any, Optional
-from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
+from ciris_engine.schemas.services.graph_core import GraphScope, NodeType
 from ciris_engine.schemas.services.operations import MemoryOpResult, MemoryOpStatus
-from ciris_engine.schemas.runtime.enums import ServiceType
 
 
 def create_test_incident(
@@ -26,30 +30,30 @@ def create_test_incident(
     line_number: int,
     updated_by: str = "test",
     updated_at: Optional[datetime] = None,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> IncidentNode:
     """Helper function to create test incident nodes with all required fields."""
     # Set defaults for optional fields if not provided in kwargs
     defaults = {
-        'detection_method': "AUTOMATED_LOG_MONITORING",
-        'resolved_at': None,
-        'impact': None,
-        'urgency': None,
-        'correlation_id': None,
-        'task_id': None,
-        'thought_id': None,
-        'handler_name': None,
-        'exception_type': None,
-        'stack_trace': None,
-        'function_name': None,
-        'problem_id': None,
-        'related_incidents': []
+        "detection_method": "AUTOMATED_LOG_MONITORING",
+        "resolved_at": None,
+        "impact": None,
+        "urgency": None,
+        "correlation_id": None,
+        "task_id": None,
+        "thought_id": None,
+        "handler_name": None,
+        "exception_type": None,
+        "stack_trace": None,
+        "function_name": None,
+        "problem_id": None,
+        "related_incidents": [],
     }
-    
+
     # Update defaults with any provided kwargs
     for key, value in kwargs.items():
         defaults[key] = value
-    
+
     return IncidentNode(
         id=incident_id,
         type=NodeType.AUDIT_ENTRY,
@@ -65,7 +69,7 @@ def create_test_incident(
         line_number=line_number,
         updated_by=updated_by,
         updated_at=updated_at or detected_at,
-        **defaults
+        **defaults,
     )
 
 
@@ -99,10 +103,7 @@ def mock_time_service() -> Mock:
 @pytest.fixture
 def incident_service(mock_memory_bus: Mock, mock_time_service: Mock) -> IncidentManagementService:
     """Create an incident service for testing."""
-    service = IncidentManagementService(
-        memory_bus=mock_memory_bus,
-        time_service=mock_time_service
-    )
+    service = IncidentManagementService(memory_bus=mock_memory_bus, time_service=mock_time_service)
     return service
 
 
@@ -119,7 +120,9 @@ async def test_incident_service_lifecycle(incident_service: IncidentManagementSe
 
 
 @pytest.mark.asyncio
-async def test_incident_service_process_recent_incidents(incident_service: IncidentManagementService, mock_memory_bus: Mock, mock_time_service: Mock) -> None:
+async def test_incident_service_process_recent_incidents(
+    incident_service: IncidentManagementService, mock_memory_bus: Mock, mock_time_service: Mock
+) -> None:
     """Test processing recent incidents to generate insights."""
     # Create typed IncidentNode instances
     current_time = mock_time_service.now()
@@ -133,7 +136,7 @@ async def test_incident_service_process_recent_incidents(incident_service: Incid
         detected_at=current_time - timedelta(hours=1),
         filename="db.py",
         line_number=123,
-        updated_at=current_time
+        updated_at=current_time,
     )
 
     incident2 = create_test_incident(
@@ -145,7 +148,7 @@ async def test_incident_service_process_recent_incidents(incident_service: Incid
         detected_at=current_time - timedelta(hours=2),
         filename="db.py",
         line_number=456,
-        updated_at=current_time
+        updated_at=current_time,
     )
 
     incident3 = create_test_incident(
@@ -157,15 +160,11 @@ async def test_incident_service_process_recent_incidents(incident_service: Incid
         detected_at=current_time - timedelta(hours=3),
         filename="monitor.py",
         line_number=789,
-        updated_at=current_time
+        updated_at=current_time,
     )
 
     # Convert to GraphNodes for mock return
-    mock_incident_nodes = [
-        incident1.to_graph_node(),
-        incident2.to_graph_node(),
-        incident3.to_graph_node()
-    ]
+    mock_incident_nodes = [incident1.to_graph_node(), incident2.to_graph_node(), incident3.to_graph_node()]
 
     # Mock the memory service search to return incidents
     # The code calls get_services_by_type("memory")
@@ -188,7 +187,9 @@ async def test_incident_service_process_recent_incidents(incident_service: Incid
 
 
 @pytest.mark.asyncio
-async def test_incident_service_pattern_detection(incident_service: IncidentManagementService, mock_memory_bus: Mock, mock_time_service: Mock) -> None:
+async def test_incident_service_pattern_detection(
+    incident_service: IncidentManagementService, mock_memory_bus: Mock, mock_time_service: Mock
+) -> None:
     """Test pattern detection in incidents."""
     # Create incidents with patterns
     current_time = mock_time_service.now()
@@ -204,7 +205,7 @@ async def test_incident_service_pattern_detection(incident_service: IncidentMana
             detected_at=current_time - timedelta(hours=i),
             filename="db.py",
             line_number=100 + i,
-            updated_at=current_time
+            updated_at=current_time,
         )
         similar_incident_nodes.append(incident.to_graph_node())
 
@@ -216,12 +217,16 @@ async def test_incident_service_pattern_detection(incident_service: IncidentMana
 
     # Should detect the recurring pattern
     assert insight.details["pattern_count"] > 0
-    assert "timeout" in str(insight.behavioral_adjustments).lower() or \
-           "timeout" in str(insight.configuration_changes).lower()
+    assert (
+        "timeout" in str(insight.behavioral_adjustments).lower()
+        or "timeout" in str(insight.configuration_changes).lower()
+    )
 
 
 @pytest.mark.asyncio
-async def test_incident_service_no_incidents(incident_service: IncidentManagementService, mock_memory_bus: Mock) -> None:
+async def test_incident_service_no_incidents(
+    incident_service: IncidentManagementService, mock_memory_bus: Mock
+) -> None:
     """Test processing when no incidents exist."""
     # Mock empty search result
     mock_memory_service = mock_memory_bus.service_registry.get_services_by_type("memory")[0]
@@ -236,7 +241,9 @@ async def test_incident_service_no_incidents(incident_service: IncidentManagemen
 
 
 @pytest.mark.asyncio
-async def test_incident_service_time_clusters(incident_service: IncidentManagementService, mock_memory_bus: Mock, mock_time_service: Mock) -> None:
+async def test_incident_service_time_clusters(
+    incident_service: IncidentManagementService, mock_memory_bus: Mock, mock_time_service: Mock
+) -> None:
     """Test detection of time-based incident clusters."""
     # Create a cluster of incidents
     current_time = mock_time_service.now()
@@ -253,7 +260,7 @@ async def test_incident_service_time_clusters(incident_service: IncidentManageme
             detected_at=base_time + timedelta(minutes=i),
             filename="api.py",
             line_number=200 + i,
-            updated_at=current_time
+            updated_at=current_time,
         )
         cluster_incident_nodes.append(incident.to_graph_node())
 
@@ -293,7 +300,9 @@ def test_incident_service_status(incident_service: IncidentManagementService) ->
 
 
 @pytest.mark.asyncio
-async def test_incident_service_error_handling(incident_service: IncidentManagementService, mock_memory_bus: Mock, monkeypatch) -> None:
+async def test_incident_service_error_handling(
+    incident_service: IncidentManagementService, mock_memory_bus: Mock, monkeypatch
+) -> None:
     """Test error handling when memory service fails."""
     # Make search raise an error
     mock_memory_service = mock_memory_bus.service_registry.get_services_by_type("memory")[0]
@@ -301,6 +310,7 @@ async def test_incident_service_error_handling(incident_service: IncidentManagem
 
     # Mock Path.exists to return False so it doesn't try to read the log file
     from pathlib import Path
+
     monkeypatch.setattr(Path, "exists", lambda self: False)
 
     # Should handle error gracefully
@@ -312,7 +322,9 @@ async def test_incident_service_error_handling(incident_service: IncidentManagem
 
 
 @pytest.mark.asyncio
-async def test_incident_service_problem_creation(incident_service: IncidentManagementService, mock_memory_bus: Mock, mock_time_service: Mock) -> None:
+async def test_incident_service_problem_creation(
+    incident_service: IncidentManagementService, mock_memory_bus: Mock, mock_time_service: Mock
+) -> None:
     """Test problem node creation from incident patterns."""
     # Create many similar incidents
     current_time = mock_time_service.now()
@@ -329,7 +341,7 @@ async def test_incident_service_problem_creation(incident_service: IncidentManag
             detected_at=current_time - timedelta(hours=i),
             filename="db.py",
             line_number=100,
-            updated_at=current_time
+            updated_at=current_time,
         )
         incident_nodes.append(incident.to_graph_node())
 
@@ -351,7 +363,9 @@ async def test_incident_service_problem_creation(incident_service: IncidentManag
 
 
 @pytest.mark.asyncio
-async def test_incident_service_recommendations(incident_service: IncidentManagementService, mock_memory_bus: Mock, mock_time_service: Mock) -> None:
+async def test_incident_service_recommendations(
+    incident_service: IncidentManagementService, mock_memory_bus: Mock, mock_time_service: Mock
+) -> None:
     """Test generation of specific recommendations based on incident types."""
     current_time = mock_time_service.now()
 
@@ -365,7 +379,7 @@ async def test_incident_service_recommendations(incident_service: IncidentManage
         detected_at=current_time - timedelta(hours=1),
         filename="worker.py",
         line_number=50,
-        updated_at=current_time
+        updated_at=current_time,
     )
 
     timeout_incident = create_test_incident(
@@ -377,13 +391,10 @@ async def test_incident_service_recommendations(incident_service: IncidentManage
         detected_at=current_time - timedelta(hours=2),
         filename="api.py",
         line_number=100,
-        updated_at=current_time
+        updated_at=current_time,
     )
 
-    incident_nodes = [
-        mem_incident.to_graph_node(),
-        timeout_incident.to_graph_node()
-    ]
+    incident_nodes = [mem_incident.to_graph_node(), timeout_incident.to_graph_node()]
 
     # Add more of each type to trigger pattern detection
     for i in range(3):
@@ -393,10 +404,10 @@ async def test_incident_service_recommendations(incident_service: IncidentManage
             severity=IncidentSeverity.HIGH,
             description="Memory allocation failed",
             source_component="worker",
-            detected_at=current_time - timedelta(hours=i+3),
+            detected_at=current_time - timedelta(hours=i + 3),
             filename="worker.py",
             line_number=60 + i,
-            updated_at=current_time
+            updated_at=current_time,
         )
 
         timeout_inc = create_test_incident(
@@ -405,16 +416,13 @@ async def test_incident_service_recommendations(incident_service: IncidentManage
             severity=IncidentSeverity.MEDIUM,
             description="Operation timeout exceeded",
             source_component="api",
-            detected_at=current_time - timedelta(hours=i+4),
+            detected_at=current_time - timedelta(hours=i + 4),
             filename="api.py",
             line_number=110 + i,
-            updated_at=current_time
+            updated_at=current_time,
         )
 
-        incident_nodes.extend([
-            mem_inc.to_graph_node(),
-            timeout_inc.to_graph_node()
-        ])
+        incident_nodes.extend([mem_inc.to_graph_node(), timeout_inc.to_graph_node()])
 
     mock_memory_service = mock_memory_bus.service_registry.get_services_by_type("memory")[0]
     mock_memory_service.search = AsyncMock(return_value=incident_nodes)
@@ -460,7 +468,7 @@ async def test_incident_node_serialization() -> None:
         stack_trace="Test stack trace",
         function_name="test_function",
         problem_id="problem123",
-        related_incidents=["inc1", "inc2"]
+        related_incidents=["inc1", "inc2"],
     )
 
     # Convert to GraphNode
@@ -513,7 +521,7 @@ async def test_problem_node_serialization() -> None:
         resolution="Fixed by increasing pool size",
         resolved_at=current_time + timedelta(hours=2),
         updated_by="test_user",
-        updated_at=current_time
+        updated_at=current_time,
     )
 
     # Convert to GraphNode
@@ -556,7 +564,7 @@ async def test_incident_insight_node_serialization() -> None:
             "incident_count": 10,
             "pattern_count": 3,
             "problem_count": 2,
-            "severity_breakdown": {"HIGH": 5, "MEDIUM": 3, "LOW": 2}
+            "severity_breakdown": {"HIGH": 5, "MEDIUM": 3, "LOW": 2},
         },
         behavioral_adjustments=["Add retry logic", "Improve error handling"],
         configuration_changes=["Increase timeout", "Add circuit breaker"],
@@ -566,7 +574,7 @@ async def test_incident_insight_node_serialization() -> None:
         applied=True,
         effectiveness_score=0.85,
         updated_by="test_user",
-        updated_at=current_time
+        updated_at=current_time,
     )
 
     # Convert to GraphNode

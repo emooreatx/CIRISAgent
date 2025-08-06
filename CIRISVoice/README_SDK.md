@@ -70,7 +70,7 @@ stt:
   provider: "openai"
   openai_api_key: "sk-..."  # Or use OPENAI_API_KEY env
   model: "whisper-1"
-  
+
 tts:
   provider: "openai"
   model: "tts-1"
@@ -83,7 +83,7 @@ stt:
   provider: "google"
   google_credentials_path: "/path/to/key.json"
   google_language_code: "en-US"
-  
+
 tts:
   provider: "google"
   google_voice_name: "en-US-Wavenet-F"

@@ -10,7 +10,7 @@ This FSD outlines the enhancement of CIRIS Agent's existing correlations system 
 
 Currently, we have separate systems for:
 - Correlations (service interactions)
-- Metrics (telemetry data)  
+- Metrics (telemetry data)
 - Logs (application logs)
 - Audit (action tracking)
 
@@ -55,13 +55,13 @@ Currently, we have separate systems for:
 class CorrelationType(str, Enum):
     # Existing
     SERVICE_INTERACTION = "service_interaction"
-    
+
     # New TSDB Types
     METRIC_DATAPOINT = "metric_datapoint"
-    LOG_ENTRY = "log_entry" 
+    LOG_ENTRY = "log_entry"
     TRACE_SPAN = "trace_span"
     AUDIT_EVENT = "audit_event"
-    
+
     # Summarized Types (for retention)
     METRIC_HOURLY_SUMMARY = "metric_hourly_summary"
     METRIC_DAILY_SUMMARY = "metric_daily_summary"
@@ -82,7 +82,7 @@ class ServiceCorrelation(BaseModel):
     status: ServiceCorrelationStatus
     created_at: str
     updated_at: str
-    
+
     # New TSDB fields
     correlation_type: CorrelationType = CorrelationType.SERVICE_INTERACTION
     timestamp: datetime  # Indexed timestamp for time queries
@@ -123,13 +123,13 @@ class TSDBGraphNode(GraphNode):
 ```python
 class MemoryService:
     async def recall_timeseries(
-        self, 
-        node: TSDBGraphNode, 
+        self,
+        node: TSDBGraphNode,
         time_filter: TimeFilter,
         metric_filter: MetricFilter
     ) -> MemoryOpResult:
         """Recall time-filtered correlation data"""
-        
+
     async def memorize_metric(
         self,
         metric_name: str,
@@ -138,7 +138,7 @@ class MemoryService:
         tags: Dict[str, str]
     ) -> MemoryOpResult:
         """Store metric as correlation"""
-        
+
     async def memorize_log(
         self,
         log_entry: str,
@@ -157,13 +157,13 @@ class MemoryService:
 class CorrelationsCleanerService:
     async def summarize_hourly_metrics(self):
         """Aggregate raw metrics into hourly summaries after 1 hour"""
-        
+
     async def summarize_daily_metrics(self):
         """Aggregate hourly summaries into daily summaries after 24 hours"""
-        
+
     async def cleanup_raw_data(self):
         """Remove raw data older than retention policy"""
-        
+
     async def cleanup_logs(self):
         """Summarize/remove old log entries"""
 ```
@@ -186,7 +186,7 @@ class CorrelationsCleanerService:
 # Time-filtered correlation queries
 GET /v1/correlations/timeseries?start=2025-06-09T10:00:00Z&end=2025-06-09T11:00:00Z&type=metric_datapoint
 
-# Metric-specific queries  
+# Metric-specific queries
 GET /v1/correlations/metrics/{metric_name}?range=24h
 
 # Log queries with level filtering
@@ -211,7 +211,7 @@ POST /v1/memory/{scope}/recall_timeseries
 3. **Update correlation persistence** to handle new types
 4. **Create CorrelationType enum** with all supported types
 
-### Phase 2: TSDB Data Ingestion  
+### Phase 2: TSDB Data Ingestion
 1. **Enhance TelemetryService** to write metrics as correlations
 2. **Create LogCorrelationCollector** to capture log entries
 3. **Extend AuditService** to use correlations
@@ -226,7 +226,7 @@ POST /v1/memory/{scope}/recall_timeseries
 ### Phase 4: Correlations Cleaner Service
 1. **Create CorrelationsCleanerService**
 2. **Implement retention policies**
-3. **Add data summarization logic** 
+3. **Add data summarization logic**
 4. **Schedule cleanup tasks**
 
 ### Phase 5: API Integration
@@ -246,7 +246,7 @@ POST /v1/memory/{scope}/recall_timeseries
 5. Old raw data cleaned up per retention policy
 ```
 
-### Log Aggregation Flow  
+### Log Aggregation Flow
 ```
 1. Application logs generated -> LogCorrelationCollector captures
 2. Creates LOG_ENTRY correlations with timestamps
@@ -264,7 +264,7 @@ POST /v1/memory/{scope}/recall_timeseries
 
 ### Distributed Tracing Flow
 ```
-1. Request spans multiple services -> TraceCorrelationCollector  
+1. Request spans multiple services -> TraceCorrelationCollector
 2. Creates TRACE_SPAN correlations with trace_id/span_id
 3. Agent can reconstruct traces: "RECALL the processing flow for thought X"
 4. Trace relationships preserved in correlation hierarchy
@@ -284,7 +284,7 @@ memory_service.recall_timeseries(
 
 # Agent can review its own decision history
 memory_service.recall_timeseries(
-    TSDBGraphNode(id="agent_actions", scope=GraphScope.IDENTITY), 
+    TSDBGraphNode(id="agent_actions", scope=GraphScope.IDENTITY),
     TimeFilter(time_range="7d"),
     MetricFilter(correlation_types=[CorrelationType.AUDIT_EVENT])
 )
@@ -292,7 +292,7 @@ memory_service.recall_timeseries(
 # Agent can analyze its error patterns
 memory_service.recall_timeseries(
     TSDBGraphNode(id="error_logs", scope=GraphScope.LOCAL),
-    TimeFilter(time_range="24h"), 
+    TimeFilter(time_range="24h"),
     MetricFilter(log_levels=["ERROR", "CRITICAL"])
 )
 ```
@@ -363,7 +363,7 @@ def defer_to_future_self(task_description: str, defer_until: datetime):
             }
         )
     )
-    
+
     # TSDB creates future correlation for task activation
     # TaskScheduler will trigger at specified time
 ```

@@ -60,17 +60,17 @@ The main entry point that coordinates all platform components:
 ```python
 class DiscordPlatform:
     """Main Discord platform orchestrator."""
-    
+
     def __init__(self, runtime, **kwargs):
         self.runtime = runtime
         self.config = DiscordAdapterConfig()
         self.config.load_env_vars()
-        
+
         # Initialize components
         self.discord_adapter = DiscordAdapter(self.token, **kwargs)
         self.discord_observer = DiscordObserver(**services)
         self.client = discord.Client(intents=self.config.get_intents())
-        
+
     def get_services_to_register(self) -> List[AdapterServiceRegistration]:
         """Return services this platform provides."""
         return [
@@ -112,7 +112,7 @@ Implements the service interfaces and handles platform communication:
 ```python
 class DiscordAdapter(CommunicationService):
     """Discord communication adapter implementing service protocols."""
-    
+
     async def send_message(self, channel_id: str, content: str) -> bool:
         """Send message to Discord channel."""
         try:
@@ -122,11 +122,11 @@ class DiscordAdapter(CommunicationService):
         except Exception as e:
             logger.error(f"Failed to send Discord message: {e}")
             return False
-    
+
     async def fetch_messages(self, channel_id: str, limit: int) -> List[FetchedMessage]:
         """Fetch messages from Discord channel."""
         # Implementation...
-    
+
     async def get_capabilities(self) -> List[str]:
         """Return adapter capabilities."""
         return ["send_message", "fetch_messages", "guild_support"]
@@ -145,20 +145,20 @@ Monitors platform events and converts them to CIRIS events:
 ```python
 class DiscordObserver:
     """Observes Discord events and processes them for CIRIS."""
-    
+
     async def handle_incoming_message(self, discord_message: DiscordMessage):
         """Process incoming Discord message."""
-        
+
         # Filter and validate
         if not self._should_process_message(discord_message):
             return
-            
+
         # Apply secrets filtering
         filtered_message = await self._process_message_secrets(discord_message)
-        
-        # Apply message filtering  
+
+        # Apply message filtering
         filter_result = await self._apply_message_filtering(filtered_message)
-        
+
         if filter_result.should_process:
             # Send to core processing
             await self._handle_observation(filtered_message, filter_result)
@@ -177,24 +177,24 @@ Manages platform-specific settings:
 ```python
 class DiscordAdapterConfig:
     """Configuration for Discord adapter."""
-    
+
     # Authentication
     bot_token: Optional[str] = None
-    
+
     # Channel configuration
     monitored_channel_ids: List[str] = []
     home_channel_id: Optional[str] = None
     deferral_channel_id: Optional[str] = None
-    
+
     # Bot behavior
     respond_to_mentions: bool = True
     respond_to_dms: bool = True
-    
+
     def load_env_vars(self):
         """Load configuration from environment variables."""
         self.bot_token = get_env_var('DISCORD_BOT_TOKEN')
         # ... load other vars
-        
+
     def get_intents(self) -> discord.Intents:
         """Get Discord intents configuration."""
         intents = discord.Intents.default()
@@ -293,7 +293,7 @@ All platforms convert their messages to `IncomingMessage`:
 @dataclass
 class IncomingMessage:
     message_id: str
-    author_id: str  
+    author_id: str
     author_name: str
     content: str
     destination_id: str
@@ -307,13 +307,13 @@ class IncomingMessage:
 Platforms can extend base schemas for their specific needs:
 
 ```python
-@dataclass  
+@dataclass
 class DiscordMessage(IncomingMessage):
     """Discord-specific message with additional fields."""
     guild_id: Optional[str] = None
     thread_id: Optional[str] = None
     mention_everyone: bool = False
-    
+
     @property
     def channel_id(self) -> str:
         """Backward compatibility alias."""
@@ -343,13 +343,13 @@ class MyPlatformAdapter(BaseAdapter, CommunicationService):
     def __init__(self, **kwargs):
         super().__init__()
         # Platform-specific initialization
-        
+
     async def send_message(self, channel_id: str, content: str) -> bool:
         # Implement platform message sending
         pass
-        
+
     async def fetch_messages(self, channel_id: str, limit: int) -> List[FetchedMessage]:
-        # Implement platform message fetching  
+        # Implement platform message fetching
         pass
 ```
 
@@ -361,7 +361,7 @@ class MyPlatformPlatform:
         self.runtime = runtime
         self.config = MyPlatformConfig()
         self.adapter = MyPlatformAdapter(**kwargs)
-        
+
     def get_services_to_register(self) -> List[AdapterServiceRegistration]:
         return [
             AdapterServiceRegistration(
@@ -373,7 +373,7 @@ class MyPlatformPlatform:
             ),
             # Add other services if your adapter provides them:
             # - WiseAuthorityService
-            # - ToolService  
+            # - ToolService
             # - RuntimeControlService
         ]
 ```
@@ -456,11 +456,11 @@ from ciris_engine.persistence import add_correlation
 async def send_message(self, channel_id: str, content: str) -> bool:
     correlation = ServiceCorrelation(
         service_type="myplatform",
-        action_type="send_message", 
+        action_type="send_message",
         request_data={"channel_id": channel_id, "content_length": len(content)},
         timestamp=datetime.now(timezone.utc)
     )
-    
+
     try:
         result = await self._send_implementation(channel_id, content)
         correlation.response_data = {"success": result}
@@ -495,7 +495,7 @@ The following areas still contain platform-specific logic that should be refacto
 To achieve complete platform logic isolation:
 
 1. **Abstract Channel Resolution**: Move platform-specific channel ID logic to adapters
-2. **Decouple Schema Dependencies**: Remove direct adapter config imports from core schemas  
+2. **Decouple Schema Dependencies**: Remove direct adapter config imports from core schemas
 3. **Centralize Platform Detection**: Create adapter-provided platform context abstractions
 4. **Extract Platform Constants**: Move all platform-specific constants to adapter configs
 
@@ -513,7 +513,7 @@ from myplatform_adapter import MyPlatformAdapter
 def mock_platform_api():
     return AsyncMock()
 
-@pytest.fixture  
+@pytest.fixture
 def adapter(mock_platform_api):
     adapter = MyPlatformAdapter()
     adapter._platform_api = mock_platform_api
@@ -522,18 +522,18 @@ def adapter(mock_platform_api):
 @pytest.mark.asyncio
 async def test_send_message_success(adapter, mock_platform_api):
     mock_platform_api.send.return_value = True
-    
+
     result = await adapter.send_message("channel123", "test message")
-    
+
     assert result is True
     mock_platform_api.send.assert_called_once_with("channel123", "test message")
 
-@pytest.mark.asyncio  
+@pytest.mark.asyncio
 async def test_send_message_failure(adapter, mock_platform_api):
     mock_platform_api.send.side_effect = Exception("API Error")
-    
-    result = await adapter.send_message("channel123", "test message") 
-    
+
+    result = await adapter.send_message("channel123", "test message")
+
     assert result is False
 ```
 
@@ -543,16 +543,16 @@ async def test_send_message_failure(adapter, mock_platform_api):
 @pytest.mark.asyncio
 async def test_full_message_flow(adapter):
     """Test complete message flow from platform to core processing."""
-    
+
     # Simulate platform message
     platform_message = create_test_platform_message()
-    
+
     # Process through observer
     await adapter.observer.handle_incoming_message(platform_message)
-    
+
     # Verify core processing was triggered
     adapter.multi_service_sink.observe_message.assert_called_once()
-    
+
     # Verify message conversion
     call_args = adapter.multi_service_sink.observe_message.call_args
     processed_message = call_args[0][1]
@@ -579,19 +579,19 @@ class RateLimiter:
         self.max_requests = max_requests
         self.time_window = time_window
         self.requests = defaultdict(list)
-    
+
     async def acquire(self, key: str = "default") -> bool:
         now = time()
         window_start = now - self.time_window
-        
+
         # Remove old requests
-        self.requests[key] = [req_time for req_time in self.requests[key] 
+        self.requests[key] = [req_time for req_time in self.requests[key]
                              if req_time > window_start]
-        
+
         # Check if we can make request
         if len(self.requests[key]) >= self.max_requests:
             return False
-            
+
         self.requests[key].append(now)
         return True
 
@@ -602,7 +602,7 @@ async def send_message(self, channel_id: str, content: str) -> bool:
     if not await rate_limiter.acquire(f"send_message_{channel_id}"):
         logger.warning(f"Rate limit exceeded for channel {channel_id}")
         return False
-    
+
     return await self._send_implementation(channel_id, content)
 ```
 
@@ -622,7 +622,7 @@ from ciris_engine.secrets import SecretsService
 class SecureConfig:
     def __init__(self, secrets_service: SecretsService):
         self.secrets = secrets_service
-        
+
     def get_api_token(self) -> str:
         """Get API token from secure storage."""
         token = self.secrets.get_secret("myplatform_api_token")
@@ -647,11 +647,11 @@ async def send_message(self, channel_id: str, content: str) -> bool:
     if not validate_channel_id(channel_id):
         logger.warning(f"Invalid channel ID: {channel_id}")
         return False
-        
+
     if len(content) > self.max_message_length:
         logger.warning(f"Message too long: {len(content)} chars")
         return False
-        
+
     return await self._send_implementation(channel_id, content)
 ```
 
@@ -664,14 +664,14 @@ def sanitize_message_content(content: str) -> str:
     """Sanitize message content for safe processing."""
     # Remove control characters
     content = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', content)
-    
+
     # HTML escape
     content = html.escape(content)
-    
+
     # Truncate if too long
     if len(content) > 2000:
         content = content[:1997] + "..."
-        
+
     return content
 ```
 
@@ -681,13 +681,13 @@ def sanitize_message_content(content: str) -> str:
 ```python
 class MyPlatformAdapter:
     """MyPlatform adapter v2.1.0"""
-    
+
     ADAPTER_VERSION = "2.1.0"
     MIN_PLATFORM_API_VERSION = "1.5.0"
-    
+
     def __init__(self):
         self._check_compatibility()
-        
+
     def _check_compatibility(self):
         """Check platform API compatibility."""
         api_version = self._get_platform_api_version()
@@ -699,16 +699,16 @@ class MyPlatformAdapter:
 ```python
 async def send_message(self, channel_id: str, content: str, **kwargs) -> bool:
     """Send message with backward compatibility."""
-    
+
     # Handle legacy channel ID format
     if channel_id.startswith("legacy:"):
         channel_id = self._convert_legacy_channel_id(channel_id)
-        
+
     # Support deprecated parameters
     if "legacy_param" in kwargs:
         logger.warning("legacy_param is deprecated, use new_param instead")
         kwargs["new_param"] = kwargs.pop("legacy_param")
-        
+
     return await self._send_implementation(channel_id, content, **kwargs)
 ```
 
@@ -734,15 +734,15 @@ async def _handle_connection_error(self, error: Exception) -> bool:
 ```python
 def _format_message_for_platform(self, content: str) -> str:
     """Format CIRIS message for platform-specific requirements."""
-    
+
     # Platform-specific formatting
     if self.platform_requires_markdown:
         content = self._convert_to_markdown(content)
-    
+
     # Handle length limits
     if len(content) > self.max_message_length:
         content = self._split_long_message(content)
-        
+
     return content
 ```
 
@@ -752,7 +752,7 @@ async def _handle_rate_limit(self, retry_after: int):
     """Handle platform rate limiting."""
     logger.warning(f"Rate limited, waiting {retry_after} seconds")
     await asyncio.sleep(retry_after)
-    
+
     # Update rate limiter state
     self.rate_limiter.backoff(retry_after)
 ```

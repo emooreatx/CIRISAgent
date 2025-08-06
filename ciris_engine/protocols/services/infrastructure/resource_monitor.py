@@ -5,16 +5,15 @@ Monitors system resources, enforces limits, and triggers protective actions
 for 1000-year sustainable operation.
 """
 
-from typing import Protocol, TYPE_CHECKING, runtime_checkable, Optional
+from typing import TYPE_CHECKING, Optional, Protocol, runtime_checkable
 
 from ...runtime.base import ServiceProtocol
 
 # Import forward references
 if TYPE_CHECKING:
-    from ciris_engine.schemas.services.infrastructure.resource_monitor import (
-        ResourceBudget, ResourceSnapshot
-    )
     from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+    from ciris_engine.schemas.services.infrastructure.resource_monitor import ResourceBudget, ResourceSnapshot
+
 
 @runtime_checkable
 class ResourceMonitorServiceProtocol(ServiceProtocol, Protocol):

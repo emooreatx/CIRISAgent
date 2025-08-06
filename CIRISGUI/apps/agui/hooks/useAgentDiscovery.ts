@@ -25,7 +25,7 @@ export function useAgentDiscovery(options: UseAgentDiscoveryOptions = {}) {
     try {
       const agentList = await sdk.manager.listAgents();
       setAgents(agentList);
-      
+
       // If we have a selected agent, update its info
       if (selectedAgent) {
         const updated = agentList.find(a => a.agent_id === selectedAgent.agent_id);
@@ -57,7 +57,7 @@ export function useAgentDiscovery(options: UseAgentDiscoveryOptions = {}) {
         // Don't set error for expected connection failures
         return;
       }
-      
+
       const error = err instanceof Error ? err : new Error('Failed to fetch agents');
       setError(error);
       onError?.(error);
@@ -78,17 +78,17 @@ export function useAgentDiscovery(options: UseAgentDiscoveryOptions = {}) {
 
     try {
       const agent = await sdk.manager.getAgent(agentId);
-      
+
       // Update in the list
-      setAgents(prev => prev.map(a => 
+      setAgents(prev => prev.map(a =>
         a.agent_id === agentId ? agent : a
       ));
-      
+
       // Update selected if it's the same
       if (selectedAgent?.agent_id === agentId) {
         setSelectedAgent(agent);
       }
-      
+
       return agent;
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to refresh agent');
@@ -110,8 +110,8 @@ export function useAgentDiscovery(options: UseAgentDiscoveryOptions = {}) {
   }, [sdk, onError]);
 
   const notifyUpdate = useCallback(async (
-    agentId: string, 
-    version: string, 
+    agentId: string,
+    version: string,
     changelog?: string,
     urgency?: 'low' | 'normal' | 'high' | 'critical'
   ) => {
@@ -124,10 +124,10 @@ export function useAgentDiscovery(options: UseAgentDiscoveryOptions = {}) {
         changelog,
         urgency
       });
-      
+
       // Refresh the agent to get updated status
       await refreshAgent(agentId);
-      
+
       return result;
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to notify update');
@@ -155,14 +155,14 @@ export function useAgentDiscovery(options: UseAgentDiscoveryOptions = {}) {
     loading,
     error,
     selectedAgent,
-    
+
     // Actions
     fetchAgents,
     selectAgent,
     refreshAgent,
     getDeploymentStatus,
     notifyUpdate,
-    
+
     // Computed
     runningAgents: agents.filter(a => a.status === 'running'),
     stoppedAgents: agents.filter(a => a.status !== 'running'),

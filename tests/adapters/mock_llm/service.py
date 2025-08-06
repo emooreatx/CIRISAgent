@@ -1,11 +1,11 @@
-from types import SimpleNamespace
-from typing import Any, Optional, List, Dict, Type, Tuple
-import instructor
 import logging
+from types import SimpleNamespace
+from typing import Any, Dict, List, Optional, Tuple, Type
+
+from pydantic import BaseModel
 
 from ciris_engine.protocols.services import LLMService
 from ciris_engine.schemas.runtime.resources import ResourceUsage
-from pydantic import BaseModel
 
 from .responses import create_response
 
@@ -40,9 +40,7 @@ class MockLLMClient:
         self.instruct_client = MockInstructorClient(self)
 
         # Create the chat.completions interface that instructor expects
-        self.chat = SimpleNamespace(
-            completions=SimpleNamespace(create=self._create)
-        )
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
 
         # Store original for debugging
         self._original_create = self._create
@@ -55,10 +53,10 @@ class MockLLMClient:
         logger.debug(f"_create called with response_model: {response_model}")
 
         # Extract messages for context analysis
-        messages = kwargs.get('messages', [])
+        messages = kwargs.get("messages", [])
 
         # Remove messages from kwargs to avoid duplicate parameter error
-        filtered_kwargs = {k: v for k, v in kwargs.items() if k != 'messages'}
+        filtered_kwargs = {k: v for k, v in kwargs.items() if k != "messages"}
 
         # Call our response generator with messages as explicit parameter
         response = create_response(response_model, messages=messages, **filtered_kwargs)
@@ -68,7 +66,7 @@ class MockLLMClient:
 
     def __getattr__(self, name):
         """Support dynamic attribute access for instructor compatibility."""
-        if name in ['_acreate']:
+        if name in ["_acreate"]:
             # instructor sometimes looks for _acreate - redirect to our _create
             return self._create
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
@@ -120,23 +118,19 @@ class MockLLMService(LLMService):
 
         # Use the mock client to generate the response
         response = await self._client._create(
-            messages=messages,
-            response_model=response_model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            **kwargs
+            messages=messages, response_model=response_model, max_tokens=max_tokens, temperature=temperature, **kwargs
         )
 
         # Create mock resource usage
-        total_tokens = sum(len(msg.get('content', '').split()) for msg in messages) + 50
+        total_tokens = sum(len(msg.get("content", "").split()) for msg in messages) + 50
         resource_usage = ResourceUsage(
             tokens_used=total_tokens,  # Total tokens
-            tokens_input=sum(len(msg.get('content', '').split()) for msg in messages),  # Input tokens
+            tokens_input=sum(len(msg.get("content", "").split()) for msg in messages),  # Input tokens
             tokens_output=50,  # Mock output tokens
             cost_cents=0.1,  # Mock cost in cents
             carbon_grams=0.01,  # Mock carbon emissions
             energy_kwh=0.0001,  # Mock energy usage
-            model_used="mock-model"  # Model name
+            model_used="mock-model",  # Model name
         )
 
         return response, resource_usage

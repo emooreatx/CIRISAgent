@@ -5,13 +5,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { cirisClient } from '../../lib/ciris-sdk';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
-import { 
-  InfoIcon, 
-  ExclamationTriangleIcon, 
-  StatusDot, 
-  GlobeIcon, 
-  LightningBoltIcon, 
-  CurrencyDollarIcon 
+import {
+  InfoIcon,
+  ExclamationTriangleIcon,
+  StatusDot,
+  GlobeIcon,
+  LightningBoltIcon,
+  CurrencyDollarIcon
 } from '../../components/Icons';
 import { AdapterConfigModal } from './AdapterConfigModal';
 
@@ -21,7 +21,7 @@ export default function SystemPage() {
   const [confirmDialog, setConfirmDialog] = useState<{ type: string; name?: string } | null>(null);
   const [adapterConfigModal, setAdapterConfigModal] = useState<{ type: string; adapterId?: string; isEdit?: boolean } | null>(null);
   const [adapterConfig, setAdapterConfig] = useState<any>({});
-  
+
   // Helper function to parse service names and extract adapter-specific prefixes
   const parseServiceName = (serviceName: string): string => {
     // Handle registry services
@@ -30,7 +30,7 @@ export default function SystemPage() {
       if (parts.length >= 4) {
         const serviceType = parts[2]; // e.g., "WISE_AUTHORITY", "TOOL", etc.
         const implementation = parts[3].split('_')[0]; // e.g., "DiscordAdapter", "APIToolService"
-        
+
         // Map implementation names to adapter types
         if (implementation === 'DiscordAdapter') {
           if (serviceType === 'WISE_AUTHORITY') return 'DISCORD-WISE';
@@ -59,7 +59,7 @@ export default function SystemPage() {
         }
       }
     }
-    
+
     // Handle direct services - extract the last part of the name
     if (serviceName.startsWith('direct.')) {
       const parts = serviceName.split('.');
@@ -67,11 +67,11 @@ export default function SystemPage() {
       // Remove "Service" suffix and convert to uppercase with hyphens
       return lastName.replace(/Service$/, '').replace(/([A-Z])/g, '-$1').toUpperCase().replace(/^-/, '').replace(/-+/g, '-');
     }
-    
+
     // Fallback - return the original name
     return serviceName;
   };
-  
+
   // Debug logging - only log when modals change
   if (confirmDialog || adapterConfigModal) {
     console.log('Modal states:', { confirmDialog, adapterConfigModal });
@@ -112,7 +112,7 @@ export default function SystemPage() {
     queryFn: () => cirisClient.system.getRuntimeState(),
     refetchInterval: 5000,
   });
-  
+
   // Map runtime state to runtime status for compatibility
   // Health data comes from v1/system/health which includes cognitive_state
   const healthData = health as any;
@@ -130,14 +130,14 @@ export default function SystemPage() {
     refetchInterval: 5000,
     enabled: hasRole('ADMIN'),
   });
-  
+
   // Fetch channels
   const { data: channels } = useQuery({
     queryKey: ['agent-channels'],
     queryFn: () => cirisClient.agent.getChannels(),
     refetchInterval: 5000,
   });
-  
+
   // Fetch telemetry overview for environmental metrics
   const { data: telemetryOverview } = useQuery({
     queryKey: ['telemetry-overview'],
@@ -217,7 +217,7 @@ export default function SystemPage() {
   });
 
   const registerAdapterMutation = useMutation({
-    mutationFn: ({ adapterType, config }: { adapterType: string; config?: any }) => 
+    mutationFn: ({ adapterType, config }: { adapterType: string; config?: any }) =>
       cirisClient.system.registerAdapter(adapterType, config),
     onSuccess: (_, { adapterType }) => {
       toast.success(`${adapterType} adapter registered`);
@@ -324,7 +324,7 @@ export default function SystemPage() {
       <div className="bg-white shadow rounded-lg">
         <div className="px-4 py-5 sm:p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">System Overview</h3>
-          
+
           {health && (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
@@ -336,21 +336,21 @@ export default function SystemPage() {
                   </span>
                 </dd>
               </div>
-              
+
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
                 <dt className="text-sm font-medium text-gray-500">Uptime</dt>
                 <dd className="mt-2 text-2xl font-semibold text-gray-900">
                   {health.uptime_seconds ? formatUptime(health.uptime_seconds) : 'N/A'}
                 </dd>
               </div>
-              
+
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
                 <dt className="text-sm font-medium text-gray-500">Memory Usage</dt>
                 <dd className="mt-2 text-2xl font-semibold text-gray-900">
                   {resources?.current_usage?.memory_mb ? `${resources.current_usage.memory_mb.toFixed(1)} MB` : 'N/A'}
                 </dd>
               </div>
-              
+
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
                 <dt className="text-sm font-medium text-gray-500">CPU Usage</dt>
                 <dd className="mt-2 text-2xl font-semibold text-gray-900">
@@ -367,7 +367,7 @@ export default function SystemPage() {
       <div className="bg-white shadow rounded-lg">
         <div className="px-4 py-5 sm:p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Resource Usage</h3>
-          
+
           {resources ? (
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
               <div className="space-y-2">
@@ -388,7 +388,7 @@ export default function SystemPage() {
                   </div>
                 </div>
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">Memory Usage</span>
@@ -410,7 +410,7 @@ export default function SystemPage() {
                   {resources?.current_usage?.memory_percent?.toFixed(1) || 0}% utilized
                 </p>
               </div>
-              
+
               <div className="space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">Disk Usage</span>
@@ -432,7 +432,7 @@ export default function SystemPage() {
       <div className="bg-white shadow rounded-lg">
         <div className="px-4 py-5 sm:p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Environmental Impact</h3>
-          
+
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
             {/* CO2 Emissions */}
             <div className="bg-green-50 rounded-lg p-4 border border-green-200">
@@ -449,7 +449,7 @@ export default function SystemPage() {
                 </div>
               </div>
             </div>
-            
+
             {/* Energy Usage */}
             <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
               <div className="flex items-center justify-between mb-2">
@@ -465,7 +465,7 @@ export default function SystemPage() {
                 </div>
               </div>
             </div>
-            
+
             {/* Cost */}
             <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
               <div className="flex items-center justify-between mb-2">
@@ -482,8 +482,8 @@ export default function SystemPage() {
               </div>
             </div>
           </div>
-          
-          
+
+
           {/* Token Usage Details */}
           <div className="mt-6 border-t pt-4">
             <h4 className="text-sm font-medium text-gray-900 mb-3">Token Usage Details</h4>
@@ -531,7 +531,7 @@ export default function SystemPage() {
               </span>
             </div>
           </div>
-          
+
           {services?.services ? (
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {services.services.map((service: any, index: number) => (
@@ -582,7 +582,7 @@ export default function SystemPage() {
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Main Processor</h3>
-            
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
                 <dt className="text-sm font-medium text-gray-500">Processor Status</dt>
@@ -596,21 +596,21 @@ export default function SystemPage() {
                   </span>
                 </dd>
               </div>
-              
+
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
                 <dt className="text-sm font-medium text-gray-500">Cognitive State</dt>
                 <dd className="mt-2 text-2xl font-semibold text-gray-900">
                   {runtimeStatus?.cognitive_state || 'WORK'}
                 </dd>
               </div>
-              
+
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
                 <dt className="text-sm font-medium text-gray-500">Queue Depth</dt>
                 <dd className="mt-2 text-2xl font-semibold text-gray-900">
                   {runtimeStatus?.queue_depth || 0}
                 </dd>
               </div>
-              
+
               <div className="bg-gray-50 px-4 py-5 sm:p-6 rounded-lg border-2 border-gray-200">
                 <dt className="text-sm font-medium text-gray-500">Actions</dt>
                 <dd className="mt-2">
@@ -632,10 +632,10 @@ export default function SystemPage() {
                 </dd>
               </div>
             </div>
-            
+
             <div className="mt-4 p-4 bg-blue-50 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>Note:</strong> The CIRIS system has one main processor that cycles through cognitive states (WAKEUP, WORK, PLAY, DREAM, SOLITUDE, SHUTDOWN). 
+                <strong>Note:</strong> The CIRIS system has one main processor that cycles through cognitive states (WAKEUP, WORK, PLAY, DREAM, SOLITUDE, SHUTDOWN).
                 Pausing affects the entire processor, not individual states.
               </p>
             </div>
@@ -656,7 +656,7 @@ export default function SystemPage() {
                   console.log('Adapter selected:', selectedValue);
                   if (selectedValue) {
                     setAdapterConfigModal({ type: selectedValue });
-                    
+
                     // Set default config based on adapter type
                     if (selectedValue === 'discord') {
                       setAdapterConfig({
@@ -703,7 +703,7 @@ export default function SystemPage() {
       <div className="bg-white shadow rounded-lg">
         <div className="px-4 py-5 sm:p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Active Communication Channels</h3>
-          
+
           {channels && channels.length > 0 ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {channels.map((channel: any) => (
@@ -758,7 +758,7 @@ export default function SystemPage() {
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Adapter Management</h3>
-            
+
             <div className="overflow-hidden shadow ring-1 ring-black ring-opacity-5 md:rounded-lg">
               <table className="min-w-full divide-y divide-gray-300">
                 <thead className="bg-gray-50">
@@ -827,10 +827,10 @@ export default function SystemPage() {
                                   // Use empty config if not found
                                   setAdapterConfig({});
                                 }
-                                setAdapterConfigModal({ 
-                                  type: adapter.adapter_type, 
+                                setAdapterConfigModal({
+                                  type: adapter.adapter_type,
                                   adapterId: adapter.adapter_id,
-                                  isEdit: true 
+                                  isEdit: true
                                 });
                               }).catch((error) => {
                                 console.error('Failed to fetch adapter config:', error);
@@ -879,13 +879,13 @@ export default function SystemPage() {
       {/* Confirmation Dialog */}
       {confirmDialog && confirmDialog.name !== 'test' ? (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 9999 }}>
-          <div style={{ 
-            position: 'absolute', 
-            top: '50%', 
-            left: '50%', 
-            transform: 'translate(-50%, -50%)', 
-            backgroundColor: 'white', 
-            padding: '30px', 
+          <div style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            backgroundColor: 'white',
+            padding: '30px',
             borderRadius: '8px',
             maxWidth: '500px',
             width: '90%'
@@ -903,9 +903,9 @@ export default function SystemPage() {
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
                 onClick={() => setConfirmDialog(null)}
-                style={{ 
-                  padding: '8px 16px', 
-                  border: '1px solid #ccc', 
+                style={{
+                  padding: '8px 16px',
+                  border: '1px solid #ccc',
                   borderRadius: '4px',
                   backgroundColor: 'white',
                   cursor: 'pointer'
@@ -915,10 +915,10 @@ export default function SystemPage() {
               </button>
               <button
                 onClick={handleConfirmAction}
-                style={{ 
-                  padding: '8px 16px', 
-                  backgroundColor: '#f59e0b', 
-                  color: 'white', 
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#f59e0b',
+                  color: 'white',
                   border: 'none',
                   borderRadius: '4px',
                   cursor: 'pointer'

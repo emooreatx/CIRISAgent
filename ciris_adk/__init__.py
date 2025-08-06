@@ -1,11 +1,11 @@
 """CIRIS Adapter Development Kit (ADK) service contracts."""
 
-from .types import *  # noqa: F401,F403
-from .services.tool import ToolService
+from .services.audit import AuditRecord, AuditService
 from .services.comms import CommunicationService
-from .services.memory import MemoryService, MemoryScope, MemoryEntry  # type: ignore[attr-defined]
+from .services.memory import MemoryEntry, MemoryScope, MemoryService  # type: ignore[attr-defined]
+from .services.tool import ToolService
 from .services.wa import WiseAuthorityService
-from .services.audit import AuditService, AuditRecord
+from .types import *  # noqa: F401,F403
 
 __all__ = [
     "ToolService",

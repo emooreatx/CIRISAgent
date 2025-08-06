@@ -1,18 +1,18 @@
 """Unit tests for GraphAuditService."""
 
-import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, List, Optional, Generator
+from datetime import datetime, timedelta, timezone
+from typing import Generator
+from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 from ciris_engine.logic.services.graph.audit_service import GraphAuditService
-from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
-from ciris_engine.schemas.services.nodes import AuditEntry
-from ciris_engine.schemas.services.graph.audit import AuditEventData, VerificationReport
-from ciris_engine.schemas.runtime.audit import AuditActionContext, AuditRequest
+from ciris_engine.schemas.runtime.audit import AuditActionContext
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.services.graph.audit import AuditEventData, VerificationReport
+from ciris_engine.schemas.services.graph_core import GraphNode, NodeType
 
 
 class TestGraphAuditService:
@@ -22,10 +22,7 @@ class TestGraphAuditService:
     def mock_time_service(self) -> Mock:
         """Create mock time service."""
         current_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-        return Mock(
-            now=Mock(return_value=current_time),
-            now_iso=Mock(return_value=current_time.isoformat())
-        )
+        return Mock(now=Mock(return_value=current_time), now_iso=Mock(return_value=current_time.isoformat()))
 
     @pytest.fixture
     def mock_memory_bus(self) -> Mock:
@@ -40,13 +37,14 @@ class TestGraphAuditService:
     def audit_service(self, mock_time_service: Mock, mock_memory_bus: Mock) -> Generator[GraphAuditService, None, None]:
         """Create GraphAuditService instance."""
         import tempfile
+
         with tempfile.TemporaryDirectory() as temp_dir:
             service = GraphAuditService(
                 memory_bus=mock_memory_bus,
                 time_service=mock_time_service,
                 retention_days=30,
                 db_path=f"{temp_dir}/test_audit.db",  # Use temporary database
-                export_path=f"{temp_dir}/audit_export.jsonl"  # Provide export path
+                export_path=f"{temp_dir}/audit_export.jsonl",  # Provide export path
             )
             yield service
 
@@ -75,23 +73,20 @@ class TestGraphAuditService:
             action="start",
             resource="service",
             reason="service startup",
-            metadata={"version": "1.0.0"}
+            metadata={"version": "1.0.0"},
         )
 
-        await audit_service.log_event(
-            event_type="service_start",
-            event_data=event_data
-        )
+        await audit_service.log_event(event_type="service_start", event_data=event_data)
 
         # Should create and store audit entry
         mock_memory_bus.memorize.assert_called_once()
         call_args = mock_memory_bus.memorize.call_args[1]
-        node = call_args['node']
+        node = call_args["node"]
 
         assert isinstance(node, GraphNode)
         # Check the audit entry was created properly
         assert node.type == NodeType.AUDIT_ENTRY
-        assert call_args['handler_name'] == "audit_service"
+        assert call_args["handler_name"] == "audit_service"
 
     @pytest.mark.asyncio
     async def test_log_action(self, audit_service: GraphAuditService, mock_memory_bus: Mock) -> None:
@@ -103,21 +98,17 @@ class TestGraphAuditService:
             thought_id="thought123",
             task_id="task123",
             handler_name="auth_handler",
-            parameters={"user_id": "user123", "method": "token"}
+            parameters={"user_id": "user123", "method": "token"},
         )
 
-        await audit_service.log_action(
-            action_type=HandlerActionType.TOOL,
-            context=context,
-            outcome="success"
-        )
+        await audit_service.log_action(action_type=HandlerActionType.TOOL, context=context, outcome="success")
 
         mock_memory_bus.memorize.assert_called_once()
         call_args = mock_memory_bus.memorize.call_args[1]
-        node = call_args['node']
+        node = call_args["node"]
 
-        assert call_args['handler_name'] == "audit_service"
-        assert call_args['metadata']['immutable'] is True
+        assert call_args["handler_name"] == "audit_service"
+        assert call_args["metadata"]["immutable"] is True
 
     @pytest.mark.asyncio
     async def test_log_authentication_failure(self, audit_service: GraphAuditService, mock_memory_bus: Mock) -> None:
@@ -133,22 +124,16 @@ class TestGraphAuditService:
             action="authenticate",
             resource="auth",
             reason="Invalid credentials",
-            metadata={
-                "method": "password",
-                "ip_address": "192.168.1.1"
-            }
+            metadata={"method": "password", "ip_address": "192.168.1.1"},
         )
 
-        await audit_service.log_event(
-            event_type="auth_failure",
-            event_data=event_data
-        )
+        await audit_service.log_event(event_type="auth_failure", event_data=event_data)
 
         mock_memory_bus.memorize.assert_called_once()
         call_args = mock_memory_bus.memorize.call_args[1]
 
-        assert call_args['handler_name'] == "audit_service"
-        assert call_args['metadata']['immutable'] is True
+        assert call_args["handler_name"] == "audit_service"
+        assert call_args["metadata"]["immutable"] is True
 
     @pytest.mark.asyncio
     async def test_log_configuration_change(self, audit_service: GraphAuditService, mock_memory_bus: Mock) -> None:
@@ -163,22 +148,15 @@ class TestGraphAuditService:
             action="update_config",
             resource="config",
             reason="configuration update",
-            metadata={
-                "config_key": "max_retries",
-                "old_value": "3",
-                "new_value": "5"
-            }
+            metadata={"config_key": "max_retries", "old_value": "3", "new_value": "5"},
         )
 
-        await audit_service.log_event(
-            event_type="config_change",
-            event_data=event_data
-        )
+        await audit_service.log_event(event_type="config_change", event_data=event_data)
 
         mock_memory_bus.memorize.assert_called_once()
         call_args = mock_memory_bus.memorize.call_args[1]
 
-        assert call_args['handler_name'] == "audit_service"
+        assert call_args["handler_name"] == "audit_service"
 
     @pytest.mark.asyncio
     async def test_log_data_access(self, audit_service: GraphAuditService, mock_memory_bus: Mock) -> None:
@@ -193,21 +171,15 @@ class TestGraphAuditService:
             action="read",
             resource="patient_record",
             reason="data access",
-            metadata={
-                "resource_type": "patient_record",
-                "resource_id": "12345"
-            }
+            metadata={"resource_type": "patient_record", "resource_id": "12345"},
         )
 
-        await audit_service.log_event(
-            event_type="data_access",
-            event_data=event_data
-        )
+        await audit_service.log_event(event_type="data_access", event_data=event_data)
 
         mock_memory_bus.memorize.assert_called_once()
         call_args = mock_memory_bus.memorize.call_args[1]
 
-        assert call_args['handler_name'] == "audit_service"
+        assert call_args["handler_name"] == "audit_service"
 
     @pytest.mark.asyncio
     async def test_log_error(self, audit_service: GraphAuditService, mock_memory_bus: Mock) -> None:
@@ -225,25 +197,24 @@ class TestGraphAuditService:
             metadata={
                 "error_type": "ValidationError",
                 "error_message": "Invalid input format",
-                "stack_trace": "File x, line y..."
-            }
+                "stack_trace": "File x, line y...",
+            },
         )
 
-        await audit_service.log_event(
-            event_type="error",
-            event_data=event_data
-        )
+        await audit_service.log_event(event_type="error", event_data=event_data)
 
         mock_memory_bus.memorize.assert_called_once()
         call_args = mock_memory_bus.memorize.call_args[1]
 
-        assert call_args['handler_name'] == "audit_service"
+        assert call_args["handler_name"] == "audit_service"
 
     @pytest.mark.asyncio
-    async def test_query_audit_trail(self, audit_service: GraphAuditService, mock_memory_bus: Mock, mock_time_service: Mock) -> None:
+    async def test_query_audit_trail(
+        self, audit_service: GraphAuditService, mock_memory_bus: Mock, mock_time_service: Mock
+    ) -> None:
         """Test querying audit trail."""
         from ciris_engine.schemas.services.graph.audit import AuditQuery
-        
+
         await audit_service.start()
 
         # Mock search to return empty list (since query_audit_trail now uses search)
@@ -251,11 +222,9 @@ class TestGraphAuditService:
 
         # Create query object
         query = AuditQuery(
-            start_time=mock_time_service.now() - timedelta(hours=1),
-            end_time=mock_time_service.now(),
-            limit=10
+            start_time=mock_time_service.now() - timedelta(hours=1), end_time=mock_time_service.now(), limit=10
         )
-        
+
         # Query audit trail
         entries = await audit_service.query_audit_trail(query)
 
@@ -274,17 +243,14 @@ class TestGraphAuditService:
         mock_memory_bus.recall_timeseries = AsyncMock(return_value=[])
 
         # Get audit trail for specific entity
-        entries = await audit_service.get_audit_trail(
-            entity_id="entity123",
-            hours=24
-        )
+        entries = await audit_service.get_audit_trail(entity_id="entity123", hours=24)
 
         # Should call recall_timeseries
         mock_memory_bus.recall_timeseries.assert_called_once()
         call_args = mock_memory_bus.recall_timeseries.call_args
 
-        assert call_args[1]['scope'] == "local"
-        assert call_args[1]['handler_name'] == "audit_service"
+        assert call_args[1]["scope"] == "local"
+        assert call_args[1]["handler_name"] == "audit_service"
 
         # Should return list
         assert isinstance(entries, list)
@@ -315,8 +281,7 @@ class TestGraphAuditService:
 
         # Export should work now that export_path is configured
         result = await audit_service.export_audit_data(
-            start_time=datetime.now(timezone.utc) - timedelta(days=1),
-            format="jsonl"
+            start_time=datetime.now(timezone.utc) - timedelta(days=1), format="jsonl"
         )
         # Should return a valid path string
         assert result is not None
@@ -359,12 +324,9 @@ class TestGraphAuditService:
                 outcome="success",
                 severity="info",
                 action="data_access",
-                metadata={"index": i}
+                metadata={"index": i},
             )
-            task = audit_service.log_event(
-                event_type="data_access",
-                event_data=event_data
-            )
+            task = audit_service.log_event(event_type="data_access", event_data=event_data)
             tasks.append(task)
 
         await asyncio.gather(*tasks)
@@ -384,7 +346,7 @@ class TestGraphAuditService:
             "processing_time": 45.67,
             "is_large": True,
             "nested_level1": "value1",
-            "nested_level2": "value2"
+            "nested_level2": "value2",
         }
 
         event_data = AuditEventData(
@@ -393,13 +355,10 @@ class TestGraphAuditService:
             outcome="success",
             severity="info",
             action="data_access",
-            metadata=large_metadata
+            metadata=large_metadata,
         )
 
-        await audit_service.log_event(
-            event_type="data_access",
-            event_data=event_data
-        )
+        await audit_service.log_event(event_type="data_access", event_data=event_data)
 
         # Should handle large data
         mock_memory_bus.memorize.assert_called_once()

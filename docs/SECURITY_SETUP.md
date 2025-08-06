@@ -106,11 +106,11 @@ cp /etc/ciris/audit_keys/* "$BACKUP_DIR/"
 if [ -f "/etc/ciris/keys/secrets_master.key" ]; then
     # Archive old key
     mv /etc/ciris/keys/secrets_master.key "$BACKUP_DIR/secrets_master_old.key"
-    
+
     # Generate new key
     openssl rand -base64 32 > /etc/ciris/keys/secrets_master.key
     chmod 600 /etc/ciris/keys/secrets_master.key
-    
+
     echo "Secrets master key rotated"
 fi
 
@@ -120,15 +120,15 @@ if [ "$AUDIT_KEY_AGE" -gt 0 ]; then
     # Archive old keys
     mv /etc/ciris/audit_keys/audit_private.pem "$BACKUP_DIR/audit_private_old.pem"
     mv /etc/ciris/audit_keys/audit_public.pem "$BACKUP_DIR/audit_public_old.pem"
-    
+
     # Generate new keys
     openssl genrsa -out /etc/ciris/audit_keys/audit_private.pem 4096
     openssl rsa -in /etc/ciris/audit_keys/audit_private.pem \
       -pubout -out /etc/ciris/audit_keys/audit_public.pem
-    
+
     chmod 600 /etc/ciris/audit_keys/audit_private.pem
     chmod 644 /etc/ciris/audit_keys/audit_public.pem
-    
+
     echo "Audit keys rotated"
 fi
 
@@ -149,17 +149,17 @@ audit:
   audit_key_path: "/etc/ciris/audit_keys"
   rotation_size_mb: 50
   retention_days: 2555  # 7 years for compliance
-  
+
   hash_chain:
     enabled: true
     algorithm: "sha256"
-  
+
   signatures:
     enabled: true
     algorithm: "rsa-pss"
     key_size: 4096
     key_rotation_days: 30
-  
+
   anchoring:
     enabled: true
     interval_hours: 1
@@ -182,26 +182,26 @@ import sys
 
 try:
     verifier = AuditVerifier()
-    
+
     # Verify hash chain
     chain_result = verifier.verify_chain_integrity()
     print(f"Hash Chain Integrity: {'VALID' if chain_result else 'INVALID'}")
-    
+
     # Verify signatures
     sig_result = verifier.verify_signatures()
     print(f"Digital Signatures: {'VALID' if sig_result else 'INVALID'}")
-    
+
     # Check for tampering
     tamper_result = verifier.check_for_tampering()
     print(f"Tampering Check: {'CLEAN' if not tamper_result else 'TAMPERING DETECTED'}")
-    
+
     if chain_result and sig_result and not tamper_result:
         print("\\n✅ AUDIT TRAIL INTEGRITY: VERIFIED")
         sys.exit(0)
     else:
         print("\\n❌ AUDIT TRAIL INTEGRITY: COMPROMISED")
         sys.exit(1)
-        
+
 except Exception as e:
     print(f"\\n❌ VERIFICATION ERROR: {e}")
     sys.exit(1)
@@ -222,14 +222,14 @@ secrets:
     builtin_patterns: true
     custom_patterns_enabled: true
     sensitivity_threshold: "HIGH"  # LOW, MEDIUM, HIGH, CRITICAL
-    
+
     # Custom patterns for organization-specific secrets
     custom_patterns:
       - name: "internal_api_key"
         pattern: "INT_[A-Z0-9]{32}"
         sensitivity: "HIGH"
         description: "Internal API keys"
-      
+
       - name: "employee_id"
         pattern: "EMP[0-9]{6}"
         sensitivity: "MEDIUM"
@@ -280,13 +280,13 @@ import json
 
 def audit_secrets_access():
     """Generate secrets access audit report"""
-    
+
     store = SecretsStore()
-    
+
     # Get access logs from last 24 hours
     since = datetime.now() - timedelta(hours=24)
     access_logs = store.get_access_logs(since=since)
-    
+
     report = {
         "audit_timestamp": datetime.now().isoformat(),
         "period": "24_hours",
@@ -295,13 +295,13 @@ def audit_secrets_access():
         "access_by_action": {},
         "suspicious_activity": []
     }
-    
+
     # Analyze access patterns
     action_counts = {}
     for log in access_logs:
         action = log.action_type
         action_counts[action] = action_counts.get(action, 0) + 1
-        
+
         # Flag suspicious activity
         if log.access_count > 10:  # More than 10 accesses to same secret
             report["suspicious_activity"].append({
@@ -310,17 +310,17 @@ def audit_secrets_access():
                 "last_access": log.access_time.isoformat(),
                 "reason": "Excessive access frequency"
             })
-    
+
     report["access_by_action"] = action_counts
-    
+
     # Save report
     with open(f"/var/log/ciris/secrets_audit_{datetime.now().strftime('%Y%m%d')}.json", "w") as f:
         json.dump(report, f, indent=2)
-    
+
     print(f"Secrets audit complete. {report['total_accesses']} accesses analyzed.")
     if report["suspicious_activity"]:
         print(f"⚠️  {len(report['suspicious_activity'])} suspicious activities detected!")
-    
+
     return report
 
 if __name__ == "__main__":
@@ -346,7 +346,7 @@ access_controls:
   secrets_access: "READ_ONLY"
   audit_access: "FULL"
   config_changes: "REQUIRE_APPROVAL"
-  
+
 guardrails_config:
   entropy_threshold: 0.7
   coherence_threshold: 0.8
@@ -367,16 +367,16 @@ from ciris_engine.schemas.config_schemas_v1 import IdentityUpdatesConfig
 
 class WAApprovalWorkflow:
     """Implements Wisdom Authority approval for critical operations"""
-    
+
     def __init__(self, config_service: AgentConfigService):
         self.config_service = config_service
         self.pending_approvals = {}
-    
+
     async def request_identity_change(self, change_request: dict) -> str:
         """Request approval for identity-level configuration changes"""
-        
+
         approval_id = f"wa_approval_{datetime.now().timestamp()}"
-        
+
         # Store pending request
         self.pending_approvals[approval_id] = {
             "request": change_request,
@@ -384,7 +384,7 @@ class WAApprovalWorkflow:
             "status": "PENDING_WA_APPROVAL",
             "timeout": datetime.now() + timedelta(hours=24)
         }
-        
+
         # Log the request
         await self.config_service.audit_service.log_action(
             action_type="REQUEST_WA_APPROVAL",
@@ -394,24 +394,24 @@ class WAApprovalWorkflow:
                 "scope": "IDENTITY"
             }
         )
-        
+
         return approval_id
-    
+
     async def process_wa_response(self, approval_id: str, approved: bool, wa_signature: str):
         """Process WA approval response"""
-        
+
         if approval_id not in self.pending_approvals:
             raise ValueError(f"Unknown approval ID: {approval_id}")
-        
+
         request = self.pending_approvals[approval_id]
-        
+
         if approved:
             # Apply the configuration change
             await self.config_service.apply_config_change(request["request"])
             request["status"] = "APPROVED_AND_APPLIED"
         else:
             request["status"] = "REJECTED_BY_WA"
-        
+
         # Log the decision
         await self.config_service.audit_service.log_action(
             action_type="WA_APPROVAL_DECISION",
@@ -421,7 +421,7 @@ class WAApprovalWorkflow:
                 "wa_signature": wa_signature
             }
         )
-        
+
         return request["status"]
 ```
 
@@ -441,7 +441,7 @@ network:
     cipher_suites:
       - "TLS_AES_256_GCM_SHA384"
       - "TLS_CHACHA20_POLY1305_SHA256"
-  
+
   firewall:
     allowed_ips:
       - "10.0.0.0/8"      # Internal network
@@ -493,27 +493,27 @@ from ciris_engine.audit.verifier import AuditVerifier
 
 class SecurityMonitor:
     """Monitor for security events and anomalies"""
-    
+
     def __init__(self, config):
         self.config = config
         self.alerts = []
-    
+
     def check_failed_logins(self):
         """Monitor for excessive failed login attempts"""
         # Implementation would check audit logs for failed auth attempts
         pass
-    
+
     def check_secrets_anomalies(self):
         """Monitor for unusual secrets access patterns"""
         # Check for secrets accessed outside normal hours
         # Check for excessive secrets access
         # Check for access to critical secrets
         pass
-    
+
     def check_audit_integrity(self):
         """Verify audit trail integrity"""
         verifier = AuditVerifier()
-        
+
         if not verifier.verify_chain_integrity():
             self.alerts.append({
                 "severity": "CRITICAL",
@@ -521,36 +521,36 @@ class SecurityMonitor:
                 "message": "Audit hash chain integrity check failed",
                 "timestamp": datetime.now().isoformat()
             })
-    
+
     def check_resource_anomalies(self):
         """Monitor for resource usage anomalies"""
         # Check for sudden spikes in CPU/memory usage
         # Check for excessive API calls
         # Check for storage anomalies
         pass
-    
+
     def send_alerts(self):
         """Send security alerts via configured channels"""
         if not self.alerts:
             return
-        
+
         # Email alerts
         if self.config.get("email_alerts_enabled"):
             self._send_email_alerts()
-        
+
         # Webhook alerts
         if self.config.get("webhook_url"):
             self._send_webhook_alerts()
-        
+
         # Log alerts
         for alert in self.alerts:
             print(f"🚨 SECURITY ALERT: {alert}")
-    
+
     def _send_email_alerts(self):
         """Send alerts via email"""
         # Implementation for email alerts
         pass
-    
+
     def _send_webhook_alerts(self):
         """Send alerts via webhook"""
         # Implementation for webhook alerts
@@ -562,7 +562,7 @@ if __name__ == "__main__":
         "email_alerts_enabled": True,
         "webhook_url": "https://your-monitoring.com/webhook"
     }
-    
+
     monitor = SecurityMonitor(config)
     monitor.check_audit_integrity()
     monitor.check_secrets_anomalies()
@@ -583,13 +583,13 @@ import json
 
 def generate_security_dashboard():
     """Generate security status dashboard"""
-    
+
     dashboard = {
         "timestamp": datetime.now().isoformat(),
         "overall_status": "UNKNOWN",
         "components": {}
     }
-    
+
     # Check audit system
     try:
         verifier = AuditVerifier()
@@ -603,7 +603,7 @@ def generate_security_dashboard():
             "status": "ERROR",
             "error": str(e)
         }
-    
+
     # Check secrets system
     try:
         store = SecretsStore()
@@ -618,7 +618,7 @@ def generate_security_dashboard():
             "status": "ERROR",
             "error": str(e)
         }
-    
+
     # Check telemetry system
     try:
         # This would integrate with actual telemetry service
@@ -632,7 +632,7 @@ def generate_security_dashboard():
             "status": "ERROR",
             "error": str(e)
         }
-    
+
     # Determine overall status
     statuses = [comp["status"] for comp in dashboard["components"].values()]
     if "ERROR" in statuses:
@@ -641,7 +641,7 @@ def generate_security_dashboard():
         dashboard["overall_status"] = "DEGRADED"
     else:
         dashboard["overall_status"] = "HEALTHY"
-    
+
     return dashboard
 
 if __name__ == "__main__":
@@ -673,9 +673,9 @@ import json
 
 def generate_compliance_report(start_date: datetime, end_date: datetime):
     """Generate compliance audit report"""
-    
+
     verifier = AuditVerifier()
-    
+
     report = {
         "report_id": f"compliance_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
         "period": {
@@ -698,7 +698,7 @@ def generate_compliance_report(start_date: datetime, end_date: datetime):
             "encryption_in_transit": True
         }
     }
-    
+
     # Add detailed audit events
     events = verifier.get_audit_events(start_date, end_date)
     report["audit_events"] = {
@@ -706,27 +706,27 @@ def generate_compliance_report(start_date: datetime, end_date: datetime):
         "event_types": {},
         "integrity_verified": True
     }
-    
+
     # Count event types
     for event in events:
         event_type = event.get("action_type", "UNKNOWN")
         report["audit_events"]["event_types"][event_type] = \
             report["audit_events"]["event_types"].get(event_type, 0) + 1
-    
+
     return report
 
 # Generate weekly compliance report
 if __name__ == "__main__":
     end_date = datetime.now()
     start_date = end_date - timedelta(days=7)
-    
+
     report = generate_compliance_report(start_date, end_date)
-    
+
     # Save report
     filename = f"/var/log/ciris/compliance_report_{report['report_id']}.json"
     with open(filename, "w") as f:
         json.dump(report, f, indent=2)
-    
+
     print(f"Compliance report generated: {filename}")
     print(f"Audit trail integrity: {'✅' if all(report['audit_trail_integrity'].values()) else '❌'}")
 ```
@@ -746,9 +746,9 @@ check_item() {
     local description="$1"
     local command="$2"
     total_checks=$((total_checks + 1))
-    
+
     echo -n "[$total_checks] $description: "
-    
+
     if eval "$command" &>/dev/null; then
         echo "✅ PASS"
         checks_passed=$((checks_passed + 1))

@@ -1,7 +1,7 @@
 # Functional Specification Document: Graceful Shutdown and Consciousness Preservation
 
-Version: 2.0  
-Date: June 17, 2025  
+Version: 2.0
+Date: June 17, 2025
 Status: FINAL - SIMPLIFIED
 
 ## 1. Overview
@@ -89,7 +89,7 @@ The agent responds using standard actions:
 - Agent contests the shutdown with a reason
 - ShutdownManager prompts human operator:
   ```
-  Agent has REJECTED the shutdown command. 
+  Agent has REJECTED the shutdown command.
   Reason: [Agent's reason]
   Force shutdown? (y/n)
   ```

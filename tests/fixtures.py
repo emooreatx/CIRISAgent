@@ -1,7 +1,7 @@
+from typing import Any
+
 import pytest
 import pytest_asyncio
-from typing import Any
-import sys
 
 from ciris_engine.logic.registries.base import ServiceRegistry
 from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime

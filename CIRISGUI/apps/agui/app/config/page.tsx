@@ -175,7 +175,7 @@ export default function ConfigPage() {
     if (adapters && adapters.adapters) {
       adapters.adapters.forEach(adapter => {
         const sectionName = `adapter.${adapter.adapter_id}`;
-        
+
         // Skip if filtered by search
         if (searchTerm) {
           const searchLower = searchTerm.toLowerCase();
@@ -234,7 +234,7 @@ export default function ConfigPage() {
   // Filter sections by category
   const filteredSections = useMemo(() => {
     if (!selectedCategory) return organizedConfigs;
-    
+
     const filtered: Record<string, ConfigSection> = {};
     Object.entries(organizedConfigs).forEach(([key, section]) => {
       if (section.category === selectedCategory) {
@@ -467,7 +467,7 @@ export default function ConfigPage() {
                     {Object.entries(filteredSections).map(([sectionName, section]) => {
                       const isExpanded = expandedSections.has(sectionName);
                       const categoryInfo = section.category ? CONFIG_CATEGORIES[section.category as keyof typeof CONFIG_CATEGORIES] : null;
-                      
+
                       return (
                         <div key={sectionName} className="border border-gray-200 rounded-lg overflow-hidden">
                           <button
@@ -488,7 +488,7 @@ export default function ConfigPage() {
                               )}
                             </div>
                           </button>
-                          
+
                           {isExpanded && (
                             <div className="p-4 space-y-4">
                               {section.items.map(item => (

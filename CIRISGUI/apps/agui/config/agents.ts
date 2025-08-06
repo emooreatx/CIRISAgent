@@ -17,7 +17,7 @@ export const AGENTS: AgentConfig[] = [
     port: 8080,
   },
   {
-    id: 'sage', 
+    id: 'sage',
     name: 'Sage',
     description: 'Asks wise questions to foster understanding and growth',
     apiUrl: process.env.NEXT_PUBLIC_SAGE_URL || 'https://agents.ciris.ai/api/sage',

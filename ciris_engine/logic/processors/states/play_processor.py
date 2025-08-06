@@ -1,16 +1,19 @@
 """
 Play processor for creative and experimental processing.
 """
-import logging
-from typing import List, Any
 
+import logging
+from typing import Any, List
+
+from ciris_engine.schemas.processors.results import PlayResult
 from ciris_engine.schemas.processors.states import AgentState
-from ciris_engine.schemas.processors.results import PlayResult, ProcessingResult
 
 from .work_processor import WorkProcessor
+
 # ServiceProtocol import removed - processors aren't services
 
 logger = logging.getLogger(__name__)
+
 
 class PlayProcessor(WorkProcessor):
     """
@@ -26,11 +29,7 @@ class PlayProcessor(WorkProcessor):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialize play processor."""
         super().__init__(*args, **kwargs)
-        self.play_metrics = {
-            "creative_tasks_processed": 0,
-            "experiments_run": 0,
-            "novel_approaches_tried": 0
-        }
+        self.play_metrics = {"creative_tasks_processed": 0, "experiments_run": 0, "novel_approaches_tried": 0}
 
     def get_supported_states(self) -> List[AgentState]:
         """Play processor only handles PLAY state."""
@@ -58,7 +57,7 @@ class PlayProcessor(WorkProcessor):
         return PlayResult(
             thoughts_processed=work_result.thoughts_processed,
             errors=work_result.errors,
-            duration_seconds=work_result.duration_seconds
+            duration_seconds=work_result.duration_seconds,
         )
 
     def get_play_stats(self) -> dict:
@@ -73,13 +72,15 @@ class PlayProcessor(WorkProcessor):
             "processing_thoughts": self.thought_manager.get_processing_thought_count(),
             "total_rounds": self.metrics.rounds_completed,
             "total_processed": self.metrics.items_processed,
-            "total_errors": self.metrics.errors
+            "total_errors": self.metrics.errors,
         }
-        base_stats.update({
-            "play_metrics": self.play_metrics.copy(),
-            "mode": "play",
-            "creativity_level": self._calculate_creativity_level()
-        })
+        base_stats.update(
+            {
+                "play_metrics": self.play_metrics.copy(),
+                "mode": "play",
+                "creativity_level": self._calculate_creativity_level(),
+            }
+        )
         return base_stats
 
     def _calculate_creativity_level(self) -> float:
@@ -91,14 +92,10 @@ class PlayProcessor(WorkProcessor):
             return 0.0
 
         # Simple formula - can be made more sophisticated
-        experiments_ratio = (
-            self.play_metrics["experiments_run"] /
-            max(self.play_metrics["creative_tasks_processed"], 1)
-        )
+        experiments_ratio = self.play_metrics["experiments_run"] / max(self.play_metrics["creative_tasks_processed"], 1)
 
-        novel_ratio = (
-            self.play_metrics["novel_approaches_tried"] /
-            max(self.play_metrics["creative_tasks_processed"], 1)
+        novel_ratio = self.play_metrics["novel_approaches_tried"] / max(
+            self.play_metrics["creative_tasks_processed"], 1
         )
 
         return min((experiments_ratio + novel_ratio) / 2, 1.0)
@@ -130,15 +127,14 @@ class PlayProcessor(WorkProcessor):
 
         # Simple heuristic for now - experiment 20% of the time
         import secrets
+
         return secrets.randbelow(100) < 20
 
     def get_status(self) -> dict:
         """Get current play processor status and metrics."""
         base_status = super().get_status()
         play_stats = self.get_play_stats()
-        base_status.update({
-            "processor_type": "play",
-            "play_stats": play_stats,
-            "creativity_level": self._calculate_creativity_level()
-        })
+        base_status.update(
+            {"processor_type": "play", "play_stats": play_stats, "creativity_level": self._calculate_creativity_level()}
+        )
         return base_status

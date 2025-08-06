@@ -1,8 +1,8 @@
 # TSDB Consolidation with Absolute Reputability
 
-**Version**: 1.0  
-**Date**: January 14, 2025  
-**Status**: APPROVED  
+**Version**: 1.0
+**Date**: January 14, 2025
+**Status**: APPROVED
 **Classification**: ARCHITECTURAL DECISION RECORD
 
 ## Executive Summary
@@ -111,7 +111,7 @@ Every 6 hours:
     ├── Store summaries in graph
     ├── Create edges to source nodes
     └── Mark period as consolidated
-    
+
 Note: SQLite audit_log untouched
 ```
 
@@ -129,7 +129,7 @@ Every Monday at 00:00 UTC:
     │   └── Create edges to the 4 source summaries
     ├── Total: 7 daily summaries created
     └── Store with consolidation_level="extensive"
-    
+
 Note: Original audit entries still in SQLite
 ```
 
@@ -148,7 +148,7 @@ Note: Original audit entries still in SQLite
     ├── No new nodes created - only compression
     ├── Preserve all edges and relationships
     └── Delete basic summaries >30 days old
-    
+
 Note: Compression only affects graph nodes, never audit_log
 Future: When multimedia support added, profound consolidation
       will handle video thumbnails, image compression, etc.
@@ -210,7 +210,7 @@ class CalendarBoundScheduler:
             days_until_monday = 7
         next_monday = now.date() + timedelta(days=days_until_monday)
         return datetime.combine(next_monday, time(0, 0), tzinfo=timezone.utc)
-    
+
     def get_next_month_start(self, now: datetime) -> datetime:
         """First day of next month at 00:00 UTC"""
         if now.day == 1 and now.hour == 0:
@@ -265,7 +265,7 @@ class GraphConfig(BaseModel):
     # Basic: 6 hours (clock-aligned)
     # Extensive: Weekly (Monday 00:00 UTC)
     # Profound: Monthly (1st at 00:00 UTC)
-    
+
     # Configurable parameters
     tsdb_raw_retention_hours: int = Field(
         24,

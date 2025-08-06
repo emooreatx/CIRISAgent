@@ -3,25 +3,33 @@ Wise Authority service schemas.
 
 Replaces Dict[str, Any] in WA service operations.
 """
-from typing import Dict, List, Optional, Union
+
 from datetime import datetime, timezone
+from typing import Dict, List, Optional, Union
+
 from pydantic import BaseModel, Field
+
 
 class PermissionEntry(BaseModel):
     """A single permission entry for a WA."""
+
     action: str = Field(..., description="The action permitted")
     resource: Optional[str] = Field(None, description="Resource this permission applies to (* for all)")
     granted_at: str = Field(..., description="ISO timestamp when granted")
     granted_by: str = Field(..., description="Who granted this permission")
 
+
 class ApprovalRequestContext(BaseModel):
     """Context for approval requests."""
+
     wa_id: str = Field(..., description="WA requesting approval")
     resource: Optional[str] = Field(None, description="Resource being accessed")
     metadata: Dict[str, str] = Field(default_factory=dict, description="Additional context")
 
+
 class AuthenticationResult(BaseModel):
     """Result of WA authentication."""
+
     authenticated: bool = Field(..., description="Whether authentication succeeded")
     wa_id: str = Field(..., description="Wise Authority identifier")
     name: str = Field(..., description="WA name")
@@ -30,16 +38,20 @@ class AuthenticationResult(BaseModel):
     permissions: List[str] = Field(default_factory=list, description="Granted permissions")
     metadata: Dict[str, str] = Field(default_factory=dict, description="Additional metadata")
 
+
 class WAUpdate(BaseModel):
     """Updates to apply to a WA certificate."""
+
     name: Optional[str] = Field(None, description="New name")
     role: Optional[str] = Field(None, description="New role")
     permissions: Optional[List[str]] = Field(None, description="New permissions")
     metadata: Optional[Dict[str, str]] = Field(None, description="Metadata updates")
     is_active: Optional[bool] = Field(None, description="Active status")
 
+
 class TokenVerification(BaseModel):
     """Result of token verification."""
+
     valid: bool = Field(..., description="Whether token is valid")
     wa_id: Optional[str] = Field(None, description="WA ID if valid")
     name: Optional[str] = Field(None, description="WA name if valid")
@@ -47,8 +59,10 @@ class TokenVerification(BaseModel):
     expires_at: Optional[datetime] = Field(None, description="Expiration if valid")
     error: Optional[str] = Field(None, description="Error message if invalid")
 
+
 class PendingDeferral(BaseModel):
     """A deferral awaiting WA review."""
+
     deferral_id: str = Field(..., description="Unique deferral identifier")
     created_at: datetime = Field(..., description="When deferral was created")
     deferred_by: str = Field(..., description="Agent that deferred")
@@ -72,8 +86,10 @@ class PendingDeferral(BaseModel):
     resolution: Optional[str] = Field(None, description="Resolution if completed")
     resolved_at: Optional[datetime] = Field(None, description="Resolution time")
 
+
 class DeferralResolution(BaseModel):
     """Resolution of a deferral by WA."""
+
     deferral_id: str = Field(..., description="Deferral being resolved")
     wa_id: str = Field(..., description="WA resolving it")
     resolution: str = Field(..., description="approve, reject, or modify")
@@ -93,8 +109,10 @@ class DeferralResolution(BaseModel):
     resolution_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     resolution_metadata: Dict[str, str] = Field(default_factory=dict, description="Additional metadata")
 
+
 class WAResource(BaseModel):
     """Resource accessible to a WA."""
+
     resource_id: str = Field(..., description="Resource identifier")
     resource_type: str = Field(..., description="Type of resource")
     resource_name: str = Field(..., description="Resource name")
@@ -112,8 +130,10 @@ class WAResource(BaseModel):
     # Metadata
     resource_metadata: Dict[str, str] = Field(default_factory=dict, description="Resource metadata")
 
+
 class OAuthConfig(BaseModel):
     """OAuth provider configuration."""
+
     provider: str = Field(..., description="OAuth provider name")
     enabled: bool = Field(True, description="Whether provider is enabled")
 

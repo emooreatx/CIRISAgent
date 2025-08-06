@@ -2,34 +2,34 @@
 Thought management functionality for the CIRISAgent processor.
 Handles thought generation, queueing, and processing using v1 schemas.
 """
+
+import collections
 import logging
 import uuid
-import collections
 from typing import Any, Deque, List, Optional
 
-from ciris_engine.schemas.runtime.models import Task, Thought, ThoughtContext, TaskContext
-from ciris_engine.schemas.runtime.enums import ThoughtStatus, ThoughtType, TaskStatus
 from ciris_engine.logic import persistence
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
-from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.logic.utils.thought_utils import generate_thought_id
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus, ThoughtType
+from ciris_engine.schemas.runtime.models import Task, TaskContext, Thought, ThoughtContext
 
 logger = logging.getLogger(__name__)
+
 
 class ThoughtManager:
     """Manages thought generation, queueing, and processing."""
 
-    def __init__(self, time_service: TimeServiceProtocol, max_active_thoughts: int = 50, default_channel_id: Optional[str] = None) -> None:
+    def __init__(
+        self, time_service: TimeServiceProtocol, max_active_thoughts: int = 50, default_channel_id: Optional[str] = None
+    ) -> None:
         self.time_service = time_service
         self.max_active_thoughts = max_active_thoughts
         self.default_channel_id = default_channel_id
         self.processing_queue: Deque[ProcessingQueueItem] = collections.deque()
 
-    def generate_seed_thought(
-        self,
-        task: Task,
-        round_number: int = 0
-    ) -> Optional[Thought]:
+    def generate_seed_thought(self, task: Task, round_number: int = 0) -> Optional[Thought]:
         """Generate a seed thought for a task - elegantly copy the context."""
         now_iso = self.time_service.now().isoformat()
 
@@ -40,27 +40,29 @@ class ThoughtManager:
             # Create ThoughtContext from TaskContext
             thought_context = ThoughtContext(
                 task_id=task.task_id,
-                channel_id=task.context.channel_id if hasattr(task.context, 'channel_id') else None,
+                channel_id=task.context.channel_id if hasattr(task.context, "channel_id") else None,
                 round_number=round_number,
                 depth=0,
                 parent_thought_id=None,
-                correlation_id=task.context.correlation_id if hasattr(task.context, 'correlation_id') else str(uuid.uuid4())
+                correlation_id=(
+                    task.context.correlation_id if hasattr(task.context, "correlation_id") else str(uuid.uuid4())
+                ),
             )
         elif task.context:
             # If it's already some other type of context, create a new ThoughtContext
             # We can't just copy a TaskContext to ThoughtContext - they're different types
             thought_context = ThoughtContext(
                 task_id=task.task_id,
-                channel_id=getattr(task.context, 'channel_id', None),
+                channel_id=getattr(task.context, "channel_id", None),
                 round_number=round_number,
                 depth=0,
                 parent_thought_id=None,
-                correlation_id=getattr(task.context, 'correlation_id', str(uuid.uuid4()))
+                correlation_id=getattr(task.context, "correlation_id", str(uuid.uuid4())),
             )
 
         # Extract channel_id from task for the thought
         channel_id: Optional[str] = None
-        if task.context and hasattr(task.context, 'channel_id'):
+        if task.context and hasattr(task.context, "channel_id"):
             channel_id = task.context.channel_id
         elif task.channel_id:
             channel_id = task.channel_id
@@ -85,11 +87,7 @@ class ThoughtManager:
             return None
 
         thought = Thought(
-            thought_id=generate_thought_id(
-                thought_type=ThoughtType.STANDARD,
-                task_id=task.task_id,
-                is_seed=True
-            ),
+            thought_id=generate_thought_id(thought_type=ThoughtType.STANDARD, task_id=task.task_id, is_seed=True),
             source_task_id=task.task_id,
             channel_id=channel_id,  # Set channel_id on the thought
             thought_type=ThoughtType.STANDARD,
@@ -125,7 +123,6 @@ class ThoughtManager:
             logger.debug("No seed thoughts needed")
         return generated_count
 
-
     def populate_queue(self, round_number: int) -> int:
         """
         Populate the processing queue for the current round.
@@ -137,9 +134,7 @@ class ThoughtManager:
             logger.warning("max_active_thoughts is zero or negative")
             return 0
 
-        pending_thoughts = persistence.get_pending_thoughts_for_active_tasks(
-            limit=self.max_active_thoughts
-        )
+        pending_thoughts = persistence.get_pending_thoughts_for_active_tasks(limit=self.max_active_thoughts)
 
         memory_meta = [t for t in pending_thoughts if t.thought_type == ThoughtType.MEMORY]
         if memory_meta:
@@ -170,9 +165,7 @@ class ThoughtManager:
         return list(self.processing_queue)
 
     def mark_thoughts_processing(
-        self,
-        batch: List[ProcessingQueueItem],
-        round_number: int
+        self, batch: List[ProcessingQueueItem], round_number: int
     ) -> List[ProcessingQueueItem]:
         """
         Mark thoughts as PROCESSING before sending to workflow coordinator.
@@ -200,19 +193,20 @@ class ThoughtManager:
         parent_thought: Thought,
         content: str,
         thought_type: ThoughtType = ThoughtType.FOLLOW_UP,
-        round_number: int = 0
+        round_number: int = 0,
     ) -> Optional[Thought]:
         """Create a follow-up thought from a parent thought."""
         now_iso = self.time_service.now().isoformat()
-        context = parent_thought.context.model_copy() if parent_thought.context else ThoughtContext(
-            task_id=parent_thought.source_task_id,
-            correlation_id=str(uuid.uuid4())
+        context = (
+            parent_thought.context.model_copy()
+            if parent_thought.context
+            else ThoughtContext(task_id=parent_thought.source_task_id, correlation_id=str(uuid.uuid4()))
         )
         thought = Thought(
             thought_id=generate_thought_id(
                 thought_type=ThoughtType.FOLLOW_UP,
                 task_id=parent_thought.source_task_id,
-                parent_thought_id=parent_thought.thought_id
+                parent_thought_id=parent_thought.thought_id,
             ),
             source_task_id=parent_thought.source_task_id,
             thought_type=thought_type,
@@ -242,10 +236,7 @@ class ThoughtManager:
         Returns False (no job thoughts created).
         """
         # Idle mode disabled - no automatic job creation
-        logger.debug(
-            "ThoughtManager.handle_idle_state called but idle mode is disabled for round %s",
-            round_number
-        )
+        logger.debug("ThoughtManager.handle_idle_state called but idle mode is disabled for round %s", round_number)
         return False
 
     def get_pending_thought_count(self) -> int:

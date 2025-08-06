@@ -16,7 +16,7 @@ class ExampleService(Service):
     async def start(self):
         await super().start()
         # Service initialization
-    
+
     async def stop(self):
         await super().stop()
         # Cleanup logic
@@ -39,7 +39,7 @@ Provides sophisticated message filtering capabilities with machine learning-base
 #### Core Features
 
 - **Intelligent Priority Detection**: Automatically classifies messages by urgency and importance
-- **User Trust Tracking**: Maintains trust profiles for users based on interaction history  
+- **User Trust Tracking**: Maintains trust profiles for users based on interaction history
 - **Graph Memory Integration**: Persists filter configuration and learning data
 - **Pattern-Based Updates**: Agent can update filtering rules based on discovered patterns
 - **Multi-Adapter Support**: Works with CLI, Discord, and API adapters
@@ -171,14 +171,14 @@ class AgentConfigService(Service):
         scope: GraphScope = GraphScope.LOCAL
     ) -> bool:
         """Update configuration based on scope (identity changes require WA approval)"""
-        
+
         if scope == GraphScope.IDENTITY:
             # Identity changes require WA approval
             return await self._request_wa_approval(config_type, config_data)
         else:
             # Local changes can be applied immediately
             return await self._apply_local_config(config_type, config_data)
-    
+
     async def _request_wa_approval(self, config_type: ConfigNodeType, changes: Dict[str, Any]) -> bool:
         """Request Wise Authority approval for identity changes"""
         approval_request = {
@@ -188,7 +188,7 @@ class AgentConfigService(Service):
             "current_config": await self._get_current_identity_config(config_type),
             "impact_assessment": await self._assess_change_impact(config_type, changes)
         }
-        
+
         if self.wa_service:
             return await self.wa_service.request_approval(approval_request)
         else:
@@ -266,36 +266,36 @@ class MultiServiceTransactionOrchestrator(Service):
     async def orchestrate(self, tx_id: str, actions: List[ActionMessage]) -> None:
         """Execute actions as atomic transaction with rollback on failure"""
         completed_actions = []
-        
+
         try:
             for action in actions:
                 # Execute action through sink
                 result = await self.sink.enqueue_action(action)
                 completed_actions.append((action, result))
-                
+
                 # Update transaction status
                 self.transactions[tx_id] = {
                     "status": "in_progress",
                     "completed": len(completed_actions),
                     "total": len(actions)
                 }
-            
+
             # Mark transaction as successful
             self.transactions[tx_id]["status"] = "completed"
-            
+
         except Exception as e:
             logger.error(f"Transaction {tx_id} failed: {e}")
-            
+
             # Rollback completed actions
             await self.rollback(tx_id, completed_actions)
-            
+
             self.transactions[tx_id] = {
                 "status": "failed",
                 "error": str(e),
                 "rollback_completed": True
             }
             raise
-    
+
     async def rollback(self, tx_id: str, completed_actions: List[Tuple[ActionMessage, Any]]) -> None:
         """Rollback completed actions in reverse order"""
         for action, result in reversed(completed_actions):
@@ -347,7 +347,7 @@ service_registry.register_service(
     capabilities=["filter_message", "update_user_trust", "get_filter_stats"]
 )
 
-# Register configuration service  
+# Register configuration service
 config_service = AgentConfigService(memory_service, wa_service, filter_service)
 await config_service.start()
 
@@ -377,7 +377,7 @@ service_registry.register_service(
 class ExampleHandler:
     def __init__(self, service_registry: ServiceRegistry):
         self.registry = service_registry
-    
+
     async def process_message(self, message: IncomingMessage):
         # Get filter service
         filter_service = await self.registry.get_service(
@@ -385,11 +385,11 @@ class ExampleHandler:
             service_type="filter",
             required_capabilities=["filter_message"]
         )
-        
+
         if filter_service:
             # Apply filtering
             filter_result = await filter_service.filter_message(message)
-            
+
             if filter_result.should_process:
                 # Get config service for processing parameters
                 config_service = await self.registry.get_service(
@@ -397,12 +397,12 @@ class ExampleHandler:
                     service_type="config",
                     required_capabilities=["get_config"]
                 )
-                
+
                 if config_service:
                     processing_config = await config_service.get_config(
                         ConfigNodeType.PROCESSING_CONFIG
                     )
-                    
+
                     # Process message with configuration
                     await self._process_with_config(message, processing_config)
 ```
@@ -420,16 +420,16 @@ class ServiceIntegratedHandler:
     def __init__(self, service_registry: ServiceRegistry, multi_service_sink: MultiServiceActionSink):
         self.registry = service_registry
         self.sink = multi_service_sink
-    
+
     async def handle_complex_workflow(self, user_request: str):
         # Step 1: Filter and prioritize request
         filter_service = await self.registry.get_service("Handler", "filter")
         filter_result = await filter_service.filter_message(user_request)
-        
+
         if filter_result.priority == FilterPriority.HIGH:
             # Step 2: Create transaction for high-priority workflow
             orchestrator = await self.registry.get_service("Handler", "transaction_orchestrator")
-            
+
             workflow_actions = [
                 # Memory operation
                 ActionMessage(
@@ -450,7 +450,7 @@ class ServiceIntegratedHandler:
                     context={"user_priority": "high", "processing_mode": "immediate"}
                 )
             ]
-            
+
             # Execute as coordinated transaction
             await orchestrator.orchestrate(f"priority_workflow_{datetime.now().timestamp()}", workflow_actions)
 ```
@@ -464,31 +464,31 @@ class ServiceIntegratedHandler:
 class ServiceHealthMonitor:
     def __init__(self, service_registry: ServiceRegistry):
         self.registry = service_registry
-    
+
     async def check_service_health(self) -> Dict[str, Any]:
         health_report = {}
-        
+
         # Check filter service health
         filter_service = await self.registry.get_service("Monitor", "filter")
         if filter_service and hasattr(filter_service, 'get_health_status'):
             health_report["filter"] = await filter_service.get_health_status()
-        
-        # Check config service health  
+
+        # Check config service health
         config_service = await self.registry.get_service("Monitor", "config")
         if config_service and hasattr(config_service, 'is_healthy'):
             health_report["config"] = await config_service.is_healthy()
-        
+
         # Check orchestrator health
         orchestrator = await self.registry.get_service("Monitor", "transaction_orchestrator")
         if orchestrator:
             health_report["orchestrator"] = {
                 "active_transactions": len(orchestrator.transactions),
                 "failed_transactions": sum(
-                    1 for tx in orchestrator.transactions.values() 
+                    1 for tx in orchestrator.transactions.values()
                     if tx.get("status") == "failed"
                 )
             }
-        
+
         return health_report
 ```
 
@@ -501,23 +501,23 @@ class OptimizedServiceUsage:
         self.registry = service_registry
         self._service_cache = {}
         self._cache_ttl = 300  # 5 minutes
-    
+
     async def get_cached_service(self, service_type: str, handler: str = "Default"):
         """Get service with caching to reduce registry lookups"""
         cache_key = f"{handler}:{service_type}"
-        
+
         if cache_key in self._service_cache:
             cached_entry = self._service_cache[cache_key]
             if (datetime.now() - cached_entry["timestamp"]).seconds < self._cache_ttl:
                 return cached_entry["service"]
-        
+
         # Cache miss - fetch from registry
         service = await self.registry.get_service(handler, service_type)
         self._service_cache[cache_key] = {
             "service": service,
             "timestamp": datetime.now()
         }
-        
+
         return service
 ```
 
@@ -531,7 +531,7 @@ class OptimizedServiceUsage:
 # Robust service initialization with fallbacks
 async def initialize_services_with_fallbacks(memory_service, llm_service=None):
     services = {}
-    
+
     try:
         # Initialize filter service
         filter_service = AdaptiveFilterService(memory_service, llm_service)
@@ -542,7 +542,7 @@ async def initialize_services_with_fallbacks(memory_service, llm_service=None):
         logger.error(f"Filter service initialization failed: {e}")
         # Create fallback filter service with basic functionality
         services["filter"] = BasicFilterService()
-    
+
     try:
         # Initialize config service
         config_service = AgentConfigService(memory_service)
@@ -553,7 +553,7 @@ async def initialize_services_with_fallbacks(memory_service, llm_service=None):
         logger.error(f"Config service initialization failed: {e}")
         # Use static configuration as fallback
         services["config"] = StaticConfigService()
-    
+
     return services
 ```
 
@@ -566,7 +566,7 @@ class ResilientMemoryIntegration:
         self.memory = memory_service
         self._connection_retries = 3
         self._retry_delay = 1.0
-    
+
     async def safe_memory_operation(self, operation_func, *args, **kwargs):
         """Execute memory operation with retry logic"""
         for attempt in range(self._connection_retries):
@@ -590,26 +590,26 @@ class ResilientMemoryIntegration:
 # Validate service configurations
 def validate_service_config(config: Dict[str, Any], service_type: str) -> bool:
     """Validate service configuration before initialization"""
-    
+
     required_fields = {
         "filter": ["enabled", "learning_rate", "priority_keywords"],
         "config": ["cache_ttl_minutes", "scope_map"],
         "orchestrator": ["max_concurrent_transactions", "rollback_timeout"]
     }
-    
+
     if service_type not in required_fields:
         logger.warning(f"Unknown service type for validation: {service_type}")
         return True
-    
+
     missing_fields = []
     for field in required_fields[service_type]:
         if field not in config:
             missing_fields.append(field)
-    
+
     if missing_fields:
         logger.error(f"Missing required configuration fields for {service_type}: {missing_fields}")
         return False
-    
+
     return True
 ```
 

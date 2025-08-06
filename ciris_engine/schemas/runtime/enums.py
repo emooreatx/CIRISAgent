@@ -3,12 +3,15 @@ Core enums for CIRIS Trinity Architecture.
 
 All enums are case-insensitive for robustness.
 """
+
 from enum import Enum
+
 
 class CaseInsensitiveEnum(str, Enum):
     """Enum that allows case-insensitive value lookup."""
+
     @classmethod
-    def _missing_(cls, value: object) -> 'CaseInsensitiveEnum | None':
+    def _missing_(cls, value: object) -> "CaseInsensitiveEnum | None":
         if isinstance(value, str):
             lowered = value.lower()
             for member in cls:
@@ -16,8 +19,10 @@ class CaseInsensitiveEnum(str, Enum):
                     return member
         return None
 
+
 class ServiceType(CaseInsensitiveEnum):
     """Core service types in the Trinity Architecture."""
+
     # Core services
     COMMUNICATION = "communication"
     TOOL = "tool"
@@ -38,12 +43,14 @@ class ServiceType(CaseInsensitiveEnum):
     SHUTDOWN = "shutdown"
     INITIALIZATION = "initialization"
     VISIBILITY = "visibility"
-    
+
     # Adapter services
     ADAPTER = "adapter"
 
+
 class HandlerActionType(CaseInsensitiveEnum):
     """Core 3×3×3 action model + terminal."""
+
     # External actions
     OBSERVE = "observe"
     SPEAK = "speak"
@@ -62,8 +69,10 @@ class HandlerActionType(CaseInsensitiveEnum):
     # Terminal action
     TASK_COMPLETE = "task_complete"
 
+
 class TaskStatus(CaseInsensitiveEnum):
     """Status of a task in the system."""
+
     PENDING = "pending"
     ACTIVE = "active"
     COMPLETED = "completed"
@@ -71,16 +80,20 @@ class TaskStatus(CaseInsensitiveEnum):
     DEFERRED = "deferred"
     REJECTED = "rejected"
 
+
 class ThoughtStatus(CaseInsensitiveEnum):
     """Status of a thought being processed."""
+
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
     DEFERRED = "deferred"
 
+
 class ThoughtType(CaseInsensitiveEnum):
     """Types of thoughts for different processing needs."""
+
     # Core thought types
     STANDARD = "standard"
     FOLLOW_UP = "follow_up"
@@ -121,20 +134,25 @@ class ThoughtType(CaseInsensitiveEnum):
     PATTERN = "pattern"
     ADAPTATION = "adaptation"
 
+
 class SensitivityLevel(CaseInsensitiveEnum):
     """Security sensitivity levels."""
+
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
 
+
 class ObservationSourceType(CaseInsensitiveEnum):
     """Types of observation sources."""
+
     CHAT_MESSAGE = "chat_message"
     FEEDBACK_PACKAGE = "feedback_package"
     USER_REQUEST = "user_request"
     AGENT_MESSAGE = "agent_message"
     INTERNAL_SIGNAL = "internal_signal"
+
 
 __all__ = [
     "CaseInsensitiveEnum",

@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS service_correlations (
     status TEXT NOT NULL DEFAULT 'pending',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
+
     -- TSDB fields for unified telemetry storage
     correlation_type TEXT NOT NULL DEFAULT 'service_interaction',
     timestamp TEXT, -- ISO8601 timestamp for time queries
@@ -133,19 +133,19 @@ CREATE TABLE IF NOT EXISTS audit_log (
     event_type TEXT NOT NULL,
     originator_id TEXT NOT NULL,
     event_payload TEXT,                         -- JSON payload
-    
+
     -- Hash chain fields
     sequence_number INTEGER NOT NULL,           -- Monotonic counter
     previous_hash TEXT NOT NULL,                -- SHA-256 of previous entry
     entry_hash TEXT NOT NULL,                   -- SHA-256 of this entry's content
-    
+
     -- Signature fields
     signature TEXT NOT NULL,                    -- Base64 encoded signature
     signing_key_id TEXT NOT NULL,               -- Key used to sign
-    
+
     -- Indexing
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    
+
     -- Constraints
     UNIQUE(sequence_number),
     CHECK(sequence_number > 0)
@@ -165,7 +165,7 @@ CREATE TABLE IF NOT EXISTS audit_roots (
     root_hash TEXT NOT NULL,                    -- Merkle root of entries
     timestamp TEXT NOT NULL,
     external_anchor TEXT,                       -- External timestamp proof
-    
+
     UNIQUE(sequence_start, sequence_end)
 );
 
@@ -180,12 +180,12 @@ CREATE TABLE IF NOT EXISTS audit_signing_keys (
     key_size INTEGER NOT NULL DEFAULT 2048,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     revoked_at TEXT,                           -- NULL if active
-    
+
     CHECK(algorithm IN ('rsa-pss', 'ed25519'))
 );
 
 -- Create index for active key lookup
-CREATE INDEX IF NOT EXISTS idx_audit_keys_active ON audit_signing_keys(created_at) 
+CREATE INDEX IF NOT EXISTS idx_audit_keys_active ON audit_signing_keys(created_at)
 WHERE revoked_at IS NULL;
 
 -- WA certificate table
@@ -209,7 +209,7 @@ CREATE TABLE IF NOT EXISTS wa_cert (
   created            TEXT NOT NULL,
   last_login         TEXT,
   active             INTEGER DEFAULT 1,
-  
+
   -- Foreign key constraints
   FOREIGN KEY (parent_wa_id) REFERENCES wa_cert(wa_id)
 );
@@ -224,25 +224,25 @@ CREATE TABLE IF NOT EXISTS scheduled_tasks (
     name TEXT NOT NULL,
     goal_description TEXT NOT NULL,
     status TEXT NOT NULL CHECK(status IN ('PENDING', 'ACTIVE', 'COMPLETE', 'FAILED')),
-    
+
     -- Scheduling (integrates with time-based DEFER)
     defer_until TEXT,  -- ISO 8601 timestamp for one-time execution
     schedule_cron TEXT,  -- Cron expression for recurring tasks
-    
+
     -- Execution details
     trigger_prompt TEXT NOT NULL,
     origin_thought_id TEXT NOT NULL,
     created_at TEXT NOT NULL,
     last_triggered_at TEXT,
     next_trigger_at TEXT,  -- Computed next execution time
-    
+
     -- Self-deferral tracking
     deferral_count INTEGER DEFAULT 0,
     deferral_history TEXT,  -- JSON array of deferral records
-    
+
     -- Indexes for efficient querying
     created_by_agent TEXT,  -- Agent that created this task
-    
+
     FOREIGN KEY (origin_thought_id) REFERENCES thoughts(thought_id)
 );
 
@@ -254,24 +254,24 @@ CREATE INDEX idx_scheduled_tasks_agent ON scheduled_tasks(created_by_agent);
 CREATE TABLE IF NOT EXISTS creation_ceremonies (
     ceremony_id TEXT PRIMARY KEY,
     timestamp TEXT NOT NULL,
-    
+
     -- Participants
     creator_agent_id TEXT NOT NULL,
     creator_human_id TEXT NOT NULL,
     wise_authority_id TEXT NOT NULL,
-    
+
     -- New agent details
     new_agent_id TEXT NOT NULL,
     new_agent_name TEXT NOT NULL,
     new_agent_purpose TEXT NOT NULL,
     new_agent_description TEXT,
-    
+
     -- Ceremony record
     creation_justification TEXT NOT NULL,
     expected_capabilities TEXT,  -- JSON array
     ethical_considerations TEXT NOT NULL,
     template_profile_hash TEXT,
-    
+
     -- Result
     ceremony_status TEXT NOT NULL
 );
@@ -285,24 +285,24 @@ CREATE TABLE IF NOT EXISTS consciousness_preservation (
     id TEXT PRIMARY KEY,
     agent_id TEXT NOT NULL,
     shutdown_timestamp TEXT NOT NULL,
-    
+
     -- Shutdown context
     is_terminal BOOLEAN NOT NULL,
     shutdown_reason TEXT NOT NULL,
     expected_reactivation TEXT,
     initiated_by TEXT NOT NULL,
-    
+
     -- Agent's final state
     final_thoughts TEXT NOT NULL,
     unfinished_tasks TEXT,  -- JSON array of task IDs
     reactivation_instructions TEXT,
     deferred_goals TEXT,  -- JSON array of goals
-    
+
     -- Continuity
     preservation_node_id TEXT NOT NULL,  -- Graph node ID for the memory
     preservation_scope TEXT NOT NULL DEFAULT 'IDENTITY',  -- Graph node scope
     reactivation_count INTEGER DEFAULT 0,
-    
+
     FOREIGN KEY (preservation_node_id, preservation_scope) REFERENCES graph_nodes(node_id, scope)
 );
 
@@ -311,7 +311,7 @@ CREATE INDEX idx_preservation_timestamp ON consciousness_preservation(shutdown_t
 
 -- View for active scheduled tasks (for scheduler service)
 CREATE VIEW IF NOT EXISTS active_scheduled_tasks AS
-SELECT 
+SELECT
     st.*,
     t.content as thought_content,
     t.task_id as associated_task_id
@@ -323,7 +323,7 @@ ORDER BY st.next_trigger_at ASC;
 
 -- View for agent lineage tracking
 CREATE VIEW IF NOT EXISTS agent_lineage AS
-SELECT 
+SELECT
     cc.new_agent_id,
     cc.new_agent_name,
     cc.creator_agent_id,

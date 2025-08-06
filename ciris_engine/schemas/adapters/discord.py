@@ -1,12 +1,15 @@
 """Discord adapter specific schemas."""
-from typing import Optional, List, Union, Literal
+
 from datetime import datetime
-from pydantic import BaseModel, Field
 from enum import Enum
+from typing import List, Literal, Optional, Union
+
+from pydantic import BaseModel, Field
 
 
 class DiscordMessageData(BaseModel):
     """Schema for Discord message data."""
+
     id: str = Field(..., description="Message ID")
     author_id: str = Field(..., description="Author Discord ID")
     author_name: str = Field(..., description="Author display name")
@@ -18,6 +21,7 @@ class DiscordMessageData(BaseModel):
 
 class DiscordGuidanceData(BaseModel):
     """Schema for guidance request data."""
+
     deferral_id: str = Field(..., description="Deferral ID")
     task_id: str = Field(..., description="Task ID")
     thought_id: str = Field(..., description="Thought ID")
@@ -28,6 +32,7 @@ class DiscordGuidanceData(BaseModel):
 
 class DiscordApprovalData(BaseModel):
     """Schema for approval request data."""
+
     action: str = Field(..., description="Action requiring approval")
     task_id: Optional[str] = Field(None, description="Task ID")
     thought_id: Optional[str] = Field(None, description="Thought ID")
@@ -39,6 +44,7 @@ class DiscordApprovalData(BaseModel):
 
 class DiscordToolResult(BaseModel):
     """Schema for tool execution results in Discord context."""
+
     success: bool = Field(..., description="Whether execution succeeded")
     output: Optional[str] = Field(None, description="Tool output")
     error: Optional[str] = Field(None, description="Error message if failed")
@@ -48,6 +54,7 @@ class DiscordToolResult(BaseModel):
 
 class DiscordTaskData(BaseModel):
     """Schema for task status data."""
+
     id: str = Field(..., description="Task ID")
     status: Literal["pending", "in_progress", "completed", "failed", "deferred"] = Field(..., description="Task status")
     description: Optional[str] = Field(None, description="Task description")
@@ -59,6 +66,7 @@ class DiscordTaskData(BaseModel):
 
 class DiscordAuditData(BaseModel):
     """Schema for audit log entries."""
+
     action: str = Field(..., description="Action performed")
     actor: str = Field(..., description="Who performed the action")
     service: str = Field(..., description="Service that performed action")
@@ -69,6 +77,7 @@ class DiscordAuditData(BaseModel):
 
 class ErrorSeverity(str, Enum):
     """Error severity levels."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -77,6 +86,7 @@ class ErrorSeverity(str, Enum):
 
 class DiscordErrorInfo(BaseModel):
     """Schema for error information."""
+
     severity: ErrorSeverity = Field(..., description="Error severity")
     message: str = Field(..., description="Error message")
     error_type: str = Field(..., description="Exception type name")
@@ -92,6 +102,7 @@ class DiscordErrorInfo(BaseModel):
 
 class DiscordChannelInfo(BaseModel):
     """Schema for Discord channel information."""
+
     channel_id: str = Field(..., description="Discord channel ID")
     channel_name: Optional[str] = Field(None, description="Channel display name")
     channel_type: Literal["discord"] = Field(default="discord", description="Channel type")
@@ -109,5 +120,6 @@ class DiscordChannelInfo(BaseModel):
 
 class DiscordGuildInfo(BaseModel):
     """Schema for guild information."""
+
     id: str = Field(..., description="Guild ID")
     name: str = Field(..., description="Guild name")

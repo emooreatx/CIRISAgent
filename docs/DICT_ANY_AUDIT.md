@@ -18,9 +18,9 @@ The claim of "zero Dict[str, Any] in production code" is incorrect. However, mos
 **Justification**: This service deals with compressing and consolidating time-series data of varying structures, making typed schemas challenging.
 
 ### 2. Adapters (28 occurrences)
-**Locations**: 
+**Locations**:
 - `adapters/discord/`: Thread metadata, audit contexts, tool handlers
-- `adapters/api/`: WebSocket clients, route configurations  
+- `adapters/api/`: WebSocket clients, route configurations
 - `adapters/cli/`: Message fetching, channel lists
 - `adapters/base_adapter.py`: Channel list interface
 
@@ -111,7 +111,7 @@ Dynamic system state snapshots.
 ```python
 # Common patterns to replace
 ChannelInfo = BaseModel
-MessageData = BaseModel  
+MessageData = BaseModel
 ToolSchema = BaseModel
 ConfigSection = BaseModel
 ```
@@ -132,7 +132,7 @@ ConfigSection = BaseModel
 
 ### ✅ ZERO Dict[str, Any] in:
 - **All Handlers** (0 occurrences)
-- **All Processors** (0 occurrences)  
+- **All Processors** (0 occurrences)
 - **Core Services** (only 1 comment about avoiding it)
 - **Memory Service** (fully typed with GraphNode)
 - **All Handler Protocols** (fully typed)

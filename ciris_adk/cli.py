@@ -15,7 +15,9 @@ def init_adapter(name: str) -> None:
     path.write_text(
         '"""Auto-generated adapter stub."""\n'
         "from ciris_adk import ToolService\n\n"
-        "class {class_name}(ToolService):\n    async def list_tools(self) -> list[str]:\n        return []\n\n    async def call_tool(self, name: str, *, arguments: dict | None = None, timeout: float | None = None) -> dict:\n        return {{}}\n".format(class_name=name.title().replace("_", ""))
+        "class {class_name}(ToolService):\n    async def list_tools(self) -> list[str]:\n        return []\n\n    async def call_tool(self, name: str, *, arguments: dict | None = None, timeout: float | None = None) -> dict:\n        return {{}}\n".format(
+            class_name=name.title().replace("_", "")
+        )
     )
     print(f"Created {path}")
 
@@ -30,7 +32,9 @@ def init_wa(name: str) -> None:
         "from ciris_adk import WiseAuthorityService\n\n"
         "class {class_name}(WiseAuthorityService):\n"
         "    async def fetch_guidance(self, context: dict) -> str | None:\n        return None\n\n"
-        "    async def send_deferral(self, thought_id: str, reason: str) -> bool:\n        return False\n".format(class_name=name.title().replace("_", ""))
+        "    async def send_deferral(self, thought_id: str, reason: str) -> bool:\n        return False\n".format(
+            class_name=name.title().replace("_", "")
+        )
     )
     print(f"Created {path}")
 
@@ -62,4 +66,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
-

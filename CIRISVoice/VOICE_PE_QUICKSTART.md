@@ -107,12 +107,12 @@ Stand near your Voice PE puck:
 
 ### Configuration Checklist
 
-✅ Wyoming Bridge running on port 10300  
-✅ CIRIS API URL is correct  
-✅ API timeout set to 58 seconds  
-✅ Pipeline timeout set to 60 seconds  
-✅ Voice PE assigned to CIRIS pipeline  
-✅ Wake word enabled ("OK Nabu")  
+✅ Wyoming Bridge running on port 10300
+✅ CIRIS API URL is correct
+✅ API timeout set to 58 seconds
+✅ Pipeline timeout set to 60 seconds
+✅ Voice PE assigned to CIRIS pipeline
+✅ Wake word enabled ("OK Nabu")
 
 ### Next Steps
 

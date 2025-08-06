@@ -6,7 +6,7 @@ This document outlines the progressive deployment path for CIRIS, from simple co
 
 **Status**: Active pilot deployment
 
-**Use Case**: 
+**Use Case**:
 - Spam detection and removal
 - Community guideline enforcement
 - Positive interaction encouragement

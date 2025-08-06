@@ -21,17 +21,17 @@ from ciris_sdk.client import CIRISClient
 async with CIRISClient(base_url="http://localhost:8080") as client:
     # List all configs
     configs = await client.config.list_configs()
-    
+
     # Get specific config
     value = await client.config.get_config("llm.model")
-    
+
     # Set config
     result = await client.config.set_config(
         key="app.feature_flag",
         value=True,
         description="Enable new feature"
     )
-    
+
     # Delete config
     result = await client.config.delete_config("app.old_setting")
 ```

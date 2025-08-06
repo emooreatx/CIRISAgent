@@ -26,7 +26,7 @@ await runtime_control.single_step()           # Debug single execution step
 await runtime_control.pause_processing()      # Pause for debugging
 await runtime_control.resume_processing()     # Resume normal operation
 
-# Adapter Management  
+# Adapter Management
 await runtime_control.load_adapter(           # Hot-load new adapter
     "discord", "bot_prod", {"token": "...", "home_channel": "general"}
 )
@@ -39,7 +39,7 @@ await runtime_control.update_config(          # Live config updates
 # Profile switching removed - identity is now graph-based
 ```
 
-### RuntimeAdapterManager  
+### RuntimeAdapterManager
 **Location**: `adapter_manager.py`
 
 Manages the lifecycle of platform adapters with support for multiple instances of the same adapter type.
@@ -88,7 +88,7 @@ Adapters can be loaded and unloaded dynamically:
 # Load new Discord adapter at runtime
 result = await runtime_control.load_adapter(
     adapter_type="discord",
-    adapter_id="discord_admin", 
+    adapter_id="discord_admin",
     config={
         "token": "admin_bot_token",
         "home_channel": "admin-alerts"
@@ -101,7 +101,7 @@ result = await runtime_control.load_adapter(
 Three configuration scopes for different persistence levels:
 
 - **`runtime`**: Changes only affect current session (not persisted)
-- **`session`**: Changes persist until restart  
+- **`session`**: Changes persist until restart
 - **`persistent`**: Changes are written to configuration files
 
 ### 4. Comprehensive Auditing
@@ -133,15 +133,15 @@ Update Discord bot configuration without restart:
 ```python
 # Update home channel
 await runtime_control.update_config(
-    "discord.home_channel", 
-    "new-general", 
+    "discord.home_channel",
+    "new-general",
     ConfigScope.SESSION
 )
 
 # Reload Discord adapter with new config
 await runtime_control.unload_adapter("discord_main")
 await runtime_control.load_adapter(
-    "discord", "discord_main", 
+    "discord", "discord_main",
     {"home_channel": "new-general"}
 )
 ```
@@ -178,7 +178,7 @@ Agent identity management:
 The following runtime classes are deprecated in favor of the unified `CIRISRuntime`:
 
 - **DiscordRuntime** → Use `CIRISRuntime(modes=["discord"])`
-- **CLIRuntime** → Use `CIRISRuntime(modes=["cli"])`  
+- **CLIRuntime** → Use `CIRISRuntime(modes=["cli"])`
 - **APIRuntimeEntrypoint** → Use `CIRISRuntime(modes=["api"])`
 
 **Migration Path**:
@@ -187,7 +187,7 @@ The following runtime classes are deprecated in favor of the unified `CIRISRunti
 from ciris_engine.runtime.discord_runtime import DiscordRuntime
 runtime = DiscordRuntime(...)
 
-# New approach  
+# New approach
 from ciris_engine.runtime.ciris_runtime import CIRISRuntime
 runtime = CIRISRuntime(modes=["discord"], ...)
 ```
@@ -298,7 +298,7 @@ Strict validation prevents invalid or dangerous configurations.
 
 The runtime system is fully integrated with the CIRIS API:
 
-- **Runtime Control Endpoints**: `/v1/runtime/*` 
+- **Runtime Control Endpoints**: `/v1/runtime/*`
 - **System Telemetry**: `/v1/system/*`
 - **Adapter Management**: Dynamic loading via API
 - **Configuration Updates**: Live config changes via API
@@ -317,12 +317,12 @@ runtime = CIRISRuntime(
 )
 ```
 
-### 2. Development Setup  
+### 2. Development Setup
 ```python
 # Development with debugging
 runtime = CIRISRuntime(
     modes=["cli", "api"],  # Local CLI + API access
-    agent_identity="development",  # From graph 
+    agent_identity="development",  # From graph
     debug=True
 )
 ```
@@ -331,7 +331,7 @@ runtime = CIRISRuntime(
 ```python
 # Multiple Discord bots
 await runtime_control.load_adapter(
-    "discord", "main_bot", 
+    "discord", "main_bot",
     {"token": "main_token", "home_channel": "general"}
 )
 await runtime_control.load_adapter(
@@ -344,13 +344,13 @@ await runtime_control.load_adapter(
 ```python
 # Always backup before major changes
 await runtime_control.backup_config(
-    include_settings=True,  # Profiles removed 
+    include_settings=True,  # Profiles removed
     backup_name="pre_update"
 )
 
 # Make changes with validation
 await runtime_control.update_config(
-    "path.to.setting", new_value, 
+    "path.to.setting", new_value,
     validation_level=ConfigValidationLevel.STRICT
 )
 ```

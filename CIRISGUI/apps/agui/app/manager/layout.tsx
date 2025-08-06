@@ -31,16 +31,16 @@ export default function ManagerLayout({ children }: ManagerLayoutProps) {
                 <span className="ml-2 text-xl font-semibold">CIRIS Manager</span>
               </Link>
             </div>
-            
+
             <div className="flex items-center space-x-4">
-              <Link 
-                href="/manager" 
+              <Link
+                href="/manager"
                 className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
               >
                 Manager Dashboard
               </Link>
-              <Link 
-                href="/" 
+              <Link
+                href="/"
                 className="text-gray-700 hover:text-gray-900 px-3 py-2 rounded-md text-sm font-medium"
               >
                 Agent Interface

@@ -4,9 +4,9 @@ const axios = require('axios');
 async function simulateOAuthFlow() {
   const API_URL = 'http://localhost:8080';
   const GUI_URL = 'http://localhost:3000';
-  
+
   console.log('=== Simulating Full OAuth Permission Flow ===\n');
-  
+
   try {
     // 1. First, let's check if we can simulate an OAuth user
     console.log('1. Checking OAuth providers...');
@@ -47,7 +47,7 @@ async function simulateOAuthFlow() {
 
     // 4. Test the permission request flow with different scenarios
     console.log('\n4. Testing different permission scenarios...');
-    
+
     // Test Case A: User without token
     console.log('\n   A. No authentication:');
     try {
@@ -75,7 +75,7 @@ async function simulateOAuthFlow() {
 
     // 5. Test GUI error handling
     console.log('\n5. Testing GUI error handling...');
-    
+
     // Check if PermissionRequest component renders
     console.log('   - PermissionRequest component: ✓ Implemented');
     console.log('   - Discord invite link: ✓ https://discord.gg/4PRs9TJj');
@@ -84,13 +84,13 @@ async function simulateOAuthFlow() {
 
     // 6. Test permission request management
     console.log('\n6. Testing permission request management...');
-    
+
     // Get current permission requests
     const requestsResponse = await axios.get(`${API_URL}/v1/users/permission-requests`, {
       headers: { 'Authorization': `Bearer ${adminToken}` }
     });
     console.log(`   - Current permission requests: ${requestsResponse.data.length}`);
-    
+
     if (requestsResponse.data.length > 0) {
       const firstRequest = requestsResponse.data[0];
       console.log('\n   Sample request:');
@@ -105,12 +105,12 @@ async function simulateOAuthFlow() {
     const usersResponse = await axios.get(`${API_URL}/v1/users`, {
       headers: { 'Authorization': `Bearer ${adminToken}` }
     });
-    
+
     const allUsers = usersResponse.data.items || [];
     const oauthUsers = allUsers.filter(u => u.auth_type === 'oauth');
     const oauthObservers = oauthUsers.filter(u => u.api_role === 'OBSERVER');
     const oauthWithPerms = oauthUsers.filter(u => u.api_role !== 'OBSERVER');
-    
+
     console.log(`   - Total users: ${allUsers.length}`);
     console.log(`   - OAuth users: ${oauthUsers.length}`);
     console.log(`   - OAuth observers (hidden): ${oauthObservers.length}`);
@@ -123,7 +123,7 @@ async function simulateOAuthFlow() {
     console.log('✅ Users page filters out OAuth observers');
     console.log('✅ Permission Requests tab shows pending requests');
     console.log('✅ Admin can grant permissions from GUI');
-    
+
     console.log('\n📝 Manual Testing Checklist:');
     console.log('[ ] Login to GUI as admin');
     console.log('[ ] Check Users page - verify no OAuth observers shown');

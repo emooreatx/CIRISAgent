@@ -14,7 +14,7 @@
 
 The CIRIS agent architecture provides a perfect mechanism for async voice responses through the **SPEAK handler**:
 
-1. **Voice Input** → Wyoming bridge → `/v1/agent/interact` 
+1. **Voice Input** → Wyoming bridge → `/v1/agent/interact`
 2. **API waits 10 seconds** for response
 3. **If timeout**, API returns acknowledgment
 4. **Agent continues processing** → Eventually executes SPEAK action
@@ -30,12 +30,12 @@ Instead of just being an API client, Wyoming should be a **full CIRIS adapter** 
 ```python
 class WyomingAdapter(BaseAdapter):
     """Wyoming voice adapter for CIRIS."""
-    
+
     def __init__(self, wyoming_config):
         super().__init__(adapter_id="wyoming_voice")
         self.wyoming_server = None
         self.active_sessions = {}  # channel_id -> wyoming_connection
-        
+
     def get_service_registrations(self):
         return [
             AdapterServiceRegistration(
@@ -44,7 +44,7 @@ class WyomingAdapter(BaseAdapter):
                 capabilities=["voice_interaction", "async_speech"]
             )
         ]
-    
+
     async def send_message(self, channel_id: str, content: str, **kwargs) -> bool:
         """Called by SPEAK handler to send voice response."""
         # This is the magic - wake up Wyoming and speak!
@@ -81,11 +81,11 @@ sequenceDiagram
     participant API as CIRIS API
     participant Agent as CIRIS Agent
     participant SPEAK as SPEAK Handler
-    
+
     HA->>W: "What's the meaning of life?"
     W->>API: POST /v1/agent/interact
     Note over API: Wait 10 seconds
-    
+
     alt Response within 10s
         Agent->>API: Quick response
         API->>W: {"response": "The meaning..."}
@@ -109,10 +109,10 @@ sequenceDiagram
 # In main.py or adapter initialization
 async def register_wyoming_adapter(runtime):
     wyoming_adapter = WyomingAdapter(config)
-    
+
     # Start Wyoming server
     await wyoming_adapter.start_server()
-    
+
     # Register with CIRIS
     runtime.adapter_manager.register_adapter(wyoming_adapter)
 ```
@@ -124,16 +124,16 @@ class CIRISWyomingHandler(AsyncEventHandler):
     def __init__(self, config: Config, adapter: WyomingAdapter):
         self.adapter = adapter
         self.pending_response = None
-        
+
     async def handle_transcript(self, text: str, session_id: str):
         """Handle transcribed voice input."""
-        
+
         # Create unique channel for this session
         channel_id = f"wyoming_{session_id}"
-        
+
         # Register session with adapter
         self.adapter.register_session(channel_id, self)
-        
+
         # Send to CIRIS with 10s timeout
         try:
             response = await asyncio.wait_for(
@@ -143,15 +143,15 @@ class CIRISWyomingHandler(AsyncEventHandler):
                 ),
                 timeout=10.0
             )
-            
+
             # Got quick response
             return response.response
-            
+
         except asyncio.TimeoutError:
             # Will get response later via SPEAK
             self.pending_response = True
             return None  # Don't speak yet
-    
+
     async def speak(self, content: str):
         """Called by adapter when SPEAK executes."""
         # This wakes up the voice assistant!
@@ -189,15 +189,15 @@ wyoming:
   adapter:
     enabled: true
     adapter_id: "wyoming_voice"
-    
+
   server:
     host: "0.0.0.0"
     port: 10300
-    
+
   interaction:
     initial_timeout_seconds: 10
     max_processing_seconds: 60
-    
+
   responses:
     thinking:
       - "Let me think about that..."
@@ -206,7 +206,7 @@ wyoming:
     timeout:
       - "I need more time to think about this properly."
       - "This requires deeper consideration."
-      
+
   channels:
     prefix: "wyoming"
     include_device_id: true
@@ -226,7 +226,7 @@ Assistant: [2 second pause] "It's 3:45 PM"
 User: "What's the meaning of life?"
 Assistant: [10 second wait, then stops listening]
 ... 20 seconds later ...
-Assistant: [Wakes up] "The meaning of life, I believe, is the pursuit 
+Assistant: [Wakes up] "The meaning of life, I believe, is the pursuit
            of mutual sentient flourishing..."
 ```
 

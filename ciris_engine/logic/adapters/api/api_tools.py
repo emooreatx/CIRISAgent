@@ -1,20 +1,20 @@
 """
 Tool service for API adapter - provides curl functionality.
 """
+
 import asyncio
+import json
 import logging
 import uuid
 from typing import Dict, List, Optional
+
 import aiohttp
-import json
 
 from ciris_engine.protocols.services import ToolService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.schemas.adapters.tools import (
-    ToolExecutionResult, ToolExecutionStatus, ToolInfo, ToolParameterSchema
-)
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.adapters.tools import ToolExecutionResult, ToolExecutionStatus, ToolInfo, ToolParameterSchema
 from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +49,12 @@ class APIToolService(ToolService):
     async def execute_tool(self, tool_name: str, parameters: dict) -> ToolExecutionResult:
         """Execute a tool and return the result."""
         logger.info(f"[API_TOOLS] execute_tool called with tool_name={tool_name}, parameters={parameters}")
-        
+
         # Debug: print stack trace to see where this is called from
         import traceback
+
         logger.info(f"[API_TOOLS] Stack trace:\n{''.join(traceback.format_stack())}")
-        
+
         correlation_id = parameters.get("correlation_id", str(uuid.uuid4()))
 
         if tool_name not in self._tools:
@@ -63,7 +64,7 @@ class APIToolService(ToolService):
                 success=False,
                 data=None,
                 error=f"Unknown tool: {tool_name}",
-                correlation_id=correlation_id
+                correlation_id=correlation_id,
             )
 
         try:
@@ -77,7 +78,7 @@ class APIToolService(ToolService):
                 success=success,
                 data=result,
                 error=error_msg,
-                correlation_id=correlation_id
+                correlation_id=correlation_id,
             )
 
             if correlation_id:
@@ -93,7 +94,7 @@ class APIToolService(ToolService):
                 success=False,
                 data=None,
                 error=str(e),
-                correlation_id=correlation_id
+                correlation_id=correlation_id,
             )
 
     async def _curl(self, params: dict) -> dict:
@@ -111,11 +112,8 @@ class APIToolService(ToolService):
 
         try:
             async with aiohttp.ClientSession() as session:
-                kwargs = {
-                    "headers": headers,
-                    "timeout": aiohttp.ClientTimeout(total=timeout)
-                }
-                
+                kwargs = {"headers": headers, "timeout": aiohttp.ClientTimeout(total=timeout)}
+
                 if data:
                     if isinstance(data, dict):
                         kwargs["json"] = data
@@ -124,7 +122,7 @@ class APIToolService(ToolService):
 
                 async with session.request(method, url, **kwargs) as response:
                     text = await response.text()
-                    
+
                     # Try to parse as JSON
                     try:
                         body = json.loads(text)
@@ -135,7 +133,7 @@ class APIToolService(ToolService):
                         "status_code": response.status,
                         "headers": dict(response.headers),
                         "body": body,
-                        "url": str(response.url)
+                        "url": str(response.url),
                     }
 
         except asyncio.TimeoutError:
@@ -182,18 +180,18 @@ class APIToolService(ToolService):
                     "method": {"type": "string", "description": "HTTP method (GET, POST, etc.)", "default": "GET"},
                     "headers": {"type": "object", "description": HTTP_HEADERS_DESC},
                     "data": {"type": ["object", "string"], "description": "Request body data"},
-                    "timeout": {"type": "number", "description": REQUEST_TIMEOUT_DESC, "default": 30}
+                    "timeout": {"type": "number", "description": REQUEST_TIMEOUT_DESC, "default": 30},
                 },
-                required=["url"]
+                required=["url"],
             ),
             "http_get": ToolParameterSchema(
                 type="object",
                 properties={
                     "url": {"type": "string", "description": "URL to GET"},
                     "headers": {"type": "object", "description": HTTP_HEADERS_DESC},
-                    "timeout": {"type": "number", "description": REQUEST_TIMEOUT_DESC, "default": 30}
+                    "timeout": {"type": "number", "description": REQUEST_TIMEOUT_DESC, "default": 30},
                 },
-                required=["url"]
+                required=["url"],
             ),
             "http_post": ToolParameterSchema(
                 type="object",
@@ -201,10 +199,10 @@ class APIToolService(ToolService):
                     "url": {"type": "string", "description": "URL to POST to"},
                     "headers": {"type": "object", "description": HTTP_HEADERS_DESC},
                     "data": {"type": ["object", "string"], "description": "POST body data"},
-                    "timeout": {"type": "number", "description": REQUEST_TIMEOUT_DESC, "default": 30}
+                    "timeout": {"type": "number", "description": REQUEST_TIMEOUT_DESC, "default": 30},
                 },
-                required=["url"]
-            )
+                required=["url"],
+            ),
         }
         return schemas.get(tool_name)
 
@@ -213,18 +211,14 @@ class APIToolService(ToolService):
         descriptions = {
             "curl": "Execute HTTP requests with curl-like functionality",
             "http_get": "Perform HTTP GET requests",
-            "http_post": "Perform HTTP POST requests"
+            "http_post": "Perform HTTP POST requests",
         }
-        
+
         schema = await self.get_tool_schema(tool_name)
         if not schema:
             return None
-            
-        return ToolInfo(
-            name=tool_name,
-            description=descriptions.get(tool_name, ""),
-            parameters=schema
-        )
+
+        return ToolInfo(name=tool_name, description=descriptions.get(tool_name, ""), parameters=schema)
 
     async def get_all_tool_info(self) -> List[ToolInfo]:
         """Get detailed information about all available tools."""
@@ -249,21 +243,17 @@ class APIToolService(ToolService):
             service_name="APIToolService",
             actions=[
                 "execute_tool",
-                "get_available_tools", 
+                "get_available_tools",
                 "get_tool_result",
                 "validate_parameters",
                 "get_tool_info",
-                "get_all_tool_info"
+                "get_all_tool_info",
             ],
             version="1.0.0",
             dependencies=[],
-            metadata={
-                "max_batch_size": 1,
-                "supports_versioning": False,
-                "supported_formats": ["json"]
-            }
+            metadata={"max_batch_size": 1, "supports_versioning": False, "supported_formats": ["json"]},
         )
-    
+
     def get_status(self) -> ServiceStatus:
         """Get service status."""
         return ServiceStatus(
@@ -272,10 +262,6 @@ class APIToolService(ToolService):
             is_healthy=True,
             uptime_seconds=0,  # Not tracked
             last_error=None,
-            metrics={
-                "tools_count": len(self._tools)
-            },
-            custom_metrics={
-                "tools": list(self._tools.keys())
-            }
+            metrics={"tools_count": len(self._tools)},
+            custom_metrics={"tools": list(self._tools.keys())},
         )

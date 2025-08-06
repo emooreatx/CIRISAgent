@@ -14,18 +14,18 @@ STATUS=$(gh run view $RUN_ID --repo $REPO --json status,conclusion,jobs 2>/dev/n
 if [ $? -eq 0 ]; then
     RUN_STATUS=$(echo "$STATUS" | jq -r '.status')
     CONCLUSION=$(echo "$STATUS" | jq -r '.conclusion // "pending"')
-    
+
     echo "Overall Status: $RUN_STATUS"
     echo "Conclusion: $CONCLUSION"
     echo ""
     echo "Jobs:"
     echo "$STATUS" | jq -r '.jobs[] | "  - \(.name): \(.status) (\(.conclusion // "running"))"'
-    
+
     # Check specific job details
     echo ""
     echo "Checking for deployment job..."
     DEPLOY_JOB=$(echo "$STATUS" | jq -r '.jobs[] | select(.name == "Deploy to Production")')
-    
+
     if [ -n "$DEPLOY_JOB" ]; then
         DEPLOY_STATUS=$(echo "$DEPLOY_JOB" | jq -r '.status')
         DEPLOY_CONCLUSION=$(echo "$DEPLOY_JOB" | jq -r '.conclusion // "pending"')
@@ -33,12 +33,12 @@ if [ $? -eq 0 ]; then
     else
         echo "Deploy job not started yet"
     fi
-    
+
     # Show timing
     echo ""
     CREATED_AT=$(gh run view $RUN_ID --repo $REPO --json createdAt --jq '.createdAt')
     echo "Started: $CREATED_AT"
-    
+
     # Calculate duration
     START_TIME=$(date -d "$CREATED_AT" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "$CREATED_AT" +%s 2>/dev/null || echo "0")
     CURRENT_TIME=$(date +%s)

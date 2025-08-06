@@ -3,18 +3,20 @@ Wise Authority message bus - handles all WA service operations
 """
 
 import logging
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from ciris_engine.schemas.runtime.enums import ServiceType
-from ciris_engine.schemas.services.context import GuidanceContext, DeferralContext
 from ciris_engine.protocols.services import WiseAuthorityService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.services.context import DeferralContext, GuidanceContext
+
 from .base_bus import BaseBus, BusMessage
 
 if TYPE_CHECKING:
     from ciris_engine.logic.registries.base import ServiceRegistry
 
 logger = logging.getLogger(__name__)
+
 
 class WiseBus(BaseBus[WiseAuthorityService]):
     """
@@ -26,33 +28,27 @@ class WiseBus(BaseBus[WiseAuthorityService]):
     """
 
     def __init__(self, service_registry: "ServiceRegistry", time_service: TimeServiceProtocol):
-        super().__init__(
-            service_type=ServiceType.WISE_AUTHORITY,
-            service_registry=service_registry
-        )
+        super().__init__(service_type=ServiceType.WISE_AUTHORITY, service_registry=service_registry)
         self._time_service = time_service
 
-    async def send_deferral(
-        self,
-        context: DeferralContext,
-        handler_name: str
-    ) -> bool:
+    async def send_deferral(self, context: DeferralContext, handler_name: str) -> bool:
         """Send a deferral to ALL wise authority services (broadcast)"""
         # Get ALL services with send_deferral capability
         # Since we want to broadcast to all WA services, we need to get them all
         from ciris_engine.schemas.runtime.enums import ServiceType
+
         all_wa_services = self.service_registry.get_services_by_type(ServiceType.WISE_AUTHORITY)
         logger.info(f"Found {len(all_wa_services)} total WiseAuthority services")
-        
+
         # Filter for services with send_deferral capability
         services = []
         for service in all_wa_services:
             logger.debug(f"Checking service {service.__class__.__name__} for send_deferral capability")
             # Check if service has get_capabilities method
-            if hasattr(service, 'get_capabilities'):
+            if hasattr(service, "get_capabilities"):
                 caps = service.get_capabilities()
                 logger.debug(f"Service {service.__class__.__name__} has capabilities: {caps.actions}")
-                if 'send_deferral' in caps.actions:
+                if "send_deferral" in caps.actions:
                     services.append(service)
                     logger.info(f"Adding service {service.__class__.__name__} to deferral broadcast list")
             else:
@@ -73,23 +69,27 @@ class WiseBus(BaseBus[WiseAuthorityService]):
             defer_until = None
             if context.defer_until:
                 # If it's already a datetime, use it directly
-                if hasattr(context.defer_until, 'isoformat'):
+                if hasattr(context.defer_until, "isoformat"):
                     defer_until = context.defer_until
                 else:
                     # Try to parse as string
                     from datetime import datetime
+
                     try:
                         # Handle both 'Z' and '+00:00' formats
                         defer_str = str(context.defer_until)
-                        if defer_str.endswith('Z'):
-                            defer_str = defer_str[:-1] + '+00:00'
+                        if defer_str.endswith("Z"):
+                            defer_str = defer_str[:-1] + "+00:00"
                         defer_until = datetime.fromisoformat(defer_str)
                     except (ValueError, TypeError) as e:
-                        logger.warning(f"Failed to parse defer_until date '{context.defer_until}': {type(e).__name__}: {str(e)} - Task will be deferred to default time")
+                        logger.warning(
+                            f"Failed to parse defer_until date '{context.defer_until}': {type(e).__name__}: {str(e)} - Task will be deferred to default time"
+                        )
                         defer_until = self._time_service.now()
             else:
                 # Default to now + 1 hour if not specified
                 from datetime import timedelta
+
                 defer_until = self._time_service.now() + timedelta(hours=1)
 
             deferral_request = DeferralRequest(
@@ -97,7 +97,7 @@ class WiseBus(BaseBus[WiseAuthorityService]):
                 thought_id=context.thought_id,
                 reason=context.reason,
                 defer_until=defer_until,
-                context=context.metadata  # Map metadata to context
+                context=context.metadata,  # Map metadata to context
             )
 
             # Broadcast to ALL registered WA services
@@ -117,16 +117,9 @@ class WiseBus(BaseBus[WiseAuthorityService]):
             logger.error(f"Failed to prepare deferral request: {e}", exc_info=True)
             return False
 
-    async def fetch_guidance(
-        self,
-        context: GuidanceContext,
-        handler_name: str
-    ) -> Optional[str]:
+    async def fetch_guidance(self, context: GuidanceContext, handler_name: str) -> Optional[str]:
         """Fetch guidance from wise authority"""
-        service = await self.get_service(
-            handler_name=handler_name,
-            required_capabilities=["fetch_guidance"]
-        )
+        service = await self.get_service(handler_name=handler_name, required_capabilities=["fetch_guidance"])
 
         if not service:
             logger.debug(f"No wise authority service available for {handler_name}")
@@ -139,12 +132,7 @@ class WiseBus(BaseBus[WiseAuthorityService]):
             logger.error(f"Failed to fetch guidance: {e}", exc_info=True)
             return None
 
-    async def request_review(
-        self,
-        review_type: str,
-        review_data: dict,
-        handler_name: str
-    ) -> bool:
+    async def request_review(self, review_type: str, review_data: dict, handler_name: str) -> bool:
         """Request a review from wise authority (e.g., for identity variance)"""
         # Create a deferral context for the review
         context = DeferralContext(
@@ -153,7 +141,7 @@ class WiseBus(BaseBus[WiseAuthorityService]):
             reason=f"Review requested: {review_type}",
             defer_until=None,
             priority=None,
-            metadata={"review_data": str(review_data), "handler_name": handler_name}
+            metadata={"review_data": str(review_data), "handler_name": handler_name},
         )
 
         return await self.send_deferral(context, handler_name)

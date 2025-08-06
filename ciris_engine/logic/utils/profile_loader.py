@@ -1,8 +1,9 @@
-import yaml
-import logging
 import asyncio
+import logging
 from pathlib import Path
-from typing import List, Optional, Any
+from typing import Any, List, Optional
+
+import yaml
 
 from ciris_engine.schemas.config.agent import AgentTemplate
 
@@ -17,6 +18,7 @@ except Exception:
 logger = logging.getLogger(__name__)
 
 DEFAULT_TEMPLATE_PATH = Path("ciris_templates/default.yaml")
+
 
 async def load_template(template_path: Optional[Path]) -> Optional[AgentTemplate]:
     """Asynchronously load an agent template from a YAML file.
@@ -43,6 +45,7 @@ async def load_template(template_path: Optional[Path]) -> Optional[AgentTemplate
             return None
 
     try:
+
         def _load_yaml(path: Path) -> Any:
             with open(path, "r") as f:
                 return yaml.safe_load(f)
@@ -53,12 +56,15 @@ async def load_template(template_path: Optional[Path]) -> Optional[AgentTemplate
             logger.error(f"Template file is empty or invalid YAML: {template_path}")
             return None
 
-        if 'name' not in template_data:
-            template_data['name'] = template_path.stem
-            logger.warning(f"Template 'name' not found in YAML, inferred as '{template_data['name']}' from filename: {template_path}")
+        if "name" not in template_data:
+            template_data["name"] = template_path.stem
+            logger.warning(
+                f"Template 'name' not found in YAML, inferred as '{template_data['name']}' from filename: {template_path}"
+            )
 
         if "permitted_actions" in template_data:
             from ciris_engine.schemas.runtime.enums import HandlerActionType
+
             converted_actions: List[object] = []
             for action in template_data["permitted_actions"]:
                 if isinstance(action, HandlerActionType):

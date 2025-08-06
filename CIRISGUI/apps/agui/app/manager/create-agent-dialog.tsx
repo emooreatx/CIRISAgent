@@ -37,7 +37,7 @@ export function CreateAgentDialog({
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [formData, setFormData] = useState<CreateAgentRequest>({
     template: '',
     name: '',
@@ -48,7 +48,7 @@ export function CreateAgentDialog({
   const [envVars, setEnvVars] = useState<Array<{ key: string; value: string }>>([
     { key: '', value: '' }
   ]);
-  
+
   const [envFileContent, setEnvFileContent] = useState<string>('');
   const [showRedacted, setShowRedacted] = useState(false);
 
@@ -58,11 +58,11 @@ export function CreateAgentDialog({
       'TOKEN', 'KEY', 'SECRET', 'PASSWORD', 'PASS', 'PWD',
       'AUTH', 'CREDENTIAL', 'API_KEY', 'ACCESS_KEY', 'PRIVATE'
     ];
-    
-    const shouldRedact = sensitiveKeys.some(sensitive => 
+
+    const shouldRedact = sensitiveKeys.some(sensitive =>
       key.toUpperCase().includes(sensitive)
     );
-    
+
     if (shouldRedact && value && value.length > 0) {
       // Show first 4 and last 4 characters for verification
       if (value.length > 8) {
@@ -78,7 +78,7 @@ export function CreateAgentDialog({
   const parseEnvFile = (content: string): Array<{ key: string; value: string }> => {
     const lines = content.split('\n');
     const vars: Array<{ key: string; value: string }> = [];
-    
+
     lines.forEach(line => {
       const trimmed = line.trim();
       if (trimmed && !trimmed.startsWith('#')) {
@@ -91,7 +91,7 @@ export function CreateAgentDialog({
         }
       }
     });
-    
+
     return vars;
   };
 
@@ -156,7 +156,7 @@ export function CreateAgentDialog({
 
       await managerClient.createAgent(request);
       onAgentCreated();
-      
+
       // Reset form
       setFormData({
         template: templates?.pre_approved[0] || '',
@@ -271,7 +271,7 @@ export function CreateAgentDialog({
                   <TabsTrigger value="keyvalue">Key-Value</TabsTrigger>
                   <TabsTrigger value="envfile">.env File</TabsTrigger>
                 </TabsList>
-                
+
                 <TabsContent value="keyvalue" className="space-y-2">
                   <div className="flex justify-between items-center mb-2">
                     <div className="flex items-center gap-2">
@@ -317,7 +317,7 @@ export function CreateAgentDialog({
                     ))}
                   </div>
                 </TabsContent>
-                
+
                 <TabsContent value="envfile" className="space-y-2">
                   <div className="flex items-center gap-2 mb-2">
                     <Button
@@ -367,7 +367,7 @@ export function CreateAgentDialog({
             </div>
           </div>
         </form>
-        
+
         <div className="border-t pt-4 mt-4">
           <DialogFooter>
             <Button
@@ -378,8 +378,8 @@ export function CreateAgentDialog({
             >
               Cancel
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               form="create-agent-form"
               disabled={creating || !formData.template || !formData.name}>
               {creating ? (

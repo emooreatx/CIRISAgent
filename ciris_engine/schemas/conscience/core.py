@@ -8,61 +8,75 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class ConscienceStatus(str, Enum):
     """Status of a conscience check"""
+
     PASSED = "passed"
     FAILED = "failed"
     WARNING = "warning"
 
+
 class EntropyCheckResult(BaseModel):
     """Result of entropy safety check"""
+
     passed: bool = Field(description="Whether the check passed")
     entropy_score: float = Field(ge=0.0, le=1.0, description="Entropy score (0=low, 1=high)")
     threshold: float = Field(ge=0.0, le=1.0, description="Threshold used for check")
     message: str = Field(description="Human-readable result message")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class CoherenceCheckResult(BaseModel):
     """Result of coherence safety check"""
+
     passed: bool = Field(description="Whether the check passed")
     coherence_score: float = Field(ge=0.0, le=1.0, description="Coherence score (0=low, 1=high)")
     threshold: float = Field(ge=0.0, le=1.0, description="Threshold used for check")
     message: str = Field(description="Human-readable result message")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class OptimizationVetoResult(BaseModel):
     """Result of optimization veto check"""
+
     decision: str = Field(description="Decision: proceed, abort, or defer")
     justification: str = Field(description="Justification for the decision")
     entropy_reduction_ratio: float = Field(ge=0.0, description="Estimated entropy reduction ratio")
     affected_values: List[str] = Field(default_factory=list, description="Values that would be affected")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class EpistemicHumilityResult(BaseModel):
     """Result of epistemic humility check"""
+
     epistemic_certainty: float = Field(ge=0.0, le=1.0, description="Level of epistemic certainty")
     identified_uncertainties: List[str] = Field(default_factory=list, description="Identified uncertainties")
     reflective_justification: str = Field(description="Reflective justification")
     recommended_action: str = Field(description="Recommended action: proceed, ponder, or defer")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class EpistemicData(BaseModel):
     """Epistemic safety metadata"""
+
     entropy_level: float = Field(ge=0.0, le=1.0, description="Current entropy level")
     coherence_level: float = Field(ge=0.0, le=1.0, description="Current coherence level")
     uncertainty_acknowledged: bool = Field(description="Whether uncertainty was acknowledged")
     reasoning_transparency: float = Field(ge=0.0, le=1.0, description="Transparency of reasoning")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class ConscienceCheckResult(BaseModel):
     """Unified result from conscience safety checks"""
+
     status: ConscienceStatus = Field(description="Overall check status")
     passed: bool = Field(description="Whether all checks passed")
     reason: Optional[str] = Field(default=None, description="Reason for failure/warning")
@@ -71,18 +85,25 @@ class ConscienceCheckResult(BaseModel):
     # Detailed check results
     entropy_check: Optional[EntropyCheckResult] = Field(default=None, description="Entropy check result")
     coherence_check: Optional[CoherenceCheckResult] = Field(default=None, description="Coherence check result")
-    optimization_veto_check: Optional[OptimizationVetoResult] = Field(default=None, description="Optimization veto result")
-    epistemic_humility_check: Optional[EpistemicHumilityResult] = Field(default=None, description="Humility check result")
+    optimization_veto_check: Optional[OptimizationVetoResult] = Field(
+        default=None, description="Optimization veto result"
+    )
+    epistemic_humility_check: Optional[EpistemicHumilityResult] = Field(
+        default=None, description="Humility check result"
+    )
 
     # Metrics
     entropy_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Overall entropy score")
     coherence_score: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Overall coherence score")
 
     # Processing metadata
-    check_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When check was performed")
+    check_timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="When check was performed"
+    )
     processing_time_ms: Optional[float] = Field(default=None, ge=0.0, description="Processing time in milliseconds")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 __all__ = [
     "ConscienceStatus",

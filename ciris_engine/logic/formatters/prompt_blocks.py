@@ -1,6 +1,7 @@
 """Utilities for assembling canonical prompt blocks."""
 
-from typing import List, Optional, Any
+from typing import Any, List, Optional
+
 
 def format_parent_task_chain(parent_tasks: List[dict[str, Any]]) -> str:
     """Formats the parent task chain, root first, for the prompt."""
@@ -19,6 +20,7 @@ def format_parent_task_chain(parent_tasks: List[dict[str, Any]]) -> str:
         lines.append(f"{prefix}: {desc} (Task ID: {tid})")
     return "\n".join(lines)
 
+
 def format_thoughts_chain(thoughts: List[dict[str, Any]]) -> str:
     """Formats all thoughts under consideration, active thought last."""
     if not thoughts:
@@ -30,6 +32,7 @@ def format_thoughts_chain(thoughts: List[dict[str, Any]]) -> str:
         content = str(thought.get("content", ""))
         lines.append(f"{label}: {content}")
     return "\n".join(lines)
+
 
 def format_system_prompt_blocks(
     identity_block: str,
@@ -47,6 +50,7 @@ def format_system_prompt_blocks(
         blocks.append(escalation_guidance_block)
     blocks.extend([system_snapshot_block, user_profiles_block])
     return "\n\n".join(filter(None, blocks)).strip()
+
 
 def format_user_prompt_blocks(
     parent_tasks_block: str,

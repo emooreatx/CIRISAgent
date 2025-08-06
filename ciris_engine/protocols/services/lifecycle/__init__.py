@@ -1,9 +1,9 @@
 """Lifecycle service protocols."""
 
-from .time import TimeServiceProtocol
-from .shutdown import ShutdownServiceProtocol
 from .initialization import InitializationServiceProtocol
 from .scheduler import TaskSchedulerServiceProtocol
+from .shutdown import ShutdownServiceProtocol
+from .time import TimeServiceProtocol
 
 __all__ = [
     "TimeServiceProtocol",

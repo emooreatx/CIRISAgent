@@ -1,13 +1,14 @@
 import json
 import logging
-from typing import Any, List, Optional
 from datetime import datetime
+from typing import Any, List, Optional
 
-from ciris_engine.logic.persistence import get_db_connection
-from ciris_engine.schemas.services.graph_core import GraphNode, GraphEdge, GraphScope, GraphEdgeAttributes
+from ciris_engine.logic.persistence.db import get_db_connection
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.services.graph_core import GraphEdge, GraphEdgeAttributes, GraphNode, GraphScope
 
 logger = logging.getLogger(__name__)
+
 
 class DateTimeEncoder(json.JSONEncoder):
     """Custom JSON encoder that handles datetime objects and Pydantic models."""
@@ -16,12 +17,13 @@ class DateTimeEncoder(json.JSONEncoder):
         if isinstance(obj, datetime):
             return obj.isoformat()
         # Handle Pydantic models
-        if hasattr(obj, 'model_dump'):
+        if hasattr(obj, "model_dump"):
             return obj.model_dump()
         # Handle objects with dict() method
-        if hasattr(obj, 'dict'):
+        if hasattr(obj, "dict"):
             return obj.dict()
         return super().default(obj)
+
 
 def add_graph_node(node: GraphNode, time_service: TimeServiceProtocol, db_path: Optional[str] = None) -> str:
     """Insert or update a graph node, merging attributes if it exists."""
@@ -30,26 +32,25 @@ def add_graph_node(node: GraphNode, time_service: TimeServiceProtocol, db_path: 
             # First check if node exists and get its current attributes
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT attributes_json FROM graph_nodes WHERE node_id = ? AND scope = ?",
-                (node.id, node.scope.value)
+                "SELECT attributes_json FROM graph_nodes WHERE node_id = ? AND scope = ?", (node.id, node.scope.value)
             )
             existing_row = cursor.fetchone()
-            
+
             if existing_row:
                 # Node exists - merge attributes
                 existing_attrs = json.loads(existing_row["attributes_json"]) if existing_row["attributes_json"] else {}
-                
+
                 # Convert node.attributes to dict if it's a Pydantic model
-                if hasattr(node.attributes, 'model_dump'):
+                if hasattr(node.attributes, "model_dump"):
                     new_attrs = node.attributes.model_dump()
-                elif hasattr(node.attributes, 'dict'):
+                elif hasattr(node.attributes, "dict"):
                     new_attrs = node.attributes.dict()
                 else:  # isinstance(node.attributes, dict)
                     new_attrs = node.attributes
-                
+
                 # Merge attributes - new values override old ones
                 merged_attrs = {**existing_attrs, **new_attrs}
-                
+
                 # Update the node
                 sql = """
                     UPDATE graph_nodes
@@ -84,15 +85,16 @@ def add_graph_node(node: GraphNode, time_service: TimeServiceProtocol, db_path: 
                     "updated_at": node.updated_at or time_service.now().isoformat(),
                 }
                 logger.debug("Inserting new graph node %s", node.id)
-            
+
             cursor.execute(sql, params)
             conn.commit()
-            
+
         logger.debug("Successfully saved graph node %s in scope %s", node.id, node.scope.value)
         return node.id
     except Exception as e:
         logger.exception("Failed to add/update graph node %s: %s", node.id, e)
         raise
+
 
 def get_graph_node(node_id: str, scope: GraphScope, db_path: Optional[str] = None) -> Optional[GraphNode]:
     sql = "SELECT * FROM graph_nodes WHERE node_id = ? AND scope = ?"
@@ -117,6 +119,7 @@ def get_graph_node(node_id: str, scope: GraphScope, db_path: Optional[str] = Non
         logger.exception("Failed to fetch graph node %s: %s", node_id, e)
         return None
 
+
 def delete_graph_node(node_id: str, scope: GraphScope, db_path: Optional[str] = None) -> int:
     sql = "DELETE FROM graph_nodes WHERE node_id = ? AND scope = ?"
     try:
@@ -127,6 +130,7 @@ def delete_graph_node(node_id: str, scope: GraphScope, db_path: Optional[str] = 
     except Exception as e:
         logger.exception("Failed to delete graph node %s: %s", node_id, e)
         return 0
+
 
 def add_graph_edge(edge: GraphEdge, db_path: Optional[str] = None) -> str:
     sql = """
@@ -154,6 +158,7 @@ def add_graph_edge(edge: GraphEdge, db_path: Optional[str] = None) -> str:
         logger.exception("Failed to add graph edge %s: %s", edge_id, e)
         raise
 
+
 def delete_graph_edge(edge_id: str, db_path: Optional[str] = None) -> int:
     sql = "DELETE FROM graph_edges WHERE edge_id = ?"
     try:
@@ -164,6 +169,7 @@ def delete_graph_edge(edge_id: str, db_path: Optional[str] = None) -> int:
     except Exception as e:
         logger.exception("Failed to delete graph edge %s: %s", edge_id, e)
         return 0
+
 
 def get_edges_for_node(node_id: str, scope: GraphScope, db_path: Optional[str] = None) -> List[GraphEdge]:
     sql = "SELECT * FROM graph_edges WHERE scope = ? AND (source_node_id = ? OR target_node_id = ?)"
@@ -181,7 +187,7 @@ def get_edges_for_node(node_id: str, scope: GraphScope, db_path: Optional[str] =
                     valid_attrs["created_at"] = attrs["created_at"]
                 if "context" in attrs:
                     valid_attrs["context"] = attrs["context"]
-                
+
                 edges.append(
                     GraphEdge(
                         source=row["source_node_id"],
@@ -202,65 +208,66 @@ def get_all_graph_nodes(
     node_type: Optional[str] = None,
     limit: Optional[int] = None,
     offset: Optional[int] = None,
-    db_path: Optional[str] = None
+    db_path: Optional[str] = None,
 ) -> List[GraphNode]:
     """
     Get all graph nodes with optional filters.
-    
+
     Args:
         scope: Filter by scope (optional)
         node_type: Filter by node type (optional)
         limit: Maximum number of nodes to return
         offset: Number of nodes to skip (for pagination)
         db_path: Optional database path
-        
+
     Returns:
         List of GraphNode objects
     """
     sql = "SELECT * FROM graph_nodes WHERE 1=1"
     params: List[Any] = []
-    
+
     if scope is not None:
         sql += " AND scope = ?"
-        params.append(scope.value if hasattr(scope, 'value') else scope)
-    
+        params.append(scope.value if hasattr(scope, "value") else scope)
+
     if node_type is not None:
         sql += " AND node_type = ?"
         params.append(node_type)
-    
+
     sql += " ORDER BY updated_at DESC"
-    
+
     if limit is not None:
         sql += " LIMIT ?"
         params.append(limit)
-        
+
     if offset is not None:
         sql += " OFFSET ?"
         params.append(offset)
-    
+
     nodes = []
     try:
         with get_db_connection(db_path=db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(sql, params)
             rows = cursor.fetchall()
-            
+
             for row in rows:
                 attrs = json.loads(row["attributes_json"]) if row["attributes_json"] else {}
-                nodes.append(GraphNode(
-                    id=row["node_id"],
-                    type=row["node_type"],
-                    scope=row["scope"],
-                    attributes=attrs,
-                    version=row["version"],
-                    updated_by=row["updated_by"],
-                    updated_at=row["updated_at"],
-                ))
-                
-        logger.debug("Retrieved %d graph nodes with filters scope=%s, type=%s", 
-                    len(nodes), scope, node_type)
+                nodes.append(
+                    GraphNode(
+                        id=row["node_id"],
+                        type=row["node_type"],
+                        scope=row["scope"],
+                        attributes=attrs,
+                        version=row["version"],
+                        updated_by=row["updated_by"],
+                        updated_at=row["updated_at"],
+                    )
+                )
+
+        logger.debug("Retrieved %d graph nodes with filters scope=%s, type=%s", len(nodes), scope, node_type)
         return nodes
-        
+
     except Exception as e:
         logger.exception("Failed to fetch all graph nodes: %s", e)
         return []
@@ -271,25 +278,19 @@ def get_nodes_by_type(
     scope: Optional[GraphScope] = None,
     limit: Optional[int] = None,
     offset: Optional[int] = None,
-    db_path: Optional[str] = None
+    db_path: Optional[str] = None,
 ) -> List[GraphNode]:
     """
     Get all nodes of a specific type.
-    
+
     Args:
         node_type: The type of nodes to retrieve
         scope: Filter by scope (optional)
         limit: Maximum number of nodes to return
         offset: Number of nodes to skip (for pagination)
         db_path: Optional database path
-        
+
     Returns:
         List of GraphNode objects of the specified type
     """
-    return get_all_graph_nodes(
-        scope=scope,
-        node_type=node_type,
-        limit=limit,
-        offset=offset,
-        db_path=db_path
-    )
+    return get_all_graph_nodes(scope=scope, node_type=node_type, limit=limit, offset=offset, db_path=db_path)

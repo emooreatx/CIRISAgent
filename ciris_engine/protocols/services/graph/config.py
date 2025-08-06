@@ -1,12 +1,13 @@
 """Configuration Service Protocol."""
 
-from typing import Protocol, Dict, List, Optional, Union, TYPE_CHECKING, Callable
 from abc import abstractmethod
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Protocol, Union
 
 from ...runtime.base import GraphServiceProtocol
 
 if TYPE_CHECKING:
     from ciris_engine.schemas.services.nodes import ConfigNode
+
 
 class GraphConfigServiceProtocol(GraphServiceProtocol, Protocol):
     """Protocol for graph configuration service."""
@@ -25,13 +26,13 @@ class GraphConfigServiceProtocol(GraphServiceProtocol, Protocol):
     async def list_configs(self, prefix: Optional[str] = None) -> Dict[str, Union[str, int, float, bool, List, Dict]]:
         """List all configurations with optional prefix filter."""
         ...
-    
+
     @abstractmethod
-    def register_config_listener(self, key_pattern: str, callback: 'Callable') -> None:
+    def register_config_listener(self, key_pattern: str, callback: "Callable") -> None:
         """Register a callback for config changes matching the key pattern."""
         ...
-    
+
     @abstractmethod
-    def unregister_config_listener(self, key_pattern: str, callback: 'Callable') -> None:
+    def unregister_config_listener(self, key_pattern: str, callback: "Callable") -> None:
         """Unregister a config change callback."""
         ...

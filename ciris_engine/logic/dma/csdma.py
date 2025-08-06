@@ -1,20 +1,21 @@
-from typing import Dict, Any, List, Optional, cast
 import logging
+from typing import Any, Dict, List, Optional
 
-from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
-from ciris_engine.logic.registries.base import ServiceRegistry
-from .base_dma import BaseDMA
-from ciris_engine.protocols.dma.base import CSDMAProtocol
-from ciris_engine.schemas.dma.results import CSDMAResult
 from ciris_engine.logic.formatters import (
-    format_system_snapshot,
-    format_user_profiles,
     format_parent_task_chain,
-    format_thoughts_chain,
     format_system_prompt_blocks,
+    format_system_snapshot,
+    format_thoughts_chain,
+    format_user_profiles,
     format_user_prompt_blocks,
 )
+from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
+from ciris_engine.logic.registries.base import ServiceRegistry
 from ciris_engine.logic.utils import COVENANT_TEXT
+from ciris_engine.protocols.dma.base import CSDMAProtocol
+from ciris_engine.schemas.dma.results import CSDMAResult
+
+from .base_dma import BaseDMA
 from .prompt_loader import get_prompt_loader
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ DEFAULT_TEMPLATE = """=== Common Sense DMA Guidance ===
 You are a Common Sense Evaluation agent. Your task is to assess a given "thought" for its alignment with general common-sense understanding of the physical world, typical interactions, and resource constraints on Earth, considering the provided context.
 [... truncated for brevity ...]
 """
+
 
 class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
     """
@@ -38,7 +40,7 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
         environmental_kg: Optional[Any] = None,
         task_specific_kg: Optional[Any] = None,
         prompt_overrides: Optional[Dict[str, str]] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
 
         # Use provided model_name or default from base class
@@ -47,9 +49,8 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
             model_name=model_name,
             max_retries=max_retries,
             prompt_overrides=prompt_overrides,
-            **kwargs
+            **kwargs,
         )
-
 
         # Load prompts from YAML file
         self.prompt_loader = get_prompt_loader()
@@ -57,8 +58,8 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
 
         # Client will be retrieved from the service registry during evaluation
 
-        self.env_kg = environmental_kg # Placeholder for now
-        self.task_kg = task_specific_kg   # Placeholder for now
+        self.env_kg = environmental_kg  # Placeholder for now
+        self.task_kg = task_specific_kg  # Placeholder for now
         # Log the final client type being used
         logger.info(f"CSDMAEvaluator initialized with model: {self.model_name}")
 
@@ -77,9 +78,7 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
             messages.append({"role": "system", "content": COVENANT_TEXT})
 
         system_message = self.prompt_loader.get_system_message(
-            self.prompt_template_data,
-            context_summary=context_summary,
-            original_thought_content=thought_content
+            self.prompt_template_data, context_summary=context_summary, original_thought_content=thought_content
         )
 
         formatted_system = format_system_prompt_blocks(
@@ -93,9 +92,7 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
         messages.append({"role": "system", "content": formatted_system})
 
         user_message = self.prompt_loader.get_user_message(
-            self.prompt_template_data,
-            context_summary=context_summary,
-            original_thought_content=thought_content
+            self.prompt_template_data, context_summary=context_summary, original_thought_content=thought_content
         )
 
         if not user_message or user_message == f"Thought to evaluate: {thought_content}":
@@ -114,21 +111,21 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
         thought_content_str = str(thought_item.content)
 
         context_summary = "Standard Earth-based physical context, unless otherwise specified in the thought."
-        if hasattr(thought_item, 'initial_context') and thought_item.initial_context:
+        if hasattr(thought_item, "initial_context") and thought_item.initial_context:
             # Type narrow to dict
             if isinstance(thought_item.initial_context, dict) and "environment_context" in thought_item.initial_context:
                 env_ctx = thought_item.initial_context["environment_context"]
                 if isinstance(env_ctx, dict) and "description" in env_ctx:
                     context_summary = str(env_ctx["description"])
                 elif isinstance(env_ctx, dict) and "current_channel" in env_ctx:
-                     context_summary = f"Context: Discord channel '{env_ctx['current_channel']}'"
+                    context_summary = f"Context: Discord channel '{env_ctx['current_channel']}'"
                 elif isinstance(env_ctx, str):
                     context_summary = env_ctx
 
         system_snapshot_block = ""
         user_profiles_block = ""
 
-        if hasattr(thought_item, 'context') and thought_item.context:
+        if hasattr(thought_item, "context") and thought_item.context:
             system_snapshot = thought_item.context.get("system_snapshot")
             if system_snapshot:
                 user_profiles_data = system_snapshot.get("user_profiles")
@@ -156,16 +153,15 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
 
         try:
             result_tuple = await self.call_llm_structured(
-                messages=messages,
-                response_model=CSDMAResult,
-                max_tokens=512,
-                temperature=0.0
+                messages=messages, response_model=CSDMAResult, max_tokens=512, temperature=0.0
             )
             csdma_eval: CSDMAResult = result_tuple[0]
 
             # raw_llm_response field has been removed from CSDMAResult
 
-            logger.info(f"CSDMA (instructor) evaluation successful for thought ID {thought_item.thought_id}: Score {csdma_eval.plausibility_score:.2f}")
+            logger.info(
+                f"CSDMA (instructor) evaluation successful for thought ID {thought_item.thought_id}: Score {csdma_eval.plausibility_score:.2f}"
+            )
             return csdma_eval
 
         except Exception as e:
@@ -173,17 +169,17 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
             return CSDMAResult(
                 plausibility_score=0.0,
                 flags=["LLM_Error", "defer_for_retry"],
-                reasoning=f"Failed CSDMA evaluation: {str(e)}"
+                reasoning=f"Failed CSDMA evaluation: {str(e)}",
             )
 
     async def evaluate(self, *args: Any, **kwargs: Any) -> CSDMAResult:  # type: ignore[override]
         """Evaluate thought for common sense alignment."""
         # Extract arguments - maintain backward compatibility
-        input_data = args[0] if args else kwargs.get('input_data')
-        
+        input_data = args[0] if args else kwargs.get("input_data")
+
         if not input_data:
             raise ValueError("input_data is required")
-            
+
         return await self.evaluate_thought(input_data)
 
     def __repr__(self) -> str:

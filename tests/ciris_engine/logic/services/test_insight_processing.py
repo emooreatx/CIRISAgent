@@ -5,22 +5,25 @@ This tests that:
 1. PatternAnalysisLoop stores insights as CONCEPT nodes with insight_type='behavioral_pattern'
 2. DreamProcessor queries and processes these insights during dream cycles
 """
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional
 
+from datetime import datetime, timedelta, timezone
+from typing import Any, List, Optional
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.infrastructure.sub_services.pattern_analysis_loop import PatternAnalysisLoop
 from ciris_engine.logic.processors.states.dream_processor import DreamProcessor
-from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
-from ciris_engine.schemas.infrastructure.feedback_loop import DetectedPattern, PatternType, PatternMetrics
-from ciris_engine.schemas.services.operations import MemoryQuery, MemoryOpStatus, MemoryOpResult
-from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.infrastructure.feedback_loop import DetectedPattern, PatternMetrics, PatternType
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
+from ciris_engine.schemas.services.operations import MemoryOpResult, MemoryOpStatus
 
 
 class MockTimeService(TimeServiceProtocol):
     """Mock time service for testing with full protocol compliance."""
+
     def __init__(self, current_time: Optional[datetime] = None):
         self._current_time = current_time or datetime.now(timezone.utc)
         self._start_time = self._current_time
@@ -38,7 +41,7 @@ class MockTimeService(TimeServiceProtocol):
 
     def timestamp(self) -> float:
         return self._current_time.timestamp()
-    
+
     def get_uptime(self) -> float:
         """Get service uptime in seconds."""
         if not self._started:
@@ -57,15 +60,17 @@ class MockTimeService(TimeServiceProtocol):
     async def is_healthy(self) -> bool:
         """Check if service is healthy."""
         return self._started and self._healthy
-    
+
     def get_service_type(self) -> "ServiceType":
         """Get the service type."""
         from ciris_engine.schemas.runtime.enums import ServiceType
+
         return ServiceType.TIME
 
     def get_capabilities(self) -> "ServiceCapabilities":
         """Get service capabilities."""
         from ciris_engine.schemas.services.core import ServiceCapabilities
+
         return ServiceCapabilities(
             service_name="MockTimeService",
             actions=["now", "now_iso", "timestamp", "get_uptime"],
@@ -73,31 +78,29 @@ class MockTimeService(TimeServiceProtocol):
             dependencies=[],
             metadata={
                 "current_time": self._current_time.isoformat(),
-                "description": "Mock time service for testing insight processing"
-            }
+                "description": "Mock time service for testing insight processing",
+            },
         )
-    
+
     def get_status(self) -> "ServiceStatus":
         """Get current service status."""
         from ciris_engine.schemas.services.core import ServiceStatus
+
         return ServiceStatus(
-            service_name="MockTimeService", 
+            service_name="MockTimeService",
             service_type="time",
             is_healthy=self._started and self._healthy,
             uptime_seconds=self.get_uptime(),
-            metrics={
-                "current_time": self._current_time.timestamp(),
-                "started": 1.0 if self._started else 0.0
-            },
+            metrics={"current_time": self._current_time.timestamp(), "started": 1.0 if self._started else 0.0},
             last_error=None,
-            last_health_check=self._current_time
+            last_health_check=self._current_time,
         )
-    
+
     # Test helper methods
     def advance_time(self, **kwargs):
         """Advance the current time for testing."""
         self._current_time += timedelta(**kwargs)
-    
+
     def set_time(self, new_time: datetime):
         """Set the current time for testing."""
         self._current_time = new_time
@@ -109,15 +112,9 @@ async def test_feedback_loop_stores_insights_as_concept_nodes() -> None:
     # Setup
     time_service = MockTimeService()
     memory_bus = MagicMock(spec=MemoryBus)
-    memory_bus.memorize = AsyncMock(return_value=MemoryOpResult(
-        status=MemoryOpStatus.OK,
-        reason="Success"
-    ))
+    memory_bus.memorize = AsyncMock(return_value=MemoryOpResult(status=MemoryOpStatus.OK, reason="Success"))
 
-    feedback_loop = PatternAnalysisLoop(
-        time_service=time_service,
-        memory_bus=memory_bus
-    )
+    feedback_loop = PatternAnalysisLoop(time_service=time_service, memory_bus=memory_bus)
 
     # Create a test pattern
     pattern = DetectedPattern(
@@ -126,11 +123,7 @@ async def test_feedback_loop_stores_insights_as_concept_nodes() -> None:
         description="Test action is used frequently",
         evidence_nodes=["node1", "node2", "node3"],
         detected_at=time_service.now(),
-        metrics=PatternMetrics(
-            occurrence_count=10,
-            average_value=0.5,
-            confidence=0.8  # type: ignore
-        )
+        metrics=PatternMetrics(occurrence_count=10, average_value=0.5, confidence=0.8),  # type: ignore
     )
 
     # Store pattern insights
@@ -142,14 +135,14 @@ async def test_feedback_loop_stores_insights_as_concept_nodes() -> None:
 
     # Check the stored node
     call_args = memory_bus.memorize.call_args
-    stored_node = call_args.kwargs['node']
+    stored_node = call_args.kwargs["node"]
 
     assert stored_node.type == NodeType.CONCEPT
     assert stored_node.scope == GraphScope.LOCAL
-    assert stored_node.attributes['insight_type'] == 'behavioral_pattern'
-    assert stored_node.attributes['pattern_type'] == PatternType.FREQUENCY.value
-    assert stored_node.attributes['description'] == pattern.description
-    assert stored_node.attributes['actionable'] is True
+    assert stored_node.attributes["insight_type"] == "behavioral_pattern"
+    assert stored_node.attributes["pattern_type"] == PatternType.FREQUENCY.value
+    assert stored_node.attributes["description"] == pattern.description
+    assert stored_node.attributes["actionable"] is True
 
 
 @pytest.mark.asyncio
@@ -170,10 +163,10 @@ async def test_dream_processor_queries_behavioral_insights() -> None:
                 "pattern_type": "frequency",
                 "description": "Action SPEAK is used 80% of the time",
                 "actionable": True,
-                "detected_at": (time_service.now() - timedelta(hours=1)).isoformat()
+                "detected_at": (time_service.now() - timedelta(hours=1)).isoformat(),
             },
             updated_by="test",
-            updated_at=time_service.now()
+            updated_at=time_service.now(),
         ),
         GraphNode(
             id="insight_2",
@@ -184,11 +177,11 @@ async def test_dream_processor_queries_behavioral_insights() -> None:
                 "pattern_type": "temporal",
                 "description": "Different tools preferred at different times of day",
                 "actionable": True,
-                "detected_at": (time_service.now() - timedelta(hours=2)).isoformat()
+                "detected_at": (time_service.now() - timedelta(hours=2)).isoformat(),
             },
             updated_by="test",
-            updated_at=time_service.now()
-        )
+            updated_at=time_service.now(),
+        ),
     ]
 
     memory_bus.search = AsyncMock(return_value=insight_nodes)
@@ -198,16 +191,13 @@ async def test_dream_processor_queries_behavioral_insights() -> None:
     thought_processor = MagicMock()
     action_dispatcher = MagicMock()
     resource_monitor = MagicMock()
-    services = {
-        'time_service': time_service,
-        'resource_monitor': resource_monitor
-    }
+    services = {"time_service": time_service, "resource_monitor": resource_monitor}
 
     dream_processor = DreamProcessor(
         config_accessor=config_accessor,
         thought_processor=thought_processor,
         action_dispatcher=action_dispatcher,
-        services=services
+        services=services,
     )
     dream_processor.memory_bus = memory_bus
 
@@ -217,7 +207,7 @@ async def test_dream_processor_queries_behavioral_insights() -> None:
     # Verify search was called
     memory_bus.search.assert_called_once()
     call_args = memory_bus.search.call_args
-    query = call_args.kwargs['query']
+    query = call_args.kwargs["query"]
 
     assert query == "type:concept"
 
@@ -247,10 +237,10 @@ async def test_all_insights_processed_without_filtering() -> None:
                 "pattern_type": "frequency",
                 "description": "High reliability pattern",
                 "actionable": True,
-                "detected_at": (time_service.now() - timedelta(hours=1)).isoformat()
+                "detected_at": (time_service.now() - timedelta(hours=1)).isoformat(),
             },
             updated_by="test",
-            updated_at=time_service.now()
+            updated_at=time_service.now(),
         ),
         GraphNode(
             id="low_reliability",
@@ -261,11 +251,11 @@ async def test_all_insights_processed_without_filtering() -> None:
                 "pattern_type": "frequency",
                 "description": "Low reliability pattern",
                 "actionable": True,
-                "detected_at": (time_service.now() - timedelta(hours=1)).isoformat()
+                "detected_at": (time_service.now() - timedelta(hours=1)).isoformat(),
             },
             updated_by="test",
-            updated_at=time_service.now()
-        )
+            updated_at=time_service.now(),
+        ),
     ]
 
     memory_bus.search = AsyncMock(return_value=insight_nodes)
@@ -275,16 +265,13 @@ async def test_all_insights_processed_without_filtering() -> None:
     thought_processor = MagicMock()
     action_dispatcher = MagicMock()
     resource_monitor = MagicMock()
-    services = {
-        'time_service': time_service,
-        'resource_monitor': resource_monitor
-    }
+    services = {"time_service": time_service, "resource_monitor": resource_monitor}
 
     dream_processor = DreamProcessor(
         config_accessor=config_accessor,
         thought_processor=thought_processor,
         action_dispatcher=action_dispatcher,
-        services=services
+        services=services,
     )
     dream_processor.memory_bus = memory_bus
 
@@ -303,15 +290,9 @@ async def test_feedback_loop_stores_all_detected_patterns() -> None:
     # Setup
     time_service = MockTimeService()
     memory_bus = MagicMock(spec=MemoryBus)
-    memory_bus.memorize = AsyncMock(return_value=MemoryOpResult(
-        status=MemoryOpStatus.OK,
-        reason="Success"
-    ))
+    memory_bus.memorize = AsyncMock(return_value=MemoryOpResult(status=MemoryOpStatus.OK, reason="Success"))
 
-    feedback_loop = PatternAnalysisLoop(
-        time_service=time_service,
-        memory_bus=memory_bus
-    )
+    feedback_loop = PatternAnalysisLoop(time_service=time_service, memory_bus=memory_bus)
 
     # Create patterns with varying reliability
     patterns = [
@@ -320,12 +301,8 @@ async def test_feedback_loop_stores_all_detected_patterns() -> None:
             pattern_id="high_conf",
             description="High reliability pattern",
             evidence_nodes=["node1"],
-                detected_at=time_service.now(),
-            metrics=PatternMetrics(
-                occurrence_count=10,
-                average_value=0.8,
-                confidence=0.9  # type: ignore
-            )
+            detected_at=time_service.now(),
+            metrics=PatternMetrics(occurrence_count=10, average_value=0.8, confidence=0.9),  # type: ignore
         ),
         DetectedPattern(
             pattern_type=PatternType.FREQUENCY,
@@ -333,12 +310,8 @@ async def test_feedback_loop_stores_all_detected_patterns() -> None:
             description="Low reliability pattern",
             evidence_nodes=["node2"],
             detected_at=time_service.now(),
-            metrics=PatternMetrics(
-                occurrence_count=5,
-                average_value=0.5,
-                confidence=0.6  # type: ignore
-            )
-        )
+            metrics=PatternMetrics(occurrence_count=5, average_value=0.5, confidence=0.6),  # type: ignore
+        ),
     ]
 
     # Store pattern insights
@@ -366,18 +339,18 @@ async def test_integration_feedback_loop_to_dream_processor() -> None:
     async def mock_search(query: str, **kwargs: Any) -> List[GraphNode]:
         # Return nodes that match the query
         if query == "type:concept":
-            return [n for n in stored_nodes if n.type == NodeType.CONCEPT and
-                    n.attributes.get('insight_type') == 'behavioral_pattern']
+            return [
+                n
+                for n in stored_nodes
+                if n.type == NodeType.CONCEPT and n.attributes.get("insight_type") == "behavioral_pattern"
+            ]
         return []
 
     memory_bus.memorize = AsyncMock(side_effect=mock_memorize)
     memory_bus.search = AsyncMock(side_effect=mock_search)
 
     # Create feedback loop and store insights
-    feedback_loop = PatternAnalysisLoop(
-        time_service=time_service,
-        memory_bus=memory_bus
-    )
+    feedback_loop = PatternAnalysisLoop(time_service=time_service, memory_bus=memory_bus)
 
     pattern = DetectedPattern(
         pattern_type=PatternType.PERFORMANCE,
@@ -389,8 +362,8 @@ async def test_integration_feedback_loop_to_dream_processor() -> None:
             average_value=250.0,
             peak_value=500.0,
             trend="increasing",  # type: ignore
-            confidence=0.95  # type: ignore
-        )
+            confidence=0.95,  # type: ignore
+        ),
     )
 
     await feedback_loop._store_pattern_insights([pattern])
@@ -400,16 +373,13 @@ async def test_integration_feedback_loop_to_dream_processor() -> None:
     thought_processor = MagicMock()
     action_dispatcher = MagicMock()
     resource_monitor = MagicMock()
-    services = {
-        'time_service': time_service,
-        'resource_monitor': resource_monitor
-    }
+    services = {"time_service": time_service, "resource_monitor": resource_monitor}
 
     dream_processor = DreamProcessor(
         config_accessor=config_accessor,
         thought_processor=thought_processor,
         action_dispatcher=action_dispatcher,
-        services=services
+        services=services,
     )
     dream_processor.memory_bus = memory_bus
 
@@ -418,7 +388,7 @@ async def test_integration_feedback_loop_to_dream_processor() -> None:
     # Verify end-to-end flow
     assert len(stored_nodes) == 1
     assert stored_nodes[0].type == NodeType.CONCEPT
-    assert stored_nodes[0].attributes['insight_type'] == 'behavioral_pattern'
+    assert stored_nodes[0].attributes["insight_type"] == "behavioral_pattern"
 
     assert len(insights) == 2  # Pattern + action opportunity
     assert "Pattern (performance): Response times degraded by 25%" in insights
@@ -440,7 +410,7 @@ async def test_dream_processor_handles_missing_attributes() -> None:
             scope=GraphScope.LOCAL,
             attributes={},  # No attributes
             updated_by="test",
-            updated_at=time_service.now()
+            updated_at=time_service.now(),
         ),
         GraphNode(
             id="partial_attrs",
@@ -451,7 +421,7 @@ async def test_dream_processor_handles_missing_attributes() -> None:
                 # Missing other fields
             },
             updated_by="test",
-            updated_at=time_service.now()
+            updated_at=time_service.now(),
         ),
         GraphNode(
             id="complete",
@@ -462,11 +432,11 @@ async def test_dream_processor_handles_missing_attributes() -> None:
                 "pattern_type": "frequency",
                 "description": "Complete pattern",
                 "actionable": True,
-                "detected_at": (time_service.now() - timedelta(hours=1)).isoformat()
+                "detected_at": (time_service.now() - timedelta(hours=1)).isoformat(),
             },
             updated_by="test",
-            updated_at=time_service.now()
-        )
+            updated_at=time_service.now(),
+        ),
     ]
 
     memory_bus.search = AsyncMock(return_value=insight_nodes)
@@ -476,16 +446,13 @@ async def test_dream_processor_handles_missing_attributes() -> None:
     thought_processor = MagicMock()
     action_dispatcher = MagicMock()
     resource_monitor = MagicMock()
-    services = {
-        'time_service': time_service,
-        'resource_monitor': resource_monitor
-    }
+    services = {"time_service": time_service, "resource_monitor": resource_monitor}
 
     dream_processor = DreamProcessor(
         config_accessor=config_accessor,
         thought_processor=thought_processor,
         action_dispatcher=action_dispatcher,
-        services=services
+        services=services,
     )
     dream_processor.memory_bus = memory_bus
 

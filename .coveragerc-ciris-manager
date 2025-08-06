@@ -1,6 +1,6 @@
 [run]
 source = ciris_manager
-omit = 
+omit =
     */api/routes.py
     */core/container_manager.py
     */__main__.py

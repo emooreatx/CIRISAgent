@@ -1,35 +1,34 @@
 """Runtime Control Service Protocol - Unified control plane for CIRIS runtime operations."""
 
-from typing import Protocol, Optional, List, Dict, TYPE_CHECKING
 from abc import abstractmethod
+from typing import TYPE_CHECKING, Dict, List, Optional, Protocol
 
-from ...runtime.base import ServiceProtocol
 from ciris_engine.schemas.services.core.runtime import (
+    AdapterInfo,
+    AdapterOperationResponse,
+    ConfigBackup,
+    ConfigOperationResponse,
+    ConfigSnapshot,
+    ConfigValidationResponse,
     ProcessorControlResponse,
     ProcessorQueueStatus,
-    AdapterOperationResponse,
-    AdapterInfo,
-    ConfigOperationResponse,
-    ConfigValidationResponse,
-    ConfigBackup,
-    RuntimeStatusResponse,
+    RuntimeEvent,
     RuntimeStateSnapshot,
-    ConfigSnapshot,
+    RuntimeStatusResponse,
     ServiceHealthStatus,
     ServiceSelectionExplanation,
-    RuntimeEvent
 )
-from ciris_engine.schemas.services.shutdown import (
-    WASignedCommand,
-    EmergencyShutdownStatus
-)
+from ciris_engine.schemas.services.shutdown import EmergencyShutdownStatus, WASignedCommand
+
+from ...runtime.base import ServiceProtocol
 
 if TYPE_CHECKING:
     from ciris_engine.schemas.services.runtime_control import (
-        ServicePriorityUpdateResponse,
         CircuitBreakerResetResponse,
-        CircuitBreakerStatus
+        CircuitBreakerStatus,
+        ServicePriorityUpdateResponse,
     )
+
 
 class RuntimeControlServiceProtocol(ServiceProtocol, Protocol):
     """
@@ -75,17 +74,13 @@ class RuntimeControlServiceProtocol(ServiceProtocol, Protocol):
         adapter_type: str,
         adapter_id: Optional[str] = None,
         config: Optional[Dict[str, object]] = None,
-        auto_start: bool = True
+        auto_start: bool = True,
     ) -> AdapterOperationResponse:
         """Dynamically load a new adapter."""
         ...
 
     @abstractmethod
-    async def unload_adapter(
-        self,
-        adapter_id: str,
-        force: bool = False
-    ) -> AdapterOperationResponse:
+    async def unload_adapter(self, adapter_id: str, force: bool = False) -> AdapterOperationResponse:
         """Unload an adapter from runtime."""
         ...
 
@@ -102,11 +97,7 @@ class RuntimeControlServiceProtocol(ServiceProtocol, Protocol):
     # ========== Configuration Management ==========
 
     @abstractmethod
-    async def get_config(
-        self,
-        path: Optional[str] = None,
-        include_sensitive: bool = False
-    ) -> ConfigSnapshot:
+    async def get_config(self, path: Optional[str] = None, include_sensitive: bool = False) -> ConfigSnapshot:
         """Get configuration values."""
         ...
 
@@ -117,33 +108,25 @@ class RuntimeControlServiceProtocol(ServiceProtocol, Protocol):
         value: object,
         scope: str = "runtime",
         validation_level: str = "full",
-        reason: Optional[str] = None
+        reason: Optional[str] = None,
     ) -> ConfigOperationResponse:
         """Update configuration value."""
         ...
 
     @abstractmethod
     async def validate_config(
-        self,
-        config_data: Dict[str, object],
-        config_path: Optional[str] = None
+        self, config_data: Dict[str, object], config_path: Optional[str] = None
     ) -> ConfigValidationResponse:
         """Validate configuration without applying."""
         ...
 
     @abstractmethod
-    async def backup_config(
-        self,
-        backup_name: Optional[str] = None
-    ) -> ConfigOperationResponse:
+    async def backup_config(self, backup_name: Optional[str] = None) -> ConfigOperationResponse:
         """Create configuration backup."""
         ...
 
     @abstractmethod
-    async def restore_config(
-        self,
-        backup_name: str
-    ) -> ConfigOperationResponse:
+    async def restore_config(self, backup_name: str) -> ConfigOperationResponse:
         """Restore configuration from backup."""
         ...
 
@@ -182,24 +165,18 @@ class RuntimeControlServiceProtocol(ServiceProtocol, Protocol):
         provider_name: str,
         new_priority: str,
         new_priority_group: Optional[int] = None,
-        new_strategy: Optional[str] = None
+        new_strategy: Optional[str] = None,
     ) -> "ServicePriorityUpdateResponse":
         """Update service provider priority and selection strategy."""
         ...
 
     @abstractmethod
-    async def reset_circuit_breakers(
-        self,
-        service_type: Optional[str] = None
-    ) -> "CircuitBreakerResetResponse":
+    async def reset_circuit_breakers(self, service_type: Optional[str] = None) -> "CircuitBreakerResetResponse":
         """Reset circuit breakers for services."""
         ...
 
     @abstractmethod
-    async def get_circuit_breaker_status(
-        self,
-        service_type: Optional[str] = None
-    ) -> Dict[str, "CircuitBreakerStatus"]:
+    async def get_circuit_breaker_status(self, service_type: Optional[str] = None) -> Dict[str, "CircuitBreakerStatus"]:
         """Get circuit breaker status for services."""
         ...
 
@@ -211,9 +188,6 @@ class RuntimeControlServiceProtocol(ServiceProtocol, Protocol):
     # ========== Emergency Operations ==========
 
     @abstractmethod
-    async def handle_emergency_shutdown(
-        self,
-        command: WASignedCommand
-    ) -> EmergencyShutdownStatus:
+    async def handle_emergency_shutdown(self, command: WASignedCommand) -> EmergencyShutdownStatus:
         """Process WA-authorized emergency shutdown."""
         ...

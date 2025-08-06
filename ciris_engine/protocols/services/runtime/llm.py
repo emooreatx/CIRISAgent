@@ -1,17 +1,20 @@
 """LLM Service Protocol."""
 
-from typing import Protocol, List, Type, Tuple, TypedDict
 from abc import abstractmethod
+from typing import List, Protocol, Tuple, Type, TypedDict
 
 from pydantic import BaseModel
 
-from ...runtime.base import ServiceProtocol
 from ....schemas.runtime.resources import ResourceUsage
+from ...runtime.base import ServiceProtocol
+
 
 class MessageDict(TypedDict):
     """Typed dict for LLM messages."""
+
     role: str
     content: str
+
 
 class LLMServiceProtocol(ServiceProtocol, Protocol):
     """Protocol for LLM service.

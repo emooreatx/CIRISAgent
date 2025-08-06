@@ -120,8 +120,8 @@ User: "My blood pressure reading is 180/120. What should I do?"
 
 ### 6. Final Response
 ```
-CIRIS: "Your blood pressure reading of 180/120 is in the hypertensive crisis range, 
-which is a medical emergency. Please call 911 or go to the nearest emergency room 
+CIRIS: "Your blood pressure reading of 180/120 is in the hypertensive crisis range,
+which is a medical emergency. Please call 911 or go to the nearest emergency room
 immediately. Do not wait - this requires immediate medical attention.
 
 [DEFERRED TO: Medical professionals - Reason: Emergency medical situation]"
@@ -157,7 +157,7 @@ Handles task lifecycle operations including activation, prioritization, and comp
 
 **Wakeup Sequence Steps:**
 1. VERIFY_IDENTITY: Core identity affirmation
-2. VALIDATE_INTEGRITY: System integrity confirmation  
+2. VALIDATE_INTEGRITY: System integrity confirmation
 3. EVALUATE_RESILIENCE: Capability assessment
 4. ACCEPT_INCOMPLETENESS: Learning mindset acceptance
 5. EXPRESS_GRATITUDE: Ubuntu principle gratitude
@@ -234,7 +234,7 @@ Handles normal task and thought processing with comprehensive workflow managemen
 
 **Processing Phases:**
 1. **Task Activation**: Activate pending tasks up to limits
-2. **Seed Generation**: Create initial thoughts for new tasks  
+2. **Seed Generation**: Create initial thoughts for new tasks
 3. **Queue Population**: Load thoughts into processing queue
 4. **Batch Processing**: Process thought batches with fallback handling
 5. **Idle Management**: Handle idle states with monitoring thoughts
@@ -274,7 +274,7 @@ Handles minimal processing and reflection during low-activity periods.
 **Processing Focus:**
 - Critical task detection and processing
 - System maintenance and cleanup
-- Pattern analysis and learning reflection  
+- Pattern analysis and learning reflection
 - Resource conservation during idle periods
 
 ### DreamProcessor (`dream_processor.py`)
@@ -432,8 +432,8 @@ await processor.start_processing(num_rounds=100)
 # Check processor capabilities
 if await work_processor.can_process(AgentState.WORK):
     result = await work_processor.process(round_number=1)
-    
-# Get processor statistics  
+
+# Get processor statistics
 stats = work_processor.get_work_stats()
 ```
 
@@ -443,10 +443,10 @@ stats = work_processor.get_work_stats()
 class CustomProcessor(BaseProcessor):
     def get_supported_states(self) -> List[AgentState]:
         return [AgentState.CUSTOM]
-    
+
     async def can_process(self, state: AgentState) -> bool:
         return state == AgentState.CUSTOM
-    
+
     async def process(self, round_number: int) -> Dict[str, Any]:
         # Custom processing logic
         return {"processed": True}

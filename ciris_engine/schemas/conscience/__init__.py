@@ -1,13 +1,13 @@
 """conscience schemas v1."""
 
 from .core import (
+    CoherenceCheckResult,
+    ConscienceCheckResult,
     ConscienceStatus,
     EntropyCheckResult,
-    CoherenceCheckResult,
-    OptimizationVetoResult,
-    EpistemicHumilityResult,
     EpistemicData,
-    ConscienceCheckResult,
+    EpistemicHumilityResult,
+    OptimizationVetoResult,
 )
 from .results import ConscienceResult
 

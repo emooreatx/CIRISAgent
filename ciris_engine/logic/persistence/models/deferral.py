@@ -1,11 +1,19 @@
-from typing import Optional
-from ciris_engine.logic.persistence import get_db_connection
-from ciris_engine.schemas.persistence.core import DeferralPackage, DeferralReportContext
 import logging
+from typing import Optional
+
+from ciris_engine.logic.persistence.db import get_db_connection
+from ciris_engine.schemas.persistence.core import DeferralPackage, DeferralReportContext
 
 logger = logging.getLogger(__name__)
 
-def save_deferral_report_mapping(message_id: str, task_id: str, thought_id: str, package: Optional[DeferralPackage] = None, db_path: Optional[str] = None) -> None:
+
+def save_deferral_report_mapping(
+    message_id: str,
+    task_id: str,
+    thought_id: str,
+    package: Optional[DeferralPackage] = None,
+    db_path: Optional[str] = None,
+) -> None:
     sql = """
         INSERT OR REPLACE INTO deferral_reports (message_id, task_id, thought_id, package_json)
         VALUES (?, ?, ?, ?)
@@ -28,6 +36,7 @@ def save_deferral_report_mapping(message_id: str, task_id: str, thought_id: str,
             e,
         )
 
+
 def get_deferral_report_context(message_id: str, db_path: Optional[str] = None) -> Optional[DeferralReportContext]:
     sql = "SELECT task_id, thought_id, package_json FROM deferral_reports WHERE message_id = ?"
     try:
@@ -41,16 +50,13 @@ def get_deferral_report_context(message_id: str, db_path: Optional[str] = None) 
                     try:
                         # Validate package data through model
                         from pydantic import TypeAdapter
+
                         pkg = TypeAdapter(DeferralPackage).validate_json(row["package_json"])
                     except Exception as e:
                         logger.warning(f"Failed to parse deferral package: {e}")
                         pkg = None
 
-                return DeferralReportContext(
-                    task_id=row["task_id"],
-                    thought_id=row["thought_id"],
-                    package=pkg
-                )
+                return DeferralReportContext(task_id=row["task_id"], thought_id=row["thought_id"], package=pkg)
             return None
     except Exception as e:
         logger.exception(

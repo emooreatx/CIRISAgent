@@ -1,5 +1,5 @@
-from src.stt_service import create_stt_service
 from src.config import STTConfig
+from src.stt_service import create_stt_service
 
 
 def test_create_stt_service_openai():

@@ -4,29 +4,32 @@ Graph Configuration Service for CIRIS Trinity Architecture.
 All configuration is stored as memories in the graph, with full history tracking.
 This replaces the old config_manager_service and agent_config_service.
 """
+
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Union, TYPE_CHECKING, Callable, Any, cast
+from typing import Callable, Dict, List, Optional, Union, cast
 
 # Optional import for psutil
 try:
     import psutil
+
     PSUTIL_AVAILABLE = True
 except ImportError:
     psutil = None  # type: ignore
     PSUTIL_AVAILABLE = False
 
-from ciris_engine.protocols.services.graph.config import GraphConfigServiceProtocol
-from ciris_engine.schemas.services.nodes import ConfigNode, ConfigValue
-from ciris_engine.schemas.runtime.enums import ServiceType
-from ciris_engine.schemas.services.graph_core import GraphNode
-from ciris_engine.schemas.services.operations import MemoryQuery
 from ciris_engine.logic.services.base_graph_service import BaseGraphService, GraphNodeConvertible
 from ciris_engine.logic.services.graph.memory_service import LocalGraphMemoryService
+from ciris_engine.protocols.services.graph.config import GraphConfigServiceProtocol
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.services.graph_core import GraphNode
+from ciris_engine.schemas.services.nodes import ConfigNode, ConfigValue
+from ciris_engine.schemas.services.operations import MemoryQuery
 
 logger = logging.getLogger(__name__)
+
 
 class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
     """Configuration service that stores all config as graph memories."""
@@ -35,7 +38,7 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
         """Initialize with graph memory service."""
         # Initialize BaseGraphService without memory_bus (we'll use graph_memory_service directly)
         super().__init__(memory_bus=None, time_service=time_service)
-        
+
         self.graph = graph_memory_service
         self._running = False
         self._start_time: Optional[datetime] = None
@@ -58,13 +61,12 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """Collect config-specific metrics."""
         metrics = super()._collect_custom_metrics()
-        
+
         # Add config-specific metrics
-        metrics.update({
-            "total_configs": float(len(self._config_cache)),
-            "config_listeners": float(len(self._config_listeners))
-        })
-        
+        metrics.update(
+            {"total_configs": float(len(self._config_cache)), "config_listeners": float(len(self._config_listeners))}
+        )
+
         return metrics
 
     async def store_in_graph(self, node: Union[GraphNode, GraphNodeConvertible]) -> str:
@@ -72,7 +74,7 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
         # If it's a ConfigNode, use it directly, otherwise convert
         if isinstance(node, ConfigNode):
             graph_node = node.to_graph_node()
-        elif hasattr(node, 'to_graph_node'):
+        elif hasattr(node, "to_graph_node"):
             graph_node = node.to_graph_node()
         else:
             # node must be a GraphNode already
@@ -85,7 +87,7 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
 
     async def query_graph(self, query: MemoryQuery) -> List[GraphNode]:
         """Query config nodes from graph.
-        
+
         This method is required by BaseGraphService but not used in ConfigService.
         Config queries should use _query_config_by_key() instead.
         """
@@ -93,12 +95,12 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
         # The MemoryQuery parameter is ignored as it's not applicable to config queries
         nodes = await self.graph.search("type:config")
         return nodes
-    
+
     async def _query_config_by_key(self, key: str) -> List[GraphNode]:
         """Query config nodes by key."""
         # Get all config nodes
         nodes = await self.graph.search("type:config")
-        
+
         # Filter by key
         filtered_nodes = []
         for node in nodes:
@@ -111,7 +113,7 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
                 # Skip nodes that can't be converted (might be old format)
                 logger.warning(f"Failed to convert node {node.id} to ConfigNode: {e}")
                 continue
-        
+
         return filtered_nodes
 
     def get_node_type(self) -> str:
@@ -134,17 +136,20 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
             except Exception as e:
                 logger.warning(f"Failed to convert node to ConfigNode: {e}")
                 continue
-        
+
         if not config_nodes:
             return None
-            
+
         # Sort by version, get latest
         config_nodes.sort(key=lambda n: n.version, reverse=True)
         return config_nodes[0]
 
-    async def set_config(self, key: str, value: Union[str, int, float, bool, List, Dict, Path], updated_by: str) -> None:
+    async def set_config(
+        self, key: str, value: Union[str, int, float, bool, List, Dict, Path], updated_by: str
+    ) -> None:
         """Set configuration value with history."""
         import uuid
+
         from ciris_engine.schemas.services.graph_core import GraphScope
         from ciris_engine.schemas.services.nodes import ConfigValue
 
@@ -177,9 +182,9 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
             if current_value == compare_value:
                 # No change needed
                 # Sanitize key for logging
-                safe_key = ''.join(c if c.isprintable() and c not in '\n\r\t' else '?' for c in key)
+                safe_key = "".join(c if c.isprintable() and c not in "\n\r\t" else "?" for c in key)
                 if len(safe_key) > 100:
-                    safe_key = safe_key[:100] + '...'
+                    safe_key = safe_key[:100] + "..."
                 logger.debug(f"Config {safe_key} unchanged, skipping update")
                 return
 
@@ -196,21 +201,20 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
             version=(current.version + 1) if current else 1,
             updated_by=updated_by,
             updated_at=self._time_service.now() if self._time_service else datetime.now(timezone.utc),
-            previous_version=current.id if current else None
+            previous_version=current.id if current else None,
         )
 
         # Store in graph (base class will handle conversion)
         await self.store_in_graph(new_config)
-        
+
         # Notify listeners of the change
         await self._notify_listeners(key, current.value if current else None, config_value)
-
 
     async def list_configs(self, prefix: Optional[str] = None) -> Dict[str, Union[str, int, float, bool, List, Dict]]:
         """List all configurations with optional prefix filter."""
         # Get all config nodes
         all_nodes = await self.graph.search("type:config")
-        
+
         # Convert to ConfigNodes and group by key to get latest version of each
         config_map: Dict[str, ConfigNode] = {}
         for node in all_nodes:
@@ -235,7 +239,7 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
 
     def register_config_listener(self, key_pattern: str, callback: Callable) -> None:
         """Register a callback for config changes matching the key pattern.
-        
+
         Args:
             key_pattern: Config key pattern (e.g., "adapter.*" for all adapter configs)
             callback: Async function to call with (key, old_value, new_value)
@@ -244,28 +248,29 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
             self._config_listeners[key_pattern] = []
         self._config_listeners[key_pattern].append(callback)
         # Sanitize pattern for logging
-        safe_pattern = ''.join(c if c.isprintable() and c not in '\n\r\t' else '?' for c in key_pattern)
+        safe_pattern = "".join(c if c.isprintable() and c not in "\n\r\t" else "?" for c in key_pattern)
         if len(safe_pattern) > 100:
-            safe_pattern = safe_pattern[:100] + '...'
+            safe_pattern = safe_pattern[:100] + "..."
         logger.info(f"Registered config listener for pattern: {safe_pattern}")
-    
+
     def unregister_config_listener(self, key_pattern: str, callback: Callable) -> None:
         """Unregister a config change callback."""
         if key_pattern in self._config_listeners:
             self._config_listeners[key_pattern].remove(callback)
             if not self._config_listeners[key_pattern]:
                 del self._config_listeners[key_pattern]
-    
+
     async def _notify_listeners(self, key: str, old_value: Optional[ConfigValue], new_value: ConfigValue) -> None:
         """Notify registered listeners of config changes."""
         import fnmatch
-        
+
         for pattern, callbacks in self._config_listeners.items():
             if fnmatch.fnmatch(key, pattern):
                 for callback in callbacks:
                     try:
                         # Support both sync and async callbacks
                         import asyncio
+
                         if asyncio.iscoroutinefunction(callback):
                             await callback(key, old_value, new_value)
                         else:
@@ -273,21 +278,23 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
                     except Exception as e:
                         # Sanitize key for logging to prevent log injection
                         # Remove all control characters and non-printable characters
-                        safe_key = ''.join(c if c.isprintable() and c not in '\n\r\t' else '?' for c in key)
+                        safe_key = "".join(c if c.isprintable() and c not in "\n\r\t" else "?" for c in key)
                         if len(safe_key) > 100:
-                            safe_key = safe_key[:100] + '...'
+                            safe_key = safe_key[:100] + "..."
                         # Also sanitize the pattern in case it contains user input
-                        safe_pattern = ''.join(c if c.isprintable() and c not in '\n\r\t' else '?' for c in pattern)
+                        safe_pattern = "".join(c if c.isprintable() and c not in "\n\r\t" else "?" for c in pattern)
                         if len(safe_pattern) > 50:
-                            safe_pattern = safe_pattern[:50] + '...'
-                        logger.error(f"Error notifying config listener for config key: {safe_key}, pattern: {safe_pattern}, error: {str(e)[:200]}")
-    
+                            safe_pattern = safe_pattern[:50] + "..."
+                        logger.error(
+                            f"Error notifying config listener for config key: {safe_key}, pattern: {safe_pattern}, error: {str(e)[:200]}"
+                        )
+
     # Required methods for BaseGraphService
-    
+
     def get_service_type(self) -> ServiceType:
         """Get the service type."""
         return ServiceType.CONFIG
-    
+
     def _get_actions(self) -> List[str]:
         """Get the list of actions this service supports."""
         return [
@@ -296,9 +303,9 @@ class GraphConfigService(BaseGraphService, GraphConfigServiceProtocol):
             "list_configs",
             "delete_config",
             "register_config_listener",
-            "unregister_config_listener"
+            "unregister_config_listener",
         ]
-    
+
     def _check_dependencies(self) -> bool:
         """Check if all dependencies are satisfied."""
         # Config service uses LocalGraphMemoryService directly instead of memory bus

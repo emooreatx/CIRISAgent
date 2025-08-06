@@ -160,7 +160,7 @@ export class TelemetryResource extends BaseResource {
       });
       return response.logs || [];
     }
-    
+
     // Handle new signature with params object
     return this.transport.get<PaginatedResponse<TelemetryLog>>('/v1/telemetry/logs', levelOrParams);
   }

@@ -1,10 +1,12 @@
 """Discord connection resilience and auto-reconnect component."""
-import discord
-import logging
+
 import asyncio
+import logging
 from datetime import datetime
-from typing import Optional, Callable, Awaitable, TYPE_CHECKING, Any
 from enum import Enum
+from typing import TYPE_CHECKING, Awaitable, Callable, Optional
+
+import discord
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
@@ -14,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class ConnectionState(Enum):
     """Discord connection states."""
+
     DISCONNECTED = "disconnected"
     CONNECTING = "connecting"
     CONNECTED = "connected"
@@ -24,11 +27,15 @@ class ConnectionState(Enum):
 class DiscordConnectionManager:
     """Manages Discord connection resilience and auto-reconnect."""
 
-    def __init__(self, token: str, client: Optional[discord.Client] = None,
-                 time_service: Optional["TimeServiceProtocol"] = None,
-                 max_reconnect_attempts: int = 10,
-                 base_reconnect_delay: float = 5.0,
-                 max_reconnect_delay: float = 300.0) -> None:
+    def __init__(
+        self,
+        token: str,
+        client: Optional[discord.Client] = None,
+        time_service: Optional["TimeServiceProtocol"] = None,
+        max_reconnect_attempts: int = 10,
+        base_reconnect_delay: float = 5.0,
+        max_reconnect_delay: float = 300.0,
+    ) -> None:
         """Initialize the connection manager.
 
         Args:
@@ -62,6 +69,7 @@ class DiscordConnectionManager:
         # Ensure we have a time service
         if time_service is None:
             from ciris_engine.logic.services.lifecycle.time import TimeService
+
             self._time_service = TimeService()
         else:
             self._time_service = time_service
@@ -78,7 +86,7 @@ class DiscordConnectionManager:
     def _setup_event_handlers(self) -> None:
         """Set up Discord event handlers for connection management."""
         logger.info("DiscordConnectionManager._setup_event_handlers: Event handlers now managed by CIRISDiscordClient")
-        
+
         if not self.client:
             logger.error("DiscordConnectionManager._setup_event_handlers: No client available!")
             return
@@ -98,11 +106,11 @@ class DiscordConnectionManager:
             logger.info(f"Discord connected successfully! User: {self.client.user}, Guilds: {len(self.client.guilds)}")
             logger.info(f"Discord client is_ready: {self.client.is_ready()}, is_closed: {self.client.is_closed()}")
             logger.info(f"Connection state transition: {previous_state.value} -> {self.state.value}")
-            
+
             # Log reconnection if this was not the initial connection
             if previous_state == ConnectionState.DISCONNECTED:
                 logger.info("Discord successfully reconnected after disconnection")
-                
+
             for guild in self.client.guilds:
                 logger.info(f"  - Guild: {guild.name} (ID: {guild.id})")
         else:
@@ -181,7 +189,7 @@ class DiscordConnectionManager:
             else:
                 logger.error("No Discord client provided to connection manager")
                 raise ValueError("Discord client must be provided by DiscordPlatform")
-            
+
             self.state = ConnectionState.CONNECTING
             logger.info("Discord connection manager ready to monitor connection")
 
@@ -216,7 +224,9 @@ class DiscordConnectionManager:
             # During startup, consider the adapter healthy if the client exists and is not closed
             # This prevents the circuit breaker from opening while Discord is connecting
             result = not is_closed
-            logger.debug(f"DiscordConnectionManager.is_connected: client exists, is_closed={is_closed}, is_ready={is_ready}, result={result}")
+            logger.debug(
+                f"DiscordConnectionManager.is_connected: client exists, is_closed={is_closed}, is_ready={is_ready}, result={result}"
+            )
             return result
         logger.debug("DiscordConnectionManager.is_connected: client is None, returning False")
         return False
@@ -236,11 +246,13 @@ class DiscordConnectionManager:
         }
 
         if self.client and self.is_connected():
-            info.update({
-                "guilds": len(self.client.guilds),
-                "users": len(self.client.users),
-                "latency_ms": int(self.client.latency * 1000) if hasattr(self.client, 'latency') else None
-            })
+            info.update(
+                {
+                    "guilds": len(self.client.guilds),
+                    "users": len(self.client.users),
+                    "latency_ms": int(self.client.latency * 1000) if hasattr(self.client, "latency") else None,
+                }
+            )
 
         return info
 
@@ -254,7 +266,7 @@ class DiscordConnectionManager:
             True if ready, False if timeout
         """
         logger.info(f"DiscordConnectionManager.wait_until_ready: Starting wait with timeout={timeout}s")
-        
+
         if not self.client:
             logger.error("DiscordConnectionManager.wait_until_ready: No client available!")
             return False
@@ -263,30 +275,36 @@ class DiscordConnectionManager:
             # First wait for the client to start connecting
             # Discord.py's wait_until_ready() only works after connection has begun
             start_time = asyncio.get_event_loop().time()
-            logger.info(f"DiscordConnectionManager.wait_until_ready: Waiting for client to start connecting...")
-            
+            logger.info("DiscordConnectionManager.wait_until_ready: Waiting for client to start connecting...")
+
             while asyncio.get_event_loop().time() - start_time < timeout:
                 is_closed = self.client.is_closed()
                 is_ready = self.client.is_ready()
                 logger.debug(f"DiscordConnectionManager.wait_until_ready: is_closed={is_closed}, is_ready={is_ready}")
-                
+
                 # Check if client has started (is_closed() returns False when connecting/connected)
                 if not is_closed:
-                    logger.info(f"DiscordConnectionManager.wait_until_ready: Client is not closed, calling wait_until_ready()")
+                    logger.info(
+                        "DiscordConnectionManager.wait_until_ready: Client is not closed, calling wait_until_ready()"
+                    )
                     # Now we can use wait_until_ready()
                     remaining_timeout = timeout - (asyncio.get_event_loop().time() - start_time)
-                    logger.info(f"DiscordConnectionManager.wait_until_ready: Remaining timeout: {remaining_timeout:.1f}s")
+                    logger.info(
+                        f"DiscordConnectionManager.wait_until_ready: Remaining timeout: {remaining_timeout:.1f}s"
+                    )
                     await asyncio.wait_for(self.client.wait_until_ready(), timeout=remaining_timeout)
-                    logger.info(f"DiscordConnectionManager.wait_until_ready: Client is ready! is_ready={self.client.is_ready()}")
+                    logger.info(
+                        f"DiscordConnectionManager.wait_until_ready: Client is ready! is_ready={self.client.is_ready()}"
+                    )
                     return True
                 # Client hasn't started connecting yet, wait a bit
                 await asyncio.sleep(0.1)
-            
+
             # Timeout waiting for client to start
             logger.error(f"DiscordConnectionManager.wait_until_ready: Timeout after {timeout}s - client never started")
             return False
         except asyncio.TimeoutError:
-            logger.error(f"DiscordConnectionManager.wait_until_ready: TimeoutError waiting for client to be ready")
+            logger.error("DiscordConnectionManager.wait_until_ready: TimeoutError waiting for client to be ready")
             return False
         except Exception as e:
             logger.error(f"DiscordConnectionManager.wait_until_ready: Unexpected error: {e}", exc_info=True)

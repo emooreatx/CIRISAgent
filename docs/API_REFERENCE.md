@@ -4,8 +4,8 @@
 
 CIRIS provides a comprehensive REST API with 78 endpoints across 12 modules for agent interaction, system management, and observability.
 
-**Base URL**: `http://localhost:8080`  
-**API Version**: `v1` (stable)  
+**Base URL**: `http://localhost:8080`
+**API Version**: `v1` (stable)
 **Authentication**: JWT Bearer tokens (except `/emergency/*` endpoints)
 
 ## Quick Start
@@ -166,8 +166,8 @@ ws.send(JSON.stringify({
 ```typescript
 import { CIRISClient } from '@ciris/sdk';
 
-const client = new CIRISClient({ 
-  baseURL: 'http://localhost:8080' 
+const client = new CIRISClient({
+  baseURL: 'http://localhost:8080'
 });
 
 // Login

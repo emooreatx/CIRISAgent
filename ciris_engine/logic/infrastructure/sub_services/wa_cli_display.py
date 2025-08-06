@@ -2,16 +2,17 @@
 
 import logging
 from datetime import datetime
-from typing import List, Any
+from typing import Any, List
 
 from rich.console import Console
 from rich.table import Table
 from rich.tree import Tree
 
-from ciris_engine.schemas.services.authority_core import WACertificate
 from ciris_engine.logic.services.infrastructure.authentication import AuthenticationService
+from ciris_engine.schemas.services.authority_core import WACertificate
 
 logger = logging.getLogger(__name__)
+
 
 class WACLIDisplayService:
     """Handles WA listing and visualization operations."""
@@ -54,14 +55,7 @@ class WACLIDisplayService:
             status = "✅ Active"  # Assume active if in database
             created = wa.created_at.strftime("%Y-%m-%d") if isinstance(wa.created_at, datetime) else str(wa.created_at)
 
-            table.add_row(
-                wa.wa_id,
-                wa.name,
-                wa.role.value,
-                "certificate",  # Default token type
-                status,
-                created
-            )
+            table.add_row(wa.wa_id, wa.name, wa.role.value, "certificate", status, created)  # Default token type
 
         self.console.print(table)
 
@@ -78,8 +72,8 @@ class WACLIDisplayService:
         for root in roots:
             tree = Tree(f"[bold cyan]{root.name}[/bold cyan] ({root.wa_id})")
             tree.add(f"Role: [green]{root.role.value}[/green]")
-            tree.add(f"Type: [yellow]certificate[/yellow]")
-            tree.add(f"Status: ✅ Active")
+            tree.add("Type: [yellow]certificate[/yellow]")
+            tree.add("Status: ✅ Active")
 
             # Add children recursively
             await self._add_wa_children(tree, was, root.wa_id)
@@ -87,28 +81,21 @@ class WACLIDisplayService:
             self.console.print(tree)
             self.console.print()  # Space between trees
 
-    async def _add_wa_children(
-        self,
-        parent_node: Any,
-        all_was: List[WACertificate],
-        parent_id: str
-    ) -> None:
+    async def _add_wa_children(self, parent_node: Any, all_was: List[WACertificate], parent_id: str) -> None:
         """Recursively add children to tree node."""
         children = [wa for wa in all_was if wa.parent_wa_id == parent_id]
 
         for child in children:
-            child_node = parent_node.add(
-                f"[cyan]{child.name}[/cyan] ({child.wa_id})"
-            )
+            child_node = parent_node.add(f"[cyan]{child.name}[/cyan] ({child.wa_id})")
             child_node.add(f"Role: [green]{child.role.value}[/green]")
-            child_node.add(f"Type: [yellow]certificate[/yellow]")
+            child_node.add("Type: [yellow]certificate[/yellow]")
 
             if child.oauth_provider:
                 child_node.add(f"OAuth: [blue]{child.oauth_provider}[/blue]")
 
             # Discord ID removed - not part of WACertificate schema
 
-            child_node.add(f"Status: ✅ Active")
+            child_node.add("Status: ✅ Active")
 
             # Recursively add this WA's children
             await self._add_wa_children(child_node, all_was, child.wa_id)
@@ -148,6 +135,7 @@ class WACLIDisplayService:
 
             # Parse and display scopes
             import json
+
             try:
                 scopes = json.loads(wa.scopes_json)
                 table.add_row("Scopes", ", ".join(scopes))
@@ -158,11 +146,19 @@ class WACLIDisplayService:
             table.add_row("Status", "✅ Active")  # Assume active if in database
             table.add_row("Auto-minted", "Yes" if wa.auto_minted else "No")
 
-            created = wa.created_at.strftime("%Y-%m-%d %H:%M:%S UTC") if isinstance(wa.created_at, datetime) else str(wa.created_at)
+            created = (
+                wa.created_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+                if isinstance(wa.created_at, datetime)
+                else str(wa.created_at)
+            )
             table.add_row("Created", created)
 
             if wa.last_auth:
-                last_login = wa.last_auth.strftime("%Y-%m-%d %H:%M:%S UTC") if isinstance(wa.last_auth, datetime) else str(wa.last_auth)
+                last_login = (
+                    wa.last_auth.strftime("%Y-%m-%d %H:%M:%S UTC")
+                    if isinstance(wa.last_auth, datetime)
+                    else str(wa.last_auth)
+                )
                 table.add_row("Last Login", last_login)
 
             self.console.print(table)

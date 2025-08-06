@@ -5,29 +5,31 @@ This service observes system behavior, detects patterns, and stores insights
 for the agent's autonomous adaptation within its identity bounds.
 """
 
-from typing import List, Optional, Protocol, TYPE_CHECKING, Dict, Any
-from datetime import timedelta
 from abc import abstractmethod
+from datetime import timedelta
+from typing import TYPE_CHECKING, List, Optional, Protocol
 
 from ...runtime.base import ServiceProtocol
 
 # Import forward references for schemas
 if TYPE_CHECKING:
-    from ciris_engine.schemas.infrastructure.feedback_loop import (
-        DetectedPattern, AnalysisResult, PatternType
-    )
-    from ciris_engine.schemas.infrastructure.behavioral_patterns import (
-        ActionFrequency, TemporalPattern
-    )
-    from ciris_engine.schemas.services.special.self_observation import (
-        PatternInsight, LearningSummary, PatternEffectiveness, AnalysisStatus
-    )
-    from ciris_engine.schemas.services.special.self_observation import (
-        ObservationCycleResult, ObservationStatus, ReviewOutcome,
-        ObservabilityAnalysis, ObservationEffectiveness,
-        PatternLibrarySummary, ServiceImprovementReport
-    )
+    from ciris_engine.schemas.infrastructure.behavioral_patterns import ActionFrequency, TemporalPattern
+    from ciris_engine.schemas.infrastructure.feedback_loop import AnalysisResult, DetectedPattern, PatternType
     from ciris_engine.schemas.runtime.core import AgentIdentityRoot
+    from ciris_engine.schemas.services.special.self_observation import (
+        AnalysisStatus,
+        LearningSummary,
+        ObservabilityAnalysis,
+        ObservationCycleResult,
+        ObservationEffectiveness,
+        ObservationStatus,
+        PatternEffectiveness,
+        PatternInsight,
+        PatternLibrarySummary,
+        ReviewOutcome,
+        ServiceImprovementReport,
+    )
+
 
 class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
     """
@@ -40,10 +42,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
     # ========== Pattern Detection ==========
 
     @abstractmethod
-    async def analyze_patterns(
-        self,
-        force: bool = False
-    ) -> "AnalysisResult":
+    async def analyze_patterns(self, force: bool = False) -> "AnalysisResult":
         """
         Analyze recent system behavior and detect patterns.
 
@@ -62,9 +61,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
 
     @abstractmethod
     async def get_detected_patterns(
-        self,
-        pattern_type: Optional["PatternType"] = None,
-        hours: int = 24
+        self, pattern_type: Optional["PatternType"] = None, hours: int = 24
     ) -> List["DetectedPattern"]:
         """
         Get recently detected patterns.
@@ -79,10 +76,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    async def get_action_frequency(
-        self,
-        hours: int = 24
-    ) -> dict[str, "ActionFrequency"]:
+    async def get_action_frequency(self, hours: int = 24) -> dict[str, "ActionFrequency"]:
         """
         Get frequency analysis of agent actions.
 
@@ -97,10 +91,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
     # ========== Pattern Insights ==========
 
     @abstractmethod
-    async def get_pattern_insights(
-        self,
-        limit: int = 50
-    ) -> List["PatternInsight"]:
+    async def get_pattern_insights(self, limit: int = 50) -> List["PatternInsight"]:
         """
         Get stored pattern insights.
 
@@ -116,9 +107,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    async def get_learning_summary(
-        self
-    ) -> "LearningSummary":
+    async def get_learning_summary(self) -> "LearningSummary":
         """
         Get summary of what the system has learned.
 
@@ -130,10 +119,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
     # ========== Temporal Analysis ==========
 
     @abstractmethod
-    async def get_temporal_patterns(
-        self,
-        hours: int = 168  # 1 week
-    ) -> List["TemporalPattern"]:
+    async def get_temporal_patterns(self, hours: int = 168) -> List["TemporalPattern"]:  # 1 week
         """
         Get temporal patterns (daily, weekly cycles).
 
@@ -148,10 +134,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
     # ========== Effectiveness Tracking ==========
 
     @abstractmethod
-    async def get_pattern_effectiveness(
-        self,
-        pattern_id: str
-    ) -> Optional["PatternEffectiveness"]:
+    async def get_pattern_effectiveness(self, pattern_id: str) -> Optional["PatternEffectiveness"]:
         """
         Get effectiveness metrics for a specific pattern.
 
@@ -168,9 +151,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
     # ========== Service Status ==========
 
     @abstractmethod
-    async def get_analysis_status(
-        self
-    ) -> "AnalysisStatus":
+    async def get_analysis_status(self) -> "AnalysisStatus":
         """
         Get current analysis status.
 
@@ -182,10 +163,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
     # ========== Adaptation and Identity Management ==========
 
     @abstractmethod
-    async def initialize_baseline(
-        self,
-        identity: "AgentIdentityRoot"
-    ) -> str:
+    async def initialize_baseline(self, identity: "AgentIdentityRoot") -> str:
         """
         Establish identity baseline for variance monitoring.
 
@@ -198,9 +176,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    async def get_adaptation_status(
-        self
-    ) -> "ObservationStatus":
+    async def get_adaptation_status(self) -> "ObservationStatus":
         """
         Get current status of the self-observation system.
 
@@ -210,10 +186,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    async def analyze_observability_window(
-        self,
-        window: timedelta = timedelta(hours=6)
-    ) -> "ObservabilityAnalysis":
+    async def analyze_observability_window(self, window: timedelta = timedelta(hours=6)) -> "ObservabilityAnalysis":
         """
         Analyze all observability signals for adaptation opportunities.
 
@@ -226,9 +199,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    async def trigger_adaptation_cycle(
-        self
-    ) -> "ObservationCycleResult":
+    async def trigger_adaptation_cycle(self) -> "ObservationCycleResult":
         """
         Manually trigger an adaptation assessment cycle.
 
@@ -238,9 +209,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    async def get_pattern_library(
-        self
-    ) -> "PatternLibrarySummary":
+    async def get_pattern_library(self) -> "PatternLibrarySummary":
         """
         Get summary of learned adaptation patterns.
 
@@ -250,10 +219,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    async def measure_adaptation_effectiveness(
-        self,
-        adaptation_id: str
-    ) -> "ObservationEffectiveness":
+    async def measure_adaptation_effectiveness(self, adaptation_id: str) -> "ObservationEffectiveness":
         """
         Measure if an adaptation actually improved the system.
 
@@ -266,10 +232,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    async def get_improvement_report(
-        self,
-        period: timedelta = timedelta(days=30)
-    ) -> "ServiceImprovementReport":
+    async def get_improvement_report(self, period: timedelta = timedelta(days=30)) -> "ServiceImprovementReport":
         """
         Generate service improvement report for period.
 
@@ -282,10 +245,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    async def resume_after_review(
-        self,
-        review_outcome: "ReviewOutcome"
-    ) -> None:
+    async def resume_after_review(self, review_outcome: "ReviewOutcome") -> None:
         """
         Resume self-configuration after WA review.
 
@@ -295,10 +255,7 @@ class SelfObservationServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    async def emergency_stop(
-        self,
-        reason: str
-    ) -> None:
+    async def emergency_stop(self, reason: str) -> None:
         """
         Activate emergency stop for self-configuration.
 

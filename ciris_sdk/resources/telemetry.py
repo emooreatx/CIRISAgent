@@ -4,83 +4,97 @@ Telemetry resource for CIRIS v1 API (Pre-Beta).
 **WARNING**: This SDK is for the v1 API which is in pre-beta stage.
 The API interfaces may change without notice.
 """
+
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
+
 from pydantic import BaseModel, Field
 
-from ..transport import Transport
 from ..telemetry_models import (
-    ResourceUsage, ResourceLimits, ResourceHealth, ResourceHistoryPoint,
-    MetricData, MetricAggregate, MetricTrend,
-    QueryFilter, QueryFilters,
-    ThoughtData, LineageInfo, ProcessorStateData, ConfigurationData,
-    ServiceMetadata, InteractionContext, AuditContext, DeferralContext,
-    VerificationResult
+    MetricData,
+    QueryFilter,
+    QueryFilters,
+    ResourceHealth,
+    ResourceHistoryPoint,
+    ResourceLimits,
+    ResourceUsage,
 )
 from ..telemetry_responses import (
-    TelemetryOverviewResponse, TelemetryMetricsResponse, TelemetryTracesResponse,
-    TelemetryLogsResponse, MetricsQueryResult, TracesQueryResult, LogsQueryResult,
-    IncidentsQueryResult, InsightsQueryResult
+    IncidentsQueryResult,
+    InsightsQueryResult,
+    LogsQueryResult,
+    MetricsQueryResult,
+    TelemetryLogsResponse,
+    TelemetryMetricsResponse,
+    TelemetryOverviewResponse,
+    TelemetryTracesResponse,
+    TracesQueryResult,
 )
+from ..transport import Transport
 
 
 class TelemetryOverview(BaseModel):
     """System telemetry overview."""
+
     uptime_seconds: float = Field(..., description="System uptime")
     cognitive_state: str = Field(..., description="Current cognitive state")
     messages_processed_24h: int = Field(default=0, description="Messages in last 24h")
     healthy_services: int = Field(default=0, description="Number of healthy services")
-    
+
     class Config:
         extra = "allow"  # Allow additional fields
 
 
 class TelemetryMetrics(BaseModel):
     """Telemetry metrics response."""
+
     metrics: List[MetricData] = Field(..., description="List of metrics")
-    
+
     class Config:
         extra = "allow"
 
 
 class TelemetryMetricDetail(BaseModel):
     """Detailed metric information."""
-    metric_name: str = Field(..., description="Metric name")  
+
+    metric_name: str = Field(..., description="Metric name")
     current: float = Field(..., description="Current value")
     unit: Optional[str] = Field(None, description="Unit of measurement")
-    
+
     class Config:
         extra = "allow"
 
 
 class TelemetryResources(BaseModel):
     """Resource telemetry."""
+
     current: ResourceUsage = Field(..., description="Current usage")
     limits: ResourceLimits = Field(..., description="Resource limits")
     health: Union[str, ResourceHealth] = Field(..., description="Health status")
-    
+
     class Config:
         extra = "allow"
 
 
 class TelemetryResourcesHistory(BaseModel):
     """Historical resource data."""
+
     period: Optional[str] = Field(None, description="Time period")
     cpu: List[ResourceHistoryPoint] = Field(..., description="CPU history")
     memory: List[ResourceHistoryPoint] = Field(..., description="Memory history")
-    
+
     class Config:
         extra = "allow"
-        
+
     @classmethod
     def from_api_response(cls, data: dict) -> "TelemetryResourcesHistory":
         """Convert API response to model."""
         # Handle SuccessResponse wrapper
         if "data" in data and isinstance(data["data"], dict):
             data = data["data"]
-            
+
         # Extract period from nested data if needed
         period = data.get("period")
         if isinstance(period, dict):
@@ -99,7 +113,7 @@ class TelemetryResourcesHistory(BaseModel):
                 period = f"Last {data['hours']} hours"
             else:
                 period = "Recent"
-            
+
         # Extract CPU and memory data
         cpu = data.get("cpu", [])
         if isinstance(cpu, dict):
@@ -108,7 +122,7 @@ class TelemetryResourcesHistory(BaseModel):
             else:
                 # Keep the whole dict if no data field
                 cpu = cpu
-            
+
         memory = data.get("memory", [])
         if isinstance(memory, dict):
             if "data" in memory:
@@ -116,7 +130,7 @@ class TelemetryResourcesHistory(BaseModel):
             else:
                 # Keep the whole dict if no data field
                 memory = memory
-            
+
         # If cpu/memory are not present, try history field
         if not cpu and not memory and "history" in data:
             history = data["history"]
@@ -125,18 +139,22 @@ class TelemetryResourcesHistory(BaseModel):
             for entry in history:
                 timestamp = entry.get("timestamp")
                 if "cpu_percent" in entry:
-                    cpu.append(ResourceHistoryPoint(
-                    timestamp=datetime.fromisoformat(timestamp) if isinstance(timestamp, str) else timestamp,
-                    value=entry["cpu_percent"],
-                    unit="percent"
-                ))
+                    cpu.append(
+                        ResourceHistoryPoint(
+                            timestamp=datetime.fromisoformat(timestamp) if isinstance(timestamp, str) else timestamp,
+                            value=entry["cpu_percent"],
+                            unit="percent",
+                        )
+                    )
                 if "memory_mb" in entry:
-                    memory.append(ResourceHistoryPoint(
-                        timestamp=datetime.fromisoformat(timestamp) if isinstance(timestamp, str) else timestamp,
-                        value=entry["memory_mb"],
-                        unit="MB"
-                    ))
-            
+                    memory.append(
+                        ResourceHistoryPoint(
+                            timestamp=datetime.fromisoformat(timestamp) if isinstance(timestamp, str) else timestamp,
+                            value=entry["memory_mb"],
+                            unit="MB",
+                        )
+                    )
+
         return cls(period=period, cpu=cpu, memory=memory)
 
 
@@ -163,10 +181,7 @@ class TelemetryResource:
         return TelemetryMetricsResponse(**data)
 
     async def get_traces(
-        self,
-        limit: int = 10,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None
+        self, limit: int = 10, start_time: Optional[datetime] = None, end_time: Optional[datetime] = None
     ) -> TelemetryTracesResponse:
         """
         Get reasoning traces.
@@ -188,7 +203,7 @@ class TelemetryResource:
         end_time: Optional[datetime] = None,
         level: Optional[str] = None,
         service: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> TelemetryLogsResponse:
         """
         Get system logs.
@@ -215,7 +230,7 @@ class TelemetryResource:
         aggregations: Optional[List[str]] = None,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> Union[MetricsQueryResult, TracesQueryResult, LogsQueryResult, IncidentsQueryResult, InsightsQueryResult]:
         """
         Execute custom telemetry queries.
@@ -227,19 +242,11 @@ class TelemetryResource:
         filters_dict = {}
         if filters:
             filters_dict = {
-                "filters": [{
-                    "field": f.field,
-                    "operator": f.operator,
-                    "value": f.value
-                } for f in filters.filters],
-                "logic": filters.logic
+                "filters": [{"field": f.field, "operator": f.operator, "value": f.value} for f in filters.filters],
+                "logic": filters.logic,
             }
-        
-        payload = {
-            "query_type": query_type,
-            "filters": filters_dict,
-            "limit": limit
-        }
+
+        payload = {"query_type": query_type, "filters": filters_dict, "limit": limit}
 
         if aggregations:
             payload["aggregations"] = aggregations
@@ -249,7 +256,7 @@ class TelemetryResource:
             payload["end_time"] = end_time.isoformat()
 
         data = await self._transport.request("POST", "/v1/telemetry/query", json=payload)
-        
+
         # Return appropriate response type based on query_type
         if query_type == "metrics":
             return MetricsQueryResult(**data)
@@ -281,10 +288,7 @@ class TelemetryResource:
         return await self.get_metrics()
 
     async def get_observability_traces(
-        self,
-        limit: int = 10,
-        start_time: Optional[datetime] = None,
-        end_time: Optional[datetime] = None
+        self, limit: int = 10, start_time: Optional[datetime] = None, end_time: Optional[datetime] = None
     ) -> TelemetryTracesResponse:
         """
         DEPRECATED: Use get_traces() instead.
@@ -298,19 +302,13 @@ class TelemetryResource:
         end_time: Optional[datetime] = None,
         level: Optional[str] = None,
         service: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> TelemetryLogsResponse:
         """
         DEPRECATED: Use get_logs() instead.
         Get system logs.
         """
-        return await self.get_logs(
-            start_time=start_time,
-            end_time=end_time,
-            level=level,
-            service=service,
-            limit=limit
-        )
+        return await self.get_logs(start_time=start_time, end_time=end_time, level=level, service=service, limit=limit)
 
     async def query_observability(
         self,
@@ -319,7 +317,7 @@ class TelemetryResource:
         aggregations: Optional[List[str]] = None,
         start_time: Optional[datetime] = None,
         end_time: Optional[datetime] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> Union[MetricsQueryResult, TracesQueryResult, LogsQueryResult, IncidentsQueryResult, InsightsQueryResult]:
         """
         DEPRECATED: Use query() instead.
@@ -333,16 +331,16 @@ class TelemetryResource:
                 # Simple conversion - assumes equality operator
                 filter_list.append(QueryFilter(field=field, operator="eq", value=value))
             query_filters = QueryFilters(filters=filter_list)
-        
+
         return await self.query(
             query_type=query_type,
             filters=query_filters,
             aggregations=aggregations,
             start_time=start_time,
             end_time=end_time,
-            limit=limit
+            limit=limit,
         )
-    
+
     # Aliases for backward compatibility with tests
     async def overview(self) -> TelemetryOverview:
         """Alias for get_overview()."""
@@ -352,9 +350,9 @@ class TelemetryResource:
             uptime_seconds=data.uptime_seconds,
             cognitive_state=data.cognitive_state,
             messages_processed_24h=data.messages_processed_24h,
-            healthy_services=data.healthy_services
+            healthy_services=data.healthy_services,
         )
-    
+
     async def metrics(self) -> TelemetryMetrics:
         """Alias for get_metrics()."""
         data = await self.get_metrics()
@@ -364,7 +362,7 @@ class TelemetryResource:
             for point in metric.recent_data:
                 metric_list.append(point)
         return TelemetryMetrics(metrics=metric_list)
-    
+
     async def metric_detail(self, metric_name: str) -> TelemetryMetricDetail:
         """Get detailed information about a specific metric."""
         data = await self._transport.request("GET", f"/v1/telemetry/metrics/{metric_name}")
@@ -374,7 +372,7 @@ class TelemetryResource:
         if "current" not in data and "current_value" in data:
             data["current"] = data["current_value"]
         return TelemetryMetricDetail(**data)
-    
+
     async def resources(self) -> TelemetryResources:
         """Get resource usage telemetry."""
         data = await self._transport.request("GET", "/v1/telemetry/resources")
@@ -387,7 +385,7 @@ class TelemetryResource:
         else:
             health = health_data
         return TelemetryResources(current=current, limits=limits, health=health)
-    
+
     async def resources_history(self, hours: int = 24) -> TelemetryResourcesHistory:
         """Get historical resource usage."""
         params = {"hours": str(hours)}

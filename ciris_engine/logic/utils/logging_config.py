@@ -1,24 +1,28 @@
 import logging
 import sys
-from typing import Optional
 from pathlib import Path
+from typing import Optional
+
 from ciris_engine.protocols.services import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_LOG_FORMAT = '%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s'
-DEFAULT_LOG_DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
+DEFAULT_LOG_FORMAT = "%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s"
+DEFAULT_LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
-def setup_basic_logging(level: int = logging.INFO,
-                        log_format: str = DEFAULT_LOG_FORMAT,
-                        date_format: str = DEFAULT_LOG_DATE_FORMAT,
-                        logger_instance: Optional[logging.Logger] = None,
-                        prefix: Optional[str] = None,
-                        log_to_file: bool = True,
-                        log_dir: str = "logs",
-                        console_output: bool = False,
-                        enable_incident_capture: bool = True,
-                        time_service: Optional[TimeServiceProtocol] = None) -> None:
+
+def setup_basic_logging(
+    level: int = logging.INFO,
+    log_format: str = DEFAULT_LOG_FORMAT,
+    date_format: str = DEFAULT_LOG_DATE_FORMAT,
+    logger_instance: Optional[logging.Logger] = None,
+    prefix: Optional[str] = None,
+    log_to_file: bool = True,
+    log_dir: str = "logs",
+    console_output: bool = False,
+    enable_incident_capture: bool = True,
+    time_service: Optional[TimeServiceProtocol] = None,
+) -> None:
     """
     Sets up basic logging configuration with file output and optional console output.
 
@@ -67,7 +71,7 @@ def setup_basic_logging(level: int = logging.INFO,
         timestamp = time_service.now().strftime("%Y%m%d_%H%M%S")
         log_filename = log_path / f"ciris_agent_{timestamp}.log"
 
-        file_handler = logging.FileHandler(log_filename, encoding='utf-8')
+        file_handler = logging.FileHandler(log_filename, encoding="utf-8")
         file_handler.setFormatter(formatter)
         target_logger.addHandler(file_handler)
 
@@ -78,11 +82,11 @@ def setup_basic_logging(level: int = logging.INFO,
             latest_link.symlink_to(log_filename.name)
         except Exception:
             pass
-        
+
         # Store the actual log filename for the telemetry endpoint
         actual_log_path = log_path / ".current_log"
         try:
-            with open(actual_log_path, 'w') as f:
+            with open(actual_log_path, "w") as f:
                 f.write(str(log_filename.absolute()))
         except Exception:
             pass
@@ -93,6 +97,7 @@ def setup_basic_logging(level: int = logging.INFO,
     # Add incident capture handler if enabled
     if enable_incident_capture:
         from ciris_engine.logic.utils.incident_capture_handler import add_incident_capture_handler
+
         # Note: Graph audit service will be set later if available
         # Cannot use async service lookup in sync function
 
@@ -100,7 +105,7 @@ def setup_basic_logging(level: int = logging.INFO,
             target_logger,
             log_dir=log_dir,
             time_service=time_service,
-            graph_audit_service=None  # Will be set later by runtime
+            graph_audit_service=None,  # Will be set later by runtime
         )
 
     logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -116,15 +121,16 @@ def setup_basic_logging(level: int = logging.INFO,
 
     # Print to stdout regardless of console_output setting
     if log_to_file and not console_output:
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print(f"🔍 LOGGING INITIALIZED - SEE DETAILED LOGS AT: {log_filename}")
         print(f"🔗 Symlinked to: {latest_link}")
         if enable_incident_capture:
             print(f"⚠️  Incident capture: {log_dir}/incidents_latest.log (WARNING/ERROR messages captured as incidents)")
-        print("="*80 + "\n")
+        print("=" * 80 + "\n")
         sys.stdout.flush()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     setup_basic_logging(level=logging.DEBUG)
     logger = logging.getLogger("logging_config_demo")
     logger.debug("Debug message")

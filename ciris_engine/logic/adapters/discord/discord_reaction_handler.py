@@ -1,27 +1,34 @@
 """Discord reaction handling component for approval workflows."""
-import discord
-import logging
+
 import asyncio
-from typing import Dict, Optional, Callable, Awaitable, TYPE_CHECKING
+import logging
 from datetime import datetime
 from enum import Enum
+from typing import TYPE_CHECKING, Awaitable, Callable, Dict, Optional
+
+import discord
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
 
+
 class ApprovalStatus(Enum):
     """Status of an approval request."""
+
     PENDING = "pending"
     APPROVED = "approved"
     DENIED = "denied"
     TIMEOUT = "timeout"
 
+
 class ApprovalRequest:
     """Represents a pending approval request."""
-    def __init__(self, message_id: int, channel_id: int, request_type: str,
-                 context: Dict[str, str], timeout_seconds: int = 300):
+
+    def __init__(
+        self, message_id: int, channel_id: int, request_type: str, context: Dict[str, str], timeout_seconds: int = 300
+    ):
         self.message_id = message_id
         self.channel_id = channel_id
         self.request_type = request_type
@@ -33,14 +40,16 @@ class ApprovalRequest:
         self.resolver_id: Optional[str] = None
         self.resolver_name: Optional[str] = None
 
+
 class DiscordReactionHandler:
     """Handles Discord reactions for approval workflows."""
 
     APPROVE_EMOJI = "✅"
     DENY_EMOJI = "❌"
 
-    def __init__(self, client: Optional[discord.Client] = None,
-                 time_service: Optional["TimeServiceProtocol"] = None) -> None:
+    def __init__(
+        self, client: Optional[discord.Client] = None, time_service: Optional["TimeServiceProtocol"] = None
+    ) -> None:
         """Initialize the reaction handler.
 
         Args:
@@ -56,6 +65,7 @@ class DiscordReactionHandler:
         # Ensure we have a time service
         if time_service is None:
             from ciris_engine.logic.services.lifecycle.time import TimeService
+
             self._time_service = TimeService()
         else:
             self._time_service = time_service
@@ -68,10 +78,15 @@ class DiscordReactionHandler:
         """
         self.client = client
 
-    async def request_approval(self, channel_id: int, message: str,
-                             request_type: str, context: Dict[str, str],
-                             timeout_seconds: int = 300,
-                             callback: Optional[Callable[[ApprovalRequest], Awaitable[None]]] = None) -> Optional[ApprovalRequest]:
+    async def request_approval(
+        self,
+        channel_id: int,
+        message: str,
+        request_type: str,
+        context: Dict[str, str],
+        timeout_seconds: int = 300,
+        callback: Optional[Callable[[ApprovalRequest], Awaitable[None]]] = None,
+    ) -> Optional[ApprovalRequest]:
         """Send an approval request message and wait for reactions.
 
         Args:
@@ -96,7 +111,10 @@ class DiscordReactionHandler:
                 channel = await self.client.fetch_channel(channel_id)
 
             # Check if channel supports sending messages
-            if not isinstance(channel, (discord.TextChannel, discord.DMChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel)):
+            if not isinstance(
+                channel,
+                (discord.TextChannel, discord.DMChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel),
+            ):
                 logger.error(f"Channel {channel_id} does not support sending messages")
                 return None
 
@@ -113,7 +131,7 @@ class DiscordReactionHandler:
                 channel_id=channel_id,
                 request_type=request_type,
                 context=context,
-                timeout_seconds=timeout_seconds
+                timeout_seconds=timeout_seconds,
             )
 
             # Store in pending
@@ -168,7 +186,9 @@ class DiscordReactionHandler:
                     user = await self.client.fetch_user(payload.user_id)
                 approval.resolver_name = user.name
             except Exception as e:
-                logger.warning(f"Failed to fetch Discord user {payload.user_id} for approval resolution: {e}. Resolver name will be omitted.")
+                logger.warning(
+                    f"Failed to fetch Discord user {payload.user_id} for approval resolution: {e}. Resolver name will be omitted."
+                )
 
         # Remove from pending
         del self._pending_approvals[payload.message_id]
@@ -221,7 +241,10 @@ class DiscordReactionHandler:
                 channel = await self.client.fetch_channel(approval.channel_id)
 
             # Check if channel supports fetching messages
-            if not isinstance(channel, (discord.TextChannel, discord.DMChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel)):
+            if not isinstance(
+                channel,
+                (discord.TextChannel, discord.DMChannel, discord.Thread, discord.VoiceChannel, discord.StageChannel),
+            ):
                 logger.error(f"Channel {approval.channel_id} does not support fetching messages")
                 return
 

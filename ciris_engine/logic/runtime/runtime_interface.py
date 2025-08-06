@@ -1,5 +1,6 @@
 from typing import Optional, Protocol, runtime_checkable
 
+
 @runtime_checkable
 class RuntimeInterface(Protocol):
     """

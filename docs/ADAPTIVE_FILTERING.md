@@ -112,12 +112,12 @@ class AdaptiveFilterConfig(BaseModel):
     quality_threshold: float = 0.3
     response_time_weight: float = 0.2
     user_feedback_weight: float = 0.5
-    
+
     # Trigger thresholds
     dm_priority: FilterPriority = FilterPriority.CRITICAL
     mention_priority: FilterPriority = FilterPriority.HIGH
     question_priority: FilterPriority = FilterPriority.HIGH
-    
+
     # Trust level mappings
     trust_priority_mapping: Dict[TrustLevel, FilterPriority] = {
         TrustLevel.VERIFIED: FilterPriority.HIGH,
@@ -169,7 +169,7 @@ msg._filter_reasoning = filter_result.reasoning
 async def _filter_llm_response(self, response: str) -> str:
     if not self.filter_service:
         return response
-    
+
     # Apply response quality and safety filtering
     filtered = await self.filter_service.filter_response(response)
     return filtered.cleaned_content

@@ -8,17 +8,23 @@ overrides the action to DEFER, ensuring proper escalation to humans.
 import logging
 from typing import Optional
 
-from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
-from ciris_engine.schemas.conscience.core import ConscienceCheckResult, ConscienceStatus, EpistemicData
-from ciris_engine.schemas.runtime.enums import HandlerActionType
-from ciris_engine.schemas.actions import DeferParams
+from ciris_engine.logic import persistence
 from ciris_engine.logic.conscience.interface import ConscienceInterface
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.logic import persistence
-from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, TraceContext, ServiceCorrelationStatus
+from ciris_engine.schemas.actions import DeferParams
+from ciris_engine.schemas.conscience.core import ConscienceCheckResult, ConscienceStatus, EpistemicData
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
+from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.schemas.telemetry.core import (
+    CorrelationType,
+    ServiceCorrelation,
+    ServiceCorrelationStatus,
+    TraceContext,
+)
 
 logger = logging.getLogger(__name__)
+
 
 class ThoughtDepthGuardrail(ConscienceInterface):
     """Enforces maximum thought depth by deferring when limit is reached."""
@@ -46,14 +52,14 @@ class ThoughtDepthGuardrail(ConscienceInterface):
 
         # Get the thought from context
         thought = context.get("thought")
-        thought_id = thought.thought_id if thought and hasattr(thought, 'thought_id') else 'unknown'
-        task_id = thought.source_task_id if thought and hasattr(thought, 'source_task_id') else 'unknown'
-        
+        thought_id = thought.thought_id if thought and hasattr(thought, "thought_id") else "unknown"
+        task_id = thought.source_task_id if thought and hasattr(thought, "source_task_id") else "unknown"
+
         # Create trace for guardrail execution
         trace_id = f"task_{task_id}_{thought_id}"
         span_id = f"thought_depth_guardrail_{thought_id}"
         parent_span_id = f"thought_processor_{thought_id}"
-        
+
         trace_context = TraceContext(
             trace_id=trace_id,
             span_id=span_id,
@@ -64,10 +70,10 @@ class ThoughtDepthGuardrail(ConscienceInterface):
                 "thought_id": thought_id,
                 "task_id": task_id,
                 "guardrail_type": "thought_depth",
-                "max_depth": str(self.max_depth)
-            }
+                "max_depth": str(self.max_depth),
+            },
         )
-        
+
         correlation = ServiceCorrelation(
             correlation_id=f"trace_{span_id}_{start_time.timestamp()}",
             correlation_type=CorrelationType.TRACE_SPAN,
@@ -83,10 +89,10 @@ class ThoughtDepthGuardrail(ConscienceInterface):
                 "task_id": task_id,
                 "component_type": "guardrail",
                 "guardrail_type": "thought_depth",
-                "trace_depth": "4"
-            }
+                "trace_depth": "4",
+            },
         )
-        
+
         # Add correlation
         persistence.add_correlation(correlation, self._time_service)
         if not thought:
@@ -99,9 +105,9 @@ class ThoughtDepthGuardrail(ConscienceInterface):
                     "success": "true",
                     "result_summary": "No thought provided to check",
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
-                    "response_timestamp": end_time.isoformat()
+                    "response_timestamp": end_time.isoformat(),
                 },
-                status=ServiceCorrelationStatus.COMPLETED
+                status=ServiceCorrelationStatus.COMPLETED,
             )
             persistence.update_correlation(update_req, self._time_service)
             return ConscienceCheckResult(
@@ -109,12 +115,9 @@ class ThoughtDepthGuardrail(ConscienceInterface):
                 passed=True,
                 check_timestamp=timestamp,
                 epistemic_data=EpistemicData(
-                    entropy_level=0.5,
-                    coherence_level=0.5,
-                    uncertainty_acknowledged=True,
-                    reasoning_transparency=0.0
+                    entropy_level=0.5, coherence_level=0.5, uncertainty_acknowledged=True, reasoning_transparency=0.0
                 ),
-                reason="No thought provided to check"
+                reason="No thought provided to check",
             )
 
         current_depth = getattr(thought, "thought_depth", 0)
@@ -123,7 +126,7 @@ class ThoughtDepthGuardrail(ConscienceInterface):
         terminal_actions = {
             HandlerActionType.DEFER.value,
             HandlerActionType.REJECT.value,
-            HandlerActionType.TASK_COMPLETE.value
+            HandlerActionType.TASK_COMPLETE.value,
         }
 
         if action.selected_action in terminal_actions:
@@ -135,9 +138,9 @@ class ThoughtDepthGuardrail(ConscienceInterface):
                     "success": "true",
                     "result_summary": f"Terminal action {action.selected_action} at depth {current_depth}",
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
-                    "response_timestamp": end_time.isoformat()
+                    "response_timestamp": end_time.isoformat(),
                 },
-                status=ServiceCorrelationStatus.COMPLETED
+                status=ServiceCorrelationStatus.COMPLETED,
             )
             persistence.update_correlation(update_req, self._time_service)
             return ConscienceCheckResult(
@@ -148,9 +151,9 @@ class ThoughtDepthGuardrail(ConscienceInterface):
                     entropy_level=0.5,
                     coherence_level=0.9,  # Terminal actions are coherent
                     uncertainty_acknowledged=True,
-                    reasoning_transparency=0.8
+                    reasoning_transparency=0.8,
                 ),
-                reason=f"Terminal action {action.selected_action} at depth {current_depth}"
+                reason=f"Terminal action {action.selected_action} at depth {current_depth}",
             )
 
         # Check if we're at or beyond max depth
@@ -163,20 +166,20 @@ class ThoughtDepthGuardrail(ConscienceInterface):
             # Create defer parameters
             _defer_params = DeferParams(
                 reason=f"Maximum action depth ({self.max_depth}) reached. "
-                       "This task requires human guidance to proceed further.",
+                "This task requires human guidance to proceed further.",
                 context={
                     "thought_depth": str(current_depth),
                     "original_action": action.selected_action,  # It's already a string
-                    "auto_deferred": "true"
+                    "auto_deferred": "true",
                 },
-                defer_until=None  # No specific time, defer indefinitely
+                defer_until=None,  # No specific time, defer indefinitely
             )
 
             # Create the defer action that will replace the original
             ActionSelectionDMAResult(
                 selected_action=HandlerActionType.DEFER.value,
                 action_parameters=_defer_params,
-                rationale=f"Automatically deferred: Maximum thought depth of {self.max_depth} reached"
+                rationale=f"Automatically deferred: Maximum thought depth of {self.max_depth} reached",
             )
 
             # Update correlation with failure (depth exceeded)
@@ -187,9 +190,9 @@ class ThoughtDepthGuardrail(ConscienceInterface):
                     "success": "false",
                     "result_summary": f"Maximum thought depth ({self.max_depth}) reached - deferring to human",
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
-                    "response_timestamp": end_time.isoformat()
+                    "response_timestamp": end_time.isoformat(),
                 },
-                status=ServiceCorrelationStatus.FAILED
+                status=ServiceCorrelationStatus.FAILED,
             )
             persistence.update_correlation(update_req, self._time_service)
             return ConscienceCheckResult(
@@ -201,8 +204,8 @@ class ThoughtDepthGuardrail(ConscienceInterface):
                     entropy_level=0.8,  # High uncertainty at max depth
                     coherence_level=0.3,  # Low coherence when forced to stop
                     uncertainty_acknowledged=True,
-                    reasoning_transparency=0.9  # Very transparent about why
-                )
+                    reasoning_transparency=0.9,  # Very transparent about why
+                ),
             )
 
         # Depth is within limits
@@ -214,9 +217,9 @@ class ThoughtDepthGuardrail(ConscienceInterface):
                 "success": "true",
                 "result_summary": f"Thought depth {current_depth} within limit of {self.max_depth}",
                 "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
-                "response_timestamp": end_time.isoformat()
+                "response_timestamp": end_time.isoformat(),
             },
-            status=ServiceCorrelationStatus.COMPLETED
+            status=ServiceCorrelationStatus.COMPLETED,
         )
         persistence.update_correlation(update_req, self._time_service)
         return ConscienceCheckResult(
@@ -227,7 +230,7 @@ class ThoughtDepthGuardrail(ConscienceInterface):
                 entropy_level=0.5,
                 coherence_level=0.8,  # Good coherence within limits
                 uncertainty_acknowledged=True,
-                reasoning_transparency=0.7
+                reasoning_transparency=0.7,
             ),
-            reason=f"Thought depth {current_depth} within limit of {self.max_depth}"
+            reason=f"Thought depth {current_depth} within limit of {self.max_depth}",
         )

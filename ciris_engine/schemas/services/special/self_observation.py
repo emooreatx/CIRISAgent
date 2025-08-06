@@ -3,23 +3,29 @@ Self-observation service schemas.
 
 Replaces Dict[str, Any] in self-observation operations.
 """
-from typing import Dict, List, Optional, Union
+
 from datetime import datetime, timezone
-from pydantic import BaseModel, Field
 from enum import Enum
+from typing import Dict, List, Optional, Union
+
+from pydantic import BaseModel, Field
 
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 
+
 class ObservationState(str, Enum):
     """Current state of the self-observation system."""
-    LEARNING = "learning"          # Gathering data, no changes yet
-    PROPOSING = "proposing"        # Actively proposing observations
-    ADAPTING = "adapting"          # Applying approved changes
-    STABILIZING = "stabilizing"    # Waiting for changes to settle
-    REVIEWING = "reviewing"        # Under WA review for variance
+
+    LEARNING = "learning"  # Gathering data, no changes yet
+    PROPOSING = "proposing"  # Actively proposing observations
+    ADAPTING = "adapting"  # Applying approved changes
+    STABILIZING = "stabilizing"  # Waiting for changes to settle
+    REVIEWING = "reviewing"  # Under WA review for variance
+
 
 class ProcessSnapshotResult(BaseModel):
     """Result of processing a system snapshot for observation."""
+
     patterns_detected: int = Field(0, description="Number of patterns detected")
     proposals_generated: int = Field(0, description="Number of proposals generated")
     changes_applied: int = Field(0, description="Number of changes applied")
@@ -27,8 +33,10 @@ class ProcessSnapshotResult(BaseModel):
     requires_review: bool = Field(False, description="Whether WA review is required")
     error: Optional[str] = Field(None, description="Error message if processing failed")
 
+
 class ObservationCycleResult(BaseModel):
     """Result of running an observation cycle."""
+
     cycle_id: str = Field(..., description="Unique cycle identifier")
     state: ObservationState = Field(..., description="Current observation state")
     started_at: datetime = Field(..., description="When cycle started")
@@ -56,8 +64,10 @@ class ObservationCycleResult(BaseModel):
     requires_review: bool = Field(False, description="Whether WA review needed")
     error: Optional[str] = Field(None, description="Error if cycle failed")
 
+
 class CycleEventData(BaseModel):
     """Data for observation cycle events."""
+
     event_type: str = Field(..., description="Type of event")
     cycle_id: str = Field(..., description="Associated cycle ID")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -73,8 +83,10 @@ class CycleEventData(BaseModel):
         default_factory=dict, description="Additional event metadata"
     )
 
+
 class ObservationStatus(BaseModel):
     """Current status of the observation system."""
+
     is_active: bool = Field(..., description="Whether observation is active")
     current_state: ObservationState = Field(..., description="Current state")
     cycles_completed: int = Field(..., description="Total cycles completed")
@@ -98,8 +110,10 @@ class ObservationStatus(BaseModel):
     under_review: bool = Field(False, description="Whether under WA review")
     review_reason: Optional[str] = Field(None, description="Why review was triggered")
 
+
 class ReviewOutcome(BaseModel):
     """Outcome of WA review process."""
+
     review_id: str = Field(..., description="Review identifier")
     reviewer_id: str = Field(..., description="WA reviewer identifier")
     decision: str = Field(..., description="approve, reject, or modify")
@@ -109,9 +123,7 @@ class ReviewOutcome(BaseModel):
     rejected_changes: List[str] = Field(default_factory=list, description="Changes rejected")
 
     # Modifications
-    modified_proposals: Dict[str, str] = Field(
-        default_factory=dict, description="Proposals with modifications"
-    )
+    modified_proposals: Dict[str, str] = Field(default_factory=dict, description="Proposals with modifications")
 
     # Guidance
     feedback: Optional[str] = Field(None, description="Review feedback")
@@ -121,10 +133,13 @@ class ReviewOutcome(BaseModel):
     resume_observation: bool = Field(True, description="Whether to resume observation")
     new_variance_limit: Optional[float] = Field(None, description="New variance limit if changed")
 
+
 # ========== New Schemas for Enhanced Protocol ==========
+
 
 class AgentIdentityRoot(BaseModel):
     """Root identity configuration for baseline establishment."""
+
     identity_id: str = Field(..., description="Unique identity identifier")
     core_values: List[str] = Field(..., description="Core ethical values")
     capabilities: List[str] = Field(..., description="Core capabilities")
@@ -134,6 +149,7 @@ class AgentIdentityRoot(BaseModel):
 
 class ConfigurationChange(BaseModel):
     """A proposed or applied configuration change."""
+
     change_id: str = Field(..., description="Unique change identifier")
     scope: str = Field(..., description="Scope: LOCAL, ENVIRONMENT, IDENTITY, COMMUNITY")
     target_path: str = Field(..., description="Configuration path to change")
@@ -146,32 +162,40 @@ class ConfigurationChange(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     applied_at: Optional[datetime] = Field(None)
 
+
 class ChangeApprovalResult(BaseModel):
     """Result of approving configuration changes."""
+
     approved_count: int = Field(0, description="Number of changes approved")
     rejected_count: int = Field(0, description="Number of changes rejected")
     applied_changes: List[str] = Field(default_factory=list, description="Change IDs applied")
     total_variance_impact: float = Field(0.0, description="Total variance from changes")
     errors: List[str] = Field(default_factory=list, description="Any errors encountered")
 
+
 class RollbackResult(BaseModel):
     """Result of rolling back configuration changes."""
+
     rollback_count: int = Field(0, description="Number of changes rolled back")
     successful_rollbacks: List[str] = Field(default_factory=list, description="Successfully rolled back")
     failed_rollbacks: List[str] = Field(default_factory=list, description="Failed to rollback")
     variance_restored: float = Field(0.0, description="Variance % restored")
     errors: List[str] = Field(default_factory=list, description="Errors during rollback")
 
+
 class ObservabilitySignal(BaseModel):
     """A signal from observability sources."""
+
     signal_type: str = Field(..., description="trace, log, metric, incident, security")
     timestamp: datetime = Field(..., description="When signal occurred")
     severity: str = Field("info", description="info, warning, error, critical")
     source: str = Field(..., description="Source service or component")
     details: Dict[str, Union[str, int, float, bool, List]] = Field(default_factory=dict)
 
+
 class ObservationOpportunity(BaseModel):
     """An opportunity for system observation."""
+
     opportunity_id: str = Field(..., description="Unique identifier")
     trigger_signals: List[ObservabilitySignal] = Field(..., description="Signals that triggered this")
     proposed_changes: List[ConfigurationChange] = Field(..., description="Proposed changes")
@@ -179,8 +203,10 @@ class ObservationOpportunity(BaseModel):
     risk_assessment: str = Field(..., description="Risk level: low, medium, high")
     priority: int = Field(0, description="Priority score")
 
+
 class ObservabilityAnalysis(BaseModel):
     """Analysis of all observability signals for a time window."""
+
     window_start: datetime = Field(..., description="Analysis window start")
     window_end: datetime = Field(..., description="Analysis window end")
 
@@ -199,16 +225,20 @@ class ObservabilityAnalysis(BaseModel):
     system_health_score: float = Field(100.0, description="Overall health 0-100")
     component_health: Dict[str, float] = Field(default_factory=dict)
 
+
 class ObservationImpact(BaseModel):
     """Measured impact of an observation."""
+
     dimension: str = Field(..., description="Impact dimension measured")
     baseline_value: float = Field(..., description="Value before observation")
     current_value: float = Field(..., description="Value after observation")
     improvement_percent: float = Field(..., description="Percentage improvement")
     measurement_timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+
 class ObservationEffectiveness(BaseModel):
     """Overall effectiveness of an observation across all dimensions."""
+
     observation_id: str = Field(..., description="Observation being measured")
     measurement_period_hours: int = Field(24, description="Measurement period")
 
@@ -223,8 +253,10 @@ class ObservationEffectiveness(BaseModel):
     overall_effectiveness: float = Field(0.0, description="Overall effectiveness score")
     recommendation: str = Field(..., description="keep, modify, rollback")
 
+
 class PatternRecord(BaseModel):
     """A learned observation pattern."""
+
     pattern_id: str = Field(..., description="Unique pattern identifier")
     trigger_conditions: List[ObservabilitySignal] = Field(..., description="What triggers this")
     successful_applications: int = Field(0, description="Times successfully applied")
@@ -234,16 +266,20 @@ class PatternRecord(BaseModel):
     last_applied: Optional[datetime] = Field(None)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+
 class PatternLibrarySummary(BaseModel):
     """Summary of the pattern library."""
+
     total_patterns: int = Field(0, description="Total patterns in library")
     high_reliability_patterns: int = Field(0, description="Patterns with >70% reliability score")
     recently_used_patterns: int = Field(0, description="Used in last 30 days")
     most_effective_patterns: List[PatternRecord] = Field(default_factory=list)
     pattern_categories: Dict[str, int] = Field(default_factory=dict)
 
+
 class ServiceImprovementReport(BaseModel):
     """Comprehensive service improvement report."""
+
     report_period_start: datetime = Field(..., description="Report period start")
     report_period_end: datetime = Field(..., description="Report period end")
 
@@ -268,10 +304,13 @@ class ServiceImprovementReport(BaseModel):
     # Recommendations
     recommendations: List[str] = Field(default_factory=list, description="Future recommendations")
 
+
 # Additional schemas for replacing Dict[str, Any] usage
+
 
 class PatternInsight(BaseModel):
     """Insight from pattern analysis."""
+
     pattern_id: str = Field(..., description="Pattern identifier")
     pattern_type: str = Field(..., description="Type of pattern")
     description: str = Field(..., description="Pattern description")
@@ -282,8 +321,10 @@ class PatternInsight(BaseModel):
         default_factory=dict, description="Additional pattern metadata"
     )
 
+
 class LearningSummary(BaseModel):
     """Summary of system learning progress."""
+
     total_patterns: int = Field(0, description="Total patterns detected")
     patterns_by_type: Dict[str, int] = Field(default_factory=dict, description="Patterns grouped by type")
     action_frequencies: Dict[str, int] = Field(default_factory=dict, description="Action usage counts")
@@ -294,8 +335,10 @@ class LearningSummary(BaseModel):
     learning_rate: float = Field(0.0, description="Rate of new pattern detection")
     recommendation: str = Field("continue", description="continue, review, pause")
 
+
 class PatternEffectiveness(BaseModel):
     """Effectiveness metrics for a specific pattern."""
+
     pattern_id: str = Field(..., description="Pattern identifier")
     pattern_type: str = Field(..., description="Type of pattern")
     times_applied: int = Field(0, description="Times pattern was applied")
@@ -305,8 +348,10 @@ class PatternEffectiveness(BaseModel):
     recommendation: str = Field("monitor", description="monitor, apply, ignore")
     confidence_score: float = Field(0.0, description="Confidence in effectiveness metrics")
 
+
 class AnalysisStatus(BaseModel):
     """Current status of pattern analysis system."""
+
     is_running: bool = Field(..., description="Whether analysis is active")
     last_analysis: datetime = Field(..., description="When last analysis ran")
     next_analysis_in_seconds: float = Field(..., description="Seconds until next analysis")
@@ -315,6 +360,7 @@ class AnalysisStatus(BaseModel):
     analysis_interval_seconds: float = Field(..., description="Current analysis interval")
     error_count: int = Field(0, description="Number of analysis errors")
     last_error: Optional[str] = Field(None, description="Last error message")
+
 
 # Re-export SystemSnapshot from runtime context
 
@@ -341,5 +387,5 @@ __all__ = [
     "LearningSummary",
     "PatternEffectiveness",
     "AnalysisStatus",
-    "SystemSnapshot"
+    "SystemSnapshot",
 ]

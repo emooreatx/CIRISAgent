@@ -21,22 +21,15 @@ The 21 core services include:
 
 But there is no separate "wa_auth" service.
 """
-from typing import Protocol, Optional, Dict, List, Tuple, Any
-from abc import abstractmethod
 
-from ciris_engine.schemas.services.authority_core import (
-    WACertificate, AuthorizationContext
-)
-from ciris_engine.schemas.services.authority.jwt import (
-    JWTClaims, JWTToken, JWTValidationResult
-)
-from ciris_engine.schemas.services.authority.wa_updates import (
-    WACertificateUpdate
-)
-from ciris_engine.schemas.infrastructure.oauth import (
-    OAuthProviderConfig, OAuthUserProfile,
-    OAuthCallbackResponse
-)
+from abc import abstractmethod
+from typing import Any, Dict, List, Optional, Protocol, Tuple
+
+from ciris_engine.schemas.infrastructure.oauth import OAuthCallbackResponse, OAuthProviderConfig
+from ciris_engine.schemas.services.authority.jwt import JWTClaims
+from ciris_engine.schemas.services.authority.wa_updates import WACertificateUpdate
+from ciris_engine.schemas.services.authority_core import AuthorizationContext, WACertificate
+
 
 class WAStore(Protocol):
     """Protocol for WA certificate storage operations."""
@@ -76,6 +69,7 @@ class WAStore(Protocol):
         """Revoke a WA certificate."""
         ...
 
+
 class JWTService(Protocol):
     """Protocol for JWT operations."""
 
@@ -93,6 +87,7 @@ class JWTService(Protocol):
     def get_gateway_secret(self) -> bytes:
         """Get or generate gateway secret for HS256 signing."""
         ...
+
 
 class WACrypto(Protocol):
     """Protocol for cryptographic operations."""
@@ -137,6 +132,7 @@ class WACrypto(Protocol):
         """Generate API key for WA."""
         ...
 
+
 class WAAuthMiddleware(Protocol):
     """Protocol for authentication middleware operations."""
 
@@ -154,6 +150,7 @@ class WAAuthMiddleware(Protocol):
     def extract_token(self, authorization: Optional[str]) -> Optional[str]:
         """Extract token from Authorization header."""
         ...
+
 
 class OAuthService(Protocol):
     """Protocol for OAuth operations."""
@@ -174,24 +171,17 @@ class OAuthService(Protocol):
         ...
 
     @abstractmethod
-    async def handle_oauth_callback(
-        self,
-        provider: str,
-        code: str,
-        state: str
-    ) -> Optional[OAuthCallbackResponse]:
+    async def handle_oauth_callback(self, provider: str, code: str, state: str) -> Optional[OAuthCallbackResponse]:
         """Handle OAuth callback and return token + profile."""
         ...
 
     @abstractmethod
     async def create_oauth_wa(
-        self,
-        provider: str,
-        external_id: str,
-        profile: Dict[str, Any]
+        self, provider: str, external_id: str, profile: Dict[str, Any]
     ) -> Optional[WACertificate]:
         """Create WA certificate from OAuth profile."""
         ...
+
 
 __all__ = [
     "WAStore",

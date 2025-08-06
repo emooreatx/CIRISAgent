@@ -28,7 +28,7 @@ error() {
 }
 
 # Check if running with sudo
-if [ "$EUID" -ne 0 ]; then 
+if [ "$EUID" -ne 0 ]; then
     error "This script must be run with sudo"
     echo "Usage: sudo $0"
     exit 1

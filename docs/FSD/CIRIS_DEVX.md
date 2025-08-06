@@ -74,7 +74,7 @@ environments:
       gui:
         port: 3000
         hot_reload: true
-  
+
   prod:
     defaults:
       llm_provider: "${LLM_PROVIDER}"

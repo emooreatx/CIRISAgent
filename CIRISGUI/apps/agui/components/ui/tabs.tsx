@@ -13,7 +13,7 @@ export const Tabs = ({ children, defaultValue, className = "" }: {
   className?: string
 }) => {
   const [value, setValue] = React.useState(defaultValue)
-  
+
   return (
     <TabsContext.Provider value={{ value, onValueChange: setValue }}>
       <div className={className}>
@@ -39,9 +39,9 @@ export const TabsTrigger = ({ value, children, className = "" }: {
 }) => {
   const context = React.useContext(TabsContext)
   if (!context) throw new Error("TabsTrigger must be used within Tabs")
-  
+
   const isActive = context.value === value
-  
+
   return (
     <button
       type="button"
@@ -62,9 +62,9 @@ export const TabsContent = ({ value, children, className = "" }: {
 }) => {
   const context = React.useContext(TabsContext)
   if (!context) throw new Error("TabsContent must be used within Tabs")
-  
+
   if (context.value !== value) return null
-  
+
   return (
     <div className={`mt-2 ${className}`}>
       {children}

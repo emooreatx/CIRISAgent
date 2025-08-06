@@ -14,4 +14,4 @@ Components:
 
 from .service import TSDBConsolidationService
 
-__all__ = ['TSDBConsolidationService']
+__all__ = ["TSDBConsolidationService"]

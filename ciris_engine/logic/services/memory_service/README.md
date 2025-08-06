@@ -12,7 +12,7 @@ The memory service implements three core operations - MEMORIZE, RECALL, and FORG
 
 In CIRIS, there's no distinction between:
 - Configuration settings
-- Learned knowledge  
+- Learned knowledge
 - User preferences
 - Behavioral patterns
 - Identity attributes
@@ -127,19 +127,19 @@ The default implementation backed by SQLite:
 
 ```python
 class LocalGraphMemoryService(BaseGraphService, MemoryService):
-    def __init__(self, db_path: Optional[str] = None, 
+    def __init__(self, db_path: Optional[str] = None,
                  secrets_service: Optional[SecretsService] = None,
                  time_service: Optional[TimeServiceProtocol] = None):
         # Initialize with optional dependencies
         super().__init__(memory_bus=None, time_service=time_service)
-        
+
     async def memorize(self, node: GraphNode) -> MemoryOpResult:
         # Process secrets before storing
         processed_node = await self._process_secrets_for_memorize(node)
-        
+
         # Store in persistence layer
         persistence.add_graph_node(processed_node, db_path=self.db_path)
-        
+
         # Note: WA approval happens at handler level, not here
         return MemoryOpResult(status=MemoryOpStatus.OK)
 ```
@@ -159,7 +159,7 @@ CREATE TABLE graph_nodes (
     updated_by TEXT
 );
 
--- Edges table  
+-- Edges table
 CREATE TABLE graph_edges (
     source_id TEXT NOT NULL,
     target_id TEXT NOT NULL,
@@ -193,7 +193,7 @@ if params.scope == GraphScope.IDENTITY:
         new_identity,
         VARIANCE_WEIGHTS
     )
-    
+
     if variance > 0.20:
         await defer_to_wise_authority(
             reason=f"Identity variance {variance:.2%} exceeds threshold",
@@ -304,7 +304,7 @@ await memorize(
 
 # Configuration = ENVIRONMENT (needs approval)
 await memorize(
-    concept="api_endpoint_override", 
+    concept="api_endpoint_override",
     scope=GraphScope.ENVIRONMENT
 )
 ```

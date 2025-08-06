@@ -4,19 +4,17 @@ Module loader with MOCK safety checks.
 Ensures MOCK modules disable corresponding real services and emit warnings.
 """
 
+import importlib
 import json
 import logging
-import importlib
 from pathlib import Path
-from typing import Any, Dict, List, Set, Optional
+from typing import Any, Dict, List, Optional, Set
 
 from ciris_engine.schemas.runtime.enums import ServiceType
-from ciris_engine.schemas.runtime.manifest import (
-    ServiceManifest, ServiceMetadata, ModuleLoadResult,
-    ServicePriority, ServiceDeclaration
-)
+from ciris_engine.schemas.runtime.manifest import ModuleLoadResult, ServiceManifest, ServiceMetadata
 
 logger = logging.getLogger(__name__)
+
 
 class ModuleLoader:
     """Loads modules with MOCK safety enforcement."""
@@ -39,10 +37,10 @@ class ModuleLoader:
         try:
             with open(manifest_path) as f:
                 manifest_data = json.load(f)
-            
+
             # Parse into typed manifest
             manifest = ServiceManifest.model_validate(manifest_data)
-            
+
             # Validate manifest consistency
             errors = manifest.validate_manifest()
             if errors:
@@ -81,15 +79,21 @@ class ModuleLoader:
                 logger.warning(f"⚠️  ONLY {module_name} will provide {service.type.value} services")
 
         # Log to audit trail
-        logger.critical(f"MOCK_MODULE_LOADED: {module_name} - Production services disabled for types: {[st.value for st in self.disabled_service_types]}")
+        logger.critical(
+            f"MOCK_MODULE_LOADED: {module_name} - Production services disabled for types: {[st.value for st in self.disabled_service_types]}"
+        )
 
     def _handle_real_module(self, module_name: str, manifest: ServiceManifest) -> None:
         """Handle loading of real modules."""
         # Check if any mock modules are loaded that would conflict
         for service in manifest.services:
             if service.type in self.disabled_service_types:
-                logger.error(f"❌ CANNOT load real module {module_name}: MOCK module already loaded for {service.type.value}")
-                raise RuntimeError(f"MOCK safety violation: Cannot load real {service.type.value} service when mock is active")
+                logger.error(
+                    f"❌ CANNOT load real module {module_name}: MOCK module already loaded for {service.type.value}"
+                )
+                raise RuntimeError(
+                    f"MOCK safety violation: Cannot load real {service.type.value} service when mock is active"
+                )
 
         logger.info(f"Loading module: {module_name}")
 
@@ -106,14 +110,14 @@ class ModuleLoader:
             "🚨 MOCK MODULES ACTIVE 🚨",
             f"Mock modules loaded: {', '.join(self.mock_modules)}",
             f"Disabled service types: {', '.join(st.value for st in self.disabled_service_types)}",
-            "DO NOT USE IN PRODUCTION"
+            "DO NOT USE IN PRODUCTION",
         ]
         return warnings
 
     async def initialize_module_services(self, module_name: str, service_registry: Any) -> ModuleLoadResult:
         """Initialize services from a loaded module."""
         result = ModuleLoadResult(module_name=module_name, success=False)
-        
+
         if module_name not in self.loaded_modules:
             error_msg = f"Module {module_name} not loaded"
             logger.error(error_msg)
@@ -125,6 +129,7 @@ class ModuleLoader:
 
         # Add module directory to path
         import sys
+
         _module_path = self.modules_dir / module_name
         sys.path.insert(0, str(self.modules_dir))
 
@@ -155,7 +160,7 @@ class ModuleLoader:
                     is_mock=manifest.module.is_mock,
                     capabilities=service_decl.capabilities,
                     priority=service_decl.priority,
-                    health_status="started"
+                    health_status="started",
                 )
 
                 # Register with loud warnings if mock
@@ -164,6 +169,7 @@ class ModuleLoader:
                     registry_metadata["warning"] = "MOCK SERVICE - NOT FOR PRODUCTION"
 
                 from ciris_engine.logic.registries.base import Priority
+
                 priority = Priority[service_decl.priority.value]
 
                 service_registry.register_service(
@@ -171,7 +177,7 @@ class ModuleLoader:
                     provider=service,
                     priority=priority,
                     capabilities=service_decl.capabilities,
-                    metadata=registry_metadata
+                    metadata=registry_metadata,
                 )
 
                 initialized_services.append(service_metadata)
@@ -184,12 +190,12 @@ class ModuleLoader:
 
             result.success = True
             result.services_loaded = initialized_services
-            
+
         except Exception as e:
             error_msg = f"Failed to initialize services from {module_name}: {str(e)}"
             logger.error(error_msg)
             result.errors.append(error_msg)
-            
+
         finally:
             sys.path.pop(0)
 

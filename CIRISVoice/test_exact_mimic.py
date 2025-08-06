@@ -3,14 +3,15 @@
 import asyncio
 import logging
 from functools import partial
-from wyoming.info import AsrModel, AsrProgram, Attribution, Info
-from wyoming.server import AsyncServer, AsyncEventHandler
-from wyoming.event import Event
+
 from wyoming.asr import Transcribe, Transcript
 from wyoming.audio import AudioChunk, AudioStop
-from wyoming.info import Describe
+from wyoming.event import Event
+from wyoming.info import AsrModel, AsrProgram, Attribution, Describe, Info
+from wyoming.server import AsyncEventHandler, AsyncServer
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class TestHandler(AsyncEventHandler):
     """Exact copy of FasterWhisperEventHandler pattern."""
@@ -43,10 +44,11 @@ class TestHandler(AsyncEventHandler):
 
         return True
 
+
 async def main() -> None:
     """Main entry point."""
     logging.basicConfig(level=logging.DEBUG)
-    
+
     # Create wyoming info exactly like faster-whisper
     wyoming_info = Info(
         asr=[
@@ -80,6 +82,7 @@ async def main() -> None:
 
     # Run server with handler
     await server.run(partial(TestHandler, wyoming_info))
+
 
 if __name__ == "__main__":
     try:

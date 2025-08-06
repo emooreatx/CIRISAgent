@@ -1,16 +1,15 @@
 """Unit tests for InitializationService."""
 
-import pytest
 import asyncio
-from unittest.mock import MagicMock, AsyncMock
-from datetime import datetime, timezone
+from unittest.mock import AsyncMock
 
-from ciris_engine.logic.services.lifecycle.initialization import InitializationService, InitializationStep
+import pytest
+
+from ciris_engine.logic.services.lifecycle.initialization import InitializationService
 from ciris_engine.logic.services.lifecycle.time import TimeService
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
-from ciris_engine.schemas.services.operations import InitializationPhase
 from ciris_engine.schemas.services.lifecycle.initialization import InitializationStatus
-from typing import Dict
+from ciris_engine.schemas.services.operations import InitializationPhase
 
 
 @pytest.fixture
@@ -47,11 +46,7 @@ async def test_initialization_service_register_step(init_service):
     handler = AsyncMock()
 
     # Register step
-    init_service.register_step(
-        phase=InitializationPhase.INFRASTRUCTURE,
-        name="test_step",
-        handler=handler
-    )
+    init_service.register_step(phase=InitializationPhase.INFRASTRUCTURE, name="test_step", handler=handler)
 
     # Verify step was registered
     assert len(init_service._steps) == 1
@@ -69,16 +64,8 @@ async def test_initialization_service_initialize(init_service):
     handler2 = AsyncMock()
 
     # Register steps for same phase
-    init_service.register_step(
-        phase=InitializationPhase.INFRASTRUCTURE,
-        name="step1",
-        handler=handler1
-    )
-    init_service.register_step(
-        phase=InitializationPhase.INFRASTRUCTURE,
-        name="step2",
-        handler=handler2
-    )
+    init_service.register_step(phase=InitializationPhase.INFRASTRUCTURE, name="step1", handler=handler1)
+    init_service.register_step(phase=InitializationPhase.INFRASTRUCTURE, name="step2", handler=handler2)
 
     # Run initialization
     success = await init_service.initialize()
@@ -105,12 +92,7 @@ async def test_initialization_service_with_verifier(init_service):
     verifier = AsyncMock(return_value=True)
 
     # Register step with verifier
-    init_service.register_step(
-        phase=InitializationPhase.DATABASE,
-        name="db_init",
-        handler=handler,
-        verifier=verifier
-    )
+    init_service.register_step(phase=InitializationPhase.DATABASE, name="db_init", handler=handler, verifier=verifier)
 
     # Run initialization
     success = await init_service.initialize()
@@ -134,11 +116,7 @@ async def test_initialization_service_failed_verification(init_service):
 
     # Register critical step with failing verifier
     init_service.register_step(
-        phase=InitializationPhase.DATABASE,
-        name="db_init",
-        handler=handler,
-        verifier=verifier,
-        critical=True
+        phase=InitializationPhase.DATABASE, name="db_init", handler=handler, verifier=verifier, critical=True
     )
 
     # Running initialization should fail
@@ -159,10 +137,7 @@ async def test_initialization_service_non_critical_failure(init_service):
 
     # Register non-critical step
     init_service.register_step(
-        phase=InitializationPhase.SERVICES,
-        name="optional_service",
-        handler=handler,
-        critical=False
+        phase=InitializationPhase.SERVICES, name="optional_service", handler=handler, critical=False
     )
 
     # Should succeed despite non-critical failure
@@ -204,11 +179,7 @@ async def test_initialization_service_status(init_service):
 
     # After running initialization
     handler = AsyncMock()
-    init_service.register_step(
-        phase=InitializationPhase.INFRASTRUCTURE,
-        name="test",
-        handler=handler
-    )
+    init_service.register_step(phase=InitializationPhase.INFRASTRUCTURE, name="test", handler=handler)
     await init_service.initialize()
 
     status = init_service.get_status()
@@ -228,11 +199,7 @@ async def test_initialization_service_get_status_details(init_service):
 
     # Register and run a step
     handler = AsyncMock()
-    init_service.register_step(
-        phase=InitializationPhase.INFRASTRUCTURE,
-        name="test_step",
-        handler=handler
-    )
+    init_service.register_step(phase=InitializationPhase.INFRASTRUCTURE, name="test_step", handler=handler)
 
     # Before running
     init_status = await init_service.get_initialization_status()
@@ -257,12 +224,7 @@ async def test_initialization_service_timeout(init_service):
         await asyncio.sleep(2.0)
 
     # Register step with short timeout
-    init_service.register_step(
-        phase=InitializationPhase.SERVICES,
-        name="slow_step",
-        handler=slow_handler,
-        timeout=0.1
-    )
+    init_service.register_step(phase=InitializationPhase.SERVICES, name="slow_step", handler=slow_handler, timeout=0.1)
 
     # Should fail due to timeout
     success = await init_service.initialize()

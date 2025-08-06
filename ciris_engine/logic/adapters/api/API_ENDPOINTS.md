@@ -173,5 +173,5 @@ All endpoints return standard error format:
 ## Status Codes
 - `200` - Success
 - `400` - Bad Request
-- `404` - Not Found  
+- `404` - Not Found
 - `500` - Internal Server Error

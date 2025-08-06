@@ -10,7 +10,7 @@ This tool provides:
 - Coverage analysis
 """
 
+from .config import CONTAINER_NAME, TEST_OUTPUT_DIR
 from .runner import TestRunner
-from .config import TEST_OUTPUT_DIR, CONTAINER_NAME
 
-__all__ = ['TestRunner', 'TEST_OUTPUT_DIR', 'CONTAINER_NAME']
+__all__ = ["TestRunner", "TEST_OUTPUT_DIR", "CONTAINER_NAME"]

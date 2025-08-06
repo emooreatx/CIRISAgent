@@ -57,7 +57,7 @@ Each entry is cryptographically linked to the previous one:
 Entry 1: {action: "OBSERVE", hash: "abc123...", prev: "genesis"}
     ↓
 Entry 2: {action: "PONDER", hash: "def456...", prev: "abc123..."}
-    ↓  
+    ↓
 Entry 3: {action: "DEFER", hash: "ghi789...", prev: "def456..."}
     ↓
 Entry 4: {action: "SPEAK", hash: "jkl012...", prev: "ghi789..."}
@@ -130,7 +130,7 @@ Each entry is digitally signed:
 }
 ```
 
-### Community Moderation Audit  
+### Community Moderation Audit
 ```json
 {
     "event_id": "evt-2025-06-15-22:45:33",
@@ -273,7 +273,7 @@ patterns = await audit_service.analyze_patterns(
 
 ### Storage Estimates
 - **Low Activity** (100 actions/day): ~60MB/year
-- **Medium Activity** (1,000 actions/day): ~600MB/year  
+- **Medium Activity** (1,000 actions/day): ~600MB/year
 - **High Activity** (10,000 actions/day): ~6GB/year
 
 ### Retention Policies
@@ -331,7 +331,7 @@ GET  /v1/audit/search         # Advanced search
 3. **Don't log secrets** or sensitive data directly
 4. **Test audit scenarios** in your integration tests
 
-### For Operators  
+### For Operators
 1. **Regular verification** - Set up automated checks
 2. **Backup audit data** - Critical for compliance
 3. **Monitor growth** - Plan for storage scaling

@@ -30,7 +30,7 @@ Covers all types of thoughts and follow-up thoughts.
 
 **Key Tests:**
 - Passive observations
-- Priority observations  
+- Priority observations
 - Ponder follow-up thoughts
 - Guidance follow-up thoughts
 - Tool execution follow-ups
@@ -165,12 +165,12 @@ def test_new_scenario_context(self):
         {"role": "system", "content": "System message"},
         {"role": "user", "content": "User message content"}
     ]
-    
+
     context = extract_context_from_messages(messages)
     result = create_response(ActionSelectionResult, messages=messages)
-    
+
     self.dump_context_if_verbose("New Scenario", messages, result, context)
-    
+
     # Add assertions
     assert any("expected_pattern" in item for item in context)
 ```

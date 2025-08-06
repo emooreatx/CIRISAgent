@@ -160,11 +160,11 @@ export class CIRISClient {
     const res = await fetch(`${this.baseUrl}/v1/runtime/adapters`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        adapter_type: adapterType, 
-        adapter_id: adapterId, 
-        config, 
-        auto_start: autoStart 
+      body: JSON.stringify({
+        adapter_type: adapterType,
+        adapter_id: adapterId,
+        config,
+        auto_start: autoStart
       }),
     });
     if (!res.ok) throw new Error(res.statusText);
@@ -197,7 +197,7 @@ export class CIRISClient {
     const params = new URLSearchParams();
     if (path) params.append('path', path);
     if (includeSensitive) params.append('include_sensitive', 'true');
-    
+
     const res = await fetch(`${this.baseUrl}/v1/runtime/config?${params.toString()}`);
     if (!res.ok) throw new Error(res.statusText);
     return res.json();
@@ -292,7 +292,7 @@ export class CIRISClient {
   async memorySearch(query: string, scope?: string, limit: number = 10): Promise<any> {
     const payload: any = { query, limit };
     if (scope) payload.scope = scope;
-    
+
     const res = await fetch(`${this.baseUrl}/v1/memory/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -306,7 +306,7 @@ export class CIRISClient {
     const payload: any = { node_id: nodeId };
     if (scope) payload.scope = scope;
     if (nodeType) payload.node_type = nodeType;
-    
+
     const res = await fetch(`${this.baseUrl}/v1/memory/recall`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -328,13 +328,13 @@ export class CIRISClient {
     const params = new URLSearchParams({ hours: hours.toString() });
     if (scope) params.append('scope', scope);
     if (correlationTypes) params.append('correlation_types', correlationTypes.join(','));
-    
+
     const res = await fetch(`${this.baseUrl}/v1/memory/timeseries?${params.toString()}`);
     if (!res.ok) throw new Error(res.statusText);
     return res.json();
   }
 
-  // Missing Tool Operations  
+  // Missing Tool Operations
   async toolValidate(toolName: string, parameters: any): Promise<any> {
     const res = await fetch(`${this.baseUrl}/v1/tools/${toolName}/validate`, {
       method: 'POST',
@@ -359,7 +359,7 @@ export class CIRISClient {
   async submitDeferral(thoughtId: string, reason: string, context?: any): Promise<any> {
     const payload: any = { thought_id: thoughtId, reason };
     if (context) payload.context = context;
-    
+
     const res = await fetch(`${this.baseUrl}/v1/defer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -424,7 +424,7 @@ export class CIRISClient {
   async backupConfiguration(description?: string, includeSensitive: boolean = false): Promise<any> {
     const payload: any = { include_profiles: true, include_env_vars: includeSensitive };
     if (description) payload.backup_name = description;
-    
+
     const res = await fetch(`${this.baseUrl}/v1/runtime/config/backup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -438,10 +438,10 @@ export class CIRISClient {
     const res = await fetch(`${this.baseUrl}/v1/runtime/config/restore`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        backup_name: backupName, 
+      body: JSON.stringify({
+        backup_name: backupName,
         restore_profiles: restoreProfiles,
-        restore_env_vars: false 
+        restore_env_vars: false
       }),
     });
     if (!res.ok) throw new Error(res.statusText);
@@ -504,16 +504,16 @@ export class CIRISClient {
   }
 
   async updateServicePriority(
-    providerName: string, 
-    priority?: string, 
-    priorityGroup?: number, 
+    providerName: string,
+    priority?: string,
+    priorityGroup?: number,
     strategy?: string
   ): Promise<any> {
     const data: any = {};
     if (priority) data.priority = priority;
     if (priorityGroup !== undefined) data.priority_group = priorityGroup;
     if (strategy) data.strategy = strategy;
-    
+
     const res = await fetch(`${this.baseUrl}/v1/runtime/services/${providerName}/priority`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -527,7 +527,7 @@ export class CIRISClient {
   async getLLMServices(): Promise<any[]> {
     const services = await this.listServices(undefined, 'llm');
     const llmServices: any[] = [];
-    
+
     // Extract LLM services from both handlers and global services
     for (const [handler, serviceTypes] of Object.entries(services.handlers || {})) {
       if ((serviceTypes as any).llm) {
@@ -539,21 +539,21 @@ export class CIRISClient {
         }
       }
     }
-    
+
     for (const service of services.global_services?.llm || []) {
       llmServices.push({
         scope: 'global',
         ...service
       });
     }
-    
+
     return llmServices;
   }
 
   async getCommunicationServices(): Promise<any[]> {
     const services = await this.listServices(undefined, 'communication');
     const commServices: any[] = [];
-    
+
     // Extract communication services from both handlers and global services
     for (const [handler, serviceTypes] of Object.entries(services.handlers || {})) {
       if ((serviceTypes as any).communication) {
@@ -565,21 +565,21 @@ export class CIRISClient {
         }
       }
     }
-    
+
     for (const service of services.global_services?.communication || []) {
       commServices.push({
         scope: 'global',
         ...service
       });
     }
-    
+
     return commServices;
   }
 
   async getMemoryServices(): Promise<any[]> {
     const services = await this.listServices(undefined, 'memory');
     const memoryServices: any[] = [];
-    
+
     // Extract memory services from both handlers and global services
     for (const [handler, serviceTypes] of Object.entries(services.handlers || {})) {
       if ((serviceTypes as any).memory) {
@@ -591,14 +591,14 @@ export class CIRISClient {
         }
       }
     }
-    
+
     for (const service of services.global_services?.memory || []) {
       memoryServices.push({
         scope: 'global',
         ...service
       });
     }
-    
+
     return memoryServices;
   }
 
@@ -607,26 +607,26 @@ export class CIRISClient {
       this.getServiceHealth(),
       this.listServices()
     ]);
-    
+
     const issues: string[] = [];
     const recommendations: string[] = [];
-    
+
     // Check for unhealthy services
     if (health.unhealthy_services > 0) {
       issues.push(`${health.unhealthy_services} services are unhealthy`);
       recommendations.push('Check circuit breaker states and service logs');
     }
-    
+
     // Check for missing critical services
     const requiredServices = ['llm', 'communication', 'memory', 'audit'];
     for (const serviceType of requiredServices) {
       let hasService = false;
-      
+
       // Check global services
       if (services.global_services?.[serviceType]) {
         hasService = true;
       }
-      
+
       // Check handler services
       for (const handlerServices of Object.values(services.handlers || {})) {
         if ((handlerServices as any)[serviceType]) {
@@ -634,13 +634,13 @@ export class CIRISClient {
           break;
         }
       }
-      
+
       if (!hasService) {
         issues.push(`No ${serviceType} services registered`);
         recommendations.push(`Ensure adapters providing ${serviceType} services are loaded`);
       }
     }
-    
+
     return {
       overall_health: health.overall_health || 'unknown',
       total_services: health.total_services || 0,
@@ -651,7 +651,7 @@ export class CIRISClient {
       service_summary: {
         global_services: Object.keys(services.global_services || {}).length,
         handler_specific_services: Object.values(services.handlers || {}).reduce(
-          (acc, serviceTypes) => acc + Object.keys(serviceTypes as any).length, 
+          (acc, serviceTypes) => acc + Object.keys(serviceTypes as any).length,
           0
         )
       }

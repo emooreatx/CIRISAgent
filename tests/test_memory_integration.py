@@ -1,12 +1,14 @@
-import asyncio
-import pytest
-import tempfile
 import os
-from unittest.mock import Mock, AsyncMock
+import tempfile
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+
 from ciris_engine.logic.services.memory_service import LocalGraphMemoryService
-from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.services.operations import MemoryQuery
+
 
 @pytest.mark.asyncio
 async def test_memory_operations():
@@ -30,21 +32,14 @@ async def test_memory_operations():
 
         # Test memorize
         node = GraphNode(
-            id="test_key",
-            type=NodeType.CONCEPT,
-            scope=GraphScope.LOCAL,
-            attributes={"value": "test_data"}
+            id="test_key", type=NodeType.CONCEPT, scope=GraphScope.LOCAL, attributes={"value": "test_data"}
         )
         result = await memory.memorize(node)
         assert result.status.value == "ok"
 
         # Test recall
         recall_query = MemoryQuery(
-            node_id="test_key",
-            type=NodeType.CONCEPT,
-            scope=GraphScope.LOCAL,
-            include_edges=False,
-            depth=1
+            node_id="test_key", type=NodeType.CONCEPT, scope=GraphScope.LOCAL, include_edges=False, depth=1
         )
         results = await memory.recall(recall_query)
         assert len(results) == 1

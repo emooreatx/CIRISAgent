@@ -1,22 +1,23 @@
 from __future__ import annotations
 
-import yaml
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional, Any, Dict, TypeVar, Generic, TYPE_CHECKING, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Generic, Optional, Tuple, TypeVar, Union
 
+import yaml
 from pydantic import BaseModel
-from ciris_engine.schemas.dma.prompts import PromptCollection
 
 from ciris_engine.logic.registries.base import ServiceRegistry
 from ciris_engine.protocols.services import LLMService
+from ciris_engine.schemas.dma.prompts import PromptCollection
 from ciris_engine.schemas.runtime.enums import ServiceType
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.faculties import EpistemicFaculty
 
-InputT = TypeVar('InputT')
-DMAResultT = TypeVar('DMAResultT', bound=BaseModel)
+InputT = TypeVar("InputT")
+DMAResultT = TypeVar("DMAResultT", bound=BaseModel)
+
 
 class BaseDMA(ABC, Generic[InputT, DMAResultT]):
     """Concrete base class for Decision Making Algorithms.
@@ -31,9 +32,9 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
         model_name: Optional[str] = None,
         max_retries: int = 3,
         prompt_overrides: Optional[Union[Dict[str, str], PromptCollection]] = None,
-        faculties: Optional[Dict[str, 'EpistemicFaculty']] = None,
+        faculties: Optional[Dict[str, "EpistemicFaculty"]] = None,
         sink: Optional[Any] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         self.service_registry = service_registry
         self.model_name = model_name
@@ -54,10 +55,10 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
         Finally falls back to DEFAULT_PROMPT or DEFAULT_PROMPT_TEMPLATE if defined.
         """
         prompt_file = None
-        if hasattr(self.__class__, 'PROMPT_FILE'):
-            prompt_file = getattr(self.__class__, 'PROMPT_FILE')
+        if hasattr(self.__class__, "PROMPT_FILE"):
+            prompt_file = getattr(self.__class__, "PROMPT_FILE")
         else:
-            dma_file = Path(self.__class__.__module__.replace('.', '/'))
+            dma_file = Path(self.__class__.__module__.replace(".", "/"))
             prompt_file = dma_file.parent / "prompts" / f"{self.__class__.__name__.lower()}.yml"
 
         if prompt_file and Path(prompt_file).exists():
@@ -66,10 +67,10 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
                 if isinstance(overrides, PromptCollection):
                     self.prompts = overrides
                     return
-                    
-                with open(prompt_file, 'r') as f:
+
+                with open(prompt_file, "r") as f:
                     file_prompts = yaml.safe_load(f) or {}
-                    
+
                 # Support both dict and PromptCollection
                 if isinstance(overrides, dict):
                     self.prompts = {**file_prompts, **overrides}
@@ -78,6 +79,7 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
                 return
             except Exception as e:
                 import logging
+
                 logger = logging.getLogger(__name__)
                 logger.warning(f"Failed to load prompts from {prompt_file}: {e}")
 
@@ -85,12 +87,12 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
         if isinstance(overrides, PromptCollection):
             self.prompts = overrides
             return
-            
+
         defaults = {}
-        if hasattr(self, 'DEFAULT_PROMPT'):
-            defaults = getattr(self, 'DEFAULT_PROMPT')
-        elif hasattr(self, 'DEFAULT_PROMPT_TEMPLATE'):
-            defaults = getattr(self, 'DEFAULT_PROMPT_TEMPLATE')
+        if hasattr(self, "DEFAULT_PROMPT"):
+            defaults = getattr(self, "DEFAULT_PROMPT")
+        elif hasattr(self, "DEFAULT_PROMPT_TEMPLATE"):
+            defaults = getattr(self, "DEFAULT_PROMPT_TEMPLATE")
 
         if isinstance(overrides, dict):
             self.prompts = {**defaults, **overrides}
@@ -105,8 +107,9 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
         )
         return service
 
-    async def call_llm_structured(self, messages: list, response_model: type,
-                                 max_tokens: int = 1024, temperature: float = 0.0) -> Tuple[Any, ...]:
+    async def call_llm_structured(
+        self, messages: list, response_model: type, max_tokens: int = 1024, temperature: float = 0.0
+    ) -> Tuple[Any, ...]:
         """Call LLM via sink for centralized failover, round-robin, and circuit breaker protection.
 
         Returns:
@@ -115,9 +118,14 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
         if not self.sink:
             # Critical system failure - DMAs cannot function without the multi-service sink
             import logging
+
             logger = logging.getLogger(__name__)
-            logger.critical(f"FATAL: No multi-service sink available for {self.__class__.__name__}. System cannot continue.")
-            raise RuntimeError(f"FATAL: No multi-service sink available for {self.__class__.__name__}. DMAs require the sink for all LLM calls. System must shutdown.")
+            logger.critical(
+                f"FATAL: No multi-service sink available for {self.__class__.__name__}. System cannot continue."
+            )
+            raise RuntimeError(
+                f"FATAL: No multi-service sink available for {self.__class__.__name__}. DMAs require the sink for all LLM calls. System must shutdown."
+            )
 
         # Use LLM bus for centralized failover, round-robin, and circuit breaker protection
         result = await self.sink.llm.call_llm_structured(
@@ -125,7 +133,7 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
             response_model=response_model,
             handler_name=self.__class__.__name__,
             max_tokens=max_tokens,
-            temperature=temperature
+            temperature=temperature,
         )
 
         # The sink returns Optional[tuple] which we need to ensure is a valid tuple
@@ -160,6 +168,7 @@ class BaseDMA(ABC, Generic[InputT, DMAResultT]):
             except Exception as e:
                 # Log error but don't fail the entire evaluation
                 import logging
+
                 logger = logging.getLogger(__name__)
                 logger.warning(f"Faculty {name} failed to evaluate: {e}")
                 continue

@@ -1,15 +1,17 @@
 import logging
-from typing import Optional, TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
+
 from ciris_engine.protocols.services import TimeServiceProtocol
 
 if TYPE_CHECKING:
     from ciris_engine.schemas.processors.core import ConscienceApplicationResult
 
-from ciris_engine.schemas.runtime.enums import HandlerActionType
-from ciris_engine.schemas.runtime.contexts import DispatchContext
 from ciris_engine.logic.utils.channel_utils import create_channel_context
+from ciris_engine.schemas.runtime.contexts import DispatchContext
+from ciris_engine.schemas.runtime.enums import HandlerActionType
 
 logger = logging.getLogger(__name__)
+
 
 def build_dispatch_context(
     thought: Any,
@@ -18,8 +20,8 @@ def build_dispatch_context(
     app_config: Optional[Any] = None,
     round_number: Optional[int] = None,
     extra_context: Optional[dict] = None,
-    conscience_result: Optional['ConscienceApplicationResult'] = None,
-    action_type: Optional[Any] = None
+    conscience_result: Optional["ConscienceApplicationResult"] = None,
+    action_type: Optional[Any] = None,
 ) -> DispatchContext:
     """
     Build a type-safe dispatch context for thought processing.
@@ -72,8 +74,11 @@ def build_dispatch_context(
         if hasattr(task, "context"):
             # Debug logging
             import logging
+
             logger = logging.getLogger(__name__)
-            logger.info(f"Processing task {task_id} context type: {type(task.context)}, attributes: {dir(task.context) if task.context else 'None'}")
+            logger.info(
+                f"Processing task {task_id} context type: {type(task.context)}, attributes: {dir(task.context) if task.context else 'None'}"
+            )
 
             # Handle TaskContext (the correct type for task.context)
             if hasattr(task.context, "channel_id"):
@@ -84,7 +89,9 @@ def build_dispatch_context(
                     author_id = task.context.user_id
                     author_name = None  # TaskContext doesn't have author_name
             else:
-                logger.error(f"Task {task_id} has invalid context type: {type(task.context)}. Expected TaskContext with channel_id.")
+                logger.error(
+                    f"Task {task_id} has invalid context type: {type(task.context)}. Expected TaskContext with channel_id."
+                )
 
     # Check extra_context for channel_id as fallback
     if channel_context is None and extra_context:
@@ -94,7 +101,9 @@ def build_dispatch_context(
 
     # Channel context is required
     if channel_context is None:
-        raise ValueError(f"No channel context found for thought {thought_id}. Adapters must provide channel_id in task context.")
+        raise ValueError(
+            f"No channel context found for thought {thought_id}. Adapters must provide channel_id in task context."
+        )
 
     # Extract additional fields from extra_context
     wa_id = None
@@ -116,29 +125,24 @@ def build_dispatch_context(
         channel_context=channel_context,
         author_id=author_id or "unknown",
         author_name=author_name or "Unknown",
-
         # Service references
         origin_service=origin_service,
         handler_name=handler_name or "unknown_handler",
-
         # Action context
         action_type=action_type or HandlerActionType.SPEAK,
         thought_id=thought_id or "",
         task_id=task_id or "",
         source_task_id=source_task_id or "",
-
         # Event details
         event_summary=event_summary or "No summary provided",
         event_timestamp=time_service.now_iso() + "Z",
-
         # Additional context
         wa_id=wa_id,
         wa_authorized=wa_authorized,
         correlation_id=correlation_id or f"ctx_{time_service.timestamp()}",
-
         # conscience results (None for terminal actions)
         # Extract ConscienceResult from ConscienceApplicationResult if needed
-        conscience_failure_context=None
+        conscience_failure_context=None,
     )
 
     return dispatch_context

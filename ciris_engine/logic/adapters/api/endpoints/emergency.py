@@ -3,17 +3,18 @@ Emergency API endpoints.
 
 Provides WA-authorized emergency control endpoints including kill switch.
 """
-import logging
-from fastapi import APIRouter, HTTPException, Depends
 
-from ciris_engine.schemas.services.shutdown import (
-    WASignedCommand, EmergencyShutdownStatus
-)
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException
+
 from ciris_engine.protocols.services import RuntimeControlService as RuntimeControlServiceProtocol
+from ciris_engine.schemas.services.shutdown import EmergencyShutdownStatus, WASignedCommand
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/emergency", tags=["emergency"])
+
 
 def get_runtime_service() -> RuntimeControlServiceProtocol:
     """Get runtime control service dependency."""
@@ -21,10 +22,10 @@ def get_runtime_service() -> RuntimeControlServiceProtocol:
     # For now, return None - the actual service should be injected
     return None  # type: ignore
 
+
 @router.post("/shutdown", response_model=EmergencyShutdownStatus)
 async def emergency_shutdown(
-    command: WASignedCommand,
-    runtime_service: RuntimeControlServiceProtocol = Depends(get_runtime_service)
+    command: WASignedCommand, runtime_service: RuntimeControlServiceProtocol = Depends(get_runtime_service)
 ) -> EmergencyShutdownStatus:
     """
     Execute WA-authorized emergency shutdown.
@@ -50,31 +51,24 @@ async def emergency_shutdown(
         status = await runtime_service.handle_emergency_shutdown(command)
 
         if not status.command_verified:
-            raise HTTPException(
-                status_code=403,
-                detail=f"Command verification failed: {status.verification_error}"
-            )
+            raise HTTPException(status_code=403, detail=f"Command verification failed: {status.verification_error}")
 
         return status
 
     except Exception as e:
         logger.error(f"Emergency shutdown failed: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Emergency shutdown failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Emergency shutdown failed: {str(e)}")
+
 
 @router.get("/kill-switch/status")
-async def get_kill_switch_status(
-    runtime_service: RuntimeControlServiceProtocol = Depends(get_runtime_service)
-) -> dict:
+async def get_kill_switch_status(runtime_service: RuntimeControlServiceProtocol = Depends(get_runtime_service)) -> dict:
     """
     Get current kill switch configuration status.
 
     Returns:
         Current kill switch configuration (without sensitive keys)
     """
-    if hasattr(runtime_service, '_kill_switch_config'):
+    if hasattr(runtime_service, "_kill_switch_config"):
         config = runtime_service._kill_switch_config
         return {
             "enabled": config.enabled,
@@ -82,7 +76,7 @@ async def get_kill_switch_status(
             "trust_tree_depth": config.trust_tree_depth,
             "allow_relay": config.allow_relay,
             "max_shutdown_time_ms": config.max_shutdown_time_ms,
-            "command_expiry_seconds": config.command_expiry_seconds
+            "command_expiry_seconds": config.command_expiry_seconds,
         }
 
     return {"enabled": False, "error": "Kill switch not configured"}

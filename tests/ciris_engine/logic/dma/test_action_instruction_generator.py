@@ -1,13 +1,12 @@
 """Tests for ActionInstructionGenerator."""
 
+from unittest.mock import AsyncMock, Mock
+
 import pytest
-from unittest.mock import Mock, AsyncMock, MagicMock
-import asyncio
-from typing import List
 
 from ciris_engine.logic.dma.action_selection.action_instruction_generator import ActionInstructionGenerator
+from ciris_engine.schemas.adapters.tools import ToolInfo
 from ciris_engine.schemas.runtime.enums import HandlerActionType
-from ciris_engine.schemas.adapters.tools import ToolInfo, ToolParameterSchema
 
 
 class TestActionInstructionGenerator:
@@ -148,9 +147,9 @@ class TestActionInstructionGenerator:
             "properties": {
                 "field1": {"type": "string"},
                 "field2": {"type": "integer", "default": 10},
-                "field3": {"type": "boolean"}
+                "field3": {"type": "boolean"},
             },
-            "required": ["field1"]
+            "required": ["field1"],
         }
 
         result = generator._simplify_schema(schema)
@@ -167,19 +166,11 @@ class TestActionInstructionGenerator:
         assert generator._extract_type({"type": "integer"}) == "integer"
 
         # Object with additionalProperties
-        dict_schema = {
-            "type": "object",
-            "additionalProperties": {"type": "string"}
-        }
+        dict_schema = {"type": "object", "additionalProperties": {"type": "string"}}
         assert generator._extract_type(dict_schema) == "Dict[str, str]"
 
         # anyOf with nullable
-        nullable_schema = {
-            "anyOf": [
-                {"type": "string"},
-                {"type": "null"}
-            ]
-        }
+        nullable_schema = {"anyOf": [{"type": "string"}, {"type": "null"}]}
         assert generator._extract_type(nullable_schema) == "string"
 
     def test_get_action_guidance(self):
@@ -239,30 +230,30 @@ class TestToolDiscoveryIntegration:
 
         # Create the coroutine manually to test it
         async def get_all_tools():
-            tool_services = generator.service_registry.get_services_by_type('tool')
+            tool_services = generator.service_registry.get_services_by_type("tool")
             all_tools = {}
 
             for tool_service in tool_services:
                 try:
-                    if hasattr(tool_service, 'get_all_tool_info'):
+                    if hasattr(tool_service, "get_all_tool_info"):
                         tool_infos = await tool_service.get_all_tool_info()
                         for tool_info in tool_infos:
                             all_tools[tool_info.name] = {
-                                'name': tool_info.name,
-                                'description': tool_info.description,
-                                'service': getattr(tool_service, 'adapter_name', 'unknown')
+                                "name": tool_info.name,
+                                "description": tool_info.description,
+                                "service": getattr(tool_service, "adapter_name", "unknown"),
                             }
                     else:
                         service_tools = await tool_service.get_available_tools()
-                        service_name = getattr(tool_service, 'adapter_name', 'unknown')
+                        service_name = getattr(tool_service, "adapter_name", "unknown")
                         if isinstance(service_tools, list):
                             for tool_name in service_tools:
                                 all_tools[tool_name] = {
-                                    'name': tool_name,
-                                    'description': 'No description available',
-                                    'service': service_name
+                                    "name": tool_name,
+                                    "description": "No description available",
+                                    "service": service_name,
                                 }
-                except Exception as e:
+                except Exception:
                     pass
 
             return all_tools

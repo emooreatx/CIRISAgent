@@ -100,14 +100,14 @@ The system explicitly prevents:
 ```python
 class User(Base):
     # Existing fields...
-    
+
     # OAuth profile information
     oauth_name: Optional[str] = Column(String(255))  # Full name from OAuth provider
     oauth_picture: Optional[str] = Column(String(500))  # Profile picture URL
-    
+
     # Permission request tracking
     permission_requested_at: Optional[datetime] = Column(DateTime(timezone=True))
-    
+
     # Indexes for efficient querying
     __table_args__ = (
         Index('idx_permission_requests', 'permission_requested_at'),
@@ -119,12 +119,12 @@ class User(Base):
 
 ```sql
 -- Alembic migration
-ALTER TABLE users 
+ALTER TABLE users
 ADD COLUMN oauth_name VARCHAR(255),
 ADD COLUMN oauth_picture VARCHAR(500),
 ADD COLUMN permission_requested_at TIMESTAMP WITH TIME ZONE;
 
-CREATE INDEX idx_permission_requests ON users(permission_requested_at) 
+CREATE INDEX idx_permission_requests ON users(permission_requested_at)
 WHERE permission_requested_at IS NOT NULL;
 ```
 
@@ -166,7 +166,7 @@ WHERE permission_requested_at IS NOT NULL;
 ```python
 ALLOWED_AVATAR_DOMAINS = frozenset([
     'lh3.googleusercontent.com',        # Google
-    'cdn.discordapp.com',               # Discord  
+    'cdn.discordapp.com',               # Discord
     'avatars.githubusercontent.com',     # GitHub
     'secure.gravatar.com'               # Gravatar (fallback)
 ])
@@ -179,26 +179,26 @@ def validate_oauth_picture_url(url: Optional[str]) -> bool:
     """Validate OAuth profile picture URL for security."""
     if not url:
         return True  # Empty is safe
-    
+
     try:
         parsed = urlparse(url)
-        
+
         # Only allow HTTPS
         if parsed.scheme != 'https':
             return False
-            
+
         # Check domain whitelist
         if parsed.netloc not in ALLOWED_AVATAR_DOMAINS:
             return False
-            
+
         # Validate path doesn't contain traversal attempts
         if '..' in parsed.path or '//' in parsed.path:
             return False
-            
+
         # Ensure URL length is reasonable
         if len(url) > 500:
             return False
-            
+
         return True
     except Exception:
         return False
@@ -215,7 +215,7 @@ async def request_permissions(
     db: Session = Depends(get_db)
 ) -> PermissionRequestResponse:
     """Request communication permissions for the current user."""
-    
+
     # Check if user already has SEND_MESSAGES permission
     if auth.has_permission(Permission.SEND_MESSAGES):
         return PermissionRequestResponse(
@@ -223,7 +223,7 @@ async def request_permissions(
             status="already_granted",
             message="You already have communication permissions."
         )
-    
+
     # Check if request already pending
     user = db.query(User).filter(User.id == auth.user.id).first()
     if user.permission_requested_at:
@@ -233,14 +233,14 @@ async def request_permissions(
             message="Your permission request is pending review.",
             requested_at=user.permission_requested_at
         )
-    
+
     # Set permission request timestamp
     user.permission_requested_at = datetime.utcnow()
     db.commit()
-    
+
     # Log the request for audit trail
     logger.info(f"Permission request submitted by user {user.email} (ID: {user.id})")
-    
+
     return PermissionRequestResponse(
         success=True,
         status="request_submitted",
@@ -259,21 +259,21 @@ async def get_permission_requests(
     include_granted: bool = False
 ) -> List[PermissionRequestUser]:
     """Get list of users who have requested permissions."""
-    
+
     # Require ADMIN role or higher (AUTHORITY cannot manage users)
     if auth.user.role not in [APIRole.ADMIN, APIRole.SYSTEM_ADMIN]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
-    
+
     query = db.query(User).filter(User.permission_requested_at.isnot(None))
-    
+
     if not include_granted:
         # Only show users who don't already have SEND_MESSAGES permission
         query = query.filter(
             ~User.custom_permissions.contains([Permission.SEND_MESSAGES.value])
         )
-    
+
     users = query.order_by(User.permission_requested_at.desc()).all()
-    
+
     return [
         PermissionRequestUser(
             id=user.id,
@@ -297,7 +297,7 @@ async def get_permission_requests(
 if not auth.has_permission(Permission.SEND_MESSAGES):
     # Check if user has already requested permissions
     user = db.query(User).filter(User.id == auth.user.id).first()
-    
+
     error_detail = {
         "error": "insufficient_permissions",
         "message": "You do not have permission to send messages to this agent.",
@@ -306,7 +306,7 @@ if not auth.has_permission(Permission.SEND_MESSAGES):
         "permission_requested": user.permission_requested_at is not None,
         "requested_at": user.permission_requested_at.isoformat() if user.permission_requested_at else None
     }
-    
+
     raise HTTPException(
         status_code=403,
         detail=error_detail
@@ -322,7 +322,7 @@ if not auth.has_permission(Permission.SEND_MESSAGES):
 export function PermissionRequest() {
   const { user } = useAuth();
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  
+
   const handleRequest = async () => {
     setStatus('loading');
     try {
@@ -332,11 +332,11 @@ export function PermissionRequest() {
       setStatus('error');
     }
   };
-  
+
   if (user?.hasPermission('SEND_MESSAGES')) {
     return null; // User already has permissions
   }
-  
+
   return (
     <Card className="p-6">
       <CardHeader>
@@ -346,7 +346,7 @@ export function PermissionRequest() {
         <p className="mb-4">
           To interact with CIRIS agents, you need communication permissions.
         </p>
-        
+
         {user?.permissionRequestedAt ? (
           <Alert>
             <AlertDescription>
@@ -367,7 +367,7 @@ export function PermissionRequest() {
                 <DiscordIcon className="mr-2" />
                 Join Discord
               </Button>
-              
+
               <Button
                 variant="secondary"
                 onClick={handleRequest}
@@ -393,18 +393,18 @@ export function PermissionRequests() {
     queryKey: ['permission-requests'],
     queryFn: () => sdk.users.getPermissionRequests()
   });
-  
+
   const grantPermission = async (userId: string) => {
     await sdk.users.updatePermissions(userId, {
       grant_permissions: ['SEND_MESSAGES']
     });
     refetch();
   };
-  
+
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">Permission Requests</h2>
-      
+
       <div className="grid gap-4">
         {requests?.map(user => (
           <Card key={user.id} className="p-4">
@@ -422,7 +422,7 @@ export function PermissionRequests() {
                     }}
                   />
                 )}
-                
+
                 <div>
                   <p className="font-medium">{user.oauthName || 'Unknown'}</p>
                   <p className="text-sm text-muted-foreground">{user.email}</p>
@@ -431,7 +431,7 @@ export function PermissionRequests() {
                   </p>
                 </div>
               </div>
-              
+
               <div className="flex gap-2">
                 <Button
                   size="sm"

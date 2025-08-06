@@ -25,7 +25,7 @@ fi
 build_image() {
     local dockerfile=$1
     local tag=$2
-    
+
     echo "Building $tag..."
     docker build $PLATFORM_FLAG -f "$dockerfile" -t "$tag" . || {
         echo "❌ Build failed!"

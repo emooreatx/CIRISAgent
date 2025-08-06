@@ -54,7 +54,7 @@ def add_task(task: Task, db_path: Optional[str] = None) -> str:
         )
         conn.commit()
         return task.task_id
-    
+
     return execute_with_retry(_insert, db_path)
 ```
 

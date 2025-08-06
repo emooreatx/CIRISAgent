@@ -9,6 +9,7 @@ This demonstrates the simplified agent endpoints:
 - /v1/agent/identity - Get agent identity
 """
 import asyncio
+
 from ciris_sdk import CIRISClient
 
 
@@ -54,11 +55,7 @@ async def main():
         # 5. Interaction with context
         print("5. Interaction with context:")
         response = await client.interact(
-            "Can you help me with a calculation?",
-            context={
-                "task": "math",
-                "difficulty": "simple"
-            }
+            "Can you help me with a calculation?", context={"task": "math", "difficulty": "simple"}
         )
         print(f"Response: {response.response}")
         print()
@@ -98,9 +95,7 @@ async def error_handling_example():
 
         try:
             # This might timeout if the agent takes too long
-            response = await client.interact(
-                "Can you solve this complex problem that might take a while?"
-            )
+            response = await client.interact("Can you solve this complex problem that might take a while?")
             print(f"Response: {response.response}")
 
         except Exception as e:

@@ -46,7 +46,7 @@ export default function LogsPage() {
   const [showIncidents, setShowIncidents] = useState<boolean>(true);
   const [refreshInterval, setRefreshInterval] = useState<number>(5000);
   const [limit, setLimit] = useState<number>(100);
-  
+
   const logsEndRef = useRef<HTMLDivElement>(null);
   const logsContainerRef = useRef<HTMLDivElement>(null);
 
@@ -83,17 +83,17 @@ export default function LogsPage() {
   // Filter logs based on criteria
   const filteredLogs = React.useMemo(() => {
     if (!logsData) return [];
-    
+
     return logsData.filter((log: any) => {
       // Level filter
       if (selectedLevel !== 'ALL' && log.level !== selectedLevel) return false;
-      
+
       // Service filter
       if (selectedService !== 'ALL' && log.service !== selectedService) return false;
-      
+
       // Search filter
       if (searchQuery && !log.message.toLowerCase().includes(searchQuery.toLowerCase())) return false;
-      
+
       return true;
     });
   }, [logsData, selectedLevel, selectedService, searchQuery]);
@@ -136,7 +136,7 @@ export default function LogsPage() {
       message: log.message,
       metadata: log.metadata,
     }));
-    
+
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -157,10 +157,10 @@ export default function LogsPage() {
   // Check if user is scrolled to bottom
   const handleScroll = () => {
     if (!logsContainerRef.current) return;
-    
+
     const { scrollTop, scrollHeight, clientHeight } = logsContainerRef.current;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 10;
-    
+
     if (!isAtBottom && autoScroll) {
       setAutoScroll(false);
     } else if (isAtBottom && !autoScroll) {
@@ -171,12 +171,12 @@ export default function LogsPage() {
   return (
     <div style={{ height: 'calc(100vh - 2rem)', display: 'flex', flexDirection: 'column' }}>
       <h1 style={{ margin: '0 0 1rem 0' }}>System Logs</h1>
-      
+
       {/* Controls */}
-      <div style={{ 
-        display: 'flex', 
-        gap: '1rem', 
-        marginBottom: '1rem', 
+      <div style={{
+        display: 'flex',
+        gap: '1rem',
+        marginBottom: '1rem',
         flexWrap: 'wrap',
         padding: '1rem',
         backgroundColor: '#f5f5f5',
@@ -184,8 +184,8 @@ export default function LogsPage() {
       }}>
         <div>
           <label style={{ marginRight: '0.5rem' }}>Level:</label>
-          <select 
-            value={selectedLevel} 
+          <select
+            value={selectedLevel}
             onChange={(e) => setSelectedLevel(e.target.value)}
             style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
           >
@@ -197,8 +197,8 @@ export default function LogsPage() {
 
         <div>
           <label style={{ marginRight: '0.5rem' }}>Service:</label>
-          <select 
-            value={selectedService} 
+          <select
+            value={selectedService}
             onChange={(e) => setSelectedService(e.target.value)}
             style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
           >
@@ -210,8 +210,8 @@ export default function LogsPage() {
 
         <div>
           <label style={{ marginRight: '0.5rem' }}>Limit:</label>
-          <select 
-            value={limit} 
+          <select
+            value={limit}
             onChange={(e) => setLimit(Number(e.target.value))}
             style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', border: '1px solid #ddd' }}
           >
@@ -228,11 +228,11 @@ export default function LogsPage() {
             placeholder="Search logs..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ 
-              width: '100%', 
-              padding: '0.25rem 0.5rem', 
-              borderRadius: '4px', 
-              border: '1px solid #ddd' 
+            style={{
+              width: '100%',
+              padding: '0.25rem 0.5rem',
+              borderRadius: '4px',
+              border: '1px solid #ddd'
             }}
           />
         </div>
@@ -258,10 +258,10 @@ export default function LogsPage() {
             Show Incidents
           </label>
 
-          <button 
+          <button
             onClick={handleRefresh}
-            style={{ 
-              padding: '0.25rem 1rem', 
+            style={{
+              padding: '0.25rem 1rem',
               borderRadius: '4px',
               border: 'none',
               backgroundColor: '#3b82f6',
@@ -272,10 +272,10 @@ export default function LogsPage() {
             Refresh
           </button>
 
-          <button 
+          <button
             onClick={exportLogs}
-            style={{ 
-              padding: '0.25rem 1rem', 
+            style={{
+              padding: '0.25rem 1rem',
               borderRadius: '4px',
               border: 'none',
               backgroundColor: '#10b981',
@@ -292,19 +292,19 @@ export default function LogsPage() {
       <div style={{ flex: 1, display: 'flex', gap: '1rem', minHeight: 0 }}>
         {/* Logs panel */}
         <div style={{ flex: showIncidents ? 2 : 1, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ 
-            padding: '0.5rem 1rem', 
-            backgroundColor: '#f5f5f5', 
+          <div style={{
+            padding: '0.5rem 1rem',
+            backgroundColor: '#f5f5f5',
             borderRadius: '8px 8px 0 0',
             fontWeight: 'bold'
           }}>
             Logs ({filteredLogs.length} entries)
           </div>
-          
-          <div 
+
+          <div
             ref={logsContainerRef}
             onScroll={handleScroll}
-            style={{ 
+            style={{
               flex: 1,
               backgroundColor: '#1a1a1a',
               color: '#e5e5e5',
@@ -325,11 +325,11 @@ export default function LogsPage() {
                 const logConfig = LOG_LEVELS[log.level as keyof typeof LOG_LEVELS] || LOG_LEVELS.INFO;
                 const isExpanded = expandedLogs.has(log.id);
                 const hasMetadata = log.metadata && Object.keys(log.metadata).length > 0;
-                
+
                 return (
-                  <div 
-                    key={log.id} 
-                    style={{ 
+                  <div
+                    key={log.id}
+                    style={{
                       marginBottom: '0.5rem',
                       padding: '0.5rem',
                       backgroundColor: '#2a2a2a',
@@ -339,7 +339,7 @@ export default function LogsPage() {
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', width: '100%' }}>
-                      <span style={{ 
+                      <span style={{
                         color: '#888',
                         fontSize: '11px',
                         whiteSpace: 'nowrap',
@@ -347,8 +347,8 @@ export default function LogsPage() {
                       }}>
                         {format(new Date(log.timestamp), 'HH:mm:ss.SSS')}
                       </span>
-                      
-                      <span style={{ 
+
+                      <span style={{
                         color: logConfig.color,
                         fontWeight: 'bold',
                         fontSize: '11px',
@@ -357,8 +357,8 @@ export default function LogsPage() {
                       }}>
                         [{log.level}]
                       </span>
-                      
-                      <span style={{ 
+
+                      <span style={{
                         color: '#66d9ef',
                         fontSize: '11px',
                         minWidth: '100px',
@@ -366,8 +366,8 @@ export default function LogsPage() {
                       }}>
                         [{log.service}]
                       </span>
-                      
-                      <span style={{ 
+
+                      <span style={{
                         flex: 1,
                         wordBreak: 'break-word',
                         cursor: hasMetadata ? 'pointer' : 'default',
@@ -378,7 +378,7 @@ export default function LogsPage() {
                       >
                         {log.message}
                       </span>
-                      
+
                       <button
                         onClick={() => copyToClipboard(log)}
                         style={{
@@ -395,7 +395,7 @@ export default function LogsPage() {
                         Copy
                       </button>
                     </div>
-                    
+
                     {hasMetadata && isExpanded && (
                       <div style={{
                         marginTop: '0.5rem',
@@ -421,17 +421,17 @@ export default function LogsPage() {
         {/* Incidents panel */}
         {showIncidents && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', maxWidth: '400px' }}>
-            <div style={{ 
-              padding: '0.5rem 1rem', 
-              backgroundColor: '#fee2e2', 
+            <div style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: '#fee2e2',
               borderRadius: '8px 8px 0 0',
               fontWeight: 'bold',
               color: '#991b1b'
             }}>
               Incidents ({incidentsData?.length || 0})
             </div>
-            
-            <div style={{ 
+
+            <div style={{
               flex: 1,
               backgroundColor: '#fef2f2',
               padding: '1rem',
@@ -444,7 +444,7 @@ export default function LogsPage() {
                 </div>
               ) : (
                 incidentsData.map((incident: any) => (
-                  <div 
+                  <div
                     key={incident.id}
                     style={{
                       marginBottom: '0.75rem',
@@ -455,12 +455,12 @@ export default function LogsPage() {
                       fontSize: '14px'
                     }}
                   >
-                    <div style={{ 
-                      display: 'flex', 
+                    <div style={{
+                      display: 'flex',
                       justifyContent: 'space-between',
                       marginBottom: '0.5rem'
                     }}>
-                      <span style={{ 
+                      <span style={{
                         fontWeight: 'bold',
                         color: incident.severity === 'CRITICAL' ? '#dc2626' : '#f59e0b'
                       }}>
@@ -470,17 +470,17 @@ export default function LogsPage() {
                         {format(new Date(incident.timestamp), 'HH:mm:ss')}
                       </span>
                     </div>
-                    
+
                     <div style={{ fontSize: '12px', color: '#4b5563', marginBottom: '0.25rem' }}>
                       {incident.service}
                     </div>
-                    
+
                     <div style={{ color: '#1f2937' }}>
                       {incident.message}
                     </div>
-                    
+
                     {incident.resolved && (
-                      <div style={{ 
+                      <div style={{
                         marginTop: '0.5rem',
                         fontSize: '12px',
                         color: '#10b981'
@@ -497,7 +497,7 @@ export default function LogsPage() {
       </div>
 
       {/* Auto-refresh indicator */}
-      <div style={{ 
+      <div style={{
         marginTop: '0.5rem',
         fontSize: '12px',
         color: '#666',

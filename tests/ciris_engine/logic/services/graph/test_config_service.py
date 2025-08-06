@@ -1,20 +1,18 @@
 """Unit tests for Config Service."""
 
-import pytest
-import pytest_asyncio
-import tempfile
 import os
-from datetime import datetime, timezone
+import sqlite3
+import tempfile
 from pathlib import Path
 
+import pytest
+import pytest_asyncio
+
 from ciris_engine.logic.services.graph.config_service import GraphConfigService
+from ciris_engine.logic.services.graph.memory_service import LocalGraphMemoryService
 from ciris_engine.logic.services.lifecycle.time import TimeService
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
-from ciris_engine.schemas.services.nodes import ConfigNode
 from ciris_engine.schemas.services.graph_core import GraphScope
-from ciris_engine.logic.services.graph.memory_service import LocalGraphMemoryService
-from ciris_engine.schemas.services.operations import MemoryQuery
-import sqlite3
 
 
 @pytest.fixture
@@ -26,7 +24,7 @@ def time_service():
 @pytest.fixture
 def temp_db():
     """Create a temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
     yield db_path
     os.unlink(db_path)
@@ -37,7 +35,8 @@ async def memory_service(temp_db, time_service):
     """Create a memory service for testing."""
     # Initialize the database
     conn = sqlite3.connect(temp_db)
-    conn.execute('''
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS graph_nodes (
             node_id TEXT NOT NULL,
             scope TEXT NOT NULL,
@@ -49,21 +48,19 @@ async def memory_service(temp_db, time_service):
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (node_id, scope)
         )
-    ''')
+    """
+    )
     conn.commit()
     conn.close()
 
     # Create a secrets service for the memory service
     from ciris_engine.logic.secrets.service import SecretsService
-    secrets_db = temp_db.replace('.db', '_secrets.db')
+
+    secrets_db = temp_db.replace(".db", "_secrets.db")
     secrets_service = SecretsService(db_path=secrets_db, time_service=time_service)
     await secrets_service.start()
 
-    service = LocalGraphMemoryService(
-        db_path=temp_db,
-        secrets_service=secrets_service,
-        time_service=time_service
-    )
+    service = LocalGraphMemoryService(db_path=temp_db, secrets_service=secrets_service, time_service=time_service)
     service.start()
     return service
 
@@ -92,11 +89,7 @@ async def test_config_service_lifecycle(config_service):
 async def test_config_service_set_and_get(config_service):
     """Test setting and getting configuration values."""
     # Set a config value
-    await config_service.set_config(
-        key="test.setting",
-        value="test_value",
-        updated_by="test_user"
-    )
+    await config_service.set_config(key="test.setting", value="test_value", updated_by="test_user")
     # set_config returns None, not True
 
     # Get the config value
@@ -120,11 +113,7 @@ async def test_config_service_get_nonexistent(config_service):
 async def test_config_service_update_config(config_service):
     """Test updating existing configuration."""
     # Set initial value
-    await config_service.set_config(
-        key="update.test",
-        value="initial",
-        updated_by="test_user"
-    )
+    await config_service.set_config(key="update.test", value="initial", updated_by="test_user")
 
     # Verify initial value
     initial_config = await config_service.get_config("update.test")
@@ -134,11 +123,7 @@ async def test_config_service_update_config(config_service):
     initial_id = initial_config.id
 
     # Update the value
-    await config_service.set_config(
-        key="update.test",
-        value="updated",
-        updated_by="test_user"
-    )
+    await config_service.set_config(key="update.test", value="updated", updated_by="test_user")
 
     # Verify update
     config_node = await config_service.get_config("update.test")
@@ -152,19 +137,10 @@ async def test_config_service_update_config(config_service):
 async def test_config_service_list_configs(config_service):
     """Test listing all configurations."""
     # Set multiple configs
-    configs = {
-        "app.name": "TestApp",
-        "app.version": "1.0.0",
-        "feature.enabled": True,
-        "feature.limit": 100
-    }
+    configs = {"app.name": "TestApp", "app.version": "1.0.0", "feature.enabled": True, "feature.limit": 100}
 
     for key, value in configs.items():
-        await config_service.set_config(
-            key=key,
-            value=value,
-            updated_by="test_user"
-        )
+        await config_service.set_config(key=key, value=value, updated_by="test_user")
 
     # List all configs
     all_configs = await config_service.list_configs()
@@ -299,11 +275,7 @@ async def test_config_service_versioning(config_service, time_service):
 async def test_config_service_metadata_tracking(config_service, time_service):
     """Test configuration metadata is properly tracked."""
     # Set a config - GraphConfigService only takes key, value, updated_by
-    await config_service.set_config(
-        key="metadata.test",
-        value="test_value",
-        updated_by="unit_test"
-    )
+    await config_service.set_config(key="metadata.test", value="test_value", updated_by="unit_test")
 
     # Get the config node
     config = await config_service.get_config("metadata.test")
@@ -318,10 +290,7 @@ async def test_config_service_metadata_tracking(config_service, time_service):
 async def test_config_service_batch_operations(config_service):
     """Test batch configuration operations."""
     # Set multiple configs in a batch-like manner
-    batch_configs = {
-        f"batch.item{i}": f"value{i}"
-        for i in range(10)
-    }
+    batch_configs = {f"batch.item{i}": f"value{i}" for i in range(10)}
 
     # Set all configs
     for key, value in batch_configs.items():
@@ -343,11 +312,7 @@ async def test_config_service_sensitive_config(config_service):
     """Test handling of sensitive configuration values."""
     # Set a sensitive config (e.g., password, API key)
     # GraphConfigService doesn't have special params for sensitive data
-    await config_service.set_config(
-        key="secrets.api_key",
-        value="sk-1234567890abcdef",
-        updated_by="test_user"
-    )
+    await config_service.set_config(key="secrets.api_key", value="sk-1234567890abcdef", updated_by="test_user")
 
     # Retrieve it
     config_node = await config_service.get_config("secrets.api_key")
@@ -365,19 +330,15 @@ async def test_config_service_sensitive_config(config_service):
 async def test_config_node_typed_graph_node_compliance(config_service):
     """Test ConfigNode properly implements TypedGraphNode pattern."""
     # Set a config value
-    await config_service.set_config(
-        key="typed.test",
-        value={"nested": "dict", "count": 42},
-        updated_by="test_user"
-    )
+    await config_service.set_config(key="typed.test", value={"nested": "dict", "count": 42}, updated_by="test_user")
 
     # Get the config node
     config_node = await config_service.get_config("typed.test")
     assert config_node is not None
 
     # ConfigNode uses updated_at/updated_by (not created_at/created_by)
-    assert hasattr(config_node, 'updated_at')
-    assert hasattr(config_node, 'updated_by')
+    assert hasattr(config_node, "updated_at")
+    assert hasattr(config_node, "updated_by")
 
     # These should be populated
     assert config_node.updated_at is not None
@@ -385,9 +346,9 @@ async def test_config_node_typed_graph_node_compliance(config_service):
 
     # created_at/created_by are stored in attributes when converted to GraphNode
     assert isinstance(config_node.attributes, dict)
-    assert 'created_at' in config_node.attributes
-    assert 'created_by' in config_node.attributes
-    assert config_node.attributes['created_by'] == "test_user"
+    assert "created_at" in config_node.attributes
+    assert "created_by" in config_node.attributes
+    assert config_node.attributes["created_by"] == "test_user"
 
     # Verify it has proper type
     assert config_node.type.value == "config"  # NodeType.CONFIG
@@ -396,8 +357,8 @@ async def test_config_node_typed_graph_node_compliance(config_service):
     assert config_node.scope == GraphScope.LOCAL
 
     # Verify conversion methods exist
-    assert hasattr(config_node, 'to_graph_node')
-    assert hasattr(config_node, 'from_graph_node')
+    assert hasattr(config_node, "to_graph_node")
+    assert hasattr(config_node, "from_graph_node")
 
 
 @pytest.mark.asyncio

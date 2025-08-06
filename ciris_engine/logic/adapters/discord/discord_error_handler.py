@@ -1,14 +1,14 @@
 """Discord error handling and recovery component."""
+
 import logging
-from typing import Optional, Callable, Awaitable, Union
-from enum import Enum
-from ciris_engine.schemas.adapters.discord import DiscordErrorInfo, ErrorSeverity as SchemaErrorSeverity
 from datetime import datetime, timedelta, timezone
+from typing import Awaitable, Callable, Optional, Union
+
 import discord
-from discord.errors import (
-    Forbidden, NotFound, HTTPException, RateLimited,
-    LoginFailure, ConnectionClosed
-)
+from discord.errors import ConnectionClosed, Forbidden, HTTPException, LoginFailure, NotFound, RateLimited
+
+from ciris_engine.schemas.adapters.discord import DiscordErrorInfo
+from ciris_engine.schemas.adapters.discord import ErrorSeverity as SchemaErrorSeverity
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +32,7 @@ class DiscordErrorHandler:
         self._error_threshold = 5  # Errors before escalation
         self._error_window = timedelta(minutes=5)  # Time window for error counting
 
-    def handle_channel_error(self, channel_id: str, error: Exception,
-                                  operation: str = "unknown") -> DiscordErrorInfo:
+    def handle_channel_error(self, channel_id: str, error: Exception, operation: str = "unknown") -> DiscordErrorInfo:
         """Handle channel-related errors.
 
         Args:
@@ -84,14 +83,15 @@ class DiscordErrorHandler:
             fallback_action=fallback_action,
             error_type=type(error).__name__,
             channel_id=channel_id,
-            operation=operation
+            operation=operation,
         )
 
         logger.error(f"Channel error: {result.model_dump()}")
         return result
 
-    def handle_message_error(self, error: Exception, message_content: Optional[str] = None,
-                                 channel_id: Optional[str] = None) -> DiscordErrorInfo:
+    def handle_message_error(
+        self, error: Exception, message_content: Optional[str] = None, channel_id: Optional[str] = None
+    ) -> DiscordErrorInfo:
         """Handle message-related errors.
 
         Args:
@@ -135,7 +135,7 @@ class DiscordErrorHandler:
             can_retry=can_retry,
             suggested_fix=suggested_fix,
             error_type=type(error).__name__,
-            channel_id=channel_id
+            channel_id=channel_id,
         )
 
         logger.error(f"Message error: {result.model_dump()}")
@@ -178,7 +178,7 @@ class DiscordErrorHandler:
             message=message,
             recovery_action=recovery_action,
             error_type=type(error).__name__,
-            can_retry=True  # Connection errors are generally retryable
+            can_retry=True,  # Connection errors are generally retryable
         )
 
         logger.critical(f"Connection error: {result.model_dump()}")
@@ -221,7 +221,7 @@ class DiscordErrorHandler:
             retry_after=retry_after,
             error_type=type(error).__name__,
             endpoint=endpoint,
-            can_retry=True  # API errors are generally retryable
+            can_retry=True,  # API errors are generally retryable
         )
 
         logger.error(f"API error: {result.model_dump()}")
@@ -239,8 +239,7 @@ class DiscordErrorHandler:
         # Clean old errors
         cutoff = now - self._error_window
         self._error_counts = {
-            k: v for k, v in self._error_counts.items()
-            if k not in self._last_errors or self._last_errors[k] > cutoff
+            k: v for k, v in self._error_counts.items() if k not in self._last_errors or self._last_errors[k] > cutoff
         }
 
         # Track this error
@@ -249,8 +248,10 @@ class DiscordErrorHandler:
 
         # Check for escalation
         if self._error_counts[error_key] >= self._error_threshold:
-            logger.warning(f"Error threshold reached for {error_key}: "
-                         f"{self._error_counts[error_key]} errors in {self._error_window}")
+            logger.warning(
+                f"Error threshold reached for {error_key}: "
+                f"{self._error_counts[error_key]} errors in {self._error_window}"
+            )
 
             # Escalate severity
             if severity == ErrorSeverity.LOW:
@@ -267,7 +268,7 @@ class DiscordErrorHandler:
         return {
             "error_counts": self._error_counts.copy(),
             "threshold": self._error_threshold,
-            "window_minutes": self._error_window.total_seconds() / 60
+            "window_minutes": self._error_window.total_seconds() / 60,
         }
 
     def create_error_embed(self, error_info: DiscordErrorInfo) -> discord.Embed:
@@ -281,17 +282,17 @@ class DiscordErrorHandler:
         """
         # Color based on severity
         colors = {
-            ErrorSeverity.LOW: 0x3498db,      # Blue
-            ErrorSeverity.MEDIUM: 0xf39c12,   # Orange
-            ErrorSeverity.HIGH: 0xe74c3c,     # Red
-            ErrorSeverity.CRITICAL: 0x992d22  # Dark red
+            ErrorSeverity.LOW: 0x3498DB,  # Blue
+            ErrorSeverity.MEDIUM: 0xF39C12,  # Orange
+            ErrorSeverity.HIGH: 0xE74C3C,  # Red
+            ErrorSeverity.CRITICAL: 0x992D22,  # Dark red
         }
 
         embed = discord.Embed(
             title=f"⚠️ Error: {error_info.error_type}",
             description=error_info.message,
-            color=colors.get(error_info.severity, 0x95a5a6),
-            timestamp=datetime.now(timezone.utc)
+            color=colors.get(error_info.severity, 0x95A5A6),
+            timestamp=datetime.now(timezone.utc),
         )
 
         # Add fields

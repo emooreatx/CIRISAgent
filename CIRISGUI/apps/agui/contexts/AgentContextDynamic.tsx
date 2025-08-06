@@ -69,19 +69,19 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (mode === 'standalone') {
       // Configure SDK for standalone mode first
-      cirisClient.setConfig({ 
+      cirisClient.setConfig({
         baseURL: window.location.origin
       });
-      
+
       // In standalone mode, fetch the real agent identity
       const fetchAgentIdentity = async () => {
         setIsLoadingAgents(true);
         setError(null);
-        
+
         try {
           // Fetch real identity from the API
           const identity = await cirisClient.agent.getIdentity();
-          
+
           // Create agent info from real identity
           const realAgent: AgentInfo = {
             agent_id: identity.agent_id,
@@ -93,7 +93,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
             health: 'healthy',
             update_available: false
           };
-          
+
           setAgents([realAgent]);
           setCurrentAgent(realAgent);
         } catch (err) {
@@ -106,7 +106,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           setIsLoadingAgents(false);
         }
       };
-      
+
       fetchAgentIdentity();
     } else {
       // In managed mode, discover agents from CIRISManager
@@ -122,18 +122,18 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     }
     setIsLoadingAgents(true);
     setError(null);
-    
+
     try {
       const discovered = await cirisClient.manager.listAgents();
       setAgents(discovered);
-      
+
       // If we're in managed mode with a specific agent ID, select it
       if (detectedAgentId) {
         const targetAgent = discovered.find(a => a.agent_id === detectedAgentId);
         if (targetAgent) {
           setCurrentAgent(targetAgent);
           // Configure SDK for this specific agent
-          cirisClient.setConfig({ 
+          cirisClient.setConfig({
             baseURL: `${window.location.origin}${apiBase}`
           });
         }
@@ -155,23 +155,23 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   // Load agent roles when user logs in
   const refreshAgentRoles = async () => {
     if (!user) return;
-    
+
     setIsLoadingRoles(true);
     const newRoles = new Map<string, AgentRole>();
-    
+
     for (const agent of agents) {
       if (agent.status === 'running') {
         try {
           // In standalone mode, use the configured base URL
           // In managed mode, create client for specific agent
-          const agentClient = mode === 'standalone' 
+          const agentClient = mode === 'standalone'
             ? cirisClient
             : cirisClient.withConfig({
                 baseURL: `${window.location.origin}/api/${agent.agent_id}`
               });
-          
+
           const currentUser = await agentClient.auth.getCurrentUser();
-          
+
           if (currentUser) {
             newRoles.set(agent.agent_id, {
               agentId: agent.agent_id,
@@ -186,7 +186,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-    
+
     setAgentRoles(newRoles);
     setIsLoadingRoles(false);
   };
@@ -196,13 +196,13 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     if (!agent) {
       throw new Error(`Agent ${agentId} not found`);
     }
-    
+
     setCurrentAgent(agent);
-    
+
     // Update SDK based on mode
     if (mode === 'standalone') {
       // In standalone mode, always use direct /v1 access
-      cirisClient.setConfig({ 
+      cirisClient.setConfig({
         baseURL: window.location.origin
       });
     } else {
@@ -227,7 +227,7 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     }
   }, [mode]);
 
-  const currentAgentRole = currentAgent 
+  const currentAgentRole = currentAgent
     ? agentRoles.get(currentAgent.agent_id) || null
     : null;
 

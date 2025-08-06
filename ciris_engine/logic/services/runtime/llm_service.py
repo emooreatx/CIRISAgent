@@ -1,27 +1,27 @@
 """OpenAI Compatible LLM Service with Circuit Breaker Integration."""
 
 import json
-import re
 import logging
-import psutil
-from typing import List, Optional, Tuple, Type, cast, Dict, Callable, Awaitable, Protocol
+import re
+from typing import Awaitable, Callable, Dict, List, Optional, Tuple, Type, cast
 
-from pydantic import BaseModel, Field
-from openai import AsyncOpenAI, APIConnectionError, RateLimitError, APIStatusError, InternalServerError
 import instructor
+from openai import APIConnectionError, APIStatusError, AsyncOpenAI, InternalServerError, RateLimitError
+from pydantic import BaseModel, Field
 
-from ciris_engine.protocols.services import LLMService as LLMServiceProtocol
-from ciris_engine.protocols.services.runtime.llm import MessageDict
-from ciris_engine.protocols.services.graph.telemetry import TelemetryServiceProtocol
-from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.schemas.runtime.resources import ResourceUsage
-from ciris_engine.schemas.runtime.protocols_core import LLMStatus, LLMUsageStatistics
-from ciris_engine.schemas.runtime.enums import ServiceType
-from ciris_engine.schemas.services.llm import JSONExtractionResult
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
-from ciris_engine.schemas.services.capabilities import LLMCapabilities
 from ciris_engine.logic.registries.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerError
 from ciris_engine.logic.services.base_service import BaseService
+from ciris_engine.protocols.services import LLMService as LLMServiceProtocol
+from ciris_engine.protocols.services.graph.telemetry import TelemetryServiceProtocol
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.protocols.services.runtime.llm import MessageDict
+from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.runtime.protocols_core import LLMStatus, LLMUsageStatistics
+from ciris_engine.schemas.runtime.resources import ResourceUsage
+from ciris_engine.schemas.services.capabilities import LLMCapabilities
+from ciris_engine.schemas.services.core import ServiceCapabilities
+from ciris_engine.schemas.services.llm import JSONExtractionResult
+
 
 # Configuration class for OpenAI-compatible LLM services
 class OpenAIConfig(BaseModel):
@@ -32,30 +32,29 @@ class OpenAIConfig(BaseModel):
     max_retries: int = Field(default=3)
     timeout_seconds: int = Field(default=30)
 
+
 logger = logging.getLogger(__name__)
 
 # Type for structured call functions that can be retried
-StructuredCallFunc = Callable[
-    [List[dict], Type[BaseModel], int, float],
-    Awaitable[Tuple[BaseModel, ResourceUsage]]
-]
+StructuredCallFunc = Callable[[List[dict], Type[BaseModel], int, float], Awaitable[Tuple[BaseModel, ResourceUsage]]]
+
 
 class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
     """Client for interacting with OpenAI-compatible APIs with circuit breaker protection."""
 
     def __init__(
-        self, 
+        self,
         *,  # Force keyword-only arguments
-        config: Optional[OpenAIConfig] = None, 
+        config: Optional[OpenAIConfig] = None,
         telemetry_service: Optional[TelemetryServiceProtocol] = None,
         time_service: Optional[TimeServiceProtocol] = None,
         service_name: Optional[str] = None,
-        version: str = "1.0.0"
+        version: str = "1.0.0",
     ) -> None:
         # Set telemetry_service before calling super().__init__
         # because _register_dependencies is called in the base constructor
         self.telemetry_service = telemetry_service
-        
+
         # Initialize config BEFORE calling super().__init__
         # This ensures openai_config exists when _check_dependencies is called
         if config is None:
@@ -63,27 +62,24 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
             self.openai_config = OpenAIConfig()
         else:
             self.openai_config = config
-            
+
         # Initialize circuit breaker BEFORE calling super().__init__
         circuit_config = CircuitBreakerConfig(
-            failure_threshold=5,        # Open after 5 consecutive failures
-            recovery_timeout=10.0,      # Wait 10 seconds before testing recovery
-            success_threshold=2,        # Close after 2 successful calls
-            timeout_duration=30.0       # 30 second API timeout
+            failure_threshold=5,  # Open after 5 consecutive failures
+            recovery_timeout=10.0,  # Wait 10 seconds before testing recovery
+            success_threshold=2,  # Close after 2 successful calls
+            timeout_duration=30.0,  # 30 second API timeout
         )
         self.circuit_breaker = CircuitBreaker("llm_service", circuit_config)
-        
+
         # Initialize base service
-        super().__init__(
-            time_service=time_service,
-            service_name=service_name or "llm_service",
-            version=version
-        )
-        
+        super().__init__(time_service=time_service, service_name=service_name or "llm_service", version=version)
+
         # CRITICAL: Check if we're in mock LLM mode
         import os
         import sys
-        if os.environ.get('MOCK_LLM') or '--mock-llm' in ' '.join(sys.argv):
+
+        if os.environ.get("MOCK_LLM") or "--mock-llm" in " ".join(sys.argv):
             raise RuntimeError(
                 "CRITICAL BUG: OpenAICompatibleClient is being initialized while mock LLM is enabled!\n"
                 "This should never happen - the mock LLM module should prevent this initialization.\n"
@@ -91,7 +87,7 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
             )
 
         # Initialize retry configuration
-        self.max_retries = min(getattr(self.openai_config, 'max_retries', 3), 3)
+        self.max_retries = min(getattr(self.openai_config, "max_retries", 3), 3)
         self.base_delay = 1.0
         self.max_delay = 30.0
         self.retryable_exceptions = (APIConnectionError, RateLimitError)
@@ -101,7 +97,7 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
 
         api_key = self.openai_config.api_key
         base_url = self.openai_config.base_url
-        model_name = self.openai_config.model_name or 'gpt-4o-mini'
+        model_name = self.openai_config.model_name or "gpt-4o-mini"
 
         # Require API key - no automatic fallback to mock
         if not api_key:
@@ -109,50 +105,45 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
 
         # Initialize OpenAI client
         self.model_name = model_name
-        timeout = getattr(self.openai_config, 'timeout', 30.0)  # Shorter default timeout
+        timeout = getattr(self.openai_config, "timeout", 30.0)  # Shorter default timeout
         max_retries = 0  # Disable OpenAI client retries - we handle our own
 
         try:
-            self.client = AsyncOpenAI(
-                api_key=api_key,
-                base_url=base_url,
-                timeout=timeout,
-                max_retries=max_retries
-            )
+            self.client = AsyncOpenAI(api_key=api_key, base_url=base_url, timeout=timeout, max_retries=max_retries)
 
-            instructor_mode = getattr(self.openai_config, 'instructor_mode', 'json')
+            instructor_mode = getattr(self.openai_config, "instructor_mode", "json")
             self.instruct_client = instructor.from_openai(
-                self.client,
-                mode=instructor.Mode.JSON if instructor_mode.lower() == 'json' else instructor.Mode.TOOLS
+                self.client, mode=instructor.Mode.JSON if instructor_mode.lower() == "json" else instructor.Mode.TOOLS
             )
         except Exception as e:
             raise RuntimeError(f"Failed to initialize OpenAI client: {e}")
-        
+
         # Memory tracking (process is inherited from BaseService)
         # Use proper types for response cache instead of Dict[str, Any]
         from ciris_engine.schemas.services.llm import CachedLLMResponse
+
         self._response_cache: Dict[str, CachedLLMResponse] = {}  # Typed response cache
         self._max_cache_size = 100  # Maximum cache entries
-        
+
     # Required BaseService abstract methods
-    
+
     def get_service_type(self) -> ServiceType:
         """Get the service type enum value."""
         return ServiceType.LLM
-    
+
     def _get_actions(self) -> List[str]:
         """Get list of actions this service provides."""
         return [LLMCapabilities.CALL_LLM_STRUCTURED.value]
-    
+
     def _check_dependencies(self) -> bool:
         """Check if all required dependencies are available."""
         # LLM service requires API key and circuit breaker to be functional
         has_api_key = bool(self.openai_config.api_key)
         circuit_breaker_ready = self.circuit_breaker is not None
         return has_api_key and circuit_breaker_ready
-    
+
     # Override optional BaseService methods
-    
+
     def _register_dependencies(self) -> None:
         """Register service dependencies."""
         super()._register_dependencies()
@@ -184,25 +175,27 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
         """Get service capabilities with custom metadata."""
         # Get base capabilities
         capabilities = super().get_capabilities()
-        
+
         # Add custom metadata
         if capabilities.metadata:
-            capabilities.metadata.update({
-                "model": self.model_name,
-                "instructor_mode": getattr(self.openai_config, 'instructor_mode', 'JSON'),
-                "timeout_seconds": getattr(self.openai_config, 'timeout_seconds', 30),
-                "max_retries": self.max_retries,
-                "circuit_breaker_state": self.circuit_breaker.get_stats().get("state", "unknown")
-            })
-        
+            capabilities.metadata.update(
+                {
+                    "model": self.model_name,
+                    "instructor_mode": getattr(self.openai_config, "instructor_mode", "JSON"),
+                    "timeout_seconds": getattr(self.openai_config, "timeout_seconds", 30),
+                    "max_retries": self.max_retries,
+                    "circuit_breaker_state": self.circuit_breaker.get_stats().get("state", "unknown"),
+                }
+            )
+
         return capabilities
 
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """Collect service-specific metrics."""
         import sys
-        
+
         cb_stats = self.circuit_breaker.get_stats()
-        
+
         # Calculate cache size
         cache_size_mb = 0.0
         try:
@@ -210,36 +203,34 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
             cache_size_mb = cache_size / 1024 / 1024
         except Exception:
             pass
-        
+
         # Build custom metrics
         metrics = {
             # Circuit breaker metrics
-            "circuit_breaker_state": 1.0 if cb_stats.get("state") == "open" else (0.5 if cb_stats.get("state") == "half_open" else 0.0),
+            "circuit_breaker_state": (
+                1.0 if cb_stats.get("state") == "open" else (0.5 if cb_stats.get("state") == "half_open" else 0.0)
+            ),
             "consecutive_failures": float(cb_stats.get("consecutive_failures", 0)),
             "recovery_attempts": float(cb_stats.get("recovery_attempts", 0)),
             "last_failure_age_seconds": float(cb_stats.get("last_failure_age", 0)),
             "success_rate": cb_stats.get("success_rate", 1.0),
             "call_count": float(cb_stats.get("call_count", 0)),
             "failure_count": float(cb_stats.get("failure_count", 0)),
-            
             # Cache metrics
             "cache_size_mb": cache_size_mb,
             "cache_entries": float(len(self._response_cache)),
             "response_cache_hit_rate": 0.0,  # TODO: Track cache hits
-            
             # Performance metrics
             "avg_response_time_ms": 0.0,  # TODO: Track response times
-            
             # Model pricing info
             "model_cost_per_1k_tokens": 0.15 if "gpt-4o-mini" in self.model_name else 2.5,  # Cents
             "retry_delay_base": self.base_delay,
             "retry_delay_max": self.max_delay,
-            
             # Model configuration
-            "model_timeout_seconds": float(getattr(self.openai_config, 'timeout_seconds', 30)),
-            "model_max_retries": float(self.max_retries)
+            "model_timeout_seconds": float(getattr(self.openai_config, "timeout_seconds", 30)),
+            "model_max_retries": float(self.max_retries),
         }
-        
+
         return metrics
 
     def _extract_json_from_response(self, raw: str) -> JSONExtractionResult:
@@ -249,7 +240,7 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
     @classmethod
     def _extract_json(cls, raw: str) -> JSONExtractionResult:
         """Extract and parse JSON from LLM response (private method)."""
-        json_pattern = r'```json\s*(\{.*?\})\s*```'
+        json_pattern = r"```json\s*(\{.*?\})\s*```"
         match = re.search(json_pattern, raw, re.DOTALL)
 
         if match:
@@ -258,22 +249,14 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
             json_str = raw.strip()
         try:
             parsed = json.loads(json_str)
-            return JSONExtractionResult(
-                success=True,
-                data=parsed
-            )
+            return JSONExtractionResult(success=True, data=parsed)
         except json.JSONDecodeError:
             try:
                 parsed_retry = json.loads(json_str.replace("'", '"'))
-                return JSONExtractionResult(
-                    success=True,
-                    data=parsed_retry
-                )
+                return JSONExtractionResult(success=True, data=parsed_retry)
             except json.JSONDecodeError:
                 return JSONExtractionResult(
-                    success=False,
-                    error="Failed to parse JSON",
-                    raw_content=raw[:200]  # First 200 chars
+                    success=False, error="Failed to parse JSON", raw_content=raw[:200]  # First 200 chars
                 )
 
     async def call_llm_structured(
@@ -286,7 +269,7 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
         """Make a structured LLM call with circuit breaker protection."""
         # Track the request
         self._track_request()
-        
+
         # No mock service integration - LLMService and MockLLMService are separate
         logger.debug(f"Structured LLM call for {response_model.__name__}")
 
@@ -375,7 +358,7 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
                     cost_cents=total_cost_cents,
                     carbon_grams=carbon_grams,
                     energy_kwh=energy_kwh,
-                    model_used=self.model_name
+                    model_used=self.model_name,
                 )
 
                 # Record token usage in telemetry
@@ -394,7 +377,7 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
                 raise
             except Exception as e:
                 # Check if this is an instructor timeout exception
-                if hasattr(instructor, 'exceptions') and hasattr(instructor.exceptions, 'InstructorRetryException'):
+                if hasattr(instructor, "exceptions") and hasattr(instructor.exceptions, "InstructorRetryException"):
                     if isinstance(e, instructor.exceptions.InstructorRetryException) and "timed out" in str(e):
                         logger.error(f"LLM structured timeout detected, circuit breaker recorded failure: {e}")
                         self.circuit_breaker.record_failure()
@@ -428,7 +411,7 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
 
         # Calculate average response time if we have metrics
         avg_response_time = None
-        if hasattr(self, '_response_times') and self._response_times:
+        if hasattr(self, "_response_times") and self._response_times:
             avg_response_time = sum(self._response_times) / len(self._response_times)
 
         return LLMStatus(
@@ -437,10 +420,10 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
             usage=LLMUsageStatistics(
                 total_calls=cb_stats.get("call_count", 0),
                 failed_calls=cb_stats.get("failure_count", 0),
-                success_rate=cb_stats.get("success_rate", 1.0)
+                success_rate=cb_stats.get("success_rate", 1.0),
             ),
             rate_limit_remaining=None,  # Would need to track from API responses
-            response_time_avg=avg_response_time
+            response_time_avg=avg_response_time,
         )
 
     async def _retry_with_backoff(
@@ -449,7 +432,7 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
         messages: List[dict],
         response_model: Type[BaseModel],
         max_tokens: int,
-        temperature: float
+        temperature: float,
     ) -> Tuple[BaseModel, ResourceUsage]:
         """Retry with exponential backoff (private method)."""
         last_exception = None
@@ -459,8 +442,9 @@ class OpenAICompatibleClient(BaseService, LLMServiceProtocol):
             except self.retryable_exceptions as e:
                 last_exception = e
                 if attempt < self.max_retries - 1:
-                    delay = min(self.base_delay * (2 ** attempt), self.max_delay)
+                    delay = min(self.base_delay * (2**attempt), self.max_delay)
                     import asyncio
+
                     await asyncio.sleep(delay)
                     continue
                 raise

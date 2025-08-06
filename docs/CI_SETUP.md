@@ -26,7 +26,7 @@ To enable SonarQube integration, add these secrets to your GitHub repository:
 
 ### Setup Steps
 
-1. **SonarQube Token**: 
+1. **SonarQube Token**:
    - Go to your SonarQube dashboard
    - Navigate to User > My Account > Security > Generate Tokens
    - Create a token and copy it
@@ -76,7 +76,7 @@ open htmlcov/index.html
 The CI pipeline includes these quality gates:
 
 1. **All tests must pass** (609 tests)
-2. **Code coverage ≥ 80%** 
+2. **Code coverage ≥ 80%**
 3. **SonarQube quality gate** (if configured)
 4. **No security vulnerabilities** (Bandit scan)
 

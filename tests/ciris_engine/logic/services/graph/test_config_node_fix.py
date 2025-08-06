@@ -1,19 +1,19 @@
 """Test that verifies the CONFIG node fix prevents malformed nodes."""
 
-import pytest
-import pytest_asyncio
-import tempfile
 import os
+import tempfile
 from datetime import datetime, timezone
 
+import pytest
+import pytest_asyncio
+
+from ciris_engine.logic.secrets.service import SecretsService
+from ciris_engine.logic.services.governance.filter import AdaptiveFilterService
 from ciris_engine.logic.services.graph.config_service import GraphConfigService
 from ciris_engine.logic.services.graph.memory_service import LocalGraphMemoryService
 from ciris_engine.logic.services.lifecycle.time import TimeService
-from ciris_engine.logic.secrets.service import SecretsService
-from ciris_engine.logic.services.governance.filter import AdaptiveFilterService
-from ciris_engine.schemas.services.nodes import ConfigNode, ConfigValue
-from ciris_engine.schemas.services.graph_core import NodeType, GraphScope
-from ciris_engine.schemas.services.operations import MemoryQuery
+from ciris_engine.schemas.services.graph_core import GraphScope, NodeType
+from ciris_engine.schemas.services.nodes import ConfigNode
 
 
 @pytest.fixture
@@ -25,7 +25,7 @@ def time_service():
 @pytest.fixture
 def temp_db():
     """Create a temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
     yield db_path
     os.unlink(db_path)
@@ -36,8 +36,10 @@ async def services(temp_db, time_service):
     """Create all services needed for testing."""
     # Initialize the database
     import sqlite3
+
     conn = sqlite3.connect(temp_db)
-    conn.execute('''
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS graph_nodes (
             node_id TEXT NOT NULL,
             scope TEXT NOT NULL,
@@ -49,26 +51,22 @@ async def services(temp_db, time_service):
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (node_id, scope)
         )
-    ''')
+    """
+    )
     conn.commit()
     conn.close()
 
     # Create services
-    secrets_db = temp_db.replace('.db', '_secrets.db')
+    secrets_db = temp_db.replace(".db", "_secrets.db")
     secrets_service = SecretsService(db_path=secrets_db, time_service=time_service)
     await secrets_service.start()
 
     memory_service = LocalGraphMemoryService(
-        db_path=temp_db,
-        secrets_service=secrets_service,
-        time_service=time_service
+        db_path=temp_db, secrets_service=secrets_service, time_service=time_service
     )
     memory_service.start()
 
-    config_service = GraphConfigService(
-        graph_memory_service=memory_service,
-        time_service=time_service
-    )
+    config_service = GraphConfigService(graph_memory_service=memory_service, time_service=time_service)
     await config_service.start()
 
     # Mock LLM service
@@ -80,19 +78,16 @@ async def services(temp_db, time_service):
 
     # Create adaptive filter service with proper config service
     filter_service = AdaptiveFilterService(
-        memory_service=memory_service,
-        time_service=time_service,
-        llm_service=llm_service,
-        config_service=config_service
+        memory_service=memory_service, time_service=time_service, llm_service=llm_service, config_service=config_service
     )
     await filter_service.start()
 
     yield {
-        'memory': memory_service,
-        'config': config_service,
-        'filter': filter_service,
-        'secrets': secrets_service,
-        'time': time_service
+        "memory": memory_service,
+        "config": config_service,
+        "filter": filter_service,
+        "secrets": secrets_service,
+        "time": time_service,
     }
 
     # Cleanup
@@ -108,7 +103,7 @@ async def services(temp_db, time_service):
 @pytest.mark.asyncio
 async def test_no_malformed_config_nodes(services):
     """Test that all CONFIG nodes are proper ConfigNode instances."""
-    config_service = services['config']
+    config_service = services["config"]
 
     # The filter service should have created its config properly
     filter_config = await config_service.get_config("adaptive_filter.config")
@@ -126,20 +121,18 @@ async def test_no_malformed_config_nodes(services):
         # list_configs now returns a dict mapping keys to actual values
         assert value is not None, f"Config {key} should have a value"
         # The values can be dict, str, int, float, bool, list
-        assert isinstance(value, (dict, str, int, float, bool, list)), f"Config {key} has unexpected type: {type(value)}"
+        assert isinstance(
+            value, (dict, str, int, float, bool, list)
+        ), f"Config {key} has unexpected type: {type(value)}"
 
 
 @pytest.mark.asyncio
 async def test_config_node_required_fields(services):
     """Test that ConfigNode enforces required fields."""
-    config_service = services['config']
+    config_service = services["config"]
 
     # Set a new config
-    await config_service.set_config(
-        key="test.config",
-        value={"nested": "data", "count": 42},
-        updated_by="test_user"
-    )
+    await config_service.set_config(key="test.config", value={"nested": "data", "count": 42}, updated_by="test_user")
 
     # Retrieve it
     config = await config_service.get_config("test.config")
@@ -173,11 +166,11 @@ async def test_config_node_required_fields(services):
 @pytest.mark.asyncio
 async def test_config_node_error_handling(services):
     """Test that malformed nodes are properly rejected."""
-    memory_service = services['memory']
-    config_service = services['config']
+    memory_service = services["memory"]
+    config_service = services["config"]
 
     # Try to create a malformed CONFIG node directly (should fail on retrieval)
-    from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope
+    from ciris_engine.schemas.services.graph_core import GraphNode
 
     malformed_node = GraphNode(
         id="config_malformed",
@@ -188,7 +181,7 @@ async def test_config_node_error_handling(services):
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "created_by": "test",
             # Missing 'key' and 'value' fields!
-        }
+        },
     )
 
     # Store it directly in memory
@@ -210,8 +203,8 @@ async def test_config_node_error_handling(services):
 @pytest.mark.asyncio
 async def test_filter_service_uses_proper_config(services):
     """Test that AdaptiveFilterService uses GraphConfigService correctly."""
-    config_service = services['config']
-    filter_service = services['filter']
+    config_service = services["config"]
+    filter_service = services["filter"]
 
     # Filter service should have saved its config during initialization
     filter_config_node = await config_service.get_config("adaptive_filter.config")

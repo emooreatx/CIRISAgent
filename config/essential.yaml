@@ -4,7 +4,7 @@
 # Core database paths
 database:
   main_db: "data/ciris_engine.db"
-  secrets_db: "data/secrets.db" 
+  secrets_db: "data/secrets.db"
   audit_db: "data/ciris_audit.db"
 
 # External service endpoints

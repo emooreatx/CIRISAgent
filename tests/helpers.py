@@ -1,10 +1,12 @@
 """Test helper functions for CIRIS Engine tests."""
+
 from datetime import datetime, timezone
 from typing import Optional
-from ciris_engine.schemas.runtime.enums import HandlerActionType
-from ciris_engine.schemas.runtime.contexts import DispatchContext
-from ciris_engine.schemas.context_schemas_v1 import ChannelContext
+
 from ciris_engine.logic.utils.channel_utils import create_channel_context
+from ciris_engine.schemas.context_schemas_v1 import ChannelContext
+from ciris_engine.schemas.runtime.contexts import DispatchContext
+from ciris_engine.schemas.runtime.enums import HandlerActionType
 
 
 def create_test_dispatch_context(
@@ -24,7 +26,7 @@ def create_test_dispatch_context(
     wa_authorized: bool = False,
     correlation_id: str = "test_correlation_1",
     round_number: int = 1,
-    guardrail_result: Optional[any] = None
+    guardrail_result: Optional[any] = None,
 ) -> DispatchContext:
     """Create a DispatchContext with all required fields for testing."""
     if event_timestamp is None:
@@ -36,11 +38,7 @@ def create_test_dispatch_context(
             channel_context = create_channel_context(channel_id, channel_type="test")
         else:
             # Create a minimal channel context for tests that require empty channel_id
-            channel_context = ChannelContext(
-                adapter_id="test:empty",
-                channel_id="",
-                channel_type="test"
-            )
+            channel_context = ChannelContext(adapter_id="test:empty", channel_id="", channel_type="test")
 
     return DispatchContext(
         channel_context=channel_context,
@@ -58,5 +56,5 @@ def create_test_dispatch_context(
         wa_authorized=wa_authorized,
         correlation_id=correlation_id,
         round_number=round_number,
-        guardrail_result=guardrail_result
+        guardrail_result=guardrail_result,
     )

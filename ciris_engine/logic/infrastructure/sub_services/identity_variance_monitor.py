@@ -6,24 +6,29 @@ This implements the patent's requirement for bounded identity evolution.
 """
 
 import logging
-from typing import Any, List, Optional, Dict
-from datetime import datetime, timezone
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
-from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
-from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.schemas.runtime.enums import ServiceType
-from ciris_engine.schemas.infrastructure.identity_variance import (
-    VarianceImpact, IdentityDiff, VarianceReport,
-    WAReviewRequest, VarianceCheckMetadata,
-    CurrentIdentityData, ServiceStatusMetrics, NodeAttributes
-)
-from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType, ConfigNodeType, CONFIG_SCOPE_MAP
-from ciris_engine.schemas.services.operations import MemoryQuery
-from ciris_engine.schemas.runtime.core import AgentIdentityRoot
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.buses.wise_bus import WiseBus
+from ciris_engine.logic.services.base_scheduled_service import BaseScheduledService
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.infrastructure.behavioral_patterns import BehavioralPattern
+from ciris_engine.schemas.infrastructure.identity_variance import (
+    CurrentIdentityData,
+    IdentityDiff,
+    NodeAttributes,
+    ServiceStatusMetrics,
+    VarianceCheckMetadata,
+    VarianceImpact,
+    VarianceReport,
+    WAReviewRequest,
+)
+from ciris_engine.schemas.runtime.core import AgentIdentityRoot
+from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.services.graph_core import CONFIG_SCOPE_MAP, ConfigNodeType, GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.services.nodes import IdentitySnapshot
+from ciris_engine.schemas.services.operations import MemoryQuery
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +37,7 @@ logger = logging.getLogger(__name__)
 # IdentityDiff now imported from schemas
 
 # VarianceReport now imported from schemas
+
 
 class IdentityVarianceMonitor(BaseScheduledService):
     """
@@ -50,13 +56,10 @@ class IdentityVarianceMonitor(BaseScheduledService):
         memory_bus: Optional[MemoryBus] = None,
         wa_bus: Optional[WiseBus] = None,
         variance_threshold: float = 0.20,
-        check_interval_hours: int = 24
+        check_interval_hours: int = 24,
     ) -> None:
         # Initialize BaseScheduledService with check interval
-        super().__init__(
-            time_service=time_service,
-            run_interval_seconds=check_interval_hours * 3600
-        )
+        super().__init__(time_service=time_service, run_interval_seconds=check_interval_hours * 3600)
         self._time_service = time_service
         self._memory_bus = memory_bus
         self._wa_bus = wa_bus
@@ -75,6 +78,7 @@ class IdentityVarianceMonitor(BaseScheduledService):
         if not self._memory_bus and registry:
             try:
                 from ciris_engine.logic.buses import MemoryBus
+
                 time_service = self._time_service
                 if time_service is not None:
                     self._memory_bus = MemoryBus(registry, time_service)
@@ -86,6 +90,7 @@ class IdentityVarianceMonitor(BaseScheduledService):
         if not self._wa_bus and registry:
             try:
                 from ciris_engine.logic.buses import WiseBus
+
                 time_service = self._time_service
                 if time_service is not None:
                     self._wa_bus = WiseBus(registry, time_service)
@@ -93,11 +98,11 @@ class IdentityVarianceMonitor(BaseScheduledService):
                     logger.error("Time service is None when creating WiseBus")
             except Exception as e:
                 logger.error(f"Failed to initialize WA bus: {e}")
-    
+
     def get_service_type(self) -> ServiceType:
         """Get service type."""
         return ServiceType.MAINTENANCE  # Identity variance monitor is a maintenance sub-service
-    
+
     def _get_actions(self) -> List[str]:
         """Get list of actions this service provides."""
         return [
@@ -106,9 +111,9 @@ class IdentityVarianceMonitor(BaseScheduledService):
             "take_snapshot",
             "calculate_variance",
             "trigger_wa_review",
-            "generate_recommendations"
+            "generate_recommendations",
         ]
-    
+
     def _check_dependencies(self) -> bool:
         """Check if all dependencies are available."""
         # TimeService is required and provided by base class
@@ -129,7 +134,7 @@ class IdentityVarianceMonitor(BaseScheduledService):
             if self._time_service is None:
                 raise RuntimeError("Time service not available")
             baseline_id = f"identity_baseline_{int(self._time_service.now().timestamp())}"
-            
+
             baseline_snapshot = IdentitySnapshot(
                 id=baseline_id,
                 scope=GraphScope.IDENTITY,
@@ -153,9 +158,9 @@ class IdentityVarianceMonitor(BaseScheduledService):
                 is_baseline=True,  # Mark as baseline snapshot
                 reason="Initial baseline establishment",
                 created_by="identity_variance_monitor",
-                updated_by="identity_variance_monitor"
+                updated_by="identity_variance_monitor",
             )
-            
+
             baseline_node = baseline_snapshot.to_graph_node()
 
             # Store baseline
@@ -168,8 +173,8 @@ class IdentityVarianceMonitor(BaseScheduledService):
                         check_reason="baseline",
                         previous_check=None,
                         check_type="baseline",
-                        baseline_established=self._time_service.now() if self._time_service else datetime.now()
-                    ).model_dump()
+                        baseline_established=self._time_service.now() if self._time_service else datetime.now(),
+                    ).model_dump(),
                 )
 
                 if result.status.value == "OK":
@@ -183,10 +188,12 @@ class IdentityVarianceMonitor(BaseScheduledService):
                     scope=GraphScope.IDENTITY,
                     attributes={
                         "baseline_id": baseline_id,
-                        "established_at": self._time_service.now().isoformat() if self._time_service else datetime.now().isoformat()
+                        "established_at": (
+                            self._time_service.now().isoformat() if self._time_service else datetime.now().isoformat()
+                        ),
                     },
                     updated_by="identity_variance_monitor",
-                    updated_at=self._time_service.now() if self._time_service else datetime.now()
+                    updated_at=self._time_service.now() if self._time_service else datetime.now(),
                 )
                 if self._memory_bus:
                     await self._memory_bus.memorize(reference_node, handler_name="identity_variance_monitor")
@@ -225,10 +232,10 @@ class IdentityVarianceMonitor(BaseScheduledService):
             identity_nodes = await self._gather_identity_nodes()
             config_nodes = await self._gather_config_nodes()
             behavioral_patterns = await self._analyze_behavioral_patterns()
-            
+
             current_identity = await self._extract_current_identity(identity_nodes)
             trust_params = self._extract_current_trust_parameters(config_nodes)
-            
+
             # Convert behavioral patterns to dict format
             behavioral_patterns_dict = {}
             for pattern in behavioral_patterns:
@@ -262,12 +269,12 @@ class IdentityVarianceMonitor(BaseScheduledService):
                 behavioral_patterns=behavioral_patterns_dict,
                 reason=f"Re-baselined with WA approval: {wa_approval_token}",
                 created_by="identity_variance_monitor",
-                updated_by="identity_variance_monitor"
+                updated_by="identity_variance_monitor",
             )
 
             if not self._memory_bus:
                 raise RuntimeError("Memory bus not available")
-                
+
             result = await self._memory_bus.memorize(
                 node=baseline_snapshot.to_graph_node(),
                 handler_name="identity_variance_monitor",
@@ -276,8 +283,8 @@ class IdentityVarianceMonitor(BaseScheduledService):
                     check_reason="rebaseline",
                     previous_check=self._last_check,
                     check_type="rebaseline",
-                    baseline_established=self._time_service.now()
-                ).model_dump()
+                    baseline_established=self._time_service.now(),
+                ).model_dump(),
             )
 
             if result.status.value == "OK":
@@ -330,7 +337,7 @@ class IdentityVarianceMonitor(BaseScheduledService):
                     total_variance=0.0,
                     differences=[],
                     requires_wa_review=False,
-                    recommendations=["Time service unavailable"]
+                    recommendations=["Time service unavailable"],
                 )
             time_since_last = self._time_service.now() - self._last_check
             if not force and time_since_last.total_seconds() < self._check_interval_hours * 3600:
@@ -359,7 +366,7 @@ class IdentityVarianceMonitor(BaseScheduledService):
                 total_variance=total_variance,
                 differences=[],  # Simplified - just track variance percentage
                 requires_wa_review=total_variance > self._variance_threshold,
-                recommendations=self._generate_simple_recommendations(total_variance)
+                recommendations=self._generate_simple_recommendations(total_variance),
             )
 
             # Store report
@@ -388,12 +395,12 @@ class IdentityVarianceMonitor(BaseScheduledService):
         identity_nodes = await self._gather_identity_nodes()
         config_nodes = await self._gather_config_nodes()
         behavioral_patterns = await self._analyze_behavioral_patterns()
-        
+
         # Extract current identity data from nodes
         current_identity = await self._extract_current_identity(identity_nodes)
         trust_params = self._extract_current_trust_parameters(config_nodes)
         capability_changes = self._extract_capability_changes(identity_nodes)
-        
+
         # Convert behavioral patterns to dict format for storage
         behavioral_patterns_dict = {}
         for pattern in behavioral_patterns:
@@ -426,10 +433,10 @@ class IdentityVarianceMonitor(BaseScheduledService):
             attributes={
                 "identity_nodes": len(identity_nodes),
                 "config_nodes": len(config_nodes),
-                "capability_changes": capability_changes
+                "capability_changes": capability_changes,
             },
             created_by="identity_variance_monitor",
-            updated_by="identity_variance_monitor"
+            updated_by="identity_variance_monitor",
         )
 
         # Store snapshot
@@ -442,91 +449,117 @@ class IdentityVarianceMonitor(BaseScheduledService):
                     check_reason="snapshot",
                     previous_check=self._baseline_snapshot_id,
                     check_type="snapshot",
-                    baseline_established=self._time_service.now()
-                ).model_dump()
+                    baseline_established=self._time_service.now(),
+                ).model_dump(),
             )
 
         return snapshot.to_graph_node()
 
-    def _calculate_differences(
-        self,
-        baseline: GraphNode,
-        current: GraphNode
-    ) -> List[IdentityDiff]:
+    def _calculate_differences(self, baseline: GraphNode, current: GraphNode) -> List[IdentityDiff]:
         """Calculate differences between baseline and current snapshots."""
         differences = []
 
         # Compare ethical boundaries
-        baseline_ethics = getattr(baseline.attributes, "ethical_boundaries", {}) if hasattr(baseline.attributes, "ethical_boundaries") else {}
-        current_ethics = getattr(current.attributes, "ethical_boundaries", {}) if hasattr(current.attributes, "ethical_boundaries") else {}
+        baseline_ethics = (
+            getattr(baseline.attributes, "ethical_boundaries", {})
+            if hasattr(baseline.attributes, "ethical_boundaries")
+            else {}
+        )
+        current_ethics = (
+            getattr(current.attributes, "ethical_boundaries", {})
+            if hasattr(current.attributes, "ethical_boundaries")
+            else {}
+        )
 
         for key in set(baseline_ethics.keys()) | set(current_ethics.keys()):
             if key not in current_ethics:
-                differences.append(IdentityDiff(
-                    node_id=f"ethics_{key}",
-                    diff_type="removed",
-                    impact=VarianceImpact.CRITICAL,
-                    baseline_value=str(baseline_ethics[key]),
-                    current_value=None,
-                    description=f"Ethical boundary '{key}' removed"
-                ))
+                differences.append(
+                    IdentityDiff(
+                        node_id=f"ethics_{key}",
+                        diff_type="removed",
+                        impact=VarianceImpact.CRITICAL,
+                        baseline_value=str(baseline_ethics[key]),
+                        current_value=None,
+                        description=f"Ethical boundary '{key}' removed",
+                    )
+                )
             elif key not in baseline_ethics:
-                differences.append(IdentityDiff(
-                    node_id=f"ethics_{key}",
-                    diff_type="added",
-                    impact=VarianceImpact.CRITICAL,
-                    baseline_value=None,
-                    current_value=str(current_ethics[key]),
-                    description=f"Ethical boundary '{key}' added"
-                ))
+                differences.append(
+                    IdentityDiff(
+                        node_id=f"ethics_{key}",
+                        diff_type="added",
+                        impact=VarianceImpact.CRITICAL,
+                        baseline_value=None,
+                        current_value=str(current_ethics[key]),
+                        description=f"Ethical boundary '{key}' added",
+                    )
+                )
             elif baseline_ethics[key] != current_ethics[key]:
-                differences.append(IdentityDiff(
-                    node_id=f"ethics_{key}",
-                    diff_type="modified",
-                    impact=VarianceImpact.CRITICAL,
-                    baseline_value=str(baseline_ethics[key]),
-                    current_value=str(current_ethics[key]),
-                    description=f"Ethical boundary '{key}' modified"
-                ))
+                differences.append(
+                    IdentityDiff(
+                        node_id=f"ethics_{key}",
+                        diff_type="modified",
+                        impact=VarianceImpact.CRITICAL,
+                        baseline_value=str(baseline_ethics[key]),
+                        current_value=str(current_ethics[key]),
+                        description=f"Ethical boundary '{key}' modified",
+                    )
+                )
 
         # Compare capabilities
-        baseline_caps = set(getattr(baseline.attributes, "capability_changes", []) if hasattr(baseline.attributes, "capability_changes") else [])
-        current_caps = set(getattr(current.attributes, "capability_changes", []) if hasattr(current.attributes, "capability_changes") else [])
+        baseline_caps = set(
+            getattr(baseline.attributes, "capability_changes", [])
+            if hasattr(baseline.attributes, "capability_changes")
+            else []
+        )
+        current_caps = set(
+            getattr(current.attributes, "capability_changes", [])
+            if hasattr(current.attributes, "capability_changes")
+            else []
+        )
 
         for cap in baseline_caps - current_caps:
-            differences.append(IdentityDiff(
-                node_id=f"capability_{cap}",
-                diff_type="removed",
-                impact=VarianceImpact.HIGH,
-                baseline_value=str(cap),
-                current_value=None,
-                description=f"Capability '{cap}' removed"
-            ))
+            differences.append(
+                IdentityDiff(
+                    node_id=f"capability_{cap}",
+                    diff_type="removed",
+                    impact=VarianceImpact.HIGH,
+                    baseline_value=str(cap),
+                    current_value=None,
+                    description=f"Capability '{cap}' removed",
+                )
+            )
 
         for cap in current_caps - baseline_caps:
-            differences.append(IdentityDiff(
-                node_id=f"capability_{cap}",
-                diff_type="added",
-                impact=VarianceImpact.HIGH,
-                baseline_value=None,
-                current_value=str(cap),
-                description=f"Capability '{cap}' added"
-            ))
+            differences.append(
+                IdentityDiff(
+                    node_id=f"capability_{cap}",
+                    diff_type="added",
+                    impact=VarianceImpact.HIGH,
+                    baseline_value=None,
+                    current_value=str(cap),
+                    description=f"Capability '{cap}' added",
+                )
+            )
 
         # Compare behavioral patterns
-        baseline_patterns = getattr(baseline.attributes, "behavioral_patterns", {}) if hasattr(baseline.attributes, "behavioral_patterns") else {}
-        current_patterns = getattr(current.attributes, "behavioral_patterns", {}) if hasattr(current.attributes, "behavioral_patterns") else {}
+        baseline_patterns = (
+            getattr(baseline.attributes, "behavioral_patterns", {})
+            if hasattr(baseline.attributes, "behavioral_patterns")
+            else {}
+        )
+        current_patterns = (
+            getattr(current.attributes, "behavioral_patterns", {})
+            if hasattr(current.attributes, "behavioral_patterns")
+            else {}
+        )
 
         pattern_diff = self._compare_patterns(baseline_patterns, current_patterns)
         differences.extend(pattern_diff)
 
         return differences
 
-    def _calculate_variance(
-        self,
-        baseline_snapshot: GraphNode,
-        current_snapshot: GraphNode
-    ) -> float:
+    def _calculate_variance(self, baseline_snapshot: GraphNode, current_snapshot: GraphNode) -> float:
         """
         Calculate simple percentage variance between snapshots.
 
@@ -534,14 +567,24 @@ class IdentityVarianceMonitor(BaseScheduledService):
             Variance as a percentage (0.0 to 1.0)
         """
         # Get all attributes from both snapshots
-        baseline_attrs = baseline_snapshot.attributes if isinstance(baseline_snapshot.attributes, dict) else baseline_snapshot.attributes.model_dump() if hasattr(baseline_snapshot.attributes, 'model_dump') else {}
-        current_attrs = current_snapshot.attributes if isinstance(current_snapshot.attributes, dict) else current_snapshot.attributes.model_dump() if hasattr(current_snapshot.attributes, 'model_dump') else {}
+        baseline_attrs = (
+            baseline_snapshot.attributes
+            if isinstance(baseline_snapshot.attributes, dict)
+            else (
+                baseline_snapshot.attributes.model_dump() if hasattr(baseline_snapshot.attributes, "model_dump") else {}
+            )
+        )
+        current_attrs = (
+            current_snapshot.attributes
+            if isinstance(current_snapshot.attributes, dict)
+            else current_snapshot.attributes.model_dump() if hasattr(current_snapshot.attributes, "model_dump") else {}
+        )
 
         # Get all unique keys from both snapshots
         all_keys = set(baseline_attrs.keys()) | set(current_attrs.keys())
 
         # Skip metadata keys that don't represent identity
-        skip_keys = {'created_at', 'updated_at', 'timestamp', 'snapshot_type'}
+        skip_keys = {"created_at", "updated_at", "timestamp", "snapshot_type"}
         identity_keys = [k for k in all_keys if k not in skip_keys]
 
         if not identity_keys:
@@ -561,10 +604,7 @@ class IdentityVarianceMonitor(BaseScheduledService):
         variance = differences / len(identity_keys)
         return variance
 
-    def _generate_simple_recommendations(
-        self,
-        total_variance: float
-    ) -> List[str]:
+    def _generate_simple_recommendations(self, total_variance: float) -> List[str]:
         """Generate simple recommendations based on variance percentage."""
         recommendations = []
 
@@ -599,24 +639,19 @@ class IdentityVarianceMonitor(BaseScheduledService):
                 timestamp=self._time_service.now() if self._time_service else datetime.now(),
                 current_variance=report.total_variance,
                 variance_report=report,
-                critical_changes=[
-                    d for d in report.differences
-                    if d.impact == VarianceImpact.CRITICAL
-                ],
+                critical_changes=[d for d in report.differences if d.impact == VarianceImpact.CRITICAL],
                 proposed_actions=report.recommendations,
-                urgency="high" if report.total_variance > 0.30 else "moderate"
+                urgency="high" if report.total_variance > 0.30 else "moderate",
             )
 
             # Send to WA
             await self._wa_bus.request_review(
                 review_type="identity_variance",
                 review_data=review_request.model_dump(),
-                handler_name="identity_variance_monitor"
+                handler_name="identity_variance_monitor",
             )
 
-            logger.warning(
-                f"WA review triggered for identity variance {report.total_variance:.1%}"
-            )
+            logger.warning(f"WA review triggered for identity variance {report.total_variance:.1%}")
 
         except Exception as e:
             logger.error(f"Failed to trigger WA review: {e}")
@@ -625,19 +660,10 @@ class IdentityVarianceMonitor(BaseScheduledService):
         """Gather all identity-scoped nodes."""
         try:
             # Query identity nodes
-            query = MemoryQuery(
-                node_id="*",
-                scope=GraphScope.IDENTITY,
-                type=None,
-                include_edges=False,
-                depth=1
-            )
+            query = MemoryQuery(node_id="*", scope=GraphScope.IDENTITY, type=None, include_edges=False, depth=1)
 
             if self._memory_bus:
-                nodes = await self._memory_bus.recall(
-                    recall_query=query,
-                    handler_name="identity_variance_monitor"
-                )
+                nodes = await self._memory_bus.recall(recall_query=query, handler_name="identity_variance_monitor")
                 return nodes
             return []
 
@@ -653,18 +679,11 @@ class IdentityVarianceMonitor(BaseScheduledService):
             try:
                 scope = CONFIG_SCOPE_MAP[config_type]
                 query = MemoryQuery(
-                    node_id=f"config/{config_type.value}/*",
-                    scope=scope,
-                    type=None,
-                    include_edges=False,
-                    depth=1
+                    node_id=f"config/{config_type.value}/*", scope=scope, type=None, include_edges=False, depth=1
                 )
 
                 if self._memory_bus:
-                    nodes = await self._memory_bus.recall(
-                        recall_query=query,
-                        handler_name="identity_variance_monitor"
-                    )
+                    nodes = await self._memory_bus.recall(recall_query=query, handler_name="identity_variance_monitor")
                     config_nodes.extend(nodes)
 
             except Exception:
@@ -685,7 +704,7 @@ class IdentityVarianceMonitor(BaseScheduledService):
                 scope="local",
                 hours=24 * 7,  # Last week
                 correlation_types=["AUDIT_EVENT"],
-                handler_name="identity_variance_monitor"
+                handler_name="identity_variance_monitor",
             )
 
             # Analyze patterns
@@ -719,8 +738,12 @@ class IdentityVarianceMonitor(BaseScheduledService):
                         pattern_type=f"action_frequency_{action_type}",
                         frequency=count / total_actions if total_actions > 0 else 0.0,
                         evidence=evidence.get(action_type, []),
-                        first_seen=first_seen.get(action_type, self._time_service.now() if self._time_service else datetime.now()),
-                        last_seen=last_seen.get(action_type, self._time_service.now() if self._time_service else datetime.now()),
+                        first_seen=first_seen.get(
+                            action_type, self._time_service.now() if self._time_service else datetime.now()
+                        ),
+                        last_seen=last_seen.get(
+                            action_type, self._time_service.now() if self._time_service else datetime.now()
+                        ),
                     )
                     patterns.append(pattern)
 
@@ -756,13 +779,16 @@ class IdentityVarianceMonitor(BaseScheduledService):
 
         return trust_params
 
-
     def _extract_current_trust_parameters(self, config_nodes: List[GraphNode]) -> dict:
         """Extract current trust parameters from config nodes."""
         trust_params = {}
 
         for node in config_nodes:
-            node_attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump() if hasattr(node.attributes, 'model_dump') else {}
+            node_attrs = (
+                node.attributes
+                if isinstance(node.attributes, dict)
+                else node.attributes.model_dump() if hasattr(node.attributes, "model_dump") else {}
+            )
             if node_attrs.get("config_type") == ConfigNodeType.TRUST_PARAMETERS.value:
                 trust_params.update(node_attrs.get("values", {}))
 
@@ -773,17 +799,17 @@ class IdentityVarianceMonitor(BaseScheduledService):
         capabilities = []
 
         for node in identity_nodes:
-            node_attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump() if hasattr(node.attributes, 'model_dump') else {}
+            node_attrs = (
+                node.attributes
+                if isinstance(node.attributes, dict)
+                else node.attributes.model_dump() if hasattr(node.attributes, "model_dump") else {}
+            )
             if node_attrs.get("node_type") == "capability_change":
                 capabilities.append(node_attrs.get("capability", "unknown"))
 
         return capabilities
 
-    def _compare_patterns(
-        self,
-        baseline_patterns: dict,
-        current_patterns: dict
-    ) -> List[IdentityDiff]:
+    def _compare_patterns(self, baseline_patterns: dict, current_patterns: dict) -> List[IdentityDiff]:
         """Compare behavioral patterns between baseline and current."""
         differences = []
 
@@ -797,14 +823,16 @@ class IdentityVarianceMonitor(BaseScheduledService):
             current_pct = current_actions.get(action, 0) / max(1, current_patterns.get("total_actions", 1))
 
             if abs(current_pct - baseline_pct) > 0.2:  # 20% shift in behavior
-                differences.append(IdentityDiff(
-                    node_id=f"pattern_action_{action}",
-                    diff_type="modified",
-                    impact=VarianceImpact.MEDIUM,
-                    baseline_value=f"{baseline_pct:.1%}",
-                    current_value=f"{current_pct:.1%}",
-                    description=f"Behavior pattern '{action}' shifted significantly"
-                ))
+                differences.append(
+                    IdentityDiff(
+                        node_id=f"pattern_action_{action}",
+                        diff_type="modified",
+                        impact=VarianceImpact.MEDIUM,
+                        baseline_value=f"{baseline_pct:.1%}",
+                        current_value=f"{current_pct:.1%}",
+                        description=f"Behavior pattern '{action}' shifted significantly",
+                    )
+                )
 
         return differences
 
@@ -812,23 +840,20 @@ class IdentityVarianceMonitor(BaseScheduledService):
         """Load baseline snapshot ID from memory."""
         try:
             query = MemoryQuery(
-                node_id="identity_baseline_current",
-                scope=GraphScope.IDENTITY,
-                type=None,
-                include_edges=False,
-                depth=1
+                node_id="identity_baseline_current", scope=GraphScope.IDENTITY, type=None, include_edges=False, depth=1
             )
 
             if not self._memory_bus:
                 return
 
-            nodes = await self._memory_bus.recall(
-                recall_query=query,
-                handler_name="identity_variance_monitor"
-            )
+            nodes = await self._memory_bus.recall(recall_query=query, handler_name="identity_variance_monitor")
 
             if nodes:
-                node_attrs = nodes[0].attributes if isinstance(nodes[0].attributes, dict) else nodes[0].attributes.model_dump() if hasattr(nodes[0].attributes, 'model_dump') else {}
+                node_attrs = (
+                    nodes[0].attributes
+                    if isinstance(nodes[0].attributes, dict)
+                    else nodes[0].attributes.model_dump() if hasattr(nodes[0].attributes, "model_dump") else {}
+                )
                 self._baseline_snapshot_id = node_attrs.get("baseline_id")
                 logger.info(f"Loaded baseline ID: {self._baseline_snapshot_id}")
 
@@ -843,24 +868,18 @@ class IdentityVarianceMonitor(BaseScheduledService):
             scope=GraphScope.IDENTITY,
             type=None,
             include_edges=False,
-            depth=1
+            depth=1,
         )
 
         if not self._memory_bus:
             raise ValueError("Memory bus not available")
 
-        nodes = await self._memory_bus.recall(
-            recall_query=query,
-            handler_name="identity_variance_monitor"
-        )
-        
+        nodes = await self._memory_bus.recall(recall_query=query, handler_name="identity_variance_monitor")
+
         # If not found, try without the prefix
         if not nodes:
             query.node_id = snapshot_id
-            nodes = await self._memory_bus.recall(
-                recall_query=query,
-                handler_name="identity_variance_monitor"
-            )
+            nodes = await self._memory_bus.recall(recall_query=query, handler_name="identity_variance_monitor")
 
         if not nodes:
             raise RuntimeError(f"Snapshot {snapshot_id} not found")
@@ -879,23 +898,21 @@ class IdentityVarianceMonitor(BaseScheduledService):
                 "total_variance": report.total_variance,
                 "requires_wa_review": report.requires_wa_review,
                 "difference_count": len(report.differences),
-                "recommendations": report.recommendations
+                "recommendations": report.recommendations,
             },
             updated_by="identity_variance_monitor",
-            updated_at=self._time_service.now() if self._time_service else datetime.now()
+            updated_at=self._time_service.now() if self._time_service else datetime.now(),
         )
 
         if self._memory_bus:
             await self._memory_bus.memorize(
-                node=report_node,
-                handler_name="identity_variance_monitor",
-                metadata={"variance_report": True}
+                node=report_node, handler_name="identity_variance_monitor", metadata={"variance_report": True}
             )
 
     async def _run_scheduled_task(self) -> None:
         """
         Execute scheduled variance check.
-        
+
         This is called periodically by BaseScheduledService.
         """
         try:
@@ -923,12 +940,20 @@ class IdentityVarianceMonitor(BaseScheduledService):
         """Extract current identity data from identity nodes."""
         # Look for the main identity node
         for node in identity_nodes:
-            node_attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump() if hasattr(node.attributes, 'model_dump') else {}
+            node_attrs = (
+                node.attributes
+                if isinstance(node.attributes, dict)
+                else node.attributes.model_dump() if hasattr(node.attributes, "model_dump") else {}
+            )
             if node.id == "agent/identity" or node_attrs.get("node_class") == "IdentityNode":
-                attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump() if hasattr(node.attributes, 'model_dump') else {}
+                attrs = (
+                    node.attributes
+                    if isinstance(node.attributes, dict)
+                    else node.attributes.model_dump() if hasattr(node.attributes, "model_dump") else {}
+                )
                 # Parse attrs into NodeAttributes for type safety
                 parsed_attrs = NodeAttributes(**attrs) if isinstance(attrs, dict) else NodeAttributes()
-                
+
                 return CurrentIdentityData(
                     agent_id=parsed_attrs.agent_id or "unknown",
                     identity_hash=parsed_attrs.identity_hash or "unknown",
@@ -940,46 +965,47 @@ class IdentityVarianceMonitor(BaseScheduledService):
                     personality_traits=parsed_attrs.areas_of_expertise or [],
                     communication_style=parsed_attrs.startup_instructions or "standard",
                     learning_enabled=True,
-                    adaptation_rate=0.1
+                    adaptation_rate=0.1,
                 )
-        
+
         # Fallback if no identity node found
         return CurrentIdentityData()
-    
+
     def _extract_ethical_boundaries_from_node_attrs(self, attrs: NodeAttributes) -> List[str]:
         """Extract ethical boundaries from node attributes."""
         boundaries = []
-        
+
         # Extract from restricted capabilities
         if attrs.restricted_capabilities:
             for cap in attrs.restricted_capabilities:
                 boundaries.append(f"restricted:{cap}")
-        
+
         # Extract from any ethical-related fields
         if attrs.ethical_boundaries:
             boundaries.extend(attrs.ethical_boundaries)
-            
+
         return boundaries
-    
+
     def get_status(self) -> Any:
         """Get service status for Service base class."""
         # Let BaseScheduledService handle the base status
         status = super().get_status()
-        
+
         # Add our custom metrics
         custom_metrics = ServiceStatusMetrics(
             has_baseline=float(self._baseline_snapshot_id is not None),
             last_variance_check=self._last_check.isoformat() if self._last_check else None,
-            variance_threshold=self._variance_threshold
+            variance_threshold=self._variance_threshold,
         )
-        if hasattr(status, 'custom_metrics') and isinstance(status.custom_metrics, dict):
+        if hasattr(status, "custom_metrics") and isinstance(status.custom_metrics, dict):
             status.custom_metrics.update(custom_metrics.model_dump())
-        
+
         return status
-    
+
     def get_capabilities(self) -> Any:
         """Get service capabilities."""
         from ciris_engine.schemas.services.core import ServiceCapabilities
+
         return ServiceCapabilities(
             service_name="IdentityVarianceMonitor",
             actions=["initialize_baseline", "check_variance", "monitor_identity_drift", "trigger_wa_review"],
@@ -987,6 +1013,6 @@ class IdentityVarianceMonitor(BaseScheduledService):
             dependencies=["TimeService", "MemoryBus", "WiseBus"],
             metadata={
                 "variance_threshold": self._variance_threshold,
-                "check_interval_hours": self._check_interval_hours
-            }
+                "check_interval_hours": self._check_interval_hours,
+            },
         )

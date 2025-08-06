@@ -5,17 +5,14 @@ ITIL-aligned incident processing for agent self-improvement through
 pattern detection and insight generation.
 """
 
-from typing import Dict, List, Optional, Protocol, TYPE_CHECKING, runtime_checkable
-from datetime import datetime
+from typing import TYPE_CHECKING, List, Protocol, runtime_checkable
 
 from ...runtime.base import GraphServiceProtocol
 
 # Import forward references
 if TYPE_CHECKING:
-    from ciris_engine.schemas.services.graph.incident import (
-        IncidentNode, ProblemNode, IncidentInsightNode
-    )
     from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+    from ciris_engine.schemas.services.graph.incident import IncidentInsightNode
     from ciris_engine.schemas.services.graph_core import GraphNode
     from ciris_engine.schemas.services.operations import MemoryQuery
 
@@ -40,7 +37,6 @@ class IncidentManagementServiceProtocol(GraphServiceProtocol, Protocol):
             IncidentInsightNode with analysis results and recommendations
         """
         ...
-
 
     # Required methods from GraphServiceProtocol
     def get_node_type(self) -> str:

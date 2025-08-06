@@ -3,17 +3,20 @@
 from pathlib import Path
 
 from rich.console import Console
-from rich.prompt import Prompt, Confirm, IntPrompt
+from rich.prompt import Confirm, IntPrompt, Prompt
 
-from ciris_engine.logic.services.infrastructure.authentication import AuthenticationService
 from ciris_engine.logic.infrastructure.sub_services.wa_cli_bootstrap import WACLIBootstrapService
-from ciris_engine.logic.infrastructure.sub_services.wa_cli_oauth import WACLIOAuthService
 from ciris_engine.logic.infrastructure.sub_services.wa_cli_display import WACLIDisplayService
-from ciris_engine.schemas.services.authority_core import WACertificate
+from ciris_engine.logic.infrastructure.sub_services.wa_cli_oauth import WACLIOAuthService
+from ciris_engine.logic.services.infrastructure.authentication import AuthenticationService
 from ciris_engine.schemas.infrastructure.wa_cli_wizard import (
-    WizardResult, RootCreationResult, JoinRequestResult,
-    OAuthConfigResult
+    JoinRequestResult,
+    OAuthConfigResult,
+    RootCreationResult,
+    WizardResult,
 )
+from ciris_engine.schemas.services.authority_core import WACertificate
+
 
 class WACLIWizardService:
     """Handles interactive wizard flows for WA onboarding."""
@@ -23,7 +26,7 @@ class WACLIWizardService:
         auth_service: AuthenticationService,
         bootstrap_service: WACLIBootstrapService,
         oauth_service: WACLIOAuthService,
-        display_service: WACLIDisplayService
+        display_service: WACLIDisplayService,
     ):
         """Initialize wizard service with required services."""
         self.auth_service = auth_service
@@ -47,11 +50,7 @@ class WACLIWizardService:
             self.console.print("  2. Stay as an observer (default)")
             self.console.print("  3. Configure OAuth login")
 
-            choice = IntPrompt.ask(
-                "Choose an option",
-                choices=["1", "2", "3"],
-                default="2"
-            )
+            choice = IntPrompt.ask("Choose an option", choices=["1", "2", "3"], default="2")
 
             if choice == "1":
                 return self._join_wa_tree()
@@ -67,11 +66,7 @@ class WACLIWizardService:
             self.console.print("  2. Import an existing root certificate")
             self.console.print("  3. Stay as an observer (default)")
 
-            choice = IntPrompt.ask(
-                "Choose an option",
-                choices=["1", "2", "3"],
-                default="3"
-            )
+            choice = IntPrompt.ask("Choose an option", choices=["1", "2", "3"], default="3")
 
             if choice == "1":
                 return await self._create_root_wa()
@@ -96,17 +91,12 @@ class WACLIWizardService:
         shamir_shares = None
         if use_shamir:
             total = IntPrompt.ask("Total number of shares (2-10)", default=3)
-            threshold = IntPrompt.ask(
-                f"Threshold needed to reconstruct (must be <= {total})",
-                default=2
-            )
+            threshold = IntPrompt.ask(f"Threshold needed to reconstruct (must be <= {total})", default=2)
             shamir_shares = (threshold, total)
 
         # Create root WA
         result = await self.bootstrap_service.bootstrap_new_root(
-            name=name,
-            use_password=use_password,
-            shamir_shares=shamir_shares
+            name=name, use_password=use_password, shamir_shares=shamir_shares
         )
 
         if result["status"] == "success":
@@ -128,6 +118,7 @@ class WACLIWizardService:
 
         try:
             import json
+
             cert_data = json.loads(Path(cert_path).read_text())
 
             # Validate it's a root cert
@@ -155,10 +146,7 @@ class WACLIWizardService:
         role = Prompt.ask("Requested role", choices=["authority", "observer"], default="observer")
 
         # Generate join request
-        result = self.bootstrap_service.generate_mint_request(
-            name=name,
-            requested_role=role
-        )
+        result = self.bootstrap_service.generate_mint_request(name=name, requested_role=role)
 
         if result["status"] == "success":
             self.console.print("\n📋 Join request generated!")
@@ -182,9 +170,7 @@ class WACLIWizardService:
 
         # Configure OAuth
         result = await self.oauth_service.oauth_setup(
-            provider=provider,
-            client_id=client_id,
-            client_secret=client_secret
+            provider=provider, client_id=client_id, client_secret=client_secret
         )
 
         if result.status == "success":
@@ -192,8 +178,4 @@ class WACLIWizardService:
             self.console.print("You can now login with:")
             self.console.print(f"[bold]ciris wa oauth-login {provider}[/bold]")
 
-        return OAuthConfigResult(
-            status=result.status,
-            provider=result.provider or provider,
-            error=result.error
-        )
+        return OAuthConfigResult(status=result.status, provider=result.provider or provider, error=result.error)

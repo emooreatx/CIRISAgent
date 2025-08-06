@@ -1,25 +1,26 @@
 """
 Base processor abstract class defining the interface for all processor types.
 """
+
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Optional, List, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, List, Optional
+
 from pydantic import ValidationError
 
+from ciris_engine.logic.config import ConfigAccessor
 from ciris_engine.logic.processors.core.thought_processor import ThoughtProcessor
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
-from ciris_engine.logic.config import ConfigAccessor
-from ciris_engine.schemas.processors.states import AgentState
-from ciris_engine.schemas.processors.base import (
-    ProcessorMetrics, MetricsUpdate
-)
-from ciris_engine.schemas.processors.results import ProcessingResult
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.processors.base import MetricsUpdate, ProcessorMetrics
+from ciris_engine.schemas.processors.results import ProcessingResult
+from ciris_engine.schemas.processors.states import AgentState
 
 if TYPE_CHECKING:
     from ciris_engine.logic.infrastructure.handlers.action_dispatcher import ActionDispatcher
 
 logger = logging.getLogger(__name__)
+
 
 class BaseProcessor(ABC):
     """Abstract base class for all processor types."""
@@ -29,7 +30,7 @@ class BaseProcessor(ABC):
         config_accessor: ConfigAccessor,
         thought_processor: ThoughtProcessor,
         action_dispatcher: "ActionDispatcher",
-        services: dict
+        services: dict,
     ) -> None:
         """Initialize base processor with common dependencies."""
         self.config = config_accessor
@@ -40,24 +41,24 @@ class BaseProcessor(ABC):
             self.discord_service = services["discord_service"]
 
         # Get TimeService from services
-        time_service = services.get('time_service')
+        time_service = services.get("time_service")
         if not time_service:
             raise ValueError("time_service is required for processors")
         self.time_service: TimeServiceProtocol = time_service
 
         # Get ResourceMonitor from services - REQUIRED for system snapshots
-        self.resource_monitor = services.get('resource_monitor')
+        self.resource_monitor = services.get("resource_monitor")
         if not self.resource_monitor:
             raise ValueError("resource_monitor is required for processors")
 
         # Extract other commonly used services
-        self.memory_service = services.get('memory_service')
-        self.graphql_provider = services.get('graphql_provider')
-        self.app_config = services.get('app_config')
-        self.runtime = services.get('runtime')
-        self.service_registry = services.get('service_registry')
-        self.secrets_service = services.get('secrets_service')
-        self.telemetry_service = services.get('telemetry_service')
+        self.memory_service = services.get("memory_service")
+        self.graphql_provider = services.get("graphql_provider")
+        self.app_config = services.get("app_config")
+        self.runtime = services.get("runtime")
+        self.service_registry = services.get("service_registry")
+        self.secrets_service = services.get("secrets_service")
+        self.telemetry_service = services.get("telemetry_service")
 
         self.metrics = ProcessorMetrics()
 
@@ -104,7 +105,7 @@ class BaseProcessor(ABC):
             self.metrics.errors += updates.errors
         if updates.rounds_completed is not None:
             self.metrics.rounds_completed += updates.rounds_completed
-        
+
         # Update additional metrics
         additional = self.metrics.additional_metrics
         if updates.thoughts_generated is not None:
@@ -121,19 +122,14 @@ class BaseProcessor(ABC):
             additional.cache_hits += updates.cache_hits
         if updates.cache_misses is not None:
             additional.cache_misses += updates.cache_misses
-        
+
         # Update custom metrics
         for key, value in updates.custom_counters.items():
             additional.custom_counters[key] = additional.custom_counters.get(key, 0) + value
         for key, value in updates.custom_gauges.items():
             additional.custom_gauges[key] = value
 
-    async def dispatch_action(
-        self,
-        result: Any,
-        thought: Any,
-        context: dict
-    ) -> bool:
+    async def dispatch_action(self, result: Any, thought: Any, context: dict) -> bool:
         """
         Common action dispatch logic.
         Returns True if dispatch succeeded.
@@ -141,12 +137,11 @@ class BaseProcessor(ABC):
         try:
             # Convert dict to DispatchContext
             from ciris_engine.schemas.runtime.contexts import DispatchContext
+
             dispatch_ctx = DispatchContext(**context)
 
             await self.action_dispatcher.dispatch(
-                action_selection_result=result,
-                thought=thought,
-                dispatch_context=dispatch_ctx
+                action_selection_result=result, thought=thought, dispatch_context=dispatch_ctx
             )
             return True
         except Exception as e:
@@ -154,11 +149,7 @@ class BaseProcessor(ABC):
             self.metrics.errors += 1
             return False
 
-    async def process_thought_item(
-        self,
-        item: ProcessingQueueItem,
-        context: Optional[dict] = None
-    ) -> Any:
+    async def process_thought_item(self, item: ProcessingQueueItem, context: Optional[dict] = None) -> Any:
         """
         Process a single thought item through the thought processor.
         Returns the processing result.
@@ -170,7 +161,7 @@ class BaseProcessor(ABC):
             return result
         except Exception as e:
             # Log concise error without full stack trace
-            error_msg = str(e).replace('\n', ' ')[:200]
+            error_msg = str(e).replace("\n", " ")[:200]
             logger.error(f"Error processing thought {item.thought_id}: {error_msg}")
             # Only log full trace for non-validation errors
             if not isinstance(e, ValidationError):

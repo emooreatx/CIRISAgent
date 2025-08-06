@@ -28,14 +28,14 @@ function GoogleOAuthCallbackContent() {
         created_at: new Date().toISOString(),
         last_login: new Date().toISOString()
       };
-      
+
       setToken(accessToken);
       setUser(user);
-      
+
       // Store agent info
       localStorage.setItem('selectedAgentId', 'datum');
       localStorage.setItem('selectedAgentName', 'Datum');
-      
+
       // Redirect to dashboard
       router.push('/dashboard');
     } else {

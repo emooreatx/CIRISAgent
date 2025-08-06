@@ -5,22 +5,20 @@ Tests the message bus integration for deferrals, including
 proper context transformation and error handling.
 """
 
-import pytest
-from unittest.mock import Mock, AsyncMock, MagicMock
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
+from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 from ciris_engine.logic.buses.wise_bus import WiseBus
+from ciris_engine.schemas.services.authority_core import DeferralRequest
 from ciris_engine.schemas.services.context import DeferralContext, GuidanceContext
-from ciris_engine.schemas.services.authority_core import (
-    DeferralRequest, DeferralResponse, WARole
-)
-from ciris_engine.schemas.runtime.enums import ServiceType
-from ciris_engine.protocols.services import WiseAuthorityService
 
 
 class MockTimeService:
     """Mock time service for testing."""
+
     def __init__(self, now_time: Optional[datetime] = None):
         self._now = now_time or datetime.now(timezone.utc)
 
@@ -71,12 +69,7 @@ class TestWiseBusDeferrals:
         return WiseBus(mock_service_registry, mock_time_service)
 
     @pytest.mark.asyncio
-    async def test_send_deferral_success(
-        self,
-        wise_bus,
-        mock_wise_service,
-        mock_time_service
-    ):
+    async def test_send_deferral_success(self, wise_bus, mock_wise_service, mock_time_service):
         """Test successful deferral submission through bus."""
         # Arrange
         context = DeferralContext(
@@ -85,17 +78,11 @@ class TestWiseBusDeferrals:
             reason="Requires human review",
             defer_until=mock_time_service.now() + timedelta(hours=2),
             priority="high",
-            metadata={
-                "context": "sensitive_content",
-                "user_id": "user_789"
-            }
+            metadata={"context": "sensitive_content", "user_id": "user_789"},
         )
 
         # Act
-        result = await wise_bus.send_deferral(
-            context=context,
-            handler_name="TestHandler"
-        )
+        result = await wise_bus.send_deferral(context=context, handler_name="TestHandler")
 
         # Assert
         assert result is True
@@ -113,12 +100,7 @@ class TestWiseBusDeferrals:
         assert deferral_request.context == context.metadata
 
     @pytest.mark.asyncio
-    async def test_send_deferral_with_string_defer_until(
-        self,
-        wise_bus,
-        mock_wise_service,
-        mock_time_service
-    ):
+    async def test_send_deferral_with_string_defer_until(self, wise_bus, mock_wise_service, mock_time_service):
         """Test deferral with string timestamp that needs parsing."""
         # Arrange
         defer_time_str = "2025-01-20T15:00:00Z"
@@ -128,14 +110,11 @@ class TestWiseBusDeferrals:
             reason="Scheduled review",
             defer_until=defer_time_str,  # String instead of datetime
             priority="medium",
-            metadata={}
+            metadata={},
         )
 
         # Act
-        result = await wise_bus.send_deferral(
-            context=context,
-            handler_name="TestHandler"
-        )
+        result = await wise_bus.send_deferral(context=context, handler_name="TestHandler")
 
         # Assert
         assert result is True
@@ -149,12 +128,7 @@ class TestWiseBusDeferrals:
         assert deferral_request.defer_until == expected_time
 
     @pytest.mark.asyncio
-    async def test_send_deferral_no_defer_until(
-        self,
-        wise_bus,
-        mock_wise_service,
-        mock_time_service
-    ):
+    async def test_send_deferral_no_defer_until(self, wise_bus, mock_wise_service, mock_time_service):
         """Test deferral without defer_until defaults to 1 hour."""
         # Arrange
         context = DeferralContext(
@@ -163,14 +137,11 @@ class TestWiseBusDeferrals:
             reason="General review needed",
             defer_until=None,
             priority="low",
-            metadata={}
+            metadata={},
         )
 
         # Act
-        result = await wise_bus.send_deferral(
-            context=context,
-            handler_name="TestHandler"
-        )
+        result = await wise_bus.send_deferral(context=context, handler_name="TestHandler")
 
         # Assert
         assert result is True
@@ -184,11 +155,7 @@ class TestWiseBusDeferrals:
         assert time_diff < 1  # Within 1 second tolerance
 
     @pytest.mark.asyncio
-    async def test_send_deferral_service_not_available(
-        self,
-        wise_bus,
-        mock_service_registry
-    ):
+    async def test_send_deferral_service_not_available(self, wise_bus, mock_service_registry):
         """Test deferral when no WA service is available."""
         # Arrange
         mock_service_registry.get_service.return_value = None
@@ -200,24 +167,17 @@ class TestWiseBusDeferrals:
             reason="Test deferral",
             defer_until=None,
             priority="medium",
-            metadata={}
+            metadata={},
         )
 
         # Act
-        result = await wise_bus.send_deferral(
-            context=context,
-            handler_name="TestHandler"
-        )
+        result = await wise_bus.send_deferral(context=context, handler_name="TestHandler")
 
         # Assert
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_send_deferral_service_exception(
-        self,
-        wise_bus,
-        mock_wise_service
-    ):
+    async def test_send_deferral_service_exception(self, wise_bus, mock_wise_service):
         """Test deferral when WA service throws exception."""
         # Arrange
         mock_wise_service.send_deferral.side_effect = Exception("Service error")
@@ -228,57 +188,36 @@ class TestWiseBusDeferrals:
             reason="Test deferral",
             defer_until=None,
             priority="high",
-            metadata={}
+            metadata={},
         )
 
         # Act
-        result = await wise_bus.send_deferral(
-            context=context,
-            handler_name="TestHandler"
-        )
+        result = await wise_bus.send_deferral(context=context, handler_name="TestHandler")
 
         # Assert
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_fetch_guidance_success(
-        self,
-        wise_bus,
-        mock_wise_service
-    ):
+    async def test_fetch_guidance_success(self, wise_bus, mock_wise_service):
         """Test successful guidance fetch through bus."""
         # Arrange
         context = GuidanceContext(
             thought_id="thought_123",
             task_id="task_456",
             question="Should I proceed with this medical recommendation?",
-            ethical_considerations=[
-                "Patient safety",
-                "Medical ethics",
-                "Informed consent"
-            ],
-            domain_context={
-                "domain": "healthcare",
-                "risk_level": "high"
-            }
+            ethical_considerations=["Patient safety", "Medical ethics", "Informed consent"],
+            domain_context={"domain": "healthcare", "risk_level": "high"},
         )
 
         # Act
-        result = await wise_bus.fetch_guidance(
-            context=context,
-            handler_name="MedicalHandler"
-        )
+        result = await wise_bus.fetch_guidance(context=context, handler_name="MedicalHandler")
 
         # Assert
         assert result == "Test guidance response"
         mock_wise_service.fetch_guidance.assert_called_once_with(context)
 
     @pytest.mark.asyncio
-    async def test_fetch_guidance_no_service(
-        self,
-        wise_bus,
-        mock_service_registry
-    ):
+    async def test_fetch_guidance_no_service(self, wise_bus, mock_service_registry):
         """Test guidance fetch when no service available."""
         # Arrange
         mock_service_registry.get_service.return_value = None
@@ -288,38 +227,29 @@ class TestWiseBusDeferrals:
             task_id="task_456",
             question="Test question",
             ethical_considerations=[],
-            domain_context={}
+            domain_context={},
         )
 
         # Act
-        result = await wise_bus.fetch_guidance(
-            context=context,
-            handler_name="TestHandler"
-        )
+        result = await wise_bus.fetch_guidance(context=context, handler_name="TestHandler")
 
         # Assert
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_request_review(
-        self,
-        wise_bus,
-        mock_wise_service
-    ):
+    async def test_request_review(self, wise_bus, mock_wise_service):
         """Test the request_review convenience method."""
         # Arrange
         review_data = {
             "identity_variance": 0.85,
             "expected": "helpful_assistant",
             "actual": "cautious_advisor",
-            "context": "risk_assessment"
+            "context": "risk_assessment",
         }
 
         # Act
         result = await wise_bus.request_review(
-            review_type="identity_variance",
-            review_data=review_data,
-            handler_name="IdentityMonitor"
+            review_type="identity_variance", review_data=review_data, handler_name="IdentityMonitor"
         )
 
         # Assert
@@ -334,12 +264,7 @@ class TestWiseBusDeferrals:
         assert "IdentityMonitor" in deferral_request.context["handler_name"]
 
     @pytest.mark.asyncio
-    async def test_bus_capability_filtering(
-        self,
-        wise_bus,
-        mock_service_registry,
-        mock_wise_service
-    ):
+    async def test_bus_capability_filtering(self, wise_bus, mock_service_registry, mock_wise_service):
         """Test that bus properly filters services by capabilities."""
         # Arrange
         # Create services with different capabilities
@@ -352,7 +277,7 @@ class TestWiseBusDeferrals:
 
         # Registry returns different services based on handler
         async def get_service_by_handler(handler, service_type, **kwargs):
-            required_capabilities = kwargs.get('required_capabilities', [])
+            required_capabilities = kwargs.get("required_capabilities", [])
 
             if handler == "HandlerA":
                 service = service_without_defer
@@ -375,30 +300,20 @@ class TestWiseBusDeferrals:
             reason="Test",
             defer_until=None,
             priority="medium",
-            metadata={}
+            metadata={},
         )
 
         # Act & Assert
         # Handler A's service lacks send_deferral capability
-        result_a = await wise_bus.get_service(
-            handler_name="HandlerA",
-            required_capabilities=["send_deferral"]
-        )
+        result_a = await wise_bus.get_service(handler_name="HandlerA", required_capabilities=["send_deferral"])
         assert result_a is None
 
         # Handler B's service has the capability
-        result_b = await wise_bus.get_service(
-            handler_name="HandlerB",
-            required_capabilities=["send_deferral"]
-        )
+        result_b = await wise_bus.get_service(handler_name="HandlerB", required_capabilities=["send_deferral"])
         assert result_b == service_with_defer
 
     @pytest.mark.asyncio
-    async def test_concurrent_deferral_requests(
-        self,
-        wise_bus,
-        mock_wise_service
-    ):
+    async def test_concurrent_deferral_requests(self, wise_bus, mock_wise_service):
         """Test handling multiple concurrent deferral requests."""
         # Arrange
         contexts = [
@@ -408,17 +323,15 @@ class TestWiseBusDeferrals:
                 reason=f"Reason {i}",
                 defer_until=None,
                 priority="medium",
-                metadata={"index": str(i)}
+                metadata={"index": str(i)},
             )
             for i in range(5)
         ]
 
         # Act
         import asyncio
-        results = await asyncio.gather(*[
-            wise_bus.send_deferral(ctx, f"Handler_{i}")
-            for i, ctx in enumerate(contexts)
-        ])
+
+        results = await asyncio.gather(*[wise_bus.send_deferral(ctx, f"Handler_{i}") for i, ctx in enumerate(contexts)])
 
         # Assert
         assert all(results)
@@ -433,103 +346,81 @@ class TestWiseBusDeferrals:
         assert len(thought_ids) == 5
 
     @pytest.mark.asyncio
-    async def test_deferral_broadcast_to_multiple_services(
-        self,
-        wise_bus,
-        mock_service_registry,
-        mock_time_service
-    ):
+    async def test_deferral_broadcast_to_multiple_services(self, wise_bus, mock_service_registry, mock_time_service):
         """Test that deferrals are broadcast to ALL wise authority services."""
         # Arrange - Create multiple WA services (Discord and API)
         discord_wa_service = MockWiseAuthorityService()
         api_wa_service = MockWiseAuthorityService()
-        
+
         # Both services should support send_deferral
         discord_caps = Mock()
         discord_caps.actions = {"send_deferral", "fetch_guidance", "check_permission"}
         discord_wa_service.get_capabilities = Mock(return_value=discord_caps)
-        
+
         api_caps = Mock()
         api_caps.actions = {"send_deferral", "fetch_guidance", "list_permissions"}
         api_wa_service.get_capabilities = Mock(return_value=api_caps)
-        
+
         # Registry returns both services
-        mock_service_registry.get_services_by_type.return_value = [
-            discord_wa_service,
-            api_wa_service
-        ]
-        
+        mock_service_registry.get_services_by_type.return_value = [discord_wa_service, api_wa_service]
+
         context = DeferralContext(
             thought_id="thought_broadcast_123",
             task_id="task_broadcast_456",
             reason="Test broadcast to all WA services",
             defer_until=mock_time_service.now() + timedelta(hours=1),
             priority="high",
-            metadata={"test": "broadcast"}
+            metadata={"test": "broadcast"},
         )
-        
+
         # Act
-        result = await wise_bus.send_deferral(
-            context=context,
-            handler_name="TestBroadcastHandler"
-        )
-        
+        result = await wise_bus.send_deferral(context=context, handler_name="TestBroadcastHandler")
+
         # Assert
         assert result is True  # Should succeed if at least one service processed it
-        
+
         # Both services should have received the deferral
         discord_wa_service.send_deferral.assert_called_once()
         api_wa_service.send_deferral.assert_called_once()
-        
+
         # Verify both got the same deferral request
         discord_call = discord_wa_service.send_deferral.call_args[0][0]
         api_call = api_wa_service.send_deferral.call_args[0][0]
-        
+
         assert discord_call.thought_id == api_call.thought_id == "thought_broadcast_123"
         assert discord_call.task_id == api_call.task_id == "task_broadcast_456"
         assert discord_call.reason == api_call.reason == "Test broadcast to all WA services"
 
     @pytest.mark.asyncio
-    async def test_deferral_partial_failure(
-        self,
-        wise_bus,
-        mock_service_registry,
-        mock_time_service
-    ):
+    async def test_deferral_partial_failure(self, wise_bus, mock_service_registry, mock_time_service):
         """Test that deferral succeeds if at least one WA service processes it."""
         # Arrange - Create two services, one will fail
         working_service = MockWiseAuthorityService()
         failing_service = MockWiseAuthorityService()
-        
+
         # Set up capabilities
         caps = Mock()
         caps.actions = {"send_deferral"}
         working_service.get_capabilities = Mock(return_value=caps)
         failing_service.get_capabilities = Mock(return_value=caps)
-        
+
         # Make one service fail
         failing_service.send_deferral.side_effect = Exception("Service unavailable")
-        
-        mock_service_registry.get_services_by_type.return_value = [
-            failing_service,
-            working_service
-        ]
-        
+
+        mock_service_registry.get_services_by_type.return_value = [failing_service, working_service]
+
         context = DeferralContext(
             thought_id="thought_partial_123",
-            task_id="task_partial_456", 
+            task_id="task_partial_456",
             reason="Test partial failure",
             defer_until=None,
             priority="medium",
-            metadata={}
+            metadata={},
         )
-        
+
         # Act
-        result = await wise_bus.send_deferral(
-            context=context,
-            handler_name="TestPartialHandler"
-        )
-        
+        result = await wise_bus.send_deferral(context=context, handler_name="TestPartialHandler")
+
         # Assert
         assert result is True  # Should succeed because one service worked
         working_service.send_deferral.assert_called_once()
@@ -553,11 +444,7 @@ class TestWiseBusErrorHandling:
         return WiseBus(mock_registry, mock_time)
 
     @pytest.mark.asyncio
-    async def test_invalid_defer_until_format(
-        self,
-        wise_bus,
-        mock_time_service
-    ):
+    async def test_invalid_defer_until_format(self, wise_bus, mock_time_service):
         """Test handling of invalid defer_until timestamp in Pydantic validation."""
         # Arrange
         mock_service = MockWiseAuthorityService()
@@ -576,12 +463,12 @@ class TestWiseBusErrorHandling:
                 reason="Test",
                 defer_until="invalid-timestamp",  # Invalid format - will fail validation
                 priority="medium",
-                metadata={}
+                metadata={},
             )
 
         # Verify the validation error is about the defer_until field
         errors = exc_info.value.errors()
-        assert any(error['loc'] == ('defer_until',) for error in errors)
+        assert any(error["loc"] == ("defer_until",) for error in errors)
 
         # Now test that a properly formed context works
         valid_context = DeferralContext(
@@ -590,27 +477,25 @@ class TestWiseBusErrorHandling:
             reason="Test",
             defer_until=mock_time_service.now(),  # Valid datetime
             priority="medium",
-            metadata={}
+            metadata={},
         )
 
         result = await wise_bus.send_deferral(valid_context, "TestHandler")
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_process_message_warning(
-        self,
-        wise_bus,
-        caplog
-    ):
+    async def test_process_message_warning(self, wise_bus, caplog):
         """Test that async message processing logs warning."""
         # Arrange
-        from ciris_engine.logic.buses.base_bus import BusMessage
         from datetime import datetime, timezone
+
+        from ciris_engine.logic.buses.base_bus import BusMessage
+
         message = BusMessage(
             id="test_msg_001",
             handler_name="TestHandler",
             timestamp=datetime.now(timezone.utc),
-            metadata={"test": "data"}
+            metadata={"test": "data"},
         )
 
         # Act

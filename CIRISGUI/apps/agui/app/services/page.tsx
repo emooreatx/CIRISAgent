@@ -99,7 +99,7 @@ export default function ServicesManagementPage() {
 
   // Extract all providers for priority update dropdown
   const allProviders: Array<{name: string, scope: string, service_type: string}> = [];
-  
+
   if (services && !services.error) {
     // Handler-specific services
     for (const [handler, serviceTypes] of Object.entries(services.handlers || {})) {
@@ -113,7 +113,7 @@ export default function ServicesManagementPage() {
         }
       }
     }
-    
+
     // Global services
     for (const [serviceType, providers] of Object.entries(services.global_services || {})) {
       for (const provider of providers as any[]) {
@@ -162,8 +162,8 @@ export default function ServicesManagementPage() {
           </div>
           <div>
             <label>Service Type Filter:</label>
-            <select 
-              value={filterServiceType} 
+            <select
+              value={filterServiceType}
               onChange={e => setFilterServiceType(e.target.value)}
               style={{ width: '100%', marginTop: 5 }}
             >
@@ -186,8 +186,8 @@ export default function ServicesManagementPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 15 }}>
             <div style={{ padding: 10, background: '#f8f8f8', borderRadius: 4 }}>
               <strong>Overall Health:</strong>
-              <div style={{ 
-                color: serviceHealth.overall_health === 'healthy' ? 'green' : 
+              <div style={{
+                color: serviceHealth.overall_health === 'healthy' ? 'green' :
                        serviceHealth.overall_health === 'degraded' ? 'orange' : 'red',
                 fontWeight: 'bold',
                 textTransform: 'uppercase'
@@ -224,8 +224,8 @@ export default function ServicesManagementPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 15, marginBottom: 15 }}>
             <div>
               <label>Service Provider:</label>
-              <select 
-                value={selectedProvider} 
+              <select
+                value={selectedProvider}
                 onChange={e => setSelectedProvider(e.target.value)}
                 required
                 style={{ width: '100%', marginTop: 5 }}
@@ -240,8 +240,8 @@ export default function ServicesManagementPage() {
             </div>
             <div>
               <label>Priority Level:</label>
-              <select 
-                value={newPriority} 
+              <select
+                value={newPriority}
                 onChange={e => setNewPriority(e.target.value)}
                 style={{ width: '100%', marginTop: 5 }}
               >
@@ -265,8 +265,8 @@ export default function ServicesManagementPage() {
             </div>
             <div>
               <label>Selection Strategy:</label>
-              <select 
-                value={newStrategy} 
+              <select
+                value={newStrategy}
                 onChange={e => setNewStrategy(e.target.value)}
                 style={{ width: '100%', marginTop: 5 }}
               >
@@ -292,8 +292,8 @@ export default function ServicesManagementPage() {
         <form onSubmit={handleResetCircuitBreakers} style={{ marginBottom: 15 }}>
           <div style={{ marginBottom: 10 }}>
             <label>Service Type (optional):</label>
-            <select 
-              value={resetServiceType} 
+            <select
+              value={resetServiceType}
               onChange={e => setResetServiceType(e.target.value)}
               style={{ width: 300, marginTop: 5, marginLeft: 10 }}
             >
@@ -325,7 +325,7 @@ export default function ServicesManagementPage() {
             <h3>Overview</h3>
             <p>{selectionExplanation.service_selection_logic.overview}</p>
           </div>
-          
+
           <div style={{ marginBottom: 15 }}>
             <h3>Priority Groups</h3>
             <p><strong>Description:</strong> {selectionExplanation.service_selection_logic.priority_groups.description}</p>
@@ -375,8 +375,8 @@ export default function ServicesManagementPage() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 15, marginBottom: 15 }}>
                 <div style={{ padding: 10, background: '#f8f8f8', borderRadius: 4 }}>
                   <strong>Overall Health:</strong>
-                  <div style={{ 
-                    color: diagnostics.overall_health === 'healthy' ? 'green' : 
+                  <div style={{
+                    color: diagnostics.overall_health === 'healthy' ? 'green' :
                            diagnostics.overall_health === 'degraded' ? 'orange' : 'red',
                     fontWeight: 'bold'
                   }}>
@@ -464,7 +464,7 @@ export default function ServicesManagementPage() {
                                   <td style={{ border: '1px solid #ddd', padding: 4 }}>{provider.priority_group}</td>
                                   <td style={{ border: '1px solid #ddd', padding: 4 }}>{provider.strategy}</td>
                                   <td style={{ border: '1px solid #ddd', padding: 4 }}>
-                                    <span style={{ 
+                                    <span style={{
                                       color: provider.circuit_breaker_state === 'closed' ? 'green' : 'red',
                                       fontWeight: 'bold'
                                     }}>
@@ -513,7 +513,7 @@ export default function ServicesManagementPage() {
                               <td style={{ border: '1px solid #ddd', padding: 4 }}>{provider.priority_group}</td>
                               <td style={{ border: '1px solid #ddd', padding: 4 }}>{provider.strategy}</td>
                               <td style={{ border: '1px solid #ddd', padding: 4 }}>
-                                <span style={{ 
+                                <span style={{
                                   color: provider.circuit_breaker_state === 'closed' ? 'green' : 'red',
                                   fontWeight: 'bold'
                                 }}>

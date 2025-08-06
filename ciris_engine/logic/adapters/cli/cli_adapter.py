@@ -2,31 +2,42 @@
 Simplified CLI adapter implementing CommunicationService, WiseAuthorityService, and ToolService.
 Following the pattern of the refactored Discord adapter.
 """
-import logging
-import uuid
+
 import asyncio
+import logging
 import sys
-from typing import Awaitable, Callable, Dict, List, Optional, Any
+import uuid
 from datetime import datetime
+from typing import Any, Awaitable, Callable, Dict, List, Optional
+
 import aiofiles
 
-from ciris_engine.schemas.adapters.cli import (
-    ListFilesToolParams, ListFilesToolResult, ReadFileToolParams,
-    ReadFileToolResult, SystemInfoToolResult
-)
-from ciris_engine.protocols.services import CommunicationService, ToolService
-from ciris_engine.schemas.runtime.messages import IncomingMessage, FetchedMessage
-from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, ServiceRequestData, ServiceResponseData, CorrelationType
-from ciris_engine.schemas.adapters.tools import ToolInfo, ToolExecutionResult, ToolExecutionStatus, ToolParameterSchema
-from ciris_engine.schemas.runtime.system_context import ChannelContext
 from ciris_engine.logic import persistence
-
-from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.logic.adapters.base import Service
-from ciris_engine.schemas.services.core import ServiceStatus, ServiceCapabilities
+from ciris_engine.protocols.services import CommunicationService, ToolService
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.adapters.cli import (
+    ListFilesToolParams,
+    ListFilesToolResult,
+    ReadFileToolParams,
+    ReadFileToolResult,
+    SystemInfoToolResult,
+)
+from ciris_engine.schemas.adapters.tools import ToolExecutionResult, ToolExecutionStatus, ToolInfo, ToolParameterSchema
+from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.runtime.messages import FetchedMessage, IncomingMessage
+from ciris_engine.schemas.runtime.system_context import ChannelContext
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.telemetry.core import (
+    CorrelationType,
+    ServiceCorrelation,
+    ServiceCorrelationStatus,
+    ServiceRequestData,
+    ServiceResponseData,
+)
 
 logger = logging.getLogger(__name__)
+
 
 class CLIAdapter(Service, CommunicationService, ToolService):
     """
@@ -40,7 +51,7 @@ class CLIAdapter(Service, CommunicationService, ToolService):
         interactive: bool = True,
         on_message: Optional[Callable[[IncomingMessage], Awaitable[None]]] = None,
         bus_manager: Optional[Any] = None,
-        config: Optional[Any] = None
+        config: Optional[Any] = None,
     ) -> None:
         """
         Initialize the CLI adapter.
@@ -75,7 +86,7 @@ class CLIAdapter(Service, CommunicationService, ToolService):
     def _get_time_service(self) -> TimeServiceProtocol:
         """Get time service instance from runtime."""
         if self._time_service is None:
-            if self.runtime and hasattr(self.runtime, 'service_registry'):
+            if self.runtime and hasattr(self.runtime, "service_registry"):
                 # Get time service from registry
                 time_services = self.runtime.service_registry.get_services_by_type(ServiceType.TIME)
                 if time_services:
@@ -86,13 +97,15 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                 raise RuntimeError("Runtime not available or does not have service registry")
         return self._time_service
 
-    async def _emit_telemetry(self, metric_name: str, value: float = 1.0, tags: Optional[Dict[str, str]] = None) -> None:
+    async def _emit_telemetry(
+        self, metric_name: str, value: float = 1.0, tags: Optional[Dict[str, str]] = None
+    ) -> None:
         """Emit telemetry as TSDBGraphNode through memory bus."""
         if not self.bus_manager:
             return  # No bus manager, can't emit telemetry
 
         # Check if memory bus is available (it might not be during startup)
-        if not hasattr(self.bus_manager, 'memory') or not self.bus_manager.memory:
+        if not hasattr(self.bus_manager, "memory") or not self.bus_manager.memory:
             return  # Memory bus not available yet
 
         try:
@@ -111,11 +124,7 @@ class CLIAdapter(Service, CommunicationService, ToolService):
 
             # Use memorize_metric instead of creating GraphNode directly
             await self.bus_manager.memory.memorize_metric(
-                metric_name=metric_name,
-                value=metric_value,
-                tags=string_tags,
-                scope="local",
-                handler_name="adapter.cli"
+                metric_name=metric_name, value=metric_value, tags=string_tags, scope="local", handler_name="adapter.cli"
             )
         except Exception as e:
             logger.debug(f"Failed to emit telemetry {metric_name}: {e}")
@@ -135,7 +144,7 @@ class CLIAdapter(Service, CommunicationService, ToolService):
         try:
             # Get current timestamp for output
             timestamp = self._get_time_service().now().strftime("%H:%M:%S.%f")[:-3]
-            
+
             if channel_id == "system":
                 print(f"\n[{timestamp}] [SYSTEM] {content}")
             elif channel_id == "error":
@@ -144,6 +153,7 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                 print(f"\n[{timestamp}] [CIRIS] {content}")
 
             from ciris_engine.schemas.telemetry.core import ServiceRequestData, ServiceResponseData
+
             now = self._get_time_service().now()
 
             request_data = ServiceRequestData(
@@ -154,7 +164,7 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                 request_timestamp=now,
                 thought_id=None,
                 task_id=None,
-                timeout_seconds=None
+                timeout_seconds=None,
             )
 
             response_data = ServiceResponseData(
@@ -168,7 +178,7 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                 error_message=None,
                 error_traceback=None,
                 tokens_used=None,
-                memory_bytes=None
+                memory_bytes=None,
             )
 
             persistence.add_correlation(
@@ -189,16 +199,18 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                     trace_context=None,
                     retention_policy="raw",
                     ttl_seconds=None,
-                    parent_correlation_id=None
+                    parent_correlation_id=None,
                 ),
-                self._get_time_service()
+                self._get_time_service(),
             )
             return True
         except Exception as e:
             logger.error(f"Failed to send CLI message: {e}")
             return False
 
-    async def fetch_messages(self, channel_id: str, *, limit: int = 50, before: Optional[datetime] = None) -> List[FetchedMessage]:
+    async def fetch_messages(
+        self, channel_id: str, *, limit: int = 50, before: Optional[datetime] = None
+    ) -> List[FetchedMessage]:
         """
         Fetch messages from correlations for CLI channel.
 
@@ -211,57 +223,66 @@ class CLIAdapter(Service, CommunicationService, ToolService):
             List of FetchedMessage objects from correlations
         """
         from ciris_engine.logic.persistence import get_correlations_by_channel
-        
+
         try:
             # Get correlations for this channel
-            correlations = get_correlations_by_channel(
-                channel_id=channel_id,
-                limit=limit
-            )
-            
+            correlations = get_correlations_by_channel(channel_id=channel_id, limit=limit)
+
             messages = []
             for corr in correlations:
                 # Extract message data from correlation
                 if corr.action_type == "speak" and corr.request_data:
                     # This is an outgoing message from the agent
                     content = ""
-                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
+                    if hasattr(corr.request_data, "parameters") and corr.request_data.parameters:
                         content = corr.request_data.parameters.get("content", "")
-                    
-                    messages.append(FetchedMessage(
-                        message_id=corr.correlation_id,
-                        author_id="ciris",
-                        author_name="CIRIS",
-                        content=content,
-                        timestamp=(corr.timestamp or corr.created_at).isoformat() if corr.timestamp or corr.created_at else None,
-                        is_bot=True
-                    ))
+
+                    messages.append(
+                        FetchedMessage(
+                            message_id=corr.correlation_id,
+                            author_id="ciris",
+                            author_name="CIRIS",
+                            content=content,
+                            timestamp=(
+                                (corr.timestamp or corr.created_at).isoformat()
+                                if corr.timestamp or corr.created_at
+                                else None
+                            ),
+                            is_bot=True,
+                        )
+                    )
                 elif corr.action_type == "observe" and corr.request_data:
                     # This is an incoming message from a user
                     content = ""
                     author_id = "cli_user"
                     author_name = "User"
-                    
-                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
+
+                    if hasattr(corr.request_data, "parameters") and corr.request_data.parameters:
                         params = corr.request_data.parameters
                         content = params.get("content", "")
                         author_id = params.get("author_id", "cli_user")
                         author_name = params.get("author_name", "User")
-                    
-                    messages.append(FetchedMessage(
-                        message_id=corr.correlation_id,
-                        author_id=author_id,
-                        author_name=author_name,
-                        content=content,
-                        timestamp=(corr.timestamp or corr.created_at).isoformat() if corr.timestamp or corr.created_at else None,
-                        is_bot=False
-                    ))
-            
+
+                    messages.append(
+                        FetchedMessage(
+                            message_id=corr.correlation_id,
+                            author_id=author_id,
+                            author_name=author_name,
+                            content=content,
+                            timestamp=(
+                                (corr.timestamp or corr.created_at).isoformat()
+                                if corr.timestamp or corr.created_at
+                                else None
+                            ),
+                            is_bot=False,
+                        )
+                    )
+
             # Sort by timestamp
             messages.sort(key=lambda m: str(m.timestamp or ""))
-            
+
             return messages
-            
+
         except Exception as e:
             logger.error(f"Failed to fetch messages from correlations for CLI channel {channel_id}: {e}")
             return []
@@ -286,22 +307,27 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                 success=False,
                 data={"available_tools": list(self._available_tools.keys())},
                 error=f"Unknown tool: {tool_name}",
-                correlation_id=correlation_id
+                correlation_id=correlation_id,
             )
 
         try:
             import time
+
             start_time = time.time()
             result = await self._available_tools[tool_name](parameters)
             execution_time = (time.time() - start_time) * 1000
 
             # Emit telemetry for tool execution
-            await self._emit_telemetry("tool_executed", 1.0, {
-                "adapter_type": "cli",
-                "tool_name": tool_name,
-                "execution_time_ms": str(execution_time),
-                "success": str(result.get("success", True))
-            })
+            await self._emit_telemetry(
+                "tool_executed",
+                1.0,
+                {
+                    "adapter_type": "cli",
+                    "tool_name": tool_name,
+                    "execution_time_ms": str(execution_time),
+                    "success": str(result.get("success", True)),
+                },
+            )
 
             now = self._get_time_service().now()
             persistence.add_correlation(
@@ -318,7 +344,7 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                         thought_id=None,
                         task_id=None,
                         channel_id=None,
-                        timeout_seconds=None
+                        timeout_seconds=None,
                     ),
                     response_data=ServiceResponseData(
                         success=result.get("success", True),
@@ -331,7 +357,7 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                         error_message=None,
                         error_traceback=None,
                         tokens_used=None,
-                        memory_bytes=None
+                        memory_bytes=None,
                     ),
                     status=ServiceCorrelationStatus.COMPLETED,
                     created_at=now,
@@ -343,9 +369,9 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                     trace_context=None,
                     retention_policy="raw",
                     ttl_seconds=None,
-                    parent_correlation_id=None
+                    parent_correlation_id=None,
                 ),
-                self._get_time_service()
+                self._get_time_service(),
             )
 
             return ToolExecutionResult(
@@ -354,7 +380,7 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                 success=result.get("success", True),
                 data=result,
                 error=result.get("error"),
-                correlation_id=correlation_id
+                correlation_id=correlation_id,
             )
 
         except Exception as e:
@@ -365,7 +391,7 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                 success=False,
                 data=None,
                 error=str(e),
-                correlation_id=correlation_id
+                correlation_id=correlation_id,
             )
 
     async def get_available_tools(self) -> List[str]:
@@ -424,11 +450,11 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                 if not user_input.strip():
                     continue
 
-                if user_input.lower() == 'quit':
+                if user_input.lower() == "quit":
                     logger.info("User requested quit")
                     self._running = False
                     break
-                elif user_input.lower() == 'help':
+                elif user_input.lower() == "help":
                     await self._show_help()
                     continue
 
@@ -439,16 +465,21 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                     content=user_input,
                     channel_id=self.get_home_channel_id(),
                     timestamp=self._get_time_service().now_iso(),
-                    reference_message_id=None
+                    reference_message_id=None,
                 )
 
                 # Create an "observe" correlation for this incoming message
-                from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, ServiceRequestData, ServiceResponseData, CorrelationType
-                from ciris_engine.schemas.telemetry.core import ServiceRequestData, ServiceResponseData
-                
+                from ciris_engine.schemas.telemetry.core import (
+                    CorrelationType,
+                    ServiceCorrelation,
+                    ServiceCorrelationStatus,
+                    ServiceRequestData,
+                    ServiceResponseData,
+                )
+
                 now = self._get_time_service().now()
                 correlation_id = str(uuid.uuid4())
-                
+
                 correlation = ServiceCorrelation(
                     correlation_id=correlation_id,
                     service_type="cli",
@@ -462,12 +493,12 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                             "content": msg.content,
                             "author_id": msg.author_id,
                             "author_name": msg.author_name,
-                            "message_id": msg.message_id
+                            "message_id": msg.message_id,
                         },
                         request_timestamp=now,
                         thought_id=None,
                         task_id=None,
-                        timeout_seconds=None
+                        timeout_seconds=None,
                     ),
                     response_data=ServiceResponseData(
                         success=True,
@@ -480,7 +511,7 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                         error_message=None,
                         error_traceback=None,
                         tokens_used=None,
-                        memory_bytes=None
+                        memory_bytes=None,
                     ),
                     status=ServiceCorrelationStatus.COMPLETED,
                     created_at=now,
@@ -492,19 +523,18 @@ class CLIAdapter(Service, CommunicationService, ToolService):
                     trace_context=None,
                     retention_policy="raw",
                     ttl_seconds=None,
-                    parent_correlation_id=None
+                    parent_correlation_id=None,
                 )
-                
+
                 persistence.add_correlation(correlation, self._get_time_service())
                 logger.debug(f"Created observe correlation for CLI message {msg.message_id}")
 
                 if self.on_message:
                     await self.on_message(msg)
                     # Emit telemetry for message processed
-                    await self._emit_telemetry("message_processed", 1.0, {
-                        "adapter_type": "cli",
-                        "message_id": msg.message_id
-                    })
+                    await self._emit_telemetry(
+                        "message_processed", 1.0, {"adapter_type": "cli", "message_id": msg.message_id}
+                    )
                 else:
                     logger.warning("No message handler configured")
 
@@ -536,6 +566,7 @@ Tools available:
     async def _tool_list_files(self, params: dict) -> dict:
         """List files in a directory."""
         import os
+
         try:
             # Validate parameters using schema
             list_params = ListFilesToolParams.model_validate(params)
@@ -554,7 +585,7 @@ Tools available:
         try:
             # Validate parameters using schema
             read_params = ReadFileToolParams.model_validate(params)
-            async with aiofiles.open(read_params.path, 'r') as f:
+            async with aiofiles.open(read_params.path, "r") as f:
                 content = await f.read()
             result = ReadFileToolResult(success=True, content=content, size=len(content), error=None)
             return result.model_dump()
@@ -568,6 +599,7 @@ Tools available:
     async def _tool_system_info(self, params: dict) -> dict:
         """Get system information."""
         import platform
+
         import psutil
 
         try:
@@ -581,7 +613,7 @@ Tools available:
                 python_version=platform.python_version(),
                 cpu_count=psutil.cpu_count() or 1,
                 memory_mb=memory_mb,
-                error=None
+                error=None,
             )
             return result.model_dump()
         except Exception as e:
@@ -592,7 +624,7 @@ Tools available:
                 python_version=platform.python_version(),
                 cpu_count=1,
                 memory_mb=0,
-                error=str(e)
+                error=str(e),
             )
             return result.model_dump()
 
@@ -605,10 +637,9 @@ Tools available:
         self._start_time = self._get_time_service().now()
 
         # Emit telemetry for adapter start
-        await self._emit_telemetry("adapter_starting", 1.0, {
-            "adapter_type": "cli",
-            "interactive": str(self.interactive)
-        })
+        await self._emit_telemetry(
+            "adapter_starting", 1.0, {"adapter_type": "cli", "interactive": str(self.interactive)}
+        )
 
         self._running = True
         logger.debug(f"CLI adapter start: _running now {self._running}")
@@ -618,19 +649,16 @@ Tools available:
             self._input_task = asyncio.create_task(self._handle_interactive_input())
 
         # Emit telemetry for successful start
-        await self._emit_telemetry("adapter_started", 1.0, {
-            "adapter_type": "cli",
-            "interactive": str(self.interactive)
-        })
+        await self._emit_telemetry(
+            "adapter_started", 1.0, {"adapter_type": "cli", "interactive": str(self.interactive)}
+        )
 
     async def stop(self) -> None:
         """Stop the CLI adapter."""
         logger.info("Stopping CLI adapter")
 
         # Emit telemetry for adapter stopping
-        await self._emit_telemetry("adapter_stopping", 1.0, {
-            "adapter_type": "cli"
-        })
+        await self._emit_telemetry("adapter_stopping", 1.0, {"adapter_type": "cli"})
 
         self._running = False
 
@@ -647,9 +675,7 @@ Tools available:
         print("\n[CIRIS CLI] Shutdown complete.")
 
         # Emit telemetry for successful stop
-        await self._emit_telemetry("adapter_stopped", 1.0, {
-            "adapter_type": "cli"
-        })
+        await self._emit_telemetry("adapter_stopped", 1.0, {"adapter_type": "cli"})
 
         # NOTE: Removed os._exit(0) to allow proper cleanup
         # The EOFError handling in _handle_interactive_input should prevent hanging
@@ -666,22 +692,24 @@ Tools available:
     def get_status(self) -> ServiceStatus:
         """Get current service status."""
         from ciris_engine.schemas.services.core import ServiceStatus
+
         return ServiceStatus(
             service_name="CLIAdapter",
             service_type="adapter",
             is_healthy=self._running,
-            uptime_seconds=(self._get_time_service().now() - self._start_time).total_seconds() if self._start_time else 0.0,
+            uptime_seconds=(
+                (self._get_time_service().now() - self._start_time).total_seconds() if self._start_time else 0.0
+            ),
             metrics={
                 "interactive": self.interactive,
                 "running": self._running,
-                "available_tools": len(self._available_tools)
+                "available_tools": len(self._available_tools),
             },
             last_error=None,
             custom_metrics=None,
-            last_health_check=self._get_time_service().now() if self._time_service else None
+            last_health_check=self._get_time_service().now() if self._time_service else None,
         )
 
-    
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""
         return ServiceCapabilities(
@@ -694,8 +722,8 @@ Tools available:
                 "max_concurrent_operations": 1,
                 "supports_streaming": False,
                 "interactive": self.interactive,
-                "available_tools": list(self._available_tools.keys())
-            }
+                "available_tools": list(self._available_tools.keys()),
+            },
         )
 
     async def list_tools(self) -> List[str]:
@@ -709,27 +737,17 @@ Tools available:
 
         # Return basic schema info for CLI tools
         from ciris_engine.schemas.adapters.tools import ToolParameterSchema
-        
+
         schemas = {
             "list_files": ToolParameterSchema(
                 type="object",
-                properties={
-                    "path": {"type": "string", "description": "Directory path", "default": "."}
-                },
-                required=[]
+                properties={"path": {"type": "string", "description": "Directory path", "default": "."}},
+                required=[],
             ),
             "read_file": ToolParameterSchema(
-                type="object",
-                properties={
-                    "path": {"type": "string", "description": "File path"}
-                },
-                required=["path"]
+                type="object", properties={"path": {"type": "string", "description": "File path"}}, required=["path"]
             ),
-            "system_info": ToolParameterSchema(
-                type="object",
-                properties={},
-                required=[]
-            )
+            "system_info": ToolParameterSchema(type="object", properties={}, required=[]),
         }
 
         return schemas.get(tool_name)
@@ -740,35 +758,25 @@ Tools available:
             return None
 
         from ciris_engine.schemas.adapters.tools import ToolParameterSchema
-        
+
         # Define tool information
         tool_descriptions = {
             "list_files": "List files in a directory",
             "read_file": "Read a file's contents",
-            "system_info": "Get system information"
+            "system_info": "Get system information",
         }
-        
+
         # Define parameter schemas
         tool_parameters = {
             "list_files": ToolParameterSchema(
                 type="object",
-                properties={
-                    "path": {"type": "string", "description": "Directory path", "default": "."}
-                },
-                required=[]
+                properties={"path": {"type": "string", "description": "Directory path", "default": "."}},
+                required=[],
             ),
             "read_file": ToolParameterSchema(
-                type="object",
-                properties={
-                    "path": {"type": "string", "description": "File path"}
-                },
-                required=["path"]
+                type="object", properties={"path": {"type": "string", "description": "File path"}}, required=["path"]
             ),
-            "system_info": ToolParameterSchema(
-                type="object",
-                properties={},
-                required=[]
-            )
+            "system_info": ToolParameterSchema(type="object", properties={}, required=[]),
         }
 
         # Return tool info using the correct schema
@@ -778,7 +786,7 @@ Tools available:
             parameters=tool_parameters.get(tool_name, ToolParameterSchema(type="object", properties={}, required=[])),
             category="cli",
             cost=0.0,
-            when_to_use=None
+            when_to_use=None,
         )
 
     async def get_all_tool_info(self) -> List[ToolInfo]:
@@ -792,28 +800,29 @@ Tools available:
 
     def get_home_channel_id(self) -> str:
         """Get the home channel ID for this CLI adapter instance."""
-        if self.cli_config and hasattr(self.cli_config, 'get_home_channel_id'):
+        if self.cli_config and hasattr(self.cli_config, "get_home_channel_id"):
             channel_id = self.cli_config.get_home_channel_id()
             if channel_id:
                 return str(channel_id)
 
         # Generate unique channel ID for this CLI instance
-        import uuid
         import os
+        import uuid
+
         return f"cli_{os.getpid()}_{uuid.uuid4().hex[:8]}"
-    
+
     def get_channel_list(self) -> List[ChannelContext]:
         """
         Get list of available CLI channels from correlations.
-        
+
         Returns:
             List of ChannelContext objects for CLI channels.
         """
         from ciris_engine.logic.persistence.models.correlations import get_active_channels_by_adapter
-        
+
         # Get active channels from last 30 days
         channels_data = get_active_channels_by_adapter("cli", since_days=30)
-        
+
         # Convert to ChannelContext objects
         channels = []
         for data in channels_data:
@@ -823,10 +832,10 @@ Tools available:
                 parts = data["channel_id"].split("_", 2)
                 if len(parts) >= 3:
                     channel_name = f"CLI Session {parts[1]}"
-            
+
             # CLI channels support all actions
             allowed_actions = ["speak", "observe", "memorize", "recall", "tool", "wa_defer", "runtime_control"]
-            
+
             channel = ChannelContext(
                 channel_id=data["channel_id"],
                 channel_type="cli",
@@ -838,8 +847,8 @@ Tools available:
                 last_activity=data.get("last_activity"),
                 message_count=data.get("message_count", 0),
                 allowed_actions=allowed_actions,
-                moderation_level="minimal"  # CLI has minimal moderation
+                moderation_level="minimal",  # CLI has minimal moderation
             )
             channels.append(channel)
-        
+
         return channels

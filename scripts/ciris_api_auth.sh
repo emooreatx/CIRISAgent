@@ -39,13 +39,13 @@ check_api() {
 authenticate() {
     local username="${1:-admin}"
     local password="${2:-ciris_admin_password}"
-    
+
     print_status "Authenticating with CIRIS API at ${API_BASE_URL}..."
-    
+
     response=$(curl -s -X POST "${API_BASE_URL}/v1/auth/login" \
         -H "Content-Type: application/json" \
         -d "{\"username\": \"${username}\", \"password\": \"${password}\"}")
-    
+
     # Check if response contains access_token
     if echo "$response" | grep -q "access_token"; then
         token=$(echo "$response" | jq -r '.access_token')
@@ -66,21 +66,21 @@ ciris_api() {
         print_error "No authentication token found. Please run: source ciris_api_auth.sh"
         return 1
     fi
-    
+
     local method="${1:-GET}"
     local endpoint="$2"
     local data="$3"
-    
+
     local curl_args=(
         -X "$method"
         -H "Authorization: Bearer $CIRIS_TOKEN"
         -H "Content-Type: application/json"
     )
-    
+
     if [ -n "$data" ]; then
         curl_args+=(-d "$data")
     fi
-    
+
     curl -s "${curl_args[@]}" "${API_BASE_URL}${endpoint}" | jq .
 }
 
@@ -88,12 +88,12 @@ ciris_api() {
 ciris_interact() {
     local message="$1"
     local channel="${2:-api_${API_HOST}_${API_PORT}}"
-    
+
     if [ -z "$message" ]; then
         print_error "Usage: ciris_interact \"message\" [channel_id]"
         return 1
     fi
-    
+
     ciris_api POST "/v1/agent/interact" "{\"message\": \"$message\", \"channel_id\": \"$channel\"}"
 }
 
@@ -102,7 +102,7 @@ ciris_mock() {
     local command="$1"
     shift
     local args="$*"
-    
+
     if [ -z "$command" ]; then
         print_warning "Available mock commands:"
         echo "  speak <message>     - Make the agent speak"
@@ -117,12 +117,12 @@ ciris_mock() {
         echo "  task_complete       - Complete current task"
         return 1
     fi
-    
+
     local full_command="\$${command}"
     if [ -n "$args" ]; then
         full_command="${full_command} ${args}"
     fi
-    
+
     ciris_interact "$full_command"
 }
 
@@ -141,16 +141,16 @@ ciris_audit() {
 main() {
     print_status "CIRIS API Authentication Script"
     echo "================================"
-    
+
     # Check if API is accessible
     if ! check_api; then
         print_error "Cannot reach CIRIS API at ${API_BASE_URL}"
         print_warning "Make sure the container is running: docker-compose -f docker-compose-api-mock.yml up -d"
         return 1
     fi
-    
+
     print_status "API is accessible at ${API_BASE_URL}"
-    
+
     # Check if already authenticated
     if [ -n "$CIRIS_TOKEN" ]; then
         print_warning "Existing token found. Testing validity..."
@@ -161,7 +161,7 @@ main() {
             print_warning "Existing token is invalid. Re-authenticating..."
         fi
     fi
-    
+
     # Authenticate
     if authenticate; then
         echo ""

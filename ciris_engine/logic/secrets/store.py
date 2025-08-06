@@ -4,19 +4,21 @@ Encrypted Secrets Storage System for CIRIS Agent.
 Provides secure, encrypted storage for detected secrets with AES-256-GCM encryption
 and comprehensive access auditing.
 """
-import sqlite3
+
 import asyncio
-from datetime import datetime
-from typing import Dict, List, Literal, Optional, Tuple, cast, Any
-from pathlib import Path
 import logging
+import sqlite3
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Literal, Optional, Tuple, cast
 
-
-from ciris_engine.schemas.secrets.core import SecretRecord, DetectedSecret, SecretAccessLog, SecretReference
-from .encryption import SecretsEncryption
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.secrets.core import DetectedSecret, SecretAccessLog, SecretRecord, SecretReference
+
+from .encryption import SecretsEncryption
 
 logger = logging.getLogger(__name__)
+
 
 class SecretsStore:
     """
@@ -32,7 +34,7 @@ class SecretsStore:
         db_path: str = "secrets.db",
         master_key: Optional[bytes] = None,
         max_accesses_per_minute: int = 10,
-        max_accesses_per_hour: int = 100
+        max_accesses_per_hour: int = 100,
     ):
         """
         Initialize secrets store.
@@ -80,7 +82,8 @@ class SecretsStore:
 
         with sqlite3.connect(self.db_path) as conn:
             # Secrets table
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS secrets (
                     secret_uuid TEXT PRIMARY KEY,
                     encrypted_value BLOB NOT NULL,
@@ -98,9 +101,11 @@ class SecretsStore:
                     auto_decapsulate_for_actions TEXT,
                     manual_access_only INTEGER DEFAULT 0
                 )
-            """)
+            """
+            )
 
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS secret_access_log (
                     access_id TEXT PRIMARY KEY,
                     secret_uuid TEXT NOT NULL,
@@ -115,7 +120,8 @@ class SecretsStore:
                     failure_reason TEXT,
                     FOREIGN KEY (secret_uuid) REFERENCES secrets (secret_uuid)
                 )
-            """)
+            """
+            )
 
             # Indexes for performance
             conn.execute("CREATE INDEX IF NOT EXISTS idx_secrets_pattern ON secrets(detected_pattern)")
@@ -157,57 +163,47 @@ class SecretsStore:
                     access_count=0,
                     source_message_id=source_id,
                     auto_decapsulate_for_actions=self._get_auto_decapsulate_actions(secret.sensitivity.value),
-                    manual_access_only=False
+                    manual_access_only=False,
                 )
 
                 with sqlite3.connect(self.db_path) as conn:
-                    conn.execute("""
+                    conn.execute(
+                        """
                         INSERT OR REPLACE INTO secrets (
                             secret_uuid, encrypted_value, encryption_key_ref, salt, nonce,
                             description, sensitivity_level, detected_pattern, context_hint,
                             created_at, last_accessed, access_count, source_message_id,
                             auto_decapsulate_for_actions, manual_access_only
                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        secret_record.secret_uuid,
-                        secret_record.encrypted_value,
-                        secret_record.encryption_key_ref,
-                        secret_record.salt,
-                        secret_record.nonce,
-                        secret_record.description,
-                        secret_record.sensitivity_level,
-                        secret_record.detected_pattern,
-                        secret_record.context_hint,
-                        secret_record.created_at.isoformat(),
-                        secret_record.last_accessed.isoformat() if secret_record.last_accessed else None,
-                        secret_record.access_count,
-                        secret_record.source_message_id,
-                        ",".join(secret_record.auto_decapsulate_for_actions),
-                        1 if secret_record.manual_access_only else 0
-                    ))
+                    """,
+                        (
+                            secret_record.secret_uuid,
+                            secret_record.encrypted_value,
+                            secret_record.encryption_key_ref,
+                            secret_record.salt,
+                            secret_record.nonce,
+                            secret_record.description,
+                            secret_record.sensitivity_level,
+                            secret_record.detected_pattern,
+                            secret_record.context_hint,
+                            secret_record.created_at.isoformat(),
+                            secret_record.last_accessed.isoformat() if secret_record.last_accessed else None,
+                            secret_record.access_count,
+                            secret_record.source_message_id,
+                            ",".join(secret_record.auto_decapsulate_for_actions),
+                            1 if secret_record.manual_access_only else 0,
+                        ),
+                    )
                     conn.commit()
 
-                await self._log_access(
-                    secret_record.secret_uuid,
-                    "STORE",
-                    "system",
-                    "Initial secret storage",
-                    True
-                )
+                await self._log_access(secret_record.secret_uuid, "STORE", "system", "Initial secret storage", True)
 
                 logger.info(f"Stored encrypted secret {secret_record.secret_uuid}")
                 return secret_record
 
             except Exception as e:  # pragma: no cover - error path
                 logger.error(f"Failed to store secret {secret.secret_uuid}: {type(e).__name__}")
-                await self._log_access(
-                    secret.secret_uuid,
-                    "STORE",
-                    "system",
-                    "Initial secret storage",
-                    False,
-                    str(e)
-                )
+                await self._log_access(secret.secret_uuid, "STORE", "system", "Initial secret storage", False, str(e))
                 raise
 
     async def retrieve_secret(self, secret_uuid: str, decrypt: bool = False) -> Optional[SecretRecord]:
@@ -223,22 +219,21 @@ class SecretsStore:
         """
         async with self._lock:
             if not await self._check_rate_limits("system"):
-                await self._log_access(
-                    secret_uuid, "VIEW", "system", "retrieve", False, "Rate limit exceeded"
-                )
+                await self._log_access(secret_uuid, "VIEW", "system", "retrieve", False, "Rate limit exceeded")
                 return None
 
             try:
                 with sqlite3.connect(self.db_path) as conn:
-                    cursor = conn.execute("""
+                    cursor = conn.execute(
+                        """
                         SELECT * FROM secrets WHERE secret_uuid = ?
-                    """, (secret_uuid,))
+                    """,
+                        (secret_uuid,),
+                    )
 
                     row = cursor.fetchone()
                     if not row:
-                        await self._log_access(
-                            secret_uuid, "VIEW", "system", "retrieve", False, "Secret not found"
-                        )
+                        await self._log_access(secret_uuid, "VIEW", "system", "retrieve", False, "Secret not found")
                         return None
 
                     # Parse database row
@@ -257,22 +252,21 @@ class SecretsStore:
                         access_count=row[11],
                         source_message_id=row[12],
                         auto_decapsulate_for_actions=row[13].split(",") if row[13] else [],
-                        manual_access_only=bool(row[14])
+                        manual_access_only=bool(row[14]),
                     )
 
                     # Update access tracking
                     secret_record.last_accessed = self.time_service.now()
                     secret_record.access_count += 1
 
-                    conn.execute("""
+                    conn.execute(
+                        """
                         UPDATE secrets
                         SET last_accessed = ?, access_count = ?
                         WHERE secret_uuid = ?
-                    """, (
-                        secret_record.last_accessed.isoformat(),
-                        secret_record.access_count,
-                        secret_uuid
-                    ))
+                    """,
+                        (secret_record.last_accessed.isoformat(), secret_record.access_count, secret_uuid),
+                    )
                     conn.commit()
 
                 access_type = "DECRYPT" if decrypt else "VIEW"
@@ -282,9 +276,7 @@ class SecretsStore:
 
             except Exception as e:  # pragma: no cover - error path
                 logger.error(f"Failed to retrieve secret {secret_uuid}: {type(e).__name__}")
-                await self._log_access(
-                    secret_uuid, "VIEW", "system", "retrieve", False, str(e)
-                )
+                await self._log_access(secret_uuid, "VIEW", "system", "retrieve", False, str(e))
                 return None
 
     def decrypt_secret_value(self, secret_record: SecretRecord) -> Optional[str]:
@@ -299,9 +291,7 @@ class SecretsStore:
         """
         try:
             return self.encryption.decrypt_secret(
-                secret_record.encrypted_value,
-                secret_record.salt,
-                secret_record.nonce
+                secret_record.encrypted_value, secret_record.salt, secret_record.nonce
             )
         except Exception as e:  # pragma: no cover - error path
             logger.error(f"Failed to decrypt secret {secret_record.secret_uuid}: {type(e).__name__}")
@@ -320,16 +310,11 @@ class SecretsStore:
         async with self._lock:
             try:
                 with sqlite3.connect(self.db_path) as conn:
-                    cursor = conn.execute(
-                        "DELETE FROM secrets WHERE secret_uuid = ?",
-                        (secret_uuid,)
-                    )
+                    cursor = conn.execute("DELETE FROM secrets WHERE secret_uuid = ?", (secret_uuid,))
                     deleted = cursor.rowcount > 0
                     conn.commit()
 
-                await self._log_access(
-                    secret_uuid, "DELETE", "system", "Secret deletion", deleted
-                )
+                await self._log_access(secret_uuid, "DELETE", "system", "Secret deletion", deleted)
 
                 if deleted:
                     logger.info(f"Deleted secret {secret_uuid}")
@@ -337,12 +322,12 @@ class SecretsStore:
 
             except Exception as e:  # pragma: no cover - error path
                 logger.error(f"Failed to delete secret {secret_uuid}: {type(e).__name__}")
-                await self._log_access(
-                    secret_uuid, "DELETE", "system", "Secret deletion", False, str(e)
-                )
+                await self._log_access(secret_uuid, "DELETE", "system", "Secret deletion", False, str(e))
                 return False
 
-    async def list_secrets(self, sensitivity_filter: Optional[str] = None, pattern_filter: Optional[str] = None) -> List[SecretReference]:
+    async def list_secrets(
+        self, sensitivity_filter: Optional[str] = None, pattern_filter: Optional[str] = None
+    ) -> List[SecretReference]:
         """
         List stored secrets (metadata only).
 
@@ -381,7 +366,7 @@ class SecretsStore:
                     detected_pattern=row[4],
                     auto_decapsulate_actions=row[5].split(",") if row[5] else [],
                     created_at=datetime.fromisoformat(row[6]),
-                    last_accessed=datetime.fromisoformat(row[7]) if row[7] else None
+                    last_accessed=datetime.fromisoformat(row[7]) if row[7] else None,
                 )
                 secrets.append(secret_ref)
 
@@ -414,16 +399,10 @@ class SecretsStore:
         minute_ago = now.timestamp() - 60
         hour_ago = now.timestamp() - 3600
 
-        access_times[:] = [
-            access_time for access_time in access_times
-            if access_time.timestamp() > hour_ago
-        ]
+        access_times[:] = [access_time for access_time in access_times if access_time.timestamp() > hour_ago]
 
         # Check limits
-        recent_accesses = [
-            access_time for access_time in access_times
-            if access_time.timestamp() > minute_ago
-        ]
+        recent_accesses = [access_time for access_time in access_times if access_time.timestamp() > minute_ago]
 
         if len(recent_accesses) >= self.max_accesses_per_minute:  # pragma: no cover - rate limit
             return False
@@ -442,7 +421,7 @@ class SecretsStore:
         accessor: str,
         purpose: str,
         success: bool,
-        failure_reason: Optional[str] = None
+        failure_reason: Optional[str] = None,
     ) -> None:
         """Log secret access for audit trail."""
         try:
@@ -454,29 +433,32 @@ class SecretsStore:
                 purpose=purpose,
                 timestamp=self.time_service.now(),
                 success=success,
-                failure_reason=failure_reason
+                failure_reason=failure_reason,
             )
 
             with sqlite3.connect(self.db_path) as conn:
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT INTO secret_access_log (
                         access_id, secret_uuid, access_type, accessor, purpose,
                         timestamp, source_ip, user_agent, action_context,
                         success, failure_reason
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    access_log.access_id,
-                    access_log.secret_uuid,
-                    access_log.access_type,
-                    access_log.accessor,
-                    access_log.purpose,
-                    access_log.timestamp.isoformat(),
-                    access_log.source_ip,
-                    access_log.user_agent,
-                    access_log.action_context,
-                    1 if access_log.success else 0,
-                    access_log.failure_reason
-                ))
+                """,
+                    (
+                        access_log.access_id,
+                        access_log.secret_uuid,
+                        access_log.access_type,
+                        access_log.accessor,
+                        access_log.purpose,
+                        access_log.timestamp.isoformat(),
+                        access_log.source_ip,
+                        access_log.user_agent,
+                        access_log.action_context,
+                        1 if access_log.success else 0,
+                        access_log.failure_reason,
+                    ),
+                )
                 conn.commit()
 
         except Exception as e:  # pragma: no cover - error path
@@ -511,29 +493,37 @@ class SecretsStore:
         try:
             with sqlite3.connect(self.db_path) as conn:
                 if secret_uuid:
-                    cursor = conn.execute("""
+                    cursor = conn.execute(
+                        """
                         SELECT * FROM secret_access_log
                         WHERE secret_uuid = ?
                         ORDER BY timestamp DESC
                         LIMIT ?
-                    """, (secret_uuid, limit))
+                    """,
+                        (secret_uuid, limit),
+                    )
                 else:
-                    cursor = conn.execute("""
+                    cursor = conn.execute(
+                        """
                         SELECT * FROM secret_access_log
                         ORDER BY timestamp DESC
                         LIMIT ?
-                    """, (limit,))
+                    """,
+                        (limit,),
+                    )
 
                 for row in cursor.fetchall():
-                    logs.append({
-                        'access_id': row[0],
-                        'secret_uuid': row[1],
-                        'access_type': row[2],
-                        'accessor': row[3],
-                        'purpose': row[4],
-                        'timestamp': row[5],
-                        'success': bool(row[9])
-                    })
+                    logs.append(
+                        {
+                            "access_id": row[0],
+                            "secret_uuid": row[1],
+                            "access_type": row[2],
+                            "accessor": row[3],
+                            "purpose": row[4],
+                            "timestamp": row[5],
+                            "success": bool(row[9]),
+                        }
+                    )
         except Exception as e:  # pragma: no cover - error path
             logger.error(f"Failed to retrieve access logs: {type(e).__name__}")
         return logs
@@ -571,11 +561,14 @@ class SecretsStore:
 
             # Update all secrets in database
             with sqlite3.connect(self.db_path) as conn:
-                conn.executemany("""
+                conn.executemany(
+                    """
                     UPDATE secrets
                     SET encrypted_value = ?, salt = ?, nonce = ?, encryption_key_ref = ?
                     WHERE secret_uuid = ?
-                """, [(enc_val, salt, nonce, "master_key_v2", uuid) for enc_val, salt, nonce, uuid in updated_secrets])
+                """,
+                    [(enc_val, salt, nonce, "master_key_v2", uuid) for enc_val, salt, nonce, uuid in updated_secrets],
+                )
                 conn.commit()
 
             self.encryption = SecretsEncryption(new_encryption_key)
@@ -595,5 +588,5 @@ class SecretsStore:
             log_entry.accessor,
             log_entry.purpose,
             log_entry.success,
-            log_entry.failure_reason
+            log_entry.failure_reason,
         )

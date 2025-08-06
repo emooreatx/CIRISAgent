@@ -15,17 +15,17 @@ jobs:
     name: Update BUILD_INFO.txt
     runs-on: ubuntu-latest
     if: github.repository == 'CIRISai/CIRISAgent'
-    
+
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      
+
       - name: Generate version info
         env:
           CIRIS_BUILD_SIGN_KEY: ${{ secrets.CIRIS_BUILD_SIGN_KEY }}
@@ -33,7 +33,7 @@ jobs:
           python version.py
           echo "Generated BUILD_INFO.txt:"
           cat BUILD_INFO.txt
-      
+
       - name: Check for changes
         id: check_changes
         run: |
@@ -44,7 +44,7 @@ jobs:
             echo "changed=true" >> $GITHUB_OUTPUT
             echo "BUILD_INFO.txt has changes"
           fi
-      
+
       - name: Create Pull Request
         if: steps.check_changes.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v5
@@ -54,12 +54,12 @@ jobs:
           title: "chore: Update BUILD_INFO.txt"
           body: |
             This PR updates the BUILD_INFO.txt file with the latest version information.
-            
+
             - Code Hash: Generated from SHA-256 of all Python source files
             - Build Time: Current timestamp
             - Git Commit: Latest commit hash
             - Git Branch: Current branch
-            
+
             This is an automated update.
           branch: update-build-info
           delete-branch: true

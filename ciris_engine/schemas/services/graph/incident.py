@@ -3,28 +3,35 @@ Incident management schemas for graph-based incident tracking.
 
 These schemas support ITIL-aligned incident processing for self-improvement.
 """
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timezone
-from pydantic import Field
-from enum import Enum
 
-from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional
+
+from pydantic import Field
+
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.services.graph_typed_nodes import TypedGraphNode, register_node_type
+
 
 class IncidentSeverity(str, Enum):
     """Incident severity levels aligned with ITIL."""
+
     CRITICAL = "CRITICAL"  # Service down, major impact
-    HIGH = "HIGH"         # Significant degradation
-    MEDIUM = "MEDIUM"     # Minor degradation
-    LOW = "LOW"           # Informational
+    HIGH = "HIGH"  # Significant degradation
+    MEDIUM = "MEDIUM"  # Minor degradation
+    LOW = "LOW"  # Informational
+
 
 class IncidentStatus(str, Enum):
     """Incident lifecycle status."""
+
     OPEN = "OPEN"
     INVESTIGATING = "INVESTIGATING"
     RESOLVED = "RESOLVED"
     CLOSED = "CLOSED"
     RECURRING = "RECURRING"  # Linked to a problem
+
 
 @register_node_type("INCIDENT")
 class IncidentNode(TypedGraphNode):
@@ -91,11 +98,11 @@ class IncidentNode(TypedGraphNode):
             attributes=extra_data,
             version=self.version,
             updated_by=self.updated_by,
-            updated_at=self.updated_at
+            updated_at=self.updated_at,
         )
 
     @classmethod
-    def from_graph_node(cls, node: GraphNode) -> 'IncidentNode':
+    def from_graph_node(cls, node: GraphNode) -> "IncidentNode":
         """Reconstruct from GraphNode."""
         attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
         attrs.pop("node_class", None)
@@ -128,6 +135,7 @@ class IncidentNode(TypedGraphNode):
             # Extra fields from attributes
             **attrs
         )
+
 
 @register_node_type("PROBLEM")
 class ProblemNode(TypedGraphNode):
@@ -173,11 +181,11 @@ class ProblemNode(TypedGraphNode):
             attributes=extra_data,
             version=self.version,
             updated_by=self.updated_by,
-            updated_at=self.updated_at
+            updated_at=self.updated_at,
         )
 
     @classmethod
-    def from_graph_node(cls, node: GraphNode) -> 'ProblemNode':
+    def from_graph_node(cls, node: GraphNode) -> "ProblemNode":
         """Reconstruct from GraphNode."""
         attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
         attrs.pop("node_class", None)
@@ -206,6 +214,7 @@ class ProblemNode(TypedGraphNode):
             # Extra fields from attributes
             **attrs
         )
+
 
 @register_node_type("INCIDENT_INSIGHT")
 class IncidentInsightNode(TypedGraphNode):
@@ -247,11 +256,11 @@ class IncidentInsightNode(TypedGraphNode):
             attributes=extra_data,
             version=self.version,
             updated_by=self.updated_by,
-            updated_at=self.updated_at
+            updated_at=self.updated_at,
         )
 
     @classmethod
-    def from_graph_node(cls, node: GraphNode) -> 'IncidentInsightNode':
+    def from_graph_node(cls, node: GraphNode) -> "IncidentInsightNode":
         """Reconstruct from GraphNode."""
         attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
         attrs.pop("node_class", None)

@@ -64,7 +64,7 @@ GraphNode(
         "agent_id": "ciris-001",
         "created_at": "2025-01-01T00:00:00Z",
         "ethical_principles": {...},
-        
+
         # Mutable with approval
         "description": "Medical assistant agent",
         "capabilities": [...],

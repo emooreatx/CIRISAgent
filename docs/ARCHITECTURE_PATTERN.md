@@ -151,15 +151,15 @@ class AutoHealer:
     def __init__(self, registry, docker_client):
         self.registry = registry  # Intent
         self.docker = docker_client  # Execution
-        
+
     def heal(self):
         # Get intent
         desired_agents = self.registry.list_agents()
-        
+
         # Get reality
         running = self.docker.list_containers()
         running_ids = {c['agent_id'] for c in running if 'agent_id' in c.labels}
-        
+
         # Reconcile
         for agent in desired_agents:
             if agent.agent_id not in running_ids:

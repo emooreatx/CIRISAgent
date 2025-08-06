@@ -1,10 +1,11 @@
 """Time Service Protocol."""
 
-from typing import Protocol
 from abc import abstractmethod
 from datetime import datetime
+from typing import Protocol
 
 from ...runtime.base import ServiceProtocol
+
 
 class TimeServiceProtocol(ServiceProtocol, Protocol):
     """Protocol for time service - provides consistent time operations."""

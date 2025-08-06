@@ -1,7 +1,7 @@
 """Message buses for service communication."""
 
-from .bus_manager import BusManager
 from .base_bus import BaseBus
+from .bus_manager import BusManager
 from .communication_bus import CommunicationBus
 from .llm_bus import LLMBus
 from .memory_bus import MemoryBus

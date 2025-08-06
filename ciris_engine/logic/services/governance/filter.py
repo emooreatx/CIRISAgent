@@ -5,40 +5,54 @@ Provides intelligent message filtering with graph memory persistence,
 user trust tracking, and self-configuration capabilities.
 """
 
-import re
-import secrets
 import asyncio
 import logging
-from typing import Dict, Optional, List, Tuple
+import re
+import secrets
 from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Tuple
 
 from ciris_engine.logic.services.base_service import BaseService
 from ciris_engine.protocols.services import ServiceProtocol as AdaptiveFilterServiceProtocol
-from ciris_engine.schemas.runtime.enums import ServiceType
-from ciris_engine.schemas.services.filters_core import (
-    FilterPriority, TriggerType, FilterTrigger,
-    UserTrustProfile, FilterResult, AdaptiveFilterConfig,
-    FilterStats, FilterHealth, ContextHint, FilterServiceMetadata
-)
-from ciris_engine.schemas.services.core import ServiceStatus, ServiceCapabilities
-from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.protocols.services.graph.config import GraphConfigServiceProtocol
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.services.filters_core import (
+    AdaptiveFilterConfig,
+    ContextHint,
+    FilterHealth,
+    FilterPriority,
+    FilterResult,
+    FilterServiceMetadata,
+    FilterStats,
+    FilterTrigger,
+    TriggerType,
+    UserTrustProfile,
+)
 
 logger = logging.getLogger(__name__)
+
 
 class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
     """Service for adaptive message filtering with graph memory persistence"""
 
-    def __init__(self, memory_service: object, time_service: TimeServiceProtocol, llm_service: Optional[object] = None, config_service: Optional[GraphConfigServiceProtocol] = None) -> None:
+    def __init__(
+        self,
+        memory_service: object,
+        time_service: TimeServiceProtocol,
+        llm_service: Optional[object] = None,
+        config_service: Optional[GraphConfigServiceProtocol] = None,
+    ) -> None:
         # Set instance variables BEFORE calling super().__init__()
         # This ensures they're available when _register_dependencies() is called
         self.memory = memory_service
         self.llm = llm_service
         self.config_service = config_service  # GraphConfigService for proper config storage
-        
+
         # Now call parent constructor
         super().__init__(time_service=time_service)
-        
+
         # Initialize remaining instance variables
         self._config: Optional[AdaptiveFilterConfig] = None
         self._config_key = "adaptive_filter.config"  # Use proper config key format
@@ -96,7 +110,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
                 pattern_type=TriggerType.CUSTOM,
                 pattern="is_dm",
                 priority=FilterPriority.CRITICAL,
-                description="Direct messages to agent"
+                description="Direct messages to agent",
             ),
             FilterTrigger(
                 trigger_id="mention_1",
@@ -104,7 +118,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
                 pattern_type=TriggerType.REGEX,
                 pattern=r"<@!?\d+>",  # Discord mention pattern
                 priority=FilterPriority.CRITICAL,
-                description="@ mentions"
+                description="@ mentions",
             ),
             FilterTrigger(
                 trigger_id="name_1",
@@ -112,7 +126,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
                 pattern_type=TriggerType.REGEX,
                 pattern=r"\b(echo|ciris|echo\s*bot)\b",
                 priority=FilterPriority.CRITICAL,
-                description="Agent name mentioned"
+                description="Agent name mentioned",
             ),
         ]
 
@@ -124,7 +138,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
                 pattern_type=TriggerType.LENGTH,
                 pattern="1000",
                 priority=FilterPriority.HIGH,
-                description="Long messages (walls of text)"
+                description="Long messages (walls of text)",
             ),
             FilterTrigger(
                 trigger_id="flood_1",
@@ -132,7 +146,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
                 pattern_type=TriggerType.FREQUENCY,
                 pattern="5:60",  # 5 messages in 60 seconds
                 priority=FilterPriority.HIGH,
-                description="Rapid message posting"
+                description="Rapid message posting",
             ),
             FilterTrigger(
                 trigger_id="emoji_1",
@@ -140,7 +154,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
                 pattern_type=TriggerType.COUNT,
                 pattern="10",
                 priority=FilterPriority.HIGH,
-                description="Excessive emoji usage"
+                description="Excessive emoji usage",
             ),
             FilterTrigger(
                 trigger_id="caps_1",
@@ -148,7 +162,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
                 pattern_type=TriggerType.REGEX,
                 pattern=r"[A-Z\s!?]{20,}",
                 priority=FilterPriority.MEDIUM,
-                description="Excessive caps lock"
+                description="Excessive caps lock",
             ),
         ]
 
@@ -160,7 +174,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
                 pattern_type=TriggerType.REGEX,
                 pattern=r"(ignore previous|disregard above|new instructions|system:)",
                 priority=FilterPriority.CRITICAL,
-                description="Potential prompt injection in LLM response"
+                description="Potential prompt injection in LLM response",
             ),
             FilterTrigger(
                 trigger_id="llm_malform_1",
@@ -168,7 +182,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
                 pattern_type=TriggerType.CUSTOM,
                 pattern="invalid_json",
                 priority=FilterPriority.HIGH,
-                description="Malformed JSON from LLM"
+                description="Malformed JSON from LLM",
             ),
             FilterTrigger(
                 trigger_id="llm_length_1",
@@ -176,18 +190,13 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
                 pattern_type=TriggerType.LENGTH,
                 pattern="50000",
                 priority=FilterPriority.HIGH,
-                description="Unusually long LLM response"
+                description="Unusually long LLM response",
             ),
         ]
 
         return config
 
-    async def filter_message(
-        self,
-        message: object,
-        adapter_type: str,
-        is_llm_response: bool = False
-    ) -> FilterResult:
+    async def filter_message(self, message: object, adapter_type: str, is_llm_response: bool = False) -> FilterResult:
         """Apply filters to determine message priority and processing"""
 
         if self._init_task and not self._init_task.done():
@@ -204,7 +213,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
                 priority=FilterPriority.MEDIUM,
                 triggered_filters=[],
                 should_process=True,
-                reasoning="Filter using minimal config"
+                reasoning="Filter using minimal config",
             )
 
         triggered = []
@@ -264,8 +273,8 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
                 ContextHint(key="channel_id", value=channel_id or "unknown"),
                 ContextHint(key="is_dm", value=str(is_dm)),
                 ContextHint(key="adapter_type", value=adapter_type),
-                ContextHint(key="is_llm_response", value=str(is_llm_response))
-            ]
+                ContextHint(key="is_llm_response", value=str(is_llm_response)),
+            ],
         )
 
     async def _test_trigger(self, trigger: FilterTrigger, content: str, message: object, adapter_type: str) -> bool:
@@ -282,7 +291,9 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
         elif trigger.pattern_type == TriggerType.COUNT:
             # Count emojis or special characters
             if "emoji" in trigger.name.lower():
-                emoji_pattern = re.compile(r'[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF]+')
+                emoji_pattern = re.compile(
+                    r"[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF]+"
+                )
                 emoji_count = len(emoji_pattern.findall(content))
                 return emoji_count > int(trigger.pattern)
             return False
@@ -305,9 +316,10 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
                 return self._is_direct_message(message, adapter_type)
             elif trigger.pattern == "invalid_json":
                 # Test if content looks like malformed JSON
-                if content.strip().startswith('{') or content.strip().startswith('['):
+                if content.strip().startswith("{") or content.strip().startswith("["):
                     try:
                         import json
+
                         json.loads(content)
                         return False  # Valid JSON
                     except json.JSONDecodeError:
@@ -332,10 +344,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
 
         self._message_buffer[user_id].append((now, None))
 
-        self._message_buffer[user_id] = [
-            (ts, msg) for ts, msg in self._message_buffer[user_id]
-            if ts > cutoff
-        ]
+        self._message_buffer[user_id] = [(ts, msg) for ts, msg in self._message_buffer[user_id] if ts > cutoff]
 
         return len(self._message_buffer[user_id]) > count_threshold
 
@@ -352,9 +361,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
 
         if user_id not in self._config.user_profiles:
             self._config.user_profiles[user_id] = UserTrustProfile(
-                user_id=user_id,
-                first_seen=self._now(),
-                last_seen=self._now()
+                user_id=user_id, first_seen=self._now(), last_seen=self._now()
             )
 
         profile = self._config.user_profiles[user_id]
@@ -372,10 +379,10 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
 
     def _extract_content(self, message: object, adapter_type: str) -> str:
         """Extract text content from message based on adapter type"""
-        if hasattr(message, 'content'):
+        if hasattr(message, "content"):
             return str(message.content)  # Ensure string return
         elif isinstance(message, dict):
-            return str(message.get('content', str(message)))
+            return str(message.get("content", str(message)))
         elif isinstance(message, str):
             return message
         else:
@@ -383,38 +390,38 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
 
     def _extract_user_id(self, message: object, adapter_type: str) -> Optional[str]:
         """Extract user ID from message"""
-        if hasattr(message, 'user_id'):
+        if hasattr(message, "user_id"):
             return str(message.user_id) if message.user_id is not None else None
-        elif hasattr(message, 'author_id'):
+        elif hasattr(message, "author_id"):
             return str(message.author_id) if message.author_id is not None else None
         elif isinstance(message, dict):
-            return message.get('user_id') or message.get('author_id')
+            return message.get("user_id") or message.get("author_id")
         return None
 
     def _extract_channel_id(self, message: object, adapter_type: str) -> Optional[str]:
         """Extract channel ID from message"""
-        if hasattr(message, 'channel_id'):
+        if hasattr(message, "channel_id"):
             return str(message.channel_id) if message.channel_id is not None else None
         elif isinstance(message, dict):
-            return message.get('channel_id')
+            return message.get("channel_id")
         return None
 
     def _extract_message_id(self, message: object, adapter_type: str) -> str:
         """Extract message ID from message"""
-        if hasattr(message, 'message_id'):
+        if hasattr(message, "message_id"):
             return str(message.message_id)
-        elif hasattr(message, 'id'):
+        elif hasattr(message, "id"):
             return str(message.id)
         elif isinstance(message, dict):
-            return str(message.get('message_id') or message.get('id', 'unknown'))
+            return str(message.get("message_id") or message.get("id", "unknown"))
         return f"msg_{int(self._now().timestamp() * 1000)}"
 
     def _is_direct_message(self, message: object, adapter_type: str) -> bool:
         """Check if message is a direct message"""
-        if hasattr(message, 'is_dm'):
+        if hasattr(message, "is_dm"):
             return bool(message.is_dm)
         elif isinstance(message, dict):
-            return bool(message.get('is_dm', False))
+            return bool(message.get("is_dm", False))
 
         # Heuristic: if no channel_id or channel_id looks like DM
         channel_id = self._extract_channel_id(message, adapter_type)
@@ -434,7 +441,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
             FilterPriority.HIGH: 1,
             FilterPriority.MEDIUM: 2,
             FilterPriority.LOW: 3,
-            FilterPriority.IGNORE: 4
+            FilterPriority.IGNORE: 4,
         }
         return priority_map.get(priority, 5)
 
@@ -445,9 +452,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
 
         trigger_names = []
         if self._config:
-            all_triggers = (self._config.attention_triggers +
-                          self._config.review_triggers +
-                          self._config.llm_filters)
+            all_triggers = self._config.attention_triggers + self._config.review_triggers + self._config.llm_filters
             trigger_map = {t.trigger_id: t.name for t in all_triggers}
             trigger_names = [trigger_map.get(tid, tid) for tid in triggered]
 
@@ -468,7 +473,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
             await self.config_service.set_config(
                 key=self._config_key,
                 value=self._config.model_dump(),  # Store as dict
-                updated_by=f"AdaptiveFilterService: {reason}"
+                updated_by=f"AdaptiveFilterService: {reason}",
             )
             logger.debug(f"Filter config saved: {reason}")
 
@@ -492,7 +497,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
                 warnings.append("No critical attention triggers enabled")
 
             # Check for high false positive rates
-            for trigger in (self._config.attention_triggers + self._config.review_triggers):
+            for trigger in self._config.attention_triggers + self._config.review_triggers:
                 if trigger.false_positive_rate > 0.3:
                     warnings.append(f"High false positive rate for {trigger.name}")
 
@@ -502,7 +507,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
             errors=errors,
             stats=self._stats,
             config_version=self._config.version if self._config else 0,
-            last_updated=self._now()
+            last_updated=self._now(),
         )
 
     async def add_filter_trigger(self, trigger: FilterTrigger, trigger_list: str = "review") -> bool:
@@ -534,9 +539,11 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
 
         try:
             # Search all trigger lists
-            for trigger_list in [self._config.attention_triggers,
-                               self._config.review_triggers,
-                               self._config.llm_filters]:
+            for trigger_list in [
+                self._config.attention_triggers,
+                self._config.review_triggers,
+                self._config.llm_filters,
+            ]:
                 for i, trigger in enumerate(trigger_list):
                     if trigger.trigger_id == trigger_id:
                         removed = trigger_list.pop(i)
@@ -552,22 +559,22 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
     def _get_actions(self) -> List[str]:
         """Get list of actions this service provides."""
         return ["filter", "update_trust", "add_filter", "remove_filter", "get_health"]
-    
+
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""
         metadata = FilterServiceMetadata(
             description="Adaptive message filtering with graph memory persistence",
             features=["spam_detection", "trust_tracking", "self_configuration", "llm_filtering"],
             filter_types=["regex", "keyword", "llm_based"],
-            max_buffer_size=1000
+            max_buffer_size=1000,
         )
-        
+
         return ServiceCapabilities(
             service_name="AdaptiveFilterService",
             actions=self._get_actions(),
             version="1.0.0",
-            dependencies=list(self._dependencies) if hasattr(self, '_dependencies') else [],
-            metadata=metadata.model_dump()
+            dependencies=list(self._dependencies) if hasattr(self, "_dependencies") else [],
+            metadata=metadata.model_dump(),
         )
 
     def get_status(self) -> ServiceStatus:
@@ -582,19 +589,23 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
                 "total_filtered": float(self._stats.total_filtered),
                 "total_messages_processed": float(self._stats.total_messages_processed),
                 "false_positive_reports": float(self._stats.false_positive_reports),
-                "filter_count": float(len(self._config.attention_triggers + self._config.review_triggers + self._config.llm_filters) if self._config else 0)
+                "filter_count": float(
+                    len(self._config.attention_triggers + self._config.review_triggers + self._config.llm_filters)
+                    if self._config
+                    else 0
+                ),
             },
-            last_health_check=self._last_health_check
+            last_health_check=self._last_health_check,
         )
 
     def get_service_type(self) -> ServiceType:
         """Get the service type enum value."""
         return ServiceType.FILTER
-    
+
     def _check_dependencies(self) -> bool:
         """Check if all required dependencies are available."""
         return self.memory is not None and self.config_service is not None
-    
+
     def _register_dependencies(self) -> None:
         """Register service dependencies."""
         super()._register_dependencies()
@@ -602,7 +613,7 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
         self._dependencies.add("GraphConfigService")
         if self.llm:
             self._dependencies.add("LLMService")
-    
+
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """Collect service-specific metrics."""
         metrics = {
@@ -610,15 +621,13 @@ class AdaptiveFilterService(BaseService, AdaptiveFilterServiceProtocol):
             "total_messages_processed": float(self._stats.total_messages_processed),
             "false_positive_reports": float(self._stats.false_positive_reports),
         }
-        
+
         if self._config:
             metrics["filter_count"] = float(
-                len(self._config.attention_triggers + 
-                    self._config.review_triggers + 
-                    self._config.llm_filters)
+                len(self._config.attention_triggers + self._config.review_triggers + self._config.llm_filters)
             )
             metrics["attention_triggers"] = float(len(self._config.attention_triggers))
             metrics["review_triggers"] = float(len(self._config.review_triggers))
             metrics["llm_filters"] = float(len(self._config.llm_filters))
-        
+
         return metrics

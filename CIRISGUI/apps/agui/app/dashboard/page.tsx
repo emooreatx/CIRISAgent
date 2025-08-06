@@ -172,7 +172,7 @@ export default function DashboardPage() {
 
   // Check for API errors
   const apiError = healthError || (health === undefined && currentAgent && !isLoadingAgents);
-  
+
   return (
     <ProtectedRoute>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -340,7 +340,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-        
+
         {/* Version Information Card */}
         {agentStatus?.version && (
           <div className="bg-white shadow rounded-lg mb-8">
@@ -371,7 +371,7 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
-        
+
         {/* Quick Links */}
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">

@@ -31,11 +31,11 @@ The system maintains only mission-critical configuration values with zero ambigu
 class EssentialConfig(BaseModel):
     """Mission-critical configuration for CIRIS bootstrap."""
     database: DatabaseConfig
-    services: ServiceEndpointsConfig  
+    services: ServiceEndpointsConfig
     security: SecurityConfig
     limits: OperationalLimitsConfig
     telemetry: TelemetryConfig
-    
+
     class Config:
         extra = "forbid"  # No ambiguity allowed
 ```

@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Now perform the login
       const user = await cirisClient.login(username, password);
-      
+
       // Configure SDK again with the auth token from AuthStore
       const token = cirisClient.auth.getAccessToken();
       if (token) {
@@ -120,14 +120,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [managerToken]);
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      loading, 
-      login, 
-      logout, 
-      hasPermission, 
-      hasRole, 
-      setUser, 
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      login,
+      logout,
+      hasPermission,
+      hasRole,
+      setUser,
       setToken,
       managerToken,
       setManagerToken,

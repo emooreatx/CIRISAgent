@@ -17,7 +17,7 @@ class CIRISClient:
         self.api_key = config.api_key
         self.timeout = 58  # Just under our 60s timeout
         self.channel_id = f"voice_{config.channel_id}"
-        
+
     async def send_message(self, content: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         async with aiohttp.ClientSession() as session:
             headers = {"Content-Type": "application/json"}
@@ -29,7 +29,7 @@ class CIRISClient:
                 "channel_id": self.channel_id,
                 "context": context or {"source": "wyoming_voice"}
             }
-            
+
             try:
                 async with session.post(
                     f"{self.api_url}/v1/agent/interact",  # Correct endpoint
@@ -96,14 +96,14 @@ ciris:
   api_key: ""  # Or use env var
   timeout: 58  # Just under our 60s timeout
   channel_id: "wyoming_default"
-  
+
 stt:
   provider: "openai"  # or "google"
   model: "whisper-1"
   language: "en"
-  
+
 tts:
-  provider: "openai"  # or "google"  
+  provider: "openai"  # or "google"
   voice: "nova"
   model: "tts-1"
 ```

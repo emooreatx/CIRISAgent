@@ -1,19 +1,19 @@
 """Simple test to check Discord imports."""
-import pytest
 
 
 def test_discord_import():
     """Test that discord can be imported."""
     import discord
+
     # discord.py doesn't expose __version__ directly
-    assert hasattr(discord, 'Client')
+    assert hasattr(discord, "Client")
 
 
 def test_discord_adapter_exists():
     """Test that DiscordAdapter class exists."""
     # Import only the specific module, not through __init__
-    import sys
     import os
+    import sys
 
     # Add the project root to path
     project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))

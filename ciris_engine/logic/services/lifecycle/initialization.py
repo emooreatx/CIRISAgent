@@ -4,34 +4,36 @@ Initialization Service for CIRIS Trinity Architecture.
 Manages system initialization coordination with verification at each phase.
 This replaces the initialization_manager.py utility with a proper service.
 """
+
 import asyncio
 import logging
-from typing import Dict, List, Optional, Callable, Awaitable, Any
-from ciris_engine.schemas.services.metadata import ServiceMetadata
-from datetime import datetime
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Awaitable, Callable, Dict, List, Optional
 
-from ciris_engine.protocols.services import InitializationServiceProtocol
 from ciris_engine.logic.services.base_infrastructure_service import BaseInfrastructureService
+from ciris_engine.protocols.services import InitializationServiceProtocol
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.runtime.enums import ServiceType
-from ciris_engine.schemas.services.lifecycle.initialization import (
-    InitializationStatus, InitializationVerification
-)
-from ciris_engine.schemas.services.operations import InitializationPhase
 from ciris_engine.schemas.services.core import ServiceCapabilities
+from ciris_engine.schemas.services.lifecycle.initialization import InitializationStatus, InitializationVerification
+from ciris_engine.schemas.services.metadata import ServiceMetadata
+from ciris_engine.schemas.services.operations import InitializationPhase
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class InitializationStep:
     """Represents a single initialization step."""
+
     phase: InitializationPhase
     name: str
     handler: Callable[[], Awaitable[None]]
     verifier: Optional[Callable[[], Awaitable[bool]]] = None
     critical: bool = True
     timeout: float = 30.0
+
 
 class InitializationService(BaseInfrastructureService, InitializationServiceProtocol):
     """Service for coordinating system initialization."""
@@ -40,10 +42,10 @@ class InitializationService(BaseInfrastructureService, InitializationServiceProt
         """Initialize the initialization service."""
         # Initialize base class with time_service
         super().__init__(service_name="InitializationService", version="1.0.0", time_service=time_service)
-        
+
         # Store time_service reference
         self.time_service = time_service
-        
+
         # Initialization-specific attributes
         self._steps: List[InitializationStep] = []
         self._completed_steps: List[str] = []
@@ -51,7 +53,6 @@ class InitializationService(BaseInfrastructureService, InitializationServiceProt
         self._start_time: Optional[datetime] = None
         self._initialization_complete = False
         self._error: Optional[Exception] = None
-
 
     # Required abstract methods from BaseService
 
@@ -61,13 +62,7 @@ class InitializationService(BaseInfrastructureService, InitializationServiceProt
 
     def _get_actions(self) -> List[str]:
         """Get list of actions this service provides."""
-        return [
-            "register_step",
-            "initialize",
-            "is_initialized",
-            "get_initialization_status",
-            "verify_initialization"
-        ]
+        return ["register_step", "initialize", "is_initialized", "get_initialization_status", "verify_initialization"]
 
     def _check_dependencies(self) -> bool:
         """Check if all required dependencies are available."""
@@ -79,40 +74,44 @@ class InitializationService(BaseInfrastructureService, InitializationServiceProt
         # Get metadata dict from parent's _get_metadata()
         service_metadata = self._get_metadata()
         metadata_dict = service_metadata.model_dump() if isinstance(service_metadata, ServiceMetadata) else {}
-        
+
         # Add infrastructure-specific metadata from parent
-        metadata_dict.update({
-            "category": "infrastructure",
-            "critical": True,
-            "description": "Manages system initialization coordination",
-            "phases": [phase.value for phase in InitializationPhase],
-            "supports_verification": True
-        })
-        
+        metadata_dict.update(
+            {
+                "category": "infrastructure",
+                "critical": True,
+                "description": "Manages system initialization coordination",
+                "phases": [phase.value for phase in InitializationPhase],
+                "supports_verification": True,
+            }
+        )
+
         return ServiceCapabilities(
             service_name=self.service_name,
             actions=self._get_actions(),
             version=self._version,
             dependencies=list(self._dependencies),
-            metadata=metadata_dict
+            metadata=metadata_dict,
         )
 
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """Collect initialization-specific metrics."""
         metrics = super()._collect_custom_metrics()
-        
+
         duration = None
         if self._start_time:
             duration = (self.time_service.now() - self._start_time).total_seconds()
-        
-        metrics.update({
-            "initialization_complete": float(self._initialization_complete),
-            "has_error": float(self._error is not None),
-            "completed_steps": float(len(self._completed_steps)),
-            "total_steps": float(len(self._steps)),
-            "initialization_duration": duration or 0.0
-        })
-        
+
+        metrics.update(
+            {
+                "initialization_complete": float(self._initialization_complete),
+                "has_error": float(self._error is not None),
+                "completed_steps": float(len(self._completed_steps)),
+                "total_steps": float(len(self._steps)),
+                "initialization_duration": duration or 0.0,
+            }
+        )
+
         return metrics
 
     async def is_healthy(self) -> bool:
@@ -129,7 +128,7 @@ class InitializationService(BaseInfrastructureService, InitializationServiceProt
         handler: Callable[[], Awaitable[None]],
         verifier: Optional[Callable[[], Awaitable[bool]]] = None,
         critical: bool = True,
-        timeout: float = 30.0
+        timeout: float = 30.0,
     ) -> None:
         """
         Register an initialization step.
@@ -143,12 +142,7 @@ class InitializationService(BaseInfrastructureService, InitializationServiceProt
             timeout: Maximum time for step execution
         """
         step = InitializationStep(
-            phase=phase,
-            name=name,
-            handler=handler,
-            verifier=verifier,
-            critical=critical,
-            timeout=timeout
+            phase=phase, name=name, handler=handler, verifier=verifier, critical=critical, timeout=timeout
         )
         self._steps.append(step)
         logger.debug(f"Registered initialization step: {phase.value}/{name}")
@@ -202,7 +196,7 @@ class InitializationService(BaseInfrastructureService, InitializationServiceProt
         # Check each phase
         phase_results = {}
         for phase, status in self._phase_status.items():
-            phase_results[phase.value] = (status == "completed")
+            phase_results[phase.value] = status == "completed"
 
         # Check all registered steps completed
         total_steps = len(self._steps)
@@ -212,7 +206,7 @@ class InitializationService(BaseInfrastructureService, InitializationServiceProt
             system_initialized=self._initialization_complete,
             no_errors=(self._error is None),
             all_steps_completed=(total_steps == completed_steps),
-            phase_results=phase_results
+            phase_results=phase_results,
         )
 
     def _is_initialized(self) -> bool:
@@ -232,7 +226,7 @@ class InitializationService(BaseInfrastructureService, InitializationServiceProt
             completed_steps=self._completed_steps,
             phase_status={phase.value: status for phase, status in self._phase_status.items()},
             error=str(self._error) if self._error else None,
-            total_steps=len(self._steps)
+            total_steps=len(self._steps),
         )
 
     async def _execute_phase(self, phase: InitializationPhase, steps: List[InitializationStep]) -> None:

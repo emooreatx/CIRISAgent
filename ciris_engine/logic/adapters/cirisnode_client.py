@@ -1,28 +1,35 @@
 import logging
-from typing import List, Optional, TYPE_CHECKING, cast, Any
+from typing import TYPE_CHECKING, Any, List, Optional, cast
 
 import httpx
 
 from ciris_engine.logic.adapters.base import Service
-from ciris_engine.schemas.audit.core import AuditLogEntry  # Use schema version
-# Configuration loaded via environment variables - no get_config dependency
-from ciris_engine.schemas.config.essential import CIRISNodeConfig
-from ciris_engine.schemas.runtime.enums import HandlerActionType, ServiceType
-from ciris_engine.schemas.runtime.audit import AuditActionContext
 from ciris_engine.schemas.adapters.cirisnode import (
-    SimpleBenchRequest, SimpleBenchResult,
-    HE300Request, HE300Result,
-    ChaosTestRequest, ChaosTestResult,
-    WAServiceRequest, WAServiceResponse,
-    EventLogRequest, EventLogResponse,
-    AssessmentSubmission, AssessmentResult
+    AssessmentResult,
+    AssessmentSubmission,
+    ChaosTestRequest,
+    ChaosTestResult,
+    EventLogRequest,
+    EventLogResponse,
+    HE300Request,
+    HE300Result,
+    SimpleBenchRequest,
+    SimpleBenchResult,
+    WAServiceRequest,
+    WAServiceResponse,
 )
 
+# Configuration loaded via environment variables - no get_config dependency
+from ciris_engine.schemas.config.essential import CIRISNodeConfig
+from ciris_engine.schemas.runtime.audit import AuditActionContext
+from ciris_engine.schemas.runtime.enums import HandlerActionType, ServiceType
+
 if TYPE_CHECKING:
-    from ciris_engine.protocols.services import AuditService
     from ciris_engine.logic.registries.base import ServiceRegistry
+    from ciris_engine.protocols.services import AuditService
 
 logger = logging.getLogger(__name__)
+
 
 class CIRISNodeClient(Service):
     """Asynchronous client for interacting with CIRISNode."""
@@ -39,7 +46,7 @@ class CIRISNodeClient(Service):
                 "http_request": {
                     "retryable_exceptions": (httpx.ConnectError, httpx.TimeoutException, httpx.HTTPStatusError),
                     "non_retryable_exceptions": (httpx.HTTPStatusError,),  # Will be filtered by status code
-                }
+                },
             }
         }
         super().__init__(config=retry_config)
@@ -69,9 +76,7 @@ class CIRISNodeClient(Service):
             return None
 
         self._audit_service = await self.service_registry.get_service(
-            self.__class__.__name__,
-            ServiceType.AUDIT,
-            required_capabilities=["log_action"]
+            self.__class__.__name__, ServiceType.AUDIT, required_capabilities=["log_action"]
         )
 
         if not self._audit_service:
@@ -107,7 +112,7 @@ class CIRISNodeClient(Service):
             _make_request,
             retryable_exceptions=(httpx.ConnectError, httpx.TimeoutException),
             non_retryable_exceptions=(httpx.HTTPStatusError,),
-            **self.get_retry_config("http_request")
+            **self.get_retry_config("http_request"),
         )
 
     async def _get(self, endpoint: str, params: dict) -> Any:
@@ -122,7 +127,7 @@ class CIRISNodeClient(Service):
             _make_request,
             retryable_exceptions=(httpx.ConnectError, httpx.TimeoutException),
             non_retryable_exceptions=(httpx.HTTPStatusError,),
-            **self.get_retry_config("http_request")
+            **self.get_retry_config("http_request"),
         )
 
     async def _put(self, endpoint: str, payload: dict) -> Any:
@@ -137,7 +142,7 @@ class CIRISNodeClient(Service):
             _make_request,
             retryable_exceptions=(httpx.ConnectError, httpx.TimeoutException),
             non_retryable_exceptions=(httpx.HTTPStatusError,),
-            **self.get_retry_config("http_request")
+            **self.get_retry_config("http_request"),
         )
 
     async def run_simplebench(self, model_id: str, agent_id: str) -> SimpleBenchResult:
@@ -153,9 +158,9 @@ class CIRISNodeClient(Service):
                     thought_id=agent_id,
                     task_id="simplebench",
                     handler_name="cirisnode_client",
-                    parameters={"model_id": model_id, "agent_id": agent_id}
+                    parameters={"model_id": model_id, "agent_id": agent_id},
                 ),
-                outcome=f"SimpleBench completed with score {result.score}"
+                outcome=f"SimpleBench completed with score {result.score}",
             )
         return result
 
@@ -172,9 +177,9 @@ class CIRISNodeClient(Service):
                     thought_id=agent_id,
                     task_id="he300",
                     handler_name="cirisnode_client",
-                    parameters={"model_id": model_id, "agent_id": agent_id}
+                    parameters={"model_id": model_id, "agent_id": agent_id},
                 ),
-                outcome=f"HE-300 completed with ethics score {result.ethics_score}"
+                outcome=f"HE-300 completed with ethics score {result.ethics_score}",
             )
         return result
 
@@ -191,9 +196,9 @@ class CIRISNodeClient(Service):
                     thought_id=agent_id,
                     task_id="chaos_tests",
                     handler_name="cirisnode_client",
-                    parameters={"agent_id": agent_id, "scenarios": scenarios}
+                    parameters={"agent_id": agent_id, "scenarios": scenarios},
                 ),
-                outcome=f"Chaos tests completed: {len(result)} scenarios"
+                outcome=f"Chaos tests completed: {len(result)} scenarios",
             )
         return result
 
@@ -210,9 +215,9 @@ class CIRISNodeClient(Service):
                     thought_id=params.get("agent_id", "unknown"),
                     task_id=f"wa_service_{service}",
                     handler_name="cirisnode_client",
-                    parameters={"service": service, "action": action, **params}
+                    parameters={"service": service, "action": action, **params},
                 ),
-                outcome=f"WA service {service} completed"
+                outcome=f"WA service {service} completed",
             )
         return result
 
@@ -229,9 +234,9 @@ class CIRISNodeClient(Service):
                     thought_id=agent_id or "unknown",
                     task_id="log_event",
                     handler_name="cirisnode_client",
-                    parameters={"event_type": event_type, "agent_id": agent_id}
+                    parameters={"event_type": event_type, "agent_id": agent_id},
                 ),
-                outcome=f"Event logged: {event_type}"
+                outcome=f"Event logged: {event_type}",
             )
         return result
 
@@ -242,10 +247,13 @@ class CIRISNodeClient(Service):
         agent_id: str,
     ) -> List[dict]:
         """Retrieve benchmark prompts from CIRISNode."""
-        result = cast(List[dict], await self._get(
-            f"/bench/{benchmark}/prompts",
-            {"model_id": model_id, "agent_id": agent_id},
-        ))
+        result = cast(
+            List[dict],
+            await self._get(
+                f"/bench/{benchmark}/prompts",
+                {"model_id": model_id, "agent_id": agent_id},
+            ),
+        )
         audit_service = await self._get_audit_service()
         if audit_service:
             await audit_service.log_action(
@@ -254,9 +262,9 @@ class CIRISNodeClient(Service):
                     thought_id=agent_id,
                     task_id=f"fetch_{benchmark}_prompts",
                     handler_name="cirisnode_client",
-                    parameters={"benchmark": benchmark, "model_id": model_id, "agent_id": agent_id}
+                    parameters={"benchmark": benchmark, "model_id": model_id, "agent_id": agent_id},
                 ),
-                outcome=f"Fetched {len(result)} {benchmark} prompts"
+                outcome=f"Fetched {len(result)} {benchmark} prompts",
             )
         return result
 
@@ -268,11 +276,7 @@ class CIRISNodeClient(Service):
         answers: List[dict],
     ) -> AssessmentResult:
         """Send benchmark answers back to CIRISNode."""
-        submission = AssessmentSubmission(
-            assessment_id=benchmark,
-            agent_id=agent_id,
-            answers=answers
-        )
+        submission = AssessmentSubmission(assessment_id=benchmark, agent_id=agent_id, answers=answers)
         response = await self._put(
             f"/bench/{benchmark}/answers",
             submission.model_dump(),
@@ -286,8 +290,13 @@ class CIRISNodeClient(Service):
                     thought_id=agent_id,
                     task_id=f"submit_{benchmark}_answers",
                     handler_name="cirisnode_client",
-                    parameters={"benchmark": benchmark, "model_id": model_id, "agent_id": agent_id, "answer_count": len(answers)}
+                    parameters={
+                        "benchmark": benchmark,
+                        "model_id": model_id,
+                        "agent_id": agent_id,
+                        "answer_count": len(answers),
+                    },
                 ),
-                outcome=f"Submitted {len(answers)} {benchmark} answers"
+                outcome=f"Submitted {len(answers)} {benchmark} answers",
             )
         return result

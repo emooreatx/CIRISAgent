@@ -1,29 +1,32 @@
 import asyncio
 import logging
-from typing import List, Any, Optional
+from typing import Any, List, Optional
 
 from ciris_engine.logic.adapters.base import Service
-from .config import CLIAdapterConfig
 from ciris_engine.logic.registries.base import Priority
 from ciris_engine.schemas.adapters import AdapterServiceRegistration
 from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.runtime.messages import IncomingMessage
+
 from .cli_adapter import CLIAdapter
 from .cli_observer import CLIObserver
+from .config import CLIAdapterConfig
 
 logger = logging.getLogger(__name__)
 
+
 class CliPlatform(Service):
     config: CLIAdapterConfig  # type: ignore[assignment]
-    
+
     def __init__(self, runtime: Any, **kwargs: Any) -> None:
         # Initialize the parent Service class
-        super().__init__(config=kwargs.get('adapter_config'))
+        super().__init__(config=kwargs.get("adapter_config"))
         self.runtime = runtime
 
         # Generate stable adapter_id for observer persistence
         import os
         import socket
+
         # This adapter_id is used by AuthenticationService to find/create observer certificates
         self.adapter_id = f"cli_{os.getenv('USER', 'unknown')}@{socket.gethostname()}"
         logger.info(f"CLI adapter initialized with adapter_id: {self.adapter_id}")
@@ -36,19 +39,21 @@ class CliPlatform(Service):
                 self.config = CLIAdapterConfig(**kwargs["adapter_config"])
             else:
                 self.config = CLIAdapterConfig()
-            
+
             # ALWAYS load environment variables to fill in any missing values
             self.config.load_env_vars()
-            logger.info(f"CLI adapter using provided config with env vars loaded: interactive={self.config.interactive}")
+            logger.info(
+                f"CLI adapter using provided config with env vars loaded: interactive={self.config.interactive}"
+            )
         else:
             self.config = CLIAdapterConfig()
             if "interactive" in kwargs:
                 self.config.interactive = bool(kwargs["interactive"])
 
-            template = getattr(runtime, 'template', None)
-            if template and hasattr(template, 'cli_config') and template.cli_config:
+            template = getattr(runtime, "template", None)
+            if template and hasattr(template, "cli_config") and template.cli_config:
                 try:
-                    config_dict = template.cli_config.dict() if hasattr(template.cli_config, 'dict') else {}
+                    config_dict = template.cli_config.dict() if hasattr(template.cli_config, "dict") else {}
                     for key, value in config_dict.items():
                         if hasattr(self.config, key):
                             setattr(self.config, key, value)
@@ -62,17 +67,16 @@ class CliPlatform(Service):
             runtime=runtime,
             interactive=self.config.interactive,
             on_message=self._handle_incoming_message,
-            bus_manager=getattr(runtime, 'bus_manager', None),
-            config=self.config
+            bus_manager=getattr(runtime, "bus_manager", None),
+            config=self.config,
         )
         logger.info(f"CliPlatform created CLIAdapter instance: {id(self.cli_adapter)}")
 
         # CLI observer will be created in start() when services are available
         self.cli_observer: Optional[CLIObserver] = None
         self.on_observe = self._handle_incoming_message
-        self.bus_manager = getattr(runtime, 'bus_manager', None)
+        self.bus_manager = getattr(runtime, "bus_manager", None)
         self.observer_wa_id = None  # Will be set by auth service if available
-
 
     async def _handle_incoming_message(self, msg: IncomingMessage) -> None:
         """Handle incoming messages from the CLI adapter by routing through observer."""
@@ -98,21 +102,21 @@ class CliPlatform(Service):
                 provider=self.cli_adapter,  # The actual service instance
                 priority=Priority.LOW,
                 handlers=["SpeakHandler", "ObserveHandler"],  # Specific handlers
-                capabilities=["send_message", "fetch_messages"]
+                capabilities=["send_message", "fetch_messages"],
             ),
             AdapterServiceRegistration(
                 service_type=ServiceType.TOOL,
                 provider=self.cli_adapter,  # CLI adapter handles tools too
                 priority=Priority.LOW,
                 handlers=["ToolHandler"],
-                capabilities=["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"]
+                capabilities=["execute_tool", "get_available_tools", "get_tool_result", "validate_parameters"],
             ),
             AdapterServiceRegistration(
                 service_type=ServiceType.WISE_AUTHORITY,
                 provider=self.cli_adapter,  # CLI adapter can handle WA too
                 priority=Priority.LOW,
                 handlers=["DeferHandler", "SpeakHandler"],
-                capabilities=["fetch_guidance", "send_deferral"]
+                capabilities=["fetch_guidance", "send_deferral"],
             ),
         ]
         logger.info(f"CliPlatform: Registering {len(registrations)} services for adapter: {self.adapter_id}")
@@ -121,29 +125,31 @@ class CliPlatform(Service):
     async def start(self) -> None:
         """Start the CLI adapter and observer."""
         logger.info("CliPlatform: Starting...")
-        
+
         # Create CLI observer now that services are available
         if not self.cli_observer:
             logger.info("Creating CLI observer with available services")
             # Get services from runtime's service_initializer
-            service_initializer = getattr(self.runtime, 'service_initializer', None)
+            service_initializer = getattr(self.runtime, "service_initializer", None)
             if service_initializer:
                 self.cli_observer = CLIObserver(
                     on_observe=self.on_observe,  # type: ignore[arg-type]
                     bus_manager=self.bus_manager,
-                    memory_service=getattr(service_initializer, 'memory_service', None),
-                    agent_id=getattr(self.runtime, 'agent_id', None),
-                    filter_service=getattr(service_initializer, 'filter_service', None),
-                    secrets_service=getattr(service_initializer, 'secrets_service', None),
-                    time_service=getattr(service_initializer, 'time_service', None),
+                    memory_service=getattr(service_initializer, "memory_service", None),
+                    agent_id=getattr(self.runtime, "agent_id", None),
+                    filter_service=getattr(service_initializer, "filter_service", None),
+                    secrets_service=getattr(service_initializer, "secrets_service", None),
+                    time_service=getattr(service_initializer, "time_service", None),
                     interactive=self.config.interactive,
-                    config=self.config
+                    config=self.config,
                 )
-                logger.info(f"Created CLI observer with secrets_service: {service_initializer.secrets_service is not None}")
+                logger.info(
+                    f"Created CLI observer with secrets_service: {service_initializer.secrets_service is not None}"
+                )
             else:
                 logger.error("No service_initializer available - cannot create CLI observer")
                 raise RuntimeError("Service initializer not available")
-        
+
         await self.cli_adapter.start()
         if self.cli_observer:
             await self.cli_observer.start()
@@ -157,11 +163,8 @@ class CliPlatform(Service):
         tasks = [agent_run_task]
 
         # If we have an observer, monitor its stop event
-        if self.cli_observer and hasattr(self.cli_observer, '_stop_event'):
-            stop_event_task = asyncio.create_task(
-                self.cli_observer._stop_event.wait(),
-                name="CLIObserverStopEvent"
-            )
+        if self.cli_observer and hasattr(self.cli_observer, "_stop_event"):
+            stop_event_task = asyncio.create_task(self.cli_observer._stop_event.wait(), name="CLIObserverStopEvent")
             tasks.append(stop_event_task)
 
         try:
@@ -174,6 +177,7 @@ class CliPlatform(Service):
                     logger.info("CliPlatform: Observer signaled stop (non-interactive mode)")
                     # Request global shutdown
                     from ciris_engine.logic.utils.shutdown_manager import request_global_shutdown
+
                     request_global_shutdown("CLI non-interactive mode completed")
                 elif task == agent_run_task:
                     logger.info("CliPlatform: Agent run task completed")

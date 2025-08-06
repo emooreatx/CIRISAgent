@@ -3,11 +3,12 @@
 Handles periodic database cleanup and archival operations.
 """
 
-from typing import Protocol, Optional
 from abc import abstractmethod
+from typing import Optional, Protocol
 
 from ...runtime.base import ServiceProtocol
 from ..lifecycle.time import TimeServiceProtocol
+
 
 class DatabaseMaintenanceServiceProtocol(ServiceProtocol, Protocol):
     """Protocol for database maintenance service."""

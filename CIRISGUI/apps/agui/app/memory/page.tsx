@@ -64,7 +64,7 @@ export default function MemoryPage() {
   const { data: searchResults, isLoading: searchLoading } = useQuery<GraphNode[]>({
     queryKey: ['memory-search', searchQuery, activeScope, activeNodeType],
     queryFn: async () => {
-      const result = await cirisClient.memory.query(searchQuery, { 
+      const result = await cirisClient.memory.query(searchQuery, {
         limit: 1000,
         scope: activeScope,
         type: activeNodeType || undefined
@@ -88,9 +88,9 @@ export default function MemoryPage() {
       // This is a simplified approach - ideally the API would provide these stats
       for (const nodeType of NODE_TYPES) {
         try {
-          const nodes = await cirisClient.memory.query('', { 
-            type: nodeType, 
-            limit: 1 
+          const nodes = await cirisClient.memory.query('', {
+            type: nodeType,
+            limit: 1
           });
           stats.nodes_by_type![nodeType] = nodes.length;
           stats.total_nodes! += nodes.length;
@@ -124,7 +124,7 @@ export default function MemoryPage() {
     if (svgContent && svgContainerRef.current) {
       const container = svgContainerRef.current;
       container.innerHTML = svgContent;
-      
+
       // Create tooltip element
       const tooltip = document.createElement('div');
       tooltip.style.cssText = `
@@ -142,13 +142,13 @@ export default function MemoryPage() {
         box-shadow: 0 2px 8px rgba(0,0,0,0.3);
       `;
       document.body.appendChild(tooltip);
-      
+
       // Add click handlers to all circles (nodes)
       const circles = container.querySelectorAll('circle');
       circles.forEach((circle, index) => {
         circle.style.cursor = 'pointer';
         const nodeId = circle.getAttribute('data-node-id');
-        
+
         circle.addEventListener('click', async () => {
           if (nodeId) {
             // Clear existing search to force refresh
@@ -160,29 +160,29 @@ export default function MemoryPage() {
             }, 50);
           }
         });
-        
+
         // Show tooltip on hover
         circle.addEventListener('mouseenter', (e) => {
           circle.setAttribute('opacity', '1.0');
           circle.style.filter = 'brightness(1.2)';
-          
+
           if (nodeId) {
             tooltip.textContent = `Click to query: ${nodeId}`;
             tooltip.style.visibility = 'visible';
-            
+
             const rect = (e.target as Element).getBoundingClientRect();
             tooltip.style.left = `${rect.left + rect.width / 2 - tooltip.offsetWidth / 2}px`;
             tooltip.style.top = `${rect.top - tooltip.offsetHeight - 5}px`;
           }
         });
-        
+
         circle.addEventListener('mouseleave', () => {
           circle.setAttribute('opacity', '0.8');
           circle.style.filter = 'none';
           tooltip.style.visibility = 'hidden';
         });
       });
-      
+
       // Cleanup tooltip on unmount
       return () => {
         if (tooltip.parentNode) {
@@ -411,7 +411,7 @@ export default function MemoryPage() {
               <SpinnerIcon size="lg" />
             </div>
           ) : (
-            <div 
+            <div
               ref={svgContainerRef}
               className="w-full overflow-x-auto border border-gray-200 rounded-lg bg-gray-50"
               style={{ minHeight: '600px' }}
@@ -511,7 +511,7 @@ export default function MemoryPage() {
                 </svg>
               </button>
             </div>
-            
+
             {selectedNode && (
               <div className="space-y-4">
                 {/* Node Info */}
