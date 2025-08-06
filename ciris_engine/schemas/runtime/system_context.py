@@ -3,7 +3,7 @@ System and runtime context schemas.
 
 Provides type-safe contexts for system state and runtime operations.
 """
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from ciris_engine.schemas.runtime.resources import ResourceUsage
@@ -68,9 +68,9 @@ class SystemSnapshot(BaseModel):
     )
 
     # Agent identity (loaded once from graph memory)
-    agent_identity: Dict[str, Any] = Field(
+    agent_identity: Dict[str, Union[str, int, float, bool, list, dict]] = Field(
         default_factory=dict,
-        description="Raw agent identity data from graph node"
+        description="Raw agent identity data from graph node - typed values only"
     )
     identity_purpose: Optional[str] = Field(
         None,
@@ -100,9 +100,9 @@ class SystemSnapshot(BaseModel):
     )
 
     # Security context (from secrets service)
-    detected_secrets: List[Any] = Field(
+    detected_secrets: List[str] = Field(
         default_factory=list,
-        description="Patterns of secrets detected in current context"
+        description="Patterns of secrets detected in current context (masked representations)"
     )
     secrets_filter_version: int = Field(
         0,
@@ -114,17 +114,17 @@ class SystemSnapshot(BaseModel):
     )
 
     # Service health (from service registry)
-    service_health: Dict[str, Any] = Field(
+    service_health: Dict[str, bool] = Field(
         default_factory=dict,
         description="Health status of each service (service_name -> is_healthy)"
     )
-    circuit_breaker_status: Dict[str, Any] = Field(
+    circuit_breaker_status: Dict[str, str] = Field(
         default_factory=dict,
-        description="Circuit breaker status for each service"
+        description="Circuit breaker status for each service (service_name -> state)"
     )
 
     # Runtime context
-    shutdown_context: Optional[Any] = Field(
+    shutdown_context: Optional[Dict[str, Union[str, int, bool]]] = Field(
         None,
         description="Shutdown context if system is shutting down"
     )
@@ -148,9 +148,9 @@ class SystemSnapshot(BaseModel):
     )
     
     # Adapter channels - for agent visibility into available communication channels
-    adapter_channels: Dict[str, List[Dict[str, Any]]] = Field(
+    adapter_channels: Dict[str, List[Dict[str, Union[str, int, bool]]]] = Field(
         default_factory=dict,
-        description="Available channels by adapter type (e.g., {'discord': [...], 'api': [...]})"
+        description="Available channels by adapter type with typed channel info"
     )
     
     # Available tools - for agent visibility into tools across all adapters
