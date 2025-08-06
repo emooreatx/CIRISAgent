@@ -26,13 +26,14 @@ def mock_tool_info():
     return ToolInfo(
         name="test_tool",
         description="A test tool",
-        schema=ToolParameterSchema(
+        parameters=ToolParameterSchema(
             type="object",
             properties={
                 "param1": {"type": "string", "description": "Test parameter"}
             },
             required=["param1"]
         ),
+        category="general",
         cost=0.0
     )
 
