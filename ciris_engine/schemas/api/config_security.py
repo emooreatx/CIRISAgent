@@ -5,7 +5,7 @@ Automatically detects and filters sensitive configuration values
 based on user role to prevent information leakage.
 """
 import re
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 from datetime import datetime
 from pydantic import BaseModel, Field, field_serializer
 
@@ -121,9 +121,9 @@ class ConfigSecurity:
     @classmethod
     def filter_config(
         cls,
-        config: Dict[str, Any],
+        config: Dict[str, Union[str, int, float, bool, list, dict]],
         role: UserRole
-    ) -> Dict[str, Any]:
+    ) -> Dict[str, Union[str, int, float, bool, list, dict]]:
         """
         Filter entire configuration dictionary based on role.
 
@@ -190,11 +190,11 @@ class ConfigValueResponse(BaseModel):
 
 class ConfigListResponse(BaseModel):
     """Response for configuration list."""
-    configs: Dict[str, Any] = Field(..., description="Configuration values")
-    metadata: Dict[str, Any] = Field(..., description="Response metadata")
+    configs: Dict[str, Union[str, int, float, bool, list, dict]] = Field(..., description="Configuration values")
+    metadata: Dict[str, Union[str, int, float, bool]] = Field(..., description="Response metadata")
 
 
-def filter_config_for_role(config: Dict[str, Any], role: UserRole) -> Dict[str, Any]:
+def filter_config_for_role(config: Dict[str, Union[str, int, float, bool, list, dict]], role: UserRole) -> Dict[str, Union[str, int, float, bool, list, dict]]:
     """
     Filter configuration values based on user role.
 
@@ -230,7 +230,7 @@ class ConfigHistoryEntry(BaseModel):
 
 class ConfigValidationRequest(BaseModel):
     """Request to validate configuration changes."""
-    changes: Dict[str, Any] = Field(..., description="Proposed changes")
+    changes: Dict[str, Union[str, int, float, bool, list, dict]] = Field(..., description="Proposed changes")
 
 class ConfigValidationResponse(BaseModel):
     """Response from configuration validation."""
