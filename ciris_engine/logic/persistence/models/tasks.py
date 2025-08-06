@@ -2,7 +2,7 @@ import json
 import logging
 from typing import TYPE_CHECKING, Any, List, Optional
 
-from ciris_engine.logic.persistence import get_db_connection
+from ciris_engine.logic.persistence.db import get_db_connection
 from ciris_engine.logic.persistence.utils import map_row_to_task
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.runtime.enums import TaskStatus

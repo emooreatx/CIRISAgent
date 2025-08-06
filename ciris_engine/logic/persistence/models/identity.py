@@ -9,7 +9,7 @@ import json
 import logging
 from typing import Optional
 
-from ciris_engine.logic.persistence import get_db_connection
+from ciris_engine.logic.persistence.db import get_db_connection
 from ciris_engine.logic.persistence.models.graph import add_graph_node, get_graph_node
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.persistence.core import IdentityContext

@@ -3,7 +3,7 @@ import json
 import logging
 from typing import Any, List, Optional
 
-from ciris_engine.logic.persistence import get_db_connection
+from ciris_engine.logic.persistence.db import get_db_connection
 from ciris_engine.logic.persistence.utils import map_row_to_thought
 from ciris_engine.schemas.persistence.core import ThoughtSummary
 from ciris_engine.schemas.runtime.enums import ThoughtStatus

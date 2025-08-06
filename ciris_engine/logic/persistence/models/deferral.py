@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 
-from ciris_engine.logic.persistence import get_db_connection
+from ciris_engine.logic.persistence.db import get_db_connection
 from ciris_engine.schemas.persistence.core import DeferralPackage, DeferralReportContext
 
 logger = logging.getLogger(__name__)
