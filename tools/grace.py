@@ -385,6 +385,76 @@ class GraceFlow:
             "Your work is safely paused. Go be present."
         )
 
+    def check_deployment(self) -> str:
+        """Check if latest fixes are deployed to production."""
+
+        message = "🔍 Deployment Status Check\n"
+        message += "─" * 40 + "\n"
+
+        # Check CI/CD status
+        try:
+            result = subprocess.run(
+                [
+                    "gh",
+                    "run",
+                    "list",
+                    "--repo",
+                    "CIRISAI/CIRISAgent",
+                    "--limit",
+                    "1",
+                    "--json",
+                    "status,conclusion,headSha",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            ci_status = "UNKNOWN"
+            ci_conclusion = ""
+            if result.returncode == 0:
+                runs = json.loads(result.stdout)
+                if runs:
+                    run = runs[0]
+                    ci_status = run.get("status", "UNKNOWN")
+                    ci_conclusion = run.get("conclusion", "")
+                    commit = run.get("headSha", "")[:7]
+                    message += f"CI/CD: {ci_status}"
+                    if ci_conclusion:
+                        message += f" ({ci_conclusion})"
+                    message += f" [{commit}]\n"
+        except Exception as e:
+            message += f"CI/CD: Error checking - {e}\n"
+            ci_status = "UNKNOWN"
+            ci_conclusion = ""
+
+        # Check if OAuth fix is live
+        try:
+            response = subprocess.run(
+                ["curl", "-s", "https://agents.ciris.ai"], capture_output=True, text=True, timeout=10
+            )
+            if response.returncode == 0:
+                if "/api/${agent.agent_id}/v1/auth/oauth/" in response.stdout:
+                    message += "OAuth Fix: ✅ DEPLOYED!\n"
+                    message += "\n🎉 agents.ciris.ai has the new SDK! Go test good buddy! 🎉\n"
+                    message += "\nTest these:\n"
+                    message += "  1. Regular login (user/pass)\n"
+                    message += "  2. OAuth login (Google)\n"
+                    message += "  3. OAuth login (Discord)\n"
+                elif "/api/${agent.agent_id}/auth/oauth/" in response.stdout:
+                    message += "OAuth Fix: ❌ Old version still running\n"
+                    if ci_status == "in_progress":
+                        message += "\n⏳ CI/CD still building... ETA: 10-15 min\n"
+                    elif ci_conclusion == "success":
+                        message += "\n🚀 Build done, deploying... ETA: 2-5 min\n"
+                    else:
+                        message += "\n⏰ Not yet, please keep waiting...\n"
+                else:
+                    message += "OAuth Fix: ❓ Cannot determine version\n"
+        except Exception as e:
+            message += f"OAuth Fix: Error checking - {e}\n"
+
+        return message
+
     def check(self) -> str:
         """Quick production check without full morning routine."""
         message = "=== QUICK SYSTEM CHECK ===\n"
@@ -456,6 +526,8 @@ def main():
         "status": grace.status,
         "pause": grace.pause,
         "check": grace.check,  # Quick production check
+        "deployment": grace.check_deployment,  # Check if latest fixes are deployed
+        "deploy": grace.check_deployment,  # Alias
         "start": grace.morning,  # Alias
         "evening": grace.resume,  # Context-aware resume
     }

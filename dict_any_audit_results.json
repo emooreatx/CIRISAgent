@@ -1587,7 +1587,7 @@
     ]
   },
   "tools": {
-    "occurrences": 123,
+    "occurrences": 124,
     "findings": [
       {
         "file": "tools/validate_prod_routes.py",
@@ -1803,6 +1803,14 @@
         "class": "DBStatusTool",
         "function": "get_nodes_without_edges",
         "context": "return_type",
+        "usage_hint": "generic_data"
+      },
+      {
+        "file": "tools/grace/context.py",
+        "line": 35,
+        "class": "WorkContext",
+        "function": "load",
+        "context": "other",
         "usage_hint": "generic_data"
       },
       {
@@ -2576,7 +2584,7 @@
     ]
   },
   "total_all_code": {
-    "occurrences": 319,
-    "files_affected": 107
+    "occurrences": 320,
+    "files_affected": 108
   }
 }

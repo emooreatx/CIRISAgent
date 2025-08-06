@@ -5,6 +5,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { cirisClient } from "../../lib/ciris-sdk";
 import type { OAuthProvider, AgentInfo } from "../../lib/ciris-sdk";
 import { detectDeploymentMode, getApiBaseUrl, getApiUrl } from "../../lib/api-utils";
+import { SDK_VERSION } from "../../lib/ciris-sdk/version";
 import LogoIcon from "../../components/ui/floating/LogoIcon";
 import CButton from "components/ui/Buttons";
 
@@ -351,6 +352,11 @@ export default function LoginPage() {
             </div>
           </div>
         </form>
+
+        {/* Version indicator for debugging */}
+        <div className="mt-4 text-center text-xs text-gray-400">
+          v{SDK_VERSION.version} • {SDK_VERSION.gitHash?.substring(0, 7) || 'dev'}
+        </div>
       </div>
     </div>
   );
