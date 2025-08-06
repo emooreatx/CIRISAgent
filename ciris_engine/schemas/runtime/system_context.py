@@ -7,6 +7,8 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from ciris_engine.schemas.runtime.resources import ResourceUsage
+# Import ToolInfo directly - no Dict[str, Any] allowed per our principles
+from ciris_engine.schemas.adapters.tools import ToolInfo
 
 class SystemSnapshot(BaseModel):
     """System state snapshot for processing context.
@@ -152,9 +154,10 @@ class SystemSnapshot(BaseModel):
     )
     
     # Available tools - for agent visibility into tools across all adapters
-    available_tools: Dict[str, List[Dict[str, Any]]] = Field(
+    # Type-safe: Use ToolInfo objects, not Dict[str, Any]
+    available_tools: Dict[str, List[ToolInfo]] = Field(
         default_factory=dict,
-        description="Available tools by adapter (e.g., {'cli': ['list_files', 'read_file'], 'api': ['curl', 'http_get']})"
+        description="Available tools by adapter type with full ToolInfo objects"
     )
 
     model_config = ConfigDict(extra = "forbid")  # Be strict about fields to catch misuse
