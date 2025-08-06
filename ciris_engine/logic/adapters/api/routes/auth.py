@@ -237,7 +237,13 @@ async def list_oauth_providers(
     import json
     from pathlib import Path
     
-    oauth_config_file = Path.home() / OAUTH_CONFIG_DIR / OAUTH_CONFIG_FILE
+    # Check shared volume first (managed mode), then fall back to local (standalone)
+    oauth_config_file = Path("/home/ciris/shared/oauth/oauth.json")
+    if not oauth_config_file.exists():
+        oauth_config_file = Path.home() / OAUTH_CONFIG_DIR / OAUTH_CONFIG_FILE
+        logger.debug(f"Using local OAuth config: {oauth_config_file}")
+    else:
+        logger.debug(f"Using shared OAuth config: {oauth_config_file}")
     
     if not oauth_config_file.exists():
         return OAuthProvidersResponse(providers=[])
@@ -292,7 +298,13 @@ async def configure_oauth_provider(
     import json
     from pathlib import Path
     
-    oauth_config_file = Path.home() / OAUTH_CONFIG_DIR / OAUTH_CONFIG_FILE
+    # Check shared volume first (managed mode), then fall back to local (standalone)
+    oauth_config_file = Path("/home/ciris/shared/oauth/oauth.json")
+    if not oauth_config_file.exists():
+        oauth_config_file = Path.home() / OAUTH_CONFIG_DIR / OAUTH_CONFIG_FILE
+        logger.debug(f"Using local OAuth config: {oauth_config_file}")
+    else:
+        logger.debug(f"Using shared OAuth config: {oauth_config_file}")
     oauth_config_file.parent.mkdir(exist_ok=True, mode=0o700)
     
     # Load existing config
@@ -352,7 +364,13 @@ async def oauth_login(
     from pathlib import Path
     import urllib.parse
     
-    oauth_config_file = Path.home() / OAUTH_CONFIG_DIR / OAUTH_CONFIG_FILE
+    # Check shared volume first (managed mode), then fall back to local (standalone)
+    oauth_config_file = Path("/home/ciris/shared/oauth/oauth.json")
+    if not oauth_config_file.exists():
+        oauth_config_file = Path.home() / OAUTH_CONFIG_DIR / OAUTH_CONFIG_FILE
+        logger.debug(f"Using local OAuth config: {oauth_config_file}")
+    else:
+        logger.debug(f"Using shared OAuth config: {oauth_config_file}")
     
     if not oauth_config_file.exists():
         raise HTTPException(
@@ -452,7 +470,13 @@ async def oauth_callback(
     from pathlib import Path
     
     # Load OAuth configuration
-    oauth_config_file = Path.home() / OAUTH_CONFIG_DIR / OAUTH_CONFIG_FILE
+    # Check shared volume first (managed mode), then fall back to local (standalone)
+    oauth_config_file = Path("/home/ciris/shared/oauth/oauth.json")
+    if not oauth_config_file.exists():
+        oauth_config_file = Path.home() / OAUTH_CONFIG_DIR / OAUTH_CONFIG_FILE
+        logger.debug(f"Using local OAuth config: {oauth_config_file}")
+    else:
+        logger.debug(f"Using shared OAuth config: {oauth_config_file}")
     
     if not oauth_config_file.exists():
         raise HTTPException(

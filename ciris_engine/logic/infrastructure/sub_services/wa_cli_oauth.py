@@ -38,9 +38,11 @@ class WACLIOAuthService:
         self.time_service = time_service
         self.console = Console()
 
-        # OAuth configuration
-        self.oauth_config_file = Path.home() / ".ciris" / "oauth.json"
-        self.oauth_config_file.parent.mkdir(exist_ok=True, mode=0o700)
+        # OAuth configuration - check shared volume first (managed mode), then local
+        self.oauth_config_file = Path("/home/ciris/shared/oauth/oauth.json")
+        if not self.oauth_config_file.exists():
+            self.oauth_config_file = Path.home() / ".ciris" / "oauth.json"
+            self.oauth_config_file.parent.mkdir(exist_ok=True, mode=0o700)
 
         # OAuth callback data storage
         self._oauth_callback_data: Optional[OAuthCallbackData] = None
