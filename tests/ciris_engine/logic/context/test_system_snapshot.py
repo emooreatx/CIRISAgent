@@ -1,581 +1,306 @@
-"""Tests for system_snapshot.py to ensure proper type handling and full coverage."""
+"""Tests for system_snapshot.py - properly testing the actual function signature."""
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, AsyncMock, MagicMock
 from datetime import datetime, timezone
 from typing import List, Dict
 
 from ciris_engine.logic.context.system_snapshot import build_system_snapshot
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot, ChannelContext
+from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 from ciris_engine.schemas.adapters.tools import ToolInfo, ToolParameterSchema
-from ciris_engine.logic.buses.bus_manager import BusManager
+from ciris_engine.schemas.runtime.models import Task, TaskContext
+from ciris_engine.schemas.runtime.enums import TaskStatus
 
 
 @pytest.fixture
-def mock_channel_context():
-    """Create a mock channel context."""
-    from datetime import datetime, timezone
-    return ChannelContext(
+def mock_resource_monitor():
+    """Create a mock resource monitor - REQUIRED parameter."""
+    monitor = Mock()
+    monitor.snapshot = Mock()
+    monitor.snapshot.critical = []
+    monitor.snapshot.healthy = True
+    return monitor
+
+
+@pytest.fixture
+def mock_task_with_channel():
+    """Create a task with channel context."""
+    task = Task(
+        task_id="test_task",
         channel_id="test_channel",
-        channel_type="test",
-        created_at=datetime.now(timezone.utc),
-        channel_metadata={}
+        description="Test task",
+        status=TaskStatus.ACTIVE,
+        priority=10,
+        created_at=datetime.now(timezone.utc).isoformat(),
+        updated_at=datetime.now(timezone.utc).isoformat(),
+        context=TaskContext(
+            correlation_id="test_correlation",
+            channel_id="test_channel"
+        )
     )
+    return task
 
 
 @pytest.fixture
-def mock_tool_info():
-    """Create a valid ToolInfo instance."""
-    return ToolInfo(
+def mock_thought():
+    """Create a mock thought."""
+    thought = Mock()
+    thought.thought_id = "test_thought"
+    thought.content = "Test thought content"
+    thought.status = Mock(value="PROCESSING")
+    thought.source_task_id = "test_task"
+    thought.thought_type = "ANALYSIS"
+    thought.thought_depth = 1
+    thought.context = Mock(channel_id="test_channel")
+    return thought
+
+
+@pytest.fixture
+def mock_runtime_with_tools():
+    """Create runtime with tool services."""
+    runtime = Mock()
+    
+    # Setup adapter manager for channels
+    runtime.adapter_manager = Mock()
+    runtime.adapter_manager._adapters = {}
+    
+    # Setup service registry for tools
+    runtime.service_registry = Mock()
+    
+    # Create a mock tool service
+    tool_service = Mock()
+    tool_service.adapter_id = "test_adapter"
+    tool_service.get_available_tools = Mock(return_value=["test_tool"])
+    
+    # Create valid ToolInfo
+    tool_info = ToolInfo(
         name="test_tool",
         description="A test tool",
         parameters=ToolParameterSchema(
             type="object",
-            properties={
-                "param1": {"type": "string", "description": "Test parameter"}
-            },
+            properties={"param1": {"type": "string"}},
             required=["param1"]
         ),
         category="general",
         cost=0.0
     )
-
-
-@pytest.fixture
-def mock_tool_service(mock_tool_info):
-    """Create a mock tool service that returns ToolInfo objects."""
-    service = Mock()
-    service.get_available_tools = Mock(return_value=["test_tool"])
-    service.get_tool_info = Mock(return_value=mock_tool_info)
-    return service
-
-
-@pytest.fixture
-def mock_adapter_with_tools(mock_tool_service):
-    """Create a mock adapter with tool service."""
-    adapter = Mock()
-    adapter.get_service = Mock(return_value=mock_tool_service)
-    adapter.get_type = Mock(return_value="test_adapter")
-    return adapter
-
-
-@pytest.fixture
-def mock_bus_manager(mock_adapter_with_tools):
-    """Create a mock bus manager with adapters."""
-    bus_manager = Mock(spec=BusManager)
+    tool_service.get_tool_info = Mock(return_value=tool_info)
     
-    # Mock service registry with adapters - using a simple mock object
-    service_registry = Mock()
-    mock_service_reg = Mock()
-    mock_service_reg.service_id = "test_adapter"
-    mock_service_reg.service_type = "adapter"
-    mock_service_reg.service_instance = mock_adapter_with_tools
-    mock_service_reg.tags = {"adapter_type": "test"}
+    # Registry returns tool services
+    runtime.service_registry.get_services_by_type = Mock(return_value=[tool_service])
     
-    service_registry.get_all_services = Mock(return_value=[mock_service_reg])
-    bus_manager.service_registry = service_registry
+    # Setup bus_manager (needed for tool discovery)
+    runtime.bus_manager = Mock()
     
-    # Mock other required services
-    bus_manager.time_service = Mock()
-    bus_manager.time_service.now = Mock(return_value=datetime.now(timezone.utc))
-    
-    bus_manager.memory = Mock()
-    bus_manager.memory.get_node = AsyncMock(return_value=None)
-    
-    return bus_manager
+    return runtime
 
 
 @pytest.mark.asyncio
-async def test_build_system_snapshot_with_tools(mock_bus_manager, mock_channel_context, mock_tool_info):
-    """Test that build_system_snapshot properly handles ToolInfo objects."""
-    # Build the snapshot
+async def test_build_system_snapshot_minimal(mock_resource_monitor):
+    """Test minimal snapshot with only required parameters."""
     snapshot = await build_system_snapshot(
-        bus_manager=mock_bus_manager,
-        channel_context=mock_channel_context
+        task=None,
+        thought=None,
+        resource_monitor=mock_resource_monitor
     )
     
-    # Verify it's a valid SystemSnapshot
     assert isinstance(snapshot, SystemSnapshot)
-    assert snapshot.channel_context == mock_channel_context
-    
-    # Verify available_tools contains ToolInfo objects, not dicts
-    assert "available_tools" in snapshot.model_extra
-    assert isinstance(snapshot.model_extra["available_tools"], dict)
-    assert "test_adapter" in snapshot.model_extra["available_tools"]
-    
-    # Verify the tools are ToolInfo instances
-    tools = snapshot.model_extra["available_tools"]["test_adapter"]
-    assert isinstance(tools, list)
-    assert len(tools) == 1
-    assert isinstance(tools[0], ToolInfo)
-    assert tools[0].name == "test_tool"
+    assert snapshot.channel_id is None  # No channel without task/thought
+    assert snapshot.resource_alerts == []  # No alerts with healthy monitor
 
 
 @pytest.mark.asyncio
-async def test_build_system_snapshot_with_async_tool_service(mock_bus_manager, mock_channel_context, mock_tool_info):
-    """Test handling of async tool service methods."""
-    # Make tool service methods async
-    tool_service = mock_bus_manager.service_registry.get_all_services()[0].service_instance.get_service()
-    tool_service.get_available_tools = AsyncMock(return_value=["async_tool"])
-    tool_service.get_tool_info = AsyncMock(return_value=mock_tool_info)
-    
-    # Build the snapshot
+async def test_build_system_snapshot_with_task(mock_resource_monitor, mock_task_with_channel):
+    """Test snapshot with task that has channel context."""
     snapshot = await build_system_snapshot(
-        bus_manager=mock_bus_manager,
-        channel_context=mock_channel_context
+        task=mock_task_with_channel,
+        thought=None,
+        resource_monitor=mock_resource_monitor
     )
     
-    # Verify async methods were called
-    tool_service.get_available_tools.assert_called_once()
-    tool_service.get_tool_info.assert_called_once_with("async_tool")
-    
-    # Verify result
-    assert "available_tools" in snapshot.model_extra
-    tools = snapshot.model_extra["available_tools"]["test_adapter"]
-    assert len(tools) == 1
-    assert isinstance(tools[0], ToolInfo)
-
-
-@pytest.mark.asyncio
-async def test_build_system_snapshot_handles_tool_errors(mock_bus_manager, mock_channel_context):
-    """Test graceful handling of tool service errors."""
-    # Make tool service raise an exception
-    tool_service = mock_bus_manager.service_registry.get_all_services()[0].service_instance.get_service()
-    tool_service.get_available_tools = Mock(side_effect=Exception("Tool service error"))
-    
-    # Build should not crash
-    snapshot = await build_system_snapshot(
-        bus_manager=mock_bus_manager,
-        channel_context=mock_channel_context
-    )
-    
-    # Should have empty tools for that adapter
-    assert "available_tools" in snapshot.model_extra
-    assert snapshot.model_extra["available_tools"] == {}
-
-
-@pytest.mark.asyncio
-async def test_build_system_snapshot_type_validation(mock_bus_manager, mock_channel_context):
-    """Test that improper types raise TypeError as expected."""
-    # Make tool service return wrong type
-    tool_service = mock_bus_manager.service_registry.get_all_services()[0].service_instance.get_service()
-    tool_service.get_available_tools = Mock(return_value=["test_tool"])
-    tool_service.get_tool_info = Mock(return_value={"not": "a_tool_info"})  # Wrong type!
-    
-    # This should raise TypeError due to our type checking
-    with pytest.raises(TypeError, match="returned invalid tool info type"):
-        await build_system_snapshot(
-            bus_manager=mock_bus_manager,
-            channel_context=mock_channel_context
-        )
-
-
-@pytest.mark.asyncio
-async def test_build_system_snapshot_with_identity_retrieval(mock_bus_manager, mock_channel_context):
-    """Test identity retrieval from memory graph."""
-    from ciris_engine.schemas.services.graph_core import GraphNode, GraphNodeAttributes, NodeType, GraphScope
-    from ciris_engine.schemas.runtime.identity import AgentIdentityRoot
-    
-    # Create mock identity node
-    identity_root = AgentIdentityRoot(
-        agent_id="test_agent",
-        agent_name="Test Agent",
-        purpose="Testing",
-        core_profile="Tester",
-        allowed_capabilities=["test"],
-        restricted_capabilities=[]
-    )
-    
-    identity_attrs = GraphNodeAttributes(
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
-        created_by="test",
-        data=identity_root.model_dump()
-    )
-    
-    identity_node = GraphNode(
-        id="agent/identity",
-        type=NodeType.IDENTITY,
-        scope=GraphScope.IDENTITY,
-        attributes=identity_attrs,
-        updated_by="test",
-        updated_at=datetime.now(timezone.utc)
-    )
-    
-    # Mock memory service to return identity
-    mock_bus_manager.memory.get_node = AsyncMock(return_value=identity_node)
-    
-    # Build snapshot
-    snapshot = await build_system_snapshot(
-        bus_manager=mock_bus_manager,
-        channel_context=mock_channel_context
-    )
-    
-    # Verify identity was retrieved
-    assert "agent_identity" in snapshot.model_extra
-    identity = snapshot.model_extra["agent_identity"]
-    assert identity.agent_id == "test_agent"
-    assert identity.agent_name == "Test Agent"
-
-
-@pytest.mark.asyncio
-async def test_build_system_snapshot_with_service_health(mock_bus_manager, mock_channel_context):
-    """Test service health status collection."""
-    from ciris_engine.schemas.services.core.runtime import ServiceHealthStatus
-    
-    # Create mock services with health status
-    healthy_service = Mock()
-    healthy_service.get_health_status = Mock(return_value=ServiceHealthStatus(
-        service_name="healthy_service",
-        is_healthy=True,
-        uptime_seconds=100.0,
-        last_check=datetime.now(timezone.utc)
-    ))
-    
-    unhealthy_service = Mock()
-    unhealthy_service.get_health_status = Mock(return_value=ServiceHealthStatus(
-        service_name="unhealthy_service",
-        is_healthy=False,
-        uptime_seconds=50.0,
-        last_check=datetime.now(timezone.utc),
-        error="Connection failed"
-    ))
-    
-    # Add services to registry - using mock objects
-    mock_healthy_reg = Mock()
-    mock_healthy_reg.service_id = "healthy"
-    mock_healthy_reg.service_type = "core"
-    mock_healthy_reg.service_instance = healthy_service
-    mock_healthy_reg.tags = {}
-    
-    mock_unhealthy_reg = Mock()
-    mock_unhealthy_reg.service_id = "unhealthy"
-    mock_unhealthy_reg.service_type = "core"
-    mock_unhealthy_reg.service_instance = unhealthy_service
-    mock_unhealthy_reg.tags = {}
-    
-    mock_bus_manager.service_registry.get_all_services = Mock(return_value=[
-        mock_healthy_reg,
-        mock_unhealthy_reg
-    ])
-    
-    # Build snapshot
-    snapshot = await build_system_snapshot(
-        bus_manager=mock_bus_manager,
-        channel_context=mock_channel_context
-    )
-    
-    # Verify health status
-    assert "service_health" in snapshot.model_extra
-    health_dict = snapshot.model_extra["service_health"]
-    assert "healthy_service" in health_dict
-    assert health_dict["healthy_service"].is_healthy is True
-    assert "unhealthy_service" in health_dict
-    assert health_dict["unhealthy_service"].is_healthy is False
-
-
-@pytest.mark.asyncio
-async def test_build_system_snapshot_with_channels(mock_bus_manager, mock_channel_context):
-    """Test adapter channel collection."""
-    # Create mock adapter with channels
-    channel1 = ChannelContext(
-        channel_id="channel1",
-        channel_type="discord",
-        channel_metadata={"guild": "test_guild"}
-    )
-    channel2 = ChannelContext(
-        channel_id="channel2",
-        channel_type="discord",
-        channel_metadata={"guild": "test_guild"}
-    )
-    
-    adapter = Mock()
-    adapter.get_type = Mock(return_value="discord")
-    adapter.get_channels = Mock(return_value=[channel1, channel2])
-    
-    # Add adapter to registry - using mock object
-    mock_discord_reg = Mock()
-    mock_discord_reg.service_id = "discord_adapter"
-    mock_discord_reg.service_type = "adapter"
-    mock_discord_reg.service_instance = adapter
-    mock_discord_reg.tags = {"adapter_type": "discord"}
-    
-    mock_bus_manager.service_registry.get_all_services = Mock(return_value=[
-        mock_discord_reg
-    ])
-    
-    # Build snapshot
-    snapshot = await build_system_snapshot(
-        bus_manager=mock_bus_manager,
-        channel_context=mock_channel_context
-    )
-    
-    # Verify channels
-    assert "adapter_channels" in snapshot.model_extra
-    channels_dict = snapshot.model_extra["adapter_channels"]
-    assert "discord" in channels_dict
-    assert len(channels_dict["discord"]) == 2
-    assert all(isinstance(ch, ChannelContext) for ch in channels_dict["discord"])
-
-
-@pytest.mark.asyncio
-async def test_build_system_snapshot_with_circuit_breakers(mock_bus_manager, mock_channel_context):
-    """Test circuit breaker status collection."""
-    from ciris_engine.schemas.services.runtime_control import CircuitBreakerStatus
-    
-    # Create mock runtime control with circuit breakers
-    runtime_control = Mock()
-    runtime_control.get_circuit_breaker_status = Mock(return_value={
-        "llm_service": CircuitBreakerStatus(
-            service_name="llm_service",
-            state="CLOSED",
-            failure_count=0,
-            last_failure_time=None,
-            consecutive_successes=10
-        ),
-        "memory_service": CircuitBreakerStatus(
-            service_name="memory_service",
-            state="OPEN",
-            failure_count=5,
-            last_failure_time=datetime.now(timezone.utc),
-            consecutive_successes=0
-        )
-    })
-    
-    mock_bus_manager.runtime_control = runtime_control
-    
-    # Build snapshot
-    snapshot = await build_system_snapshot(
-        bus_manager=mock_bus_manager,
-        channel_context=mock_channel_context
-    )
-    
-    # Verify circuit breakers
-    assert "circuit_breaker_status" in snapshot.model_extra
-    breakers = snapshot.model_extra["circuit_breaker_status"]
-    assert "llm_service" in breakers
-    assert breakers["llm_service"].state == "CLOSED"
-    assert "memory_service" in breakers
-    assert breakers["memory_service"].state == "OPEN"
-
-
-@pytest.mark.asyncio
-async def test_build_system_snapshot_with_user_enrichment(mock_bus_manager, mock_channel_context):
-    """Test user profile enrichment."""
-    from ciris_engine.schemas.services.graph_core import GraphNode, GraphNodeAttributes, NodeType, GraphScope
-    
-    # Create mock user node
-    user_attrs = GraphNodeAttributes(
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
-        created_by="system",
-        data={
-            "user_id": "test_user",
-            "username": "TestUser",
-            "display_name": "Test User",
-            "is_verified": True,
-            "metadata": {"level": "admin"}
-        }
-    )
-    
-    user_node = GraphNode(
-        id="user/test_user",
-        type=NodeType.USER,
-        scope=GraphScope.GLOBAL,
-        attributes=user_attrs,
-        updated_by="system",
-        updated_at=datetime.now(timezone.utc)
-    )
-    
-    # Mock memory query for user
-    mock_bus_manager.memory.query = AsyncMock(return_value=[user_node])
-    
-    # Build snapshot with author context
-    snapshot = await build_system_snapshot(
-        bus_manager=mock_bus_manager,
-        channel_context=mock_channel_context,
-        author_id="test_user"
-    )
-    
-    # Verify user enrichment
-    assert "enriched_users" in snapshot.model_extra
-    users = snapshot.model_extra["enriched_users"]
-    assert "test_user" in users
-    user_profile = users["test_user"]
-    assert user_profile["username"] == "TestUser"
-    assert user_profile["is_verified"] is True
-
-
-@pytest.mark.asyncio
-async def test_build_system_snapshot_minimal(mock_bus_manager, mock_channel_context):
-    """Test minimal snapshot with only required fields."""
-    # Remove all optional services
-    mock_bus_manager.memory = None
-    mock_bus_manager.runtime_control = None
-    mock_bus_manager.service_registry.get_all_services = Mock(return_value=[])
-    
-    # Build minimal snapshot
-    snapshot = await build_system_snapshot(
-        bus_manager=mock_bus_manager,
-        channel_context=mock_channel_context
-    )
-    
-    # Should still be valid
     assert isinstance(snapshot, SystemSnapshot)
-    assert snapshot.channel_context == mock_channel_context
-    
-    # Optional fields should be empty or have defaults
-    assert snapshot.model_extra.get("available_tools", {}) == {}
-    assert snapshot.model_extra.get("service_health", {}) == {}
-    assert snapshot.model_extra.get("adapter_channels", {}) == {}
-
-
-@pytest.mark.asyncio
-async def test_build_system_snapshot_error_resilience(mock_bus_manager, mock_channel_context):
-    """Test that snapshot building is resilient to service errors."""
-    # Make various services throw errors
-    mock_bus_manager.memory.get_node = AsyncMock(side_effect=Exception("Memory error"))
-    
-    # Add a failing service
-    failing_service = Mock()
-    failing_service.get_health_status = Mock(side_effect=Exception("Health check failed"))
-    
-    mock_failing_reg = Mock()
-    mock_failing_reg.service_id = "failing"
-    mock_failing_reg.service_type = "core"
-    mock_failing_reg.service_instance = failing_service
-    mock_failing_reg.tags = {}
-    
-    mock_bus_manager.service_registry.get_all_services = Mock(return_value=[
-        mock_failing_reg
-    ])
-    
-    # Should not crash
-    snapshot = await build_system_snapshot(
-        bus_manager=mock_bus_manager,
-        channel_context=mock_channel_context
-    )
-    
-    # Should still have basic structure
-    assert isinstance(snapshot, SystemSnapshot)
-    assert snapshot.channel_context == mock_channel_context
-    
-    # Failed services should be handled gracefully
-    assert "agent_identity" not in snapshot.model_extra  # Memory failed
-    assert snapshot.model_extra.get("service_health", {}) == {}  # Health check failed
-
-
-@pytest.mark.asyncio
-async def test_build_system_snapshot_with_task_and_thought():
-    """Test snapshot with task and thought context."""
-    from ciris_engine.schemas.runtime.models import Task, Thought, TaskContext, ThoughtContext
-    from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
-    
-    # Create mock task
-    task = Task(
-        task_id="test_task",
-        description="Test task description",
-        status=TaskStatus.ACTIVE,
-        priority=10,
-        created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc),
-        context=TaskContext(correlation_id="test_correlation")
-    )
-    
-    # Create mock thought
-    thought = Thought(
-        thought_id="test_thought",
-        source_task_id="test_task",
-        content="Test thought content",
-        status=ThoughtStatus.PROCESSING,
-        thought_depth=1,
-        created_at=datetime.now(timezone.utc).isoformat(),
-        updated_at=datetime.now(timezone.utc).isoformat(),
-        context=ThoughtContext(
-            task_id="test_task",
-            round_number=1,
-            depth=1,
-            correlation_id="test_correlation"
-        )
-    )
-    
-    # Mock bus manager
-    bus_manager = Mock()
-    bus_manager.time_service = Mock()
-    bus_manager.time_service.now = Mock(return_value=datetime.now(timezone.utc))
-    bus_manager.service_registry = Mock()
-    bus_manager.service_registry.get_all_services = Mock(return_value=[])
-    bus_manager.memory = None
-    
-    # Build snapshot with task and thought
-    snapshot = await build_system_snapshot(
-        bus_manager=bus_manager,
-        channel_context=ChannelContext(
-            channel_id="test",
-            channel_type="test",
-            created_at=datetime.now(timezone.utc),
-            channel_metadata={}
-        ),
-        task=task,
-        thought=thought
-    )
-    
-    # Verify task and thought summaries are present
+    assert snapshot.channel_id == "test_channel"
     assert snapshot.current_task_details is not None
     assert snapshot.current_task_details.task_id == "test_task"
-    assert snapshot.current_thought_summary is not None
-    assert snapshot.current_thought_summary.thought_id == "test_thought"
 
 
 @pytest.mark.asyncio
-async def test_build_system_snapshot_with_secrets_context(mock_bus_manager, mock_channel_context):
-    """Test secrets context integration."""
-    from ciris_engine.logic.secrets.service import SecretsService
-    
-    # Mock secrets service
-    secrets_service = Mock(spec=SecretsService)
-    secrets_service.detect_secrets = Mock(return_value=["SECRET_KEY"])
-    secrets_service.get_safe_pattern = Mock(return_value="S***_KEY")
-    
-    # Add secrets to bus manager
-    mock_bus_manager.secrets = secrets_service
-    
-    # Build snapshot
+async def test_build_system_snapshot_with_thought(mock_resource_monitor, mock_thought):
+    """Test snapshot with thought."""
     snapshot = await build_system_snapshot(
-        bus_manager=mock_bus_manager,
-        channel_context=mock_channel_context,
-        content="This contains SECRET_KEY in text"
+        task=None,
+        thought=mock_thought,
+        resource_monitor=mock_resource_monitor
     )
     
-    # Verify secrets were detected
-    assert "detected_secrets" in snapshot.model_extra
-    secrets = snapshot.model_extra["detected_secrets"]
-    assert len(secrets) == 1
-    assert "SECRET_KEY" in secrets
+    assert isinstance(snapshot, SystemSnapshot)
+    assert snapshot.current_thought_summary is not None
+    assert snapshot.current_thought_summary.thought_id == "test_thought"
+    assert snapshot.channel_id == "test_channel"  # Extracted from thought context
 
 
-@pytest.mark.asyncio  
-async def test_build_system_snapshot_with_resource_monitoring(mock_bus_manager, mock_channel_context):
-    """Test resource monitoring integration."""
-    from ciris_engine.schemas.runtime.resources import ResourceUsage
+@pytest.mark.asyncio
+async def test_build_system_snapshot_with_tools(mock_resource_monitor, mock_runtime_with_tools):
+    """Test snapshot with runtime that provides tools."""
+    snapshot = await build_system_snapshot(
+        task=None,
+        thought=None,
+        resource_monitor=mock_resource_monitor,
+        runtime=mock_runtime_with_tools
+    )
     
+    assert isinstance(snapshot, SystemSnapshot)
+    # Tools are in model_extra as they're not defined fields
+    assert "available_tools" in snapshot.model_extra
+    tools = snapshot.model_extra["available_tools"]
+    assert "test_adapter" in tools
+    assert len(tools["test_adapter"]) == 1
+    assert tools["test_adapter"][0].name == "test_tool"
+
+
+@pytest.mark.asyncio
+async def test_build_system_snapshot_with_unhealthy_resources(mock_resource_monitor):
+    """Test snapshot with critical resource alerts."""
+    # Make resources unhealthy
+    mock_resource_monitor.snapshot.critical = ["Memory usage above 90%"]
+    mock_resource_monitor.snapshot.healthy = False
+    
+    snapshot = await build_system_snapshot(
+        task=None,
+        thought=None,
+        resource_monitor=mock_resource_monitor
+    )
+    
+    assert isinstance(snapshot, SystemSnapshot)
+    assert len(snapshot.resource_alerts) == 2  # One for critical, one for unhealthy
+    assert "CRITICAL" in snapshot.resource_alerts[0]
+    assert "UNHEALTHY" in snapshot.resource_alerts[1]
+
+
+@pytest.mark.asyncio
+async def test_build_system_snapshot_with_memory_service():
+    """Test snapshot with memory service for identity retrieval."""
     # Mock resource monitor
     resource_monitor = Mock()
-    resource_monitor.get_resource_usage = Mock(return_value=ResourceUsage(
-        memory_usage_mb=512.0,
-        cpu_usage_percent=25.5,
-        disk_usage_gb=10.2,
-        active_threads=5
-    ))
+    resource_monitor.snapshot = Mock(critical=[], healthy=True)
     
-    # Add to bus manager
-    mock_bus_manager.resource_monitor = resource_monitor
+    # Mock memory service
+    memory_service = AsyncMock()
     
-    # Build snapshot
+    # Create identity node
+    identity_node = Mock()
+    identity_node.attributes = Mock()
+    identity_node.attributes.model_dump = Mock(return_value={
+        "agent_id": "test_agent",
+        "description": "Test Agent",
+        "role_description": "Testing",
+        "trust_level": 0.9,
+        "permitted_actions": ["test"],
+        "restricted_capabilities": []
+    })
+    
+    memory_service.recall = AsyncMock(return_value=[identity_node])
+    
     snapshot = await build_system_snapshot(
-        bus_manager=mock_bus_manager,
-        channel_context=mock_channel_context
+        task=None,
+        thought=None,
+        resource_monitor=resource_monitor,
+        memory_service=memory_service
     )
     
-    # Verify resource usage
-    assert snapshot.memory_usage_mb == 512.0
-    assert snapshot.cpu_usage_percent == 25.5
+    assert isinstance(snapshot, SystemSnapshot)
+    # Identity is in model_extra
+    assert "agent_identity" in snapshot.model_extra
+    identity = snapshot.model_extra["agent_identity"]
+    assert identity["agent_id"] == "test_agent"
+
+
+@pytest.mark.asyncio
+async def test_build_system_snapshot_type_safety():
+    """Test that invalid types fail fast and loud."""
+    # Mock resource monitor
+    resource_monitor = Mock()
+    resource_monitor.snapshot = Mock(critical=[], healthy=True)
+    
+    # Create runtime with invalid tool type
+    runtime = Mock()
+    runtime.adapter_manager = Mock(_adapters={})
+    runtime.service_registry = Mock()
+    runtime.bus_manager = Mock()
+    
+    # Tool service returns wrong type
+    tool_service = Mock()
+    tool_service.adapter_id = "bad_adapter"
+    tool_service.get_available_tools = Mock(return_value=["bad_tool"])
+    tool_service.get_tool_info = Mock(return_value={"not": "a_tool_info"})  # Wrong type!
+    
+    runtime.service_registry.get_services_by_type = Mock(return_value=[tool_service])
+    
+    # Should raise TypeError - FAIL FAST AND LOUD
+    with pytest.raises(TypeError, match="returned invalid type"):
+        await build_system_snapshot(
+            task=None,
+            thought=None,
+            resource_monitor=resource_monitor,
+            runtime=runtime
+        )
+
+
+@pytest.mark.asyncio
+async def test_build_system_snapshot_with_service_registry():
+    """Test service health collection from service registry."""
+    # Mock resource monitor
+    resource_monitor = Mock()
+    resource_monitor.snapshot = Mock(critical=[], healthy=True)
+    
+    # Mock service registry
+    service_registry = Mock()
+    
+    # Create mock service with health status
+    healthy_service = Mock()
+    healthy_service.get_health_status = AsyncMock(return_value=Mock(
+        service_name="healthy_service",
+        is_healthy=True,
+        uptime_seconds=100.0
+    ))
+    
+    # Registry returns services
+    service_registry.get_provider_info = Mock(return_value={
+        "handlers": {
+            "test_handler": {
+                "service": [healthy_service]
+            }
+        },
+        "global_services": {}
+    })
+    
+    snapshot = await build_system_snapshot(
+        task=None,
+        thought=None,
+        resource_monitor=resource_monitor,
+        service_registry=service_registry
+    )
+    
+    assert isinstance(snapshot, SystemSnapshot)
+    # Service health is in model_extra
+    assert "service_health" in snapshot.model_extra
+    health = snapshot.model_extra["service_health"]
+    assert "test_handler.service" in health
+
+
+@pytest.mark.asyncio
+async def test_build_system_snapshot_with_version_info():
+    """Test that version information is included in snapshot."""
+    resource_monitor = Mock()
+    resource_monitor.snapshot = Mock(critical=[], healthy=True)
+    
+    snapshot = await build_system_snapshot(
+        task=None,
+        thought=None,
+        resource_monitor=resource_monitor
+    )
+    
+    assert isinstance(snapshot, SystemSnapshot)
+    # Version info should be present
+    assert snapshot.agent_version == "1.0.4-beta"
+    assert snapshot.agent_codename == "Graceful Guardian"
+    # code_hash might be None in tests
