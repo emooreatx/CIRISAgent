@@ -36,22 +36,15 @@ from ciris_engine.schemas.runtime.system_context import ChannelContext
 
 @contextmanager
 def patch_persistence_properly(test_task: Optional[Task] = None) -> Any:
-    """Properly patch persistence in both handler and base handler."""
-    with patch("ciris_engine.logic.handlers.external.observe_handler.persistence") as mock_p, patch(
-        "ciris_engine.logic.infrastructure.handlers.base_handler.persistence"
-    ) as mock_base_p:
-        # Configure handler persistence
-        mock_p.get_task_by_id.return_value = test_task
-        mock_p.add_thought = Mock()
-        mock_p.update_thought_status = Mock(return_value=True)
-        mock_p.add_correlation = Mock()
-
+    """Properly patch persistence in base handler only (observe_handler doesn't import persistence)."""
+    with patch("ciris_engine.logic.infrastructure.handlers.base_handler.persistence") as mock_base_p:
         # Configure base handler persistence
+        mock_base_p.get_task_by_id.return_value = test_task
         mock_base_p.add_thought = Mock()
         mock_base_p.update_thought_status = Mock(return_value=True)
         mock_base_p.add_correlation = Mock()
 
-        yield mock_p, mock_base_p
+        yield mock_base_p, mock_base_p  # Return same mock for both positions for compatibility
 
 
 def setup_communication_mock(mock_bus_manager: Mock, messages: Optional[List] = None) -> None:

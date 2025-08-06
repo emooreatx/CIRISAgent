@@ -91,6 +91,9 @@ def mock_runtime_with_tools():
     # Setup bus_manager (needed for tool discovery)
     runtime.bus_manager = Mock()
 
+    # Set shutdown context to None (not in shutdown)
+    runtime.current_shutdown_context = None
+
     return runtime
 
 
@@ -239,6 +242,9 @@ async def test_build_system_snapshot_with_service_registry():
     healthy_service.get_health_status = AsyncMock(
         return_value=Mock(service_name="healthy_service", is_healthy=True, uptime_seconds=100.0)
     )
+
+    # Mock get_circuit_breaker_states to return proper typed data
+    service_registry.get_circuit_breaker_states = Mock(return_value={})
 
     # Registry returns services
     service_registry.get_provider_info = Mock(

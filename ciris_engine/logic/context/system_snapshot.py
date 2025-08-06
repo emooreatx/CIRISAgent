@@ -280,20 +280,28 @@ async def build_system_snapshot(
                     for service in services:
                         if hasattr(service, "get_health_status"):
                             service_name = f"{handler}.{service_type}"
-                            service_health[service_name] = await service.get_health_status()
+                            health_status = await service.get_health_status()
+                            # Extract is_healthy boolean from the health status object
+                            service_health[service_name] = getattr(health_status, "is_healthy", False)
                         if hasattr(service, "get_circuit_breaker_status"):
                             service_name = f"{handler}.{service_type}"
-                            circuit_breaker_status[service_name] = service.get_circuit_breaker_status()
+                            # Get circuit breaker status as string
+                            cb_status = service.get_circuit_breaker_status()
+                            circuit_breaker_status[service_name] = str(cb_status) if cb_status else "UNKNOWN"
 
             # Check global services
             for service_type, services in registry_info.get("global_services", {}).items():
                 for service in services:
                     if hasattr(service, "get_health_status"):
                         service_name = f"global.{service_type}"
-                        service_health[service_name] = await service.get_health_status()
+                        health_status = await service.get_health_status()
+                        # Extract is_healthy boolean from the health status object
+                        service_health[service_name] = getattr(health_status, "is_healthy", False)
                     if hasattr(service, "get_circuit_breaker_status"):
                         service_name = f"global.{service_type}"
-                        circuit_breaker_status[service_name] = service.get_circuit_breaker_status()
+                        # Get circuit breaker status as string
+                        cb_status = service.get_circuit_breaker_status()
+                        circuit_breaker_status[service_name] = str(cb_status) if cb_status else "UNKNOWN"
 
         except Exception as e:
             logger.warning(f"Failed to collect service health status: {e}")
