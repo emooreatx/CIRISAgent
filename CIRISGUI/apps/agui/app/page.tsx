@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cirisClient } from "../lib/ciris-sdk";
+import { sdkConfigManager } from "../lib/sdk-config-manager";
 import Link from "next/link";
 import { ProtectedRoute } from "../components/ProtectedRoute";
 import { useAgent } from "../contexts/AgentContextHybrid";
@@ -16,6 +18,15 @@ import {
 
 export default function DashboardPage() {
   const { currentAgent, isLoadingAgents } = useAgent();
+
+  // Ensure SDK is configured for the current agent
+  useEffect(() => {
+    if (currentAgent) {
+      // Configure SDK for the selected agent
+      const selectedAgentId = localStorage.getItem('selectedAgentId') || currentAgent.agent_id;
+      sdkConfigManager.configure(selectedAgentId);
+    }
+  }, [currentAgent]);
 
   // Fetch all necessary data
   const { data: health } = useQuery({
