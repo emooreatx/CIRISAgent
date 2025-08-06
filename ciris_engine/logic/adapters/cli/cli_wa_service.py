@@ -1,22 +1,20 @@
 import asyncio
 import logging
 import uuid
-from typing import List, Optional
 from datetime import datetime, timezone
+from typing import List, Optional
 
-from ciris_engine.protocols.services import WiseAuthorityService
-from ciris_engine.schemas.telemetry.core import (
-    ServiceCorrelation,
-    ServiceCorrelationStatus,
-)
-from ciris_engine.schemas.services.context import GuidanceContext, DeferralContext
-from ciris_engine.schemas.services.authority_core import DeferralRequest
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
-from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.logic import persistence
 from ciris_engine.logic.services.lifecycle.time import TimeService
+from ciris_engine.protocols.services import WiseAuthorityService
+from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.services.authority_core import DeferralRequest
+from ciris_engine.schemas.services.context import GuidanceContext
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus
 
 logger = logging.getLogger(__name__)
+
 
 class CLIWiseAuthorityService(WiseAuthorityService):
     """CLI-based WA service that prompts user for guidance"""
@@ -46,7 +44,7 @@ class CLIWiseAuthorityService(WiseAuthorityService):
         print("Please provide guidance (or 'skip' to defer):")
         try:
             guidance = await asyncio.to_thread(input, ">>> ")
-            if guidance.lower() == 'skip':
+            if guidance.lower() == "skip":
                 return None
             return guidance
         except Exception as e:
@@ -63,7 +61,7 @@ class CLIWiseAuthorityService(WiseAuthorityService):
             "reason": deferral.reason,
             "defer_until": deferral.defer_until.isoformat() if deferral.defer_until else None,
             "timestamp": self.time_service.now().timestamp(),
-            "context": deferral.context
+            "context": deferral.context,
         }
 
         self.deferral_log.append(deferral_entry)
@@ -79,7 +77,7 @@ class CLIWiseAuthorityService(WiseAuthorityService):
 
         if deferral.defer_until:
             print(f"Defer until: {deferral.defer_until.isoformat()}")
-        
+
         if deferral.context:
             if "task_description" in deferral.context:
                 print(f"Task: {deferral.context['task_description']}")
@@ -99,32 +97,29 @@ class CLIWiseAuthorityService(WiseAuthorityService):
             created_at=now,
             updated_at=now,
             timestamp=now,
-            status=ServiceCorrelationStatus.COMPLETED
+            status=ServiceCorrelationStatus.COMPLETED,
         )
         persistence.add_correlation(corr)
         return deferral_id
-    
+
     async def is_healthy(self) -> bool:
         """Check if the service is healthy."""
         return True
-    
+
     def get_service_type(self) -> ServiceType:
         """Get the type of this service."""
         return ServiceType.ADAPTER
-    
+
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""
         return ServiceCapabilities(
             service_name="CLIWiseAuthorityService",
-            actions=[
-                "fetch_guidance",
-                "defer_decision"
-            ],
+            actions=["fetch_guidance", "defer_decision"],
             version="1.0.0",
             dependencies=[],
-            resource_limits={}
+            resource_limits={},
         )
-    
+
     def get_status(self) -> ServiceStatus:
         """Get current service status."""
         return ServiceStatus(
@@ -132,7 +127,5 @@ class CLIWiseAuthorityService(WiseAuthorityService):
             service_type="adapter",
             is_healthy=True,
             uptime_seconds=0.0,
-            metrics={
-                "deferrals_logged": len(self.deferral_log)
-            }
+            metrics={"deferrals_logged": len(self.deferral_log)},
         )

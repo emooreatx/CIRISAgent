@@ -24,7 +24,7 @@ export interface CIRISClientOptions {
 
 export class CIRISClient {
   private transport: Transport;
-  
+
   // Resource instances
   public readonly auth: AuthResource;
   public readonly agent: AgentResource;
@@ -43,7 +43,7 @@ export class CIRISClient {
     const defaultBaseURL = typeof window !== 'undefined'
       ? `${window.location.protocol}//${window.location.host}`
       : process.env.NEXT_PUBLIC_CIRIS_API_URL || 'http://localhost:8080';
-    
+
     const transportOptions: TransportOptions = {
       baseURL: options.baseURL || defaultBaseURL,
       timeout: options.timeout,
@@ -58,7 +58,7 @@ export class CIRISClient {
     };
 
     this.transport = new Transport(transportOptions);
-    
+
     // Initialize resources
     this.auth = new AuthResource(this.transport);
     this.agent = new AgentResource(this.transport);
@@ -138,12 +138,12 @@ export class CIRISClient {
       enableRateLimiting: options.enableRateLimiting,
       onAuthError: options.onAuthError
     };
-    
+
     const newClient = new CIRISClient(newOptions);
     if (options.authToken) {
       newClient.transport.setAuthToken(options.authToken);
     }
-    
+
     return newClient;
   }
 

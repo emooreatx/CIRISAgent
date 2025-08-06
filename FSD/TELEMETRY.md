@@ -1,8 +1,8 @@
 # CIRIS Agent Telemetry System - Functional Specification Document
 
 ## Document Status
-**Version**: 1.0.0-beta.1  
-**Status**: IMPLEMENTED  
+**Version**: 1.0.0-beta.1
+**Status**: IMPLEMENTED
 **Last Updated**: 2025-07-15
 
 **Note**: The TODOs in this document have been completed. The telemetry system is fully implemented as specified.
@@ -32,21 +32,21 @@ graph TB
         D[Guardrails] --> T
         E[CircuitBreakers] --> T
         ADP[Adapters] --> MM[memorize_metric]
-        
+
         T --> SS[SystemSnapshot]
         SS --> CTX[ThoughtContext]
-        
+
         T --> MB[MemoryBus]
         MM --> MB
         MB --> CORR[Correlations/TSDB]
     end
-    
+
     subgraph "Consolidation"
         CORR --> TSC[TSDBConsolidationService]
         TSC --> SUMM[TSDBSummary Nodes]
         SUMM --> |Permanent Memory| GRAPH[(Graph)]
     end
-    
+
     subgraph "Export Layer"
         CORR --> SEC[SecurityFilter]
         SEC --> API[REST API]
@@ -82,10 +82,10 @@ The agent MUST have access to its own metrics through the SystemSnapshot without
 ```python
 class SystemSnapshot(BaseModel):
     # Existing fields...
-    
+
     # New telemetry fields
     telemetry: TelemetrySnapshot = Field(default_factory=TelemetrySnapshot)
-    
+
 class TelemetrySnapshot(BaseModel):
     """Real-time telemetry data available to the agent"""
     # Performance metrics
@@ -93,21 +93,21 @@ class TelemetrySnapshot(BaseModel):
     thoughts_processed_total: int = 0
     thoughts_failed_total: int = 0
     average_thought_latency_ms: float = 0.0
-    
+
     # Resource consumption
     tokens_consumed_total: int = 0
     estimated_cost_usd: float = 0.0
     estimated_co2_grams: float = 0.0
-    
+
     # Safety metrics
     guardrail_hits_total: int = 0
     guardrail_hits_by_type: Dict[str, int] = Field(default_factory=dict)
     circuit_breakers_open: List[str] = Field(default_factory=list)
-    
+
     # Handler metrics
     handler_invocations: Dict[str, int] = Field(default_factory=dict)
     handler_errors: Dict[str, int] = Field(default_factory=dict)
-    
+
     # System health
     error_count_total: int = 0
     uptime_seconds: float = 0.0
@@ -133,25 +133,25 @@ All metrics MUST pass through security filters before export:
 ```python
 class SecurityFilter:
     """Filters metrics to prevent information leakage"""
-    
+
     def filter_metric(self, metric: MetricData) -> Optional[MetricData]:
         # Remove any PII
         if self._contains_pii(metric):
             return None
-            
+
         # Sanitize error messages
         if metric.name.endswith('.error'):
             metric.value = self._sanitize_error(metric.value)
-            
+
         # Validate bounds
         if not self._validate_bounds(metric):
             logger.warning(f"Metric {metric.name} out of bounds")
             return None
-            
+
         # Rate limit check
         if not self._check_rate_limit(metric):
             return None
-            
+
         return metric
 ```
 
@@ -359,7 +359,7 @@ telemetry:
     pii_detection: true
     max_history_hours: 1
     encryption_key: "${TELEMETRY_ENCRYPTION_KEY}"
-  
+
   collectors:
     instant:
       interval_ms: 50
@@ -376,7 +376,7 @@ telemetry:
     aggregate:
       interval_ms: 30000
       max_buffer_size: 1000
-  
+
   export:
     otlp:
       enabled: false  # Disabled by default in pre-alpha
@@ -385,7 +385,7 @@ telemetry:
       cert_path: "/etc/ciris/certs/telemetry.crt"
       key_path: "/etc/ciris/certs/telemetry.key"
       ca_path: "/etc/ciris/certs/ca.crt"
-    
+
     websocket:
       enabled: false  # Disabled by default in pre-alpha
       port: 8443
@@ -395,7 +395,7 @@ telemetry:
       jwt_secret: "${TELEMETRY_JWT_SECRET}"
       max_connections: 10
       rate_limit_per_second: 100
-    
+
     api:
       enabled: false  # Disabled by default in pre-alpha
       auth_required: true
@@ -409,13 +409,13 @@ telemetry:
 
 1. **Data Exfiltration**: Attacker tries to extract conversation content via metrics
    - **Mitigation**: No content in metrics, PII filtering, sanitization
-   
+
 2. **Resource Exhaustion**: Attacker floods telemetry to cause DoS
    - **Mitigation**: Buffer size limits, rate limiting, fail-secure design
-   
+
 3. **Information Disclosure**: Metrics reveal system internals
    - **Mitigation**: Metric sanitization, aggregation, access control
-   
+
 4. **Man-in-the-Middle**: Attacker intercepts telemetry data
    - **Mitigation**: TLS/mTLS required, certificate pinning
 
@@ -473,4 +473,3 @@ telemetry:
 ---
 
 *Copyright © 2025 Eric Moore and CIRIS L3C - Apache 2.0 License*
-

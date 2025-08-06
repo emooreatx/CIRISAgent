@@ -20,4 +20,3 @@ class CommunicationService(Protocol):
     ) -> list[Dict[str, Any]]:
         """Retrieve messages from a channel."""
         ...
-

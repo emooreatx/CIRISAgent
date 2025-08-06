@@ -4,29 +4,28 @@ Pytest unit tests for observe handler _recall_from_messages logic.
 
 Tests the message unpacking and memory recall logic from the observer in the platform adapter.
 """
-import pytest
-import asyncio
 import logging
-from typing import Dict, Any, List, Optional
-from unittest.mock import Mock, AsyncMock
 import sys
-import os
+from unittest.mock import AsyncMock, Mock
+
+import pytest
 
 # Add the project root to sys.path to import modules
-sys.path.insert(0, '/home/emoore/CIRISAgent')
+sys.path.insert(0, "/home/emoore/CIRISAgent")
 
-from ciris_engine.schemas.services.graph_core import GraphScope, GraphNode, NodeType
+from ciris_engine.logic.buses.bus_manager import BusManager
 from ciris_engine.logic.handlers.external.observe_handler import ObserveHandler
 from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies
-from ciris_engine.logic.buses.bus_manager import BusManager
+from ciris_engine.schemas.services.graph_core import GraphScope
 
 # Configure logging for tests
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
 class MockMemoryService:
     """Mock memory service to track recall calls"""
+
     def __init__(self):
         self.recall_calls = []
         self.recall_errors = {}  # Dict to simulate recall failures for specific node_id/scope combinations
@@ -34,13 +33,13 @@ class MockMemoryService:
     async def recall(self, recall_query, handler_name: str = None):
         """Mock recall method that logs calls and can simulate failures"""
         # Handle both MemoryQuery and direct parameters
-        if hasattr(recall_query, 'node_id') and hasattr(recall_query, 'scope'):
+        if hasattr(recall_query, "node_id") and hasattr(recall_query, "scope"):
             node_id = recall_query.node_id
             scope = recall_query.scope
         else:
             # Fallback for any other format
-            node_id = getattr(recall_query, 'id', str(recall_query))
-            scope = getattr(recall_query, 'scope', None)
+            node_id = getattr(recall_query, "id", str(recall_query))
+            scope = getattr(recall_query, "scope", None)
 
         self.recall_calls.append((node_id, scope))
 
@@ -70,7 +69,6 @@ def mock_memory_service():
 @pytest.fixture
 def observe_handler(mock_memory_service):
     """Fixture providing an ObserveHandler instance with minimal dependencies"""
-    from unittest.mock import AsyncMock
 
     # Create minimal dependencies with a mocked secrets service
     service_registry = AsyncMock()
@@ -93,9 +91,7 @@ def observe_handler(mock_memory_service):
     bus_manager.memory = mock_memory_bus
 
     deps = ActionHandlerDependencies(
-        bus_manager=bus_manager,
-        secrets_service=mock_secrets_service,
-        time_service=mock_time_service
+        bus_manager=bus_manager, secrets_service=mock_secrets_service, time_service=mock_time_service
     )
     return ObserveHandler(deps)
 
@@ -335,6 +331,7 @@ class TestObserveHandlerRecallLogic:
         """Test handling of recall errors"""
         channel_id = "test_channel"
         from ciris_engine.schemas.runtime.messages import FetchedMessage
+
         messages = [
             FetchedMessage(
                 id="test_msg",
@@ -348,7 +345,9 @@ class TestObserveHandlerRecallLogic:
 
         # Set up some recall errors
         mock_memory_service.set_recall_error("user/test_user", GraphScope.IDENTITY, RuntimeError("Test error"))
-        mock_memory_service.set_recall_error(f"channel/{channel_id}", GraphScope.ENVIRONMENT, ValueError("Another test error"))
+        mock_memory_service.set_recall_error(
+            f"channel/{channel_id}", GraphScope.ENVIRONMENT, ValueError("Another test error")
+        )
 
         # Should not raise an exception despite recall errors
         await observe_handler._recall_from_messages(channel_id, messages)
@@ -378,6 +377,7 @@ class TestObserveHandlerRecallLogic:
         """Test that recall IDs follow consistent format"""
         channel_id = "123456789"
         from ciris_engine.schemas.runtime.messages import FetchedMessage
+
         messages = [
             FetchedMessage(
                 id="msg1",
@@ -405,6 +405,7 @@ class TestObserveHandlerRecallLogic:
         """Test that all GraphScope values are used in recalls"""
         channel_id = "test_channel"
         from ciris_engine.schemas.runtime.messages import FetchedMessage
+
         messages = [
             FetchedMessage(
                 id="msg1",
@@ -427,15 +428,21 @@ class TestObserveHandlerRecallLogic:
         expected_scopes = {GraphScope.IDENTITY, GraphScope.ENVIRONMENT, GraphScope.LOCAL}
         assert scopes_used == expected_scopes
 
-    @pytest.mark.parametrize("channel_id,expected_channel_recalls", [
-        ("123", 3),  # Normal channel ID
-        ("", 0),     # Empty channel ID should not create recalls
-        (None, 0),   # None channel ID should not create recalls
-    ])
+    @pytest.mark.parametrize(
+        "channel_id,expected_channel_recalls",
+        [
+            ("123", 3),  # Normal channel ID
+            ("", 0),  # Empty channel ID should not create recalls
+            (None, 0),  # None channel ID should not create recalls
+        ],
+    )
     @pytest.mark.asyncio
-    async def test_channel_id_variations(self, observe_handler, mock_memory_service, channel_id, expected_channel_recalls):
+    async def test_channel_id_variations(
+        self, observe_handler, mock_memory_service, channel_id, expected_channel_recalls
+    ):
         """Test various channel_id values"""
         from ciris_engine.schemas.runtime.messages import FetchedMessage
+
         messages = [
             FetchedMessage(
                 id="msg1",
@@ -453,17 +460,21 @@ class TestObserveHandlerRecallLogic:
         channel_recalls = [call for call in mock_memory_service.recall_calls if call[0].startswith("channel/")]
         assert len(channel_recalls) == expected_channel_recalls
 
-    @pytest.mark.parametrize("author_id,should_recall", [
-        ("valid_user_123", True),
-        ("", False),  # Empty string should not create recall
-        (None, False),  # None should not create recall
-        ("0", True),  # "0" is a valid string
-        ("user with spaces", True),  # Spaces should be fine
-    ])
+    @pytest.mark.parametrize(
+        "author_id,should_recall",
+        [
+            ("valid_user_123", True),
+            ("", False),  # Empty string should not create recall
+            (None, False),  # None should not create recall
+            ("0", True),  # "0" is a valid string
+            ("user with spaces", True),  # Spaces should be fine
+        ],
+    )
     @pytest.mark.asyncio
     async def test_author_id_variations(self, observe_handler, mock_memory_service, author_id, should_recall):
         """Test various author_id values"""
         from ciris_engine.schemas.runtime.messages import FetchedMessage
+
         message = FetchedMessage(
             id="msg1",
             content="Test",

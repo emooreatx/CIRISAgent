@@ -1,9 +1,11 @@
-from typing import List
 import logging
+from typing import List
+
 from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.schemas.secrets.core import SecretReference
 
 logger = logging.getLogger(__name__)
+
 
 async def build_secrets_snapshot(secrets_service: SecretsService) -> dict:
     """Build secrets information for SystemSnapshot."""

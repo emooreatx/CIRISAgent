@@ -8,9 +8,10 @@ Unified schema for adapter service registration that supports:
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Any
-from ciris_engine.schemas.runtime.enums import ServiceType
+from typing import Any, List, Optional
+
 from ciris_engine.logic.registries.base import Priority
+from ciris_engine.schemas.runtime.enums import ServiceType
 
 
 @dataclass
@@ -23,10 +24,11 @@ class AdapterServiceRegistration:
     Note: Observer persistence is handled by the AuthenticationService via
     the wa_cert table using the adapter's adapter_id.
     """
-    service_type: ServiceType           # What type of service
-    provider: Any                       # The actual service instance (adapter)
-    priority: Priority = Priority.NORMAL # Registration priority
-    handlers: Optional[List[str]] = None # Specific handlers or None for global
+
+    service_type: ServiceType  # What type of service
+    provider: Any  # The actual service instance (adapter)
+    priority: Priority = Priority.NORMAL  # Registration priority
+    handlers: Optional[List[str]] = None  # Specific handlers or None for global
     capabilities: List[str] = field(default_factory=list)  # What the service can do
 
     def __post_init__(self) -> None:

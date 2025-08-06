@@ -4,17 +4,22 @@ Handles authorization, deferrals, and decision guidance.
 Authorization = "What can you do?"
 """
 
-from typing import Protocol, Optional, List
 from abc import abstractmethod
+from typing import List, Optional, Protocol
 
-from ...runtime.base import ServiceProtocol
-from ciris_engine.schemas.services.context import GuidanceContext
 from ciris_engine.schemas.services.authority.wise_authority import PendingDeferral
 from ciris_engine.schemas.services.authority_core import (
-    DeferralRequest, DeferralResponse,
-    GuidanceRequest, GuidanceResponse, DeferralApprovalContext,
-    WAPermission
+    DeferralApprovalContext,
+    DeferralRequest,
+    DeferralResponse,
+    GuidanceRequest,
+    GuidanceResponse,
+    WAPermission,
 )
+from ciris_engine.schemas.services.context import GuidanceContext
+
+from ...runtime.base import ServiceProtocol
+
 
 class WiseAuthorityServiceProtocol(ServiceProtocol, Protocol):
     """Protocol for wise authority service - authorization and guidance."""

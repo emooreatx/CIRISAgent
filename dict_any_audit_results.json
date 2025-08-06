@@ -1,9 +1,9 @@
 {
   "production": {
-    "occurrences": 156,
-    "files_affected": 74,
+    "occurrences": 158,
+    "files_affected": 75,
     "categories": {
-      "generic_data": 136,
+      "generic_data": 138,
       "parameters": 5,
       "configuration": 3,
       "api_request": 2,
@@ -13,7 +13,7 @@
     "findings": [
       {
         "file": "CIRISVoice/src/ciris_sdk_client.py",
-        "line": 141,
+        "line": 142,
         "class": "CIRISVoiceClient",
         "function": "send_message",
         "context": "other",
@@ -21,7 +21,7 @@
       },
       {
         "file": "CIRISVoice/src/ciris_sdk_client.py",
-        "line": 141,
+        "line": 142,
         "class": "CIRISVoiceClient",
         "function": "send_message",
         "context": "return_type",
@@ -29,7 +29,7 @@
       },
       {
         "file": "CIRISVoice/src/ciris_sdk_client.py",
-        "line": 288,
+        "line": 283,
         "class": "CIRISClient",
         "function": "send_message",
         "context": "other",
@@ -37,7 +37,7 @@
       },
       {
         "file": "CIRISVoice/src/ciris_sdk_client.py",
-        "line": 288,
+        "line": 283,
         "class": "CIRISClient",
         "function": "send_message",
         "context": "return_type",
@@ -45,7 +45,7 @@
       },
       {
         "file": "ciris_sdk/transport.py",
-        "line": 65,
+        "line": 72,
         "class": "Transport",
         "function": "request",
         "context": "return_type",
@@ -53,7 +53,7 @@
       },
       {
         "file": "ciris_sdk/websocket.py",
-        "line": 255,
+        "line": 250,
         "class": "WebSocketClient",
         "function": "_handle_message",
         "context": "function_parameter",
@@ -61,7 +61,7 @@
       },
       {
         "file": "ciris_sdk/websocket.py",
-        "line": 333,
+        "line": 325,
         "class": "WebSocketClient",
         "function": "send",
         "context": "function_parameter",
@@ -69,7 +69,7 @@
       },
       {
         "file": "ciris_sdk/websocket.py",
-        "line": 396,
+        "line": 382,
         "class": "WebSocketClient",
         "function": "get_stats",
         "context": "return_type",
@@ -77,7 +77,7 @@
       },
       {
         "file": "ciris_sdk/pagination.py",
-        "line": 20,
+        "line": 23,
         "class": "CursorInfo",
         "function": null,
         "context": "variable_annotation",
@@ -85,7 +85,7 @@
       },
       {
         "file": "ciris_sdk/pagination.py",
-        "line": 50,
+        "line": 51,
         "class": "PageIterator",
         "function": "__init__",
         "context": "function_parameter",
@@ -101,7 +101,7 @@
       },
       {
         "file": "ciris_sdk/pagination.py",
-        "line": 172,
+        "line": 173,
         "class": "QueryParams",
         "function": "to_dict",
         "context": "return_type",
@@ -117,7 +117,7 @@
       },
       {
         "file": "ciris_sdk/client.py",
-        "line": 124,
+        "line": 125,
         "class": "CIRISClient",
         "function": "interact",
         "context": "other",
@@ -125,7 +125,7 @@
       },
       {
         "file": "ciris_sdk/client.py",
-        "line": 144,
+        "line": 145,
         "class": "CIRISClient",
         "function": "ask",
         "context": "other",
@@ -133,7 +133,7 @@
       },
       {
         "file": "ciris_sdk/exceptions.py",
-        "line": 26,
+        "line": 29,
         "class": "CIRISAPIError",
         "function": "__init__",
         "context": "other",
@@ -141,7 +141,7 @@
       },
       {
         "file": "ciris_sdk/exceptions.py",
-        "line": 64,
+        "line": 72,
         "class": "CIRISValidationError",
         "function": "__init__",
         "context": "other",
@@ -149,7 +149,7 @@
       },
       {
         "file": "ciris_sdk/auth_store.py",
-        "line": 68,
+        "line": 71,
         "class": "AuthStore",
         "function": "_load_auth_data",
         "context": "return_type",
@@ -157,7 +157,7 @@
       },
       {
         "file": "ciris_sdk/auth_store.py",
-        "line": 86,
+        "line": 89,
         "class": "AuthStore",
         "function": "_save_auth_data",
         "context": "function_parameter",
@@ -165,7 +165,7 @@
       },
       {
         "file": "ciris_sdk/resources/jobs.py",
-        "line": 58,
+        "line": 64,
         "class": "JobCreateRequest",
         "function": null,
         "context": "variable_annotation",
@@ -173,7 +173,7 @@
       },
       {
         "file": "ciris_sdk/resources/jobs.py",
-        "line": 79,
+        "line": 87,
         "class": "JobResult",
         "function": null,
         "context": "variable_annotation",
@@ -181,7 +181,7 @@
       },
       {
         "file": "ciris_sdk/resources/jobs.py",
-        "line": 117,
+        "line": 123,
         "class": "JobsResource",
         "function": "create",
         "context": "function_parameter",
@@ -189,7 +189,7 @@
       },
       {
         "file": "ciris_sdk/resources/jobs.py",
-        "line": 205,
+        "line": 193,
         "class": "JobsResource",
         "function": "list_jobs",
         "context": "return_type",
@@ -197,7 +197,7 @@
       },
       {
         "file": "ciris_sdk/resources/jobs.py",
-        "line": 260,
+        "line": 236,
         "class": "JobsResource",
         "function": "create_memory_bulk_import",
         "context": "other",
@@ -213,7 +213,7 @@
       },
       {
         "file": "ciris_sdk/resources/audit.py",
-        "line": 205,
+        "line": 193,
         "class": "AuditResource",
         "function": "verify",
         "context": "return_type",
@@ -221,7 +221,7 @@
       },
       {
         "file": "ciris_sdk/resources/system.py",
-        "line": 62,
+        "line": 71,
         "class": "ResourceBudget",
         "function": "from_api_response",
         "context": "function_parameter",
@@ -229,7 +229,7 @@
       },
       {
         "file": "ciris_sdk/resources/system.py",
-        "line": 99,
+        "line": 111,
         "class": "ServiceMetrics",
         "function": null,
         "context": "other",
@@ -237,7 +237,7 @@
       },
       {
         "file": "ciris_sdk/resources/telemetry.py",
-        "line": 318,
+        "line": 316,
         "class": "TelemetryResource",
         "function": "query_observability",
         "context": "other",
@@ -245,7 +245,7 @@
       },
       {
         "file": "ciris_sdk/resources/config.py",
-        "line": 198,
+        "line": 179,
         "class": "ConfigResource",
         "function": "patch_config",
         "context": "other",
@@ -253,7 +253,7 @@
       },
       {
         "file": "ciris_sdk/resources/config.py",
-        "line": 250,
+        "line": 225,
         "class": "ConfigResource",
         "function": "bulk_set",
         "context": "function_parameter",
@@ -261,7 +261,7 @@
       },
       {
         "file": "ciris_sdk/resources/config.py",
-        "line": 301,
+        "line": 273,
         "class": "ConfigResource",
         "function": "get_all",
         "context": "return_type",
@@ -269,7 +269,7 @@
       },
       {
         "file": "ciris_sdk/resources/memory.py",
-        "line": 16,
+        "line": 18,
         "class": "MemoryStoreRequest",
         "function": null,
         "context": "variable_annotation",
@@ -277,7 +277,7 @@
       },
       {
         "file": "ciris_sdk/resources/memory.py",
-        "line": 38,
+        "line": 42,
         "class": "MemoryQueryRequest",
         "function": null,
         "context": "other",
@@ -285,7 +285,7 @@
       },
       {
         "file": "ciris_sdk/resources/memory.py",
-        "line": 64,
+        "line": 70,
         "class": "TimelineResponse",
         "function": null,
         "context": "other",
@@ -293,7 +293,7 @@
       },
       {
         "file": "ciris_sdk/resources/memory.py",
-        "line": 83,
+        "line": 89,
         "class": "MemoryResource",
         "function": "store",
         "context": "other",
@@ -301,7 +301,7 @@
       },
       {
         "file": "ciris_sdk/resources/memory.py",
-        "line": 170,
+        "line": 176,
         "class": "MemoryResource",
         "function": "query",
         "context": "other",
@@ -309,7 +309,7 @@
       },
       {
         "file": "ciris_sdk/resources/memory.py",
-        "line": 231,
+        "line": 237,
         "class": "MemoryResource",
         "function": "query",
         "context": "variable_annotation",
@@ -317,7 +317,7 @@
       },
       {
         "file": "ciris_sdk/resources/memory.py",
-        "line": 306,
+        "line": 305,
         "class": "MemoryResource",
         "function": "query_iter",
         "context": "other",
@@ -325,7 +325,7 @@
       },
       {
         "file": "ciris_sdk/resources/memory.py",
-        "line": 310,
+        "line": 309,
         "class": "MemoryResource",
         "function": "query_iter",
         "context": "other",
@@ -333,7 +333,7 @@
       },
       {
         "file": "ciris_sdk/resources/websocket.py",
-        "line": 78,
+        "line": 86,
         "class": "WebSocketMessage",
         "function": null,
         "context": "variable_annotation",
@@ -341,7 +341,7 @@
       },
       {
         "file": "ciris_sdk/resources/websocket.py",
-        "line": 272,
+        "line": 277,
         "class": "WebSocketResource",
         "function": "send",
         "context": "function_parameter",
@@ -349,7 +349,7 @@
       },
       {
         "file": "ciris_sdk/resources/agent.py",
-        "line": 137,
+        "line": 149,
         "class": "AgentResource",
         "function": "interact",
         "context": "other",
@@ -357,7 +357,7 @@
       },
       {
         "file": "ciris_sdk/resources/agent.py",
-        "line": 249,
+        "line": 243,
         "class": "AgentResource",
         "function": "ask",
         "context": "other",
@@ -365,7 +365,7 @@
       },
       {
         "file": "ciris_sdk/resources/agent.py",
-        "line": 273,
+        "line": 267,
         "class": "AgentResource",
         "function": "send_message",
         "context": "return_type",
@@ -373,7 +373,7 @@
       },
       {
         "file": "ciris_sdk/resources/agent.py",
-        "line": 299,
+        "line": 284,
         "class": "AgentResource",
         "function": "get_messages",
         "context": "return_type",
@@ -381,7 +381,7 @@
       },
       {
         "file": "ciris_sdk/resources/agent.py",
-        "line": 330,
+        "line": 314,
         "class": "AgentResource",
         "function": "list_channels",
         "context": "return_type",
@@ -389,7 +389,7 @@
       },
       {
         "file": "ciris_sdk/resources/agent.py",
-        "line": 353,
+        "line": 328,
         "class": "AgentResource",
         "function": "get_capabilities",
         "context": "return_type",
@@ -405,7 +405,7 @@
       },
       {
         "file": "ciris_sdk/resources/wa.py",
-        "line": 75,
+        "line": 69,
         "class": "WiseAuthorityResource",
         "function": "resolve_deferral",
         "context": "return_type",
@@ -413,7 +413,7 @@
       },
       {
         "file": "ciris_sdk/resources/wa.py",
-        "line": 107,
+        "line": 92,
         "class": "WiseAuthorityResource",
         "function": "get_permissions",
         "context": "return_type",
@@ -421,7 +421,7 @@
       },
       {
         "file": "ciris_sdk/resources/wa.py",
-        "line": 131,
+        "line": 114,
         "class": "WiseAuthorityResource",
         "function": "get_pending_deferrals",
         "context": "other",
@@ -429,7 +429,7 @@
       },
       {
         "file": "ciris_sdk/resources/wa.py",
-        "line": 140,
+        "line": 119,
         "class": "WiseAuthorityResource",
         "function": "approve_deferral",
         "context": "return_type",
@@ -437,7 +437,7 @@
       },
       {
         "file": "ciris_sdk/resources/wa.py",
-        "line": 152,
+        "line": 123,
         "class": "WiseAuthorityResource",
         "function": "reject_deferral",
         "context": "return_type",
@@ -445,7 +445,7 @@
       },
       {
         "file": "ciris_sdk/resources/wa.py",
-        "line": 165,
+        "line": 127,
         "class": "WiseAuthorityResource",
         "function": "modify_deferral",
         "context": "return_type",
@@ -493,7 +493,7 @@
       },
       {
         "file": "ciris_modular_services/mock_llm/schemas.py",
-        "line": 43,
+        "line": 33,
         "class": "MockResponseOverride",
         "function": null,
         "context": "variable_annotation",
@@ -501,7 +501,7 @@
       },
       {
         "file": "ciris_modular_services/mock_llm/service.py",
-        "line": 146,
+        "line": 144,
         "class": "MockLLMService",
         "function": "get_capabilities",
         "context": "return_type",
@@ -509,7 +509,7 @@
       },
       {
         "file": "ciris_modular_services/mock_llm/service.py",
-        "line": 155,
+        "line": 153,
         "class": "MockLLMService",
         "function": "get_status",
         "context": "return_type",
@@ -517,7 +517,7 @@
       },
       {
         "file": "ciris_engine/protocols/services/governance/wa_auth.py",
-        "line": 191,
+        "line": 180,
         "class": "OAuthService",
         "function": "create_oauth_wa",
         "context": "function_parameter",
@@ -525,7 +525,7 @@
       },
       {
         "file": "ciris_engine/protocols/services/graph/telemetry.py",
-        "line": 24,
+        "line": 31,
         "class": "TelemetryServiceProtocol",
         "function": "query_metrics",
         "context": "other",
@@ -533,7 +533,7 @@
       },
       {
         "file": "ciris_engine/logic/config/bootstrap.py",
-        "line": 93,
+        "line": 96,
         "class": "ConfigBootstrap",
         "function": "load_essential_config",
         "context": "other",
@@ -541,7 +541,7 @@
       },
       {
         "file": "ciris_engine/logic/config/bootstrap.py",
-        "line": 112,
+        "line": 115,
         "class": "ConfigBootstrap",
         "function": "load_essential_config",
         "context": "variable_annotation",
@@ -549,7 +549,7 @@
       },
       {
         "file": "ciris_engine/logic/config/bootstrap.py",
-        "line": 143,
+        "line": 146,
         "class": "ConfigBootstrap",
         "function": "get_config_metadata",
         "context": "other",
@@ -557,7 +557,7 @@
       },
       {
         "file": "ciris_engine/logic/config/config_accessor.py",
-        "line": 164,
+        "line": 158,
         "class": "ConfigAccessor",
         "function": "get_section",
         "context": "return_type",
@@ -565,7 +565,7 @@
       },
       {
         "file": "ciris_engine/logic/config/config_accessor.py",
-        "line": 184,
+        "line": 178,
         "class": "ConfigAccessor",
         "function": "_get_section_from_bootstrap",
         "context": "return_type",
@@ -573,15 +573,7 @@
       },
       {
         "file": "ciris_engine/logic/context/batch_context.py",
-        "line": 21,
-        "class": "BatchContextData",
-        "function": "__init__",
-        "context": "variable_annotation",
-        "usage_hint": "generic_data"
-      },
-      {
-        "file": "ciris_engine/logic/context/batch_context.py",
-        "line": 27,
+        "line": 22,
         "class": "BatchContextData",
         "function": "__init__",
         "context": "variable_annotation",
@@ -597,7 +589,15 @@
       },
       {
         "file": "ciris_engine/logic/context/batch_context.py",
-        "line": 31,
+        "line": 29,
+        "class": "BatchContextData",
+        "function": "__init__",
+        "context": "variable_annotation",
+        "usage_hint": "generic_data"
+      },
+      {
+        "file": "ciris_engine/logic/context/batch_context.py",
+        "line": 32,
         "class": "BatchContextData",
         "function": "__init__",
         "context": "variable_annotation",
@@ -605,7 +605,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/base_observer.py",
-        "line": 123,
+        "line": 128,
         "class": "BaseObserver",
         "function": "_get_correlation_history",
         "context": "other",
@@ -613,7 +613,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/discord/discord_audit.py",
-        "line": 42,
+        "line": 49,
         "class": "DiscordAuditLogger",
         "function": "log_operation",
         "context": "function_parameter",
@@ -621,7 +621,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/discord/discord_audit.py",
-        "line": 139,
+        "line": 141,
         "class": "DiscordAuditLogger",
         "function": "log_guidance_request",
         "context": "function_parameter",
@@ -629,7 +629,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/discord/discord_audit.py",
-        "line": 204,
+        "line": 207,
         "class": "DiscordAuditLogger",
         "function": "log_tool_execution",
         "context": "function_parameter",
@@ -637,7 +637,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/discord/discord_thread_manager.py",
-        "line": 42,
+        "line": 48,
         "class": "DiscordThreadManager",
         "function": "__init__",
         "context": "other",
@@ -645,7 +645,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/discord/discord_thread_manager.py",
-        "line": 63,
+        "line": 73,
         "class": "DiscordThreadManager",
         "function": "create_thread",
         "context": "other",
@@ -653,7 +653,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/discord/discord_thread_manager.py",
-        "line": 131,
+        "line": 140,
         "class": "DiscordThreadManager",
         "function": "get_or_create_thread",
         "context": "other",
@@ -661,7 +661,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/discord/discord_thread_manager.py",
-        "line": 192,
+        "line": 203,
         "class": "DiscordThreadManager",
         "function": "create_guidance_thread",
         "context": "function_parameter",
@@ -669,7 +669,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/discord/discord_thread_manager.py",
-        "line": 221,
+        "line": 232,
         "class": "DiscordThreadManager",
         "function": "create_task_thread",
         "context": "function_parameter",
@@ -677,7 +677,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/discord/discord_thread_manager.py",
-        "line": 294,
+        "line": 305,
         "class": "DiscordThreadManager",
         "function": "get_thread_info",
         "context": "other",
@@ -685,7 +685,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/discord/discord_vision_helper.py",
-        "line": 214,
+        "line": 210,
         "class": "DiscordVisionHelper",
         "function": "get_status",
         "context": "return_type",
@@ -693,7 +693,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/discord/discord_tool_service.py",
-        "line": 409,
+        "line": 396,
         "class": "DiscordToolService",
         "function": "_get_user_info",
         "context": "variable_annotation",
@@ -701,7 +701,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/discord/discord_rate_limiter.py",
-        "line": 241,
+        "line": 231,
         "class": "DiscordRateLimiter",
         "function": "get_stats",
         "context": "return_type",
@@ -709,7 +709,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/discord/discord_tool_handler.py",
-        "line": 70,
+        "line": 74,
         "class": "DiscordToolHandler",
         "function": "execute_tool",
         "context": "function_parameter",
@@ -717,7 +717,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/discord/discord_tool_handler.py",
-        "line": 337,
+        "line": 340,
         "class": "DiscordToolHandler",
         "function": "validate_tool_parameters",
         "context": "function_parameter",
@@ -725,7 +725,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/api/api_communication.py",
-        "line": 25,
+        "line": 26,
         "class": "APICommunicationService",
         "function": "__init__",
         "context": "variable_annotation",
@@ -733,7 +733,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/api/api_runtime_control.py",
-        "line": 105,
+        "line": 94,
         "class": "APIRuntimeControlService",
         "function": "get_runtime_status",
         "context": "return_type",
@@ -757,7 +757,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/api/routes/agent.py",
-        "line": 371,
+        "line": 400,
         "class": null,
         "function": "get_history",
         "context": "other",
@@ -765,7 +765,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/api/routes/emergency.py",
-        "line": 69,
+        "line": 70,
         "class": null,
         "function": "verify_signature",
         "context": "variable_annotation",
@@ -773,7 +773,7 @@
       },
       {
         "file": "ciris_engine/logic/buses/bus_manager.py",
-        "line": 99,
+        "line": 101,
         "class": "BusManager",
         "function": "get_stats",
         "context": "return_type",
@@ -781,7 +781,7 @@
       },
       {
         "file": "ciris_engine/logic/buses/runtime_control_bus.py",
-        "line": 179,
+        "line": 157,
         "class": "RuntimeControlBus",
         "function": "get_runtime_status",
         "context": "return_type",
@@ -789,7 +789,7 @@
       },
       {
         "file": "ciris_engine/logic/utils/runtime_utils.py",
-        "line": 13,
+        "line": 15,
         "class": null,
         "function": "load_config",
         "context": "other",
@@ -797,7 +797,7 @@
       },
       {
         "file": "ciris_engine/logic/dma/dma_executor.py",
-        "line": 321,
+        "line": 306,
         "class": null,
         "function": "run_dsdma",
         "context": "other",
@@ -805,7 +805,7 @@
       },
       {
         "file": "ciris_engine/logic/dma/dma_executor.py",
-        "line": 422,
+        "line": 404,
         "class": null,
         "function": "run_action_selection_pdma",
         "context": "other",
@@ -813,7 +813,7 @@
       },
       {
         "file": "ciris_engine/logic/dma/action_selection_pdma.py",
-        "line": 115,
+        "line": 111,
         "class": "ActionSelectionPDMAEvaluator",
         "function": "recursive_evaluate_with_faculties",
         "context": "other",
@@ -821,7 +821,7 @@
       },
       {
         "file": "ciris_engine/logic/dma/action_selection_pdma.py",
-        "line": 116,
+        "line": 112,
         "class": "ActionSelectionPDMAEvaluator",
         "function": "recursive_evaluate_with_faculties",
         "context": "other",
@@ -829,7 +829,7 @@
       },
       {
         "file": "ciris_engine/logic/dma/action_selection_pdma.py",
-        "line": 146,
+        "line": 145,
         "class": "ActionSelectionPDMAEvaluator",
         "function": "_handle_special_cases",
         "context": "other",
@@ -837,7 +837,7 @@
       },
       {
         "file": "ciris_engine/logic/dma/base_dma.py",
-        "line": 141,
+        "line": 149,
         "class": "BaseDMA",
         "function": "apply_faculties",
         "context": "other",
@@ -845,7 +845,7 @@
       },
       {
         "file": "ciris_engine/logic/dma/base_dma.py",
-        "line": 151,
+        "line": 159,
         "class": "BaseDMA",
         "function": "apply_faculties",
         "context": "variable_annotation",
@@ -853,7 +853,7 @@
       },
       {
         "file": "ciris_engine/logic/dma/dsdma_base.py",
-        "line": 42,
+        "line": 47,
         "class": "BaseDSDMA",
         "function": "__init__",
         "context": "other",
@@ -861,7 +861,7 @@
       },
       {
         "file": "ciris_engine/logic/dma/action_selection/context_builder.py",
-        "line": 336,
+        "line": 311,
         "class": "ActionSelectionContextBuilder",
         "function": "_build_conscience_guidance",
         "context": "other",
@@ -877,7 +877,7 @@
       },
       {
         "file": "ciris_engine/logic/dma/action_selection/action_instruction_generator.py",
-        "line": 176,
+        "line": 202,
         "class": "ActionInstructionGenerator",
         "function": "get_all_tools",
         "context": "return_type",
@@ -885,7 +885,7 @@
       },
       {
         "file": "ciris_engine/logic/dma/action_selection/action_instruction_generator.py",
-        "line": 308,
+        "line": 338,
         "class": "ActionInstructionGenerator",
         "function": "_simplify_schema",
         "context": "function_parameter",
@@ -893,7 +893,7 @@
       },
       {
         "file": "ciris_engine/logic/dma/action_selection/action_instruction_generator.py",
-        "line": 332,
+        "line": 362,
         "class": "ActionInstructionGenerator",
         "function": "_extract_type",
         "context": "function_parameter",
@@ -901,7 +901,7 @@
       },
       {
         "file": "ciris_engine/logic/persistence/models/correlations.py",
-        "line": 14,
+        "line": 16,
         "class": null,
         "function": "_parse_response_data",
         "context": "other",
@@ -909,7 +909,7 @@
       },
       {
         "file": "ciris_engine/logic/persistence/models/correlations.py",
-        "line": 14,
+        "line": 17,
         "class": null,
         "function": "_parse_response_data",
         "context": "other",
@@ -917,7 +917,7 @@
       },
       {
         "file": "ciris_engine/logic/persistence/models/correlations.py",
-        "line": 647,
+        "line": 701,
         "class": null,
         "function": "get_active_channels_by_adapter",
         "context": "other",
@@ -925,7 +925,7 @@
       },
       {
         "file": "ciris_engine/logic/persistence/models/correlations.py",
-        "line": 619,
+        "line": 673,
         "class": null,
         "function": "get_active_channels_by_adapter",
         "context": "other",
@@ -933,7 +933,7 @@
       },
       {
         "file": "ciris_engine/logic/registries/base.py",
-        "line": 41,
+        "line": 47,
         "class": "ServiceProvider",
         "function": null,
         "context": "variable_annotation",
@@ -941,7 +941,7 @@
       },
       {
         "file": "ciris_engine/logic/registries/base.py",
-        "line": 79,
+        "line": 88,
         "class": "ServiceRegistry",
         "function": "register_service",
         "context": "other",
@@ -949,7 +949,7 @@
       },
       {
         "file": "ciris_engine/schemas/tools.py",
-        "line": 55,
+        "line": 62,
         "class": "ToolResult",
         "function": null,
         "context": "other",
@@ -965,7 +965,7 @@
       },
       {
         "file": "ciris_engine/schemas/services/graph_typed_nodes.py",
-        "line": 45,
+        "line": 48,
         "class": "TypedGraphNode",
         "function": "_serialize_extra_fields",
         "context": "return_type",
@@ -973,7 +973,7 @@
       },
       {
         "file": "ciris_engine/schemas/services/audit_summary_node.py",
-        "line": 82,
+        "line": 69,
         "class": "AuditSummaryNode",
         "function": null,
         "context": "other",
@@ -981,7 +981,7 @@
       },
       {
         "file": "ciris_engine/schemas/services/trace_summary_node.py",
-        "line": 38,
+        "line": 35,
         "class": "TraceSummaryNode",
         "function": null,
         "context": "other",
@@ -989,7 +989,7 @@
       },
       {
         "file": "ciris_engine/schemas/services/trace_summary_node.py",
-        "line": 115,
+        "line": 92,
         "class": "TraceSummaryNode",
         "function": null,
         "context": "other",
@@ -997,7 +997,7 @@
       },
       {
         "file": "ciris_engine/schemas/services/graph_core.py",
-        "line": 83,
+        "line": 96,
         "class": "GraphNode",
         "function": null,
         "context": "other",
@@ -1005,7 +1005,7 @@
       },
       {
         "file": "ciris_engine/schemas/services/conversation_summary_node.py",
-        "line": 28,
+        "line": 31,
         "class": "ConversationSummaryNode",
         "function": null,
         "context": "other",
@@ -1013,7 +1013,7 @@
       },
       {
         "file": "ciris_engine/schemas/services/conversation_summary_node.py",
-        "line": 111,
+        "line": 96,
         "class": "ConversationSummaryNode",
         "function": null,
         "context": "other",
@@ -1021,7 +1021,7 @@
       },
       {
         "file": "ciris_engine/schemas/services/discord_nodes.py",
-        "line": 33,
+        "line": 36,
         "class": "DiscordDeferralNode",
         "function": null,
         "context": "variable_annotation",
@@ -1029,7 +1029,7 @@
       },
       {
         "file": "ciris_engine/schemas/services/discord_nodes.py",
-        "line": 131,
+        "line": 135,
         "class": "DiscordApprovalNode",
         "function": null,
         "context": "variable_annotation",
@@ -1037,7 +1037,7 @@
       },
       {
         "file": "ciris_engine/schemas/services/discord_nodes.py",
-        "line": 132,
+        "line": 136,
         "class": "DiscordApprovalNode",
         "function": null,
         "context": "variable_annotation",
@@ -1045,7 +1045,7 @@
       },
       {
         "file": "ciris_engine/schemas/services/nodes.py",
-        "line": 255,
+        "line": 275,
         "class": "IdentitySnapshot",
         "function": null,
         "context": "other",
@@ -1053,7 +1053,7 @@
       },
       {
         "file": "ciris_engine/schemas/services/nodes.py",
-        "line": 505,
+        "line": 529,
         "class": "IdentityNode",
         "function": null,
         "context": "other",
@@ -1061,7 +1061,7 @@
       },
       {
         "file": "ciris_engine/schemas/services/core/runtime.py",
-        "line": 59,
+        "line": 73,
         "class": "AdapterInfo",
         "function": null,
         "context": "other",
@@ -1069,7 +1069,7 @@
       },
       {
         "file": "ciris_engine/schemas/services/core/runtime.py",
-        "line": 166,
+        "line": 206,
         "class": "ConfigSnapshot",
         "function": null,
         "context": "variable_annotation",
@@ -1077,15 +1077,31 @@
       },
       {
         "file": "ciris_engine/schemas/services/core/runtime.py",
-        "line": 170,
+        "line": 210,
         "class": "ConfigSnapshot",
         "function": null,
         "context": "variable_annotation",
         "usage_hint": "generic_data"
       },
       {
+        "file": "ciris_engine/schemas/services/graph/tsdb_models.py",
+        "line": 41,
+        "class": "SummaryAttributes",
+        "function": null,
+        "context": "other",
+        "usage_hint": "generic_data"
+      },
+      {
+        "file": "ciris_engine/schemas/services/graph/tsdb_models.py",
+        "line": 42,
+        "class": "SummaryAttributes",
+        "function": null,
+        "context": "other",
+        "usage_hint": "generic_data"
+      },
+      {
         "file": "ciris_engine/schemas/services/graph/edge_types.py",
-        "line": 14,
+        "line": 17,
         "class": "EdgeAttributes",
         "function": null,
         "context": "variable_annotation",
@@ -1093,7 +1109,7 @@
       },
       {
         "file": "ciris_engine/schemas/services/graph/incident.py",
-        "line": 220,
+        "line": 229,
         "class": "IncidentInsightNode",
         "function": null,
         "context": "variable_annotation",
@@ -1101,7 +1117,7 @@
       },
       {
         "file": "ciris_engine/schemas/services/authority/wa_updates.py",
-        "line": 70,
+        "line": 72,
         "class": "WACertificateUpdate",
         "function": "get_update_fields",
         "context": "return_type",
@@ -1109,7 +1125,7 @@
       },
       {
         "file": "ciris_engine/schemas/handlers/memory_schemas.py",
-        "line": 16,
+        "line": 19,
         "class": "ConnectedNodeInfo",
         "function": null,
         "context": "variable_annotation",
@@ -1117,7 +1133,7 @@
       },
       {
         "file": "ciris_engine/schemas/handlers/memory_schemas.py",
-        "line": 24,
+        "line": 29,
         "class": "RecalledNodeInfo",
         "function": null,
         "context": "variable_annotation",
@@ -1125,7 +1141,7 @@
       },
       {
         "file": "ciris_engine/schemas/adapters/tools.py",
-        "line": 24,
+        "line": 28,
         "class": "ToolParameterSchema",
         "function": null,
         "context": "variable_annotation",
@@ -1133,7 +1149,7 @@
       },
       {
         "file": "ciris_engine/schemas/adapters/tools.py",
-        "line": 45,
+        "line": 51,
         "class": "ToolResult",
         "function": null,
         "context": "other",
@@ -1141,7 +1157,7 @@
       },
       {
         "file": "ciris_engine/schemas/adapters/tools.py",
-        "line": 56,
+        "line": 63,
         "class": "ToolExecutionResult",
         "function": null,
         "context": "other",
@@ -1149,7 +1165,7 @@
       },
       {
         "file": "ciris_engine/schemas/adapters/tool_execution.py",
-        "line": 20,
+        "line": 23,
         "class": "ToolExecutionArgs",
         "function": null,
         "context": "variable_annotation",
@@ -1157,7 +1173,7 @@
       },
       {
         "file": "ciris_engine/schemas/adapters/tool_execution.py",
-        "line": 27,
+        "line": 29,
         "class": "ToolExecutionArgs",
         "function": "get_all_params",
         "context": "return_type",
@@ -1165,7 +1181,7 @@
       },
       {
         "file": "ciris_engine/schemas/runtime/manifest.py",
-        "line": 91,
+        "line": 100,
         "class": "ServiceManifest",
         "function": null,
         "context": "other",
@@ -1173,7 +1189,7 @@
       },
       {
         "file": "ciris_engine/schemas/runtime/adapter_management.py",
-        "line": 42,
+        "line": 52,
         "class": "AdapterStatus",
         "function": null,
         "context": "other",
@@ -1181,7 +1197,7 @@
       },
       {
         "file": "ciris_engine/schemas/api/wa.py",
-        "line": 74,
+        "line": 84,
         "class": "WAGuidanceResponse",
         "function": null,
         "context": "variable_annotation",
@@ -1189,7 +1205,7 @@
       },
       {
         "file": "ciris_engine/schemas/dma/faculty.py",
-        "line": 17,
+        "line": 19,
         "class": "FacultyContext",
         "function": null,
         "context": "variable_annotation",
@@ -1197,7 +1213,7 @@
       },
       {
         "file": "ciris_engine/schemas/dma/faculty.py",
-        "line": 23,
+        "line": 24,
         "class": "FacultyContext",
         "function": null,
         "context": "other",
@@ -1221,7 +1237,7 @@
       },
       {
         "file": "ciris_engine/schemas/dma/core.py",
-        "line": 34,
+        "line": 38,
         "class": "DMAInputData",
         "function": null,
         "context": "other",
@@ -1229,7 +1245,7 @@
       },
       {
         "file": "ciris_engine/schemas/dma/prompts.py",
-        "line": 106,
+        "line": 102,
         "class": "PromptCollection",
         "function": "to_dict",
         "context": "return_type",
@@ -1237,7 +1253,7 @@
       },
       {
         "file": "ciris_engine/schemas/dma/results.py",
-        "line": 19,
+        "line": 31,
         "class": "EthicalDMAResult",
         "function": null,
         "context": "variable_annotation",
@@ -1245,7 +1261,7 @@
       },
       {
         "file": "ciris_engine/schemas/dma/results.py",
-        "line": 64,
+        "line": 82,
         "class": "ActionSelectionDMAResult",
         "function": null,
         "context": "other",
@@ -1253,7 +1269,7 @@
       },
       {
         "file": "ciris_engine/schemas/secrets/service.py",
-        "line": 62,
+        "line": 78,
         "class": "FilterUpdateResult",
         "function": null,
         "context": "other",
@@ -1266,7 +1282,7 @@
     "findings": [
       {
         "file": "tests/test_handlers_api_mock_simple.py",
-        "line": 53,
+        "line": 51,
         "class": "CIRISAPIClient",
         "function": "interact",
         "context": "return_type",
@@ -1274,7 +1290,7 @@
       },
       {
         "file": "tests/test_handlers_api_mock_simple.py",
-        "line": 63,
+        "line": 61,
         "class": "CIRISAPIClient",
         "function": "get_memory",
         "context": "return_type",
@@ -1282,7 +1298,7 @@
       },
       {
         "file": "tests/test_handlers_api_mock_simple.py",
-        "line": 71,
+        "line": 66,
         "class": "CIRISAPIClient",
         "function": "search_memory",
         "context": "other",
@@ -1290,7 +1306,7 @@
       },
       {
         "file": "tests/test_handlers_api_mock_simple.py",
-        "line": 83,
+        "line": 74,
         "class": "CIRISAPIClient",
         "function": "get_tasks",
         "context": "other",
@@ -1298,7 +1314,7 @@
       },
       {
         "file": "tests/test_handlers_api_mock.py",
-        "line": 65,
+        "line": 63,
         "class": "CIRISAPIClient",
         "function": "interact",
         "context": "return_type",
@@ -1306,7 +1322,7 @@
       },
       {
         "file": "tests/test_handlers_api_mock.py",
-        "line": 74,
+        "line": 72,
         "class": "CIRISAPIClient",
         "function": "get_audit_entries",
         "context": "other",
@@ -1314,7 +1330,7 @@
       },
       {
         "file": "tests/test_handlers_api_mock.py",
-        "line": 87,
+        "line": 82,
         "class": "CIRISAPIClient",
         "function": "search_memory",
         "context": "other",
@@ -1322,7 +1338,7 @@
       },
       {
         "file": "tests/test_handlers_api_mock.py",
-        "line": 104,
+        "line": 95,
         "class": "CIRISAPIClient",
         "function": "get_traces",
         "context": "other",
@@ -1330,7 +1346,7 @@
       },
       {
         "file": "tests/adapters/test_discord_deferrals.py",
-        "line": 48,
+        "line": 35,
         "class": "MockDiscordAdapter",
         "function": "__init__",
         "context": "other",
@@ -1338,7 +1354,7 @@
       },
       {
         "file": "tests/adapters/cli/mock_cli_tools.py",
-        "line": 98,
+        "line": 80,
         "class": "MockCLIToolService",
         "function": "_help_command",
         "context": "return_type",
@@ -1346,7 +1362,7 @@
       },
       {
         "file": "tests/adapters/cli/mock_cli_tools.py",
-        "line": 118,
+        "line": 100,
         "class": "MockCLIToolService",
         "function": "_exit_command",
         "context": "return_type",
@@ -1354,7 +1370,7 @@
       },
       {
         "file": "tests/adapters/cli/mock_cli_tools.py",
-        "line": 122,
+        "line": 104,
         "class": "MockCLIToolService",
         "function": "_clear_command",
         "context": "return_type",
@@ -1362,7 +1378,7 @@
       },
       {
         "file": "tests/adapters/cli/mock_cli_tools.py",
-        "line": 131,
+        "line": 113,
         "class": "MockCLIToolService",
         "function": "_history_command",
         "context": "return_type",
@@ -1370,7 +1386,7 @@
       },
       {
         "file": "tests/adapters/cli/mock_cli_tools.py",
-        "line": 139,
+        "line": 121,
         "class": "MockCLIToolService",
         "function": "_version_command",
         "context": "return_type",
@@ -1378,7 +1394,7 @@
       },
       {
         "file": "tests/adapters/cli/mock_cli_tools.py",
-        "line": 156,
+        "line": 138,
         "class": "MockCLIToolService",
         "function": "get_available_tools",
         "context": "other",
@@ -1386,7 +1402,7 @@
       },
       {
         "file": "tests/adapters/cli/mock_cli_tools.py",
-        "line": 168,
+        "line": 150,
         "class": "MockCLIToolService",
         "function": "execute_tool",
         "context": "function_parameter",
@@ -1394,7 +1410,7 @@
       },
       {
         "file": "tests/adapters/cli/mock_cli_tools.py",
-        "line": 220,
+        "line": 190,
         "class": "MockCLIToolService",
         "function": "validate_parameters",
         "context": "function_parameter",
@@ -1402,7 +1418,7 @@
       },
       {
         "file": "tests/adapters/cli/mock_cli_tools.py",
-        "line": 220,
+        "line": 190,
         "class": "MockCLIToolService",
         "function": "validate_parameters",
         "context": "return_type",
@@ -1410,7 +1426,7 @@
       },
       {
         "file": "tests/adapters/mock_llm/responses_action_selection.py",
-        "line": 12,
+        "line": 21,
         "class": null,
         "function": "action_selection",
         "context": "other",
@@ -1418,7 +1434,7 @@
       },
       {
         "file": "tests/adapters/mock_llm/responses_action_selection.py",
-        "line": 21,
+        "line": 31,
         "class": null,
         "function": "action_selection",
         "context": "variable_annotation",
@@ -1426,7 +1442,7 @@
       },
       {
         "file": "tests/adapters/mock_llm/responses_action_selection.py",
-        "line": 38,
+        "line": 46,
         "class": null,
         "function": "action_selection",
         "context": "other",
@@ -1434,7 +1450,7 @@
       },
       {
         "file": "tests/adapters/mock_llm/responses_action_selection.py",
-        "line": 220,
+        "line": 231,
         "class": null,
         "function": "action_selection",
         "context": "variable_annotation",
@@ -1442,7 +1458,7 @@
       },
       {
         "file": "tests/adapters/mock_llm/responses.py",
-        "line": 88,
+        "line": 75,
         "class": null,
         "function": "extract_context_from_messages",
         "context": "other",
@@ -1450,7 +1466,7 @@
       },
       {
         "file": "tests/adapters/mock_llm/responses.py",
-        "line": 374,
+        "line": 381,
         "class": null,
         "function": "create_response",
         "context": "other",
@@ -1458,7 +1474,7 @@
       },
       {
         "file": "tests/integration/test_observe_handler_integration.py",
-        "line": 51,
+        "line": 54,
         "class": null,
         "function": "create_realistic_discord_messages",
         "context": "other",
@@ -1466,7 +1482,7 @@
       },
       {
         "file": "tests/integration/test_observe_handler_integration.py",
-        "line": 96,
+        "line": 100,
         "class": null,
         "function": "create_edge_case_messages",
         "context": "other",
@@ -1474,7 +1490,7 @@
       },
       {
         "file": "tests/test_persistence/test_node_registry.py",
-        "line": 385,
+        "line": 381,
         "class": "NestedNode",
         "function": "test_nested_data_structures",
         "context": "variable_annotation",
@@ -1482,7 +1498,7 @@
       },
       {
         "file": "tests/test_persistence/test_node_registry.py",
-        "line": 445,
+        "line": 432,
         "class": "BaseEventNode",
         "function": "get_base_attrs",
         "context": "return_type",
@@ -1490,7 +1506,7 @@
       },
       {
         "file": "tests/test_persistence/test_node_registry.py",
-        "line": 576,
+        "line": 552,
         "class": "PerfTestNode",
         "function": "test_deserialization_performance",
         "context": "variable_annotation",
@@ -1498,7 +1514,7 @@
       },
       {
         "file": "tests/ciris_engine/logic/services/test_telemetry_summary.py",
-        "line": 42,
+        "line": 41,
         "class": "TestTelemetrySummary",
         "function": "create_mock_metrics",
         "context": "other",
@@ -1506,7 +1522,7 @@
       },
       {
         "file": "tests/ciris_engine/logic/services/test_telemetry_summary.py",
-        "line": 60,
+        "line": 65,
         "class": "TestTelemetrySummary",
         "function": "mock_query_metrics",
         "context": "other",
@@ -1514,7 +1530,7 @@
       },
       {
         "file": "tests/ciris_engine/logic/services/test_telemetry_summary.py",
-        "line": 60,
+        "line": 66,
         "class": "TestTelemetrySummary",
         "function": "mock_query_metrics",
         "context": "other",
@@ -1522,7 +1538,7 @@
       },
       {
         "file": "tests/ciris_engine/logic/services/test_telemetry_summary.py",
-        "line": 100,
+        "line": 109,
         "class": "TestTelemetrySummary",
         "function": "mock_query_metrics",
         "context": "other",
@@ -1530,7 +1546,7 @@
       },
       {
         "file": "tests/ciris_engine/logic/services/test_telemetry_summary.py",
-        "line": 100,
+        "line": 110,
         "class": "TestTelemetrySummary",
         "function": "mock_query_metrics",
         "context": "other",
@@ -1538,7 +1554,7 @@
       },
       {
         "file": "tests/ciris_engine/logic/services/test_telemetry_summary.py",
-        "line": 136,
+        "line": 146,
         "class": "TestTelemetrySummary",
         "function": "mock_query_metrics",
         "context": "other",
@@ -1546,7 +1562,7 @@
       },
       {
         "file": "tests/ciris_engine/logic/services/test_telemetry_summary.py",
-        "line": 136,
+        "line": 147,
         "class": "TestTelemetrySummary",
         "function": "mock_query_metrics",
         "context": "other",
@@ -1554,7 +1570,7 @@
       },
       {
         "file": "tests/ciris_engine/logic/services/test_telemetry_summary.py",
-        "line": 152,
+        "line": 167,
         "class": "TestTelemetrySummary",
         "function": "mock_query_metrics",
         "context": "other",
@@ -1562,7 +1578,7 @@
       },
       {
         "file": "tests/ciris_engine/logic/services/test_telemetry_summary.py",
-        "line": 152,
+        "line": 168,
         "class": "TestTelemetrySummary",
         "function": "mock_query_metrics",
         "context": "other",
@@ -1575,7 +1591,7 @@
     "findings": [
       {
         "file": "tools/sonar.py",
-        "line": 45,
+        "line": 43,
         "class": "SonarClient",
         "function": "search_issues",
         "context": "other",
@@ -1583,7 +1599,7 @@
       },
       {
         "file": "tools/sonar.py",
-        "line": 59,
+        "line": 53,
         "class": "SonarClient",
         "function": "transition_issue",
         "context": "return_type",
@@ -1591,7 +1607,7 @@
       },
       {
         "file": "tools/sonar.py",
-        "line": 76,
+        "line": 67,
         "class": "SonarClient",
         "function": "add_comment",
         "context": "return_type",
@@ -1599,7 +1615,7 @@
       },
       {
         "file": "tools/sonar.py",
-        "line": 91,
+        "line": 79,
         "class": "SonarClient",
         "function": "get_stats",
         "context": "return_type",
@@ -1607,7 +1623,7 @@
       },
       {
         "file": "tools/sonar.py",
-        "line": 122,
+        "line": 100,
         "class": "SonarClient",
         "function": "get_quality_gate_status",
         "context": "return_type",
@@ -1615,7 +1631,7 @@
       },
       {
         "file": "tools/sonar.py",
-        "line": 131,
+        "line": 106,
         "class": "SonarClient",
         "function": "search_hotspots",
         "context": "return_type",
@@ -1623,7 +1639,7 @@
       },
       {
         "file": "tools/sonar.py",
-        "line": 143,
+        "line": 114,
         "class": "SonarClient",
         "function": "mark_hotspot_safe",
         "context": "return_type",
@@ -1631,7 +1647,7 @@
       },
       {
         "file": "tools/sonar.py",
-        "line": 159,
+        "line": 124,
         "class": "SonarClient",
         "function": "get_coverage_metrics",
         "context": "return_type",
@@ -1639,7 +1655,7 @@
       },
       {
         "file": "tools/sonar.py",
-        "line": 180,
+        "line": 145,
         "class": null,
         "function": "format_hotspot",
         "context": "function_parameter",
@@ -1647,7 +1663,7 @@
       },
       {
         "file": "tools/sonar.py",
-        "line": 195,
+        "line": 160,
         "class": null,
         "function": "format_issue",
         "context": "function_parameter",
@@ -1655,7 +1671,7 @@
       },
       {
         "file": "tools/audit_ciris_system.py",
-        "line": 28,
+        "line": 27,
         "class": "CIRISSystemAuditor",
         "function": "__init__",
         "context": "variable_annotation",
@@ -1663,7 +1679,7 @@
       },
       {
         "file": "tools/audit_ciris_system.py",
-        "line": 91,
+        "line": 52,
         "class": "CIRISSystemAuditor",
         "function": "__init__",
         "context": "other",
@@ -1671,7 +1687,7 @@
       },
       {
         "file": "tools/audit_ciris_system.py",
-        "line": 102,
+        "line": 63,
         "class": "CIRISSystemAuditor",
         "function": "__init__",
         "context": "other",
@@ -1679,7 +1695,7 @@
       },
       {
         "file": "tools/audit_ciris_system.py",
-        "line": 104,
+        "line": 65,
         "class": "CIRISSystemAuditor",
         "function": "__init__",
         "context": "other",
@@ -1687,7 +1703,7 @@
       },
       {
         "file": "tools/audit_ciris_system.py",
-        "line": 107,
+        "line": 68,
         "class": "CIRISSystemAuditor",
         "function": "audit",
         "context": "return_type",
@@ -1695,7 +1711,7 @@
       },
       {
         "file": "tools/audit_ciris_system.py",
-        "line": 147,
+        "line": 108,
         "class": "CIRISSystemAuditor",
         "function": "_scan_all_files",
         "context": "variable_annotation",
@@ -1703,7 +1719,7 @@
       },
       {
         "file": "tools/audit_ciris_system.py",
-        "line": 532,
+        "line": 500,
         "class": "CIRISSystemAuditor",
         "function": "_generate_report",
         "context": "return_type",
@@ -1711,7 +1727,7 @@
       },
       {
         "file": "tools/audit_ciris_system.py",
-        "line": 605,
+        "line": 573,
         "class": "CIRISSystemAuditor",
         "function": "_save_markdown_summary",
         "context": "function_parameter",
@@ -1719,7 +1735,7 @@
       },
       {
         "file": "tools/db_status_tool.py",
-        "line": 95,
+        "line": 91,
         "class": "DBStatusTool",
         "function": "get_overall_status",
         "context": "return_type",
@@ -1727,7 +1743,7 @@
       },
       {
         "file": "tools/db_status_tool.py",
-        "line": 188,
+        "line": 179,
         "class": "DBStatusTool",
         "function": "get_tsdb_status",
         "context": "return_type",
@@ -1735,7 +1751,7 @@
       },
       {
         "file": "tools/db_status_tool.py",
-        "line": 333,
+        "line": 335,
         "class": "DBStatusTool",
         "function": "get_audit_status",
         "context": "return_type",
@@ -1743,7 +1759,7 @@
       },
       {
         "file": "tools/db_status_tool.py",
-        "line": 470,
+        "line": 476,
         "class": "DBStatusTool",
         "function": "get_consolidated_state_analysis",
         "context": "return_type",
@@ -1751,7 +1767,7 @@
       },
       {
         "file": "tools/db_status_tool.py",
-        "line": 561,
+        "line": 573,
         "class": "DBStatusTool",
         "function": "get_available_test_periods",
         "context": "return_type",
@@ -1759,7 +1775,7 @@
       },
       {
         "file": "tools/db_status_tool.py",
-        "line": 660,
+        "line": 677,
         "class": "DBStatusTool",
         "function": "get_tsdb_node_age_analysis",
         "context": "return_type",
@@ -1767,7 +1783,7 @@
       },
       {
         "file": "tools/db_status_tool.py",
-        "line": 760,
+        "line": 789,
         "class": "DBStatusTool",
         "function": "get_nodes_without_edges",
         "context": "return_type",
@@ -1783,7 +1799,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/security_analyzer.py",
-        "line": 47,
+        "line": 43,
         "class": "SecurityAnalyzer",
         "function": "analyze_security_compliance",
         "context": "return_type",
@@ -1799,7 +1815,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/security_analyzer.py",
-        "line": 124,
+        "line": 126,
         "class": "SecurityAnalyzer",
         "function": "_check_crypto_compliance",
         "context": "other",
@@ -1807,7 +1823,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/security_analyzer.py",
-        "line": 157,
+        "line": 163,
         "class": "SecurityAnalyzer",
         "function": "_check_secrets_handling",
         "context": "other",
@@ -1815,7 +1831,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/security_analyzer.py",
-        "line": 203,
+        "line": 213,
         "class": "SecurityAnalyzer",
         "function": "_check_security_imports",
         "context": "other",
@@ -1823,7 +1839,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/security_analyzer.py",
-        "line": 225,
+        "line": 237,
         "class": "SecurityAnalyzer",
         "function": "_ast_security_checks",
         "context": "other",
@@ -1831,7 +1847,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/security_analyzer.py",
-        "line": 271,
+        "line": 291,
         "class": "SecurityAnalyzer",
         "function": "_categorize_by_severity",
         "context": "other",
@@ -1839,7 +1855,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/security_analyzer.py",
-        "line": 279,
+        "line": 299,
         "class": "SecurityAnalyzer",
         "function": "analyze_all_files",
         "context": "return_type",
@@ -1847,7 +1863,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/security_analyzer.py",
-        "line": 302,
+        "line": 322,
         "class": "SecurityAnalyzer",
         "function": "_calculate_security_score",
         "context": "function_parameter",
@@ -1855,7 +1871,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/security_analyzer.py",
-        "line": 312,
+        "line": 332,
         "class": "SecurityAnalyzer",
         "function": "_identify_critical_files",
         "context": "function_parameter",
@@ -1863,7 +1879,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/schema_compliance.py",
-        "line": 36,
+        "line": 35,
         "class": "SchemaComplianceChecker",
         "function": "_load_v1_schemas",
         "context": "return_type",
@@ -1871,7 +1887,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/schema_compliance.py",
-        "line": 65,
+        "line": 72,
         "class": "SchemaComplianceChecker",
         "function": "_load_protocol_interfaces",
         "context": "return_type",
@@ -1879,7 +1895,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/schema_compliance.py",
-        "line": 76,
+        "line": 83,
         "class": "SchemaComplianceChecker",
         "function": "check_schema_usage",
         "context": "return_type",
@@ -1887,7 +1903,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/schema_compliance.py",
-        "line": 124,
+        "line": 131,
         "class": "SchemaComplianceChecker",
         "function": "check_protocol_compliance",
         "context": "return_type",
@@ -1895,7 +1911,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/schema_compliance.py",
-        "line": 164,
+        "line": 175,
         "class": "SchemaComplianceChecker",
         "function": "generate_schema_fixes",
         "context": "other",
@@ -1903,7 +1919,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/schema_compliance.py",
-        "line": 164,
+        "line": 175,
         "class": "SchemaComplianceChecker",
         "function": "generate_schema_fixes",
         "context": "other",
@@ -1911,7 +1927,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/core.py",
-        "line": 48,
+        "line": 46,
         "class": "CIRISMypyToolkit",
         "function": "get_mypy_errors",
         "context": "other",
@@ -1919,7 +1935,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/core.py",
-        "line": 99,
+        "line": 93,
         "class": "CIRISMypyToolkit",
         "function": "analyze_compliance",
         "context": "return_type",
@@ -1927,7 +1943,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/core.py",
-        "line": 278,
+        "line": 261,
         "class": "CIRISMypyToolkit",
         "function": "validate_adapter_compliance",
         "context": "return_type",
@@ -1935,7 +1951,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/core.py",
-        "line": 315,
+        "line": 298,
         "class": "CIRISMypyToolkit",
         "function": "_categorize_errors",
         "context": "other",
@@ -1943,7 +1959,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/core.py",
-        "line": 315,
+        "line": 298,
         "class": "CIRISMypyToolkit",
         "function": "_categorize_errors",
         "context": "other",
@@ -1951,7 +1967,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/core.py",
-        "line": 357,
+        "line": 340,
         "class": "CIRISMypyToolkit",
         "function": "_check_adapter_types",
         "context": "return_type",
@@ -1991,7 +2007,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/type_annotation_fixer.py",
-        "line": 40,
+        "line": 38,
         "class": "TypeAnnotationFixer",
         "function": "propose_type_fixes",
         "context": "return_type",
@@ -1999,7 +2015,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/type_annotation_fixer.py",
-        "line": 147,
+        "line": 156,
         "class": "TypeAnnotationFixer",
         "function": "apply_approved_fixes",
         "context": "function_parameter",
@@ -2007,7 +2023,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/type_annotation_fixer.py",
-        "line": 237,
+        "line": 249,
         "class": "TypeAnnotationFixer",
         "function": "_fix_unused_ignore_comments",
         "context": "other",
@@ -2015,7 +2031,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/type_annotation_fixer.py",
-        "line": 356,
+        "line": 367,
         "class": "TypeAnnotationFixer",
         "function": "_fix_missing_return_types_systematic",
         "context": "other",
@@ -2023,7 +2039,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/type_annotation_fixer.py",
-        "line": 383,
+        "line": 394,
         "class": "TypeAnnotationFixer",
         "function": "_fix_variable_annotations",
         "context": "other",
@@ -2031,7 +2047,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/type_annotation_fixer.py",
-        "line": 421,
+        "line": 432,
         "class": "TypeAnnotationFixer",
         "function": "_fix_union_attr",
         "context": "other",
@@ -2039,7 +2055,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/type_annotation_fixer.py",
-        "line": 426,
+        "line": 437,
         "class": "TypeAnnotationFixer",
         "function": "_fix_missing_imports",
         "context": "other",
@@ -2047,7 +2063,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/type_annotation_fixer.py",
-        "line": 477,
+        "line": 488,
         "class": "TypeAnnotationFixer",
         "function": "_fix_unreachable_code",
         "context": "other",
@@ -2055,7 +2071,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/type_annotation_fixer.py",
-        "line": 501,
+        "line": 512,
         "class": "TypeAnnotationFixer",
         "function": "_fix_attr_defined_errors",
         "context": "other",
@@ -2063,7 +2079,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/type_annotation_fixer.py",
-        "line": 532,
+        "line": 543,
         "class": "TypeAnnotationFixer",
         "function": "_fix_type_mismatches",
         "context": "other",
@@ -2071,7 +2087,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/protocol_alignment_fixer.py",
-        "line": 24,
+        "line": 25,
         "class": "ProtocolAlignmentFixer",
         "function": "fix_all_protocols",
         "context": "return_type",
@@ -2079,7 +2095,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/protocol_alignment_fixer.py",
-        "line": 53,
+        "line": 51,
         "class": "ProtocolAlignmentFixer",
         "function": "_find_protocol_implementation_pairs",
         "context": "other",
@@ -2087,7 +2103,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/protocol_alignment_fixer.py",
-        "line": 81,
+        "line": 76,
         "class": "ProtocolAlignmentFixer",
         "function": "_fix_protocol_alignment",
         "context": "function_parameter",
@@ -2095,7 +2111,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/protocol_alignment_fixer.py",
-        "line": 81,
+        "line": 76,
         "class": "ProtocolAlignmentFixer",
         "function": "_fix_protocol_alignment",
         "context": "return_type",
@@ -2103,7 +2119,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/protocol_alignment_fixer.py",
-        "line": 277,
+        "line": 263,
         "class": "ProtocolAlignmentFixer",
         "function": "_find_protocol",
         "context": "other",
@@ -2111,7 +2127,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/protocol_alignment_fixer.py",
-        "line": 298,
+        "line": 281,
         "class": "ProtocolAlignmentFixer",
         "function": "_find_implementation",
         "context": "other",
@@ -2119,7 +2135,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/error_fixers/protocol_alignment_fixer.py",
-        "line": 331,
+        "line": 311,
         "class": "ProtocolAlignmentFixer",
         "function": "_extract_signature",
         "context": "return_type",
@@ -2127,7 +2143,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/unused_code_detector.py",
-        "line": 55,
+        "line": 61,
         "class": "UnusedCodeDetector",
         "function": "find_unused_code",
         "context": "other",
@@ -2135,7 +2151,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/unused_code_detector.py",
-        "line": 167,
+        "line": 168,
         "class": "UnusedCodeDetector",
         "function": "_find_unused_functions",
         "context": "other",
@@ -2143,7 +2159,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/unused_code_detector.py",
-        "line": 200,
+        "line": 203,
         "class": "UnusedCodeDetector",
         "function": "_find_unused_classes",
         "context": "other",
@@ -2151,7 +2167,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/unused_code_detector.py",
-        "line": 232,
+        "line": 237,
         "class": "UnusedCodeDetector",
         "function": "_find_unused_imports",
         "context": "other",
@@ -2159,7 +2175,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/unused_code_detector.py",
-        "line": 288,
+        "line": 295,
         "class": "UnusedCodeDetector",
         "function": "_find_dead_code",
         "context": "other",
@@ -2167,7 +2183,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/unused_code_detector.py",
-        "line": 333,
+        "line": 344,
         "class": "UnusedCodeDetector",
         "function": "_find_questionable_internal_methods",
         "context": "other",
@@ -2175,7 +2191,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/unused_code_detector.py",
-        "line": 405,
+        "line": 420,
         "class": "UnusedCodeDetector",
         "function": "propose_cleanup",
         "context": "return_type",
@@ -2183,7 +2199,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/unused_code_detector.py",
-        "line": 410,
+        "line": 425,
         "class": "UnusedCodeDetector",
         "function": "apply_approved_cleanup",
         "context": "function_parameter",
@@ -2191,7 +2207,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/unused_code_detector.py",
-        "line": 461,
+        "line": 476,
         "class": "UnusedCodeDetector",
         "function": "generate_cleanup_report",
         "context": "return_type",
@@ -2199,7 +2215,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/protocol_analyzer.py",
-        "line": 69,
+        "line": 82,
         "class": "ProtocolAnalyzer",
         "function": "check_all_services",
         "context": "return_type",
@@ -2207,7 +2223,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/protocol_analyzer.py",
-        "line": 98,
+        "line": 111,
         "class": "ProtocolAnalyzer",
         "function": "check_service_alignment",
         "context": "return_type",
@@ -2215,7 +2231,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/protocol_analyzer.py",
-        "line": 205,
+        "line": 228,
         "class": "ProtocolAnalyzer",
         "function": "_find_protocols",
         "context": "other",
@@ -2223,7 +2239,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/protocol_analyzer.py",
-        "line": 293,
+        "line": 353,
         "class": "ProtocolAnalyzer",
         "function": "_find_protocol",
         "context": "other",
@@ -2231,7 +2247,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/protocol_analyzer.py",
-        "line": 355,
+        "line": 427,
         "class": "ProtocolAnalyzer",
         "function": "_find_module",
         "context": "other",
@@ -2239,7 +2255,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/protocol_analyzer.py",
-        "line": 423,
+        "line": 499,
         "class": "ProtocolAnalyzer",
         "function": "_find_untyped_dicts",
         "context": "other",
@@ -2247,7 +2263,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/schema_validator.py",
-        "line": 110,
+        "line": 117,
         "class": "SchemaValidator",
         "function": "validate_file",
         "context": "return_type",
@@ -2255,7 +2271,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/schema_validator.py",
-        "line": 174,
+        "line": 177,
         "class": "SchemaValidator",
         "function": "validate_all_files",
         "context": "other",
@@ -2263,7 +2279,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/schema_validator.py",
-        "line": 188,
+        "line": 191,
         "class": "SchemaValidator",
         "function": "_validate_v1_usage",
         "context": "other",
@@ -2271,7 +2287,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/schema_validator.py",
-        "line": 197,
+        "line": 200,
         "class": "SchemaValidator",
         "function": "_find_dict_schema_candidates",
         "context": "other",
@@ -2279,7 +2295,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/schema_validator.py",
-        "line": 209,
+        "line": 212,
         "class": "SchemaValidator",
         "function": "_find_non_schema_classes",
         "context": "other",
@@ -2287,7 +2303,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/schema_validator.py",
-        "line": 247,
+        "line": 254,
         "class": "SchemaValidator",
         "function": "_check_internal_method_usage",
         "context": "other",
@@ -2295,7 +2311,7 @@
       },
       {
         "file": "tools/ciris_mypy_toolkit/analyzers/schema_validator.py",
-        "line": 286,
+        "line": 295,
         "class": "SchemaValidator",
         "function": "get_schema_usage_report",
         "context": "return_type",
@@ -2311,7 +2327,7 @@
       },
       {
         "file": "tools/sonar_tool/analyzer.py",
-        "line": 98,
+        "line": 99,
         "class": "CoverageAnalyzer",
         "function": "_analyze_by_package",
         "context": "return_type",
@@ -2319,7 +2335,7 @@
       },
       {
         "file": "tools/sonar_tool/analyzer.py",
-        "line": 137,
+        "line": 136,
         "class": "CoverageAnalyzer",
         "function": "_find_quick_wins",
         "context": "other",
@@ -2327,7 +2343,7 @@
       },
       {
         "file": "tools/sonar_tool/analyzer.py",
-        "line": 161,
+        "line": 160,
         "class": "CoverageAnalyzer",
         "function": "_prioritize_strategic_targets",
         "context": "other",
@@ -2351,7 +2367,7 @@
       },
       {
         "file": "tools/sonar_tool/reporter.py",
-        "line": 167,
+        "line": 149,
         "class": "QualityReporter",
         "function": "generate_action_summary",
         "context": "function_parameter",
@@ -2359,7 +2375,7 @@
       },
       {
         "file": "tools/sonar_tool/reporter.py",
-        "line": 198,
+        "line": 176,
         "class": "QualityReporter",
         "function": "export_json_report",
         "context": "function_parameter",
@@ -2367,7 +2383,7 @@
       },
       {
         "file": "tools/sonar_tool/client.py",
-        "line": 22,
+        "line": 20,
         "class": "SonarClient",
         "function": "search_issues",
         "context": "other",
@@ -2375,7 +2391,7 @@
       },
       {
         "file": "tools/sonar_tool/client.py",
-        "line": 37,
+        "line": 31,
         "class": "SonarClient",
         "function": "get_coverage_metrics",
         "context": "return_type",
@@ -2383,7 +2399,7 @@
       },
       {
         "file": "tools/sonar_tool/client.py",
-        "line": 52,
+        "line": 43,
         "class": "SonarClient",
         "function": "get_uncovered_files",
         "context": "other",
@@ -2391,7 +2407,7 @@
       },
       {
         "file": "tools/sonar_tool/client.py",
-        "line": 84,
+        "line": 77,
         "class": "SonarClient",
         "function": "get_tech_debt_files",
         "context": "other",
@@ -2399,7 +2415,7 @@
       },
       {
         "file": "tools/sonar_tool/client.py",
-        "line": 115,
+        "line": 110,
         "class": "SonarClient",
         "function": "get_quality_gate_status",
         "context": "return_type",
@@ -2407,7 +2423,7 @@
       },
       {
         "file": "tools/sonar_tool/client.py",
-        "line": 123,
+        "line": 118,
         "class": "SonarClient",
         "function": "get_hotspots",
         "context": "other",
@@ -2415,7 +2431,7 @@
       },
       {
         "file": "tools/ciris_db_tools/audit_verifier.py",
-        "line": 15,
+        "line": 14,
         "class": "AuditVerifierWrapper",
         "function": "get_audit_status",
         "context": "return_type",
@@ -2423,7 +2439,7 @@
       },
       {
         "file": "tools/ciris_db_tools/audit_verifier.py",
-        "line": 125,
+        "line": 129,
         "class": "AuditVerifierWrapper",
         "function": "verify_audit_integrity",
         "context": "return_type",
@@ -2431,7 +2447,7 @@
       },
       {
         "file": "tools/ciris_db_tools/status_reporter.py",
-        "line": 16,
+        "line": 15,
         "class": "DBStatusReporter",
         "function": "get_overall_status",
         "context": "return_type",
@@ -2439,7 +2455,7 @@
       },
       {
         "file": "tools/ciris_db_tools/graph_analyzer.py",
-        "line": 14,
+        "line": 13,
         "class": "GraphAnalyzer",
         "function": "get_orphaned_nodes",
         "context": "return_type",
@@ -2447,7 +2463,7 @@
       },
       {
         "file": "tools/ciris_db_tools/graph_analyzer.py",
-        "line": 93,
+        "line": 97,
         "class": "GraphAnalyzer",
         "function": "get_edge_statistics",
         "context": "return_type",
@@ -2455,7 +2471,7 @@
       },
       {
         "file": "tools/ciris_db_tools/graph_analyzer.py",
-        "line": 155,
+        "line": 161,
         "class": "GraphAnalyzer",
         "function": "get_connectivity_report",
         "context": "return_type",
@@ -2463,7 +2479,7 @@
       },
       {
         "file": "tools/ciris_db_tools/consolidation_monitor.py",
-        "line": 17,
+        "line": 15,
         "class": "ConsolidationMonitor",
         "function": "get_consolidation_gaps",
         "context": "return_type",
@@ -2471,7 +2487,7 @@
       },
       {
         "file": "tools/ciris_db_tools/consolidation_monitor.py",
-        "line": 158,
+        "line": 171,
         "class": "ConsolidationMonitor",
         "function": "get_retention_analysis",
         "context": "return_type",
@@ -2479,7 +2495,7 @@
       },
       {
         "file": "tools/ciris_db_tools/consolidation_monitor.py",
-        "line": 228,
+        "line": 234,
         "class": "ConsolidationMonitor",
         "function": "get_consolidation_health",
         "context": "return_type",
@@ -2487,7 +2503,7 @@
       },
       {
         "file": "tools/ciris_db_tools/consolidation_monitor.py",
-        "line": 251,
+        "line": 257,
         "class": "ConsolidationMonitor",
         "function": "get_orphaned_nodes_in_consolidated_periods",
         "context": "return_type",
@@ -2495,7 +2511,7 @@
       },
       {
         "file": "tools/ciris_db_tools/storage_analyzer.py",
-        "line": 16,
+        "line": 15,
         "class": "StorageAnalyzer",
         "function": "get_storage_by_time_period",
         "context": "return_type",
@@ -2503,7 +2519,7 @@
       },
       {
         "file": "tools/ciris_db_tools/storage_analyzer.py",
-        "line": 91,
+        "line": 95,
         "class": "StorageAnalyzer",
         "function": "get_edge_statistics_for_consolidated_periods",
         "context": "return_type",
@@ -2511,7 +2527,7 @@
       },
       {
         "file": "tools/ciris_db_tools/storage_analyzer.py",
-        "line": 219,
+        "line": 229,
         "class": "StorageAnalyzer",
         "function": "get_orphaned_nodes_analysis",
         "context": "return_type",
@@ -2519,7 +2535,7 @@
       },
       {
         "file": "tools/ciris_db_tools/tsdb_analyzer.py",
-        "line": 16,
+        "line": 15,
         "class": "TSDBAnalyzer",
         "function": "get_tsdb_status",
         "context": "return_type",
@@ -2527,7 +2543,7 @@
       },
       {
         "file": "tools/ciris_db_tools/tsdb_analyzer.py",
-        "line": 110,
+        "line": 113,
         "class": "TSDBAnalyzer",
         "function": "get_node_age_analysis",
         "context": "return_type",
@@ -2535,7 +2551,7 @@
       },
       {
         "file": "tools/ciris_db_tools/tsdb_analyzer.py",
-        "line": 184,
+        "line": 181,
         "class": "TSDBAnalyzer",
         "function": "_generate_recommendations",
         "context": "function_parameter",
@@ -2544,7 +2560,7 @@
     ]
   },
   "total_all_code": {
-    "occurrences": 315,
-    "files_affected": 105
+    "occurrences": 317,
+    "files_affected": 106
   }
 }

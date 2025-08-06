@@ -4,16 +4,24 @@ Infrastructure protocols for the CIRIS Trinity Architecture.
 These protocols define contracts for core runtime and infrastructure components.
 These are the foundational systems that enable everything else to work.
 """
-from typing import List, Any, TYPE_CHECKING
+
 from abc import abstractmethod
+from typing import TYPE_CHECKING, Any, List
 
 from ciris_engine.protocols.runtime.base import ServiceProtocol
-
 from ciris_engine.schemas.infrastructure.base import (
-    RuntimeStats, ComponentHealthStatus, ServiceDependencies,
-    BusMetrics, IdentityBaseline, IdentityVarianceMetric, ConfigurationFeedback,
-    ConfigurationPattern, ConfigurationUpdate, ActiveAdapter,
-    CheckpointInfo, ServiceRegistration
+    ActiveAdapter,
+    BusMetrics,
+    CheckpointInfo,
+    ComponentHealthStatus,
+    ConfigurationFeedback,
+    ConfigurationPattern,
+    ConfigurationUpdate,
+    IdentityBaseline,
+    IdentityVarianceMetric,
+    RuntimeStats,
+    ServiceDependencies,
+    ServiceRegistration,
 )
 
 if TYPE_CHECKING:
@@ -22,6 +30,7 @@ if TYPE_CHECKING:
 # ============================================================================
 # RUNTIME INFRASTRUCTURE
 # ============================================================================
+
 
 class RuntimeProtocol(ServiceProtocol):
     """Protocol for the main CIRIS runtime engine."""
@@ -56,6 +65,7 @@ class RuntimeProtocol(ServiceProtocol):
         """Check health of all components."""
         ...
 
+
 class ServiceInitializerProtocol(ServiceProtocol):
     """Protocol for service initialization and dependency management."""
 
@@ -83,6 +93,7 @@ class ServiceInitializerProtocol(ServiceProtocol):
     async def teardown_services(self) -> None:
         """Teardown services in reverse order."""
         ...
+
 
 class BusManagerProtocol(ServiceProtocol):
     """Protocol for message bus management."""
@@ -112,6 +123,7 @@ class BusManagerProtocol(ServiceProtocol):
         """Get message bus metrics."""
         ...
 
+
 # ============================================================================
 # PROCESSING INFRASTRUCTURE
 # ============================================================================
@@ -119,6 +131,7 @@ class BusManagerProtocol(ServiceProtocol):
 # NOTE: Processor protocols moved to protocols/processors/
 # - AgentProcessorProtocol: Main coordinator for all states
 # - ProcessorProtocol: Base for state processors
+
 
 class IdentityVarianceMonitorProtocol(ServiceProtocol):
     """Protocol for monitoring identity drift."""
@@ -148,6 +161,7 @@ class IdentityVarianceMonitorProtocol(ServiceProtocol):
         """Get history of identity variance."""
         ...
 
+
 class ConfigurationFeedbackLoopProtocol(ServiceProtocol):
     """Protocol for configuration feedback and learning."""
 
@@ -171,9 +185,11 @@ class ConfigurationFeedbackLoopProtocol(ServiceProtocol):
         """Apply learned configuration."""
         ...
 
+
 # ============================================================================
 # ADAPTER INFRASTRUCTURE
 # ============================================================================
+
 
 class AdapterManagerProtocol(ServiceProtocol):
     """Protocol for managing platform adapters."""
@@ -203,9 +219,11 @@ class AdapterManagerProtocol(ServiceProtocol):
         """Route message to appropriate adapter."""
         ...
 
+
 # ============================================================================
 # PERSISTENCE INFRASTRUCTURE
 # ============================================================================
+
 
 class PersistenceManagerProtocol(ServiceProtocol):
     """Protocol for managing data persistence."""
@@ -230,9 +248,11 @@ class PersistenceManagerProtocol(ServiceProtocol):
         """Clean up old data."""
         ...
 
+
 # ============================================================================
 # REGISTRY INFRASTRUCTURE
 # ============================================================================
+
 
 class ServiceRegistryProtocol(ServiceProtocol):
     """Protocol for service discovery and registration."""

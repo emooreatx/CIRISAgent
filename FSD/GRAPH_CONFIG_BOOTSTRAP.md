@@ -142,7 +142,7 @@ After (Dynamic Config):
 class SecretsService:
     def __init__(self, config: ConfigAccessor):
         self.config = config
-        
+
     async def get_db_path(self):
         return await self.config.get("database.secrets_db")
 ```

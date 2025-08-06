@@ -1,19 +1,27 @@
 """Configuration schema for Discord adapter."""
 
+from typing import TYPE_CHECKING, Any, List, Optional
+
 from pydantic import BaseModel, Field
-from typing import List, Optional, TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     pass
+
 
 class DiscordAdapterConfig(BaseModel):
     """Configuration for the Discord adapter."""
 
     bot_token: Optional[str] = Field(default=None, description="Discord bot token")
 
-    monitored_channel_ids: List[str] = Field(default_factory=list, description="List of Discord channel IDs to monitor for incoming messages")
-    home_channel_id: Optional[str] = Field(default=None, description="Home channel ID for wakeup and primary agent communication")
-    deferral_channel_id: Optional[str] = Field(default=None, description="Channel ID for Discord deferrals and guidance from WA")
+    monitored_channel_ids: List[str] = Field(
+        default_factory=list, description="List of Discord channel IDs to monitor for incoming messages"
+    )
+    home_channel_id: Optional[str] = Field(
+        default=None, description="Home channel ID for wakeup and primary agent communication"
+    )
+    deferral_channel_id: Optional[str] = Field(
+        default=None, description="Channel ID for Discord deferrals and guidance from WA"
+    )
 
     respond_to_mentions: bool = Field(default=True, description="Respond when the bot is mentioned")
     respond_to_dms: bool = Field(default=True, description="Respond to direct messages")
@@ -25,9 +33,13 @@ class DiscordAdapterConfig(BaseModel):
     message_rate_limit: float = Field(default=1.0, description="Minimum seconds between messages")
     max_messages_per_minute: int = Field(default=30, description="Maximum messages per minute")
 
-    allowed_user_ids: List[str] = Field(default_factory=list, description="List of allowed user IDs (empty = all users)")
+    allowed_user_ids: List[str] = Field(
+        default_factory=list, description="List of allowed user IDs (empty = all users)"
+    )
     allowed_role_ids: List[str] = Field(default_factory=list, description="List of allowed role IDs")
-    admin_user_ids: List[str] = Field(default_factory=list, description="List of admin user IDs with elevated permissions")
+    admin_user_ids: List[str] = Field(
+        default_factory=list, description="List of admin user IDs with elevated permissions"
+    )
 
     status: str = Field(default="online", description="Bot status: online, idle, dnd, invisible")
     activity_type: str = Field(default="watching", description="Activity type: playing, watching, listening, streaming")
@@ -40,6 +52,7 @@ class DiscordAdapterConfig(BaseModel):
     def get_intents(self) -> Any:
         """Get Discord intents based on configuration."""
         import discord
+
         intents = discord.Intents.default()
         intents.message_content = self.enable_message_content
         intents.guild_messages = self.enable_guild_messages
@@ -47,8 +60,8 @@ class DiscordAdapterConfig(BaseModel):
 
         # Additional intents needed for full functionality
         intents.reactions = True  # For reaction handling (approvals/deferrals)
-        intents.members = True    # For member info and user profiles
-        intents.guilds = True     # For guild info
+        intents.members = True  # For member info and user profiles
+        intents.guilds = True  # For guild info
 
         # Note: When inviting the bot to a server, ensure these permissions are granted:
         # - Send Messages
@@ -67,6 +80,7 @@ class DiscordAdapterConfig(BaseModel):
     def get_status(self) -> Any:
         """Get Discord status based on configuration."""
         import discord
+
         status_map = {
             "online": discord.Status.online,
             "idle": discord.Status.idle,
@@ -82,24 +96,24 @@ class DiscordAdapterConfig(BaseModel):
         if self.monitored_channel_ids:
             return self.monitored_channel_ids[0]  # Default to first monitored channel if no explicit home channel
         return None
-    
+
     def get_formatted_startup_channel_id(self, guild_id: Optional[str] = None) -> Optional[str]:
         """Get the formatted startup channel ID with discord_ prefix.
-        
+
         Args:
             guild_id: Optional guild ID to include in format
-            
+
         Returns:
             Formatted channel ID like 'discord_channelid' or 'discord_guildid_channelid'
         """
         home_channel = self.get_home_channel_id()
         if not home_channel:
             return None
-            
+
         # If already formatted, return as-is
-        if home_channel.startswith('discord_'):
+        if home_channel.startswith("discord_"):
             return home_channel
-            
+
         # Format with guild ID if provided
         if guild_id:
             return f"discord_{guild_id}_{home_channel}"
@@ -145,5 +159,3 @@ class DiscordAdapterConfig(BaseModel):
         if env_admin:
             if env_admin not in self.admin_user_ids:
                 self.admin_user_ids.append(env_admin)
-
-

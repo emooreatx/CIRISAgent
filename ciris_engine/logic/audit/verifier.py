@@ -5,19 +5,25 @@ Provides comprehensive verification of audit log integrity including
 hash chains, digital signatures, and root anchoring.
 """
 
-import sqlite3
 import logging
+import sqlite3
 from typing import List, Optional
-from .hash_chain import AuditHashChain
-from .signature_manager import AuditSignatureManager
+
 from ciris_engine.protocols.services.lifecycle import TimeServiceProtocol
 from ciris_engine.schemas.audit.verification import (
-    SignatureVerificationResult, CompleteVerificationResult,
-    EntryVerificationResult, RangeVerificationResult,
-    VerificationReport, RootAnchorVerificationResult
+    CompleteVerificationResult,
+    EntryVerificationResult,
+    RangeVerificationResult,
+    RootAnchorVerificationResult,
+    SignatureVerificationResult,
+    VerificationReport,
 )
 
+from .hash_chain import AuditHashChain
+from .signature_manager import AuditSignatureManager
+
 logger = logging.getLogger(__name__)
+
 
 class AuditVerifier:
     """Verifies audit log integrity and detects tampering"""
@@ -56,7 +62,7 @@ class AuditVerifier:
                 hash_chain_valid=False,
                 signatures_valid=False,
                 verification_time_ms=0,
-                error=summary.error
+                error=summary.error,
             )
 
         total_entries = summary.total_entries
@@ -67,7 +73,7 @@ class AuditVerifier:
                 hash_chain_valid=True,
                 signatures_valid=True,
                 verification_time_ms=0,
-                summary="Empty audit log"
+                summary="Empty audit log",
             )
 
         # Verify hash chain integrity
@@ -91,13 +97,15 @@ class AuditVerifier:
             verification_time_ms=verification_time,
             hash_chain_errors=chain_result.errors,
             signature_errors=signature_result.errors,
-            chain_summary=summary.model_dump() if summary else None
+            chain_summary=summary.model_dump() if summary else None,
         )
 
         if overall_valid:
             logger.info(f"Audit verification passed: {total_entries} entries in {verification_time}ms")
         else:
-            logger.error(f"Audit verification FAILED: {len(chain_result.errors)} hash + {len(signature_result.errors)} signature errors")
+            logger.error(
+                f"Audit verification FAILED: {len(chain_result.errors)} hash + {len(signature_result.errors)} signature errors"
+            )
 
         return result
 
@@ -111,10 +119,7 @@ class AuditVerifier:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
-            cursor.execute(
-                "SELECT * FROM audit_log WHERE entry_id = ?",
-                (entry_id,)
-            )
+            cursor.execute("SELECT * FROM audit_log WHERE entry_id = ?", (entry_id,))
 
             row = cursor.fetchone()
             conn.close()
@@ -125,7 +130,7 @@ class AuditVerifier:
                     entry_id=entry_id,
                     hash_valid=False,
                     previous_hash_valid=False,
-                    errors=[f"Entry {entry_id} not found"]
+                    errors=[f"Entry {entry_id} not found"],
                 )
 
             entry = dict(row)
@@ -138,7 +143,7 @@ class AuditVerifier:
                 entry_id=entry_id,
                 hash_valid=False,
                 previous_hash_valid=False,
-                errors=[f"Database error: {e}"]
+                errors=[f"Database error: {e}"],
             )
 
     def verify_range(self, start_seq: int, end_seq: int) -> RangeVerificationResult:
@@ -157,7 +162,7 @@ class AuditVerifier:
         # Extract values from result objects
         chain_valid = chain_result.valid
         entries_checked = chain_result.entries_checked
-        chain_errors = chain_result.errors if hasattr(chain_result, 'errors') else []
+        chain_errors = chain_result.errors if hasattr(chain_result, "errors") else []
 
         return RangeVerificationResult(
             valid=chain_valid and signature_result.valid,
@@ -166,8 +171,8 @@ class AuditVerifier:
             entries_verified=entries_checked,
             hash_chain_valid=chain_valid,
             signatures_valid=signature_result.valid,
-            errors=chain_errors + (signature_result.errors if hasattr(signature_result, 'errors') else []),
-            verification_time_ms=0
+            errors=chain_errors + (signature_result.errors if hasattr(signature_result, "errors") else []),
+            verification_time_ms=0,
         )
 
     def find_tampering_fast(self) -> Optional[int]:
@@ -190,9 +195,7 @@ class AuditVerifier:
 
         # Verify signature
         signature_valid = self.signature_manager.verify_signature(
-            entry["entry_hash"],
-            entry["signature"],
-            entry["signing_key_id"]
+            entry["entry_hash"], entry["signature"], entry["signing_key_id"]
         )
         if not signature_valid:
             errors.append(f"Invalid signature for entry {entry['entry_id']}")
@@ -209,7 +212,7 @@ class AuditVerifier:
             hash_valid=hash_valid,
             signature_valid=signature_valid,
             previous_hash_valid=previous_hash_valid,
-            errors=errors
+            errors=errors,
         )
 
     def _verify_all_signatures(self) -> SignatureVerificationResult:
@@ -219,11 +222,13 @@ class AuditVerifier:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT entry_id, entry_hash, signature, signing_key_id
                 FROM audit_log
                 ORDER BY sequence_number
-            """)
+            """
+            )
 
             entries = cursor.fetchall()
             conn.close()
@@ -233,9 +238,7 @@ class AuditVerifier:
 
             for entry in entries:
                 if self.signature_manager.verify_signature(
-                    entry["entry_hash"],
-                    entry["signature"],
-                    entry["signing_key_id"]
+                    entry["entry_hash"], entry["signature"], entry["signing_key_id"]
                 ):
                     verified_count += 1
                 else:
@@ -246,17 +249,13 @@ class AuditVerifier:
                 entries_signed=len(entries),
                 entries_verified=verified_count,
                 errors=errors,
-                untrusted_keys=[]
+                untrusted_keys=[],
             )
 
         except sqlite3.Error as e:
             logger.error(f"Database error verifying signatures: {e}")
             return SignatureVerificationResult(
-                valid=False,
-                entries_signed=0,
-                entries_verified=0,
-                errors=[f"Database error: {e}"],
-                untrusted_keys=[]
+                valid=False, entries_signed=0, entries_verified=0, errors=[f"Database error: {e}"], untrusted_keys=[]
             )
 
     def _verify_signatures_in_range(self, start_seq: int, end_seq: int) -> SignatureVerificationResult:
@@ -266,12 +265,15 @@ class AuditVerifier:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT entry_id, entry_hash, signature, signing_key_id
                 FROM audit_log
                 WHERE sequence_number >= ? AND sequence_number <= ?
                 ORDER BY sequence_number
-            """, (start_seq, end_seq))
+            """,
+                (start_seq, end_seq),
+            )
 
             entries = cursor.fetchall()
             conn.close()
@@ -281,9 +283,7 @@ class AuditVerifier:
 
             for entry in entries:
                 if self.signature_manager.verify_signature(
-                    entry["entry_hash"],
-                    entry["signature"],
-                    entry["signing_key_id"]
+                    entry["entry_hash"], entry["signature"], entry["signing_key_id"]
                 ):
                     verified_count += 1
                 else:
@@ -294,17 +294,13 @@ class AuditVerifier:
                 entries_signed=len(entries),
                 entries_verified=verified_count,
                 errors=errors,
-                untrusted_keys=[]
+                untrusted_keys=[],
             )
 
         except sqlite3.Error as e:
             logger.error(f"Database error verifying range signatures: {e}")
             return SignatureVerificationResult(
-                valid=False,
-                entries_signed=0,
-                entries_verified=0,
-                errors=[f"Database error: {e}"],
-                untrusted_keys=[]
+                valid=False, entries_signed=0, entries_verified=0, errors=[f"Database error: {e}"], untrusted_keys=[]
             )
 
     def get_verification_report(self) -> VerificationReport:
@@ -329,7 +325,7 @@ class AuditVerifier:
             signing_key_info=key_info,
             tampering_detected=first_tampered is not None,
             first_tampered_sequence=first_tampered,
-            recommendations=[]
+            recommendations=[],
         )
 
         if not verification_result.valid:
@@ -356,21 +352,20 @@ class AuditVerifier:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT root_id, sequence_start, sequence_end, root_hash, timestamp
                 FROM audit_roots
                 ORDER BY sequence_start
-            """)
+            """
+            )
 
             roots = cursor.fetchall()
             conn.close()
 
             if not roots:
                 return RootAnchorVerificationResult(
-                    valid=True,
-                    verified_count=0,
-                    total_count=0,
-                    message="No root anchors found"
+                    valid=True, verified_count=0, total_count=0, message="No root anchors found"
                 )
 
             errors: List[str] = []
@@ -382,20 +377,16 @@ class AuditVerifier:
                 if range_result.valid:
                     verified_count += 1
                 else:
-                    errors.append(f"Root {root['root_id']} invalid: range {root['sequence_start']}-{root['sequence_end']} compromised")
+                    errors.append(
+                        f"Root {root['root_id']} invalid: range {root['sequence_start']}-{root['sequence_end']} compromised"
+                    )
 
             return RootAnchorVerificationResult(
-                valid=len(errors) == 0,
-                verified_count=verified_count,
-                total_count=len(roots),
-                errors=errors
+                valid=len(errors) == 0, verified_count=verified_count, total_count=len(roots), errors=errors
             )
 
         except sqlite3.Error as e:
             logger.error(f"Database error verifying root anchors: {e}")
             return RootAnchorVerificationResult(
-                valid=False,
-                verified_count=0,
-                total_count=0,
-                errors=[f"Database error: {e}"]
+                valid=False, verified_count=0, total_count=0, errors=[f"Database error: {e}"]
             )

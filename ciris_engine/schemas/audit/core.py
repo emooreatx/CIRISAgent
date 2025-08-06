@@ -8,10 +8,12 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import List, Optional, Tuple
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class AuditEventType(str, Enum):
     """Types of audit events"""
+
     # Handler actions
     HANDLER_ACTION_SPEAK = "handler_action_speak"
     HANDLER_ACTION_MEMORIZE = "handler_action_memorize"
@@ -31,15 +33,19 @@ class AuditEventType(str, Enum):
     SERVICE_LIFECYCLE = "service_lifecycle"
     ERROR_EVENT = "error_event"
 
+
 class EventOutcome(str, Enum):
     """Outcome of an audited event"""
+
     SUCCESS = "success"
     FAILURE = "failure"
     PARTIAL = "partial"
     SKIPPED = "skipped"
 
+
 class EventPayload(BaseModel):
     """Typed event payload data"""
+
     action: Optional[str] = Field(default=None, description="Action taken")
     result: Optional[str] = Field(default=None, description="Result of action")
     error: Optional[str] = Field(default=None, description="Error message if failed")
@@ -50,10 +56,12 @@ class EventPayload(BaseModel):
     channel_id: Optional[str] = Field(default=None, description="Channel involved")
     service_name: Optional[str] = Field(default=None, description="Service involved")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class AuditEvent(BaseModel):
     """Schema for audit events"""
+
     event_type: AuditEventType = Field(description="Type of audit event")
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Event timestamp")
     thought_id: Optional[str] = Field(default=None, description="Associated thought ID")
@@ -62,10 +70,12 @@ class AuditEvent(BaseModel):
     event_data: EventPayload = Field(description="Structured event data")
     outcome: EventOutcome = Field(default=EventOutcome.SUCCESS, description="Event outcome")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class AuditLogEntry(BaseModel):
     """Schema for audit log entries"""
+
     event_id: str = Field(description="Unique event identifier")
     event_timestamp: datetime = Field(description="When event occurred")
     event_type: str = Field(description="Type of event")
@@ -84,10 +94,12 @@ class AuditLogEntry(BaseModel):
     previous_hash: Optional[str] = Field(default=None, description="Hash of previous entry for tamper detection")
     entry_hash: Optional[str] = Field(default=None, description="Hash of this entry")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class AuditSummary(BaseModel):
     """Summary statistics for audit entries"""
+
     total_events: int = Field(ge=0, description="Total number of events")
     events_by_type: List[Tuple[str, int]] = Field(default_factory=list, description="Count by event type")
     events_by_outcome: List[Tuple[str, int]] = Field(default_factory=list, description="Count by outcome")
@@ -98,10 +110,12 @@ class AuditSummary(BaseModel):
     earliest_event: Optional[datetime] = Field(default=None, description="Timestamp of earliest event")
     latest_event: Optional[datetime] = Field(default=None, description="Timestamp of latest event")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class AuditQuery(BaseModel):
     """Query parameters for audit log search"""
+
     event_types: Optional[List[AuditEventType]] = Field(default=None, description="Filter by event types")
     start_time: Optional[datetime] = Field(default=None, description="Start of time range")
     end_time: Optional[datetime] = Field(default=None, description="End of time range")
@@ -111,7 +125,8 @@ class AuditQuery(BaseModel):
     outcome: Optional[EventOutcome] = Field(default=None, description="Filter by outcome")
     limit: int = Field(default=100, ge=1, le=1000, description="Maximum results to return")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 __all__ = [
     "AuditEventType",

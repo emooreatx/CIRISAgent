@@ -1,21 +1,17 @@
 """Unit tests for WA Authentication Service."""
 
+import os
+import tempfile
+from datetime import datetime, timezone
+
 import pytest
 import pytest_asyncio
-import tempfile
-import os
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
 
 from ciris_engine.logic.services.infrastructure.authentication import AuthenticationService
 from ciris_engine.logic.services.lifecycle.time import TimeService
+from ciris_engine.schemas.services.authority.wise_authority import WAUpdate
+from ciris_engine.schemas.services.authority_core import JWTSubType, WACertificate, WARole
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
-from ciris_engine.schemas.services.authority_core import (
-    WACertificate, ChannelIdentity, AuthorizationContext, WARole, TokenType, JWTSubType
-)
-from ciris_engine.schemas.services.authority.wise_authority import (
-    AuthenticationResult, WAUpdate, TokenVerification
-)
 
 
 @pytest.fixture
@@ -27,7 +23,7 @@ def time_service():
 @pytest.fixture
 def temp_db():
     """Create a temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
     yield db_path
     os.unlink(db_path)
@@ -36,11 +32,7 @@ def temp_db():
 @pytest_asyncio.fixture
 async def auth_service(temp_db, time_service):
     """Create a WA authentication service for testing."""
-    service = AuthenticationService(
-        db_path=temp_db,
-        time_service=time_service,
-        key_dir=None  # Will use default
-    )
+    service = AuthenticationService(db_path=temp_db, time_service=time_service, key_dir=None)  # Will use default
     await service.start()
     yield service
     await service.stop()
@@ -67,7 +59,7 @@ async def test_wa_certificate_creation(auth_service):
         pubkey=auth_service._encode_public_key(public_key),
         jwt_kid="test-kid",
         scopes_json='["read:any", "write:message"]',
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
 
     # Store the certificate
@@ -104,11 +96,7 @@ async def test_channel_token_creation(auth_service):
     observer = await auth_service._create_adapter_observer(adapter_id, "Test Observer")
 
     # Create channel token
-    token = await auth_service.create_channel_token(
-        wa_id=observer.wa_id,
-        channel_id="test-channel",
-        ttl=3600
-    )
+    token = await auth_service.create_channel_token(wa_id=observer.wa_id, channel_id="test-channel", ttl=3600)
 
     assert token is not None
     assert len(token) > 0
@@ -134,7 +122,7 @@ async def test_gateway_token_creation(auth_service):
         pubkey=auth_service._encode_public_key(public_key),
         jwt_kid="gateway-kid",
         scopes_json='["read:self", "write:self"]',
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
 
     await auth_service._store_wa_certificate(wa)
@@ -167,16 +155,13 @@ async def test_wa_update(auth_service):
         pubkey=auth_service._encode_public_key(public_key),
         jwt_kid="update-kid",
         scopes_json='["read:self"]',
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
 
     await auth_service._store_wa_certificate(wa)
 
     # Update the WA
-    update = WAUpdate(
-        name="Updated Name",
-        permissions=["read:self", "write:self"]
-    )
+    update = WAUpdate(name="Updated Name", permissions=["read:self", "write:self"])
 
     updated = await auth_service.update_wa("wa-2025-06-24-UPDT01", updates=update)
 
@@ -198,7 +183,7 @@ async def test_wa_revocation(auth_service):
         pubkey=auth_service._encode_public_key(public_key),
         jwt_kid="revoke-kid",
         scopes_json='["read:self"]',
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
 
     await auth_service._store_wa_certificate(wa)
@@ -235,7 +220,7 @@ async def test_keypair_generation(auth_service):
     private_key, public_key = auth_service.generate_keypair()
 
     assert len(private_key) == 32  # Ed25519 private key is 32 bytes
-    assert len(public_key) == 32   # Ed25519 public key is 32 bytes
+    assert len(public_key) == 32  # Ed25519 public key is 32 bytes
 
 
 @pytest.mark.asyncio
@@ -301,7 +286,7 @@ async def test_last_login_update(auth_service):
         jwt_kid="login-kid",
         scopes_json='["read:self"]',
         created_at=datetime.now(timezone.utc),
-        last_auth=None
+        last_auth=None,
     )
 
     await auth_service._store_wa_certificate(wa)
@@ -328,7 +313,7 @@ async def test_list_all_was(auth_service):
             pubkey=auth_service._encode_public_key(public_key),
             jwt_kid=f"list-kid-{i}",
             scopes_json='["read:self"]',
-            created_at=datetime.now(timezone.utc)
+            created_at=datetime.now(timezone.utc),
         )
         await auth_service._store_wa_certificate(wa)
 
@@ -346,7 +331,7 @@ async def test_jwt_expiration_extraction(auth_service):
     """Test that JWT expiration is correctly extracted from tokens."""
     # Create a test WA
     private_key, public_key = auth_service.generate_keypair()
-    
+
     wa = WACertificate(
         wa_id="wa-2025-06-24-EXPTST",
         name="Expiration Test WA",
@@ -354,27 +339,28 @@ async def test_jwt_expiration_extraction(auth_service):
         pubkey=auth_service._encode_public_key(public_key),
         jwt_kid="exp-test-kid",
         scopes_json='["read", "write"]',
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
-    
+
     await auth_service._store_wa_certificate(wa)
-    
+
     # Create token with specific expiration
     token = auth_service.create_gateway_token(wa, expires_hours=2)
-    
+
     # Decode to get expected expiration
     import jwt
+
     decoded = jwt.decode(token, options={"verify_signature": False})
-    expected_exp = datetime.fromtimestamp(decoded['exp'], tz=timezone.utc)
-    
+    expected_exp = datetime.fromtimestamp(decoded["exp"], tz=timezone.utc)
+
     # Verify token and check expiration
     verification = await auth_service.verify_token(token)
-    
+
     assert verification is not None
     assert verification.valid is True
     assert verification.wa_id == wa.wa_id
     assert verification.expires_at == expected_exp
-    
+
     # Test token without expiration (long-lived observer token)
     observer = WACertificate(
         wa_id="wa-2025-06-24-OBSEX1",
@@ -384,14 +370,14 @@ async def test_jwt_expiration_extraction(auth_service):
         jwt_kid="obs-exp-kid",
         scopes_json='["observe"]',
         created_at=datetime.now(timezone.utc),
-        adapter_id="test_adapter"
+        adapter_id="test_adapter",
     )
-    
+
     await auth_service._store_wa_certificate(observer)
-    
+
     # Create channel token with no expiration (ttl=0)
     channel_token = await auth_service.create_channel_token(observer.wa_id, "test_channel", ttl=0)
-    
+
     # Verify it handles missing expiration gracefully
     channel_verification = await auth_service.verify_token(channel_token)
     assert channel_verification is not None

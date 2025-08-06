@@ -9,27 +9,33 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class FilterPriority(str, Enum):
     """Message priority levels for agent attention"""
-    CRITICAL = "critical"      # DMs, @mentions, name mentions
-    HIGH = "high"             # New users, suspicious patterns
-    MEDIUM = "medium"         # Random sampling, periodic health checks
-    LOW = "low"               # Normal traffic
-    IGNORE = "ignore"         # Filtered out completely
+
+    CRITICAL = "critical"  # DMs, @mentions, name mentions
+    HIGH = "high"  # New users, suspicious patterns
+    MEDIUM = "medium"  # Random sampling, periodic health checks
+    LOW = "low"  # Normal traffic
+    IGNORE = "ignore"  # Filtered out completely
+
 
 class TriggerType(str, Enum):
     """Types of filter triggers"""
-    REGEX = "regex"           # Regular expression pattern
-    COUNT = "count"           # Numeric threshold (e.g., emoji count)
-    LENGTH = "length"         # Message length threshold
-    FREQUENCY = "frequency"   # Message frequency (count:seconds)
-    CUSTOM = "custom"         # Custom logic (e.g., is_dm)
-    SEMANTIC = "semantic"     # Meaning-based (requires LLM)
+
+    REGEX = "regex"  # Regular expression pattern
+    COUNT = "count"  # Numeric threshold (e.g., emoji count)
+    LENGTH = "length"  # Message length threshold
+    FREQUENCY = "frequency"  # Message frequency (count:seconds)
+    CUSTOM = "custom"  # Custom logic (e.g., is_dm)
+    SEMANTIC = "semantic"  # Meaning-based (requires LLM)
+
 
 class FilterTrigger(BaseModel):
     """Individual filter trigger definition"""
+
     trigger_id: str = Field(description="Unique identifier")
     name: str = Field(description="Human-readable name")
     pattern_type: TriggerType = Field(description="Type of pattern matching")
@@ -50,10 +56,12 @@ class FilterTrigger(BaseModel):
     # For learned patterns
     learned_from: Optional[str] = Field(default=None, description="Source of learned pattern")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class UserTrustProfile(BaseModel):
     """Track user behavior for adaptive filtering"""
+
     user_id: str = Field(description="Unique user identifier")
     message_count: int = Field(default=0, description="Total messages from user")
     violation_count: int = Field(default=0, description="Count of policy violations")
@@ -68,10 +76,12 @@ class UserTrustProfile(BaseModel):
     avg_message_interval: float = Field(default=0.0, description="Average seconds between messages")
     common_triggers: List[str] = Field(default_factory=list, description="Commonly triggered filters")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class ConversationHealth(BaseModel):
     """Metrics for conversation health monitoring"""
+
     channel_id: str = Field(description="Unique channel identifier")
     sample_rate: float = Field(default=0.1, ge=0.0, le=1.0, description="Sampling rate for messages")
     health_score: float = Field(default=0.5, ge=0.0, le=1.0, description="Overall health score")
@@ -87,17 +97,21 @@ class ConversationHealth(BaseModel):
     samples_today: int = Field(default=0, description="Samples taken today")
     issues_detected: int = Field(default=0, description="Issues found in samples")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class ContextHint(BaseModel):
     """Typed context hint for filter results"""
+
     key: str = Field(description="Context key")
     value: str = Field(description="Context value")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class FilterResult(BaseModel):
     """Result of filtering a message"""
+
     message_id: str = Field(description="ID of filtered message")
     priority: FilterPriority = Field(description="Assigned priority")
     triggered_filters: List[str] = Field(default_factory=list, description="IDs of triggered filters")
@@ -108,23 +122,24 @@ class FilterResult(BaseModel):
     suggested_action: Optional[str] = Field(default=None, description="Suggested action to take")
     context_hints: List[ContextHint] = Field(default_factory=list, description="Additional context")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class ChannelConfig(BaseModel):
     """Channel-specific filter configuration"""
+
     channel_id: str = Field(description="Unique channel identifier")
     health: ConversationHealth = Field(description="Health monitoring settings")
     custom_triggers: List[str] = Field(default_factory=list, description="Channel-specific trigger IDs")
     sample_rate_override: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Override sample rate")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class AdaptiveFilterConfig(BaseModel):
     """Complete filter configuration stored in graph memory"""
-    config_id: str = Field(
-        default="filter_config",
-        description="Unique configuration ID"
-    )
+
+    config_id: str = Field(default="filter_config", description="Unique configuration ID")
     version: int = Field(default=1, description="Configuration version")
 
     # Core attention triggers (agent always sees these)
@@ -141,7 +156,9 @@ class AdaptiveFilterConfig(BaseModel):
 
     # User tracking
     new_user_threshold: int = Field(default=5, description="Messages before user is trusted")
-    user_profiles: Dict[str, UserTrustProfile] = Field(default_factory=dict, description="User trust profiles by user ID")
+    user_profiles: Dict[str, UserTrustProfile] = Field(
+        default_factory=dict, description="User trust profiles by user ID"
+    )
 
     # Adaptive learning settings
     auto_adjust: bool = Field(default=True, description="Enable automatic adjustments")
@@ -154,38 +171,48 @@ class AdaptiveFilterConfig(BaseModel):
     total_messages_processed: int = Field(default=0, description="Total messages filtered")
     total_issues_caught: int = Field(default=0, description="Total issues detected")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class PriorityStats(BaseModel):
     """Statistics by priority level"""
+
     priority: FilterPriority = Field(description="Priority level")
     count: int = Field(default=0, description="Number of messages at this priority")
     percentage: float = Field(default=0.0, ge=0.0, le=100.0, description="Percentage of total")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class TriggerStats(BaseModel):
     """Statistics by trigger type"""
+
     trigger_type: TriggerType = Field(description="Type of trigger")
     count: int = Field(default=0, description="Number of times triggered")
     percentage: float = Field(default=0.0, ge=0.0, le=100.0, description="Percentage of total")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class FilterStats(BaseModel):
     """Statistics for filter performance monitoring"""
+
     total_messages_processed: int = Field(default=0, description="Total messages processed")
     total_filtered: int = Field(default=0, description="Total messages filtered")
     by_priority: Dict[FilterPriority, int] = Field(default_factory=dict, description="Message count by priority")
     by_trigger_type: Dict[TriggerType, int] = Field(default_factory=dict, description="Trigger count by type")
     false_positive_reports: int = Field(default=0, description="Reported false positives")
     true_positive_confirmations: int = Field(default=0, description="Confirmed true positives")
-    last_reset: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="When stats were reset")
+    last_reset: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc), description="When stats were reset"
+    )
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class FilterHealth(BaseModel):
     """Overall health metrics for the filtering system"""
+
     is_healthy: bool = Field(default=True, description="Whether system is healthy")
     warnings: List[str] = Field(default_factory=list, description="Active warnings")
     errors: List[str] = Field(default_factory=list, description="Active errors")
@@ -193,11 +220,12 @@ class FilterHealth(BaseModel):
     config_version: int = Field(default=1, description="Current config version")
     last_updated: datetime = Field(default_factory=lambda: datetime.now(timezone.utc), description="Last update time")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
 
 
 class FilterServiceMetadata(BaseModel):
     """Metadata for adaptive filter service capabilities."""
+
     description: str = Field(..., description="Service description")
     features: List[str] = Field(..., description="List of features supported")
     filter_types: List[str] = Field(..., description="Types of filters supported")

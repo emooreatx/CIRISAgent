@@ -1,15 +1,18 @@
 """
 Incident Capture Handler for capturing WARNING and ERROR level log messages as incidents.
 """
-import logging
+
 import asyncio
+import logging
 import traceback
 import uuid
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any, Optional
+
 from ciris_engine.protocols.services import TimeServiceProtocol
 from ciris_engine.schemas.services.graph.incident import IncidentNode, IncidentSeverity, IncidentStatus
-from ciris_engine.schemas.services.graph_core import NodeType, GraphScope
+from ciris_engine.schemas.services.graph_core import GraphScope, NodeType
+
 
 class IncidentCaptureHandler(logging.Handler):
     """
@@ -17,7 +20,13 @@ class IncidentCaptureHandler(logging.Handler):
     These incidents are stored in the graph for analysis, pattern detection, and self-improvement.
     """
 
-    def __init__(self, log_dir: str = "logs", filename_prefix: str = "incidents", time_service: Optional[TimeServiceProtocol] = None, graph_audit_service: Any = None) -> None:
+    def __init__(
+        self,
+        log_dir: str = "logs",
+        filename_prefix: str = "incidents",
+        time_service: Optional[TimeServiceProtocol] = None,
+        graph_audit_service: Any = None,
+    ) -> None:
         super().__init__()
         if not time_service:
             raise RuntimeError("CRITICAL: TimeService is required for IncidentCaptureHandler")
@@ -34,11 +43,11 @@ class IncidentCaptureHandler(logging.Handler):
         # Create symlink to latest dead letter log
         self.latest_link = self.log_dir / f"{filename_prefix}_latest.log"
         self._create_symlink()
-        
+
         # Store the actual incident log filename for the telemetry endpoint
         actual_incident_path = self.log_dir / ".current_incident_log"
         try:
-            with open(actual_incident_path, 'w') as f:
+            with open(actual_incident_path, "w") as f:
                 f.write(str(self.log_file.absolute()))
         except Exception:
             pass
@@ -48,13 +57,13 @@ class IncidentCaptureHandler(logging.Handler):
 
         # Use a detailed format for dead letter messages
         formatter = logging.Formatter(
-            '%(asctime)s.%(msecs)03d - %(levelname)-8s - %(name)s - %(filename)s:%(lineno)d - %(message)s',
-            datefmt='%Y-%m-%d %H:%M:%S'
+            "%(asctime)s.%(msecs)03d - %(levelname)-8s - %(name)s - %(filename)s:%(lineno)d - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
         )
         self.setFormatter(formatter)
 
         # Write header to the file
-        with open(self.log_file, 'w') as f:
+        with open(self.log_file, "w") as f:
             f.write(f"=== Incident Log Started at {self._time_service.now_iso()} ===\n")
             f.write("=== This file contains WARNING and ERROR messages captured as incidents ===\n\n")
 
@@ -84,16 +93,17 @@ class IncidentCaptureHandler(logging.Handler):
             # Add extra context for errors
             if record.levelno >= logging.ERROR and record.exc_info:
                 import traceback
+
                 msg += "\nException Traceback:\n"
-                msg += ''.join(traceback.format_exception(*record.exc_info))
+                msg += "".join(traceback.format_exception(*record.exc_info))
 
             # Write to file with proper encoding
-            with open(self.log_file, 'a', encoding='utf-8') as f:
-                f.write(msg + '\n')
+            with open(self.log_file, "a", encoding="utf-8") as f:
+                f.write(msg + "\n")
 
                 # Add separator for ERROR and CRITICAL messages
                 if record.levelno >= logging.ERROR:
-                    f.write('-' * 80 + '\n')
+                    f.write("-" * 80 + "\n")
 
             # The IncidentManagementService will read from the incidents log file during dream cycles
 
@@ -108,10 +118,10 @@ class IncidentCaptureHandler(logging.Handler):
             severity = self._map_log_level_to_severity(record.levelno)
 
             # Extract correlation data from extra fields if available
-            correlation_id = getattr(record, 'correlation_id', None)
-            task_id = getattr(record, 'task_id', None)
-            thought_id = getattr(record, 'thought_id', None)
-            handler_name = getattr(record, 'handler_name', None)
+            correlation_id = getattr(record, "correlation_id", None)
+            task_id = getattr(record, "task_id", None)
+            thought_id = getattr(record, "thought_id", None)
+            handler_name = getattr(record, "handler_name", None)
 
             # Create incident node
             incident = IncidentNode(
@@ -125,43 +135,35 @@ class IncidentCaptureHandler(logging.Handler):
                 description=record.getMessage(),
                 source_component=record.name,
                 detected_at=self._time_service.now(),
-
                 # Correlation data
                 correlation_id=correlation_id,
                 task_id=task_id,
                 thought_id=thought_id,
                 handler_name=handler_name,
-
                 # Technical details
                 filename=record.filename,
                 line_number=record.lineno,
                 function_name=record.funcName,
-
                 # Exception data if present
                 exception_type=record.exc_info[0].__name__ if record.exc_info and record.exc_info[0] else None,
-                stack_trace=''.join(traceback.format_exception(*record.exc_info)) if record.exc_info else None,
-
+                stack_trace="".join(traceback.format_exception(*record.exc_info)) if record.exc_info else None,
                 # Impact assessment (to be enhanced by analysis)
                 impact="TBD",
                 urgency=self._calculate_urgency(severity),
-                
                 # Required base fields
                 updated_by="incident_capture_handler",
-                updated_at=self._time_service.now()
+                updated_at=self._time_service.now(),
             )
 
             # Store incident node directly in graph via memory bus
             # The graph audit service has a memory_bus we can use
-            if hasattr(self._graph_audit_service, '_memory_bus') and self._graph_audit_service._memory_bus:
+            if hasattr(self._graph_audit_service, "_memory_bus") and self._graph_audit_service._memory_bus:
                 from ciris_engine.schemas.services.operations import MemoryOpStatus
+
                 result = await self._graph_audit_service._memory_bus.memorize(
                     node=incident.to_graph_node(),
                     handler_name="incident_capture_handler",
-                    metadata={
-                        "source": "logging",
-                        "captured_from": record.name,
-                        "auto_captured": True
-                    }
+                    metadata={"source": "logging", "captured_from": record.name, "auto_captured": True},
                 )
                 if result.status != MemoryOpStatus.OK:
                     logging.getLogger(__name__).error(f"Failed to store incident in graph: {result.error}")
@@ -189,21 +191,21 @@ class IncidentCaptureHandler(logging.Handler):
             IncidentSeverity.CRITICAL: "IMMEDIATE",
             IncidentSeverity.HIGH: "HIGH",
             IncidentSeverity.MEDIUM: "MEDIUM",
-            IncidentSeverity.LOW: "LOW"
+            IncidentSeverity.LOW: "LOW",
         }
         return urgency_map.get(severity, "MEDIUM")
-    
+
     def set_graph_audit_service(self, graph_audit_service: Any) -> None:
         """Set the graph audit service for storing incidents in the graph.
-        
+
         This is called after service initialization when the GraphAuditService
         is available.
         """
         self._graph_audit_service = graph_audit_service
         logging.getLogger(__name__).info("Graph audit service injected into incident capture handler")
-        
+
         # Process any pending incidents now that we have the service
-        if hasattr(self, '_pending_incidents') and self._pending_incidents:
+        if hasattr(self, "_pending_incidents") and self._pending_incidents:
             # Try to process them if we're in an async context
             try:
                 loop = asyncio.get_running_loop()
@@ -215,11 +217,14 @@ class IncidentCaptureHandler(logging.Handler):
                 # Still no event loop, keep them queued
                 pass
 
-def add_incident_capture_handler(logger_instance: Optional[logging.Logger] = None,
-                               log_dir: str = "logs",
-                               filename_prefix: str = "incidents",
-                               time_service: Optional[TimeServiceProtocol] = None,
-                               graph_audit_service: Any = None) -> IncidentCaptureHandler:
+
+def add_incident_capture_handler(
+    logger_instance: Optional[logging.Logger] = None,
+    log_dir: str = "logs",
+    filename_prefix: str = "incidents",
+    time_service: Optional[TimeServiceProtocol] = None,
+    graph_audit_service: Any = None,
+) -> IncidentCaptureHandler:
     """
     Add an incident capture handler to the specified logger or root logger.
 
@@ -235,7 +240,12 @@ def add_incident_capture_handler(logger_instance: Optional[logging.Logger] = Non
     """
     if not time_service:
         raise RuntimeError("CRITICAL: TimeService is required for add_incident_capture_handler")
-    handler = IncidentCaptureHandler(log_dir=log_dir, filename_prefix=filename_prefix, time_service=time_service, graph_audit_service=graph_audit_service)
+    handler = IncidentCaptureHandler(
+        log_dir=log_dir,
+        filename_prefix=filename_prefix,
+        time_service=time_service,
+        graph_audit_service=graph_audit_service,
+    )
 
     target_logger = logger_instance or logging.getLogger()
     target_logger.addHandler(handler)
@@ -247,42 +257,46 @@ def add_incident_capture_handler(logger_instance: Optional[logging.Logger] = Non
     return handler
 
 
-def inject_graph_audit_service_to_handlers(graph_audit_service: Any, logger_instance: Optional[logging.Logger] = None) -> int:
+def inject_graph_audit_service_to_handlers(
+    graph_audit_service: Any, logger_instance: Optional[logging.Logger] = None
+) -> int:
     """
     Inject the graph audit service into all existing IncidentCaptureHandler instances.
-    
+
     This should be called after the GraphAuditService has been initialized.
-    
+
     Args:
         graph_audit_service: The initialized GraphAuditService instance
         logger_instance: The logger to search for handlers (None for root logger)
-        
+
     Returns:
         Number of handlers that were updated
     """
     inject_logger = logging.getLogger(__name__)
     target_logger = logger_instance or logging.getLogger()
     updated_count = 0
-    
+
     # Search all handlers in the logger hierarchy
     loggers_to_check = [target_logger]
-    
+
     # Also check all existing loggers
     for name in logging.Logger.manager.loggerDict:
         logger_obj = logging.getLogger(name)
         if logger_obj not in loggers_to_check:
             loggers_to_check.append(logger_obj)
-    
+
     for logger_obj in loggers_to_check:
         for handler in logger_obj.handlers:
             if isinstance(handler, IncidentCaptureHandler):
                 handler.set_graph_audit_service(graph_audit_service)
                 updated_count += 1
                 inject_logger.info(f"Injected graph audit service into handler for logger: {logger_obj.name}")
-    
+
     if updated_count == 0:
         inject_logger.warning("No IncidentCaptureHandler instances found to inject graph audit service")
     else:
-        inject_logger.info(f"Successfully injected graph audit service into {updated_count} incident capture handler(s)")
-    
+        inject_logger.info(
+            f"Successfully injected graph audit service into {updated_count} incident capture handler(s)"
+        )
+
     return updated_count

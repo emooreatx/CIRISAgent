@@ -1,15 +1,16 @@
 """Unit tests for Secrets Service."""
 
-import pytest
-import tempfile
 import os
-from unittest.mock import MagicMock, patch
+import tempfile
+from unittest.mock import patch
+
+import pytest
 
 from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.logic.services.lifecycle.time import TimeService
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
-from ciris_engine.schemas.secrets.core import SecretReference, SecretRecord
+from ciris_engine.schemas.secrets.core import SecretReference
 from ciris_engine.schemas.secrets.service import SecretRecallResult
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 
 
 @pytest.fixture
@@ -21,7 +22,7 @@ def time_service():
 @pytest.fixture
 def temp_db():
     """Create a temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
     yield db_path
     os.unlink(db_path)
@@ -34,7 +35,7 @@ def secrets_service(temp_db, time_service):
     service = SecretsService(
         time_service=time_service,
         db_path=temp_db,
-        master_key=b'test-master-key-32-bytes-long!!!'  # 32 bytes for AES-256
+        master_key=b"test-master-key-32-bytes-long!!!",  # 32 bytes for AES-256
     )
     return service
 
@@ -57,8 +58,7 @@ async def test_secrets_service_store_and_retrieve(secrets_service):
     # Process text containing an API key (which will be detected by default patterns)
     text_with_secret = "My api_key: sk-1234567890abcdefghij and it's important"
     filtered_text, secret_refs = await secrets_service.process_incoming_text(
-        text=text_with_secret,
-        source_message_id="test-msg-1"
+        text=text_with_secret, source_message_id="test-msg-1"
     )
 
     # Check that secret was detected and replaced
@@ -77,9 +77,7 @@ async def test_secrets_service_store_and_retrieve(secrets_service):
 
         # Retrieve the secret
         recall_result = await secrets_service.recall_secret(
-            secret_uuid=secret_ref.uuid,
-            purpose="test retrieval",
-            decrypt=True
+            secret_uuid=secret_ref.uuid, purpose="test retrieval", decrypt=True
         )
         assert isinstance(recall_result, SecretRecallResult)
         assert recall_result.found is True
@@ -95,8 +93,7 @@ async def test_secrets_service_filter_string(secrets_service):
 
     # Process the string
     filtered, secret_refs = await secrets_service.process_incoming_text(
-        text=test_string,
-        source_message_id="test_context"
+        text=test_string, source_message_id="test_context"
     )
 
     # Check if any secrets were detected
@@ -140,8 +137,6 @@ async def test_secrets_service_delete_secret(secrets_service):
     assert retrieved is None
 
 
-
-
 @pytest.mark.asyncio
 async def test_secrets_service_reencrypt_all(secrets_service):
     """Test re-encrypting all secrets with new key."""
@@ -154,7 +149,7 @@ async def test_secrets_service_reencrypt_all(secrets_service):
     assert val1 == "secret-value-1"
 
     # Re-encrypt with a new key
-    new_key = b'new-test-master-key-32-bytes!!!!'  # 32 bytes
+    new_key = b"new-test-master-key-32-bytes!!!!"  # 32 bytes
     success = await secrets_service.reencrypt_all(new_key)
     assert success is True
 
@@ -232,11 +227,7 @@ async def test_secrets_service_duplicate_detection(secrets_service):
 async def test_secrets_service_invalid_reference(secrets_service):
     """Test handling of invalid secret references."""
     # Try to retrieve non-existent secret
-    result = await secrets_service.recall_secret(
-        secret_uuid="nonexistent-uuid",
-        purpose="test invalid",
-        decrypt=True
-    )
+    result = await secrets_service.recall_secret(secret_uuid="nonexistent-uuid", purpose="test invalid", decrypt=True)
     assert result is None or result.found is False
 
     # Try to delete non-existent secret
@@ -248,8 +239,7 @@ async def test_secrets_service_invalid_reference(secrets_service):
 async def test_secrets_service_encryption_error_handling(secrets_service):
     """Test handling of encryption errors."""
     # Mock encryption to fail on the store
-    with patch.object(secrets_service.store, 'encrypt_secret',
-                     side_effect=Exception("Encryption failed")):
+    with patch.object(secrets_service.store, "encrypt_secret", side_effect=Exception("Encryption failed")):
 
         # Store should handle error gracefully
         try:
@@ -269,7 +259,7 @@ async def test_secrets_service_pattern_detection(secrets_service):
         ("Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9", True),  # Matches bearer_token
         ("-----BEGIN RSA PRIVATE KEY-----", True),  # Matches private_key
         ("normal text without secrets", False),
-        ("The temperature is 25 degrees", False)
+        ("The temperature is 25 degrees", False),
     ]
 
     for text, should_contain_secrets in test_cases:

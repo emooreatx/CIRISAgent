@@ -4,14 +4,16 @@ Adapter protocols for the CIRIS Trinity Architecture.
 These protocols define contracts for platform adapters.
 Adapters are the interfaces between CIRIS and external platforms.
 """
-from typing import Callable, Dict, Optional, Any
+
 from abc import abstractmethod
+from typing import Any, Callable, Dict, Optional
 
 from ciris_engine.protocols.runtime.base import BaseAdapterProtocol
 
 # ============================================================================
 # PLATFORM ADAPTER PROTOCOLS
 # ============================================================================
+
 
 class APIAdapterProtocol(BaseAdapterProtocol):
     """Protocol for REST API adapter."""
@@ -41,6 +43,7 @@ class APIAdapterProtocol(BaseAdapterProtocol):
         """Get metrics for each route."""
         ...
 
+
 class CLIAdapterProtocol(BaseAdapterProtocol):
     """Protocol for Command Line Interface adapter."""
 
@@ -68,6 +71,7 @@ class CLIAdapterProtocol(BaseAdapterProtocol):
     def set_output_format(self, format: str) -> None:
         """Set output format (text, json, table)."""
         ...
+
 
 class DiscordAdapterProtocol(BaseAdapterProtocol):
     """Protocol for Discord bot adapter."""
@@ -97,9 +101,11 @@ class DiscordAdapterProtocol(BaseAdapterProtocol):
         """Get configuration for a specific guild."""
         ...
 
+
 # ============================================================================
 # FUTURE ADAPTER PROTOCOLS
 # ============================================================================
+
 
 class SlackAdapterProtocol(BaseAdapterProtocol):
     """Protocol for Slack adapter (future)."""
@@ -108,6 +114,7 @@ class SlackAdapterProtocol(BaseAdapterProtocol):
     async def handle_event(self, event: dict) -> None:
         """Handle Slack event."""
         ...
+
 
 class WebSocketAdapterProtocol(BaseAdapterProtocol):
     """Protocol for WebSocket adapter (future)."""
@@ -121,6 +128,7 @@ class WebSocketAdapterProtocol(BaseAdapterProtocol):
     async def broadcast_message(self, message: Any) -> None:
         """Broadcast message to all connected clients."""
         ...
+
 
 class MatrixAdapterProtocol(BaseAdapterProtocol):
     """Protocol for Matrix protocol adapter (future)."""

@@ -1,59 +1,48 @@
 """Service protocols package - organized by functional area."""
 
 # Re-export base protocols from runtime
-from ..runtime.base import (
-    ServiceProtocol,
-    ServiceProtocol as Service,  # Alias for backward compatibility
-    GraphServiceProtocol,
-    CoreServiceProtocol,
-    VisibilityServiceProtocol as BaseVisibilityServiceProtocol,
-)
+from ..runtime.base import CoreServiceProtocol, GraphServiceProtocol
+from ..runtime.base import ServiceProtocol  # Alias for backward compatibility
+from ..runtime.base import ServiceProtocol as Service
+from ..runtime.base import VisibilityServiceProtocol as BaseVisibilityServiceProtocol
+
+# Adaptation service protocols - self-improvement
+from .adaptation import SelfObservationServiceProtocol
+
+# Governance service protocols - security and oversight
+from .governance import AdaptiveFilterServiceProtocol
+from .governance import CommunicationServiceProtocol as CommunicationService
+from .governance import VisibilityServiceProtocol
+from .governance import WiseAuthorityServiceProtocol as WiseAuthorityService
 
 # Graph service protocols - data persistence layer
-from .graph import (
-    MemoryServiceProtocol as MemoryService,
-    AuditServiceProtocol as AuditService,
-    TelemetryServiceProtocol as TelemetryService,
-    GraphConfigServiceProtocol as ConfigService,
-)
+from .graph import AuditServiceProtocol as AuditService
+from .graph import GraphConfigServiceProtocol as ConfigService
+from .graph import MemoryServiceProtocol as MemoryService
+from .graph import TelemetryServiceProtocol as TelemetryService
 
-# Runtime service protocols - core operations
-from .runtime import (
-    LLMServiceProtocol as LLMService,
-    ToolServiceProtocol as ToolService,
-    SecretsServiceProtocol as SecretsService,
-    RuntimeControlServiceProtocol as RuntimeControlService,
-)
+# Infrastructure service protocols
+from .infrastructure import AuthenticationServiceProtocol
 
 # Lifecycle service protocols - system state management
 from .lifecycle import (
-    TimeServiceProtocol,
-    ShutdownServiceProtocol,
     InitializationServiceProtocol,
+    ShutdownServiceProtocol,
     TaskSchedulerServiceProtocol,
+    TimeServiceProtocol,
 )
 
-# Infrastructure service protocols
-from .infrastructure import (
-    AuthenticationServiceProtocol,
-)
+# Runtime service protocols - core operations
+from .runtime import LLMServiceProtocol as LLMService
+from .runtime import RuntimeControlServiceProtocol as RuntimeControlService
+from .runtime import SecretsServiceProtocol as SecretsService
+from .runtime import ToolServiceProtocol as ToolService
 
-# Governance service protocols - security and oversight
-from .governance import (
-    WiseAuthorityServiceProtocol as WiseAuthorityService,
-    VisibilityServiceProtocol,
-    AdaptiveFilterServiceProtocol,
-    CommunicationServiceProtocol as CommunicationService,
-)
-
-# Adaptation service protocols - self-improvement
-from .adaptation import (
-    SelfObservationServiceProtocol,
-)
 
 # Legacy protocol for compatibility
 class GraphMemoryServiceProtocol(ServiceProtocol):
     """Legacy protocol for graph memory service operations."""
+
 
 __all__ = [
     # Base protocols

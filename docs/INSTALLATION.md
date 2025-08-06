@@ -383,7 +383,7 @@ async def test_discord():
     if not os.getenv('DISCORD_BOT_TOKEN'):
         print('⚠️  Discord token not configured')
         return
-    
+
     try:
         client = discord.Client()
         await client.login(os.getenv('DISCORD_BOT_TOKEN'))

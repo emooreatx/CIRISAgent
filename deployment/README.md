@@ -51,6 +51,6 @@ DISCORD_BOT_TOKEN=your-token
 
 This deployment follows the "forward only" principle:
 - No staged containers
-- No complex deployment scripts  
+- No complex deployment scripts
 - No backwards compatibility
 - Just clean, simple, agent-respecting deployment

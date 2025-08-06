@@ -4,28 +4,29 @@ Shutdown processor for graceful agent shutdown.
 This processor implements the SHUTDOWN state handling by creating
 a standard task that the agent processes through normal cognitive flow.
 """
+
 import logging
 import uuid
-from typing import Optional, List, TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, List, Optional
 
-from ciris_engine.logic.processors.core.base_processor import BaseProcessor
-from ciris_engine.schemas.processors.states import AgentState
-from ciris_engine.schemas.processors.results import ShutdownResult
-from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
-from ciris_engine.schemas.runtime.models import Task
-from ciris_engine.schemas.runtime.extended import ShutdownContext
-from ciris_engine.schemas.runtime.models import TaskContext
 from ciris_engine.logic import persistence
-from ciris_engine.logic.utils.shutdown_manager import get_shutdown_manager
 from ciris_engine.logic.config import ConfigAccessor
+from ciris_engine.logic.processors.core.base_processor import BaseProcessor
 from ciris_engine.logic.processors.core.thought_processor import ThoughtProcessor
 from ciris_engine.logic.processors.support.thought_manager import ThoughtManager
+from ciris_engine.logic.utils.shutdown_manager import get_shutdown_manager
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.processors.results import ShutdownResult
+from ciris_engine.schemas.processors.states import AgentState
+from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
+from ciris_engine.schemas.runtime.extended import ShutdownContext
+from ciris_engine.schemas.runtime.models import Task, TaskContext
 
 if TYPE_CHECKING:
     from ciris_engine.logic.infrastructure.handlers.action_dispatcher import ActionDispatcher
 
 logger = logging.getLogger(__name__)
+
 
 class ShutdownProcessor(BaseProcessor):
     """
@@ -54,10 +55,7 @@ class ShutdownProcessor(BaseProcessor):
         # Initialize thought manager for seed thought generation
         # Use config accessor to get limits
         max_active_thoughts = 50  # Default, could get from config_accessor if needed
-        self.thought_manager = ThoughtManager(
-            time_service=self._time_service,
-            max_active_thoughts=max_active_thoughts
-        )
+        self.thought_manager = ThoughtManager(time_service=self._time_service, max_active_thoughts=max_active_thoughts)
 
     def get_supported_states(self) -> List[AgentState]:
         """We only handle SHUTDOWN state."""
@@ -82,17 +80,18 @@ class ShutdownProcessor(BaseProcessor):
         shutdown_ready = result.get("shutdown_ready", False) or result.get("status") == "completed"
         errors = 1 if result.get("status") == "error" else 0
 
-        logger.info(f"ShutdownProcessor.process: status={result.get('status')}, shutdown_ready from dict={result.get('shutdown_ready')}, final shutdown_ready={shutdown_ready}")
+        logger.info(
+            f"ShutdownProcessor.process: status={result.get('status')}, shutdown_ready from dict={result.get('shutdown_ready')}, final shutdown_ready={shutdown_ready}"
+        )
 
         shutdown_result = ShutdownResult(
-            tasks_cleaned=tasks_cleaned,
-            shutdown_ready=shutdown_ready,
-            errors=errors,
-            duration_seconds=duration
+            tasks_cleaned=tasks_cleaned, shutdown_ready=shutdown_ready, errors=errors, duration_seconds=duration
         )
 
         # Log the result we're returning
-        logger.info(f"ShutdownProcessor returning: shutdown_ready={shutdown_result.shutdown_ready}, full result={shutdown_result}")
+        logger.info(
+            f"ShutdownProcessor returning: shutdown_ready={shutdown_result.shutdown_ready}, full result={shutdown_result}"
+        )
 
         return shutdown_result
 
@@ -112,10 +111,7 @@ class ShutdownProcessor(BaseProcessor):
             current_task = persistence.get_task_by_id(self.shutdown_task.task_id)
             if not current_task:
                 logger.error("Shutdown task disappeared!")
-                return {
-                    "status": "error",
-                    "message": "Shutdown task not found"
-                }
+                return {"status": "error", "message": "Shutdown task not found"}
 
             # If task is pending, activate it
             if current_task.status == TaskStatus.PENDING:
@@ -148,7 +144,7 @@ class ShutdownProcessor(BaseProcessor):
                         "status": "completed",
                         "action": "shutdown_accepted",
                         "message": "Agent acknowledged shutdown",
-                        "shutdown_ready": True  # Add this field that main processor checks
+                        "shutdown_ready": True,  # Add this field that main processor checks
                     }
                     logger.info("✓ Shutdown task completed - agent accepted shutdown")
                     # Signal the runtime to proceed with shutdown
@@ -157,6 +153,7 @@ class ShutdownProcessor(BaseProcessor):
                     # Already reported completion, just wait
                     logger.debug(f"Shutdown already complete, self.shutdown_complete = {self.shutdown_complete}")
                     import asyncio
+
                     await asyncio.sleep(1.0)
                 return self.shutdown_result or {"status": "shutdown_complete", "reason": "system shutdown"}
             elif current_task.status == TaskStatus.FAILED:
@@ -173,15 +170,12 @@ class ShutdownProcessor(BaseProcessor):
                 "status": "in_progress",
                 "task_status": current_task.status.value,
                 "thoughts": thought_statuses,
-                "message": "Waiting for agent response"
+                "message": "Waiting for agent response",
             }
 
         except Exception as e:
             logger.error(f"Error in shutdown processor: {e}", exc_info=True)
-            return {
-                "status": "error",
-                "message": str(e)
-            }
+            return {"status": "error", "message": str(e)}
 
     async def _create_shutdown_task(self) -> None:
         """Create the shutdown task."""
@@ -191,19 +185,26 @@ class ShutdownProcessor(BaseProcessor):
         reason = shutdown_manager.get_shutdown_reason() or "Graceful shutdown requested"
 
         # Check if this is an emergency shutdown (force=True)
-        is_emergency = shutdown_manager.is_force_shutdown() if hasattr(shutdown_manager, 'is_force_shutdown') else False
+        is_emergency = shutdown_manager.is_force_shutdown() if hasattr(shutdown_manager, "is_force_shutdown") else False
 
         # For emergency shutdown, verify the requester has root or authority role
         if is_emergency and self.auth_service:
-            requester_wa_id = shutdown_manager.get_requester_wa_id() if hasattr(shutdown_manager, 'get_requester_wa_id') else None
+            requester_wa_id = (
+                shutdown_manager.get_requester_wa_id() if hasattr(shutdown_manager, "get_requester_wa_id") else None
+            )
             if requester_wa_id:
                 requester_wa = await self.auth_service.get_wa(requester_wa_id)
                 if requester_wa:
                     from ciris_engine.schemas.services.authority_core import WARole
+
                     if requester_wa.role not in [WARole.ROOT, WARole.AUTHORITY]:
-                        logger.error(f"Emergency shutdown requested by {requester_wa.role.value} {requester_wa_id} - DENIED")
+                        logger.error(
+                            f"Emergency shutdown requested by {requester_wa.role.value} {requester_wa_id} - DENIED"
+                        )
                         # Reject the emergency shutdown
-                        raise ValueError(f"Emergency shutdown requires ROOT or AUTHORITY role, not {requester_wa.role.value}")
+                        raise ValueError(
+                            f"Emergency shutdown requires ROOT or AUTHORITY role, not {requester_wa.role.value}"
+                        )
                     logger.info(f"Emergency shutdown authorized by {requester_wa.role.value} {requester_wa_id}")
                 else:
                     logger.error(f"Emergency shutdown requester {requester_wa_id} not found")
@@ -216,14 +217,14 @@ class ShutdownProcessor(BaseProcessor):
         # Create task context with shutdown details and proper channel context
         # Get channel ID from runtime if available
         channel_id = None
-        if self.runtime and hasattr(self.runtime, 'startup_channel_id'):
+        if self.runtime and hasattr(self.runtime, "startup_channel_id"):
             channel_id = self.runtime.startup_channel_id
-        elif self.runtime and hasattr(self.runtime, 'get_primary_channel_id'):
+        elif self.runtime and hasattr(self.runtime, "get_primary_channel_id"):
             channel_id = self.runtime.get_primary_channel_id()
 
         # If no channel ID available, try to get from communication bus
         if not channel_id:
-            comm_bus = self.services.get('communication_bus')
+            comm_bus = self.services.get("communication_bus")
             if comm_bus:
                 try:
                     channel_id = await comm_bus.get_default_channel()
@@ -231,7 +232,7 @@ class ShutdownProcessor(BaseProcessor):
                         logger.info(f"Using default channel from communication bus: {channel_id}")
                 except Exception as e:
                     logger.warning(f"Failed to get default channel from communication bus: {e}")
-            
+
             # Final fallback - empty string (will be handled by communication bus routing)
             if not channel_id:
                 channel_id = ""
@@ -242,7 +243,7 @@ class ShutdownProcessor(BaseProcessor):
             channel_id=channel_id,
             user_id="system",
             correlation_id=f"shutdown_{uuid.uuid4().hex[:8]}",
-            parent_task_id=None
+            parent_task_id=None,
         )
 
         # Store shutdown context in runtime for system snapshot
@@ -253,7 +254,7 @@ class ShutdownProcessor(BaseProcessor):
                 initiated_by="runtime",
                 allow_deferral=not is_emergency,  # No deferral for emergency
                 expected_reactivation=None,
-                agreement_context=None
+                agreement_context=None,
             )
 
         self.shutdown_task = Task(
@@ -278,25 +279,25 @@ class ShutdownProcessor(BaseProcessor):
         if thoughts:
             # Get the most recent thought with a final action
             for thought in reversed(thoughts):
-                if hasattr(thought, 'final_action') and thought.final_action:
+                if hasattr(thought, "final_action") and thought.final_action:
                     action = thought.final_action
-                    if action.action_type == 'REJECT':
-                        reason = action.action_params.get('reason', 'No reason provided') if isinstance(action.action_params, dict) else 'No reason provided'
+                    if action.action_type == "REJECT":
+                        reason = (
+                            action.action_params.get("reason", "No reason provided")
+                            if isinstance(action.action_params, dict)
+                            else "No reason provided"
+                        )
                         logger.warning(f"Agent REJECTED shutdown: {reason}")
                         # Human override available via emergency shutdown API with Ed25519 signature
                         return {
                             "status": "rejected",
                             "action": "shutdown_rejected",
                             "reason": reason,
-                            "message": f"Agent rejected shutdown: {reason}"
+                            "message": f"Agent rejected shutdown: {reason}",
                         }
 
         # Task failed for other reasons
-        return {
-            "status": "error",
-            "action": "shutdown_error",
-            "message": "Shutdown task failed"
-        }
+        return {"status": "error", "action": "shutdown_error", "message": "Shutdown task failed"}
 
     async def _process_shutdown_thoughts(self) -> None:
         """
@@ -318,13 +319,11 @@ class ShutdownProcessor(BaseProcessor):
         for thought in pending_thoughts:
             try:
                 # Mark as processing
-                persistence.update_thought_status(
-                    thought_id=thought.thought_id,
-                    status=ThoughtStatus.PROCESSING
-                )
+                persistence.update_thought_status(thought_id=thought.thought_id, status=ThoughtStatus.PROCESSING)
 
                 # Process through thought processor
                 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
+
                 item = ProcessingQueueItem.from_thought(thought)
 
                 # Use our process_thought_item method to handle it
@@ -341,13 +340,11 @@ class ShutdownProcessor(BaseProcessor):
                         task=task,
                         app_config=self.config,  # Use config accessor
                         round_number=0,
-                        action_type=result.selected_action if result else None
+                        action_type=result.selected_action if result else None,
                     )
 
                     await self.action_dispatcher.dispatch(
-                        action_selection_result=result,
-                        thought=thought,
-                        dispatch_context=dispatch_context
+                        action_selection_result=result, thought=thought, dispatch_context=dispatch_context
                     )
 
                     logger.info(f"Dispatched {result.selected_action} action for shutdown thought")
@@ -357,15 +354,13 @@ class ShutdownProcessor(BaseProcessor):
             except Exception as e:
                 logger.error(f"Error processing shutdown thought {thought.thought_id}: {e}", exc_info=True)
                 persistence.update_thought_status(
-                    thought_id=thought.thought_id,
-                    status=ThoughtStatus.FAILED,
-                    final_action={"error": str(e)}
+                    thought_id=thought.thought_id, status=ThoughtStatus.FAILED, final_action={"error": str(e)}
                 )
 
     def cleanup(self) -> bool:
         """Cleanup when transitioning out of SHUTDOWN state."""
         logger.info("Cleaning up shutdown processor")
         # Clear runtime shutdown context
-        if self.runtime and hasattr(self.runtime, 'current_shutdown_context'):
+        if self.runtime and hasattr(self.runtime, "current_shutdown_context"):
             self.runtime.current_shutdown_context = None
         return True

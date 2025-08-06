@@ -3,23 +3,25 @@ Correlation schemas for service tracking and TSDB capabilities.
 
 Provides type-safe correlation tracking without Dict[str, Any].
 """
-from typing import (
-    Dict,
-    List,
-    Optional
-)
-from enum import Enum
+
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict
+from enum import Enum
+from typing import Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class ServiceCorrelationStatus(str, Enum):
     """Status values for service correlations."""
+
     PENDING = "pending"
     COMPLETED = "completed"
     FAILED = "failed"
 
+
 class CorrelationType(str, Enum):
     """Types of correlations supported by the TSDB system."""
+
     SERVICE_INTERACTION = "service_interaction"
 
     METRIC_DATAPOINT = "metric_datapoint"
@@ -31,8 +33,10 @@ class CorrelationType(str, Enum):
     METRIC_DAILY_SUMMARY = "metric_daily_summary"
     LOG_HOURLY_SUMMARY = "log_hourly_summary"
 
+
 class ServiceRequestData(BaseModel):
     """Structured request data for service correlations."""
+
     service_type: str = Field(..., description="Type of service called")
     method_name: str = Field(..., description="Method that was called")
 
@@ -42,19 +46,18 @@ class ServiceRequestData(BaseModel):
     channel_id: Optional[str] = Field(None, description="Channel where request originated")
 
     # Parameters passed
-    parameters: Dict[str, str] = Field(
-        default_factory=dict,
-        description="String representation of parameters"
-    )
+    parameters: Dict[str, str] = Field(default_factory=dict, description="String representation of parameters")
 
     # Timing
     request_timestamp: datetime = Field(..., description="When request was made")
     timeout_seconds: Optional[float] = Field(None, description="Request timeout")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class ServiceResponseData(BaseModel):
     """Structured response data for service correlations."""
+
     success: bool = Field(..., description="Whether service call succeeded")
 
     # Result data
@@ -75,10 +78,12 @@ class ServiceResponseData(BaseModel):
     tokens_used: Optional[int] = Field(None, description="LLM tokens used")
     memory_bytes: Optional[int] = Field(None, description="Memory consumed")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class TraceContext(BaseModel):
     """Distributed tracing context."""
+
     trace_id: str = Field(..., description="Trace identifier")
     span_id: str = Field(..., description="Span identifier")
     parent_span_id: Optional[str] = Field(None, description="Parent span for hierarchy")
@@ -88,15 +93,14 @@ class TraceContext(BaseModel):
     span_kind: str = Field("internal", description="Span kind: internal, client, server")
 
     # Baggage
-    baggage: Dict[str, str] = Field(
-        default_factory=dict,
-        description="Propagated context values"
-    )
+    baggage: Dict[str, str] = Field(default_factory=dict, description="Propagated context values")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class MetricData(BaseModel):
     """Metric data for correlations."""
+
     metric_name: str = Field(..., description="Name of the metric")
     metric_value: float = Field(..., description="Numeric value")
     metric_unit: str = Field(..., description="Unit of measurement")
@@ -105,24 +109,20 @@ class MetricData(BaseModel):
     metric_type: str = Field("gauge", description="gauge, counter, histogram, summary")
 
     # Labels/dimensions
-    labels: Dict[str, str] = Field(
-        default_factory=dict,
-        description="Metric labels/dimensions"
-    )
+    labels: Dict[str, str] = Field(default_factory=dict, description="Metric labels/dimensions")
 
     # Statistical data (for histograms/summaries)
     min_value: Optional[float] = Field(None, description="Minimum observed")
     max_value: Optional[float] = Field(None, description="Maximum observed")
     mean_value: Optional[float] = Field(None, description="Mean value")
-    percentiles: Dict[str, float] = Field(
-        default_factory=dict,
-        description="Percentile values (e.g., p50, p95, p99)"
-    )
+    percentiles: Dict[str, float] = Field(default_factory=dict, description="Percentile values (e.g., p50, p95, p99)")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class LogData(BaseModel):
     """Log data for correlations."""
+
     log_level: str = Field(..., description="Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL")
     log_message: str = Field(..., description="Log message")
 
@@ -133,21 +133,17 @@ class LogData(BaseModel):
     line_number: int = Field(..., description="Line number")
 
     # Structured data
-    extra_fields: Dict[str, str] = Field(
-        default_factory=dict,
-        description="Additional structured log fields"
-    )
+    extra_fields: Dict[str, str] = Field(default_factory=dict, description="Additional structured log fields")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class ServiceCorrelation(BaseModel):
     """Record correlating service requests and responses with TSDB capabilities."""
+
     # Identity
     correlation_id: str = Field(..., description="Unique correlation identifier")
-    correlation_type: CorrelationType = Field(
-        CorrelationType.SERVICE_INTERACTION,
-        description="Type of correlation"
-    )
+    correlation_type: CorrelationType = Field(CorrelationType.SERVICE_INTERACTION, description="Type of correlation")
 
     # Service information
     service_type: str = Field(..., description="Type of service")
@@ -159,10 +155,7 @@ class ServiceCorrelation(BaseModel):
     response_data: Optional[ServiceResponseData] = Field(None, description="Response details")
 
     # Status tracking
-    status: ServiceCorrelationStatus = Field(
-        ServiceCorrelationStatus.PENDING,
-        description="Current status"
-    )
+    status: ServiceCorrelationStatus = Field(ServiceCorrelationStatus.PENDING, description="Current status")
 
     # Timestamps
     created_at: datetime = Field(..., description="When correlation was created")
@@ -175,10 +168,7 @@ class ServiceCorrelation(BaseModel):
     trace_context: Optional[TraceContext] = Field(None, description="For distributed tracing")
 
     # Flexible tagging for queries
-    tags: Dict[str, str] = Field(
-        default_factory=dict,
-        description="Tags for filtering/grouping"
-    )
+    tags: Dict[str, str] = Field(default_factory=dict, description="Tags for filtering/grouping")
 
     # Retention and storage
     retention_policy: str = Field("raw", description="raw, hourly_summary, daily_summary")
@@ -186,15 +176,14 @@ class ServiceCorrelation(BaseModel):
 
     # Relationships
     parent_correlation_id: Optional[str] = Field(None, description="Parent correlation if nested")
-    child_correlation_ids: List[str] = Field(
-        default_factory=list,
-        description="Child correlations"
-    )
+    child_correlation_ids: List[str] = Field(default_factory=list, description="Child correlations")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class CorrelationQuery(BaseModel):
     """Query for finding correlations."""
+
     # Time range
     start_time: Optional[datetime] = Field(None, description="Start of time range")
     end_time: Optional[datetime] = Field(None, description="End of time range")
@@ -205,14 +194,8 @@ class CorrelationQuery(BaseModel):
     statuses: Optional[List[ServiceCorrelationStatus]] = Field(None, description="Statuses to include")
 
     # Tag filters
-    required_tags: Dict[str, str] = Field(
-        default_factory=dict,
-        description="Tags that must match"
-    )
-    excluded_tags: List[str] = Field(
-        default_factory=list,
-        description="Tag keys to exclude"
-    )
+    required_tags: Dict[str, str] = Field(default_factory=dict, description="Tags that must match")
+    excluded_tags: List[str] = Field(default_factory=list, description="Tag keys to exclude")
 
     # Trace context
     trace_id: Optional[str] = Field(None, description="Find by trace ID")
@@ -225,10 +208,12 @@ class CorrelationQuery(BaseModel):
     order_by: str = Field("timestamp", description="Field to order by")
     order_desc: bool = Field(True, description="Descending order")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class CorrelationSummary(BaseModel):
     """Summary of correlations for a time period."""
+
     period_start: datetime = Field(..., description="Start of period")
     period_end: datetime = Field(..., description="End of period")
 
@@ -250,7 +235,8 @@ class CorrelationSummary(BaseModel):
     total_tokens_used: int = Field(0, description="Total LLM tokens")
     total_memory_bytes: int = Field(0, description="Total memory used")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 __all__ = [
     "ServiceCorrelationStatus",
@@ -262,5 +248,5 @@ __all__ = [
     "LogData",
     "ServiceCorrelation",
     "CorrelationQuery",
-    "CorrelationSummary"
+    "CorrelationSummary",
 ]

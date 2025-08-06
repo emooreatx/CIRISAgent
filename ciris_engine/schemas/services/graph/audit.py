@@ -3,12 +3,16 @@ Graph audit service schemas.
 
 Replaces Dict[str, Any] in audit service operations.
 """
-from typing import Dict, List, Optional, Union
+
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Dict, List, Optional, Union
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class AuditEventData(BaseModel):
     """Data for an audit event."""
+
     entity_id: str = Field("system", description="Entity involved in event")
     actor: str = Field("system", description="Actor performing the event")
     outcome: str = Field("success", description="Event outcome")
@@ -21,14 +25,15 @@ class AuditEventData(BaseModel):
 
     # Additional context
     metadata: Dict[str, Union[str, int, float, bool]] = Field(
-        default_factory=dict,
-        description="Additional event metadata"
+        default_factory=dict, description="Additional event metadata"
     )
 
     model_config = ConfigDict(extra="allow")  # Allow additional fields for flexibility
 
+
 class VerificationReport(BaseModel):
     """Audit integrity verification report."""
+
     verified: bool = Field(..., description="Whether integrity check passed")
     total_entries: int = Field(..., description="Total audit entries checked")
     valid_entries: int = Field(..., description="Entries with valid signatures")
@@ -49,16 +54,17 @@ class VerificationReport(BaseModel):
     errors: List[str] = Field(default_factory=list, description="Errors encountered")
     warnings: List[str] = Field(default_factory=list, description="Warnings encountered")
 
+
 class AuditQueryResult(BaseModel):
     """Result of an audit query."""
+
     query_type: str = Field(..., description="Type of query performed")
     total_results: int = Field(..., description="Total matching entries")
     returned_results: int = Field(..., description="Number of results returned")
 
     # Results
     entries: List[Dict[str, Union[str, int, float, bool, datetime]]] = Field(
-        default_factory=list,
-        description="Audit entries matching query"
+        default_factory=list, description="Audit entries matching query"
     )
 
     # Query metadata
@@ -67,8 +73,10 @@ class AuditQueryResult(BaseModel):
     offset: int = Field(0, description="Results offset")
     limit: Optional[int] = Field(None, description="Results limit")
 
+
 class AuditQuery(BaseModel):
     """Query parameters for audit searches."""
+
     # Time range
     start_time: Optional[datetime] = Field(None, description="Start of time range")
     end_time: Optional[datetime] = Field(None, description="End of time range")

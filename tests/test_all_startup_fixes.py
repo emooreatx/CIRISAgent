@@ -16,13 +16,14 @@ import tempfile
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
-from ciris_engine.schemas.config.essential import EssentialConfig
-from ciris_engine.logic.utils.shutdown_manager import request_global_shutdown
 import logging
 
+from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+from ciris_engine.logic.utils.shutdown_manager import request_global_shutdown
+from ciris_engine.schemas.config.essential import EssentialConfig
+
 # Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -32,7 +33,7 @@ async def test_full_startup_and_wakeup():
     with tempfile.TemporaryDirectory() as temp_dir:
         # Ensure directory is writable
         os.chmod(temp_dir, 0o777)
-        
+
         # Set environment variables for test
         os.environ["CIRIS_DATA_DIR"] = temp_dir
         os.environ["OPENAI_API_KEY"] = "test-key"
@@ -46,7 +47,7 @@ async def test_full_startup_and_wakeup():
                 startup_channel_id="test-channel",
                 adapter_configs={},
                 mock_llm=True,
-                timeout=5
+                timeout=5,
             )
 
             logger.info("Initializing runtime...")
@@ -55,15 +56,13 @@ async def test_full_startup_and_wakeup():
 
             # Start processing to test wakeup
             logger.info("Starting agent processor...")
-            processor_task = asyncio.create_task(
-                runtime.agent_processor.start_processing(num_rounds=3)
-            )
+            processor_task = asyncio.create_task(runtime.agent_processor.start_processing(num_rounds=3))
 
             # Let it run for a few seconds
             await asyncio.sleep(3)
 
             # Check status
-            if hasattr(runtime.agent_processor, 'wakeup_processor'):
+            if hasattr(runtime.agent_processor, "wakeup_processor"):
                 status = runtime.agent_processor.wakeup_processor.get_status()
                 logger.info(f"Wakeup processor status: {status}")
 

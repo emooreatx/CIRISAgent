@@ -4,33 +4,34 @@ Handler schemas for contract-driven architecture.
 Replaces Dict[str, Any] in handler contexts and results.
 """
 
-from typing import (
-    Dict,
-    Optional,
-    Union
-)
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Dict, Optional, Union
 
-from .contexts import (
-    SpeakContext, ToolContext, ObserveContext,
-    MemorizeContext, RecallContext, ForgetContext,
-    RejectContext, PonderContext, DeferContext,
-    TaskCompleteContext
-)
-from ..actions import (
-    SpeakParams as SpeakParameters,
-    ToolParams as ToolParameters,
-    ObserveParams as ObserveParameters,
-    MemorizeParams as MemorizeParameters,
-    RecallParams as RecallParameters,
-    ForgetParams as ForgetParameters,
-    RejectParams as RejectParameters,
-    PonderParams as PonderParameters,
-    DeferParams as DeferParameters,
-    TaskCompleteParams as TaskCompleteParameters
-)
-from ..services.metadata import ServiceMetadata
+from pydantic import BaseModel, ConfigDict, Field
+
+from ..actions import DeferParams as DeferParameters
+from ..actions import ForgetParams as ForgetParameters
+from ..actions import MemorizeParams as MemorizeParameters
+from ..actions import ObserveParams as ObserveParameters
+from ..actions import PonderParams as PonderParameters
+from ..actions import RecallParams as RecallParameters
+from ..actions import RejectParams as RejectParameters
+from ..actions import SpeakParams as SpeakParameters
+from ..actions import TaskCompleteParams as TaskCompleteParameters
+from ..actions import ToolParams as ToolParameters
 from ..secrets.service import DecapsulationContext
+from ..services.metadata import ServiceMetadata
+from .contexts import (
+    DeferContext,
+    ForgetContext,
+    MemorizeContext,
+    ObserveContext,
+    PonderContext,
+    RecallContext,
+    RejectContext,
+    SpeakContext,
+    TaskCompleteContext,
+    ToolContext,
+)
 
 # Union types for contexts and parameters
 ActionContext = Union[
@@ -59,30 +60,36 @@ ActionParameters = Union[
     TaskCompleteParameters,
 ]
 
+
 class HandlerContext(BaseModel):
     """Typed context for all handlers."""
+
     action_type: str = Field(..., description="Type of action being handled")
     action_context: ActionContext = Field(..., description="Action-specific context")
     action_parameters: ActionParameters = Field(..., description="Action-specific parameters")
     metadata: ServiceMetadata = Field(..., description="Service metadata")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class HandlerResult(BaseModel):
     """Typed result from all handlers."""
+
     success: bool = Field(..., description="Whether the handler succeeded")
     message: Optional[str] = Field(None, description="Result message")
-    data: Optional[Dict[str, Union[str, int, float, bool, list]]] = Field(
-        None, description="Additional result data"
-    )
+    data: Optional[Dict[str, Union[str, int, float, bool, list]]] = Field(None, description="Additional result data")
     error: Optional[str] = Field(None, description="Error message if failed")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class HandlerDecapsulatedParams(BaseModel):
     """Schema for decapsulated handler parameters."""
+
     action_type: str = Field(..., description="Type of action being handled")
-    action_params: Dict[str, Union[str, int, float, bool, list, dict]] = Field(..., description="Decapsulated action parameters")
+    action_params: Dict[str, Union[str, int, float, bool, list, dict]] = Field(
+        ..., description="Decapsulated action parameters"
+    )
     context: DecapsulationContext = Field(..., description="Decapsulation context")
-    
-    model_config = ConfigDict(extra = "forbid")
+
+    model_config = ConfigDict(extra="forbid")

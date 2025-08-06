@@ -1,19 +1,19 @@
 import asyncio
 import logging
-import sys
 import select
-from typing import Awaitable, Callable, Optional, Set, Any, List
+import sys
+from typing import Any, Awaitable, Callable, List, Optional, Set
 
-from ciris_engine.schemas.runtime.messages import IncomingMessage
-from ciris_engine.schemas.services.filters_core import FilterResult
+from ciris_engine.logic.adapters.base_observer import BaseObserver
 from ciris_engine.logic.buses import BusManager
 from ciris_engine.logic.secrets.service import SecretsService
-from ciris_engine.logic.adapters.base_observer import BaseObserver
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.runtime.messages import IncomingMessage
 
 logger = logging.getLogger(__name__)
 
 PASSIVE_CONTEXT_LIMIT = 10
+
 
 class CLIObserver(BaseObserver[IncomingMessage]):
     """
@@ -58,7 +58,7 @@ class CLIObserver(BaseObserver[IncomingMessage]):
         try:
             # Always respect the interactive setting passed in from configuration
             # Only check for piped input if we might need to buffer it
-            
+
             # Check if stdin has data available (non-blocking)
             if sys.stdin.isatty():
                 # Interactive terminal - no piped input
@@ -71,15 +71,16 @@ class CLIObserver(BaseObserver[IncomingMessage]):
             # Only try to read if we're actually in a pipe/redirect situation
             # and there's data immediately available
             import os
-            if hasattr(sys.stdin, 'fileno'):
+
+            if hasattr(sys.stdin, "fileno"):
                 # Use os.fstat to check if stdin is a pipe or regular file
                 stat_info = os.fstat(sys.stdin.fileno())
                 import stat
-                
+
                 # Only read if it's a pipe or regular file with content
                 if stat.S_ISFIFO(stat_info.st_mode) or (stat.S_ISREG(stat_info.st_mode) and stat_info.st_size > 0):
                     logger.info("Detected piped/redirected input, buffering...")
-                    
+
                     # Read all available lines from stdin
                     while True:
                         # Use select to check if data is available with a short timeout
@@ -87,7 +88,7 @@ class CLIObserver(BaseObserver[IncomingMessage]):
                         if ready:
                             line = sys.stdin.readline()
                             if line:
-                                line = line.rstrip('\n')
+                                line = line.rstrip("\n")
                                 if line:  # Ignore empty lines
                                     self._buffered_input.append(line)
                                     logger.debug(f"Buffered input: {line}")
@@ -142,7 +143,7 @@ class CLIObserver(BaseObserver[IncomingMessage]):
 
             # Get channel ID from config or default to "cli"
             channel_id = "cli"
-            if self.config and hasattr(self.config, 'get_home_channel_id'):
+            if self.config and hasattr(self.config, "get_home_channel_id"):
                 channel_id = self.config.get_home_channel_id()
 
             msg = IncomingMessage(
@@ -204,7 +205,7 @@ class CLIObserver(BaseObserver[IncomingMessage]):
 
                 # Get channel ID from config or default to "cli"
                 channel_id = "cli"
-                if self.config and hasattr(self.config, 'get_home_channel_id'):
+                if self.config and hasattr(self.config, "get_home_channel_id"):
                     channel_id = self.config.get_home_channel_id()
 
                 msg = IncomingMessage(
@@ -224,6 +225,7 @@ class CLIObserver(BaseObserver[IncomingMessage]):
 
     async def _get_recall_ids(self, msg: IncomingMessage) -> Set[str]:
         import socket
+
         return {f"channel/{socket.gethostname()}"}
 
     def _is_cli_channel(self, channel_id: Optional[str]) -> bool:
@@ -238,17 +240,19 @@ class CLIObserver(BaseObserver[IncomingMessage]):
         if channel_id.startswith("cli_"):
             return True
 
-        if self.config and hasattr(self.config, 'get_home_channel_id'):
+        if self.config and hasattr(self.config, "get_home_channel_id"):
             config_channel = self.config.get_home_channel_id()
             if config_channel and channel_id == config_channel:
                 return True
 
         import socket
+
         hostname_channel = socket.gethostname()
         if channel_id == hostname_channel or channel_id == f"channel/{hostname_channel}":
             return True
 
         import getpass
+
         user_hostname = f"{getpass.getuser()}@{socket.gethostname()}"
         if channel_id == user_hostname:
             return True

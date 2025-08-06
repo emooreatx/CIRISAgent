@@ -3,23 +3,29 @@ Core service management schemas.
 
 Critical schemas for service container, status, and capabilities.
 """
-from typing import Dict, List, Optional, TYPE_CHECKING, Any
+
 from datetime import datetime, timezone
-from pydantic import BaseModel, Field, ConfigDict
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 if TYPE_CHECKING:
     pass
 
+
 class ServiceCapabilities(BaseModel):
     """Capabilities exposed by a service."""
+
     service_name: str = Field(..., description="Name of the service")
     actions: List[str] = Field(..., description="Actions this service can perform")
     version: str = Field(..., description="Service version")
     dependencies: List[str] = Field(default_factory=list, description="Required dependencies")
     metadata: Optional[dict] = Field(None, description="Additional capability metadata")
 
+
 class ServiceStatus(BaseModel):
     """Status information for any service."""
+
     service_name: str = Field(..., description="Name of the service")
     service_type: str = Field(..., description="Type of service")
     is_healthy: bool = Field(..., description="Whether service is healthy")
@@ -28,6 +34,7 @@ class ServiceStatus(BaseModel):
     metrics: Dict[str, float] = Field(default_factory=dict, description="Service-specific metrics")
     custom_metrics: Optional[Dict[str, float]] = Field(None, description="Additional custom metrics")
     last_health_check: Optional[datetime] = Field(None, description="Last health check time")
+
 
 class ServiceContainer(BaseModel):
     """Type-safe container for all CIRIS services."""
@@ -51,7 +58,7 @@ class ServiceContainer(BaseModel):
     core_tool_service: Optional[Any] = Field(None, description="Core tool capabilities")
     maintenance_service: Optional[Any] = Field(None, description="System maintenance service")
 
-    model_config = ConfigDict(arbitrary_types_allowed = True)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def get_service_by_type(self, service_type: str) -> Optional[List[Any]]:
         """Get services by type name."""
@@ -68,7 +75,7 @@ class ServiceContainer(BaseModel):
             "agent_config": [self.agent_config_service] if self.agent_config_service else [],
             "transaction": [self.transaction_orchestrator] if self.transaction_orchestrator else [],
             "core_tool": [self.core_tool_service] if self.core_tool_service else [],
-            "maintenance": [self.maintenance_service] if self.maintenance_service else []
+            "maintenance": [self.maintenance_service] if self.maintenance_service else [],
         }
         result = service_map.get(service_type, [])
         return result if isinstance(result, list) else []
@@ -78,8 +85,10 @@ class ServiceContainer(BaseModel):
         """Get primary audit service for backward compatibility."""
         return self.audit_services[0] if self.audit_services else None
 
+
 class RuntimeMetrics(BaseModel):
     """Runtime metrics for monitoring."""
+
     uptime_seconds: float = Field(..., description="Total uptime")
     tasks_processed: int = Field(..., description="Total tasks processed")
     thoughts_generated: int = Field(..., description="Total thoughts generated")
@@ -101,6 +110,7 @@ class RuntimeMetrics(BaseModel):
 
 class BusMessage(BaseModel):
     """Message sent through the service bus."""
+
     id: str = Field(..., description="Unique message ID")
     from_service: str = Field(..., description="Sending service")
     to_service: str = Field(..., description="Target service")
@@ -110,8 +120,10 @@ class BusMessage(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     reply_to: Optional[str] = Field(None, description="Where to send reply")
 
+
 class ServiceRegistration(BaseModel):
     """Service registration information."""
+
     service_name: str = Field(..., description="Unique service name")
     service_type: str = Field(..., description="Type of service")
     capabilities: ServiceCapabilities = Field(..., description="Service capabilities")
@@ -122,6 +134,7 @@ class ServiceRegistration(BaseModel):
     # Health check
     health_check_endpoint: Optional[str] = Field(None, description="Health check endpoint")
     last_health_check: Optional[datetime] = Field(None, description="Last health check time")
+
 
 # Re-export schemas from submodules
 

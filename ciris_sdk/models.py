@@ -1,15 +1,23 @@
 from __future__ import annotations
 
-from typing import Optional, List, Any, Dict, Union
 from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
+
 from pydantic import BaseModel, Field
 
 from .model_types import (
-    BaseAttributes, MemoryAttributes, ConfigAttributes, TelemetryAttributes,
-    ProcessorResult, AdapterConfig, LineageInfo, ProcessorStateInfo,
-    SystemConfiguration, ServiceMetadata as ServiceMetadataTyped,
-    DeferralContext, AuditContext, VerificationResult, ThoughtContent
+    AdapterConfig,
+    AuditContext,
+    BaseAttributes,
+    ConfigAttributes,
+    DeferralContext,
+    MemoryAttributes,
+    ProcessorResult,
+    ProcessorStateInfo,
 )
+from .model_types import ServiceMetadata as ServiceMetadataTyped
+from .model_types import SystemConfiguration, TelemetryAttributes, ThoughtContent, VerificationResult
+
 
 class Message(BaseModel):
     id: str
@@ -19,48 +27,59 @@ class Message(BaseModel):
     channel_id: str
     timestamp: Optional[str] = None
 
+
 # Memory Models
 class GraphNode(BaseModel):
     """Base node for the graph - everything is a memory."""
+
     id: str = Field(..., description="Unique node identifier")
     type: str = Field(..., description="Type of node")
     scope: str = Field(..., description="Scope of the node")
-    attributes: Union[BaseAttributes, MemoryAttributes, ConfigAttributes, TelemetryAttributes, dict] = Field(..., description="Node attributes")
+    attributes: Union[BaseAttributes, MemoryAttributes, ConfigAttributes, TelemetryAttributes, dict] = Field(
+        ..., description="Node attributes"
+    )
     version: int = Field(default=1, ge=1, description="Version number")
     updated_by: Optional[str] = Field(None, description="Who last updated")
     updated_at: Optional[datetime] = Field(None, description="When last updated")
-    
+
     class Config:
         # Ensure datetime serialization works
-        json_encoders = {
-            datetime: lambda v: v.isoformat() if v else None
-        }
+        json_encoders = {datetime: lambda v: v.isoformat() if v else None}
+
 
 class MemoryOpResult(BaseModel):
     """Result of memory operations."""
+
     success: bool = Field(..., description="Whether operation succeeded")
     node_id: Optional[str] = Field(None, description="ID of affected node")
     message: Optional[str] = Field(None, description="Operation message")
     error: Optional[str] = Field(None, description="Error message if failed")
 
+
 class TimelineResponse(BaseModel):
     """Temporal view of memories."""
+
     memories: List[GraphNode] = Field(..., description="Memories in chronological order")
     buckets: Dict[str, int] = Field(..., description="Memory counts by time bucket")
     start_time: datetime = Field(..., description="Start of timeline range")
     end_time: datetime = Field(..., description="End of timeline range")
     total: int = Field(..., description="Total memories in range")
 
+
 # Legacy models for backwards compatibility
 class MemoryEntry(BaseModel):
     """Deprecated: Use GraphNode instead."""
+
     key: str
     value: Any
 
+
 class MemoryScope(BaseModel):
     """Deprecated: Use GraphNode with scope field instead."""
+
     name: str
     entries: Optional[List[MemoryEntry]] = None
+
 
 # Runtime Control Models
 class ProcessorControlResponse(BaseModel):
@@ -69,6 +88,7 @@ class ProcessorControlResponse(BaseModel):
     timestamp: str
     result: Optional[ProcessorResult] = None
     error: Optional[str] = None
+
 
 class AdapterInfo(BaseModel):
     adapter_id: str
@@ -79,11 +99,15 @@ class AdapterInfo(BaseModel):
     loaded_at: str
     config_params: AdapterConfig
 
+
 class AdapterLoadRequest(BaseModel):
     adapter_type: str
     adapter_id: Optional[str] = None
-    config: Optional[AdapterConfig] = Field(default_factory=lambda: AdapterConfig(adapter_type="unknown", connection_params={}, feature_flags={}, limits={}))
+    config: Optional[AdapterConfig] = Field(
+        default_factory=lambda: AdapterConfig(adapter_type="unknown", connection_params={}, feature_flags={}, limits={})
+    )
     auto_start: bool = True
+
 
 class AdapterOperationResponse(BaseModel):
     success: bool
@@ -95,6 +119,7 @@ class AdapterOperationResponse(BaseModel):
     was_running: Optional[bool] = None
     error: Optional[str] = None
 
+
 class RuntimeStatus(BaseModel):
     processor_status: str
     active_adapters: List[str]
@@ -104,6 +129,7 @@ class RuntimeStatus(BaseModel):
     uptime_seconds: float
     last_config_change: Optional[str] = None
     health_status: str = "healthy"
+
 
 class ConfigOperationResponse(BaseModel):
     success: bool
@@ -117,8 +143,10 @@ class ConfigOperationResponse(BaseModel):
     error: Optional[str] = None
     key: Optional[str] = None  # Added for config operations
 
+
 class ConfigValue(BaseModel):
     """Represents a single configuration value."""
+
     key: str
     value: Any
     description: Optional[str] = None
@@ -126,8 +154,10 @@ class ConfigValue(BaseModel):
     last_modified: Optional[str] = None
     modified_by: Optional[str] = None
 
+
 class ConfigItem(BaseModel):
     """Represents a configuration item in list responses."""
+
     key: str
     value: Any
     description: Optional[str] = None
@@ -135,6 +165,7 @@ class ConfigItem(BaseModel):
     redacted: bool = False  # True if value was redacted due to permissions
     last_modified: Optional[str] = None
     modified_by: Optional[str] = None
+
 
 # System Telemetry Models
 class SystemHealth(BaseModel):
@@ -144,6 +175,7 @@ class SystemHealth(BaseModel):
     processor_status: str
     memory_usage_mb: float
     uptime_seconds: float
+
 
 class TelemetrySnapshot(BaseModel):
     timestamp: str
@@ -156,6 +188,7 @@ class TelemetrySnapshot(BaseModel):
     processor_state: ProcessorStateInfo
     configuration: SystemConfiguration
 
+
 class ServiceInfo(BaseModel):
     name: str
     service_type: str
@@ -165,6 +198,7 @@ class ServiceInfo(BaseModel):
     status: str
     circuit_breaker_state: str
     metadata: ServiceMetadataTyped
+
 
 class ProcessorState(BaseModel):
     is_running: bool
@@ -176,11 +210,13 @@ class ProcessorState(BaseModel):
     processor_mode: str
     idle_rounds: int
 
+
 class MetricRecord(BaseModel):
     metric_name: str
     value: float
     tags: Dict[str, str] = {}
     timestamp: str
+
 
 class DeferralInfo(BaseModel):
     deferral_id: str
@@ -191,9 +227,11 @@ class DeferralInfo(BaseModel):
     created_at: str
     resolved_at: Optional[str] = None
 
+
 # Audit Models
 class AuditEntryResponse(BaseModel):
     """Audit entry response with formatted fields."""
+
     id: str
     action: str
     actor: str
@@ -202,37 +240,47 @@ class AuditEntryResponse(BaseModel):
     signature: Optional[str] = None
     hash_chain: Optional[str] = None
 
+
 class AuditEntryDetailResponse(BaseModel):
     """Detailed audit entry with verification info."""
+
     entry: AuditEntryResponse
     verification: Optional[VerificationResult] = None
     chain_position: Optional[int] = None
     next_entry_id: Optional[str] = None
     previous_entry_id: Optional[str] = None
 
+
 class AuditEntriesResponse(BaseModel):
     """List of audit entries with cursor pagination."""
+
     entries: List[AuditEntryResponse]
     cursor: Optional[str] = None
     has_more: bool = False
     total_matches: Optional[int] = None  # Only if requested
 
+
 class AuditExportResponse(BaseModel):
     """Audit export response."""
+
     format: str
     total_entries: int
     export_url: Optional[str] = None
     export_data: Optional[str] = None
 
+
 # Telemetry Models
 class TelemetryMetricData(BaseModel):
     """Single metric data point."""
+
     timestamp: datetime
     value: float
     tags: Dict[str, str] = {}
 
+
 class TelemetryDetailedMetric(BaseModel):
     """Detailed metric information."""
+
     name: str
     current_value: float
     unit: Optional[str] = None
@@ -242,8 +290,10 @@ class TelemetryDetailedMetric(BaseModel):
     by_service: Dict[str, float] = {}
     recent_data: List[TelemetryMetricData] = []
 
+
 class TelemetrySystemOverview(BaseModel):
     """System overview combining all observability data."""
+
     # Core metrics
     uptime_seconds: float
     cognitive_state: str
@@ -270,8 +320,10 @@ class TelemetrySystemOverview(BaseModel):
     active_deferrals: int = 0
     recent_incidents: int = 0
 
+
 class TelemetryReasoningTrace(BaseModel):
     """Reasoning trace information."""
+
     trace_id: str
     task_id: Optional[str] = None
     task_description: Optional[str] = None
@@ -283,8 +335,10 @@ class TelemetryReasoningTrace(BaseModel):
     thoughts: List[ThoughtContent] = []
     outcome: Optional[str] = None
 
+
 class TelemetryLogEntry(BaseModel):
     """System log entry."""
+
     timestamp: datetime
     level: str  # DEBUG|INFO|WARNING|ERROR|CRITICAL
     service: str

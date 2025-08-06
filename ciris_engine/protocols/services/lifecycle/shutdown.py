@@ -1,9 +1,10 @@
 """Shutdown Service Protocol."""
 
-from typing import Protocol, Optional, Callable
 from abc import abstractmethod
+from typing import Callable, Optional, Protocol
 
 from ...runtime.base import ServiceProtocol
+
 
 class ShutdownServiceProtocol(ServiceProtocol, Protocol):
     """Protocol for shutdown service."""

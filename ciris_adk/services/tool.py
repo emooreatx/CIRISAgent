@@ -19,4 +19,3 @@ class ToolService(Protocol):
     ) -> Dict[str, Any]:
         """Execute a tool and return its result."""
         ...
-

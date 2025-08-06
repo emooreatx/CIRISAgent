@@ -2,11 +2,12 @@ import asyncio
 import logging
 import secrets
 from abc import ABC, abstractmethod
-from typing import Callable, Optional, TypeVar, Any
+from typing import Any, Callable, Optional, TypeVar
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T')
+T = TypeVar("T")
+
 
 class Service(ABC):
     """Abstract base class for pluggable services within the CIRIS Engine."""
@@ -20,7 +21,7 @@ class Service(ABC):
         """
         super().__init__()  # Properly initialize the ABC for Python 3.12 compatibility
         self.config = config or {}
-        self.service_name = self.__class__.__name__ # Default name
+        self.service_name = self.__class__.__name__  # Default name
         logger.info(f"Initializing service: {self.service_name}")
 
     @abstractmethod
@@ -44,7 +45,7 @@ class Service(ABC):
         jitter_range: float = 0.25,
         retryable_exceptions: tuple[type[Exception], ...] = (Exception,),
         non_retryable_exceptions: tuple[type[Exception], ...] = (),
-        **kwargs: Any
+        **kwargs: Any,
     ) -> T:
         """
         Retry an operation with exponential backoff and jitter.
@@ -125,7 +126,7 @@ class Service(ABC):
             "base_delay": 1.0,
             "max_delay": 60.0,
             "backoff_multiplier": 2.0,
-            "jitter_range": 0.25
+            "jitter_range": 0.25,
         }
 
         # Merge defaults with config

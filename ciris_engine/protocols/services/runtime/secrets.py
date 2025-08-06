@@ -1,14 +1,19 @@
 """Secrets Service Protocol."""
 
-from typing import Protocol, List, Optional, Tuple
 from abc import abstractmethod
+from typing import List, Optional, Protocol, Tuple
 
-from ...runtime.base import ServiceProtocol
 from ciris_engine.schemas.secrets.core import SecretReference
 from ciris_engine.schemas.secrets.service import (
-    DecapsulationContext, SecretRecallResult, FilterUpdateRequest, FilterUpdateResult
+    DecapsulationContext,
+    FilterUpdateRequest,
+    FilterUpdateResult,
+    SecretRecallResult,
 )
 from ciris_engine.schemas.services.core.secrets import SecretsServiceStats
+
+from ...runtime.base import ServiceProtocol
+
 
 class SecretsServiceProtocol(ServiceProtocol, Protocol):
     """Protocol for secrets service."""
@@ -34,20 +39,13 @@ class SecretsServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    async def process_incoming_text(
-        self,
-        text: str,
-        source_message_id: str
-    ) -> Tuple[str, List[SecretReference]]:
+    async def process_incoming_text(self, text: str, source_message_id: str) -> Tuple[str, List[SecretReference]]:
         """Process incoming text to detect and store secrets."""
         ...
 
     @abstractmethod
     async def decapsulate_secrets_in_parameters(
-        self,
-        action_type: str,
-        action_params: dict,
-        context: DecapsulationContext
+        self, action_type: str, action_params: dict, context: DecapsulationContext
     ) -> dict:
         """Replace secret UUIDs with decrypted values in action parameters."""
         ...
@@ -64,11 +62,7 @@ class SecretsServiceProtocol(ServiceProtocol, Protocol):
 
     @abstractmethod
     async def recall_secret(
-        self,
-        secret_uuid: str,
-        purpose: str,
-        accessor: str = "agent",
-        decrypt: bool = False
+        self, secret_uuid: str, purpose: str, accessor: str = "agent", decrypt: bool = False
     ) -> Optional["SecretRecallResult"]:
         """Recall a stored secret for agent use."""
         ...
@@ -80,9 +74,7 @@ class SecretsServiceProtocol(ServiceProtocol, Protocol):
 
     @abstractmethod
     async def update_filter_config(
-        self,
-        updates: "FilterUpdateRequest",
-        accessor: str = "agent"
+        self, updates: "FilterUpdateRequest", accessor: str = "agent"
     ) -> "FilterUpdateResult":
         """Update secrets filter configuration."""
         ...

@@ -25,14 +25,14 @@ graph TB
         SEC --> STOR[Secrets Store]
         SEC --> CTX[Context Builder]
     end
-    
+
     subgraph "Secrets Store"
         STOR --> ENC[AES-256-GCM Encryption]
         ENC --> DB[(Encrypted Database)]
         STOR --> IDX[UUID Index]
         IDX --> META[Metadata Store]
     end
-    
+
     subgraph "Agent Interface"
         CTX --> SNAP[System Snapshot]
         SNAP --> AGT[Agent Reasoning]
@@ -41,7 +41,7 @@ graph TB
         REC --> STOR
         UPD --> SEC
     end
-    
+
     subgraph "Action Pipeline"
         AGT --> ACT[Action Handlers]
         ACT --> DEC[Secret Decapsulation]
@@ -62,37 +62,37 @@ secret_patterns:
     - pattern: "(?i)api[_-]?key[s]?[\\s:=]+['\"]?([a-z0-9]{20,})['\"]?"
     - description: "API Key"
     - sensitivity: HIGH
-    
+
   tokens:
     - pattern: "(?i)bearer[\\s]+([a-z0-9\\-_.]{20,})"
     - description: "Bearer Token"
     - sensitivity: HIGH
-    
+
   passwords:
     - pattern: "(?i)password[s]?[\\s:=]+['\"]?([^\\s'\"]{8,})['\"]?"
     - description: "Password"
     - sensitivity: CRITICAL
-    
+
   urls_with_auth:
     - pattern: "https?://[^:]+:[^@]+@[^\\s]+"
     - description: "URL with Authentication"
     - sensitivity: HIGH
-    
+
   private_keys:
     - pattern: "-----BEGIN [A-Z ]+PRIVATE KEY-----"
     - description: "Private Key"
     - sensitivity: CRITICAL
-    
+
   credit_cards:
     - pattern: "\\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13})\\b"
     - description: "Credit Card Number"
     - sensitivity: CRITICAL
-    
+
   social_security:
     - pattern: "\\b\\d{3}-\\d{2}-\\d{4}\\b"
     - description: "Social Security Number"
     - sensitivity: CRITICAL
-    
+
   custom:
     - pattern: "{AGENT_DEFINED}"
     - description: "{AGENT_DEFINED}"
@@ -109,19 +109,19 @@ class SecretRecord(BaseModel):
     encryption_key_ref: str = Field(description="Reference to encryption key in secure store")
     salt: bytes = Field(description="Cryptographic salt")
     nonce: bytes = Field(description="AES-GCM nonce")
-    
+
     # Metadata (not encrypted)
     description: str = Field(description="Human-readable description")
     sensitivity_level: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]
     detected_pattern: str = Field(description="Pattern that detected this secret")
     context_hint: str = Field(description="Safe context description")
-    
+
     # Audit fields
     created_at: datetime
     last_accessed: Optional[datetime] = None
     access_count: int = 0
     source_message_id: Optional[str] = None
-    
+
     # Access control
     auto_decapsulate_for_actions: List[str] = Field(default_factory=list)
     manual_access_only: bool = False
@@ -130,21 +130,21 @@ class SecretsFilter(BaseModel):
     """Agent-configurable secrets detection rules"""
     filter_id: str = Field(description="Unique identifier for this filter set")
     version: int = Field(description="Version number for updates")
-    
+
     # Built-in patterns (always active)
     builtin_patterns_enabled: bool = True
-    
+
     # Agent-defined custom patterns
     custom_patterns: List[SecretPattern] = Field(default_factory=list)
-    
+
     # Pattern overrides
     disabled_patterns: List[str] = Field(default_factory=list)
     sensitivity_overrides: Dict[str, str] = Field(default_factory=dict)
-    
+
     # Behavioral settings
     require_confirmation_for: List[str] = Field(default=["CRITICAL"])
     auto_decrypt_for_actions: List[str] = Field(default=["speak", "tool"])
-    
+
 class SecretPattern(BaseModel):
     """Agent-defined secret detection pattern"""
     name: str = Field(description="Pattern name")
@@ -162,7 +162,7 @@ class SecretPattern(BaseModel):
 Secrets integrate natively with CIRIS graph memory operations:
 
 - **RECALL**: Can recall previously stored secrets by UUID or semantic search
-- **MEMORIZE**: Explicitly stores secrets in long-term memory across task boundaries  
+- **MEMORIZE**: Explicitly stores secrets in long-term memory across task boundaries
 - **FORGET**: Removes secrets from storage (also happens automatically after task completion)
 
 #### Automatic FORGET Behavior
@@ -220,13 +220,13 @@ Allows the agent to modify its secrets detection rules:
 class UpdateSecretsFilterParams(BaseModel):
     """Parameters for UPDATE_SECRETS_FILTER tool"""
     operation: Literal["add_pattern", "remove_pattern", "update_pattern", "get_current"]
-    
+
     # For add_pattern/update_pattern
     pattern: Optional[SecretPattern] = None
-    
-    # For remove_pattern  
+
+    # For remove_pattern
     pattern_name: Optional[str] = None
-    
+
     # For configuration changes
     config_updates: Optional[Dict[str, Any]] = None
 
@@ -236,7 +236,7 @@ class UpdateSecretsFilterParams(BaseModel):
 {
     "selected_action": "tool",
     "action_parameters": {
-        "name": "update_secrets_filter", 
+        "name": "update_secrets_filter",
         "parameters": {
             "operation": "add_pattern",
             "pattern": {
@@ -263,7 +263,7 @@ class UpdateSecretsFilterParams(BaseModel):
 
 # Update sensitivity levels
 {
-    "selected_action": "tool", 
+    "selected_action": "tool",
     "action_parameters": {
         "name": "update_secrets_filter",
         "parameters": {
@@ -297,7 +297,7 @@ When secrets are detected, they're replaced with references in the context:
     "detected_secrets": [
         {
             "uuid": "550e8400-e29b-41d4-a716-446655440000",
-            "description": "API Key", 
+            "description": "API Key",
             "context_hint": "OpenAI API authentication",
             "sensitivity": "HIGH",
             "auto_decapsulate": ["speak", "tool"]
@@ -327,7 +327,7 @@ During action execution, secrets are automatically decapsulated if configured:
 
 # Before execution, automatically becomes:
 {
-    "url": "https://api.openai.com/v1/models", 
+    "url": "https://api.openai.com/v1/models",
     "headers": {
         "Authorization": "Bearer sk-abc123def456"
     }
@@ -341,18 +341,18 @@ During action execution, secrets are automatically decapsulated if configured:
 ```python
 class SecretsEncryption:
     """Handles encryption/decryption of secrets"""
-    
+
     def encrypt_secret(self, value: str) -> Tuple[bytes, bytes, bytes]:
         """
         Returns: (encrypted_value, salt, nonce)
         Uses AES-256-GCM with per-secret keys derived from master key + salt
         """
-        
+
     def decrypt_secret(self, encrypted_value: bytes, salt: bytes, nonce: bytes) -> str:
         """
         Decrypts secret value using master key + salt
         """
-        
+
     def rotate_master_key(self) -> None:
         """
         Rotates master encryption key and re-encrypts all secrets
@@ -382,11 +382,11 @@ class SecretAccessLog(BaseModel):
 ```python
 class SecretAccessControl:
     """Controls access to secrets with rate limiting"""
-    
+
     max_accesses_per_minute: int = 10
     max_accesses_per_hour: int = 100
     max_decryptions_per_hour: int = 20
-    
+
     critical_secrets_require_confirmation: bool = True
     auto_decrypt_enabled: bool = True
 ```
@@ -400,14 +400,14 @@ class SecretAccessControl:
 async def process_incoming_message(self, message: IncomingMessage) -> IncomingMessage:
     # Apply PII filter first
     filtered_message = await self.pii_filter.filter(message)
-    
+
     # Apply secrets filter
     secrets_result = await self.secrets_filter.filter(filtered_message)
-    
+
     # Store detected secrets
     for secret in secrets_result.detected_secrets:
         await self.secrets_store.store_secret(secret)
-    
+
     # Return message with secret references
     return secrets_result.filtered_message
 ```
@@ -417,12 +417,12 @@ async def process_incoming_message(self, message: IncomingMessage) -> IncomingMe
 ```python
 class SystemSnapshot(BaseModel):
     # Existing fields...
-    
+
     # New secrets information
     detected_secrets: List[SecretReference] = Field(default_factory=list)
     secrets_filter_version: int = 0
     total_secrets_stored: int = 0
-    
+
 class SecretReference(BaseModel):
     """Non-sensitive reference to a stored secret"""
     uuid: str
@@ -445,7 +445,7 @@ async def handle(self, result: ActionSelectionResult, thought: Thought, context:
         action_type=result.selected_action,
         context=context
     )
-    
+
     # Continue with normal handler logic using decapsulated parameters
     await self._execute_action(decapsulated_params, thought, context)
 ```
@@ -456,28 +456,28 @@ async def handle(self, result: ActionSelectionResult, thought: Thought, context:
 # config/secrets.yaml
 secrets:
   enabled: true
-  
+
   storage:
     database_path: "${SECRETS_DB_PATH:/var/lib/ciris/secrets.db}"
     encryption_key: "${SECRETS_MASTER_KEY}"
     key_rotation_days: 90
-    
+
   detection:
     builtin_patterns: true
     custom_patterns_enabled: true
     sensitivity_threshold: "MEDIUM"
-    
+
   access_control:
     max_accesses_per_minute: 10
     max_accesses_per_hour: 100
     max_decryptions_per_hour: 20
     require_confirmation_for: ["CRITICAL"]
-    
+
   audit:
     log_all_access: true
     log_path: "${SECRETS_AUDIT_LOG:/var/log/ciris/secrets.log}"
     retention_days: 365
-    
+
   auto_decapsulation:
     enabled: true
     allowed_actions: ["speak", "tool", "memorize"]

@@ -70,16 +70,16 @@ async def analyze_and_adapt():
     patterns = await self._detect_patterns()
     # Types detected:
     # - Temporal (tool usage by hour)
-    # - Frequency (dominant/underused actions)  
+    # - Frequency (dominant/underused actions)
     # - Performance (response time degradation)
     # - Error (recurring errors)
-    
+
     # Store patterns as insights for agent
     insights_stored = await self._store_pattern_insights(patterns)
     # Creates CONCEPT nodes with:
     # - pattern_type, description, confidence
     # - evidence, metrics, actionable flag
-    
+
     # Update learning state
     await self._update_learning_state(patterns)
     # Tracks pattern history (last 1000)
@@ -93,17 +93,17 @@ The IdentityVarianceMonitor tracks drift from baseline:
 async def check_variance():
     # Take identity snapshot
     current_snapshot = await self._take_identity_snapshot(identity)
-    
+
     # Calculate variance (simple percentage)
     variance = self._calculate_variance(baseline, current_snapshot)
     # Counts attribute differences / total attributes
-    
+
     # Trigger WA review if > 20%
     if variance > self._variance_threshold:  # 0.20
         await self._trigger_wa_review(variance_report)
         # Creates deferral through WiseBus
         # Does NOT block further changes
-    
+
     # Store snapshot
     await self._store_identity_snapshot(current_snapshot)
 ```
@@ -205,7 +205,7 @@ variance_threshold: float = 0.20          # 20% identity drift triggers WA
 adaptation_interval_hours: int = 6       # Pattern detection frequency
 stabilization_period_hours: int = 24     # Not currently used
 
-# ConfigurationFeedbackLoop  
+# ConfigurationFeedbackLoop
 analysis_interval_hours: int = 6         # How often to detect patterns
 
 # IdentityVarianceMonitor
@@ -239,7 +239,7 @@ max_snapshots: int = 100                  # History retention
 The Self-Configuration Service provides pattern detection and identity monitoring without automatic configuration changes. It:
 
 1. **Detects behavioral patterns** every 6 hours
-2. **Stores patterns as insights** for agent introspection  
+2. **Stores patterns as insights** for agent introspection
 3. **Monitors identity variance** against 20% threshold
 4. **Triggers WA review** when threshold exceeded
 5. **Does not make automatic changes** - agent decides

@@ -9,14 +9,16 @@ Provides centralized time operations that are:
 
 This replaces the time_utils.py utility with a proper service.
 """
-from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
 
-from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from datetime import datetime, timezone
+from typing import List
+
 from ciris_engine.logic.services.base_infrastructure_service import BaseInfrastructureService
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.runtime.enums import ServiceType
-from ciris_engine.schemas.services.metadata import ServiceMetadata
 from ciris_engine.schemas.services.core import ServiceCapabilities
+from ciris_engine.schemas.services.metadata import ServiceMetadata
+
 
 class TimeService(BaseInfrastructureService, TimeServiceProtocol):
     """Secure time service implementation."""
@@ -47,20 +49,18 @@ class TimeService(BaseInfrastructureService, TimeServiceProtocol):
         # Get metadata dict from parent's _get_metadata()
         service_metadata = self._get_metadata()
         metadata_dict = service_metadata.model_dump() if isinstance(service_metadata, ServiceMetadata) else {}
-        
+
         # Add infrastructure-specific metadata from parent
-        metadata_dict.update({
-            "category": "infrastructure",
-            "critical": True,
-            "description": "Provides consistent UTC time operations"
-        })
-        
+        metadata_dict.update(
+            {"category": "infrastructure", "critical": True, "description": "Provides consistent UTC time operations"}
+        )
+
         return ServiceCapabilities(
             service_name=self.service_name,
             actions=self._get_actions(),
             version=self._version,
             dependencies=list(self._dependencies),
-            metadata=metadata_dict
+            metadata=metadata_dict,
         )
 
     # Override _now to prevent circular dependency
@@ -94,11 +94,11 @@ class TimeService(BaseInfrastructureService, TimeServiceProtocol):
             float: Seconds since Unix epoch
         """
         return self.now().timestamp()
-    
+
     def get_uptime(self) -> float:
         """
         Get service uptime in seconds.
-        
+
         Returns:
             float: Seconds since service started
         """

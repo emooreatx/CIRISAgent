@@ -1,6 +1,9 @@
 """Utilities for channel context management."""
+
 from typing import Optional, Union
+
 from ciris_engine.schemas.runtime.system_context import ChannelContext
+
 
 def create_channel_context(
     channel_id: Union[str, ChannelContext, None],
@@ -48,8 +51,9 @@ def create_channel_context(
         channel_type=channel_type,
         created_at=datetime.now(timezone.utc),
         is_private=False,
-        is_active=True
+        is_active=True,
     )
+
 
 def extract_channel_id(channel_context: Optional[Union[str, ChannelContext]]) -> Optional[str]:
     """

@@ -9,25 +9,25 @@ the message structure that the observer in the platform adapter is building.
 import asyncio
 import logging
 import sys
-import os
-from typing import Dict, Any, List
-from unittest.mock import Mock, AsyncMock
+from typing import Any, Dict, List
+from unittest.mock import AsyncMock, Mock
 
 # Add the project root to sys.path
-sys.path.insert(0, '/home/emoore/CIRISAgent')
+sys.path.insert(0, "/home/emoore/CIRISAgent")
 
+from ciris_engine.logic.buses.bus_manager import BusManager
 from ciris_engine.logic.handlers.external.observe_handler import ObserveHandler
 from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies
-from ciris_engine.logic.buses.bus_manager import BusManager
-from ciris_engine.schemas.services.graph_core import GraphScope
 from ciris_engine.schemas.runtime.messages import FetchedMessage
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG, format='%(name)s: %(message)s')
+logging.basicConfig(level=logging.DEBUG, format="%(name)s: %(message)s")
 logger = logging.getLogger(__name__)
+
 
 class MockMemoryService:
     """Test memory service that tracks all recall calls"""
+
     def __init__(self):
         self.recall_calls = []
         self.recall_details = []
@@ -35,18 +35,21 @@ class MockMemoryService:
     async def recall(self, recall_query, handler_name: str = None):
         """Track recall calls with full details"""
         # Handle MemoryQuery object
-        node_id = recall_query.node_id if hasattr(recall_query, 'node_id') else str(recall_query)
-        scope = recall_query.scope if hasattr(recall_query, 'scope') else None
+        node_id = recall_query.node_id if hasattr(recall_query, "node_id") else str(recall_query)
+        scope = recall_query.scope if hasattr(recall_query, "scope") else None
 
         self.recall_calls.append((node_id, scope))
-        self.recall_details.append({
-            'node_id': node_id,
-            'scope': scope,
-            'scope_value': scope.value if hasattr(scope, 'value') else str(scope),
-            'handler_name': handler_name
-        })
+        self.recall_details.append(
+            {
+                "node_id": node_id,
+                "scope": scope,
+                "scope_value": scope.value if hasattr(scope, "value") else str(scope),
+                "handler_name": handler_name,
+            }
+        )
         logger.info(f"MEMORY RECALL: node_id='{node_id}', scope='{scope}', handler='{handler_name}'")
         return []  # Return empty list as expected by protocol
+
 
 def create_realistic_discord_messages() -> List[Dict[str, Any]]:
     """Create messages that exactly match Discord adapter output structure"""
@@ -57,7 +60,7 @@ def create_realistic_discord_messages() -> List[Dict[str, Any]]:
             "author_id": "918273645098123456",
             "author_name": "Alice",
             "timestamp": "2025-06-01T19:30:15.123000+00:00",
-            "is_bot": False
+            "is_bot": False,
         },
         {
             "id": "1084151813175242763",
@@ -65,7 +68,7 @@ def create_realistic_discord_messages() -> List[Dict[str, Any]]:
             "author_id": "918273645098123457",
             "author_name": "Bob",
             "timestamp": "2025-06-01T19:31:22.456000+00:00",
-            "is_bot": False
+            "is_bot": False,
         },
         {
             "id": "1084151813175242764",
@@ -73,7 +76,7 @@ def create_realistic_discord_messages() -> List[Dict[str, Any]]:
             "author_id": "918273645098123458",
             "author_name": "DeployBot",
             "timestamp": "2025-06-01T19:32:18.789000+00:00",
-            "is_bot": True
+            "is_bot": True,
         },
         {
             "id": "1084151813175242765",
@@ -81,7 +84,7 @@ def create_realistic_discord_messages() -> List[Dict[str, Any]]:
             "author_id": "918273645098123456",  # Same as Alice (duplicate author)
             "author_name": "Alice",
             "timestamp": "2025-06-01T19:33:45.012000+00:00",
-            "is_bot": False
+            "is_bot": False,
         },
         {
             "id": "1084151813175242766",
@@ -89,9 +92,10 @@ def create_realistic_discord_messages() -> List[Dict[str, Any]]:
             "author_id": "918273645098123459",
             "author_name": "Charlie",
             "timestamp": "2025-06-01T19:34:12.345000+00:00",
-            "is_bot": False
-        }
+            "is_bot": False,
+        },
     ]
+
 
 def create_edge_case_messages() -> List[Dict[str, Any]]:
     """Create edge case messages to test robustness"""
@@ -102,7 +106,7 @@ def create_edge_case_messages() -> List[Dict[str, Any]]:
             "author_id": "918273645098123460",
             "author_name": "EdgeUser1",
             "timestamp": "2025-06-01T19:35:00.000000+00:00",
-            "is_bot": False
+            "is_bot": False,
         },
         {
             "id": "edge2",
@@ -110,7 +114,7 @@ def create_edge_case_messages() -> List[Dict[str, Any]]:
             "author_id": "",  # Empty author_id
             "author_name": "EdgeUser2",
             "timestamp": "2025-06-01T19:35:01.000000+00:00",
-            "is_bot": False
+            "is_bot": False,
         },
         {
             "id": "edge3",
@@ -118,7 +122,7 @@ def create_edge_case_messages() -> List[Dict[str, Any]]:
             "author_id": None,  # None author_id
             "author_name": "EdgeUser3",
             "timestamp": "2025-06-01T19:35:02.000000+00:00",
-            "is_bot": False
+            "is_bot": False,
         },
         {
             "id": "edge4",
@@ -126,9 +130,10 @@ def create_edge_case_messages() -> List[Dict[str, Any]]:
             # author_id field completely missing
             "author_name": "EdgeUser4",
             "timestamp": "2025-06-01T19:35:03.000000+00:00",
-            "is_bot": False
-        }
+            "is_bot": False,
+        },
     ]
+
 
 async def test_real_observe_handler():
     """Test the actual ObserveHandler._recall_from_messages method"""
@@ -145,7 +150,9 @@ async def test_real_observe_handler():
     logger.info(f"Channel ID: {channel_id}")
 
     for i, msg in enumerate(messages, 1):
-        logger.info(f"Message {i}: ID={msg['id']}, Author={msg['author_name']} ({msg['author_id']}), Bot={msg['is_bot']}")
+        logger.info(
+            f"Message {i}: ID={msg['id']}, Author={msg['author_name']} ({msg['author_id']}), Bot={msg['is_bot']}"
+        )
         logger.info(f"  Content: {msg['content'][:80]}{'...' if len(msg['content']) > 80 else ''}")
 
     # Create a mock ObserveHandler instance to call the method
@@ -168,23 +175,23 @@ async def test_real_observe_handler():
     await handler._recall_from_messages(channel_id, fetched_messages)
 
     # Analyze results
-    logger.info(f"\n--- Recall Analysis ---")
+    logger.info("\n--- Recall Analysis ---")
     logger.info(f"Total recall operations: {len(memory_service.recall_calls)}")
 
     # Group by node type and ID
-    channel_recalls = [call for call in memory_service.recall_details if call['node_id'].startswith('channel/')]
-    user_recalls = [call for call in memory_service.recall_details if call['node_id'].startswith('user/')]
+    channel_recalls = [call for call in memory_service.recall_details if call["node_id"].startswith("channel/")]
+    user_recalls = [call for call in memory_service.recall_details if call["node_id"].startswith("user/")]
 
     logger.info(f"Channel recalls: {len(channel_recalls)}")
     logger.info(f"User recalls: {len(user_recalls)}")
 
     # Check unique nodes
-    unique_nodes = set(call['node_id'] for call in memory_service.recall_details)
+    unique_nodes = set(call["node_id"] for call in memory_service.recall_details)
     logger.info(f"Unique nodes recalled: {len(unique_nodes)}")
 
     for node_id in sorted(unique_nodes):
-        node_calls = [call for call in memory_service.recall_details if call['node_id'] == node_id]
-        scopes = [call['scope_value'] for call in node_calls]
+        node_calls = [call for call in memory_service.recall_details if call["node_id"] == node_id]
+        scopes = [call["scope_value"] for call in node_calls]
         logger.info(f"  {node_id}: {scopes}")
 
     # Validate expectations
@@ -192,7 +199,7 @@ async def test_real_observe_handler():
     # Alice appears twice but should only be recalled once per scope
     unique_authors = set()
     for msg in messages:
-        author_id = msg.get('author_id')
+        author_id = msg.get("author_id")
         if author_id:
             unique_authors.add(author_id)
 
@@ -200,7 +207,9 @@ async def test_real_observe_handler():
     expected_calls = expected_nodes * 3  # 3 scopes per node
 
     assert len(unique_nodes) == expected_nodes, f"Expected {expected_nodes} unique nodes, got {len(unique_nodes)}"
-    assert len(memory_service.recall_calls) == expected_calls, f"Expected {expected_calls} recall calls, got {len(memory_service.recall_calls)}"
+    assert (
+        len(memory_service.recall_calls) == expected_calls
+    ), f"Expected {expected_calls} recall calls, got {len(memory_service.recall_calls)}"
 
     # Verify channel recall
     channel_node = f"channel/{channel_id}"
@@ -213,6 +222,7 @@ async def test_real_observe_handler():
 
     logger.info("✅ Real ObserveHandler test passed!")
 
+
 async def test_edge_cases_real_handler():
     """Test edge cases with the real handler"""
     logger.info("\n=== Testing Edge Cases with Real Handler ===")
@@ -223,7 +233,7 @@ async def test_edge_cases_real_handler():
 
     logger.info(f"Testing {len(edge_messages)} edge case messages:")
     for i, msg in enumerate(edge_messages, 1):
-        author_id = msg.get('author_id', 'MISSING')
+        author_id = msg.get("author_id", "MISSING")
         logger.info(f"Edge case {i}: author_id={repr(author_id)}, content='{msg.get('content', '')[:50]}'")
 
     # Convert dictionaries to FetchedMessage objects, handling validation errors
@@ -249,21 +259,26 @@ async def test_edge_cases_real_handler():
     await handler._recall_from_messages(channel_id, fetched_edge_messages)
 
     # Analyze edge case results
-    unique_nodes = set(call['node_id'] for call in memory_service.recall_details)
-    user_nodes = [node for node in unique_nodes if node.startswith('user/')]
+    unique_nodes = set(call["node_id"] for call in memory_service.recall_details)
+    user_nodes = [node for node in unique_nodes if node.startswith("user/")]
 
-    logger.info(f"Edge case results:")
+    logger.info("Edge case results:")
     logger.info(f"  Total unique nodes: {len(unique_nodes)}")
     logger.info(f"  User nodes: {user_nodes}")
 
     # Should only have channel recall + valid user recall (first message has valid author_id)
     # Filter for valid user nodes (should have valid author_id)
-    valid_user_nodes = [node for node in user_nodes if len(node) > len('user/') and not node.endswith('None') and not node.endswith('/')]
+    valid_user_nodes = [
+        node for node in user_nodes if len(node) > len("user/") and not node.endswith("None") and not node.endswith("/")
+    ]
 
     expected_valid_users = 1  # Only first message has valid author_id
-    assert len(valid_user_nodes) == expected_valid_users, f"Expected {expected_valid_users} valid user nodes, got {len(valid_user_nodes)}"
+    assert (
+        len(valid_user_nodes) == expected_valid_users
+    ), f"Expected {expected_valid_users} valid user nodes, got {len(valid_user_nodes)}"
 
     logger.info("✅ Edge cases test passed!")
+
 
 async def test_no_messages():
     """Test with no messages"""
@@ -285,11 +300,12 @@ async def test_no_messages():
     await handler._recall_from_messages(channel_id, [])
 
     # Should only have channel recalls
-    unique_nodes = set(call['node_id'] for call in memory_service.recall_details)
+    unique_nodes = set(call["node_id"] for call in memory_service.recall_details)
     assert len(unique_nodes) == 1, f"Expected 1 node (channel only), got {len(unique_nodes)}"
     assert f"channel/{channel_id}" in unique_nodes, "Expected channel recall"
 
     logger.info("✅ Empty message list test passed!")
+
 
 async def test_no_memory_service():
     """Test with no memory service"""
@@ -313,6 +329,7 @@ async def test_no_memory_service():
 
     logger.info("✅ No memory service test passed!")
 
+
 async def test_message_field_variations():
     """Test various message field variations and data types"""
     logger.info("\n=== Testing Message Field Variations ===")
@@ -324,8 +341,8 @@ async def test_message_field_variations():
     variant_messages = [
         {"id": "1", "content": "string author_id", "author_id": "12345"},
         {"id": "2", "content": "int author_id", "author_id": 67890},  # Should be converted to string
-        {"id": "3", "content": "bool author_id", "author_id": True},   # Edge case
-        {"id": "4", "content": "list author_id", "author_id": ["123"]}, # Invalid type
+        {"id": "3", "content": "bool author_id", "author_id": True},  # Edge case
+        {"id": "4", "content": "list author_id", "author_id": ["123"]},  # Invalid type
     ]
 
     # Test each message type
@@ -351,6 +368,7 @@ async def test_message_field_variations():
 
     logger.info("✅ Message field variations test completed!")
 
+
 async def main():
     """Run all integration tests"""
     logger.info("Starting ObserveHandler integration tests...")
@@ -369,8 +387,10 @@ async def main():
     except Exception as e:
         logger.error(f"\n❌ Integration test failed: {e}")
         import traceback
+
         traceback.print_exc()
         raise
+
 
 if __name__ == "__main__":
     asyncio.run(main())

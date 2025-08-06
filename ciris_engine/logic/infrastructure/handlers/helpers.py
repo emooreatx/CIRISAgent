@@ -1,18 +1,18 @@
-import uuid
 import logging
 
-from ciris_engine.schemas.runtime.models import Thought
-from ciris_engine.schemas.runtime.enums import ThoughtStatus, ThoughtType
-from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.logic.utils.thought_utils import generate_thought_id
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.runtime.enums import ThoughtStatus, ThoughtType
+from ciris_engine.schemas.runtime.models import Thought
 
 logger = logging.getLogger(__name__)
+
 
 def create_follow_up_thought(
     parent: Thought,
     time_service: TimeServiceProtocol,
     content: str = "",
-    thought_type: ThoughtType = ThoughtType.FOLLOW_UP
+    thought_type: ThoughtType = ThoughtType.FOLLOW_UP,
 ) -> Thought:
     """Return a new Thought linked to ``parent``.
 
@@ -21,14 +21,14 @@ def create_follow_up_thought(
     parent thought's ID to maintain lineage.
     """
     now = time_service.now().isoformat()
-    parent_round = parent.round_number if hasattr(parent, 'round_number') else 0
+    parent_round = parent.round_number if hasattr(parent, "round_number") else 0
 
     # Just copy the context directly - channel_id flows through the schemas
     # Extract channel_id from parent
     channel_id = None
-    if hasattr(parent, 'channel_id') and parent.channel_id:
+    if hasattr(parent, "channel_id") and parent.channel_id:
         channel_id = parent.channel_id
-    elif parent.context and hasattr(parent.context, 'channel_id') and parent.context.channel_id:
+    elif parent.context and hasattr(parent.context, "channel_id") and parent.context.channel_id:
         channel_id = parent.context.channel_id
 
     # Cap thought depth at maximum allowed value (7)
@@ -36,9 +36,7 @@ def create_follow_up_thought(
 
     follow_up = Thought(
         thought_id=generate_thought_id(
-            thought_type=thought_type,
-            task_id=parent.source_task_id,
-            parent_thought_id=parent.thought_id
+            thought_type=thought_type, task_id=parent.source_task_id, parent_thought_id=parent.thought_id
         ),
         source_task_id=parent.source_task_id,
         channel_id=channel_id,

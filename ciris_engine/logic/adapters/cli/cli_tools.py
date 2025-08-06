@@ -1,29 +1,32 @@
-import os
 import asyncio
+import os
 import uuid
-from typing import Dict, List, Optional
 from datetime import datetime, timezone
+from typing import Dict, List, Optional
+
 import aiofiles
 
-from ciris_engine.schemas.adapters.cli_tools import (
-    ListFilesParams, ListFilesResult, ReadFileParams,
-    ReadFileResult, WriteFileParams, WriteFileResult, ShellCommandParams,
-    ShellCommandResult, SearchTextParams, SearchTextResult, SearchMatch
-)
-from ciris_engine.schemas.telemetry.core import (
-    ServiceCorrelation,
-    ServiceCorrelationStatus,
-)
-from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
 from ciris_engine.logic import persistence
-
 from ciris_engine.protocols.services import ToolService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.schemas.adapters.tools import (
-    ToolExecutionResult, ToolExecutionStatus, ToolInfo, ToolParameterSchema
+from ciris_engine.schemas.adapters.cli_tools import (
+    ListFilesParams,
+    ListFilesResult,
+    ReadFileParams,
+    ReadFileResult,
+    SearchMatch,
+    SearchTextParams,
+    SearchTextResult,
+    ShellCommandParams,
+    ShellCommandResult,
+    WriteFileParams,
+    WriteFileResult,
 )
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.adapters.tools import ToolExecutionResult, ToolExecutionStatus, ToolInfo, ToolParameterSchema
 from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus
+
 
 class CLIToolService(ToolService):
     """Simple ToolService providing local filesystem browsing."""
@@ -61,7 +64,7 @@ class CLIToolService(ToolService):
             created_at=now,
             updated_at=now,
             timestamp=now,
-            status=ServiceCorrelationStatus.PENDING
+            status=ServiceCorrelationStatus.PENDING,
         )
         persistence.add_correlation(corr)
 
@@ -82,7 +85,7 @@ class CLIToolService(ToolService):
                 error_msg = str(e)
 
         execution_time_ms = (self._time_service.timestamp() - start_time) * 1000  # milliseconds
-        
+
         # Add execution time to result data
         if result is None:
             result = {}
@@ -95,7 +98,7 @@ class CLIToolService(ToolService):
             success=success,
             data=result,
             error=error_msg,
-            correlation_id=correlation_id
+            correlation_id=correlation_id,
         )
 
         if correlation_id:
@@ -103,11 +106,7 @@ class CLIToolService(ToolService):
             # Update the correlation we created earlier
             corr.status = ServiceCorrelationStatus.COMPLETED
             corr.updated_at = datetime.now(timezone.utc)
-            persistence.update_correlation(
-                correlation_id,
-                corr,
-                self._time_service
-            )
+            persistence.update_correlation(correlation_id, corr, self._time_service)
         return tool_result
 
     async def _list_files(self, params: dict) -> dict:
@@ -169,17 +168,11 @@ class CLIToolService(ToolService):
             shell_params = ShellCommandParams.model_validate(params)
 
             proc = await asyncio.create_subprocess_shell(
-                shell_params.command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                shell_params.command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
             stdout, stderr = await proc.communicate()
 
-            result = ShellCommandResult(
-                stdout=stdout.decode(),
-                stderr=stderr.decode(),
-                returncode=proc.returncode
-            )
+            result = ShellCommandResult(stdout=stdout.decode(), stderr=stderr.decode(), returncode=proc.returncode)
             return result.model_dump()
         except ValueError:
             # Parameter validation error
@@ -241,46 +234,42 @@ class CLIToolService(ToolService):
                 properties={
                     "path": {"type": "string", "description": "Directory path to list files from", "default": "."}
                 },
-                required=[]
+                required=[],
             ),
             "read_file": ToolParameterSchema(
                 type="object",
-                properties={
-                    "path": {"type": "string", "description": "File path to read"}
-                },
-                required=["path"]
+                properties={"path": {"type": "string", "description": "File path to read"}},
+                required=["path"],
             ),
             "write_file": ToolParameterSchema(
                 type="object",
                 properties={
                     "path": {"type": "string", "description": "File path to write"},
-                    "content": {"type": "string", "description": "Content to write to file"}
+                    "content": {"type": "string", "description": "Content to write to file"},
                 },
-                required=["path", "content"]
+                required=["path", "content"],
             ),
             "shell_command": ToolParameterSchema(
                 type="object",
-                properties={
-                    "command": {"type": "string", "description": "Shell command to execute"}
-                },
-                required=["command"]
+                properties={"command": {"type": "string", "description": "Shell command to execute"}},
+                required=["command"],
             ),
             "search_text": ToolParameterSchema(
                 type="object",
                 properties={
                     "path": {"type": "string", "description": "Directory path to search in"},
-                    "pattern": {"type": "string", "description": "Text pattern to search for"}
+                    "pattern": {"type": "string", "description": "Text pattern to search for"},
                 },
-                required=["path", "pattern"]
-            )
+                required=["path", "pattern"],
+            ),
         }
         return schemas.get(tool_name)
-    
+
     async def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
         """Get detailed information about a specific tool."""
         if tool_name not in self._tools:
             return None
-        
+
         # Tool information for each built-in tool
         tool_infos = {
             "list_files": ToolInfo(
@@ -291,25 +280,23 @@ class CLIToolService(ToolService):
                     properties={
                         "path": {"type": "string", "description": "Directory path to list files from", "default": "."}
                     },
-                    required=[]
+                    required=[],
                 ),
                 category="filesystem",
                 cost=0.0,
-                when_to_use="Use when you need to see what files are in a directory"
+                when_to_use="Use when you need to see what files are in a directory",
             ),
             "read_file": ToolInfo(
                 name="read_file",
                 description="Read the contents of a file",
                 parameters=ToolParameterSchema(
                     type="object",
-                    properties={
-                        "path": {"type": "string", "description": "File path to read"}
-                    },
-                    required=["path"]
+                    properties={"path": {"type": "string", "description": "File path to read"}},
+                    required=["path"],
                 ),
                 category="filesystem",
                 cost=0.0,
-                when_to_use="Use when you need to read file contents"
+                when_to_use="Use when you need to read file contents",
             ),
             "write_file": ToolInfo(
                 name="write_file",
@@ -318,27 +305,25 @@ class CLIToolService(ToolService):
                     type="object",
                     properties={
                         "path": {"type": "string", "description": "File path to write"},
-                        "content": {"type": "string", "description": "Content to write to file"}
+                        "content": {"type": "string", "description": "Content to write to file"},
                     },
-                    required=["path", "content"]
+                    required=["path", "content"],
                 ),
                 category="filesystem",
                 cost=0.0,
-                when_to_use="Use when you need to create or modify a file"
+                when_to_use="Use when you need to create or modify a file",
             ),
             "shell_command": ToolInfo(
                 name="shell_command",
                 description="Execute a shell command",
                 parameters=ToolParameterSchema(
                     type="object",
-                    properties={
-                        "command": {"type": "string", "description": "Shell command to execute"}
-                    },
-                    required=["command"]
+                    properties={"command": {"type": "string", "description": "Shell command to execute"}},
+                    required=["command"],
                 ),
                 category="system",
                 cost=0.0,
-                when_to_use="Use when you need to run system commands"
+                when_to_use="Use when you need to run system commands",
             ),
             "search_text": ToolInfo(
                 name="search_text",
@@ -347,18 +332,18 @@ class CLIToolService(ToolService):
                     type="object",
                     properties={
                         "path": {"type": "string", "description": "Directory path to search in"},
-                        "pattern": {"type": "string", "description": "Text pattern to search for"}
+                        "pattern": {"type": "string", "description": "Text pattern to search for"},
                     },
-                    required=["path", "pattern"]
+                    required=["path", "pattern"],
                 ),
                 category="filesystem",
                 cost=0.0,
-                when_to_use="Use when you need to find specific text in files"
-            )
+                when_to_use="Use when you need to find specific text in files",
+            ),
         }
-        
+
         return tool_infos.get(tool_name)
-    
+
     async def get_all_tool_info(self) -> List[ToolInfo]:
         """Get detailed information about all available tools."""
         tool_infos = []
@@ -367,32 +352,25 @@ class CLIToolService(ToolService):
             if tool_info:
                 tool_infos.append(tool_info)
         return tool_infos
-    
+
     async def is_healthy(self) -> bool:
         """Check if the service is healthy."""
         return True
-    
+
     def get_service_type(self) -> ServiceType:
         """Get the type of this service."""
         return ServiceType.ADAPTER
-    
+
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""
         return ServiceCapabilities(
             service_name="CLIToolService",
-            actions=[
-                "execute_tool",
-                "get_available_tools",
-                "get_tool_schema",
-                "get_tool_result"
-            ],
+            actions=["execute_tool", "get_available_tools", "get_tool_schema", "get_tool_result"],
             version="1.0.0",
             dependencies=[],
-            resource_limits={
-                "max_concurrent_tools": 10
-            }
+            resource_limits={"max_concurrent_tools": 10},
         )
-    
+
     def get_status(self) -> ServiceStatus:
         """Get current service status."""
         return ServiceStatus(
@@ -400,8 +378,5 @@ class CLIToolService(ToolService):
             service_type="adapter",
             is_healthy=True,
             uptime_seconds=0.0,
-            metrics={
-                "total_tools_executed": len(self._results),
-                "available_tools": len(self._tools)
-            }
+            metrics={"total_tools_executed": len(self._results), "available_tools": len(self._tools)},
         )

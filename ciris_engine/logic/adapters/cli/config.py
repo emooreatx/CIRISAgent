@@ -1,11 +1,11 @@
 """Configuration schema for CLI adapter."""
 
-from pydantic import BaseModel, Field
-from typing import Optional
-import os
-import uuid
-import socket
 import getpass
+import socket
+from typing import Optional
+
+from pydantic import BaseModel, Field
+
 
 class CLIAdapterConfig(BaseModel):
     """Configuration for the CLI adapter."""
@@ -23,15 +23,14 @@ class CLIAdapterConfig(BaseModel):
     word_wrap: bool = Field(default=True, description="Enable word wrapping for long lines")
 
     default_channel_id: Optional[str] = Field(
-        default=None,  # Will be set in get_home_channel_id() 
-        description="Default channel ID for CLI messages"
+        default=None, description="Default channel ID for CLI messages"  # Will be set in get_home_channel_id()
     )
 
     enable_cli_tools: bool = Field(default=True, description="Enable CLI-specific tools")
 
     def get_home_channel_id(self) -> str:
         """Get the home channel ID for this CLI adapter instance.
-        
+
         Uses a deterministic ID based on username and hostname so that
         users can see their conversation history across sessions.
         """
@@ -72,4 +71,3 @@ class CLIAdapterConfig(BaseModel):
         env_prompt = get_env_var("CIRIS_CLI_PROMPT")
         if env_prompt:
             self.prompt_prefix = env_prompt
-

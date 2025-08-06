@@ -5,7 +5,7 @@
 CIRIS provides several pre-approved templates:
 
 - **scout** - Basic agent for exploration and learning
-- **sage** - Wise agent with deeper reasoning capabilities  
+- **sage** - Wise agent with deeper reasoning capabilities
 - **echo** - Simple agent that echoes messages (for testing)
 - **teacher** - Educational agent for tutoring
 
@@ -39,12 +39,12 @@ environment:
 environment:
   # For testing (no API keys needed)
   CIRIS_USE_MOCK_LLM: "true"
-  
+
   # For OpenAI
   OPENAI_API_KEY: "sk-..."
   CIRIS_LLM_PROVIDER: "openai"
   CIRIS_LLM_MODEL: "gpt-4o"
-  
+
   # For Anthropic
   ANTHROPIC_API_KEY: "sk-ant-..."
   CIRIS_LLM_PROVIDER: "anthropic"

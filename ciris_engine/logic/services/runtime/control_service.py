@@ -1,43 +1,58 @@
 """Runtime control service for processor and adapter management."""
+
 import asyncio
 import logging
-from datetime import datetime, timezone
-from typing import Optional, List, TYPE_CHECKING, Dict, Any, cast, Union
+from datetime import datetime
+from typing import TYPE_CHECKING, Dict, List, Optional, Union, cast
 
 if TYPE_CHECKING:
     from ciris_engine.logic.services.graph.config_service import GraphConfigService
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
     from ciris_engine.logic.runtime.runtime_interface import RuntimeInterface
 
-from ciris_engine.protocols.services import RuntimeControlService as RuntimeControlServiceProtocol
 from ciris_engine.logic.runtime.adapter_manager import RuntimeAdapterManager
 from ciris_engine.logic.services.base_service import BaseService
+from ciris_engine.protocols.services import RuntimeControlService as RuntimeControlServiceProtocol
+from ciris_engine.protocols.services import TimeServiceProtocol
 from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.services.core.runtime import (
+    AdapterInfo,
+    AdapterOperationResponse,
+    AdapterStatus,
+    ConfigBackup,
+    ConfigOperationResponse,
+    ConfigReloadResult,
+    ConfigScope,
+    ConfigSnapshot,
+    ConfigValidationLevel,
+    ConfigValidationResponse,
+    ProcessorControlResponse,
+    ProcessorQueueStatus,
+    ProcessorStatus,
+    RuntimeEvent,
+    RuntimeStateSnapshot,
+    RuntimeStatusResponse,
+    ServiceHealthStatus,
+    ServiceSelectionExplanation,
+)
+from ciris_engine.schemas.services.runtime_control import (
+    CircuitBreakerResetResponse,
+    CircuitBreakerState,
+    CircuitBreakerStatus,
+    ConfigBackupData,
+    ConfigValueMap,
+    ServicePriorityUpdateResponse,
+    ServiceProviderInfo,
+    ServiceRegistryInfoResponse,
+    WAPublicKeyMap,
+)
+from ciris_engine.schemas.services.shutdown import EmergencyShutdownStatus, KillSwitchConfig, WASignedCommand
+
 # GraphConfigService is injected via dependency injection to avoid circular imports
 
-from ciris_engine.schemas.services.core import ServiceStatus, ServiceCapabilities
-from ciris_engine.schemas.services.core.runtime import (
-    ProcessorStatus, ProcessorQueueStatus, AdapterInfo, ConfigBackup,
-    ServiceHealthStatus, CircuitBreakerResetResult,
-    ServiceSelectionExplanation, RuntimeEvent, ConfigReloadResult,
-    ProcessorControlResponse, AdapterOperationResponse, RuntimeStatusResponse,
-    RuntimeStateSnapshot, ConfigSnapshot, ConfigOperationResponse, ConfigValidationResponse,
-    ConfigScope, ConfigValidationLevel,
-    AdapterStatus
-)
-
-from ciris_engine.schemas.services.runtime_control import (
-    CircuitBreakerStatus, CircuitBreakerState, ConfigValueMap, ServicePriorityUpdateResponse,
-    CircuitBreakerResetResponse, ServiceRegistryInfoResponse, WAPublicKeyMap, ConfigBackupData,
-    ConfigBackupData, ServiceProviderUpdate, ServiceProviderInfo
-)
-
-from ciris_engine.protocols.services import TimeServiceProtocol
-from ciris_engine.schemas.services.shutdown import (
-    WASignedCommand, EmergencyShutdownStatus, KillSwitchConfig
-)
 
 logger = logging.getLogger(__name__)
+
 
 class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
     """Service for runtime control of processor, adapters, and configuration."""
@@ -47,21 +62,22 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
         runtime: Optional["RuntimeInterface"] = None,
         adapter_manager: Optional[RuntimeAdapterManager] = None,
         config_manager: Optional["GraphConfigService"] = None,
-        time_service: Optional[TimeServiceProtocol] = None
+        time_service: Optional[TimeServiceProtocol] = None,
     ) -> None:
         # Always create a time service if not provided for BaseService
         if time_service is None:
             from ciris_engine.logic.services.lifecycle.time import TimeService
+
             time_service = TimeService()
-        
+
         super().__init__(time_service=time_service)
-        
+
         self.runtime: Optional["RuntimeInterface"] = runtime
         self.adapter_manager = adapter_manager
         if not self.adapter_manager and runtime:
             self.adapter_manager = RuntimeAdapterManager(runtime, self._time_service)  # type: ignore[arg-type]
         self.config_manager: Optional["GraphConfigService"] = config_manager
-        
+
         self._processor_status = ProcessorStatus.RUNNING
         self._last_config_change: Optional[datetime] = None
         self._events_history: List[RuntimeEvent] = []
@@ -75,12 +91,11 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             command_expiry_seconds=300,
             require_reason=True,
             log_to_audit=True,
-            allow_override=False
+            allow_override=False,
         )
         # Initialize WA public key map
         self._wa_key_map = WAPublicKeyMap()
 
-    
     def _get_config_manager(self) -> "GraphConfigService":
         """Get config manager with lazy initialization to avoid circular imports."""
         if self.config_manager is None:
@@ -103,13 +118,13 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             _start_time = self._now()
 
             # Get the agent processor from runtime
-            if not self.runtime or not hasattr(self.runtime, 'agent_processor'):
+            if not self.runtime or not hasattr(self.runtime, "agent_processor"):
                 return ProcessorControlResponse(
                     success=False,
                     processor_name="agent",
                     operation="single_step",
                     new_status=self._processor_status,
-                    error="Agent processor not available"
+                    error="Agent processor not available",
                 )
 
             result = await self.runtime.agent_processor.single_step()
@@ -120,7 +135,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 processor_name="agent",
                 operation="single_step",
                 new_status=self._processor_status,
-                error=None
+                error=None,
             )
 
         except Exception as e:
@@ -131,7 +146,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 processor_name="agent",
                 operation="single_step",
                 new_status=self._processor_status,
-                error=str(e)
+                error=str(e),
             )
 
     async def pause_processing(self) -> ProcessorControlResponse:
@@ -140,13 +155,13 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             _start_time = self._now()
 
             # Get the agent processor from runtime
-            if not self.runtime or not hasattr(self.runtime, 'agent_processor'):
+            if not self.runtime or not hasattr(self.runtime, "agent_processor"):
                 return ProcessorControlResponse(
                     success=False,
                     processor_name="agent",
                     operation="pause",
                     new_status=self._processor_status,
-                    error="Agent processor not available"
+                    error="Agent processor not available",
                 )
 
             success = await self.runtime.agent_processor.pause_processing()
@@ -155,11 +170,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             await self._record_event("processor_control", "pause", success=success)
 
             return ProcessorControlResponse(
-                success=True,
-                processor_name="agent",
-                operation="pause",
-                new_status=self._processor_status,
-                error=None
+                success=True, processor_name="agent", operation="pause", new_status=self._processor_status, error=None
             )
 
         except Exception as e:
@@ -170,7 +181,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 processor_name="agent",
                 operation="pause",
                 new_status=self._processor_status,
-                error=str(e)
+                error=str(e),
             )
 
     async def resume_processing(self) -> ProcessorControlResponse:
@@ -179,13 +190,13 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             _start_time = self._now()
 
             # Get the agent processor from runtime
-            if not self.runtime or not hasattr(self.runtime, 'agent_processor'):
+            if not self.runtime or not hasattr(self.runtime, "agent_processor"):
                 return ProcessorControlResponse(
                     success=False,
                     processor_name="agent",
                     operation="resume",
                     new_status=self._processor_status,
-                    error="Agent processor not available"
+                    error="Agent processor not available",
                 )
 
             success = await self.runtime.agent_processor.resume_processing()
@@ -194,11 +205,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             await self._record_event("processor_control", "resume", success=success)
 
             return ProcessorControlResponse(
-                success=True,
-                processor_name="agent",
-                operation="resume",
-                new_status=self._processor_status,
-                error=None
+                success=True, processor_name="agent", operation="resume", new_status=self._processor_status, error=None
             )
 
         except Exception as e:
@@ -209,20 +216,20 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 processor_name="agent",
                 operation="resume",
                 new_status=self._processor_status,
-                error=str(e)
+                error=str(e),
             )
 
     async def get_processor_queue_status(self) -> ProcessorQueueStatus:
         """Get processor queue status."""
         try:
-            if not self.runtime or not hasattr(self.runtime, 'agent_processor'):
+            if not self.runtime or not hasattr(self.runtime, "agent_processor"):
                 return ProcessorQueueStatus(
                     processor_name="unknown",
                     queue_size=0,
                     max_size=0,
                     processing_rate=0.0,
                     average_latency_ms=0.0,
-                    oldest_message_age_seconds=None
+                    oldest_message_age_seconds=None,
                 )
 
             # Get queue status from agent processor
@@ -236,7 +243,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 max_size=1000,  # Default max size
                 processing_rate=1.0,  # Would need to calculate from metrics
                 average_latency_ms=0.0,  # Would need to calculate from metrics
-                oldest_message_age_seconds=None
+                oldest_message_age_seconds=None,
             )
         except Exception as e:
             logger.error(f"Failed to get queue status: {e}", exc_info=True)
@@ -247,7 +254,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 max_size=0,
                 processing_rate=0.0,
                 average_latency_ms=0.0,
-                oldest_message_age_seconds=None
+                oldest_message_age_seconds=None,
             )
 
     async def shutdown_runtime(self, reason: str = "Runtime shutdown requested") -> ProcessorControlResponse:
@@ -261,8 +268,8 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             await self._record_event("processor_control", "shutdown", success=True, result={"reason": reason})
 
             # Request global shutdown through the shutdown service
-            if self.runtime and hasattr(self.runtime, 'service_registry'):
-                shutdown_service = self.runtime.service_registry.get_service('ShutdownService')
+            if self.runtime and hasattr(self.runtime, "service_registry"):
+                shutdown_service = self.runtime.service_registry.get_service("ShutdownService")
                 if shutdown_service:
                     shutdown_service.request_shutdown(f"Runtime control: {reason}")
                 else:
@@ -276,7 +283,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 processor_name="agent",
                 operation="shutdown",
                 new_status=self._processor_status,
-                error=None
+                error=None,
             )
 
         except Exception as e:
@@ -287,7 +294,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 processor_name="agent",
                 operation="shutdown",
                 new_status=self._processor_status,
-                error=str(e)
+                error=str(e),
             )
 
     async def handle_emergency_shutdown(self, command: WASignedCommand) -> EmergencyShutdownStatus:
@@ -306,7 +313,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
 
         # Initialize status
         now = self._now()
-            
+
         status = EmergencyShutdownStatus(
             command_received=now,
             command_verified=False,
@@ -315,7 +322,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             data_persisted=False,
             final_message_sent=False,
             shutdown_completed=None,
-            exit_code=None
+            exit_code=None,
         )
 
         try:
@@ -334,11 +341,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 "emergency_shutdown",
                 "command_verified",
                 success=True,
-                result={
-                    "wa_id": command.wa_id,
-                    "command_id": command.command_id,
-                    "reason": command.reason
-                }
+                result={"wa_id": command.wa_id, "command_id": command.command_id, "reason": command.reason},
             )
 
             # Call the existing shutdown mechanism
@@ -346,8 +349,8 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             shutdown_reason = f"WA EMERGENCY SHUTDOWN: {command.reason} (WA: {command.wa_id})"
 
             # Get shutdown service from registry if available
-            if self.runtime and hasattr(self.runtime, 'service_registry'):
-                shutdown_service = self.runtime.service_registry.get_service('ShutdownService')
+            if self.runtime and hasattr(self.runtime, "service_registry"):
+                shutdown_service = self.runtime.service_registry.get_service("ShutdownService")
                 if shutdown_service:
                     shutdown_service.request_shutdown(shutdown_reason)
                     status.shutdown_completed = self._now()
@@ -389,33 +392,37 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             key_pem = self._wa_key_map.get_key(command.wa_id)
             if not key_pem:
                 return False
-                
+
             from cryptography.hazmat.primitives import serialization
             from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-            public_key = serialization.load_pem_public_key(key_pem.encode('utf-8'))
-            
+
+            public_key = serialization.load_pem_public_key(key_pem.encode("utf-8"))
+
             # Ensure it's an Ed25519 key
             if not isinstance(public_key, Ed25519PublicKey):
                 logger.error(f"WA {command.wa_id} key is not Ed25519")
                 return False
 
             # Reconstruct signed data (canonical form)
-            signed_data = "|".join([
-                f"command_id:{command.command_id}",
-                f"command_type:{command.command_type}",
-                f"wa_id:{command.wa_id}",
-                f"issued_at:{command.issued_at.isoformat()}",
-                f"reason:{command.reason}"
-            ])
+            signed_data = "|".join(
+                [
+                    f"command_id:{command.command_id}",
+                    f"command_type:{command.command_type}",
+                    f"wa_id:{command.wa_id}",
+                    f"issued_at:{command.issued_at.isoformat()}",
+                    f"reason:{command.reason}",
+                ]
+            )
 
             if command.target_agent_id:
                 signed_data += f"|target_agent_id:{command.target_agent_id}"
 
             # Verify signature
             from cryptography.exceptions import InvalidSignature
+
             try:
                 signature_bytes = bytes.fromhex(command.signature)
-                public_key.verify(signature_bytes, signed_data.encode('utf-8'))
+                public_key.verify(signature_bytes, signed_data.encode("utf-8"))
                 return True
             except InvalidSignature:
                 logger.error("Invalid signature on emergency command")
@@ -436,15 +443,15 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
 
         # Parse and store WA public keys
         from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.primitives.asymmetric import ed25519
 
         self._wa_key_map.clear()
         for key_pem in config.root_wa_public_keys:
             try:
                 # Validate that it's a valid Ed25519 key
-                public_key = serialization.load_pem_public_key(key_pem.encode('utf-8'))
+                public_key = serialization.load_pem_public_key(key_pem.encode("utf-8"))
                 # Import the actual type for isinstance check
                 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey as Ed25519PublicKeyImpl
+
                 if isinstance(public_key, Ed25519PublicKeyImpl):
                     # Extract WA ID from comment or use hash
                     wa_id = self._extract_wa_id_from_pem(key_pem)
@@ -456,12 +463,13 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
 
     def _extract_wa_id_from_pem(self, key_pem: str) -> str:
         """Extract WA ID from PEM comment or generate from hash."""
-        for line in key_pem.split('\n'):
-            if line.startswith('# WA-ID:'):
-                return line.split(':', 1)[1].strip()
+        for line in key_pem.split("\n"):
+            if line.startswith("# WA-ID:"):
+                return line.split(":", 1)[1].strip()
 
         # Fallback to hash
         import hashlib
+
         return hashlib.sha256(key_pem.encode()).hexdigest()[:16]
 
     # Adapter Management Methods
@@ -470,7 +478,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
         adapter_type: str,
         adapter_id: Optional[str] = None,
         config: Optional[Dict[str, object]] = None,
-        auto_start: bool = True
+        auto_start: bool = True,
     ) -> AdapterOperationResponse:
         """Load a new adapter instance."""
         # AdapterStatus is already imported at module level
@@ -479,8 +487,10 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
         if not self.adapter_manager and self.runtime:
             if self._time_service is None:
                 from ciris_engine.logic.services.lifecycle.time import TimeService
+
                 self._time_service = TimeService()
             from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+
             self.adapter_manager = RuntimeAdapterManager(cast(CIRISRuntime, self.runtime), self._time_service)
             logger.info("Lazy-initialized adapter_manager in load_adapter")
 
@@ -491,7 +501,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 adapter_id=adapter_id or "unknown",
                 adapter_type=adapter_type,
                 status=AdapterStatus.ERROR,
-                error="Adapter manager not available"
+                error="Adapter manager not available",
             )
 
         # Convert config dict to proper type if needed
@@ -504,14 +514,10 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             adapter_type=adapter_type,
             timestamp=self._now(),
             status=AdapterStatus.RUNNING if result.success else AdapterStatus.ERROR,
-            error=result.error
+            error=result.error,
         )
 
-    async def unload_adapter(
-        self,
-        adapter_id: str,
-        force: bool = False
-    ) -> AdapterOperationResponse:
+    async def unload_adapter(self, adapter_id: str, force: bool = False) -> AdapterOperationResponse:
         """Unload an adapter instance."""
         # AdapterStatus is already imported at module level
 
@@ -519,8 +525,10 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
         if not self.adapter_manager and self.runtime:
             if self._time_service is None:
                 from ciris_engine.logic.services.lifecycle.time import TimeService
+
                 self._time_service = TimeService()
             from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+
             self.adapter_manager = RuntimeAdapterManager(cast(CIRISRuntime, self.runtime), self._time_service)
             logger.info("Lazy-initialized adapter_manager in unload_adapter")
 
@@ -531,7 +539,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 adapter_id=adapter_id or "unknown",
                 adapter_type="unknown",
                 status=AdapterStatus.ERROR,
-                error="Adapter manager not available"
+                error="Adapter manager not available",
             )
 
         # Call adapter manager (note: it doesn't use force parameter)
@@ -544,7 +552,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             adapter_type=result.adapter_type or "unknown",
             timestamp=self._now(),
             status=AdapterStatus.STOPPED if result.success else AdapterStatus.ERROR,
-            error=result.error
+            error=result.error,
         )
 
     async def list_adapters(self) -> List[AdapterInfo]:
@@ -553,56 +561,62 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
         if not self.adapter_manager and self.runtime:
             if self._time_service is None:
                 from ciris_engine.logic.services.lifecycle.time import TimeService
+
                 self._time_service = TimeService()
             from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+
             self.adapter_manager = RuntimeAdapterManager(cast(CIRISRuntime, self.runtime), self._time_service)
             logger.info("Lazy-initialized adapter_manager in list_adapters")
-        
+
         adapters_list = []
-        
+
         # First, add bootstrap adapters from runtime
-        if self.runtime and hasattr(self.runtime, 'adapters'):
+        if self.runtime and hasattr(self.runtime, "adapters"):
             for adapter in self.runtime.adapters:
                 # Get adapter type from class name
-                adapter_type = adapter.__class__.__name__.lower().replace('platform', '').replace('adapter', '')
-                
+                adapter_type = adapter.__class__.__name__.lower().replace("platform", "").replace("adapter", "")
+
                 # Skip creating bootstrap entries for adapters that are managed by adapter_manager
                 # Only create bootstrap entries for adapters that were started with --adapter flag
-                if adapter_type == 'discord' and self.adapter_manager and any(
-                    a.adapter_type == 'discord' for a in await self.adapter_manager.list_adapters()
+                if (
+                    adapter_type == "discord"
+                    and self.adapter_manager
+                    and any(a.adapter_type == "discord" for a in await self.adapter_manager.list_adapters())
                 ):
                     continue
-                    
+
                 adapter_id = f"{adapter_type}_bootstrap"
-                
+
                 # Check if adapter has tools
                 tools = []
-                if hasattr(adapter, 'tool_service') and adapter.tool_service:
+                if hasattr(adapter, "tool_service") and adapter.tool_service:
                     try:
-                        if hasattr(adapter.tool_service, 'list_tools'):
+                        if hasattr(adapter.tool_service, "list_tools"):
                             tool_names = await adapter.tool_service.list_tools()
                             for tool_name in tool_names:
                                 tool_info = {"name": tool_name, "description": f"{tool_name} tool"}
-                                if hasattr(adapter.tool_service, 'get_tool_schema'):
+                                if hasattr(adapter.tool_service, "get_tool_schema"):
                                     schema = await adapter.tool_service.get_tool_schema(tool_name)
                                     if schema:
-                                        tool_info["schema"] = schema.dict() if hasattr(schema, 'dict') else schema
+                                        tool_info["schema"] = schema.dict() if hasattr(schema, "dict") else schema
                                 tools.append(tool_info)
                     except Exception as e:
                         logger.debug(f"Could not get tools from {adapter_type}: {e}")
-                
+
                 # Create adapter info
-                adapters_list.append(AdapterInfo(
-                    adapter_id=adapter_id or "unknown",
-                    adapter_type=adapter_type,
-                    status=AdapterStatus.RUNNING,  # Bootstrap adapters are always running
-                    started_at=self._start_time,  # Use service start time
-                    messages_processed=0,  # Tracked via telemetry service
-                    error_count=0,
-                    last_error=None,
-                    tools=tools  # Include tools information
-                ))
-        
+                adapters_list.append(
+                    AdapterInfo(
+                        adapter_id=adapter_id or "unknown",
+                        adapter_type=adapter_type,
+                        status=AdapterStatus.RUNNING,  # Bootstrap adapters are always running
+                        started_at=self._start_time,  # Use service start time
+                        messages_processed=0,  # Tracked via telemetry service
+                        error_count=0,
+                        last_error=None,
+                        tools=tools,  # Include tools information
+                    )
+                )
+
         # Then add adapters from adapter_manager
         if self.adapter_manager:
             adapters_raw = await self.adapter_manager.list_adapters()
@@ -614,16 +628,30 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 else:
                     status = AdapterStatus.STOPPED
 
-                adapters_list.append(AdapterInfo(
-                    adapter_id=adapter_status.adapter_id,
-                    adapter_type=adapter_status.adapter_type,
-                    status=status,
-                    started_at=adapter_status.loaded_at,
-                    messages_processed=adapter_status.metrics.get('messages_processed', 0) if adapter_status.metrics and hasattr(adapter_status.metrics, 'get') else 0,
-                    error_count=adapter_status.metrics.get('errors_count', 0) if adapter_status.metrics and hasattr(adapter_status.metrics, 'get') else 0,
-                    last_error=adapter_status.metrics.get('last_error') if adapter_status.metrics and hasattr(adapter_status.metrics, 'get') else None,
-                    tools=adapter_status.tools if hasattr(adapter_status, 'tools') else None
-                ))
+                adapters_list.append(
+                    AdapterInfo(
+                        adapter_id=adapter_status.adapter_id,
+                        adapter_type=adapter_status.adapter_type,
+                        status=status,
+                        started_at=adapter_status.loaded_at,
+                        messages_processed=(
+                            adapter_status.metrics.get("messages_processed", 0)
+                            if adapter_status.metrics and hasattr(adapter_status.metrics, "get")
+                            else 0
+                        ),
+                        error_count=(
+                            adapter_status.metrics.get("errors_count", 0)
+                            if adapter_status.metrics and hasattr(adapter_status.metrics, "get")
+                            else 0
+                        ),
+                        last_error=(
+                            adapter_status.metrics.get("last_error")
+                            if adapter_status.metrics and hasattr(adapter_status.metrics, "get")
+                            else None
+                        ),
+                        tools=adapter_status.tools if hasattr(adapter_status, "tools") else None,
+                    )
+                )
 
         return adapters_list
 
@@ -633,11 +661,13 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
         if not self.adapter_manager and self.runtime:
             if self._time_service is None:
                 from ciris_engine.logic.services.lifecycle.time import TimeService
+
                 self._time_service = TimeService()
             from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+
             self.adapter_manager = RuntimeAdapterManager(cast(CIRISRuntime, self.runtime), self._time_service)
             logger.info("Lazy-initialized adapter_manager in get_adapter_info")
-        
+
         if not self.adapter_manager:
             return None
 
@@ -657,7 +687,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
         messages_processed = 0
         error_count = 0
         last_error = None
-        
+
         if isinstance(metrics, dict):
             messages_processed = metrics.get("messages_processed", 0)
             error_count = metrics.get("errors_count", 0)
@@ -671,20 +701,16 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             messages_processed=messages_processed,
             error_count=error_count,
             last_error=last_error,
-            tools=None
+            tools=None,
         )
 
     # Configuration Management Methods
-    async def get_config(
-        self,
-        path: Optional[str] = None,
-        include_sensitive: bool = False
-    ) -> ConfigSnapshot:
+    async def get_config(self, path: Optional[str] = None, include_sensitive: bool = False) -> ConfigSnapshot:
         """Get configuration value(s)."""
         try:
             # Get all configs or specific config
             config_value_map = ConfigValueMap()
-            
+
             if path:
                 config_node = await self._get_config_manager().get_config(path)
                 if config_node:
@@ -702,26 +728,20 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             if not include_sensitive:
                 # Mark which keys would be sensitive
                 from ciris_engine.schemas.api.config_security import ConfigSecurity
+
                 for key in config_value_map.keys():
                     if ConfigSecurity.is_sensitive(key):
                         sensitive_keys.append(key)
 
             return ConfigSnapshot(
                 configs=config_value_map.configs,
-                version=self.config_version if hasattr(self, 'config_version') else "1.0.0",
+                version=self.config_version if hasattr(self, "config_version") else "1.0.0",
                 sensitive_keys=sensitive_keys,
-                metadata={
-                    "path_filter": path,
-                    "include_sensitive": include_sensitive
-                }
+                metadata={"path_filter": path, "include_sensitive": include_sensitive},
             )
         except Exception as e:
             logger.error(f"Failed to get config: {e}")
-            return ConfigSnapshot(
-                configs={},
-                version="unknown",
-                metadata={"error": str(e)}
-            )
+            return ConfigSnapshot(configs={}, version="unknown", metadata={"error": str(e)})
 
     async def update_config(
         self,
@@ -729,13 +749,15 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
         value: object,
         scope: str = "runtime",
         validation_level: str = "full",
-        reason: Optional[str] = None
+        reason: Optional[str] = None,
     ) -> ConfigOperationResponse:
         """Update a configuration value."""
         try:
             # Convert string parameters to enums
             config_scope = ConfigScope(scope) if isinstance(scope, str) else scope
-            config_validation = ConfigValidationLevel(validation_level) if isinstance(validation_level, str) else validation_level
+            config_validation = (
+                ConfigValidationLevel(validation_level) if isinstance(validation_level, str) else validation_level
+            )
 
             # GraphConfigService uses set_config, not update_config_value
             # Convert object to appropriate type
@@ -749,9 +771,9 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                     "scope": scope,
                     "validation_level": validation_level,
                     "reason": reason,
-                    "timestamp": self._now().isoformat()
+                    "timestamp": self._now().isoformat(),
                 },
-                error=None
+                error=None,
             )
             if result.success:
                 self._last_config_change = self._now()
@@ -763,58 +785,41 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 operation="update_config",
                 config_path=path,
                 details={"timestamp": self._now().isoformat()},
-                error=str(e)
+                error=str(e),
             )
 
     async def validate_config(
-        self,
-        config_data: Dict[str, object],
-        config_path: Optional[str] = None
+        self, config_data: Dict[str, object], config_path: Optional[str] = None
     ) -> ConfigValidationResponse:
         """Validate configuration data."""
         try:
             # GraphConfigService doesn't have validate_config, do basic validation
             return ConfigValidationResponse(
-                valid=True,
-                validation_level=ConfigValidationLevel.SYNTAX,
-                errors=[],
-                warnings=[],
-                suggestions=[]
+                valid=True, validation_level=ConfigValidationLevel.SYNTAX, errors=[], warnings=[], suggestions=[]
             )
         except Exception as e:
             logger.error(f"Failed to validate config: {e}")
             return ConfigValidationResponse(
-                valid=False,
-                validation_level=ConfigValidationLevel.SYNTAX,
-                errors=[str(e)],
-                warnings=[],
-                suggestions=[]
+                valid=False, validation_level=ConfigValidationLevel.SYNTAX, errors=[str(e)], warnings=[], suggestions=[]
             )
 
-    async def backup_config(
-        self,
-        backup_name: Optional[str] = None
-    ) -> ConfigOperationResponse:
+    async def backup_config(self, backup_name: Optional[str] = None) -> ConfigOperationResponse:
         """Create a configuration backup."""
         try:
             # GraphConfigService doesn't have backup_config, store as special config
             all_configs = await self._get_config_manager().list_configs()
             backup_key = f"backup_{backup_name or self._now().strftime('%Y%m%d_%H%M%S')}"
-            
+
             # Create backup data using the schema
             backup_data = ConfigBackupData(
-                configs=all_configs,
-                backup_version="1.0.0",
-                backup_by="RuntimeControlService"
+                configs=all_configs, backup_version="1.0.0", backup_by="RuntimeControlService"
             )
-            
+
             # Store the backup
             await self._get_config_manager().set_config(
-                backup_key,
-                backup_data.to_config_value(),
-                updated_by="RuntimeControlService"
+                backup_key, backup_data.to_config_value(), updated_by="RuntimeControlService"
             )
-            
+
             # Convert ConfigBackupData to ConfigOperationResponse
             return ConfigOperationResponse(
                 success=True,
@@ -824,9 +829,9 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                     "timestamp": backup_data.backup_timestamp.isoformat(),
                     "backup_id": backup_key,
                     "backup_name": backup_name,
-                    "size_bytes": len(str(all_configs))
+                    "size_bytes": len(str(all_configs)),
                 },
-                error=None
+                error=None,
             )
         except Exception as e:
             logger.error(f"Failed to backup config: {e}")
@@ -835,40 +840,37 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 operation="backup_config",
                 config_path="config",
                 details={"timestamp": self._now().isoformat()},
-                error=str(e)
+                error=str(e),
             )
 
-    async def restore_config(
-        self,
-        backup_name: str
-    ) -> ConfigOperationResponse:
+    async def restore_config(self, backup_name: str) -> ConfigOperationResponse:
         """Restore configuration from backup."""
         try:
             # Get backup config and restore all values
             backup_config = await self._get_config_manager().get_config(backup_name)
             if not backup_config:
                 raise ValueError(f"Backup '{backup_name}' not found")
-            
-            # Restore each config value  
+
+            # Restore each config value
             # ConfigValue is a special type, need to extract the actual value
             backup_raw = backup_config.value
-            
+
             # Extract actual value from ConfigValue wrapper
-            backup_value = backup_raw.value if hasattr(backup_raw, 'value') else backup_raw
-            
+            backup_value = backup_raw.value if hasattr(backup_raw, "value") else backup_raw
+
             # Try to reconstruct ConfigBackupData
             actual_backup: Dict[str, Union[str, int, float, bool, list, dict]]
-            if isinstance(backup_value, dict) and 'configs' in backup_value:
+            if isinstance(backup_value, dict) and "configs" in backup_value:
                 # Create ConfigBackupData from the stored dict
-                timestamp_str = backup_value.get('backup_timestamp')
+                timestamp_str = backup_value.get("backup_timestamp")
                 if not isinstance(timestamp_str, str):
                     raise ValueError("backup_timestamp must be a string")
-                    
+
                 backup_data = ConfigBackupData(
-                    configs=backup_value['configs'],
+                    configs=backup_value["configs"],
                     backup_timestamp=datetime.fromisoformat(timestamp_str),
-                    backup_version=str(backup_value.get('backup_version', '1.0.0')),
-                    backup_by=str(backup_value.get('backup_by', 'RuntimeControlService'))
+                    backup_version=str(backup_value.get("backup_version", "1.0.0")),
+                    backup_by=str(backup_value.get("backup_by", "RuntimeControlService")),
                 )
                 actual_backup = backup_data.configs
             else:
@@ -878,14 +880,14 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                     actual_backup = {k: v for k, v in backup_value.items() if v is not None}
                 else:
                     raise ValueError("Backup data is not in expected format")
-            
+
             # Restore configs
             for key, value in actual_backup.items():
                 if not key.startswith("backup_"):  # Don't restore backups
                     # Ensure value is proper type for set_config
                     config_val = value if isinstance(value, (str, int, float, bool, list, dict)) else str(value)
                     await self._get_config_manager().set_config(key, config_val, "RuntimeControlService")
-            
+
             # Convert to ConfigOperationResponse
             return ConfigOperationResponse(
                 success=True,
@@ -894,9 +896,9 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 details={
                     "backup_name": backup_name,
                     "timestamp": self._now().isoformat(),
-                    "message": f"Restored from backup {backup_name}"
+                    "message": f"Restored from backup {backup_name}",
                 },
-                error=None
+                error=None,
             )
         except Exception as e:
             logger.error(f"Failed to restore config: {e}")
@@ -904,11 +906,8 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 success=False,
                 operation="restore_config",
                 config_path="config",
-                details={
-                    "backup_name": backup_name,
-                    "timestamp": self._now().isoformat()
-                },
-                error=str(e)
+                details={"backup_name": backup_name, "timestamp": self._now().isoformat()},
+                error=str(e),
             )
 
     async def list_config_backups(self) -> List[ConfigBackup]:
@@ -924,7 +923,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                     config_version="1.0.0",
                     size_bytes=len(str(value)),
                     path=key,
-                    description=None
+                    description=None,
                 )
                 backups.append(backup)
             return backups
@@ -954,7 +953,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 processor_count=1,  # Single agent processor
                 adapter_count=len(adapters),
                 total_messages_processed=0,  # Would need to track this
-                current_load=0.0  # Would need to calculate this
+                current_load=0.0,  # Would need to calculate this
             )
 
         except Exception as e:
@@ -965,7 +964,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 processor_count=1,
                 adapter_count=0,
                 total_messages_processed=0,
-                current_load=0.0
+                current_load=0.0,
             )
 
     async def get_runtime_snapshot(self) -> RuntimeStateSnapshot:
@@ -976,86 +975,84 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
 
             # Get runtime status
             runtime_status = await self.get_runtime_status()
-            
+
             # Get processor queue status
             processor_queue = await self.get_processor_queue_status()
             processors = [processor_queue]
-            
+
             # Get adapters
             adapters = await self.list_adapters()
-            
+
             # Get config version
             config_snapshot = await self.get_config()
             config_version = config_snapshot.version
-            
+
             # Get health summary
             health_summary = await self.get_service_health_status()
-            
+
             return RuntimeStateSnapshot(
                 timestamp=current_time,
                 runtime_status=runtime_status,
                 processors=processors,
                 adapters=adapters,
                 config_version=config_version,
-                health_summary=health_summary
+                health_summary=health_summary,
             )
 
         except Exception as e:
             logger.error(f"Failed to get runtime snapshot: {e}")
             raise
 
-    async def _get_service_registry_info(self, handler: Optional[str] = None, service_type: Optional[str] = None) -> ServiceRegistryInfoResponse:
+    async def _get_service_registry_info(
+        self, handler: Optional[str] = None, service_type: Optional[str] = None
+    ) -> ServiceRegistryInfoResponse:
         """Get information about registered services in the service registry."""
         try:
-            if not self.runtime or not hasattr(self.runtime, 'service_registry') or self.runtime.service_registry is None:
+            if (
+                not self.runtime
+                or not hasattr(self.runtime, "service_registry")
+                or self.runtime.service_registry is None
+            ):
                 # Return a valid ServiceRegistryInfoResponse with empty data
                 return ServiceRegistryInfoResponse(
-                    total_services=0,
-                    services_by_type={},
-                    handlers={},
-                    healthy_services=0,
-                    circuit_breaker_states={}
+                    total_services=0, services_by_type={}, handlers={}, healthy_services=0, circuit_breaker_states={}
                 )
 
             info = self.runtime.service_registry.get_provider_info(handler, service_type)
-            
+
             # Convert the dict to ServiceRegistryInfoResponse
             if isinstance(info, dict):
                 # Extract handler services with full details
                 handlers_dict: Dict[str, Dict[str, List[ServiceProviderInfo]]] = {}
-                for handler_name, services in info.get('handlers', {}).items():
+                for handler_name, services in info.get("handlers", {}).items():
                     service_dict: Dict[str, List[ServiceProviderInfo]] = {}
                     for service_type_name, providers in services.items():
                         # Convert provider dicts to ServiceProviderInfo objects
                         provider_infos = [ServiceProviderInfo(**p) for p in providers]
                         service_dict[service_type_name] = provider_infos
                     handlers_dict[handler_name] = service_dict
-                
+
                 # Extract global services if present
                 global_services: Optional[Dict[str, List[ServiceProviderInfo]]] = None
-                if 'global_services' in info:
+                if "global_services" in info:
                     global_services_dict: Dict[str, List[ServiceProviderInfo]] = {}
-                    for service_type_name, providers in info['global_services'].items():
+                    for service_type_name, providers in info["global_services"].items():
                         provider_infos = [ServiceProviderInfo(**p) for p in providers]
                         global_services_dict[service_type_name] = provider_infos
                     global_services = global_services_dict
-                
+
                 return ServiceRegistryInfoResponse(
-                    total_services=info.get('total_services', 0),
-                    services_by_type=info.get('services_by_type', {}),
+                    total_services=info.get("total_services", 0),
+                    services_by_type=info.get("services_by_type", {}),
                     handlers=handlers_dict,
                     global_services=global_services,
-                    healthy_services=info.get('healthy_services', 0),
-                    circuit_breaker_states=info.get('circuit_breaker_states', {})
+                    healthy_services=info.get("healthy_services", 0),
+                    circuit_breaker_states=info.get("circuit_breaker_states", {}),
                 )
             else:
                 # Fallback if info is not a dict
                 return ServiceRegistryInfoResponse(
-                    total_services=0,
-                    services_by_type={},
-                    handlers={},
-                    healthy_services=0,
-                    circuit_breaker_states={}
+                    total_services=0, services_by_type={}, handlers={}, healthy_services=0, circuit_breaker_states={}
                 )
         except Exception as e:
             logger.error(f"Failed to get service registry info: {e}")
@@ -1066,7 +1063,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 handlers={},
                 healthy_services=0,
                 circuit_breaker_states={},
-                error=str(e)
+                error=str(e),
             )
 
     async def update_service_priority(
@@ -1074,15 +1071,13 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
         provider_name: str,
         new_priority: str,
         new_priority_group: Optional[int] = None,
-        new_strategy: Optional[str] = None
+        new_strategy: Optional[str] = None,
     ) -> ServicePriorityUpdateResponse:
         """Update service provider priority and selection strategy."""
         try:
-            if not self.runtime or not hasattr(self.runtime, 'service_registry'):
+            if not self.runtime or not hasattr(self.runtime, "service_registry"):
                 return ServicePriorityUpdateResponse(
-                    success=False,
-                    provider_name=provider_name,
-                    error="Service registry not available"
+                    success=False, provider_name=provider_name, error="Service registry not available"
                 )
 
             registry = self.runtime.service_registry
@@ -1098,7 +1093,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 return ServicePriorityUpdateResponse(
                     success=False,
                     provider_name=provider_name,
-                    error=f"Invalid priority '{new_priority}'. Valid priorities: {valid_priorities}"
+                    error=f"Invalid priority '{new_priority}'. Valid priorities: {valid_priorities}",
                 )
 
             # Validate selection strategy if provided
@@ -1111,7 +1106,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                     return ServicePriorityUpdateResponse(
                         success=False,
                         provider_name=provider_name,
-                        error=f"Invalid strategy '{new_strategy}'. Valid strategies: {valid_strategies}"
+                        error=f"Invalid strategy '{new_strategy}'. Valid strategies: {valid_strategies}",
                     )
 
             # Find the provider in handler-specific services
@@ -1144,27 +1139,21 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                             "old_priority_group": old_priority_group,
                             "new_priority_group": provider.priority_group,
                             "old_strategy": old_strategy,
-                            "new_strategy": provider.strategy.name
+                            "new_strategy": provider.strategy.name,
                         }
                         break
                 if provider_found:
                     break
 
-
             if not provider_found:
                 return ServicePriorityUpdateResponse(
                     success=False,
                     provider_name=provider_name,
-                    error=f"Service provider '{provider_name}' not found in registry"
+                    error=f"Service provider '{provider_name}' not found in registry",
                 )
 
             # Record the event
-            await self._record_event(
-                "service_management",
-                "update_priority",
-                success=True,
-                result=updated_info
-            )
+            await self._record_event("service_management", "update_priority", success=True, result=updated_info)
 
             logger.info(
                 f"Updated service provider '{provider_name}' priority from "
@@ -1176,44 +1165,40 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 message=f"Successfully updated provider '{provider_name}' priority",
                 provider_name=provider_name,
                 changes=updated_info,
-                timestamp=self._now()
+                timestamp=self._now(),
             )
 
         except Exception as e:
             logger.error(f"Failed to update service priority: {e}")
-            await self._record_event(
-                "service_management",
-                "update_priority",
-                success=False,
-                error=str(e)
-            )
-            return ServicePriorityUpdateResponse(
-                success=False,
-                provider_name=provider_name,
-                error=str(e)
-            )
+            await self._record_event("service_management", "update_priority", success=False, error=str(e))
+            return ServicePriorityUpdateResponse(success=False, provider_name=provider_name, error=str(e))
 
     async def reset_circuit_breakers(self, service_type: Optional[str] = None) -> CircuitBreakerResetResponse:
         """Reset circuit breakers for services."""
         try:
-            if not self.runtime or not hasattr(self.runtime, 'service_registry') or self.runtime.service_registry is None:
+            if (
+                not self.runtime
+                or not hasattr(self.runtime, "service_registry")
+                or self.runtime.service_registry is None
+            ):
                 return CircuitBreakerResetResponse(
                     success=False,
                     message="Service registry not available",
                     service_type=service_type,
-                    error="Service registry not available"
+                    error="Service registry not available",
                 )
 
             self.runtime.service_registry.reset_circuit_breakers()
 
-            await self._record_event("service_management", "reset_circuit_breakers", True,
-                                    result={"service_type": service_type})
+            await self._record_event(
+                "service_management", "reset_circuit_breakers", True, result={"service_type": service_type}
+            )
 
             return CircuitBreakerResetResponse(
                 success=True,
                 message="Circuit breakers reset successfully",
                 timestamp=self._now(),
-                service_type=service_type
+                service_type=service_type,
             )
         except Exception as e:
             logger.error(f"Failed to reset circuit breakers: {e}")
@@ -1222,71 +1207,75 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 success=False,
                 message=f"Failed to reset circuit breakers: {str(e)}",
                 service_type=service_type,
-                error=str(e)
+                error=str(e),
             )
 
     async def get_circuit_breaker_status(self, service_type: Optional[str] = None) -> Dict[str, CircuitBreakerStatus]:
         """Get circuit breaker status for services."""
         try:
-            if not self.runtime or not hasattr(self.runtime, 'service_registry') or self.runtime.service_registry is None:
+            if (
+                not self.runtime
+                or not hasattr(self.runtime, "service_registry")
+                or self.runtime.service_registry is None
+            ):
                 return {}
-                
+
             registry_info = self.runtime.service_registry.get_provider_info(service_type=service_type)
             circuit_breakers: Dict[str, CircuitBreakerStatus] = {}
-            
+
             # Process handler services
             for handler, services in registry_info.get("handlers", {}).items():
                 for svc_type, providers in services.items():
                     if service_type and svc_type != service_type:
                         continue
-                        
+
                     for provider in providers:
                         service_name = f"{handler}.{svc_type}.{provider['name']}"
-                        cb_state_str = provider.get('circuit_breaker_state', 'closed')
-                        
+                        cb_state_str = provider.get("circuit_breaker_state", "closed")
+
                         # Map string state to enum
-                        if cb_state_str == 'closed':
+                        if cb_state_str == "closed":
                             cb_state = CircuitBreakerState.CLOSED
-                        elif cb_state_str == 'open':
+                        elif cb_state_str == "open":
                             cb_state = CircuitBreakerState.OPEN
                         else:
                             cb_state = CircuitBreakerState.HALF_OPEN
-                            
+
                         circuit_breakers[service_name] = CircuitBreakerStatus(
                             state=cb_state,
                             failure_count=0,  # Would need to get from actual circuit breaker
                             service_name=service_name,
                             trip_threshold=5,
-                            reset_timeout_seconds=60.0
+                            reset_timeout_seconds=60.0,
                         )
-                        
+
             # Process global services
             for svc_type, providers in registry_info.get("global_services", {}).items():
                 if service_type and svc_type != service_type:
                     continue
-                    
+
                 for provider in providers:
                     service_name = f"global.{svc_type}.{provider['name']}"
-                    cb_state_str = provider.get('circuit_breaker_state', 'closed')
-                    
+                    cb_state_str = provider.get("circuit_breaker_state", "closed")
+
                     # Map string state to enum
-                    if cb_state_str == 'closed':
+                    if cb_state_str == "closed":
                         cb_state = CircuitBreakerState.CLOSED
-                    elif cb_state_str == 'open':
+                    elif cb_state_str == "open":
                         cb_state = CircuitBreakerState.OPEN
                     else:
                         cb_state = CircuitBreakerState.HALF_OPEN
-                        
+
                     circuit_breakers[service_name] = CircuitBreakerStatus(
                         state=cb_state,
                         failure_count=0,
                         service_name=service_name,
                         trip_threshold=5,
-                        reset_timeout_seconds=60.0
+                        reset_timeout_seconds=60.0,
                     )
-                    
+
             return circuit_breakers
-            
+
         except Exception as e:
             logger.error(f"Failed to get circuit breaker status: {e}")
             return {}
@@ -1294,25 +1283,24 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
     async def get_service_selection_explanation(self) -> ServiceSelectionExplanation:
         """Get explanation of service selection logic."""
         try:
-            from ciris_engine.logic.registries.base import Priority, SelectionStrategy
-            
+
             explanation = ServiceSelectionExplanation(
                 overview="CIRIS uses a sophisticated multi-level service selection system with priority groups, priorities, and selection strategies.",
                 priority_groups={
                     0: "Primary services - tried first",
-                    1: "Secondary/backup services - used when primary unavailable", 
-                    2: "Tertiary/fallback services - last resort (e.g., mock providers)"
+                    1: "Secondary/backup services - used when primary unavailable",
+                    2: "Tertiary/fallback services - last resort (e.g., mock providers)",
                 },
                 priorities={
                     "CRITICAL": {"value": 0, "description": "Highest priority - always tried first within a group"},
                     "HIGH": {"value": 1, "description": "High priority services"},
                     "NORMAL": {"value": 2, "description": "Standard priority (default)"},
                     "LOW": {"value": 3, "description": "Low priority services"},
-                    "FALLBACK": {"value": 9, "description": "Last resort services within a group"}
+                    "FALLBACK": {"value": 9, "description": "Last resort services within a group"},
                 },
                 selection_strategies={
                     "FALLBACK": "First available strategy - try services in priority order until one succeeds",
-                    "ROUND_ROBIN": "Load balancing - rotate through services to distribute load"
+                    "ROUND_ROBIN": "Load balancing - rotate through services to distribute load",
                 },
                 selection_flow=[
                     "1. Group services by priority_group (0, 1, 2...)",
@@ -1323,41 +1311,41 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                     "6. Verify service has required capabilities",
                     "7. If all checks pass, use the service",
                     "8. If service fails, try next according to strategy",
-                    "9. If all services in group fail, try next group"
+                    "9. If all services in group fail, try next group",
                 ],
                 circuit_breaker_info={
                     "purpose": "Prevents repeated calls to failing services",
                     "states": {
                         "CLOSED": "Normal operation - service is available",
                         "OPEN": "Service is unavailable - too many recent failures",
-                        "HALF_OPEN": "Testing if service has recovered"
+                        "HALF_OPEN": "Testing if service has recovered",
                     },
-                    "configuration": "Configurable failure threshold, timeout, and half-open test interval"
+                    "configuration": "Configurable failure threshold, timeout, and half-open test interval",
                 },
                 examples=[
                     {
                         "scenario": "LLM Service Selection",
                         "setup": "3 LLM providers: OpenAI (group 0, HIGH), Anthropic (group 0, NORMAL), MockLLM (group 1, NORMAL)",
-                        "result": "System tries OpenAI first, then Anthropic, then MockLLM only if both group 0 providers fail"
+                        "result": "System tries OpenAI first, then Anthropic, then MockLLM only if both group 0 providers fail",
                     },
                     {
                         "scenario": "Round Robin Load Balancing",
                         "setup": "2 Memory providers in group 0 with ROUND_ROBIN strategy",
-                        "result": "Requests alternate between the two providers to distribute load"
-                    }
+                        "result": "Requests alternate between the two providers to distribute load",
+                    },
                 ],
                 configuration_tips=[
                     "Use priority groups to separate production services (group 0) from fallback services (group 1+)",
                     "Set CRITICAL priority for essential services that should always be tried first",
                     "Use ROUND_ROBIN strategy for stateless services to distribute load",
                     "Configure circuit breakers with appropriate thresholds based on service reliability",
-                    "Place mock/test services in higher priority groups (2+) to ensure they're only used as last resort"
-                ]
+                    "Place mock/test services in higher priority groups (2+) to ensure they're only used as last resort",
+                ],
             )
-            
+
             await self._record_event("service_query", "get_selection_explanation", success=True)
             return explanation
-            
+
         except Exception as e:
             logger.error(f"Failed to get service selection explanation: {e}")
             await self._record_event("service_query", "get_selection_explanation", success=False, error=str(e))
@@ -1370,7 +1358,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 selection_flow=[],
                 circuit_breaker_info={},
                 examples=[],
-                configuration_tips=[]
+                configuration_tips=[],
             )
 
     async def get_service_health_status(self) -> ServiceHealthStatus:
@@ -1382,43 +1370,43 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                     healthy_services=0,
                     unhealthy_services=0,
                     service_details={},
-                    recommendations=["Runtime not available"]
+                    recommendations=["Runtime not available"],
                 )
 
             service_details = {}
             healthy_count = 0
             unhealthy_count = 0
-            
+
             # First, get all direct services from runtime properties
             direct_services = [
                 # Graph Services (6)
-                ('memory_service', 'graph', 'MemoryService'),
-                ('config_service', 'graph', 'ConfigService'),
-                ('telemetry_service', 'graph', 'TelemetryService'),
-                ('audit_service', 'graph', 'AuditService'),
-                ('incident_management_service', 'graph', 'IncidentManagementService'),
-                ('tsdb_consolidation_service', 'graph', 'TSDBConsolidationService'),
+                ("memory_service", "graph", "MemoryService"),
+                ("config_service", "graph", "ConfigService"),
+                ("telemetry_service", "graph", "TelemetryService"),
+                ("audit_service", "graph", "AuditService"),
+                ("incident_management_service", "graph", "IncidentManagementService"),
+                ("tsdb_consolidation_service", "graph", "TSDBConsolidationService"),
                 # Infrastructure Services (7)
-                ('time_service', 'infrastructure', 'TimeService'),
-                ('shutdown_service', 'infrastructure', 'ShutdownService'),
-                ('initialization_service', 'infrastructure', 'InitializationService'),
-                ('authentication_service', 'infrastructure', 'AuthenticationService'),
-                ('resource_monitor', 'infrastructure', 'ResourceMonitorService'),
-                ('maintenance_service', 'infrastructure', 'DatabaseMaintenanceService'),
-                ('secrets_service', 'infrastructure', 'SecretsService'),
+                ("time_service", "infrastructure", "TimeService"),
+                ("shutdown_service", "infrastructure", "ShutdownService"),
+                ("initialization_service", "infrastructure", "InitializationService"),
+                ("authentication_service", "infrastructure", "AuthenticationService"),
+                ("resource_monitor", "infrastructure", "ResourceMonitorService"),
+                ("maintenance_service", "infrastructure", "DatabaseMaintenanceService"),
+                ("secrets_service", "infrastructure", "SecretsService"),
                 # Governance Services (4)
-                ('wa_auth_system', 'governance', 'WiseAuthorityService'),
-                ('adaptive_filter_service', 'governance', 'AdaptiveFilterService'),
-                ('visibility_service', 'governance', 'VisibilityService'),
-                ('self_observation_service', 'governance', 'SelfObservationService'),
+                ("wa_auth_system", "governance", "WiseAuthorityService"),
+                ("adaptive_filter_service", "governance", "AdaptiveFilterService"),
+                ("visibility_service", "governance", "VisibilityService"),
+                ("self_observation_service", "governance", "SelfObservationService"),
                 # Runtime Services (3)
-                ('llm_service', 'runtime', 'LLMService'),
-                ('runtime_control_service', 'runtime', 'RuntimeControlService'),
-                ('task_scheduler', 'runtime', 'TaskSchedulerService'),
+                ("llm_service", "runtime", "LLMService"),
+                ("runtime_control_service", "runtime", "RuntimeControlService"),
+                ("task_scheduler", "runtime", "TaskSchedulerService"),
                 # Tool Services (1)
-                ('core_tool_service', 'tool', 'SecretsToolService'),
+                ("core_tool_service", "tool", "SecretsToolService"),
             ]
-            
+
             # Check each direct service
             for attr_name, category, display_name in direct_services:
                 service = getattr(self.runtime, attr_name, None)
@@ -1426,21 +1414,25 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                     service_key = f"direct.{category}.{display_name}"
                     try:
                         # Check if service has is_healthy method
-                        if hasattr(service, 'is_healthy'):
-                            is_healthy = await service.is_healthy() if asyncio.iscoroutinefunction(service.is_healthy) else service.is_healthy()
-                        elif hasattr(service, '_started'):
+                        if hasattr(service, "is_healthy"):
+                            is_healthy = (
+                                await service.is_healthy()
+                                if asyncio.iscoroutinefunction(service.is_healthy)
+                                else service.is_healthy()
+                            )
+                        elif hasattr(service, "_started"):
                             is_healthy = service._started
                         else:
                             is_healthy = True  # Assume healthy if no health check
-                        
+
                         service_details[service_key] = {
                             "healthy": is_healthy,
                             "circuit_breaker_state": "closed",  # Direct services don't use circuit breakers
                             "priority": "DIRECT",  # Direct call, no priority
                             "priority_group": -1,  # Not applicable
-                            "strategy": "DIRECT"  # Direct call
+                            "strategy": "DIRECT",  # Direct call
                         }
-                        
+
                         if is_healthy:
                             healthy_count += 1
                         else:
@@ -1453,15 +1445,15 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                             "priority": "DIRECT",
                             "priority_group": -1,
                             "strategy": "DIRECT",
-                            "error": str(e)
+                            "error": str(e),
                         }
                         unhealthy_count += 1
-            
+
             # Then get registry services (bus-based services)
-            if hasattr(self.runtime, 'service_registry') and self.runtime.service_registry:
+            if hasattr(self.runtime, "service_registry") and self.runtime.service_registry:
                 registry_info = self.runtime.service_registry.get_provider_info()
                 logger.debug(f"Registry info keys: {list(registry_info.keys())}")
-                
+
                 unhealthy_services_list = []
                 healthy_services_list = []
 
@@ -1469,17 +1461,17 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 for service_type, providers in registry_info.get("services", {}).items():
                     for provider in providers:
                         service_key = f"registry.{service_type}.{provider['name']}"
-                        cb_state = provider.get('circuit_breaker_state', 'closed')
-                        is_healthy = cb_state == 'closed'
+                        cb_state = provider.get("circuit_breaker_state", "closed")
+                        is_healthy = cb_state == "closed"
 
                         service_details[service_key] = {
                             "healthy": is_healthy,
                             "circuit_breaker_state": cb_state,
-                            "priority": provider.get('priority', 'NORMAL'),
-                            "priority_group": provider.get('priority_group', 0),
-                            "strategy": provider.get('strategy', 'FALLBACK')
+                            "priority": provider.get("priority", "NORMAL"),
+                            "priority_group": provider.get("priority_group", 0),
+                            "strategy": provider.get("strategy", "FALLBACK"),
                         }
-                        
+
                         if is_healthy:
                             healthy_count += 1
                             healthy_services_list.append(service_key)
@@ -1487,11 +1479,10 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                             unhealthy_count += 1
                             unhealthy_services_list.append(service_key)
 
-
             # Determine overall health
             overall_health = "healthy"
             recommendations = []
-            
+
             if unhealthy_count > 0:
                 if unhealthy_count > healthy_count:
                     overall_health = "unhealthy"
@@ -1499,16 +1490,16 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 else:
                     overall_health = "degraded"
                     recommendations.append(f"Warning: {unhealthy_count} services are unhealthy")
-                    
+
                 recommendations.append("Consider resetting circuit breakers for failed services")
                 recommendations.append("Check service logs for error details")
-            
+
             return ServiceHealthStatus(
                 overall_health=overall_health,
                 healthy_services=healthy_count,
                 unhealthy_services=unhealthy_count,
                 service_details=service_details,
-                recommendations=recommendations
+                recommendations=recommendations,
             )
 
         except Exception as e:
@@ -1518,7 +1509,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 healthy_services=0,
                 unhealthy_services=0,
                 service_details={},
-                recommendations=[f"Critical error while checking service health: {str(e)}"]
+                recommendations=[f"Critical error while checking service health: {str(e)}"],
             )
 
     async def _get_service_selection_explanation(self) -> ServiceSelectionExplanation:
@@ -1528,31 +1519,35 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             priority_groups={
                 0: "Primary services - tried first",
                 1: "Secondary services - used when primary unavailable",
-                2: "Tertiary services - last resort options"
+                2: "Tertiary services - last resort options",
             },
             selection_strategies={
                 "FALLBACK": "Use first available healthy service in priority order",
-                "ROUND_ROBIN": "Rotate through services at same priority level"
+                "ROUND_ROBIN": "Rotate through services at same priority level",
             },
-            examples=[{
-                "scenario": "fallback_strategy",
-                "description": "Two LLM services: OpenAI (CRITICAL) and LocalLLM (NORMAL)",
-                "behavior": "Always try OpenAI first, fall back to LocalLLM if OpenAI fails"
-            }, {
-                "scenario": "round_robin_strategy",
-                "description": "Three load-balanced API services all at NORMAL priority",
-                "behavior": "Rotate requests: API1 -> API2 -> API3 -> API1 -> ..."
-            }, {
-                "scenario": "multi_group_example",
-                "description": "Priority Group 0: Critical services, Priority Group 1: Backup services",
-                "behavior": "Only use Group 1 services if all Group 0 services are unavailable"
-            }],
+            examples=[
+                {
+                    "scenario": "fallback_strategy",
+                    "description": "Two LLM services: OpenAI (CRITICAL) and LocalLLM (NORMAL)",
+                    "behavior": "Always try OpenAI first, fall back to LocalLLM if OpenAI fails",
+                },
+                {
+                    "scenario": "round_robin_strategy",
+                    "description": "Three load-balanced API services all at NORMAL priority",
+                    "behavior": "Rotate requests: API1 -> API2 -> API3 -> API1 -> ...",
+                },
+                {
+                    "scenario": "multi_group_example",
+                    "description": "Priority Group 0: Critical services, Priority Group 1: Backup services",
+                    "behavior": "Only use Group 1 services if all Group 0 services are unavailable",
+                },
+            ],
             configuration_tips=[
                 "Use priority groups to separate primary and backup services",
                 "Set CRITICAL priority for essential services within a group",
                 "Use ROUND_ROBIN strategy for load balancing similar services",
-                "Configure circuit breakers to handle transient failures gracefully"
-            ]
+                "Configure circuit breakers to handle transient failures gracefully",
+            ],
         )
 
     # Helper Methods
@@ -1562,7 +1557,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
         action: str,
         success: bool,
         result: Optional[Dict[str, object]] = None,
-        error: Optional[str] = None
+        error: Optional[str] = None,
     ) -> None:
         """Record an event in the history."""
         try:
@@ -1571,7 +1566,7 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                 timestamp=self._now(),
                 source="RuntimeControlService",
                 details={"result": result, "success": success} if result else {"success": success},
-                severity="error" if error else "info"
+                severity="error" if error else "info",
             )
             # Store additional fields in details since they're not in the schema
             if error:
@@ -1593,81 +1588,94 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
     async def _reload_config(self, config_path: Optional[str] = None) -> ConfigReloadResult:
         """Reload system configuration."""
         try:
-            await self._record_event("config_reload", "reload", success=False, error="Legacy method - use specific config operations instead")
+            await self._record_event(
+                "config_reload", "reload", success=False, error="Legacy method - use specific config operations instead"
+            )
 
             return ConfigReloadResult(
                 success=False,
                 config_version="unknown",
                 changes_applied=0,
                 warnings=["Legacy method - use specific config operations instead"],
-                error="Use specific configuration management endpoints instead"
+                error="Use specific configuration management endpoints instead",
             )
 
         except Exception as e:
             logger.error(f"Failed to reload config: {e}", exc_info=True)
             return ConfigReloadResult(
-                success=False,
-                config_version="unknown",
-                changes_applied=0,
-                warnings=[],
-                error=str(e)
+                success=False, config_version="unknown", changes_applied=0, warnings=[], error=str(e)
             )
 
     # Service interface methods required by Service base class
     def get_service_type(self) -> ServiceType:
         """Get the service type enum value."""
         return ServiceType.RUNTIME_CONTROL
-    
+
     def _check_dependencies(self) -> bool:
         """Check if all required dependencies are available."""
         # Runtime is optional - service can function without it
         return True
-    
+
     def _register_dependencies(self) -> None:
         """Register service dependencies."""
         super()._register_dependencies()
-        if hasattr(self, 'config_manager') and self.config_manager:
+        if hasattr(self, "config_manager") and self.config_manager:
             self._dependencies.add("GraphConfigService")
-        if hasattr(self, 'adapter_manager') and self.adapter_manager:
+        if hasattr(self, "adapter_manager") and self.adapter_manager:
             self._dependencies.add("RuntimeAdapterManager")
-    
+
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """Collect service-specific metrics."""
         metrics = {
             "events_count": float(len(self._events_history)),
             "processor_status": 1.0 if self._processor_status == ProcessorStatus.RUNNING else 0.0,
         }
-        
-        if self.adapter_manager and hasattr(self.adapter_manager, 'active_adapters'):
+
+        if self.adapter_manager and hasattr(self.adapter_manager, "active_adapters"):
             metrics["adapters_loaded"] = float(len(self.adapter_manager.active_adapters))
-        
+
         return metrics
 
     def _get_actions(self) -> List[str]:
         """Get list of actions this service provides."""
         return [
-            "single_step", "pause_processing", "resume_processing",
-            "get_processor_queue_status", "shutdown_runtime",
-            "load_adapter", "unload_adapter", "list_adapters", "get_adapter_info",
-            "get_config", "update_config", "validate_config", "backup_config",
-            "restore_config", "list_config_backups", "reload_config_profile",
-            "get_runtime_status", "get_runtime_snapshot",
+            "single_step",
+            "pause_processing",
+            "resume_processing",
+            "get_processor_queue_status",
+            "shutdown_runtime",
+            "load_adapter",
+            "unload_adapter",
+            "list_adapters",
+            "get_adapter_info",
+            "get_config",
+            "update_config",
+            "validate_config",
+            "backup_config",
+            "restore_config",
+            "list_config_backups",
+            "reload_config_profile",
+            "get_runtime_status",
+            "get_runtime_snapshot",
             "update_service_priority",
-            "reset_circuit_breakers", "get_service_health_status"
+            "reset_circuit_breakers",
+            "get_service_health_status",
         ]
-    
+
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities with custom metadata."""
         # Get base capabilities
         capabilities = super().get_capabilities()
-        
+
         # Add custom metadata
         if capabilities.metadata is not None:
-            capabilities.metadata.update({
-                "description": "Runtime control and management service",
-                "features": ["processor_control", "adapter_management", "config_management", "health_monitoring"]
-            })
-        
+            capabilities.metadata.update(
+                {
+                    "description": "Runtime control and management service",
+                    "features": ["processor_control", "adapter_management", "config_management", "health_monitoring"],
+                }
+            )
+
         return capabilities
 
     def get_status(self) -> ServiceStatus:
@@ -1680,9 +1688,13 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
             last_error=self._last_error,
             metrics={
                 "events_count": float(len(self._events_history)),
-                "adapters_loaded": float(len(self.adapter_manager.active_adapters) if self.adapter_manager and hasattr(self.adapter_manager, 'active_adapters') else 0)
+                "adapters_loaded": float(
+                    len(self.adapter_manager.active_adapters)
+                    if self.adapter_manager and hasattr(self.adapter_manager, "active_adapters")
+                    else 0
+                ),
             },
-            last_health_check=self._last_health_check
+            last_health_check=self._last_health_check,
         )
 
     def _set_runtime(self, runtime: "RuntimeInterface") -> None:
@@ -1691,11 +1703,12 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
         # If adapter manager exists, update its runtime reference too
         if self.adapter_manager:
             from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+
             self.adapter_manager.runtime = cast(CIRISRuntime, runtime)
             # Re-register config listener with updated runtime
             self.adapter_manager._register_config_listener()
         logger.info("Runtime reference set in RuntimeControlService")
-    
+
     async def _on_start(self) -> None:
         """Custom startup logic for runtime control service."""
         await self._initialize()

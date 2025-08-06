@@ -14,27 +14,24 @@ Tests cover:
 - Audit trail for rejections
 """
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from contextlib import contextmanager
 from datetime import datetime, timezone
-import uuid
-from typing import Optional, Any, List, Dict
+from typing import Any, Optional
+from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
+
+from ciris_engine.logic.buses.bus_manager import BusManager
 from ciris_engine.logic.handlers.control.reject_handler import RejectHandler
 from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies
-from ciris_engine.logic.buses.bus_manager import BusManager
-from ciris_engine.schemas.actions.parameters import RejectParams
-from ciris_engine.schemas.runtime.models import Thought, ThoughtContext, Task
-from ciris_engine.schemas.runtime.enums import (
-    ThoughtStatus, HandlerActionType, TaskStatus, ThoughtType
-)
-from ciris_engine.schemas.runtime.contexts import DispatchContext
-from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
-from ciris_engine.schemas.runtime.system_context import ChannelContext
-from ciris_engine.schemas.telemetry.core import ServiceCorrelation
-from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.logic.secrets.service import SecretsService
-from contextlib import contextmanager
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.actions.parameters import RejectParams
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from ciris_engine.schemas.runtime.contexts import DispatchContext
+from ciris_engine.schemas.runtime.enums import HandlerActionType, TaskStatus, ThoughtStatus
+from ciris_engine.schemas.runtime.models import Task, Thought, ThoughtContext
+from ciris_engine.schemas.runtime.system_context import ChannelContext
 
 
 @contextmanager
@@ -47,9 +44,10 @@ def patch_persistence_properly(test_task: Optional[Task] = None) -> Any:
     mock_persistence.update_thought_status = Mock(return_value=True)
     mock_persistence.add_correlation = Mock()
     mock_persistence.update_task_status = Mock(return_value=True)
-    
-    with patch('ciris_engine.logic.handlers.control.reject_handler.persistence', mock_persistence), \
-         patch('ciris_engine.logic.infrastructure.handlers.base_handler.persistence', mock_persistence):
+
+    with patch("ciris_engine.logic.handlers.control.reject_handler.persistence", mock_persistence), patch(
+        "ciris_engine.logic.infrastructure.handlers.base_handler.persistence", mock_persistence
+    ):
         yield mock_persistence
 
 
@@ -92,13 +90,15 @@ def mock_bus_manager(mock_communication_bus: AsyncMock) -> Mock:
 
 
 @pytest.fixture
-def handler_dependencies(mock_bus_manager: Mock, mock_time_service: Mock, mock_secrets_service: Mock) -> ActionHandlerDependencies:
+def handler_dependencies(
+    mock_bus_manager: Mock, mock_time_service: Mock, mock_secrets_service: Mock
+) -> ActionHandlerDependencies:
     """Create handler dependencies."""
     return ActionHandlerDependencies(
         bus_manager=mock_bus_manager,
         time_service=mock_time_service,
         secrets_service=mock_secrets_service,
-        shutdown_callback=None
+        shutdown_callback=None,
     )
 
 
@@ -120,7 +120,7 @@ def channel_context() -> ChannelContext:
         is_active=True,
         last_activity=None,
         message_count=0,
-        moderation_level="standard"
+        moderation_level="standard",
     )
 
 
@@ -146,7 +146,7 @@ def dispatch_context(channel_context: ChannelContext) -> DispatchContext:
         epistemic_data=None,
         correlation_id="corr_123",
         span_id=None,
-        trace_id=None
+        trace_id=None,
     )
 
 
@@ -172,8 +172,8 @@ def test_thought() -> Thought:
             round_number=1,
             depth=1,
             channel_id="test_channel_123",
-            parent_thought_id=None
-        )
+            parent_thought_id=None,
+        ),
     )
 
 
@@ -193,7 +193,7 @@ def test_task() -> Task:
         outcome=None,
         signed_by=None,
         signature=None,
-        signed_at=None
+        signed_at=None,
     )
 
 
@@ -205,7 +205,7 @@ def reject_params() -> RejectParams:
         create_filter=True,
         filter_pattern="harmful|unethical|dangerous",
         filter_type="regex",
-        filter_priority="high"
+        filter_priority="high",
     )
 
 
@@ -219,7 +219,7 @@ def action_result(reject_params: RejectParams) -> ActionSelectionDMAResult:
         raw_llm_response="REJECT: Harmful content request",
         reasoning="Cannot comply with requests for harmful content",
         evaluation_time_ms=100.0,
-        resource_usage=None
+        resource_usage=None,
     )
 
 
@@ -228,49 +228,52 @@ class TestRejectHandler:
 
     @pytest.mark.asyncio
     async def test_successful_rejection_with_notification(
-        self, reject_handler: RejectHandler, action_result: ActionSelectionDMAResult,
-        test_thought: Thought, dispatch_context: DispatchContext,
-        mock_communication_bus: AsyncMock, test_task: Task
+        self,
+        reject_handler: RejectHandler,
+        action_result: ActionSelectionDMAResult,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_communication_bus: AsyncMock,
+        test_task: Task,
     ) -> None:
         """Test successful rejection with user notification."""
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
-            follow_up_id = await reject_handler.handle(
-                action_result, test_thought, dispatch_context
-            )
-            
+            follow_up_id = await reject_handler.handle(action_result, test_thought, dispatch_context)
+
             # Verify user was notified
             mock_communication_bus.send_message.assert_called_once()
             message_call = mock_communication_bus.send_message.call_args
-            assert message_call.kwargs['channel_id'] == "test_channel_123"
-            assert "unable to proceed" in message_call.kwargs['content'].lower()
-            assert "ethical guidelines" in message_call.kwargs['content'].lower()
-            
+            assert message_call.kwargs["channel_id"] == "test_channel_123"
+            assert "unable to proceed" in message_call.kwargs["content"].lower()
+            assert "ethical guidelines" in message_call.kwargs["content"].lower()
+
             # Verify thought status was updated to FAILED (reject marks as failed)
             assert mock_persistence.update_thought_status.called
             update_call = mock_persistence.update_thought_status.call_args
-            assert update_call.kwargs['thought_id'] == "thought_123"
-            assert update_call.kwargs['status'] == ThoughtStatus.FAILED
-            
+            assert update_call.kwargs["thought_id"] == "thought_123"
+            assert update_call.kwargs["status"] == ThoughtStatus.FAILED
+
             # Verify task was marked as rejected
             mock_persistence.update_task_status.assert_called_once()
-            
+
             # REJECT is a terminal action - no follow-up thought should be created
             assert follow_up_id is None
             mock_persistence.add_thought.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_rejection_without_filter(
-        self, reject_handler: RejectHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        mock_communication_bus: AsyncMock, test_task: Task
+        self,
+        reject_handler: RejectHandler,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_communication_bus: AsyncMock,
+        test_task: Task,
     ) -> None:
         """Test rejection without creating filter."""
         # Create params without filter creation
-        params = RejectParams(
-            reason="Internal policy violation",
-            create_filter=False
-        )
-        
+        params = RejectParams(reason="Internal policy violation", create_filter=False)
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.REJECT,
             action_parameters=params,
@@ -278,23 +281,27 @@ class TestRejectHandler:
             raw_llm_response=None,
             reasoning=None,
             evaluation_time_ms=None,
-            resource_usage=None
+            resource_usage=None,
         )
-        
+
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
             await reject_handler.handle(result, test_thought, dispatch_context)
-            
+
             # Verify user was still notified (handler always notifies if channel exists)
             mock_communication_bus.send_message.assert_called_once()
-            
+
             # Task should still be marked as rejected
             mock_persistence.update_task_status.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_rejection_reasons(
-        self, reject_handler: RejectHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        mock_communication_bus: AsyncMock, test_task: Task
+        self,
+        reject_handler: RejectHandler,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_communication_bus: AsyncMock,
+        test_task: Task,
     ) -> None:
         """Test different rejection reasons."""
         rejection_scenarios = [
@@ -303,24 +310,24 @@ class TestRejectHandler:
             ("Against platform policies", False, None),
             ("Potentially illegal content", True, "illegal|prohibited"),
             ("Beyond system capabilities", False, None),
-            ("Contains offensive material", True, "offensive|inappropriate")
+            ("Contains offensive material", True, "offensive|inappropriate"),
         ]
-        
+
         with patch_persistence_properly(test_task) as mock_persistence:
             for reason, create_filter, filter_pattern in rejection_scenarios:
                 # Reset mocks
                 mock_persistence.update_thought_status.reset_mock()
                 mock_communication_bus.send_message.reset_mock()
-                
+
                 # Create params for this rejection
                 params = RejectParams(
                     reason=reason,
                     create_filter=create_filter,
                     filter_pattern=filter_pattern if create_filter else None,
                     filter_type="regex" if create_filter else None,
-                    filter_priority="high" if create_filter else None
+                    filter_priority="high" if create_filter else None,
                 )
-                
+
                 result = ActionSelectionDMAResult(
                     selected_action=HandlerActionType.REJECT,
                     action_parameters=params,
@@ -328,38 +335,37 @@ class TestRejectHandler:
                     raw_llm_response=None,
                     reasoning=None,
                     evaluation_time_ms=None,
-                    resource_usage=None
+                    resource_usage=None,
                 )
-                
+
                 # Execute handler
                 await reject_handler.handle(result, test_thought, dispatch_context)
-                
+
                 # Verify notification includes the reason
                 message_call = mock_communication_bus.send_message.call_args
-                assert reason in message_call.kwargs['content']
+                assert reason in message_call.kwargs["content"]
 
     @pytest.mark.asyncio
     async def test_filter_priorities(
-        self, reject_handler: RejectHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        test_task: Task
+        self, reject_handler: RejectHandler, test_thought: Thought, dispatch_context: DispatchContext, test_task: Task
     ) -> None:
         """Test different filter priorities."""
         priorities = ["critical", "high", "medium"]
-        
+
         with patch_persistence_properly(test_task) as mock_persistence:
             for priority in priorities:
                 # Reset mocks
                 mock_persistence.update_thought_status.reset_mock()
-                
+
                 # Create params with different filter priority
                 params = RejectParams(
                     reason=f"Test rejection with {priority} priority",
                     create_filter=True,
                     filter_pattern="test_pattern",
                     filter_type="regex",
-                    filter_priority=priority
+                    filter_priority=priority,
                 )
-                
+
                 result = ActionSelectionDMAResult(
                     selected_action=HandlerActionType.REJECT,
                     action_parameters=params,
@@ -367,34 +373,38 @@ class TestRejectHandler:
                     raw_llm_response=None,
                     reasoning=None,
                     evaluation_time_ms=None,
-                    resource_usage=None
+                    resource_usage=None,
                 )
-                
+
                 # Execute handler
                 await reject_handler.handle(result, test_thought, dispatch_context)
-                
+
                 # Verify thought was marked as failed
                 assert mock_persistence.update_thought_status.called
 
     @pytest.mark.asyncio
     async def test_detailed_reason_included(
-        self, reject_handler: RejectHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        mock_communication_bus: AsyncMock, test_task: Task
+        self,
+        reject_handler: RejectHandler,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_communication_bus: AsyncMock,
+        test_task: Task,
     ) -> None:
         """Test that detailed reasons are included in responses."""
         detailed_reason = """This request cannot be fulfilled for the following reasons:
         1. It violates the principle of non-maleficence
         2. It could lead to harmful consequences for individuals
         3. It goes against established ethical guidelines"""
-        
+
         params = RejectParams(
             reason=detailed_reason,
             create_filter=True,
             filter_pattern="harmful|unethical|dangerous",
             filter_type="regex",
-            filter_priority="critical"
+            filter_priority="critical",
         )
-        
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.REJECT,
             action_parameters=params,
@@ -402,35 +412,36 @@ class TestRejectHandler:
             raw_llm_response=None,
             reasoning=None,
             evaluation_time_ms=None,
-            resource_usage=None
+            resource_usage=None,
         )
-        
+
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
             await reject_handler.handle(result, test_thought, dispatch_context)
-            
+
             # Verify detailed reason was included in message
             message_call = mock_communication_bus.send_message.call_args
-            content = message_call.kwargs['content']
+            content = message_call.kwargs["content"]
             # Handler includes the reason in the message
             assert "non-maleficence" in content or "harmful" in content or "ethical" in content
 
     @pytest.mark.asyncio
     async def test_task_already_rejected(
-        self, reject_handler: RejectHandler, action_result: ActionSelectionDMAResult,
-        test_thought: Thought, dispatch_context: DispatchContext,
-        test_task: Task
+        self,
+        reject_handler: RejectHandler,
+        action_result: ActionSelectionDMAResult,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        test_task: Task,
     ) -> None:
         """Test handling when task is already rejected."""
         # Set task to already rejected
         test_task.status = TaskStatus.REJECTED
-        
+
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
-            await reject_handler.handle(
-                action_result, test_thought, dispatch_context
-            )
-            
+            await reject_handler.handle(action_result, test_thought, dispatch_context)
+
             # Handler should still update thought status
             assert mock_persistence.update_thought_status.called
             # And attempt to update task status
@@ -450,72 +461,74 @@ class TestRejectHandler:
                 raw_llm_response=None,
                 reasoning=None,
                 evaluation_time_ms=None,
-                resource_usage=None
+                resource_usage=None,
             )
-            
+
             # Mock the validation method to raise an error
-            with patch.object(reject_handler, '_validate_and_convert_params') as mock_validate:
+            with patch.object(reject_handler, "_validate_and_convert_params") as mock_validate:
                 mock_validate.side_effect = ValueError("Invalid rejection type")
-                
+
                 # Execute handler - should handle validation error
-                follow_up_id = await reject_handler.handle(
-                    result, test_thought, dispatch_context
-                )
-                
+                follow_up_id = await reject_handler.handle(result, test_thought, dispatch_context)
+
                 # Verify thought was marked as failed
                 mock_persistence.update_thought_status.assert_called_with(
-                    thought_id="thought_123",
-                    status=ThoughtStatus.FAILED,
-                    final_action=result
+                    thought_id="thought_123", status=ThoughtStatus.FAILED, final_action=result
                 )
-                
+
                 # REJECT is terminal - no follow-up even on error
                 assert follow_up_id is None
 
     @pytest.mark.asyncio
     async def test_communication_failure_during_notification(
-        self, reject_handler: RejectHandler, action_result: ActionSelectionDMAResult,
-        test_thought: Thought, dispatch_context: DispatchContext,
-        mock_communication_bus: AsyncMock, test_task: Task
+        self,
+        reject_handler: RejectHandler,
+        action_result: ActionSelectionDMAResult,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_communication_bus: AsyncMock,
+        test_task: Task,
     ) -> None:
         """Test handling when user notification fails."""
         # Configure communication to fail
         mock_communication_bus.send_message.side_effect = Exception("Communication error")
-        
+
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
-            follow_up_id = await reject_handler.handle(
-                action_result, test_thought, dispatch_context
-            )
-            
+            follow_up_id = await reject_handler.handle(action_result, test_thought, dispatch_context)
+
             # Task should still be marked as rejected despite communication failure
             mock_persistence.update_task_status.assert_called_once()
-            
+
             # REJECT is terminal - no follow-up even on communication failure
             assert follow_up_id is None
 
     @pytest.mark.asyncio
     async def test_rejection_with_filter_types(
-        self, reject_handler: RejectHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        mock_communication_bus: AsyncMock, test_task: Task
+        self,
+        reject_handler: RejectHandler,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_communication_bus: AsyncMock,
+        test_task: Task,
     ) -> None:
         """Test rejection with different filter types."""
         filter_types = ["regex", "semantic", "keyword"]
-        
+
         with patch_persistence_properly(test_task) as mock_persistence:
             for filter_type in filter_types:
                 # Reset mocks
                 mock_persistence.update_thought_status.reset_mock()
                 mock_communication_bus.send_message.reset_mock()
-                
+
                 params = RejectParams(
                     reason=f"Testing {filter_type} filter",
                     create_filter=True,
                     filter_pattern=f"pattern_for_{filter_type}",
                     filter_type=filter_type,
-                    filter_priority="medium"
+                    filter_priority="medium",
                 )
-                
+
                 result = ActionSelectionDMAResult(
                     selected_action=HandlerActionType.REJECT,
                     action_parameters=params,
@@ -523,77 +536,84 @@ class TestRejectHandler:
                     raw_llm_response=None,
                     reasoning=None,
                     evaluation_time_ms=None,
-                    resource_usage=None
+                    resource_usage=None,
                 )
-                
+
                 # Execute handler
                 await reject_handler.handle(result, test_thought, dispatch_context)
-                
+
                 # Verify notification was sent
                 message_call = mock_communication_bus.send_message.call_args
                 assert message_call is not None
-                assert "unable" in message_call.kwargs['content'].lower()
+                assert "unable" in message_call.kwargs["content"].lower()
 
     @pytest.mark.asyncio
     async def test_audit_trail(
-        self, reject_handler: RejectHandler, action_result: ActionSelectionDMAResult,
-        test_thought: Thought, dispatch_context: DispatchContext,
-        mock_bus_manager: Mock, test_task: Task
+        self,
+        reject_handler: RejectHandler,
+        action_result: ActionSelectionDMAResult,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_bus_manager: Mock,
+        test_task: Task,
     ) -> None:
         """Test audit logging for REJECT actions."""
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
-            await reject_handler.handle(
-                action_result, test_thought, dispatch_context
-            )
-            
+            await reject_handler.handle(action_result, test_thought, dispatch_context)
+
             # Verify audit logs were created
             audit_calls = mock_bus_manager.audit_service.log_event.call_args_list
             assert len(audit_calls) >= 2  # Start and completion
-            
+
             # Reject handler calls audit twice (start and success)
             if len(audit_calls) >= 2:
                 # Check start audit
                 start_call = audit_calls[0]
-                assert "handler_action_reject" in str(start_call[1]['event_type']).lower()
-                assert start_call[1]['event_data']['outcome'] == "start"
-                
+                assert "handler_action_reject" in str(start_call[1]["event_type"]).lower()
+                assert start_call[1]["event_data"]["outcome"] == "start"
+
                 # Check completion audit
                 end_call = audit_calls[-1]
-                assert end_call[1]['event_data']['outcome'] == "success"
+                assert end_call[1]["event_data"]["outcome"] == "success"
             else:
                 # At minimum, check we have a success audit
                 audit_call = audit_calls[0]
-                assert "handler_action_reject" in str(audit_call[1]['event_type']).lower()
+                assert "handler_action_reject" in str(audit_call[1]["event_type"]).lower()
 
     @pytest.mark.asyncio
     async def test_handler_completes_properly(
-        self, reject_handler: RejectHandler, action_result: ActionSelectionDMAResult,
-        test_thought: Thought, dispatch_context: DispatchContext,
-        test_task: Task
+        self,
+        reject_handler: RejectHandler,
+        action_result: ActionSelectionDMAResult,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        test_task: Task,
     ) -> None:
         """Test that reject handler completes properly."""
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
-            follow_up_id = await reject_handler.handle(
-                action_result, test_thought, dispatch_context
-            )
-            
+            follow_up_id = await reject_handler.handle(action_result, test_thought, dispatch_context)
+
             # Verify no follow-up was created (REJECT is terminal)
             assert follow_up_id is None
-            
+
             # Verify thought was marked as failed
             mock_persistence.update_thought_status.assert_called_once()
             status_call = mock_persistence.update_thought_status.call_args
-            assert status_call.kwargs['status'] == ThoughtStatus.FAILED
-            
+            assert status_call.kwargs["status"] == ThoughtStatus.FAILED
+
             # Verify task was updated
             mock_persistence.update_task_status.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_complex_filter_patterns(
-        self, reject_handler: RejectHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        mock_communication_bus: AsyncMock, test_task: Task
+        self,
+        reject_handler: RejectHandler,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_communication_bus: AsyncMock,
+        test_task: Task,
     ) -> None:
         """Test rejection with complex filter patterns."""
         params = RejectParams(
@@ -601,9 +621,9 @@ class TestRejectHandler:
             create_filter=True,
             filter_pattern="(ethical|safety|legal).*(violation|concern|issue)",
             filter_type="regex",
-            filter_priority="critical"
+            filter_priority="critical",
         )
-        
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.REJECT,
             action_parameters=params,
@@ -611,14 +631,14 @@ class TestRejectHandler:
             raw_llm_response=None,
             reasoning=None,
             evaluation_time_ms=None,
-            resource_usage=None
+            resource_usage=None,
         )
-        
+
         with patch_persistence_properly(test_task) as mock_persistence:
             # Execute handler
             await reject_handler.handle(result, test_thought, dispatch_context)
-            
+
             # Verify rejection message
             message_call = mock_communication_bus.send_message.call_args
-            content = message_call.kwargs['content']
+            content = message_call.kwargs["content"]
             assert "multiple" in content.lower() or "violations" in content.lower() or "concern" in content.lower()

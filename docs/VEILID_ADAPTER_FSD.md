@@ -39,11 +39,11 @@ logger = logging.getLogger(__name__)
 
 class VeilidPlatform(BaseAdapterProtocol):
     """Platform adapter for Veilid network integration."""
-    
+
     def __init__(self, runtime: Any, **kwargs: Any) -> None:
         self.runtime = runtime
         self.config = VeilidAdapterConfig(**kwargs)
-        
+
         # Initialize the main adapter service
         self.veilid_adapter = VeilidAdapter(
             runtime=runtime,
@@ -51,13 +51,13 @@ class VeilidPlatform(BaseAdapterProtocol):
             time_service=self._get_time_service(),
             bus_manager=runtime.bus_manager if hasattr(runtime, 'bus_manager') else None
         )
-        
+
         # Initialize observer
         self.veilid_observer = VeilidObserver(
             adapter=self.veilid_adapter,
             on_message=self._handle_incoming_message
         )
-    
+
     def get_services_to_register(self) -> List[AdapterServiceRegistration]:
         """Register services following CLI and Discord patterns."""
         return [
@@ -86,19 +86,19 @@ class VeilidPlatform(BaseAdapterProtocol):
                 capabilities=["execute_tool", "list_tools", "get_tool_info"]
             )
         ]
-    
+
     async def start(self) -> None:
         """Start the Veilid platform."""
         logger.info("Starting Veilid platform adapter")
         await self.veilid_adapter.start()
         await self.veilid_observer.start()
-    
+
     async def stop(self) -> None:
         """Stop the Veilid platform."""
         logger.info("Stopping Veilid platform adapter")
         await self.veilid_observer.stop()
         await self.veilid_adapter.stop()
-    
+
     async def run_lifecycle(self, agent_task: Any) -> None:
         """Run adapter lifecycle (required by BaseAdapterProtocol)."""
         # Veilid doesn't need special lifecycle like Discord
@@ -140,7 +140,7 @@ class VeilidAdapter(Service, CommunicationService, WiseAuthorityService, ToolSer
     Veilid adapter implementing all three service protocols.
     Pattern follows Discord adapter's multi-service approach.
     """
-    
+
     def __init__(
         self,
         runtime: Optional[Any] = None,
@@ -150,30 +150,30 @@ class VeilidAdapter(Service, CommunicationService, WiseAuthorityService, ToolSer
         on_message: Optional[Callable[[IncomingMessage], Awaitable[None]]] = None
     ) -> None:
         super().__init__()
-        
+
         self.runtime = runtime
         self.config = config
         self._time_service = time_service
         self.bus_manager = bus_manager
         self.on_message = on_message
-        
+
         # Veilid node instance
         self._node: Optional[veilid.VeilidAPI] = None
         self._routing_context: Optional[veilid.RoutingContext] = None
-        
+
         # Component handlers (like Discord)
         self._tool_handler = VeilidToolHandler(self)
         self._wise_authority = VeilidWiseAuthority(self, time_service)
-        
+
         # Active routes and channels
         self._routes: Dict[str, veilid.RouteId] = {}
         self._channels: Dict[str, Dict[str, Any]] = {}
-        
+
         self._running = False
         self._start_time: Optional[datetime] = None
-    
+
     # ===== CommunicationService Implementation =====
-    
+
     async def send_message(self, channel_id: str, content: str) -> bool:
         """Send message through Veilid network (like cli_adapter.py:122)."""
         correlation_id = str(uuid.uuid4())
@@ -183,19 +183,19 @@ class VeilidAdapter(Service, CommunicationService, WiseAuthorityService, ToolSer
             if len(parts) != 3 or parts[0] != 'veilid':
                 logger.error(f"Invalid Veilid channel ID format: {channel_id}")
                 return False
-            
+
             node_id, route_id = parts[1], parts[2]
-            
+
             # Get or create route
             if route_id not in self._routes:
                 # Create new route to target
                 route = await self._create_route_to_node(node_id)
                 self._routes[route_id] = route
-            
+
             # Send via Veilid
             route = self._routes[route_id]
             await self._send_via_route(route, content)
-            
+
             # Create correlation (following CLI pattern)
             await self._create_correlation(
                 correlation_id=correlation_id,
@@ -203,29 +203,29 @@ class VeilidAdapter(Service, CommunicationService, WiseAuthorityService, ToolSer
                 channel_id=channel_id,
                 parameters={"content": content}
             )
-            
+
             return True
-            
+
         except Exception as e:
             logger.error(f"Failed to send Veilid message: {e}")
             return False
-    
+
     async def fetch_messages(
-        self, 
-        channel_id: str, 
-        *, 
-        limit: int = 50, 
+        self,
+        channel_id: str,
+        *,
+        limit: int = 50,
         before: Optional[datetime] = None
     ) -> List[Dict[str, Any]]:
         """Fetch messages from correlations (like api_communication.py:142)."""
         from ciris_engine.logic.persistence import get_correlations_by_channel
-        
+
         try:
             correlations = get_correlations_by_channel(
                 channel_id=channel_id,
                 limit=limit
             )
-            
+
             messages = []
             for corr in correlations:
                 if corr.action_type == "speak" and corr.request_data:
@@ -252,87 +252,87 @@ class VeilidAdapter(Service, CommunicationService, WiseAuthorityService, ToolSer
                         "channel_id": channel_id,
                         "is_bot": False
                     })
-            
+
             return sorted(messages, key=lambda m: m["timestamp"])
-            
+
         except Exception as e:
             logger.error(f"Failed to fetch Veilid messages: {e}")
             return []
-    
+
     # ===== WiseAuthorityService Implementation =====
-    
+
     async def send_deferral(self, deferral: DeferralRequest) -> str:
         """Send deferral through Veilid consensus (like discord_adapter.py:544)."""
         return await self._wise_authority.send_deferral(deferral)
-    
+
     async def fetch_guidance(self, context: GuidanceContext) -> Optional[str]:
         """Fetch guidance via distributed consensus."""
         return await self._wise_authority.fetch_guidance(context)
-    
+
     # ===== ToolService Implementation =====
-    
+
     async def execute_tool(self, tool_name: str, parameters: dict) -> ToolExecutionResult:
         """Execute Veilid tool (like cli_adapter.py:270)."""
         return await self._tool_handler.execute_tool(tool_name, parameters)
-    
+
     async def list_tools(self) -> List[str]:
         """List available Veilid tools."""
         return await self._tool_handler.list_tools()
-    
+
     async def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
         """Get detailed tool information."""
         return await self._tool_handler.get_tool_info(tool_name)
-    
+
     async def get_all_tool_info(self) -> List[ToolInfo]:
         """Get info for all tools."""
         return await self._tool_handler.get_all_tool_info()
-    
+
     # ===== Lifecycle Methods =====
-    
+
     async def start(self) -> None:
         """Start Veilid node and services."""
         logger.info("Starting Veilid adapter")
         self._start_time = self._time_service.now()
-        
+
         # Initialize Veilid node
         config = self._build_veilid_config()
         self._node = await veilid.api_startup_json(config)
-        
+
         # Attach to network
         await self._node.attach()
-        
+
         # Create routing context
         self._routing_context = await self._node.routing_context()
-        
+
         self._running = True
-        
+
         # Start components
         await self._tool_handler.start()
         await self._wise_authority.start()
-        
+
         # Emit telemetry
         await self._emit_telemetry("adapter_started", 1.0, {
             "adapter_type": "veilid",
             "node_id": await self._get_node_id()
         })
-    
+
     async def stop(self) -> None:
         """Stop Veilid node and services."""
         logger.info("Stopping Veilid adapter")
         self._running = False
-        
+
         # Stop components
         await self._wise_authority.stop()
         await self._tool_handler.stop()
-        
+
         # Cleanup Veilid
         if self._routing_context:
             del self._routing_context
-        
+
         if self._node:
             await self._node.detach()
             await veilid.api_shutdown()
-        
+
         await self._emit_telemetry("adapter_stopped", 1.0, {
             "adapter_type": "veilid"
         })
@@ -356,7 +356,7 @@ logger = logging.getLogger(__name__)
 
 class VeilidToolHandler:
     """Handles Veilid-specific tool execution."""
-    
+
     def __init__(self, adapter: Any) -> None:
         self.adapter = adapter
         self._tools = {
@@ -364,24 +364,24 @@ class VeilidToolHandler:
             "create_private_route": self._tool_create_private_route,
             "list_routes": self._tool_list_routes,
             "inspect_route": self._tool_inspect_route,
-            
+
             # DHT operations
             "publish_to_dht": self._tool_publish_to_dht,
             "read_from_dht": self._tool_read_from_dht,
-            
+
             # Network discovery
             "find_peer": self._tool_find_peer,
             "list_peers": self._tool_list_peers,
-            
+
             # Identity & crypto
             "create_identity": self._tool_create_identity,
             "verify_identity": self._tool_verify_identity,
-            
+
             # Network health
             "network_status": self._tool_network_status,
             "ping_peer": self._tool_ping_peer,
         }
-    
+
     async def execute_tool(self, tool_name: str, parameters: dict) -> ToolExecutionResult:
         """Execute a Veilid tool."""
         if tool_name not in self._tools:
@@ -392,7 +392,7 @@ class VeilidToolHandler:
                 data={"available_tools": list(self._tools.keys())},
                 error=f"Unknown tool: {tool_name}"
             )
-        
+
         try:
             result = await self._tools[tool_name](parameters)
             return ToolExecutionResult(
@@ -411,7 +411,7 @@ class VeilidToolHandler:
                 data=None,
                 error=str(e)
             )
-    
+
     async def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
         """Get information about a specific tool."""
         tool_schemas = {
@@ -433,7 +433,7 @@ class VeilidToolHandler:
             ),
             # ... more schemas ...
         }
-        
+
         tool_descriptions = {
             "create_private_route": "Create a new private route with configurable privacy",
             "list_routes": "List all active Veilid routes",
@@ -442,10 +442,10 @@ class VeilidToolHandler:
             "network_status": "Get overall Veilid network health",
             # ... more descriptions ...
         }
-        
+
         if tool_name not in self._tools:
             return None
-        
+
         return ToolInfo(
             name=tool_name,
             description=tool_descriptions.get(tool_name, f"Veilid tool: {tool_name}"),
@@ -453,7 +453,7 @@ class VeilidToolHandler:
             category="veilid",
             cost=0.0
         )
-    
+
     # Tool implementations following CLI pattern
     async def _tool_create_private_route(self, params: dict) -> dict:
         """Create a private route."""
@@ -461,17 +461,17 @@ class VeilidToolHandler:
             hop_count = params.get("hop_count", 2)
             stability = params.get("stability", "med")
             sequencing = params.get("sequencing", True)
-            
+
             # Use Veilid API to create route
             route_id = await self.adapter._routing_context.new_private_route(
                 hop_count=hop_count,
                 stability=veilid.Stability[stability.upper()],
                 sequencing=veilid.Sequencing.ENSURE_ORDERED if sequencing else veilid.Sequencing.NO_PREFERENCE
             )
-            
+
             # Get route blob for sharing
             route_blob = await self.adapter._routing_context.export_route(route_id)
-            
+
             return {
                 "success": True,
                 "route_id": str(route_id),
@@ -479,7 +479,7 @@ class VeilidToolHandler:
                 "hop_count": hop_count,
                 "stability": stability
             }
-            
+
         except Exception as e:
             return {"success": False, "error": str(e)}
 ```
@@ -507,17 +507,17 @@ class VeilidWiseAuthority:
     Implements WiseAuthorityService using Veilid's distributed consensus.
     Instead of Discord reactions, uses DHT voting mechanism.
     """
-    
+
     def __init__(self, adapter: Any, time_service: Any) -> None:
         self.adapter = adapter
         self.time_service = time_service
         self._pending_deferrals: Dict[str, DeferralRequest] = {}
         self._consensus_threshold = 0.66  # 2/3 majority
-    
+
     async def send_deferral(self, deferral: DeferralRequest) -> str:
         """Publish deferral to DHT for distributed consensus."""
         deferral_id = str(uuid.uuid4())
-        
+
         try:
             # Create DHT record for deferral
             dht_key = f"deferral:{deferral_id}"
@@ -530,26 +530,26 @@ class VeilidWiseAuthority:
                 "votes": {},  # peer_id -> decision
                 "status": "pending"
             }
-            
+
             # Publish to DHT
             await self.adapter._publish_to_dht(dht_key, deferral_data, ttl=3600)
-            
+
             # Notify peers via broadcast channel
             await self._broadcast_deferral_request(deferral_id, deferral)
-            
+
             self._pending_deferrals[deferral_id] = deferral
-            
+
             logger.info(f"Published deferral {deferral_id} to Veilid network")
             return deferral_id
-            
+
         except Exception as e:
             logger.error(f"Failed to send Veilid deferral: {e}")
             raise
-    
+
     async def fetch_guidance(self, context: GuidanceContext) -> Optional[str]:
         """Fetch guidance through distributed consensus."""
         guidance_id = str(uuid.uuid4())
-        
+
         try:
             # Create guidance request in DHT
             dht_key = f"guidance:{guidance_id}"
@@ -562,15 +562,15 @@ class VeilidWiseAuthority:
                 "responses": {},  # peer_id -> guidance
                 "status": "pending"
             }
-            
+
             # Publish and wait for responses
             await self.adapter._publish_to_dht(dht_key, guidance_data, ttl=1800)
-            
+
             # Wait for consensus or timeout
             guidance = await self._wait_for_consensus(dht_key, timeout=30)
-            
+
             return guidance
-            
+
         except Exception as e:
             logger.error(f"Failed to fetch Veilid guidance: {e}")
             return None
@@ -594,22 +594,22 @@ logger = logging.getLogger(__name__)
 
 class VeilidObserver:
     """Observes incoming Veilid messages and converts to CIRIS format."""
-    
+
     def __init__(
-        self, 
+        self,
         adapter: Any,
         on_message: Optional[Callable[[IncomingMessage], Awaitable[None]]] = None
     ) -> None:
         self.adapter = adapter
         self.on_message = on_message
         self._running = False
-    
+
     async def handle_veilid_message(self, sender_id: str, route_id: str, content: bytes) -> None:
         """Handle incoming Veilid message."""
         try:
             # Decode message
             message_content = content.decode('utf-8')
-            
+
             # Create IncomingMessage
             channel_id = f"veilid_{sender_id}_{route_id}"
             msg = IncomingMessage(
@@ -620,14 +620,14 @@ class VeilidObserver:
                 channel_id=channel_id,
                 timestamp=datetime.utcnow().isoformat()
             )
-            
+
             # Create observe correlation
             await self._create_observe_correlation(msg)
-            
+
             # Forward to handler
             if self.on_message:
                 await self.on_message(msg)
-            
+
         except Exception as e:
             logger.error(f"Error handling Veilid message: {e}")
 ```
@@ -641,37 +641,37 @@ from pydantic import BaseModel, Field
 
 class VeilidAdapterConfig(BaseModel):
     """Configuration for Veilid adapter."""
-    
+
     # Network settings
     bootstrap_nodes: List[str] = Field(
         default_factory=lambda: ["bootstrap.veilid.net:5150"],
         description="Bootstrap nodes for network entry"
     )
-    
+
     # Storage
     storage_path: str = Field(
         default="./veilid_storage",
         description="Path for Veilid state storage"
     )
-    
+
     # Privacy settings
     default_route_privacy: str = Field(
         default="high",
         description="Default privacy level: low, med, high"
     )
-    
+
     # DHT settings
     dht_default_ttl: int = Field(
         default=3600,
         description="Default TTL for DHT records in seconds"
     )
-    
+
     # Identity
     node_identity: Optional[str] = Field(
         default=None,
         description="Persistent node identity (auto-generated if not provided)"
     )
-    
+
     class Config:
         extra = "forbid"  # No Dict[str, Any]!
 ```

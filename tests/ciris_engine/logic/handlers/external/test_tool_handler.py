@@ -10,30 +10,24 @@ Tests cover:
 - Async tool execution
 - Tool timeout and cancellation scenarios
 """
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
-from datetime import datetime, timezone
-import uuid
-import os
-import tempfile
 
+import uuid
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+
+from ciris_engine.logic.buses.bus_manager import BusManager
 from ciris_engine.logic.handlers.external.tool_handler import ToolHandler
 from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies
 from ciris_engine.logic.infrastructure.handlers.exceptions import FollowUpCreationError
-from ciris_engine.logic.buses.bus_manager import BusManager
-from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
 from ciris_engine.schemas.actions.parameters import ToolParams
-from ciris_engine.schemas.runtime.models import Thought, ThoughtContext
-from ciris_engine.schemas.runtime.contexts import DispatchContext
-from ciris_engine.schemas.runtime.system_context import ChannelContext
+from ciris_engine.schemas.adapters.tools import ToolExecutionResult, ToolExecutionStatus, ToolInfo, ToolParameterSchema
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
-from ciris_engine.schemas.adapters.tools import (
-    ToolExecutionResult,
-    ToolExecutionStatus,
-    ToolResult,
-    ToolInfo,
-    ToolParameterSchema
-)
+from ciris_engine.schemas.runtime.contexts import DispatchContext
+from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
+from ciris_engine.schemas.runtime.models import Thought, ThoughtContext
+from ciris_engine.schemas.runtime.system_context import ChannelContext
 
 
 # Test fixtures and helpers
@@ -43,15 +37,12 @@ def create_channel_context(channel_id: str = "test_channel") -> ChannelContext:
         channel_id=channel_id,
         channel_name=f"Channel {channel_id}",
         channel_type="text",
-        created_at=datetime.now(timezone.utc)
+        created_at=datetime.now(timezone.utc),
     )
 
 
 def create_dispatch_context(
-    thought_id: str,
-    task_id: str,
-    channel_id: str = "test_channel",
-    handler_name: str = "ToolHandler"
+    thought_id: str, task_id: str, channel_id: str = "test_channel", handler_name: str = "ToolHandler"
 ) -> DispatchContext:
     """Helper to create a valid DispatchContext for tests."""
     return DispatchContext(
@@ -66,14 +57,12 @@ def create_dispatch_context(
         source_task_id=task_id,
         event_summary="Tool execution test",
         event_timestamp=datetime.now(timezone.utc).isoformat(),
-        correlation_id=str(uuid.uuid4())
+        correlation_id=str(uuid.uuid4()),
     )
 
 
 def create_test_thought(
-    thought_id: str = "test_thought",
-    task_id: str = "test_task",
-    status: ThoughtStatus = ThoughtStatus.PROCESSING
+    thought_id: str = "test_thought", task_id: str = "test_task", status: ThoughtStatus = ThoughtStatus.PROCESSING
 ) -> Thought:
     """Helper to create a valid Thought for tests."""
     return Thought(
@@ -84,12 +73,7 @@ def create_test_thought(
         thought_depth=1,
         created_at=datetime.now(timezone.utc).isoformat(),
         updated_at=datetime.now(timezone.utc).isoformat(),
-        context=ThoughtContext(
-            task_id=task_id,
-            round_number=1,
-            depth=1,
-            correlation_id="test_correlation"
-        )
+        context=ThoughtContext(task_id=task_id, round_number=1, depth=1, correlation_id="test_correlation"),
     )
 
 
@@ -98,12 +82,13 @@ def create_tool_execution_result(
     success: bool = True,
     data: dict = None,
     error: str = None,
-    status: ToolExecutionStatus = ToolExecutionStatus.COMPLETED
+    status: ToolExecutionStatus = ToolExecutionStatus.COMPLETED,
 ) -> ToolExecutionResult:
     """Helper to create a ToolExecutionResult that matches handler expectations."""
     # The handler code seems to expect a different structure than the schema defines
     # We'll create a mock object that matches what the handler expects
     from unittest.mock import Mock
+
     result = Mock(spec=ToolExecutionResult)
     result.tool_name = tool_name
     result.status = status
@@ -114,11 +99,7 @@ def create_tool_execution_result(
     return result
 
 
-def create_tool_info(
-    name: str,
-    description: str = "Test tool",
-    required_params: list = None
-) -> ToolInfo:
+def create_tool_info(name: str, description: str = "Test tool", required_params: list = None) -> ToolInfo:
     """Helper to create ToolInfo."""
     return ToolInfo(
         name=name,
@@ -127,12 +108,12 @@ def create_tool_info(
             type="object",
             properties={
                 "param1": {"type": "string", "description": "First parameter"},
-                "param2": {"type": "integer", "description": "Second parameter"}
+                "param2": {"type": "integer", "description": "Second parameter"},
             },
-            required=required_params or []
+            required=required_params or [],
         ),
         category="test",
-        cost=0.0
+        cost=0.0,
     )
 
 
@@ -144,16 +125,13 @@ def mock_dependencies(monkeypatch):
     mock_persistence.add_thought = Mock()
     mock_persistence.update_thought_status = Mock()
     mock_persistence.get_task_by_id = Mock(return_value=Mock())  # Return a mock task
-    monkeypatch.setattr('ciris_engine.logic.handlers.external.tool_handler.persistence', mock_persistence)
-    monkeypatch.setattr('ciris_engine.logic.infrastructure.handlers.base_handler.persistence', mock_persistence)
+    monkeypatch.setattr("ciris_engine.logic.handlers.external.tool_handler.persistence", mock_persistence)
+    monkeypatch.setattr("ciris_engine.logic.infrastructure.handlers.base_handler.persistence", mock_persistence)
 
     # Mock the models ThoughtContext to avoid validation issues
     mock_thought_context = Mock()
     mock_thought_context.model_validate = Mock(side_effect=lambda x: Mock())
-    monkeypatch.setattr(
-        'ciris_engine.schemas.runtime.models.ThoughtContext',
-        mock_thought_context
-    )
+    monkeypatch.setattr("ciris_engine.schemas.runtime.models.ThoughtContext", mock_thought_context)
 
     # Create service mocks
     mock_service_registry = AsyncMock()
@@ -173,17 +151,14 @@ def mock_dependencies(monkeypatch):
     bus_manager.audit_service = mock_audit_service
 
     # Create dependencies
-    deps = ActionHandlerDependencies(
-        bus_manager=bus_manager,
-        time_service=mock_time_service
-    )
+    deps = ActionHandlerDependencies(bus_manager=bus_manager, time_service=mock_time_service)
 
     return {
-        'deps': deps,
-        'persistence': mock_persistence,
-        'tool_bus': mock_tool_bus,
-        'audit_service': mock_audit_service,
-        'time_service': mock_time_service
+        "deps": deps,
+        "persistence": mock_persistence,
+        "tool_bus": mock_tool_bus,
+        "audit_service": mock_audit_service,
+        "time_service": mock_time_service,
     }
 
 
@@ -191,9 +166,9 @@ def mock_dependencies(monkeypatch):
 @pytest.mark.asyncio
 async def test_tool_execution_success(mock_dependencies, monkeypatch):
     """Test successful tool execution with proper parameters."""
-    deps = mock_dependencies['deps']
-    tool_bus = mock_dependencies['tool_bus']
-    persistence = mock_dependencies['persistence']
+    deps = mock_dependencies["deps"]
+    tool_bus = mock_dependencies["tool_bus"]
+    persistence = mock_dependencies["persistence"]
 
     # Configure tool bus mock
     tool_result = create_tool_execution_result("calculator", success=True, data={"result": 42})
@@ -203,10 +178,7 @@ async def test_tool_execution_success(mock_dependencies, monkeypatch):
     handler = ToolHandler(deps)
 
     # Create parameters
-    params = ToolParams(
-        name="calculator",
-        parameters={"operation": "add", "a": 20, "b": 22}
-    )
+    params = ToolParams(name="calculator", parameters={"operation": "add", "a": 20, "b": 22})
 
     # Create DMA result
     result = ActionSelectionDMAResult(
@@ -214,7 +186,7 @@ async def test_tool_execution_success(mock_dependencies, monkeypatch):
         action_parameters=params,
         rationale="Performing calculation",
         reasoning="User requested math operation",
-        evaluation_time_ms=100
+        evaluation_time_ms=100,
     )
 
     # Create thought and context
@@ -227,14 +199,14 @@ async def test_tool_execution_success(mock_dependencies, monkeypatch):
     # Verify tool was executed
     assert tool_bus.execute_tool.called
     call_args = tool_bus.execute_tool.call_args
-    assert call_args.kwargs['tool_name'] == "calculator"
-    assert call_args.kwargs['parameters'] == {"operation": "add", "a": 20, "b": 22}
-    assert call_args.kwargs['handler_name'] == 'ToolHandler'
+    assert call_args.kwargs["tool_name"] == "calculator"
+    assert call_args.kwargs["parameters"] == {"operation": "add", "a": 20, "b": 22}
+    assert call_args.kwargs["handler_name"] == "ToolHandler"
 
     # Verify thought was updated to completed
     update_call = persistence.update_thought_status.call_args
-    assert update_call.kwargs['thought_id'] == thought.thought_id
-    assert update_call.kwargs['status'] == ThoughtStatus.COMPLETED
+    assert update_call.kwargs["thought_id"] == thought.thought_id
+    assert update_call.kwargs["status"] == ThoughtStatus.COMPLETED
 
     # Verify follow-up thought was created
     assert persistence.add_thought.called
@@ -247,16 +219,13 @@ async def test_tool_execution_success(mock_dependencies, monkeypatch):
 @pytest.mark.asyncio
 async def test_tool_execution_failure(mock_dependencies):
     """Test tool execution failure handling."""
-    deps = mock_dependencies['deps']
-    tool_bus = mock_dependencies['tool_bus']
-    persistence = mock_dependencies['persistence']
+    deps = mock_dependencies["deps"]
+    tool_bus = mock_dependencies["tool_bus"]
+    persistence = mock_dependencies["persistence"]
 
     # Configure tool bus to return failure
     tool_result = create_tool_execution_result(
-        "failing_tool",
-        success=False,
-        error="Tool not available",
-        status=ToolExecutionStatus.NOT_FOUND
+        "failing_tool", success=False, error="Tool not available", status=ToolExecutionStatus.NOT_FOUND
     )
     tool_bus.execute_tool.return_value = tool_result
 
@@ -268,7 +237,7 @@ async def test_tool_execution_failure(mock_dependencies):
         action_parameters=params,
         rationale="Testing failure",
         reasoning="This should fail",
-        evaluation_time_ms=50
+        evaluation_time_ms=50,
     )
 
     thought = create_test_thought()
@@ -290,8 +259,8 @@ async def test_tool_execution_failure(mock_dependencies):
 @pytest.mark.asyncio
 async def test_tool_parameter_validation_error(mock_dependencies):
     """Test handling of invalid tool parameters."""
-    deps = mock_dependencies['deps']
-    persistence = mock_dependencies['persistence']
+    deps = mock_dependencies["deps"]
+    persistence = mock_dependencies["persistence"]
 
     handler = ToolHandler(deps)
 
@@ -303,14 +272,14 @@ async def test_tool_parameter_validation_error(mock_dependencies):
         action_parameters=params,
         rationale="Invalid params test",
         reasoning="Testing parameter validation",
-        evaluation_time_ms=75
+        evaluation_time_ms=75,
     )
 
     thought = create_test_thought()
     dispatch_context = create_dispatch_context(thought.thought_id, thought.source_task_id)
 
     # Mock _validate_and_convert_params to raise exception
-    with patch.object(handler, '_validate_and_convert_params', side_effect=ValueError("Invalid parameters")):
+    with patch.object(handler, "_validate_and_convert_params", side_effect=ValueError("Invalid parameters")):
         await handler.handle(result, thought, dispatch_context)
 
     # Verify thought was marked as failed
@@ -326,16 +295,16 @@ async def test_tool_parameter_validation_error(mock_dependencies):
 @pytest.mark.asyncio
 async def test_tool_execution_timeout(mock_dependencies):
     """Test tool execution timeout scenario."""
-    deps = mock_dependencies['deps']
-    tool_bus = mock_dependencies['tool_bus']
-    persistence = mock_dependencies['persistence']
+    deps = mock_dependencies["deps"]
+    tool_bus = mock_dependencies["tool_bus"]
+    persistence = mock_dependencies["persistence"]
 
     # Configure tool bus to return timeout result
     tool_result = create_tool_execution_result(
         "slow_tool",
         success=False,
         error="Tool execution timed out after 30 seconds",
-        status=ToolExecutionStatus.TIMEOUT
+        status=ToolExecutionStatus.TIMEOUT,
     )
     tool_bus.execute_tool.return_value = tool_result
 
@@ -347,7 +316,7 @@ async def test_tool_execution_timeout(mock_dependencies):
         action_parameters=params,
         rationale="Testing timeout",
         reasoning="Long running tool",
-        evaluation_time_ms=100
+        evaluation_time_ms=100,
     )
 
     thought = create_test_thought()
@@ -366,9 +335,9 @@ async def test_tool_execution_timeout(mock_dependencies):
 @pytest.mark.asyncio
 async def test_tool_with_complex_parameters(mock_dependencies):
     """Test tool execution with complex nested parameters."""
-    deps = mock_dependencies['deps']
-    tool_bus = mock_dependencies['tool_bus']
-    persistence = mock_dependencies['persistence']
+    deps = mock_dependencies["deps"]
+    tool_bus = mock_dependencies["tool_bus"]
+    persistence = mock_dependencies["persistence"]
 
     # Complex parameters - ToolParams expects Dict[str, Union[str, int, float, bool, List[str], Dict[str, str]]]
     # So we need to adjust the nested structure to match the schema
@@ -377,14 +346,10 @@ async def test_tool_with_complex_parameters(mock_dependencies):
         "config_nested_number": 42,
         "config_list": ["item1", "item2", "item3"],
         "enabled": True,
-        "threshold": 0.75
+        "threshold": 0.75,
     }
 
-    tool_result = create_tool_execution_result(
-        "complex_tool",
-        success=True,
-        data={"processed": complex_params}
-    )
+    tool_result = create_tool_execution_result("complex_tool", success=True, data={"processed": complex_params})
     tool_bus.execute_tool.return_value = tool_result
 
     handler = ToolHandler(deps)
@@ -395,7 +360,7 @@ async def test_tool_with_complex_parameters(mock_dependencies):
         action_parameters=params,
         rationale="Complex parameters test",
         reasoning="Testing nested parameters",
-        evaluation_time_ms=150
+        evaluation_time_ms=150,
     )
 
     thought = create_test_thought()
@@ -405,19 +370,19 @@ async def test_tool_with_complex_parameters(mock_dependencies):
 
     # Verify complex parameters were passed correctly
     call_args = tool_bus.execute_tool.call_args
-    assert call_args.kwargs['parameters'] == complex_params
+    assert call_args.kwargs["parameters"] == complex_params
 
     # Verify success
     update_call = persistence.update_thought_status.call_args
-    assert update_call.kwargs['status'] == ThoughtStatus.COMPLETED
+    assert update_call.kwargs["status"] == ThoughtStatus.COMPLETED
 
 
 @pytest.mark.asyncio
 async def test_tool_execution_exception(mock_dependencies):
     """Test handling of exceptions during tool execution."""
-    deps = mock_dependencies['deps']
-    tool_bus = mock_dependencies['tool_bus']
-    persistence = mock_dependencies['persistence']
+    deps = mock_dependencies["deps"]
+    tool_bus = mock_dependencies["tool_bus"]
+    persistence = mock_dependencies["persistence"]
 
     # Configure tool bus to raise exception
     tool_bus.execute_tool.side_effect = RuntimeError("Tool service unavailable")
@@ -430,7 +395,7 @@ async def test_tool_execution_exception(mock_dependencies):
         action_parameters=params,
         rationale="Exception test",
         reasoning="This will crash",
-        evaluation_time_ms=80
+        evaluation_time_ms=80,
     )
 
     thought = create_test_thought()
@@ -450,9 +415,9 @@ async def test_tool_execution_exception(mock_dependencies):
 @pytest.mark.asyncio
 async def test_tool_with_empty_parameters(mock_dependencies):
     """Test tool execution with no parameters."""
-    deps = mock_dependencies['deps']
-    tool_bus = mock_dependencies['tool_bus']
-    persistence = mock_dependencies['persistence']
+    deps = mock_dependencies["deps"]
+    tool_bus = mock_dependencies["tool_bus"]
+    persistence = mock_dependencies["persistence"]
 
     tool_result = create_tool_execution_result("simple_tool", success=True)
     tool_bus.execute_tool.return_value = tool_result
@@ -466,7 +431,7 @@ async def test_tool_with_empty_parameters(mock_dependencies):
         action_parameters=params,
         rationale="Simple tool test",
         reasoning="No parameters needed",
-        evaluation_time_ms=60
+        evaluation_time_ms=60,
     )
 
     thought = create_test_thought()
@@ -476,19 +441,19 @@ async def test_tool_with_empty_parameters(mock_dependencies):
 
     # Verify empty parameters were handled
     call_args = tool_bus.execute_tool.call_args
-    assert call_args.kwargs['parameters'] == {}
+    assert call_args.kwargs["parameters"] == {}
 
     # Verify success
     update_call = persistence.update_thought_status.call_args
-    assert update_call.kwargs['status'] == ThoughtStatus.COMPLETED
+    assert update_call.kwargs["status"] == ThoughtStatus.COMPLETED
 
 
 @pytest.mark.asyncio
 async def test_follow_up_creation_failure(mock_dependencies):
     """Test handling when follow-up thought creation fails."""
-    deps = mock_dependencies['deps']
-    tool_bus = mock_dependencies['tool_bus']
-    persistence = mock_dependencies['persistence']
+    deps = mock_dependencies["deps"]
+    tool_bus = mock_dependencies["tool_bus"]
+    persistence = mock_dependencies["persistence"]
 
     tool_result = create_tool_execution_result("test_tool", success=True)
     tool_bus.execute_tool.return_value = tool_result
@@ -504,7 +469,7 @@ async def test_follow_up_creation_failure(mock_dependencies):
         action_parameters=params,
         rationale="Follow-up failure test",
         reasoning="Testing error handling",
-        evaluation_time_ms=70
+        evaluation_time_ms=70,
     )
 
     thought = create_test_thought()
@@ -521,15 +486,15 @@ async def test_follow_up_creation_failure(mock_dependencies):
 @pytest.mark.asyncio
 async def test_tool_unauthorized_access(mock_dependencies):
     """Test handling of unauthorized tool access."""
-    deps = mock_dependencies['deps']
-    tool_bus = mock_dependencies['tool_bus']
-    persistence = mock_dependencies['persistence']
+    deps = mock_dependencies["deps"]
+    tool_bus = mock_dependencies["tool_bus"]
+    persistence = mock_dependencies["persistence"]
 
     tool_result = create_tool_execution_result(
         "restricted_tool",
         success=False,
         error="Insufficient permissions to execute this tool",
-        status=ToolExecutionStatus.UNAUTHORIZED
+        status=ToolExecutionStatus.UNAUTHORIZED,
     )
     tool_bus.execute_tool.return_value = tool_result
 
@@ -541,7 +506,7 @@ async def test_tool_unauthorized_access(mock_dependencies):
         action_parameters=params,
         rationale="Testing permissions",
         reasoning="Attempting restricted access",
-        evaluation_time_ms=90
+        evaluation_time_ms=90,
     )
 
     thought = create_test_thought()
@@ -560,9 +525,9 @@ async def test_tool_unauthorized_access(mock_dependencies):
 @pytest.mark.asyncio
 async def test_secrets_decapsulation(mock_dependencies):
     """Test proper secrets decapsulation in tool parameters."""
-    deps = mock_dependencies['deps']
-    tool_bus = mock_dependencies['tool_bus']
-    persistence = mock_dependencies['persistence']
+    deps = mock_dependencies["deps"]
+    tool_bus = mock_dependencies["tool_bus"]
+    persistence = mock_dependencies["persistence"]
 
     tool_result = create_tool_execution_result("secure_tool", success=True)
     tool_bus.execute_tool.return_value = tool_result
@@ -571,23 +536,17 @@ async def test_secrets_decapsulation(mock_dependencies):
 
     # Mock _decapsulate_secrets_in_params
     decapsulated_result = Mock()
-    decapsulated_params = ToolParams(
-        name="secure_tool",
-        parameters={"api_key": "decrypted_key", "data": "sensitive"}
-    )
+    decapsulated_params = ToolParams(name="secure_tool", parameters={"api_key": "decrypted_key", "data": "sensitive"})
     decapsulated_result.action_parameters = decapsulated_params
 
-    with patch.object(handler, '_decapsulate_secrets_in_params', return_value=decapsulated_result):
-        params = ToolParams(
-            name="secure_tool",
-            parameters={"api_key": "encrypted_key", "data": "sensitive"}
-        )
+    with patch.object(handler, "_decapsulate_secrets_in_params", return_value=decapsulated_result):
+        params = ToolParams(name="secure_tool", parameters={"api_key": "encrypted_key", "data": "sensitive"})
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.TOOL,
             action_parameters=params,
             rationale="Secrets test",
             reasoning="Testing secret handling",
-            evaluation_time_ms=110
+            evaluation_time_ms=110,
         )
 
         thought = create_test_thought()
@@ -600,32 +559,24 @@ async def test_secrets_decapsulation(mock_dependencies):
 
         # Verify decapsulated params were used
         call_args = tool_bus.execute_tool.call_args
-        assert call_args.kwargs['parameters']['api_key'] == "decrypted_key"
+        assert call_args.kwargs["parameters"]["api_key"] == "decrypted_key"
 
 
 @pytest.mark.asyncio
 async def test_tool_result_formatting(mock_dependencies):
     """Test proper formatting of tool results in follow-up thoughts."""
-    deps = mock_dependencies['deps']
-    tool_bus = mock_dependencies['tool_bus']
-    persistence = mock_dependencies['persistence']
+    deps = mock_dependencies["deps"]
+    tool_bus = mock_dependencies["tool_bus"]
+    persistence = mock_dependencies["persistence"]
 
     # Tool with detailed result data
     result_data = {
         "summary": "Analysis complete",
-        "details": {
-            "items_processed": 100,
-            "errors": 0,
-            "duration_ms": 2500
-        },
-        "recommendations": ["Optimize query", "Add caching"]
+        "details": {"items_processed": 100, "errors": 0, "duration_ms": 2500},
+        "recommendations": ["Optimize query", "Add caching"],
     }
 
-    tool_result = create_tool_execution_result(
-        "analyzer",
-        success=True,
-        data=result_data
-    )
+    tool_result = create_tool_execution_result("analyzer", success=True, data=result_data)
     tool_bus.execute_tool.return_value = tool_result
 
     handler = ToolHandler(deps)
@@ -636,7 +587,7 @@ async def test_tool_result_formatting(mock_dependencies):
         action_parameters=params,
         rationale="Analysis needed",
         reasoning="Running analysis tool",
-        evaluation_time_ms=120
+        evaluation_time_ms=120,
     )
 
     thought = create_test_thought()
@@ -655,9 +606,9 @@ async def test_tool_result_formatting(mock_dependencies):
 @pytest.mark.asyncio
 async def test_correlation_id_generation(mock_dependencies):
     """Test that unique correlation IDs are generated for each tool execution."""
-    deps = mock_dependencies['deps']
-    tool_bus = mock_dependencies['tool_bus']
-    persistence = mock_dependencies['persistence']
+    deps = mock_dependencies["deps"]
+    tool_bus = mock_dependencies["tool_bus"]
+    persistence = mock_dependencies["persistence"]
 
     tool_result = create_tool_execution_result("test_tool", success=True)
     tool_bus.execute_tool.return_value = tool_result
@@ -668,7 +619,7 @@ async def test_correlation_id_generation(mock_dependencies):
     correlation_ids = []
 
     for i in range(3):
-        with patch('ciris_engine.logic.handlers.external.tool_handler.uuid.uuid4') as mock_uuid:
+        with patch("ciris_engine.logic.handlers.external.tool_handler.uuid.uuid4") as mock_uuid:
             test_uuid = f"test-correlation-{i}"
             mock_uuid.return_value = Mock(hex=test_uuid, __str__=Mock(return_value=test_uuid))
 
@@ -678,7 +629,7 @@ async def test_correlation_id_generation(mock_dependencies):
                 action_parameters=params,
                 rationale=f"Test {i}",
                 reasoning=f"Testing correlation {i}",
-                evaluation_time_ms=50 + i * 10
+                evaluation_time_ms=50 + i * 10,
             )
 
             thought = create_test_thought(thought_id=f"thought_{i}")
@@ -697,10 +648,10 @@ async def test_correlation_id_generation(mock_dependencies):
 @pytest.mark.asyncio
 async def test_audit_logging(mock_dependencies):
     """Test that audit events are properly logged."""
-    deps = mock_dependencies['deps']
-    tool_bus = mock_dependencies['tool_bus']
-    audit_service = mock_dependencies['audit_service']
-    persistence = mock_dependencies['persistence']
+    deps = mock_dependencies["deps"]
+    tool_bus = mock_dependencies["tool_bus"]
+    audit_service = mock_dependencies["audit_service"]
+    persistence = mock_dependencies["persistence"]
 
     tool_result = create_tool_execution_result("audit_test", success=True)
     tool_bus.execute_tool.return_value = tool_result
@@ -713,7 +664,7 @@ async def test_audit_logging(mock_dependencies):
         action_parameters=params,
         rationale="Audit test",
         reasoning="Testing audit logging",
-        evaluation_time_ms=65
+        evaluation_time_ms=65,
     )
 
     thought = create_test_thought()
@@ -728,10 +679,10 @@ async def test_audit_logging(mock_dependencies):
     # Check start event
     start_call = audit_calls[0]
     # The handler converts to AuditEventType enum, so check the string representation
-    assert 'HANDLER_ACTION_TOOL' in str(start_call.kwargs['event_type'])
-    assert start_call.kwargs['event_data']['action'] == HandlerActionType.TOOL.value
-    assert start_call.kwargs['event_data']['outcome'] == 'start'
+    assert "HANDLER_ACTION_TOOL" in str(start_call.kwargs["event_type"])
+    assert start_call.kwargs["event_data"]["action"] == HandlerActionType.TOOL.value
+    assert start_call.kwargs["event_data"]["outcome"] == "start"
 
     # Check end event
     end_call = audit_calls[-1]
-    assert end_call.kwargs['event_data']['outcome'] == 'success'
+    assert end_call.kwargs["event_data"]["outcome"] == "success"

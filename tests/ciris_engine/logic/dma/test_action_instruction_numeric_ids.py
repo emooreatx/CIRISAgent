@@ -2,8 +2,8 @@
 Unit tests for ActionInstructionGenerator numeric ID guidance.
 Tests that the generator properly instructs the agent to use numeric Discord IDs.
 """
+
 import pytest
-from unittest.mock import Mock
 
 from ciris_engine.logic.dma.action_selection.action_instruction_generator import ActionInstructionGenerator
 from ciris_engine.schemas.runtime.enums import HandlerActionType
@@ -49,11 +49,9 @@ class TestActionInstructionNumericIds:
     def test_full_action_instructions_include_memory_guidance(self, generator):
         """Test that full action instructions include all memory-related guidance."""
         # Generate instructions for memory-related actions
-        instructions = generator.generate_action_instructions([
-            HandlerActionType.MEMORIZE,
-            HandlerActionType.RECALL,
-            HandlerActionType.FORGET
-        ])
+        instructions = generator.generate_action_instructions(
+            [HandlerActionType.MEMORIZE, HandlerActionType.RECALL, HandlerActionType.FORGET]
+        )
 
         # Verify all memory actions have numeric ID guidance
         assert instructions.count("numeric Discord IDs") >= 3

@@ -4,13 +4,16 @@ Tool schemas for adapter-provided tools.
 Tools are provided by adapters (Discord, API, CLI) not by the runtime.
 This is the single source of truth for all tool-related schemas.
 """
-from typing import Dict, List, Optional, Any
+
 from enum import Enum
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ToolExecutionStatus(str, Enum):
     """Status of tool execution."""
+
     COMPLETED = "completed"
     FAILED = "failed"
     TIMEOUT = "timeout"
@@ -20,6 +23,7 @@ class ToolExecutionStatus(str, Enum):
 
 class ToolParameterSchema(BaseModel):
     """Schema definition for tool parameters."""
+
     type: str = Field(..., description="JSON Schema type")
     properties: Dict[str, Any] = Field(..., description="Parameter properties")
     required: List[str] = Field(default_factory=list, description="Required parameters")
@@ -29,6 +33,7 @@ class ToolParameterSchema(BaseModel):
 
 class ToolInfo(BaseModel):
     """Information about a tool provided by an adapter."""
+
     name: str = Field(..., description="Tool name")
     description: str = Field(..., description="What the tool does")
     parameters: ToolParameterSchema = Field(..., description="Tool parameters schema")
@@ -41,6 +46,7 @@ class ToolInfo(BaseModel):
 
 class ToolResult(BaseModel):
     """Result from tool execution."""
+
     success: bool = Field(..., description="Whether execution succeeded")
     data: Optional[Dict[str, Any]] = Field(None, description="Result data")
     error: Optional[str] = Field(None, description="Error message if failed")
@@ -50,6 +56,7 @@ class ToolResult(BaseModel):
 
 class ToolExecutionResult(BaseModel):
     """Complete tool execution result with metadata."""
+
     tool_name: str = Field(..., description="Name of executed tool")
     status: ToolExecutionStatus = Field(..., description="Execution status")
     success: bool = Field(..., description="Whether execution succeeded")
@@ -60,10 +67,4 @@ class ToolExecutionResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-__all__ = [
-    "ToolExecutionStatus",
-    "ToolParameterSchema",
-    "ToolInfo",
-    "ToolResult",
-    "ToolExecutionResult"
-]
+__all__ = ["ToolExecutionStatus", "ToolParameterSchema", "ToolInfo", "ToolResult", "ToolExecutionResult"]

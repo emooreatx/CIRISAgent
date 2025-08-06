@@ -10,18 +10,18 @@ Each consolidator handles a specific type of data:
 - MemoryConsolidator: General memory nodes (concepts, identity, etc.)
 """
 
-from .metrics import MetricsConsolidator
-from .conversation import ConversationConsolidator
-from .trace import TraceConsolidator
 from .audit import AuditConsolidator
-from .task import TaskConsolidator
+from .conversation import ConversationConsolidator
 from .memory import MemoryConsolidator
+from .metrics import MetricsConsolidator
+from .task import TaskConsolidator
+from .trace import TraceConsolidator
 
 __all__ = [
-    'MetricsConsolidator',
-    'ConversationConsolidator', 
-    'TraceConsolidator',
-    'AuditConsolidator',
-    'TaskConsolidator',
-    'MemoryConsolidator'
+    "MetricsConsolidator",
+    "ConversationConsolidator",
+    "TraceConsolidator",
+    "AuditConsolidator",
+    "TaskConsolidator",
+    "MemoryConsolidator",
 ]

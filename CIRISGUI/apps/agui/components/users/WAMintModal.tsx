@@ -27,7 +27,7 @@ export function WAMintModal({ user, onClose, onSuccess }: WAMintModalProps) {
   useEffect(() => {
     const checkKey = async () => {
       if (!privateKeyPath) return;
-      
+
       setCheckingKey(true);
       try {
         const response = await cirisClient.users.checkWAKeyExists(privateKeyPath);
@@ -42,7 +42,7 @@ export function WAMintModal({ user, onClose, onSuccess }: WAMintModalProps) {
         setCheckingKey(false);
       }
     };
-    
+
     // Debounce the key check
     const timer = setTimeout(checkKey, 500);
     return () => clearTimeout(timer);
@@ -50,7 +50,7 @@ export function WAMintModal({ user, onClose, onSuccess }: WAMintModalProps) {
 
   const handleMint = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       setMinting(true);
       setError(null);
@@ -59,7 +59,7 @@ export function WAMintModal({ user, onClose, onSuccess }: WAMintModalProps) {
       const mintRequest: any = {
         wa_role: waRole
       };
-      
+
       if (useAutoSign && keyExists) {
         // Use auto-signing with the private key path
         mintRequest.private_key_path = privateKeyPath;
@@ -156,8 +156,8 @@ export function WAMintModal({ user, onClose, onSuccess }: WAMintModalProps) {
                       <option value="AUTHORITY">Authority</option>
                     </select>
                     <p className="mt-1 text-xs text-gray-500">
-                      {waRole === 'AUTHORITY' 
-                        ? 'Can approve deferrals and provide guidance' 
+                      {waRole === 'AUTHORITY'
+                        ? 'Can approve deferrals and provide guidance'
                         : 'Can observe and monitor the system'}
                     </p>
                   </div>
@@ -250,7 +250,7 @@ export function WAMintModal({ user, onClose, onSuccess }: WAMintModalProps) {
                       </div>
                       <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
                         <p className="text-yellow-800">
-                          <strong>Security Note:</strong> Never share your ROOT private key. 
+                          <strong>Security Note:</strong> Never share your ROOT private key.
                           Sign messages offline and only share the signature.
                         </p>
                       </div>

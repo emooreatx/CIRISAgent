@@ -16,7 +16,7 @@ export const Select = ({ children, value, onValueChange, disabled }: {
   disabled?: boolean
 }) => {
   const [open, setOpen] = React.useState(false)
-  
+
   return (
     <SelectContext.Provider value={{ value, onValueChange, open, onOpenChange: setOpen }}>
       <div className="relative">
@@ -31,7 +31,7 @@ export const SelectTrigger = ({ children, className = "" }: {
   className?: string
 }) => {
   const { open, onOpenChange } = React.useContext(SelectContext)
-  
+
   return (
     <button
       type="button"
@@ -53,9 +53,9 @@ export const SelectValue = ({ placeholder }: { placeholder?: string }) => {
 
 export const SelectContent = ({ children }: { children: React.ReactNode }) => {
   const { open } = React.useContext(SelectContext)
-  
+
   if (!open) return null
-  
+
   return (
     <div className="absolute z-50 mt-1 w-full rounded-md border border-gray-300 bg-white shadow-lg">
       <div className="py-1">{children}</div>
@@ -68,7 +68,7 @@ export const SelectItem = ({ value, children }: {
   children: React.ReactNode
 }) => {
   const { onValueChange, onOpenChange } = React.useContext(SelectContext)
-  
+
   return (
     <div
       className="cursor-pointer px-3 py-2 text-sm hover:bg-gray-100"

@@ -1,8 +1,9 @@
 """Unit tests for ShutdownService."""
 
-import pytest
 import asyncio
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from ciris_engine.logic.services.lifecycle.shutdown import ShutdownService
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
@@ -172,12 +173,14 @@ async def test_shutdown_service_multiple_handlers():
 
 def test_shutdown_service_thread_safety():
     """Test that shutdown operations are thread-safe."""
-    import threading
     import asyncio
+    import threading
+
     service = ShutdownService()
 
     # Track calls
     call_count = 0
+
     def handler():
         nonlocal call_count
         call_count += 1

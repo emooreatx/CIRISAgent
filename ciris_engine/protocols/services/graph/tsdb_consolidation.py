@@ -5,16 +5,17 @@ This service consolidates time-series telemetry data into permanent summaries
 for long-term memory (1000+ years).
 """
 
-from typing import Protocol, runtime_checkable, Optional, TYPE_CHECKING
-from datetime import datetime
 from abc import abstractmethod
+from datetime import datetime
+from typing import TYPE_CHECKING, Optional, Protocol, runtime_checkable
 
 from ...runtime.base import GraphServiceProtocol
 
 if TYPE_CHECKING:
-    from ciris_engine.schemas.services.graph_core import NodeType
     from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
     from ciris_engine.schemas.services.graph.consolidation import TSDBPeriodSummary
+    from ciris_engine.schemas.services.graph_core import NodeType
+
 
 @runtime_checkable
 class TSDBConsolidationServiceProtocol(GraphServiceProtocol, Protocol):
@@ -37,7 +38,7 @@ class TSDBConsolidationServiceProtocol(GraphServiceProtocol, Protocol):
     @abstractmethod
     async def is_healthy(self) -> bool:
         """Check if the service is healthy.
-        
+
         Returns:
             True if service is running and has required dependencies
         """
@@ -46,7 +47,7 @@ class TSDBConsolidationServiceProtocol(GraphServiceProtocol, Protocol):
     @abstractmethod
     def get_capabilities(self) -> "ServiceCapabilities":
         """Get service capabilities.
-        
+
         Returns:
             ServiceCapabilities with actions, version, dependencies, and metadata
         """
@@ -55,7 +56,7 @@ class TSDBConsolidationServiceProtocol(GraphServiceProtocol, Protocol):
     @abstractmethod
     def get_status(self) -> "ServiceStatus":
         """Get service status.
-        
+
         Returns:
             ServiceStatus with health, uptime, metrics, and last consolidation info
         """
@@ -64,14 +65,16 @@ class TSDBConsolidationServiceProtocol(GraphServiceProtocol, Protocol):
     @abstractmethod
     def get_node_type(self) -> "NodeType":
         """Get the node type this service manages.
-        
+
         Returns:
             NodeType.TSDB_SUMMARY
         """
         ...
 
     @abstractmethod
-    async def get_summary_for_period(self, period_start: datetime, period_end: datetime) -> Optional["TSDBPeriodSummary"]:
+    async def get_summary_for_period(
+        self, period_start: datetime, period_end: datetime
+    ) -> Optional["TSDBPeriodSummary"]:
         """Get the summary for a specific period.
 
         Args:

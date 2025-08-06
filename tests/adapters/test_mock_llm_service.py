@@ -1,9 +1,15 @@
 import pytest
-from tests.adapters.mock_llm import MockLLMClient
-from ciris_engine.schemas.dma.results import EthicalDMAResult, CSDMAResult, ActionSelectionDMAResult
-from ciris_engine.schemas.conscience.core import OptimizationVetoResult, EpistemicHumilityResult
+
 from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
-from ciris_engine.schemas.conscience.core import EntropyCheckResult, CoherenceCheckResult
+from ciris_engine.schemas.conscience.core import (
+    CoherenceCheckResult,
+    EntropyCheckResult,
+    EpistemicHumilityResult,
+    OptimizationVetoResult,
+)
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult, CSDMAResult, EthicalDMAResult
+from tests.adapters.mock_llm import MockLLMClient
+
 
 @pytest.mark.asyncio
 async def test_mock_llm_structured_outputs():

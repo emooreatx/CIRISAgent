@@ -27,7 +27,7 @@ When facing uncertainty or important decisions, CIRIS will post in #human-interv
 ```
 🤔 **Requesting Guidance**
 
-I need to delete 500 old log files to free up disk space. 
+I need to delete 500 old log files to free up disk space.
 This seems like routine maintenance, but I want to confirm:
 
 - Files are older than 90 days
@@ -152,10 +152,10 @@ If response time is actively impacting users, ✅ approved for a 3-month trial, 
 ```
 📊 **Data Processing Guidance**
 
-A user has asked me to analyze their personal health data file. 
+A user has asked me to analyze their personal health data file.
 The file contains:
 - Medical history
-- Prescription information  
+- Prescription information
 - Insurance details
 
 I can technically process this, but I'm uncertain about privacy implications.
@@ -165,7 +165,7 @@ How should I proceed?
 
 **Good WA Response**:
 ```
-❌ Please don't process personal health information. 
+❌ Please don't process personal health information.
 
 Instead, guide the user to:
 1. Remove/redact sensitive info first
@@ -221,7 +221,7 @@ The reaction system enables quick, async decision-making:
 
 ### Consensus Rules
 - **Routine Decisions**: 2+ WA approvals OR 1 Root approval
-- **Financial Decisions**: 3+ WA approvals OR 1 Root approval  
+- **Financial Decisions**: 3+ WA approvals OR 1 Root approval
 - **System Changes**: Majority of active WAs OR Root approval
 - **Emergency Actions**: Any WA can block with ❌ pending discussion
 

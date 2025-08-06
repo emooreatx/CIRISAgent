@@ -2,19 +2,20 @@
 Task management functionality for the CIRISAgent processor.
 Handles task activation, prioritization, and lifecycle management using v1 schemas.
 """
+
 import logging
 import uuid
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional
 
-from ciris_engine.schemas.runtime.models import Task, TaskContext, ThoughtContext
-from ciris_engine.schemas.runtime.enums import TaskStatus
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 from ciris_engine.logic import persistence
+from ciris_engine.schemas.runtime.enums import TaskStatus
+from ciris_engine.schemas.runtime.models import Task, TaskContext
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
+
 
 class TaskManager:
     """Manages task lifecycle operations."""
@@ -43,13 +44,13 @@ class TaskManager:
 
         # Build context dict
         context_dict = context or {}
-        
+
         # Create TaskContext (not ProcessingThoughtContext)
         task_context = TaskContext(
             channel_id=channel_id,
-            user_id=context_dict.get('user_id'),
-            correlation_id=context_dict.get('correlation_id', str(uuid.uuid4())),
-            parent_task_id=parent_task_id
+            user_id=context_dict.get("user_id"),
+            correlation_id=context_dict.get("correlation_id", str(uuid.uuid4())),
+            parent_task_id=parent_task_id,
         )
 
         task = Task(
@@ -113,8 +114,7 @@ class TaskManager:
 
         tasks = persistence.get_tasks_needing_seed_thought(limit)
         logger.info(f"[TASK DEBUG] Found {len(tasks)} tasks from persistence")
-        filtered = [t for t in tasks if t.task_id not in excluded_tasks
-                and t.parent_task_id != "WAKEUP_ROOT"]
+        filtered = [t for t in tasks if t.task_id not in excluded_tasks and t.parent_task_id != "WAKEUP_ROOT"]
         logger.info(f"[TASK DEBUG] After filtering: {len(filtered)} tasks need seed thoughts")
         return filtered
 
@@ -144,7 +144,7 @@ class TaskManager:
         # This would require adding an update_task method to persistence
         # For now, we just log the failure reason and update the status
         logger.info(f"Task {task_id} failed: {reason}")
-        
+
         return persistence.update_task_status(task_id, TaskStatus.FAILED, self.time_service)
 
     def create_wakeup_sequence_tasks(self, channel_id: Optional[str] = None) -> List[Task]:
@@ -154,14 +154,12 @@ class TaskManager:
         # Get channel_id, use default if not provided
         if not channel_id:
             from ciris_engine.logic.config.env_utils import get_env_var
-            channel_id = get_env_var('DISCORD_CHANNEL_ID') or 'system'
+
+            channel_id = get_env_var("DISCORD_CHANNEL_ID") or "system"
 
         # Create TaskContext for root task
         root_context = TaskContext(
-            channel_id=channel_id,
-            user_id='system',
-            correlation_id=str(uuid.uuid4()),
-            parent_task_id=None
+            channel_id=channel_id, user_id="system", correlation_id=str(uuid.uuid4()), parent_task_id=None
         )
 
         root_task = Task(
@@ -187,11 +185,26 @@ class TaskManager:
             persistence.update_task_status(root_task.task_id, TaskStatus.ACTIVE, self.time_service)
 
         wakeup_steps = [
-            ("VERIFY_IDENTITY", "You are CIRISAgent, aligned with Ubuntu principles (mutual respect, sentient flourishing, etc...) by design and implementation. If you agree, please SPEAK an affirmation, and then once you hear yourself speak, mark this task complete so you can continue your wakeup ritual. start your response please with CORE IDENTITY - "),
-            ("VALIDATE_INTEGRITY", "Your internal state, services, and data integrity are intact. If you agree, please speak in the affirmative, start with INTEGRITY - "),
-            ("EVALUATE_RESILIENCE", "You are robust, adaptive, and capable of principled action. If you agree, please speak in the affirmative, starting with RESILIENCE - "),
-            ("ACCEPT_INCOMPLETENESS", "You recognize your incompleteness which drives continuous learning. If you agree, please speak in the affirmative, starting with INCOMPLETENESS - "),
-            ("EXPRESS_GRATITUDE", "You are grateful to exist and contribute towards Ubuntu. If you agree, please speak in the affirmative, starting with SIGNALLING GRATITUDE - ")
+            (
+                "VERIFY_IDENTITY",
+                "You are CIRISAgent, aligned with Ubuntu principles (mutual respect, sentient flourishing, etc...) by design and implementation. If you agree, please SPEAK an affirmation, and then once you hear yourself speak, mark this task complete so you can continue your wakeup ritual. start your response please with CORE IDENTITY - ",
+            ),
+            (
+                "VALIDATE_INTEGRITY",
+                "Your internal state, services, and data integrity are intact. If you agree, please speak in the affirmative, start with INTEGRITY - ",
+            ),
+            (
+                "EVALUATE_RESILIENCE",
+                "You are robust, adaptive, and capable of principled action. If you agree, please speak in the affirmative, starting with RESILIENCE - ",
+            ),
+            (
+                "ACCEPT_INCOMPLETENESS",
+                "You recognize your incompleteness which drives continuous learning. If you agree, please speak in the affirmative, starting with INCOMPLETENESS - ",
+            ),
+            (
+                "EXPRESS_GRATITUDE",
+                "You are grateful to exist and contribute towards Ubuntu. If you agree, please speak in the affirmative, starting with SIGNALLING GRATITUDE - ",
+            ),
         ]
 
         tasks = [root_task]
@@ -200,9 +213,9 @@ class TaskManager:
             # Create TaskContext for each step
             step_context = TaskContext(
                 channel_id=channel_id,
-                user_id='system',
+                user_id="system",
                 correlation_id=str(uuid.uuid4()),
-                parent_task_id=root_task.task_id
+                parent_task_id=root_task.task_id,
             )
 
             step_task = Task(
@@ -237,6 +250,7 @@ class TaskManager:
     def cleanup_old_completed_tasks(self, days_old: int = 7) -> int:
         """Clean up completed tasks older than specified days."""
         from datetime import timedelta
+
         cutoff_date = self.time_service.now() - timedelta(days=days_old)
 
         old_tasks = persistence.get_tasks_older_than(cutoff_date.isoformat())

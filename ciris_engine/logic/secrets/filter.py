@@ -4,23 +4,18 @@ Secrets Detection and Filtering System for CIRIS Agent.
 Automatically detects and protects sensitive information while maintaining
 the agent's ability to reason about and use secrets safely.
 """
+
+import logging
 import re
 import uuid
-import logging
 from typing import Dict, List, Optional, Tuple
 
-from ciris_engine.schemas.secrets.core import (
-    DetectedSecret,
-    PatternStats,
-    ConfigExport,
-    SecretsFilterResult
-)
-from ciris_engine.schemas.secrets.core import (
-    SecretsDetectionConfig,
-    SecretPattern as ConfigSecretPattern
-)
+from ciris_engine.schemas.secrets.core import ConfigExport, DetectedSecret, PatternStats
+from ciris_engine.schemas.secrets.core import SecretPattern as ConfigSecretPattern
+from ciris_engine.schemas.secrets.core import SecretsDetectionConfig, SecretsFilterResult
 
 logger = logging.getLogger(__name__)
+
 
 class SecretsFilter:
     """
@@ -83,7 +78,7 @@ class SecretsFilter:
                         pattern_name=pattern_name,
                         description=pattern_info.description,
                         sensitivity=pattern_info.sensitivity,  # Use pattern sensitivity directly
-                        context_hint=context_hint
+                        context_hint=context_hint,
                     )
 
                     detected_secrets.append(detected_secret)
@@ -114,9 +109,7 @@ class SecretsFilter:
         for secret in detected_secrets:
             filtered_text = filtered_text.replace(secret.original_value, secret.replacement_text)
 
-        logger.info(
-            f"Filtered {len(detected_secrets)} secrets from text. Context: {context_hint}"
-        )
+        logger.info(f"Filtered {len(detected_secrets)} secrets from text. Context: {context_hint}")
 
         return filtered_text, detected_secrets
 
@@ -131,9 +124,7 @@ class SecretsFilter:
     def add_custom_pattern(self, pattern: ConfigSecretPattern) -> None:
         """Add a new custom pattern."""
         # Remove existing pattern with same name
-        self.detection_config.patterns = [
-            p for p in self.detection_config.patterns if p.name != pattern.name
-        ]
+        self.detection_config.patterns = [p for p in self.detection_config.patterns if p.name != pattern.name]
         self.detection_config.patterns.append(pattern)
         self._compile_patterns()
 
@@ -142,9 +133,7 @@ class SecretsFilter:
     def remove_custom_pattern(self, pattern_name: str) -> bool:
         """Remove a custom pattern by name."""
         original_count = len(self.detection_config.patterns)
-        self.detection_config.patterns = [
-            p for p in self.detection_config.patterns if p.name != pattern_name
-        ]
+        self.detection_config.patterns = [p for p in self.detection_config.patterns if p.name != pattern_name]
 
         if len(self.detection_config.patterns) < original_count:
             self._compile_patterns()
@@ -155,9 +144,7 @@ class SecretsFilter:
     def disable_pattern(self, pattern_name: str) -> None:
         """Disable a pattern (default or custom)."""
         # Remove pattern from active patterns
-        self.detection_config.patterns = [
-            p for p in self.detection_config.patterns if p.name != pattern_name
-        ]
+        self.detection_config.patterns = [p for p in self.detection_config.patterns if p.name != pattern_name]
         self._compile_patterns()
         logger.info(f"Disabled secret pattern: {pattern_name}")
 
@@ -174,7 +161,7 @@ class SecretsFilter:
         custom_count = 0
         for pattern in self.detection_config.patterns:
             # Assume patterns with standard sensitivity levels are defaults
-            if pattern.sensitivity.value in ['low', 'medium', 'high']:
+            if pattern.sensitivity.value in ["low", "medium", "high"]:
                 default_count += 1
             else:
                 custom_count += 1
@@ -185,7 +172,7 @@ class SecretsFilter:
             custom_patterns=custom_count,
             disabled_patterns=0,  # No disabled patterns in current schema
             builtin_patterns=True,  # Assume builtin patterns are always enabled
-            filter_version="v1.0"
+            filter_version="v1.0",
         )
 
     def export_config(self) -> ConfigExport:
@@ -196,7 +183,7 @@ class SecretsFilter:
 
         for pattern in self.detection_config.patterns:
             pattern_dict = pattern.model_dump()
-            if pattern.sensitivity.value in ['low', 'medium', 'high']:
+            if pattern.sensitivity.value in ["low", "medium", "high"]:
                 default_patterns.append(pattern_dict)
             else:
                 custom_patterns.append(pattern_dict)
@@ -209,7 +196,7 @@ class SecretsFilter:
             disabled_patterns=[],  # No disabled patterns in current schema
             sensitivity_overrides={},
             require_confirmation_for=["CRITICAL"],
-            auto_decrypt_for_actions=["speak", "tool"]
+            auto_decrypt_for_actions=["speak", "tool"],
         )
 
     def import_config(self, config: ConfigExport) -> None:
@@ -227,10 +214,7 @@ class SecretsFilter:
 
         # Create new config
         # Note: SecretsDetectionConfig only has 'enabled' and 'patterns' attributes
-        self.detection_config = SecretsDetectionConfig(
-            enabled=config.builtin_patterns_enabled,
-            patterns=patterns
-        )
+        self.detection_config = SecretsDetectionConfig(enabled=config.builtin_patterns_enabled, patterns=patterns)
         self._compile_patterns()
         logger.info(f"Imported secrets detection config with {len(patterns)} patterns")
 
@@ -248,7 +232,7 @@ class SecretsFilter:
                 description=secret.description,
                 sensitivity=secret.sensitivity,
                 context_hint=secret.context_hint,
-                replacement_text=secret.replacement_text
+                replacement_text=secret.replacement_text,
             )
             schema_secrets.append(schema_secret)
 
@@ -256,7 +240,7 @@ class SecretsFilter:
             filtered_content=filtered_text,
             detected_secrets=schema_secrets,
             secrets_found=len(detected_secrets),
-            patterns_matched=[s.pattern_name for s in detected_secrets]
+            patterns_matched=[s.pattern_name for s in detected_secrets],
         )
 
     def add_pattern(self, pattern: ConfigSecretPattern) -> bool:
@@ -285,15 +269,16 @@ class SecretsFilter:
                 {
                     "name": p.name,
                     "pattern": p.pattern,
-                    "description": p.description if hasattr(p, 'description') else "",
-                    "sensitivity": p.sensitivity.value if hasattr(p, 'sensitivity') else "medium",
-                    "enabled": True  # All patterns in the list are considered enabled
-                } for p in self.detection_config.patterns
+                    "description": p.description if hasattr(p, "description") else "",
+                    "sensitivity": p.sensitivity.value if hasattr(p, "sensitivity") else "medium",
+                    "enabled": True,  # All patterns in the list are considered enabled
+                }
+                for p in self.detection_config.patterns
             ],
             disabled_patterns=[],  # Not tracked separately in SecretsDetectionConfig
             sensitivity_overrides={},  # Not used in new system
             require_confirmation_for=["CRITICAL"],  # Default
-            auto_decrypt_for_actions=["speak", "tool"]  # Default
+            auto_decrypt_for_actions=["speak", "tool"],  # Default
         )
 
     def update_filter_config(self, updates: dict) -> bool:  # pragma: no cover - rarely used

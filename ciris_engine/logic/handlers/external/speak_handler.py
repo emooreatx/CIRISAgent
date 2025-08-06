@@ -1,26 +1,27 @@
 import logging
 from typing import Optional
 
-from ciris_engine.schemas.runtime.models import Thought
-from ciris_engine.schemas.actions import SpeakParams
-from ciris_engine.schemas.runtime.enums import ThoughtStatus, HandlerActionType
-from ciris_engine.schemas.runtime.contexts import DispatchContext
-from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.logic import persistence
-from ciris_engine.logic.utils.channel_utils import extract_channel_id
-from ciris_engine.logic.infrastructure.handlers.base_handler import BaseActionHandler, ActionHandlerDependencies
-from ciris_engine.logic.infrastructure.handlers.helpers import create_follow_up_thought
+from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies, BaseActionHandler
 from ciris_engine.logic.infrastructure.handlers.exceptions import FollowUpCreationError
+from ciris_engine.logic.infrastructure.handlers.helpers import create_follow_up_thought
+from ciris_engine.logic.utils.channel_utils import extract_channel_id
+from ciris_engine.schemas.actions import SpeakParams
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from ciris_engine.schemas.runtime.contexts import DispatchContext
+from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
+from ciris_engine.schemas.runtime.models import Thought
 
 logger = logging.getLogger(__name__)
+
 
 def _build_speak_error_context(params: SpeakParams, thought_id: str, error_type: str = "notification_failed") -> str:
     """Build a descriptive error context string for speak failures."""
     # Use attribute access for content if it's a GraphNode
     content_str = params.content
-    if hasattr(params.content, 'value'):
-        content_str = getattr(params.content, 'value', str(params.content))
-    elif hasattr(params.content, '__str__'):
+    if hasattr(params.content, "value"):
+        content_str = getattr(params.content, "value", str(params.content))
+    elif hasattr(params.content, "__str__"):
         content_str = str(params.content)
     channel_id = extract_channel_id(params.channel_context) or "unknown"
     error_contexts = {
@@ -28,11 +29,12 @@ def _build_speak_error_context(params: SpeakParams, thought_id: str, error_type:
         "channel_unavailable": f"Channel '{channel_id}' is not available or accessible",
         "content_rejected": f"Content was rejected by the communication service: '{content_str[:100]}{'...' if len(content_str) > 100 else ''}'",
         "service_timeout": f"Communication service timed out while sending to channel '{channel_id}'",
-        "unknown": f"Unknown error occurred while speaking to channel '{channel_id}'"
+        "unknown": f"Unknown error occurred while speaking to channel '{channel_id}'",
     }
 
     base_context = error_contexts.get(error_type, error_contexts["unknown"])
     return f"Thought {thought_id}: {base_context}"
+
 
 class SpeakHandler(BaseActionHandler):
     def __init__(self, dependencies: ActionHandlerDependencies) -> None:
@@ -42,22 +44,22 @@ class SpeakHandler(BaseActionHandler):
         self,
         result: ActionSelectionDMAResult,  # Updated to v1 result schema
         thought: Thought,
-        dispatch_context: DispatchContext
+        dispatch_context: DispatchContext,
     ) -> Optional[str]:
         thought_id = thought.thought_id
-        
+
         # Create trace correlation for handler execution
         self._create_trace_correlation(dispatch_context, HandlerActionType.SPEAK)
 
         try:
             # Auto-decapsulate any secrets in the action parameters
             processed_result = await self._decapsulate_secrets_in_params(result, "speak", thought.thought_id)
-            
+
             # Debug: Check what channel_context we received
-            if hasattr(processed_result.action_parameters, 'get'):
-                channel_ctx = processed_result.action_parameters.get('channel_context', 'None')
+            if hasattr(processed_result.action_parameters, "get"):
+                channel_ctx = processed_result.action_parameters.get("channel_context", "None")
                 logger.info(f"SPEAK: Received action_parameters dict with channel_context: {channel_ctx}")
-                if hasattr(channel_ctx, 'keys'):
+                if hasattr(channel_ctx, "keys"):
                     logger.info(f"SPEAK: channel_context dict contains: {channel_ctx}")
 
             params: SpeakParams = self._validate_and_convert_params(processed_result.action_parameters, SpeakParams)
@@ -86,19 +88,19 @@ class SpeakHandler(BaseActionHandler):
 
         # Get channel ID - first check params, then fall back to thought/task context
         channel_id = None
-        
+
         # First, check if channel is specified in params
         if params.channel_context:
             channel_id = extract_channel_id(params.channel_context)
             if channel_id:
                 logger.info(f"SPEAK: Using channel_id '{channel_id}' from params.channel_context")
-        
+
         # Fall back to thought/task context if not in params
         if not channel_id:
             channel_id = self._get_channel_id(thought, dispatch_context)
             if channel_id:
                 logger.info(f"SPEAK: Using channel_id '{channel_id}' from thought/task context")
-        
+
         if not channel_id:
             logger.error(f"CRITICAL: No channel_id found in params or thought {thought_id} context")
             raise ValueError(f"Channel ID is required for SPEAK action - none found in params or thought {thought_id}")
@@ -111,7 +113,11 @@ class SpeakHandler(BaseActionHandler):
         )
 
         # Extract string from GraphNode for notification
-        content_str = params.content.attributes.get('text', str(params.content)) if hasattr(params.content, 'attributes') else str(params.content)
+        content_str = (
+            params.content.attributes.get("text", str(params.content))
+            if hasattr(params.content, "attributes")
+            else str(params.content)
+        )
         success = await self._send_notification(channel_id, content_str)
 
         final_thought_status = ThoughtStatus.COMPLETED if success else ThoughtStatus.FAILED
@@ -125,11 +131,14 @@ class SpeakHandler(BaseActionHandler):
         _task_description = task.description if task else f"task {thought.source_task_id}"
 
         # Create correlation for tracking action completion
-        from ciris_engine.schemas.telemetry.core import (
-            ServiceCorrelation, ServiceCorrelationStatus,
-            ServiceRequestData, ServiceResponseData
-        )
         import uuid
+
+        from ciris_engine.schemas.telemetry.core import (
+            ServiceCorrelation,
+            ServiceCorrelationStatus,
+            ServiceRequestData,
+            ServiceResponseData,
+        )
 
         now = self.time_service.now()
 
@@ -141,7 +150,7 @@ class SpeakHandler(BaseActionHandler):
             task_id=thought.source_task_id,
             channel_id=channel_id,
             parameters={"content": str(params.content)},
-            request_timestamp=now
+            request_timestamp=now,
         )
 
         # Create proper response data
@@ -149,7 +158,7 @@ class SpeakHandler(BaseActionHandler):
             success=success,
             result_summary=f"Message {'sent' if success else 'failed'} to channel {channel_id}",
             execution_time_ms=100.0,  # TODO: Track actual execution time
-            response_timestamp=now
+            response_timestamp=now,
         )
 
         correlation = ServiceCorrelation(
@@ -162,7 +171,7 @@ class SpeakHandler(BaseActionHandler):
             status=ServiceCorrelationStatus.COMPLETED if success else ServiceCorrelationStatus.FAILED,
             created_at=now,
             updated_at=now,
-            timestamp=now  # Required for TSDB indexing
+            timestamp=now,  # Required for TSDB indexing
         )
         persistence.add_correlation(correlation, self.time_service)
 
@@ -174,16 +183,15 @@ class SpeakHandler(BaseActionHandler):
 
         # Use centralized method for both success and failure cases
         follow_up_thought_id = self.complete_thought_and_create_followup(
-            thought=thought,
-            follow_up_content=follow_up_text,
-            action_result=result,
-            status=final_thought_status
+            thought=thought, follow_up_content=follow_up_text, action_result=result, status=final_thought_status
         )
-        
+
         if not follow_up_thought_id:
-            await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, Exception("Failed to create follow-up thought"))
+            await self._handle_error(
+                HandlerActionType.SPEAK, dispatch_context, thought_id, Exception("Failed to create follow-up thought")
+            )
             raise FollowUpCreationError("Failed to create follow-up thought")
-            
+
         await self._audit_log(
             HandlerActionType.SPEAK,
             dispatch_context.model_copy(update={"thought_id": thought_id, "event_summary": event_summary}),
@@ -191,9 +199,6 @@ class SpeakHandler(BaseActionHandler):
         )
 
         # Update trace correlation with success
-        self._update_trace_correlation(
-            success, 
-            f"Message {'sent' if success else 'failed'} to channel {channel_id}"
-        )
+        self._update_trace_correlation(success, f"Message {'sent' if success else 'failed'} to channel {channel_id}")
 
         return follow_up_thought_id

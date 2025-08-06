@@ -17,7 +17,7 @@ export default function LoginPage() {
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [loadingAgents, setLoadingAgents] = useState(true);
   const { login } = useAuth();
-  
+
   // Always show Google and Discord OAuth options
   const oauthProviders = [
     { provider: "google", name: "Google" },
@@ -36,7 +36,7 @@ export default function LoginPage() {
           console.log('CIRISManager detected - using managed mode');
           const data = await response.json();
           console.log('Loaded agents:', data.agents);
-          
+
           // Convert manager API response to AgentInfo format
           const agentsList: AgentInfo[] = data.agents.map((agent: any) => ({
             agent_id: agent.agent_id,
@@ -50,7 +50,7 @@ export default function LoginPage() {
             created_at: agent.created_at,
             update_available: false,
           }));
-          
+
           setAgents(agentsList);
           if (agentsList.length > 0) {
             // Select the first healthy agent by default
@@ -63,16 +63,16 @@ export default function LoginPage() {
       } catch (error) {
         console.log('CIRISManager not available, trying standalone mode');
       }
-      
+
       // CIRISManager not available - try standalone mode
         // In standalone mode, fetch real agent identity from API
         try {
           // Configure SDK for standalone mode
           cirisClient.setConfig({ baseURL: window.location.origin });
-          
+
           // Fetch real identity from the API
           const identity = await cirisClient.agent.getIdentity();
-          
+
           // Create agent info from real identity
           const realAgent: AgentInfo = {
             agent_id: identity.agent_id,
@@ -83,7 +83,7 @@ export default function LoginPage() {
             created_at: new Date().toISOString(),
             update_available: false
           };
-          
+
           setAgents([realAgent]);
           setSelectedAgent(realAgent.agent_id);
         } catch (error) {
@@ -94,16 +94,16 @@ export default function LoginPage() {
         } finally {
           setLoadingAgents(false);
         }
-      
+
       // Try standalone API
       try {
         console.log('Trying standalone mode...');
         // Configure SDK for standalone mode
         cirisClient.setConfig({ baseURL: window.location.origin });
-        
+
         // Fetch real identity from the API
         const identity = await cirisClient.agent.getIdentity();
-        
+
         // Create agent info from real identity
         const realAgent: AgentInfo = {
           agent_id: identity.agent_id,
@@ -114,7 +114,7 @@ export default function LoginPage() {
           created_at: new Date().toISOString(),
           update_available: false
         };
-        
+
         setAgents([realAgent]);
         setSelectedAgent(realAgent.agent_id);
         console.log('Standalone mode successful');
@@ -135,7 +135,7 @@ export default function LoginPage() {
     if (agent) {
       // Determine base URL based on available infrastructure
       let baseURL;
-      
+
       // Check if we have multiple agents (managed mode) or single agent (standalone)
       if (agents.length > 1 || agent.container_name !== 'standalone') {
         // Managed mode: use agent-specific API path
@@ -144,9 +144,9 @@ export default function LoginPage() {
         // Standalone mode: direct API access
         baseURL = window.location.origin;
       }
-      
+
       cirisClient.setConfig({ baseURL });
-      
+
       // Store selected agent for use after login
       localStorage.setItem('selectedAgentId', agent.agent_id);
       localStorage.setItem('selectedAgentName', agent.agent_name);
@@ -157,10 +157,10 @@ export default function LoginPage() {
     try {
       const agent = agents.find(a => a.agent_id === selectedAgent);
       if (!agent) return;
-      
+
       let oauthUrl;
       let redirectUri;
-      
+
       // Determine OAuth URLs based on deployment mode
       if (agents.length > 1 || agent.container_name !== 'standalone') {
         // Managed mode: use agent-specific paths
@@ -171,7 +171,7 @@ export default function LoginPage() {
         redirectUri = encodeURIComponent(`${window.location.origin}/oauth/callback`);
         oauthUrl = `${window.location.origin}/v1/auth/oauth/${provider}/login`;
       }
-      
+
       window.location.href = `${oauthUrl}?redirect_uri=${redirectUri}`;
     } catch (error) {
       console.error("OAuth login error:", error);
@@ -243,7 +243,7 @@ export default function LoginPage() {
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <input type="hidden" name="remember" value="true" />
-          
+
           {/* Agent Selector */}
           <div>
             <label htmlFor="agent" className="block text-sm font-medium text-gray-700">

@@ -9,10 +9,10 @@ All schemas already exist in `ciris_engine/schemas/`. The task is to UPDATE code
 ### 1. Adapter Patterns → Existing Schemas
 
 #### Channel Lists
-**Current**: `List[Dict[str, Any]]`  
+**Current**: `List[Dict[str, Any]]`
 **Use**: `ciris_engine.schemas.adapters.cli.ChannelInfo`
 
-#### Message Data  
+#### Message Data
 **Current**: `List[Dict[str, Any]]` (fetch_messages)
 **Use**: `ciris_engine.schemas.adapters.cli.MessageData`
 

@@ -5,18 +5,20 @@ Based on wyoming-faster-whisper structure.
 """
 import asyncio
 import logging
-from wyoming.info import AsrModel, AsrProgram, Attribution, Info
-from wyoming.server import AsyncServer, AsyncEventHandler
+
 from wyoming.event import Event
+from wyoming.info import AsrModel, AsrProgram, Attribution, Info
+from wyoming.server import AsyncEventHandler, AsyncServer
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class Handler(AsyncEventHandler):
     """Event handler for clients."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        
+
         # Create info that matches working implementations
         self.wyoming_info = Info(
             asr=[
@@ -71,7 +73,7 @@ async def main() -> None:
     # Start server
     server = AsyncServer.from_uri("tcp://0.0.0.0:10301")
     _LOGGER.info("Listening on port 10301")
-    
+
     await server.run(Handler)
 
 

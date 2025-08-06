@@ -51,10 +51,10 @@ Example nginx configuration:
 server {
     listen 443 ssl;
     server_name api.example.com;
-    
+
     ssl_certificate /etc/ssl/certs/cert.pem;
     ssl_certificate_key /etc/ssl/private/key.pem;
-    
+
     location / {
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;

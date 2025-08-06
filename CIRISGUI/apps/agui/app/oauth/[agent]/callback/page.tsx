@@ -26,7 +26,7 @@ function OAuthCallbackContent() {
     const error = searchParams.get('error');
     const errorDescription = searchParams.get('error_description');
     const agentId = params.agent as string;
-    
+
     // Check if we have direct token parameters (from API redirect)
     const accessToken = searchParams.get('access_token');
     const tokenType = searchParams.get('token_type');
@@ -43,7 +43,7 @@ function OAuthCallbackContent() {
     if (accessToken && tokenType && role && userId) {
       try {
         console.log('[OAuth Callback] Processing direct token response:', { agentId, userId, role });
-        
+
         // Set the authentication state directly
         const user = {
           user_id: userId,
@@ -55,11 +55,11 @@ function OAuthCallbackContent() {
           created_at: new Date().toISOString(),
           last_login: new Date().toISOString()
         };
-        
+
         // CRITICAL: Configure SDK before setting auth state
         // This ensures all subsequent API calls use the correct configuration
         sdkConfigManager.configureForOAuthCallback(agentId, accessToken);
-        
+
         // Save auth token to AuthStore for persistence
         AuthStore.saveToken({
           access_token: accessToken,
@@ -69,19 +69,19 @@ function OAuthCallbackContent() {
           role: role,
           created_at: Date.now()
         });
-        
+
         // Save user to AuthStore
         AuthStore.saveUser(user);
-        
+
         // Now set the auth context state
         setToken(accessToken);
         setUser(user);
-        
+
         // Store the selected agent for future use
         localStorage.setItem('selectedAgentId', agentId);
-        
+
         console.log('[OAuth Callback] SDK configured, redirecting to dashboard');
-        
+
         // Redirect to dashboard or managed agent page based on mode
         const { mode } = detectDeploymentMode();
         if (mode === 'managed') {
@@ -112,15 +112,15 @@ function OAuthCallbackContent() {
 
       // Extract provider from state (we'll encode it in the state parameter)
       const provider = state.split(':')[0];
-      
+
       const user = await cirisClient.auth.handleOAuthCallback(provider, code, state);
-      
+
       // Set the authentication state
       setUser(user);
-      
+
       // Store the selected agent for future use
       localStorage.setItem('selectedAgentId', agentId);
-      
+
       // Redirect to dashboard or managed agent page based on mode
       const { mode } = detectDeploymentMode();
       if (mode === 'managed') {
@@ -141,7 +141,7 @@ function OAuthCallbackContent() {
           <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
             OAuth Authentication
           </h2>
-          
+
           {processing ? (
             <div className="mt-8">
               <div className="inline-flex items-center">

@@ -20,7 +20,7 @@ The following configuration keys control pattern detection:
       "cycle_confidence": 0.7
     }
   },
-  
+
   "self_observation.pattern_detectors.frequency": {
     "enabled": true,
     "min_occurrences": 5,
@@ -28,7 +28,7 @@ The following configuration keys control pattern detection:
     "underused_threshold": 0.05,
     "track_capabilities": ["all"]
   },
-  
+
   "self_observation.pattern_detectors.performance": {
     "enabled": true,
     "metrics": ["response_time", "token_usage", "error_rate", "success_rate"],
@@ -36,7 +36,7 @@ The following configuration keys control pattern detection:
     "anomaly_std_dev": 2.0,
     "improvement_threshold": 0.1
   },
-  
+
   "self_observation.pattern_detectors.behavioral": {
     "enabled": true,
     "track_sequences": true,
@@ -44,7 +44,7 @@ The following configuration keys control pattern detection:
     "min_sequence_count": 3,
     "similarity_threshold": 0.8
   },
-  
+
   "self_observation.pattern_detectors.custom": [
     {
       "name": "interaction_style",
@@ -55,7 +55,7 @@ The following configuration keys control pattern detection:
       "enabled": true
     },
     {
-      "name": "error_clustering", 
+      "name": "error_clustering",
       "description": "Find patterns in error occurrences",
       "query": "MATCH (n:ERROR) WHERE n.timestamp > $since RETURN n",
       "clustering": "kmeans",
@@ -82,7 +82,7 @@ The following configuration keys control pattern detection:
       "user_impact": 0.1
     }
   },
-  
+
   "self_observation.insights.storage": {
     "node_type": "INSIGHT",
     "scope": "IDENTITY",
@@ -177,12 +177,12 @@ The `PatternAnalysisLoop` service reads these configurations and dynamically adj
 async def _load_pattern_config(self) -> Dict[str, Any]:
     """Load pattern detection configuration from graph."""
     config = {}
-    
+
     # Load temporal config
     temporal_config = await self._config_service.get("self_observation.pattern_detectors.temporal")
     if temporal_config:
         config["temporal"] = temporal_config
-        
+
     # Load other configs...
     return config
 
@@ -190,10 +190,10 @@ async def _detect_patterns(self) -> List[DetectedPattern]:
     """Detect patterns using configured algorithms."""
     config = await self._load_pattern_config()
     patterns = []
-    
+
     if config.get("temporal", {}).get("enabled", True):
         patterns.extend(await self._detect_temporal_patterns(config["temporal"]))
-        
+
     # Run other configured detectors...
     return patterns
 ```

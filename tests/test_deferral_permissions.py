@@ -5,19 +5,23 @@ Ensures that only authorized WAs can resolve deferrals and that
 the permission system properly enforces role-based access control.
 """
 
-import pytest
-from unittest.mock import Mock, AsyncMock, MagicMock
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
+from unittest.mock import AsyncMock, Mock
 
-from ciris_engine.schemas.services.authority.wise_authority import (
-    PendingDeferral, DeferralResolution, PermissionEntry
-)
-from ciris_engine.schemas.services.authority_core import (
-    DeferralRequest, DeferralResponse, WARole, WACertificate,
-    WAPermission, AuthorizationContext, TokenType, JWTSubType
-)
+import pytest
+
 from ciris_engine.logic.services.governance.wise_authority import WiseAuthorityService
+from ciris_engine.schemas.services.authority.wise_authority import DeferralResolution, PendingDeferral
+from ciris_engine.schemas.services.authority_core import (
+    AuthorizationContext,
+    DeferralResponse,
+    JWTSubType,
+    TokenType,
+    WACertificate,
+    WAPermission,
+    WARole,
+)
 
 
 class TestDeferralPermissions:
@@ -39,7 +43,7 @@ class TestDeferralPermissions:
                     resource="*",
                     granted_by="wa-2025-06-28-ROOT01",
                     granted_at=datetime.now(timezone.utc),
-                    expires_at=None
+                    expires_at=None,
                 )
             ],
             "wa-2025-06-28-OBSR01": [
@@ -51,7 +55,7 @@ class TestDeferralPermissions:
                     resource="*",
                     granted_by="wa-2025-06-28-ROOT01",
                     granted_at=datetime.now(timezone.utc),
-                    expires_at=None
+                    expires_at=None,
                 )
             ],
             "wa-2025-06-28-LIMIT1": [
@@ -63,9 +67,9 @@ class TestDeferralPermissions:
                     resource="medical_*",  # Only medical deferrals
                     granted_by="wa-2025-06-28-ROOT01",
                     granted_at=datetime.now(timezone.utc),
-                    expires_at=None
+                    expires_at=None,
                 )
-            ]
+            ],
         }
 
         # Mock recall to return permissions
@@ -82,6 +86,7 @@ class TestDeferralPermissions:
     def wa_certificates(self) -> Dict[str, WACertificate]:
         """Create test WA certificates with different roles."""
         import json
+
         return {
             "wa-2025-06-28-AUTH01": WACertificate(
                 wa_id="wa-2025-06-28-AUTH01",
@@ -90,7 +95,7 @@ class TestDeferralPermissions:
                 pubkey="authority_pubkey_base64url",
                 jwt_kid="auth01_kid",
                 scopes_json=json.dumps(["resolve_deferrals", "modify_deferrals"]),
-                created_at=datetime.now(timezone.utc)
+                created_at=datetime.now(timezone.utc),
             ),
             "wa-2025-06-28-OBSR01": WACertificate(
                 wa_id="wa-2025-06-28-OBSR01",
@@ -99,7 +104,7 @@ class TestDeferralPermissions:
                 pubkey="observer_pubkey_base64url",
                 jwt_kid="obsr01_kid",
                 scopes_json=json.dumps(["view_deferrals"]),
-                created_at=datetime.now(timezone.utc)
+                created_at=datetime.now(timezone.utc),
             ),
             "wa-2025-05-28-EXPR01": WACertificate(
                 wa_id="wa-2025-05-28-EXPR01",
@@ -108,7 +113,7 @@ class TestDeferralPermissions:
                 pubkey="expired_pubkey_base64url",
                 jwt_kid="expr01_kid",
                 scopes_json=json.dumps(["resolve_deferrals"]),
-                created_at=datetime.now(timezone.utc) - timedelta(days=60)
+                created_at=datetime.now(timezone.utc) - timedelta(days=60),
             ),
             "wa-2025-06-28-REVK01": WACertificate(
                 wa_id="wa-2025-06-28-REVK01",
@@ -117,7 +122,7 @@ class TestDeferralPermissions:
                 pubkey="revoked_pubkey_base64url",
                 jwt_kid="revk01_kid",
                 scopes_json=json.dumps(["resolve_deferrals"]),
-                created_at=datetime.now(timezone.utc)
+                created_at=datetime.now(timezone.utc),
             ),
             "wa_limited_authority": WACertificate(
                 wa_id="wa-2025-06-28-LIMT01",
@@ -126,8 +131,8 @@ class TestDeferralPermissions:
                 pubkey="limited_pubkey_base64url",
                 jwt_kid="limt01_kid",
                 scopes_json=json.dumps(["resolve_deferrals:medical_*"]),
-                created_at=datetime.now(timezone.utc)
-            )
+                created_at=datetime.now(timezone.utc),
+            ),
         }
 
     @pytest.fixture
@@ -153,12 +158,14 @@ class TestDeferralPermissions:
         service = WiseAuthorityService(
             time_service=mock_time_service,
             auth_service=mock_auth_service,
-            db_path=":memory:"  # Use in-memory SQLite for tests
+            db_path=":memory:",  # Use in-memory SQLite for tests
         )
         return service
 
     @pytest.mark.asyncio
-    async def test_authority_can_resolve_deferrals(self, wa_service: WiseAuthorityService, wa_certificates: Dict[str, WACertificate]) -> None:
+    async def test_authority_can_resolve_deferrals(
+        self, wa_service: WiseAuthorityService, wa_certificates: Dict[str, WACertificate]
+    ) -> None:
         """Test that AUTHORITY role can resolve deferrals."""
         # Create authorization context for authority
         auth_context = AuthorizationContext(
@@ -168,20 +175,20 @@ class TestDeferralPermissions:
             sub_type=JWTSubType.AUTHORITY,
             scopes=["resolve_deferrals"],
             action="resolve_deferral",
-            resource="defer_001"
+            resource="defer_001",
         )
 
         # Check authorization
         is_authorized = await wa_service.check_authorization(
-            wa_id=auth_context.wa_id,
-            action=auth_context.action,
-            resource=auth_context.resource
+            wa_id=auth_context.wa_id, action=auth_context.action, resource=auth_context.resource
         )
 
         assert is_authorized is True
 
     @pytest.mark.asyncio
-    async def test_observer_cannot_resolve_deferrals(self, wa_service: WiseAuthorityService, wa_certificates: Dict[str, WACertificate]) -> None:
+    async def test_observer_cannot_resolve_deferrals(
+        self, wa_service: WiseAuthorityService, wa_certificates: Dict[str, WACertificate]
+    ) -> None:
         """Test that OBSERVER role cannot resolve deferrals."""
         # Create authorization context for observer
         auth_context = AuthorizationContext(
@@ -191,55 +198,51 @@ class TestDeferralPermissions:
             sub_type=JWTSubType.AUTHORITY,
             scopes=["view_deferrals"],
             action="resolve_deferral",
-            resource="defer_001"
+            resource="defer_001",
         )
 
         # Check authorization
         is_authorized = await wa_service.check_authorization(
-            wa_id=auth_context.wa_id,
-            action=auth_context.action,
-            resource=auth_context.resource
+            wa_id=auth_context.wa_id, action=auth_context.action, resource=auth_context.resource
         )
 
         assert is_authorized is False
 
     @pytest.mark.asyncio
-    async def test_expired_certificate_cannot_resolve(self, wa_service: WiseAuthorityService, wa_certificates: Dict[str, WACertificate]) -> None:
+    async def test_expired_certificate_cannot_resolve(
+        self, wa_service: WiseAuthorityService, wa_certificates: Dict[str, WACertificate]
+    ) -> None:
         """Test that expired certificates cannot resolve deferrals."""
         # Even with AUTHORITY role, expired cert should fail
         is_authorized = await wa_service.check_authorization(
-            wa_id="wa_expired",
-            action="resolve_deferral",
-            resource="defer_001"
+            wa_id="wa_expired", action="resolve_deferral", resource="defer_001"
         )
 
         assert is_authorized is False
 
     @pytest.mark.asyncio
-    async def test_revoked_certificate_cannot_resolve(self, wa_service: WiseAuthorityService, wa_certificates: Dict[str, WACertificate]) -> None:
+    async def test_revoked_certificate_cannot_resolve(
+        self, wa_service: WiseAuthorityService, wa_certificates: Dict[str, WACertificate]
+    ) -> None:
         """Test that revoked certificates cannot resolve deferrals."""
         is_authorized = await wa_service.check_authorization(
-            wa_id="wa_revoked",
-            action="resolve_deferral",
-            resource="defer_001"
+            wa_id="wa_revoked", action="resolve_deferral", resource="defer_001"
         )
 
         assert is_authorized is False
 
     @pytest.mark.asyncio
-    async def test_resource_specific_permissions(self, wa_service: WiseAuthorityService, mock_memory_service: AsyncMock) -> None:
+    async def test_resource_specific_permissions(
+        self, wa_service: WiseAuthorityService, mock_memory_service: AsyncMock
+    ) -> None:
         """Test permissions limited to specific resources."""
         # Limited authority can only resolve medical deferrals
         is_authorized_medical = await wa_service.check_authorization(
-            wa_id="wa_limited_authority",
-            action="resolve_deferral",
-            resource="medical_defer_001"
+            wa_id="wa_limited_authority", action="resolve_deferral", resource="medical_defer_001"
         )
 
         is_authorized_financial = await wa_service.check_authorization(
-            wa_id="wa_limited_authority",
-            action="resolve_deferral",
-            resource="financial_defer_001"
+            wa_id="wa_limited_authority", action="resolve_deferral", resource="financial_defer_001"
         )
 
         # Currently, WiseAuthorityService only checks role-based permissions
@@ -253,9 +256,7 @@ class TestDeferralPermissions:
         """Test granting new permissions to a WA."""
         # Grant permission to a new WA
         granted = await wa_service.grant_permission(
-            wa_id="wa_new_moderator",
-            permission="resolve_deferral",
-            resource="community_*"
+            wa_id="wa_new_moderator", permission="resolve_deferral", resource="community_*"
         )
 
         assert granted is False  # Expected behavior - permissions are role-based
@@ -266,9 +267,7 @@ class TestDeferralPermissions:
         # Try to revoke permission
         # Note: In current implementation, this returns False as permissions are role-based
         revoked = await wa_service.revoke_permission(
-            wa_id="wa_temp_authority",
-            permission="resolve_deferral",
-            resource="*"
+            wa_id="wa_temp_authority", permission="resolve_deferral", resource="*"
         )
 
         assert revoked is False  # Expected behavior - permissions are role-based
@@ -287,25 +286,18 @@ class TestDeferralPermissions:
             pubkey="root_key_base64url",
             jwt_kid="root_kid",
             scopes_json='["*"]',
-            created_at=datetime.now(timezone.utc)
+            created_at=datetime.now(timezone.utc),
         )
 
         # Mock the auth service to return the ROOT wa
         wa_service.auth_service.get_wa = AsyncMock(return_value=mock_root_wa)
 
         # Should authorize any action for ROOT
-        actions = [
-            "resolve_deferral",
-            "modify_deferral",
-            "delete_deferral",
-            "create_deferral"
-        ]
+        actions = ["resolve_deferral", "modify_deferral", "delete_deferral", "create_deferral"]
 
         for action in actions:
             is_authorized = await wa_service.check_authorization(
-                wa_id="wa-2025-06-28-ROOT01",
-                action=action,
-                resource="any_resource"
+                wa_id="wa-2025-06-28-ROOT01", action=action, resource="any_resource"
             )
             assert is_authorized is True
 
@@ -327,7 +319,7 @@ class TestDeferralPermissions:
                 pubkey=f"key_{i}_base64url",
                 jwt_kid=f"kid_{i}",
                 scopes_json='["resolve_deferrals"]' if role == WARole.AUTHORITY else '["view_deferrals"]',
-                created_at=datetime.now(timezone.utc)
+                created_at=datetime.now(timezone.utc),
             )
 
         # Mock auth service to return appropriate certificates
@@ -338,11 +330,7 @@ class TestDeferralPermissions:
 
         # Check all concurrently
         tasks = [
-            wa_service.check_authorization(
-                wa_id=wa_id,
-                action="resolve_deferral",
-                resource="test_resource"
-            )
+            wa_service.check_authorization(wa_id=wa_id, action="resolve_deferral", resource="test_resource")
             for wa_id in wa_certs.keys()
         ]
 
@@ -363,6 +351,7 @@ class TestDeferralRoleEnforcement:
     def wa_service(self) -> AsyncMock:
         """Mock wise authority service."""
         from unittest.mock import AsyncMock, Mock
+
         service = AsyncMock()
         service.auth_service = Mock()
         service.auth_service.get_wa = AsyncMock()
@@ -385,7 +374,7 @@ class TestDeferralRoleEnforcement:
                 user_id="test_user",
                 priority="low",
                 requires_role=None,  # Any WA can resolve
-                status="pending"
+                status="pending",
             ),
             PendingDeferral(
                 deferral_id="defer_authority_001",
@@ -398,7 +387,7 @@ class TestDeferralRoleEnforcement:
                 user_id="test_user",
                 priority="high",
                 requires_role="AUTHORITY",
-                status="pending"
+                status="pending",
             ),
             PendingDeferral(
                 deferral_id="defer_medical_001",
@@ -411,28 +400,22 @@ class TestDeferralRoleEnforcement:
                 user_id="test_user",
                 priority="critical",
                 requires_role="MEDICAL_AUTHORITY",
-                status="pending"
-            )
+                status="pending",
+            ),
         ]
 
     @pytest.mark.asyncio
     async def test_role_filtering_for_deferrals(self, sample_deferrals: List[PendingDeferral]) -> None:
         """Test that deferrals are filtered by required role."""
         # Filter for AUTHORITY role
-        authority_deferrals = [
-            d for d in sample_deferrals
-            if d.requires_role in [None, "AUTHORITY"]
-        ]
+        authority_deferrals = [d for d in sample_deferrals if d.requires_role in [None, "AUTHORITY"]]
 
         assert len(authority_deferrals) == 2
         assert "defer_any_001" in [d.deferral_id for d in authority_deferrals]
         assert "defer_authority_001" in [d.deferral_id for d in authority_deferrals]
 
         # Filter for MEDICAL_AUTHORITY role
-        medical_deferrals = [
-            d for d in sample_deferrals
-            if d.requires_role in [None, "MEDICAL_AUTHORITY"]
-        ]
+        medical_deferrals = [d for d in sample_deferrals if d.requires_role in [None, "MEDICAL_AUTHORITY"]]
 
         assert len(medical_deferrals) == 2
         assert "defer_any_001" in [d.deferral_id for d in medical_deferrals]
@@ -447,7 +430,7 @@ class TestDeferralRoleEnforcement:
             reason="Approved by wrong authority",
             modified_time=None,
             wa_id="wa_authority_001",  # Regular authority, not medical
-            signature="test_sig"
+            signature="test_sig",
         )
 
         # This should fail validation in a complete implementation
@@ -472,11 +455,7 @@ class TestDeferralRoleEnforcement:
     async def test_permission_expiration(self, wa_service):
         """Test that permissions expire correctly."""
         # Grant temporary permission
-        granted = await wa_service.grant_permission(
-            wa_id="wa_temp_001",
-            permission="resolve_deferral",
-            resource="*"
-        )
+        granted = await wa_service.grant_permission(wa_id="wa_temp_001", permission="resolve_deferral", resource="*")
         assert granted is False  # Expected - permissions are role-based
 
         # Mock permission with expiration
@@ -488,7 +467,7 @@ class TestDeferralRoleEnforcement:
             resource="*",
             granted_by="wa_root",
             granted_at=datetime.now(timezone.utc) - timedelta(days=31),
-            expires_at=datetime.now(timezone.utc) - timedelta(days=1)  # Expired yesterday
+            expires_at=datetime.now(timezone.utc) - timedelta(days=1),  # Expired yesterday
         )
 
         # Check if permission is expired
@@ -506,6 +485,7 @@ class TestDeferralAuditTrail:
     def wa_service(self):
         """Mock wise authority service."""
         from unittest.mock import AsyncMock, Mock
+
         service = AsyncMock()
         service.auth_service = Mock()
         service.auth_service.get_wa = AsyncMock()
@@ -525,10 +505,7 @@ class TestDeferralAuditTrail:
             resolution="approve",
             guidance="Approved after careful review",
             new_constraints=["monitor_for_7_days"],
-            resolution_metadata={
-                "review_duration_minutes": "15",
-                "review_quality": "thorough"
-            }
+            resolution_metadata={"review_duration_minutes": "15", "review_quality": "thorough"},
         )
 
         # Audit entry that should be created
@@ -541,8 +518,8 @@ class TestDeferralAuditTrail:
                 "resolution": resolution.resolution,
                 "guidance": resolution.guidance,
                 "constraints_added": resolution.new_constraints,
-                "metadata": resolution.resolution_metadata
-            }
+                "metadata": resolution.resolution_metadata,
+            },
         }
 
         audit_entries.append(audit_entry)
@@ -566,8 +543,8 @@ class TestDeferralAuditTrail:
             "details": {
                 "required_role": "AUTHORITY",
                 "actual_role": "OBSERVER",
-                "required_permission": "resolve_deferral"
-            }
+                "required_permission": "resolve_deferral",
+            },
         }
 
         # This would be logged in the audit system

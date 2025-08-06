@@ -4,27 +4,31 @@ Base message bus implementation
 
 import asyncio
 import logging
-from typing import Generic, List, Optional, TypeVar
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Generic, List, Optional, TypeVar
 
-from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.logic.registries.base import ServiceRegistry
 from ciris_engine.protocols.services import Service
+from ciris_engine.schemas.runtime.enums import ServiceType
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class BusMessage:
     """Base message for all buses"""
+
     id: str
     handler_name: str
     timestamp: datetime
     metadata: dict
 
+
 # Define the service type variable
-ServiceT = TypeVar('ServiceT', bound=Service)
+ServiceT = TypeVar("ServiceT", bound=Service)
+
 
 class BaseBus(ABC, Generic[ServiceT]):
     """
@@ -37,12 +41,7 @@ class BaseBus(ABC, Generic[ServiceT]):
     - Handles failures gracefully
     """
 
-    def __init__(
-        self,
-        service_type: ServiceType,
-        service_registry: ServiceRegistry,
-        max_queue_size: int = 1000
-    ):
+    def __init__(self, service_type: ServiceType, service_registry: ServiceRegistry, max_queue_size: int = 1000):
         self.service_type = service_type
         self.service_registry = service_registry
         self.max_queue_size = max_queue_size
@@ -87,20 +86,14 @@ class BaseBus(ABC, Generic[ServiceT]):
         while self._running:
             try:
                 # Get next message with timeout
-                message = await asyncio.wait_for(
-                    self._queue.get(),
-                    timeout=0.1
-                )
+                message = await asyncio.wait_for(self._queue.get(), timeout=0.1)
 
                 # Process it
                 try:
                     await self._process_message(message)
                     self._processed_count += 1
                 except Exception as e:
-                    logger.error(
-                        f"Error processing message in {self.__class__.__name__}: {e}",
-                        exc_info=True
-                    )
+                    logger.error(f"Error processing message in {self.__class__.__name__}: {e}", exc_info=True)
                     self._failed_count += 1
                     await self._handle_failed_message(message, e)
 
@@ -118,28 +111,24 @@ class BaseBus(ABC, Generic[ServiceT]):
 
     async def _handle_failed_message(self, message: BusMessage, error: Exception) -> None:
         """Handle a failed message - can be overridden"""
-        logger.error(
-            f"Failed to process message {message.id} in {self.__class__.__name__}: {error}"
-        )
+        logger.error(f"Failed to process message {message.id} in {self.__class__.__name__}: {error}")
 
     async def get_service(
-        self,
-        handler_name: str,
-        required_capabilities: Optional[List[str]] = None
+        self, handler_name: str, required_capabilities: Optional[List[str]] = None
     ) -> Optional[ServiceT]:
         """Get a service instance for this bus's service type
-        
+
         Args:
             handler_name: Kept for compatibility but ignored (all services are global)
             required_capabilities: Optional list of required capabilities
-            
+
         Returns:
             Service instance or None
         """
         service = await self.service_registry.get_service(
             handler=handler_name,  # Ignored by registry, all services are global
             service_type=self.service_type,
-            required_capabilities=required_capabilities
+            required_capabilities=required_capabilities,
         )
         # Trust the registry returns the right type
         return service
@@ -155,7 +144,7 @@ class BaseBus(ABC, Generic[ServiceT]):
             "queue_size": self.get_queue_size(),
             "processed": self._processed_count,
             "failed": self._failed_count,
-            "running": self._running
+            "running": self._running,
         }
 
     async def _enqueue(self, message: BusMessage) -> bool:

@@ -54,7 +54,7 @@ export default function CommsPage() {
       setMessage('');
       // Immediately refetch history to show the response
       queryClient.invalidateQueries({ queryKey: ['conversation-history'] });
-      
+
       // Show the agent's response in a toast for visibility
       if (response.response) {
         toast.success(`Agent: ${response.response}`, { duration: 5000 });
@@ -89,7 +89,7 @@ export default function CommsPage() {
       return await cirisClient.system.shutdown(emergencyReason, true, true); // force=true
     },
     onSuccess: (response) => {
-      toast.success(`EMERGENCY SHUTDOWN INITIATED: ${response.message}`, { 
+      toast.success(`EMERGENCY SHUTDOWN INITIATED: ${response.message}`, {
         duration: 10000,
         style: {
           background: '#dc2626',
@@ -120,7 +120,7 @@ export default function CommsPage() {
   // Get messages and ensure proper order (oldest to newest)
   const messages = useMemo(() => {
     if (!history?.messages) return [];
-    
+
     // Sort by timestamp (oldest first) and take last 20
     return [...history.messages]
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
@@ -193,7 +193,7 @@ export default function CommsPage() {
                 {messages.map((msg, idx) => {
                   // Debug log to see message structure
                   if (idx === 0) console.log('Message structure:', msg);
-                  
+
                   return (
                     <div
                       key={msg.id || idx}
@@ -241,7 +241,7 @@ export default function CommsPage() {
               {sendMessage.isPending ? 'Sending...' : 'Send'}
             </button>
           </form>
-          
+
           {false && (
             <div className="mt-2 text-sm text-orange-600">
               Agent is paused. Messages cannot be sent.

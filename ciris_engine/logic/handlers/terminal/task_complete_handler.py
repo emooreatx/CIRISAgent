@@ -1,28 +1,30 @@
 import logging
 from typing import Dict, Optional
 
-from ciris_engine.schemas.runtime.models import Thought
-from ciris_engine.schemas.runtime.enums import ThoughtStatus, TaskStatus, HandlerActionType
-from ciris_engine.schemas.runtime.contexts import DispatchContext
-from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.logic import persistence
 from ciris_engine.logic.infrastructure.handlers.base_handler import BaseActionHandler
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from ciris_engine.schemas.runtime.contexts import DispatchContext
+from ciris_engine.schemas.runtime.enums import HandlerActionType, TaskStatus, ThoughtStatus
+from ciris_engine.schemas.runtime.models import Thought
 
 logger = logging.getLogger(__name__)
 
 PERSISTENT_TASK_IDS: Dict[str, str] = {}  # Maps task_id to persistence reason
 
+
 class TaskCompleteHandler(BaseActionHandler):
     async def handle(
-        self,
-        result: ActionSelectionDMAResult,
-        thought: Thought,
-        dispatch_context: DispatchContext
+        self, result: ActionSelectionDMAResult, thought: Thought, dispatch_context: DispatchContext
     ) -> Optional[str]:
         thought_id = thought.thought_id
         parent_task_id = thought.source_task_id
 
-        await self._audit_log(HandlerActionType.TASK_COMPLETE, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="start")
+        await self._audit_log(
+            HandlerActionType.TASK_COMPLETE,
+            dispatch_context.model_copy(update={"thought_id": thought_id}),
+            outcome="start",
+        )
 
         final_thought_status = ThoughtStatus.COMPLETED
 
@@ -35,10 +37,12 @@ class TaskCompleteHandler(BaseActionHandler):
                 has_speak = await self._has_speak_action_completed(parent_task_id)
                 self.logger.debug(f"Task {parent_task_id} has_speak_action_completed: {has_speak}")
                 if not has_speak:
-                    self.logger.error(f"TASK_COMPLETE rejected for wakeup task {parent_task_id}: No SPEAK action has been completed.")
+                    self.logger.error(
+                        f"TASK_COMPLETE rejected for wakeup task {parent_task_id}: No SPEAK action has been completed."
+                    )
 
-                    from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
                     from ciris_engine.schemas.actions import PonderParams
+                    from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 
                     ponder_content = (
                         "WAKEUP TASK COMPLETION BLOCKED: You attempted to mark a wakeup task as complete "
@@ -54,13 +58,17 @@ class TaskCompleteHandler(BaseActionHandler):
                         action_parameters=PonderParams(questions=[ponder_content]).model_dump(),
                         rationale="Wakeup task requires SPEAK action before completion",
                         reasoning="Wakeup task attempted completion without first performing SPEAK action - overriding to PONDER for guidance",
-                        evaluation_time_ms=0.0
+                        evaluation_time_ms=0.0,
                     )
 
                     ponder_result_dict = {
                         "selected_action": ponder_result.selected_action.value,
-                        "action_parameters": ponder_result.action_parameters.model_dump() if hasattr(ponder_result.action_parameters, 'model_dump') else ponder_result.action_parameters,
-                        "rationale": ponder_result.rationale
+                        "action_parameters": (
+                            ponder_result.action_parameters.model_dump()
+                            if hasattr(ponder_result.action_parameters, "model_dump")
+                            else ponder_result.action_parameters
+                        ),
+                        "rationale": ponder_result.rationale,
                     }
 
                     persistence.update_thought_status(
@@ -68,7 +76,11 @@ class TaskCompleteHandler(BaseActionHandler):
                         status=ThoughtStatus.FAILED,
                         final_action=ponder_result_dict,
                     )
-                    await self._audit_log(HandlerActionType.TASK_COMPLETE, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="blocked_override_to_ponder")
+                    await self._audit_log(
+                        HandlerActionType.TASK_COMPLETE,
+                        dispatch_context.model_copy(update={"thought_id": thought_id}),
+                        outcome="blocked_override_to_ponder",
+                    )
                     return None
 
         persistence.update_thought_status(
@@ -76,30 +88,41 @@ class TaskCompleteHandler(BaseActionHandler):
             status=final_thought_status,
             final_action=result,
         )
-        self.logger.debug(f"Updated original thought {thought_id} to status {final_thought_status.value} for TASK_COMPLETE.")
-        
+        self.logger.debug(
+            f"Updated original thought {thought_id} to status {final_thought_status.value} for TASK_COMPLETE."
+        )
+
         # Brief delay to ensure database write is committed
         import asyncio
+
         await asyncio.sleep(0.01)  # 10ms delay
 
         # Check if there's a positive moment to memorize
-        if hasattr(result, 'action_parameters') and hasattr(result.action_parameters, 'positive_moment'):
+        if hasattr(result, "action_parameters") and hasattr(result.action_parameters, "positive_moment"):
             positive_moment = result.action_parameters.positive_moment
             if positive_moment:
                 await self._memorize_positive_moment(positive_moment, parent_task_id, dispatch_context)
 
-        await self._audit_log(HandlerActionType.TASK_COMPLETE, dispatch_context.model_copy(update={"thought_id": thought_id}), outcome="success")
+        await self._audit_log(
+            HandlerActionType.TASK_COMPLETE,
+            dispatch_context.model_copy(update={"thought_id": thought_id}),
+            outcome="success",
+        )
 
         if parent_task_id:
             if parent_task_id in PERSISTENT_TASK_IDS:
-                self.logger.info(f"Task {parent_task_id} is a persistent task. Not marking as COMPLETED by TaskCompleteHandler. It should be re-activated or remain PENDING/ACTIVE.")
+                self.logger.info(
+                    f"Task {parent_task_id} is a persistent task. Not marking as COMPLETED by TaskCompleteHandler. It should be re-activated or remain PENDING/ACTIVE."
+                )
             else:
                 # Check for pending/processing thoughts BEFORE marking task complete
                 pending = persistence.get_thoughts_by_task_id(parent_task_id)
                 # Filter out the current thought we just completed
                 pending_or_processing = [
-                    t.thought_id for t in pending 
-                    if t.thought_id != thought_id and getattr(t, 'status', None) in {ThoughtStatus.PENDING, ThoughtStatus.PROCESSING}
+                    t.thought_id
+                    for t in pending
+                    if t.thought_id != thought_id
+                    and getattr(t, "status", None) in {ThoughtStatus.PENDING, ThoughtStatus.PROCESSING}
                 ]
                 if pending_or_processing:
                     error_msg = (
@@ -109,11 +132,13 @@ class TaskCompleteHandler(BaseActionHandler):
                     )
                     self.logger.error(error_msg)
                     raise RuntimeError(error_msg)
-                
+
                 # Only mark task complete if no pending thoughts
                 task_updated = persistence.update_task_status(parent_task_id, TaskStatus.COMPLETED, self.time_service)
                 if task_updated:
-                    self.logger.info(f"Marked parent task {parent_task_id} as COMPLETED due to TASK_COMPLETE action on thought {thought_id}.")
+                    self.logger.info(
+                        f"Marked parent task {parent_task_id} as COMPLETED due to TASK_COMPLETE action on thought {thought_id}."
+                    )
                 else:
                     self.logger.error(f"Failed to update status for parent task {parent_task_id} to COMPLETED.")
         else:
@@ -132,13 +157,19 @@ class TaskCompleteHandler(BaseActionHandler):
             return True
 
         # Check if parent task is the wakeup root
-        if getattr(task, 'parent_task_id', None) == "WAKEUP_ROOT":
+        if getattr(task, "parent_task_id", None) == "WAKEUP_ROOT":
             return True
 
         # Check if task context indicates it's a wakeup step
-        if task.context and hasattr(task.context, 'step_type'):
-            step_type = getattr(task.context, 'step_type', None)
-            if step_type in ["VERIFY_IDENTITY", "VALIDATE_INTEGRITY", "EVALUATE_RESILIENCE", "ACCEPT_INCOMPLETENESS", "EXPRESS_GRATITUDE"]:
+        if task.context and hasattr(task.context, "step_type"):
+            step_type = getattr(task.context, "step_type", None)
+            if step_type in [
+                "VERIFY_IDENTITY",
+                "VALIDATE_INTEGRITY",
+                "EVALUATE_RESILIENCE",
+                "ACCEPT_INCOMPLETENESS",
+                "EXPRESS_GRATITUDE",
+            ]:
                 return True
 
         return False
@@ -148,9 +179,7 @@ class TaskCompleteHandler(BaseActionHandler):
         from ciris_engine.schemas.telemetry.core import ServiceCorrelationStatus
 
         correlations = persistence.get_correlations_by_task_and_action(
-            task_id=task_id,
-            action_type="speak_action",
-            status=ServiceCorrelationStatus.COMPLETED
+            task_id=task_id, action_type="speak_action", status=ServiceCorrelationStatus.COMPLETED
         )
 
         self.logger.debug(f"Found {len(correlations)} completed SPEAK correlations for task {task_id}")
@@ -162,10 +191,12 @@ class TaskCompleteHandler(BaseActionHandler):
         self.logger.debug(f"No completed SPEAK action correlation found for task {task_id}")
         return False
 
-    async def _memorize_positive_moment(self, positive_moment: str, task_id: Optional[str], dispatch_context: DispatchContext) -> None:
+    async def _memorize_positive_moment(
+        self, positive_moment: str, task_id: Optional[str], dispatch_context: DispatchContext
+    ) -> None:
         """Memorize a positive moment as a community vibe."""
         try:
-            from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
+            from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 
             # Create a positive vibe node
             vibe_node = GraphNode(
@@ -177,15 +208,13 @@ class TaskCompleteHandler(BaseActionHandler):
                     "description": positive_moment[:500],  # Keep it brief
                     "task_id": task_id or "unknown",
                     "channel_id": dispatch_context.channel_context.channel_id or "somewhere",
-                    "timestamp": self.time_service.now_iso()
-                }
+                    "timestamp": self.time_service.now_iso(),
+                },
             )
 
             # Memorize via the memory bus
             await self.bus_manager.memory.memorize(
-                node=vibe_node,
-                handler_name="task_complete_handler",
-                metadata={"positive_vibes": True}
+                node=vibe_node, handler_name="task_complete_handler", metadata={"positive_vibes": True}
             )
 
             self.logger.info(f"✨ Memorized positive moment: {positive_moment[:100]}...")

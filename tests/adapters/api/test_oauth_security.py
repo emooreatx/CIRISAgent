@@ -7,21 +7,18 @@ Tests the profile picture URL validation to ensure:
 - Path traversal attempts are blocked
 - URL length limits are enforced
 """
-import pytest
-from ciris_engine.logic.adapters.api.services.oauth_security import (
-    validate_oauth_picture_url,
-    ALLOWED_AVATAR_DOMAINS
-)
+
+from ciris_engine.logic.adapters.api.services.oauth_security import ALLOWED_AVATAR_DOMAINS, validate_oauth_picture_url
 
 
 class TestOAuthPictureValidation:
     """Test OAuth profile picture URL validation."""
-    
+
     def test_empty_url_is_safe(self):
         """Test that empty URLs are considered safe."""
         assert validate_oauth_picture_url(None) is True
         assert validate_oauth_picture_url("") is True
-    
+
     def test_valid_google_avatar(self):
         """Test valid Google avatar URLs."""
         valid_urls = [
@@ -31,7 +28,7 @@ class TestOAuthPictureValidation:
         ]
         for url in valid_urls:
             assert validate_oauth_picture_url(url) is True
-    
+
     def test_valid_discord_avatar(self):
         """Test valid Discord avatar URLs."""
         valid_urls = [
@@ -41,7 +38,7 @@ class TestOAuthPictureValidation:
         ]
         for url in valid_urls:
             assert validate_oauth_picture_url(url) is True
-    
+
     def test_valid_github_avatar(self):
         """Test valid GitHub avatar URLs."""
         valid_urls = [
@@ -51,7 +48,7 @@ class TestOAuthPictureValidation:
         ]
         for url in valid_urls:
             assert validate_oauth_picture_url(url) is True
-    
+
     def test_valid_gravatar(self):
         """Test valid Gravatar URLs."""
         valid_urls = [
@@ -61,7 +58,7 @@ class TestOAuthPictureValidation:
         ]
         for url in valid_urls:
             assert validate_oauth_picture_url(url) is True
-    
+
     def test_http_urls_rejected(self):
         """Test that non-HTTPS URLs are rejected."""
         invalid_urls = [
@@ -72,7 +69,7 @@ class TestOAuthPictureValidation:
         ]
         for url in invalid_urls:
             assert validate_oauth_picture_url(url) is False
-    
+
     def test_non_whitelisted_domains_rejected(self):
         """Test that non-whitelisted domains are rejected."""
         invalid_urls = [
@@ -84,7 +81,7 @@ class TestOAuthPictureValidation:
         ]
         for url in invalid_urls:
             assert validate_oauth_picture_url(url) is False
-    
+
     def test_path_traversal_rejected(self):
         """Test that path traversal attempts are rejected."""
         invalid_urls = [
@@ -95,7 +92,7 @@ class TestOAuthPictureValidation:
         ]
         for url in invalid_urls:
             assert validate_oauth_picture_url(url) is False
-    
+
     def test_long_urls_rejected(self):
         """Test that excessively long URLs are rejected."""
         # Create a URL that's over 2000 characters
@@ -103,7 +100,7 @@ class TestOAuthPictureValidation:
         long_url = f"https://lh3.googleusercontent.com/{long_path}"
         assert len(long_url) > 2000
         assert validate_oauth_picture_url(long_url) is False
-    
+
     def test_malformed_urls_rejected(self):
         """Test that malformed URLs are safely rejected."""
         invalid_urls = [
@@ -117,7 +114,7 @@ class TestOAuthPictureValidation:
         ]
         for url in invalid_urls:
             assert validate_oauth_picture_url(url) is False
-    
+
     def test_url_with_query_params(self):
         """Test that URLs with query parameters are accepted."""
         valid_urls = [
@@ -127,7 +124,7 @@ class TestOAuthPictureValidation:
         ]
         for url in valid_urls:
             assert validate_oauth_picture_url(url) is True
-    
+
     def test_url_with_fragments(self):
         """Test that URLs with fragments are accepted."""
         valid_urls = [
@@ -136,7 +133,7 @@ class TestOAuthPictureValidation:
         ]
         for url in valid_urls:
             assert validate_oauth_picture_url(url) is True
-    
+
     def test_subdomain_variations(self):
         """Test that exact domain matching is enforced."""
         # These should fail because they're not exact matches
@@ -147,7 +144,7 @@ class TestOAuthPictureValidation:
         ]
         for url in invalid_urls:
             assert validate_oauth_picture_url(url) is False
-    
+
     def test_case_sensitivity(self):
         """Test URL validation with different cases."""
         # urlparse normalizes scheme to lowercase, so HTTPS works
@@ -159,22 +156,22 @@ class TestOAuthPictureValidation:
 
 class TestAllowedDomains:
     """Test the allowed domains configuration."""
-    
+
     def test_allowed_domains_is_frozen(self):
         """Test that ALLOWED_AVATAR_DOMAINS is immutable."""
         assert isinstance(ALLOWED_AVATAR_DOMAINS, frozenset)
-    
+
     def test_expected_domains_present(self):
         """Test that all expected OAuth providers are in whitelist."""
         expected_domains = {
-            'lh3.googleusercontent.com',      # Google
-            'cdn.discordapp.com',             # Discord
-            'avatars.githubusercontent.com',   # GitHub  
-            'secure.gravatar.com',            # Gravatar
-            'www.gravatar.com'                # Gravatar (www)
+            "lh3.googleusercontent.com",  # Google
+            "cdn.discordapp.com",  # Discord
+            "avatars.githubusercontent.com",  # GitHub
+            "secure.gravatar.com",  # Gravatar
+            "www.gravatar.com",  # Gravatar (www)
         }
         assert expected_domains == ALLOWED_AVATAR_DOMAINS
-    
+
     def test_no_unexpected_domains(self):
         """Test that no unexpected domains are in whitelist."""
         assert len(ALLOWED_AVATAR_DOMAINS) == 5

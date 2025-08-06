@@ -1,19 +1,18 @@
 """WA CLI Bootstrap Service - Handles WA creation and minting operations."""
 
-import secrets
-from pathlib import Path
 import json
-from typing import List, Optional, Tuple
+import secrets
 from datetime import timedelta
+from pathlib import Path
+from typing import List, Optional, Tuple
 
 from rich.console import Console
 from rich.prompt import Prompt
 
-from ciris_engine.schemas.services.authority_core import (
-    WACertificate, WARole, TokenType
-)
 from ciris_engine.logic.services.infrastructure.authentication import AuthenticationService
 from ciris_engine.logic.services.lifecycle.time import TimeService
+from ciris_engine.schemas.services.authority_core import WACertificate, WARole
+
 
 class WACLIBootstrapService:
     """Handles WA bootstrap and minting operations."""
@@ -25,10 +24,7 @@ class WACLIBootstrapService:
         self.console = Console()
 
     async def bootstrap_new_root(
-        self,
-        name: str,
-        use_password: bool = False,
-        shamir_shares: Optional[Tuple[int, int]] = None
+        self, name: str, use_password: bool = False, shamir_shares: Optional[Tuple[int, int]] = None
     ) -> dict:
         """Bootstrap a new root WA."""
         try:
@@ -50,7 +46,7 @@ class WACLIBootstrapService:
                 pubkey=self.auth_service._encode_public_key(public_key),
                 jwt_kid=jwt_kid,
                 scopes_json='["*"]',
-                created_at=timestamp
+                created_at=timestamp,
             )
 
             # Add password if requested
@@ -75,20 +71,11 @@ class WACLIBootstrapService:
             self.console.print(f"📋 WA ID: [bold]{wa_id}[/bold]")
             self.console.print(f"🔑 Private key saved to: [bold]{key_file}[/bold]")
 
-            return {
-                "wa_id": wa_id,
-                "name": name,
-                "role": "root",
-                "key_file": str(key_file),
-                "status": "success"
-            }
+            return {"wa_id": wa_id, "name": name, "role": "root", "key_file": str(key_file), "status": "success"}
 
         except Exception as e:
             self.console.print(f"❌ Error creating root WA: {e}")
-            return {
-                "status": "error",
-                "error": str(e)
-            }
+            return {"status": "error", "error": str(e)}
 
     async def mint_wa(
         self,
@@ -97,7 +84,7 @@ class WACLIBootstrapService:
         name: str,
         role: str = "authority",
         scopes: Optional[List[str]] = None,
-        use_password: bool = False
+        use_password: bool = False,
     ) -> dict:
         """Mint a new WA as a child of an existing WA."""
         try:
@@ -140,15 +127,12 @@ class WACLIBootstrapService:
                 jwt_kid=jwt_kid,
                 parent_wa_id=parent_wa_id,
                 scopes_json=json.dumps(scopes),
-                created_at=timestamp
+                created_at=timestamp,
             )
 
             # Sign with parent's key
             signature_data = f"{wa_id}:{child_wa.pubkey}:{parent_wa_id}"
-            parent_signature = self.auth_service.sign_data(
-                signature_data.encode(),
-                parent_private_key
-            )
+            parent_signature = self.auth_service.sign_data(signature_data.encode(), parent_private_key)
             child_wa.parent_signature = parent_signature
 
             # Add password if requested
@@ -182,21 +166,15 @@ class WACLIBootstrapService:
                 "parent_wa_id": parent_wa_id,
                 "key_file": str(key_file),
                 "scopes": scopes,
-                "status": "success"
+                "status": "success",
             }
 
         except Exception as e:
             self.console.print(f"❌ Error minting WA: {e}")
-            return {
-                "status": "error",
-                "error": str(e)
-            }
+            return {"status": "error", "error": str(e)}
 
     def generate_mint_request(
-        self,
-        name: str,
-        requested_role: str = "authority",
-        requested_scopes: Optional[List[str]] = None
+        self, name: str, requested_role: str = "authority", requested_scopes: Optional[List[str]] = None
     ) -> dict:
         """Generate a mint request code for approval by existing WA."""
         try:
@@ -214,7 +192,7 @@ class WACLIBootstrapService:
                 "scopes": requested_scopes or ["read:any", "write:message"],
                 "pubkey": self.auth_service._encode_public_key(public_key),
                 "created": self.time_service.now().isoformat(),
-                "expires": (self.time_service.now() + timedelta(minutes=10)).isoformat()
+                "expires": (self.time_service.now() + timedelta(minutes=10)).isoformat(),
             }
 
             # Save private key temporarily
@@ -228,25 +206,13 @@ class WACLIBootstrapService:
             self.console.print("\nShare this code with an existing WA holder.")
             self.console.print("They should run: [bold]ciris wa approve-code[/bold]")
 
-            return {
-                "status": "success",
-                "code": code,
-                "request": request_data
-            }
+            return {"status": "success", "code": code, "request": request_data}
 
         except Exception as e:
             self.console.print(f"❌ Error generating mint request: {e}")
-            return {
-                "status": "error",
-                "error": str(e)
-            }
+            return {"status": "error", "error": str(e)}
 
-    def approve_mint_request(
-        self,
-        code: str,
-        approver_wa_id: str,
-        _approver_key_file: str
-    ) -> dict:
+    def approve_mint_request(self, code: str, approver_wa_id: str, _approver_key_file: str) -> dict:
         """Approve a mint request and create new WA."""
         try:
             # In production, would fetch from DB
@@ -255,14 +221,8 @@ class WACLIBootstrapService:
             self.console.print(f"📋 Code: [bold]{code}[/bold]")
             self.console.print(f"👤 Approver: [bold]{approver_wa_id}[/bold]")
 
-            return {
-                "status": "success",
-                "message": "Mint request approved (mock implementation)"
-            }
+            return {"status": "success", "message": "Mint request approved (mock implementation)"}
 
         except Exception as e:
             self.console.print(f"❌ Error approving mint request: {e}")
-            return {
-                "status": "error",
-                "error": str(e)
-            }
+            return {"status": "error", "error": str(e)}

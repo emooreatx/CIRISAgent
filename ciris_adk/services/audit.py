@@ -7,7 +7,7 @@ from typing import Any, Dict, Protocol
 
 from pydantic import BaseModel, Field
 
-from ..types import Outcome, GuardrailHit, Stakeholder
+from ..types import GuardrailHit, Outcome, Stakeholder
 
 
 class AuditRecord(BaseModel):
@@ -25,8 +25,7 @@ class AuditRecord(BaseModel):
 
 
 class AuditService(Protocol):
-    async def record(self, entry: AuditRecord) -> None:
-        ...
+    async def record(self, entry: AuditRecord) -> None: ...
 
     async def query(
         self,
@@ -38,6 +37,4 @@ class AuditService(Protocol):
         guardrail_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
-    ) -> list[AuditRecord]:
-        ...
-
+    ) -> list[AuditRecord]: ...

@@ -28,7 +28,7 @@ export class AuthStore {
         localStorage.setItem(this.STORAGE_KEY, JSON.stringify(tokenWithTimestamp));
       }
       // Also save to cookies for compatibility
-      Cookies.set('auth_token', token.access_token, { 
+      Cookies.set('auth_token', token.access_token, {
         expires: token.expires_in / 86400 // Convert seconds to days
       });
     }
@@ -46,7 +46,7 @@ export class AuthStore {
 
     try {
       const token = JSON.parse(stored) as AuthToken;
-      
+
       // Check if token is expired
       const expiresAt = token.created_at + (token.expires_in * 1000);
       if (Date.now() > expiresAt) {
@@ -105,7 +105,7 @@ export class AuthStore {
     if (token) {
       return token.access_token;
     }
-    
+
     // Fallback to cookie for compatibility
     const cookieToken = Cookies.get('auth_token');
     return cookieToken || null;

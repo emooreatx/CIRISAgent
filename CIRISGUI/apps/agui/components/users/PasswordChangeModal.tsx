@@ -20,12 +20,12 @@ export function PasswordChangeModal({ userId, username, onClose, onSuccess }: Pa
   const [confirmPassword, setConfirmPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const isChangingOwnPassword = currentUser?.user_id === userId;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate passwords match
     if (newPassword !== confirmPassword) {
       setError('New passwords do not match');
@@ -104,7 +104,7 @@ export function PasswordChangeModal({ userId, username, onClose, onSuccess }: Pa
                     </Dialog.Title>
                     <div className="mt-2">
                       <p className="text-sm text-gray-500">
-                        {isChangingOwnPassword 
+                        {isChangingOwnPassword
                           ? 'Enter your current password and choose a new one'
                           : `Change password for ${username}`}
                       </p>

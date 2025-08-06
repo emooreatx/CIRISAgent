@@ -2,32 +2,39 @@
 Runtime Control message bus - handles all runtime control operations with safety checks
 """
 
-import logging
 import asyncio
-from typing import Optional, List, TYPE_CHECKING, Dict, Any, cast
+import logging
 from enum import Enum
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
     from ciris_engine.logic.registries.base import ServiceRegistry
 
-from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.protocols.services import RuntimeControlService
-from ciris_engine.schemas.services.core.runtime import (
-    ProcessorQueueStatus, AdapterInfo, AdapterStatus, ProcessorStatus,
-    ProcessorControlResponse, ConfigSnapshot,
-    AdapterOperationResponse, RuntimeStatusResponse
-)
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.services.core.runtime import (
+    AdapterInfo,
+    AdapterStatus,
+    ConfigSnapshot,
+    ProcessorControlResponse,
+    ProcessorQueueStatus,
+    ProcessorStatus,
+)
+
 from .base_bus import BaseBus, BusMessage
 
 logger = logging.getLogger(__name__)
 
+
 class OperationPriority(str, Enum):
     """Priority levels for runtime operations"""
+
     CRITICAL = "critical"  # Shutdown, emergency stop
-    HIGH = "high"         # Configuration changes
-    NORMAL = "normal"     # Status queries
-    LOW = "low"          # Metrics, non-essential ops
+    HIGH = "high"  # Configuration changes
+    NORMAL = "normal"  # Status queries
+    LOW = "low"  # Metrics, non-essential ops
+
 
 class RuntimeControlBus(BaseBus[RuntimeControlService]):
     """
@@ -41,24 +48,17 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
     """
 
     def __init__(self, service_registry: "ServiceRegistry", time_service: TimeServiceProtocol):
-        super().__init__(
-            service_type=ServiceType.RUNTIME_CONTROL,
-            service_registry=service_registry
-        )
+        super().__init__(service_type=ServiceType.RUNTIME_CONTROL, service_registry=service_registry)
         self._time_service = time_service
         # Track ongoing operations to prevent conflicts
         self._active_operations: Dict[str, asyncio.Task] = {}
         self._operation_lock = asyncio.Lock()
         self._shutting_down = False
 
-    async def get_processor_queue_status(
-        self,
-        handler_name: str = "default"
-    ) -> ProcessorQueueStatus:
+    async def get_processor_queue_status(self, handler_name: str = "default") -> ProcessorQueueStatus:
         """Get processor queue status"""
         service = await self.get_service(
-            handler_name=handler_name,
-            required_capabilities=["get_processor_queue_status"]
+            handler_name=handler_name, required_capabilities=["get_processor_queue_status"]
         )
 
         if not service:
@@ -70,7 +70,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 max_size=1000,
                 processing_rate=0.0,
                 average_latency_ms=0.0,
-                oldest_message_age_seconds=None
+                oldest_message_age_seconds=None,
             )
 
         try:
@@ -84,14 +84,10 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 max_size=1000,
                 processing_rate=0.0,
                 average_latency_ms=0.0,
-                oldest_message_age_seconds=None
+                oldest_message_age_seconds=None,
             )
 
-    async def shutdown_runtime(
-        self,
-        reason: str,
-        handler_name: str = "default"
-    ) -> ProcessorControlResponse:
+    async def shutdown_runtime(self, reason: str, handler_name: str = "default") -> ProcessorControlResponse:
         """Shutdown the runtime gracefully"""
         async with self._operation_lock:
             if self._shutting_down:
@@ -101,13 +97,10 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                     processor_name=handler_name,
                     operation="shutdown",
                     new_status=ProcessorStatus.STOPPED,
-                    error=None
+                    error=None,
                 )
 
-            service = await self.get_service(
-                handler_name=handler_name,
-                required_capabilities=["shutdown_runtime"]
-            )
+            service = await self.get_service(handler_name=handler_name, required_capabilities=["shutdown_runtime"])
 
             if not service:
                 logger.error(f"No runtime control service available for {handler_name}")
@@ -116,7 +109,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                     processor_name=handler_name,
                     operation="shutdown",
                     new_status=ProcessorStatus.ERROR,
-                    error="Service unavailable"
+                    error="Service unavailable",
                 )
 
             try:
@@ -140,55 +133,34 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                     processor_name=handler_name,
                     operation="shutdown",
                     new_status=ProcessorStatus.ERROR,
-                    error=str(e)
+                    error=str(e),
                 )
 
     async def get_config(
-        self,
-        path: Optional[str] = None,
-        include_sensitive: bool = False,
-        handler_name: str = "default"
+        self, path: Optional[str] = None, include_sensitive: bool = False, handler_name: str = "default"
     ) -> ConfigSnapshot:
         """Get configuration value(s)"""
-        service = await self.get_service(
-            handler_name=handler_name,
-            required_capabilities=["get_config"]
-        )
+        service = await self.get_service(handler_name=handler_name, required_capabilities=["get_config"])
 
         if not service:
             logger.error(f"No runtime control service available for {handler_name}")
             return ConfigSnapshot(
-                configs={},
-                version="unknown",
-                metadata={"error": "Runtime control service unavailable"}
+                configs={}, version="unknown", metadata={"error": "Runtime control service unavailable"}
             )
 
         try:
             return await service.get_config(path, include_sensitive)
         except Exception as e:
             logger.error(f"Failed to get config: {e}", exc_info=True)
-            return ConfigSnapshot(
-                configs={},
-                version="unknown",
-                metadata={"error": str(e)}
-            )
+            return ConfigSnapshot(configs={}, version="unknown", metadata={"error": str(e)})
 
-    async def get_runtime_status(
-        self,
-        handler_name: str = "default"
-    ) -> Dict[str, Any]:
+    async def get_runtime_status(self, handler_name: str = "default") -> Dict[str, Any]:
         """Get runtime status - safe to call anytime"""
-        service = await self.get_service(
-            handler_name=handler_name,
-            required_capabilities=["get_runtime_status"]
-        )
+        service = await self.get_service(handler_name=handler_name, required_capabilities=["get_runtime_status"])
 
         if not service:
             logger.error(f"No runtime control service available for {handler_name}")
-            return {
-                "status": "error",
-                "message": "Runtime control service unavailable"
-            }
+            return {"status": "error", "message": "Runtime control service unavailable"}
 
         try:
             response = await service.get_runtime_status()
@@ -203,25 +175,17 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 "current_load": response.current_load,
                 "bus_status": {
                     "active_operations": list(self._active_operations.keys()),
-                    "shutting_down": self._shutting_down
-                }
+                    "shutting_down": self._shutting_down,
+                },
             }
 
             return status_dict
         except Exception as e:
             logger.error(f"Failed to get runtime status: {e}", exc_info=True)
-            return {
-                "status": "error",
-                "message": str(e)
-            }
+            return {"status": "error", "message": str(e)}
 
     async def load_adapter(
-        self,
-        adapter_type: str,
-        adapter_id: str,
-        config: dict,
-        auto_start: bool = True,
-        handler_name: str = "default"
+        self, adapter_type: str, adapter_id: str, config: dict, auto_start: bool = True, handler_name: str = "default"
     ) -> AdapterInfo:
         """Load a new adapter instance"""
         if self._shutting_down:
@@ -234,13 +198,10 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 messages_processed=0,
                 error_count=0,
                 last_error="System shutting down",
-                tools=None
+                tools=None,
             )
 
-        service = await self.get_service(
-            handler_name=handler_name,
-            required_capabilities=["load_adapter"]
-        )
+        service = await self.get_service(handler_name=handler_name, required_capabilities=["load_adapter"])
 
         if not service:
             logger.error(f"No runtime control service available for {handler_name}")
@@ -252,7 +213,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 messages_processed=0,
                 error_count=0,
                 last_error="Service unavailable",
-                tools=None
+                tools=None,
             )
 
         try:
@@ -267,7 +228,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 messages_processed=0,
                 error_count=0 if operation_response.success else 1,
                 last_error=operation_response.error,
-                tools=None
+                tools=None,
             )
         except Exception as e:
             logger.error(f"Failed to load adapter: {e}", exc_info=True)
@@ -279,20 +240,12 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 messages_processed=0,
                 error_count=1,
                 last_error=str(e),
-                tools=None
+                tools=None,
             )
 
-    async def unload_adapter(
-        self,
-        adapter_id: str,
-        force: bool = False,
-        handler_name: str = "default"
-    ) -> AdapterInfo:
+    async def unload_adapter(self, adapter_id: str, force: bool = False, handler_name: str = "default") -> AdapterInfo:
         """Unload an adapter instance"""
-        service = await self.get_service(
-            handler_name=handler_name,
-            required_capabilities=["unload_adapter"]
-        )
+        service = await self.get_service(handler_name=handler_name, required_capabilities=["unload_adapter"])
 
         if not service:
             logger.error(f"No runtime control service available for {handler_name}")
@@ -304,7 +257,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 messages_processed=0,
                 error_count=1,
                 last_error="Service unavailable",
-                tools=None
+                tools=None,
             )
 
         try:
@@ -319,7 +272,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 messages_processed=0,
                 error_count=0 if operation_response.success else 1,
                 last_error=operation_response.error,
-                tools=None
+                tools=None,
             )
         except Exception as e:
             logger.error(f"Failed to unload adapter: {e}", exc_info=True)
@@ -331,18 +284,12 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 messages_processed=0,
                 error_count=1,
                 last_error=str(e),
-                tools=None
+                tools=None,
             )
 
-    async def list_adapters(
-        self,
-        handler_name: str = "default"
-    ) -> List[AdapterInfo]:
+    async def list_adapters(self, handler_name: str = "default") -> List[AdapterInfo]:
         """List all loaded adapters"""
-        service = await self.get_service(
-            handler_name=handler_name,
-            required_capabilities=["list_adapters"]
-        )
+        service = await self.get_service(handler_name=handler_name, required_capabilities=["list_adapters"])
 
         if not service:
             logger.error(f"No runtime control service available for {handler_name}")
@@ -354,10 +301,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
             logger.error(f"Failed to list adapters: {e}", exc_info=True)
             return []
 
-    async def pause_processing(
-        self,
-        handler_name: str = "default"
-    ) -> bool:
+    async def pause_processing(self, handler_name: str = "default") -> bool:
         """Pause processor execution"""
         # Maps to pause_processing in the actual service
         if self._shutting_down:
@@ -365,10 +309,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
             return False
 
         async with self._operation_lock:
-            service = await self.get_service(
-                handler_name=handler_name,
-                required_capabilities=["pause_processing"]
-            )
+            service = await self.get_service(handler_name=handler_name, required_capabilities=["pause_processing"])
 
             if not service:
                 logger.error(f"No runtime control service available for {handler_name}")
@@ -389,10 +330,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 logger.error(f"Exception pausing processor: {e}", exc_info=True)
                 return False
 
-    async def resume_processing(
-        self,
-        handler_name: str = "default"
-    ) -> bool:
+    async def resume_processing(self, handler_name: str = "default") -> bool:
         """Resume processor execution from paused state"""
         # Maps to resume_processing in the actual service
         if self._shutting_down:
@@ -400,10 +338,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
             return False
 
         async with self._operation_lock:
-            service = await self.get_service(
-                handler_name=handler_name,
-                required_capabilities=["resume_processing"]
-            )
+            service = await self.get_service(handler_name=handler_name, required_capabilities=["resume_processing"])
 
             if not service:
                 logger.error(f"No runtime control service available for {handler_name}")
@@ -424,10 +359,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 logger.error(f"Exception resuming processor: {e}", exc_info=True)
                 return False
 
-    async def single_step(
-        self,
-        handler_name: str = "default"
-    ) -> Optional[ProcessorControlResponse]:
+    async def single_step(self, handler_name: str = "default") -> Optional[ProcessorControlResponse]:
         """Execute a single thought processing step"""
         # Maps to single_step returning ProcessorControlResponse
         if self._shutting_down:
@@ -435,10 +367,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
             return None
 
         async with self._operation_lock:
-            service = await self.get_service(
-                handler_name=handler_name,
-                required_capabilities=["single_step"]
-            )
+            service = await self.get_service(handler_name=handler_name, required_capabilities=["single_step"])
 
             if not service:
                 logger.error(f"No runtime control service available for {handler_name}")
@@ -458,16 +387,9 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 logger.error(f"Exception during single step: {e}", exc_info=True)
                 return None
 
-    async def get_adapter_info(
-        self,
-        adapter_id: str,
-        handler_name: str = "default"
-    ) -> AdapterInfo:
+    async def get_adapter_info(self, adapter_id: str, handler_name: str = "default") -> AdapterInfo:
         """Get detailed information about a specific adapter"""
-        service = await self.get_service(
-            handler_name=handler_name,
-            required_capabilities=["get_adapter_info"]
-        )
+        service = await self.get_service(handler_name=handler_name, required_capabilities=["get_adapter_info"])
 
         if not service:
             logger.error(f"No runtime control service available for {handler_name}")
@@ -479,7 +401,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 messages_processed=0,
                 error_count=1,
                 last_error="Service unavailable",
-                tools=None
+                tools=None,
             )
 
         try:
@@ -494,7 +416,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                     messages_processed=0,
                     error_count=1,
                     last_error="Adapter not found",
-                    tools=None
+                    tools=None,
                 )
             return result
         except Exception as e:
@@ -507,7 +429,7 @@ class RuntimeControlBus(BaseBus[RuntimeControlService]):
                 messages_processed=0,
                 error_count=1,
                 last_error=str(e),
-                tools=None
+                tools=None,
             )
 
     async def is_healthy(self, handler_name: str = "default") -> bool:

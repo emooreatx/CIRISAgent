@@ -1,29 +1,33 @@
 import logging
-from typing import Dict, Any, Optional, List
-from ciris_engine.schemas.dma.core import DMAInputData
+from typing import Any, Dict, List, Optional
 
-from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
-from ciris_engine.schemas.dma.results import DSDMAResult
-from ciris_engine.logic.registries.base import ServiceRegistry
-from .base_dma import BaseDMA
-from ciris_engine.protocols.dma.base import DSDMAProtocol
-from ciris_engine.logic.formatters import (
-    format_user_profiles,
-    format_system_snapshot,
-    format_system_prompt_blocks,
-    get_escalation_guidance
-)
-from ciris_engine.logic.utils import COVENANT_TEXT
 from pydantic import BaseModel, Field
+
+from ciris_engine.logic.formatters import (
+    format_system_prompt_blocks,
+    format_system_snapshot,
+    format_user_profiles,
+    get_escalation_guidance,
+)
+from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
+from ciris_engine.logic.registries.base import ServiceRegistry
+from ciris_engine.logic.utils import COVENANT_TEXT
+from ciris_engine.protocols.dma.base import DSDMAProtocol
+from ciris_engine.schemas.dma.core import DMAInputData
+from ciris_engine.schemas.dma.results import DSDMAResult
+
+from .base_dma import BaseDMA
 from .prompt_loader import get_prompt_loader
 
 logger = logging.getLogger(__name__)
+
 
 class BaseDSDMA(BaseDMA, DSDMAProtocol):
     """
     Abstract Base Class for Domain-Specific Decision-Making Algorithms.
     Handles instructor client patching based on global config.
     """
+
     DEFAULT_TEMPLATE: Optional[str] = (
         "You are a domain-specific evaluator for the '{domain_name}' domain. "
         "Your primary goal is to assess how well a given 'thought' aligns with the specific rules, "
@@ -35,23 +39,20 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
         "Focus your evaluation on domain alignment."
     )
 
-    def __init__(self,
-                 domain_name: str,
-                 service_registry: ServiceRegistry,
-                 model_name: Optional[str] = None,
-                 domain_specific_knowledge: Optional[Dict[str, Any]] = None,
-                 prompt_template: Optional[str] = None,
-                 **kwargs: Any) -> None:
+    def __init__(
+        self,
+        domain_name: str,
+        service_registry: ServiceRegistry,
+        model_name: Optional[str] = None,
+        domain_specific_knowledge: Optional[Dict[str, Any]] = None,
+        prompt_template: Optional[str] = None,
+        **kwargs: Any,
+    ) -> None:
 
         # Use provided model name or default
         resolved_model = model_name or "gpt-4"
 
-        super().__init__(
-            service_registry=service_registry,
-            model_name=resolved_model,
-            max_retries=2,
-            **kwargs
-        )
+        super().__init__(service_registry=service_registry, model_name=resolved_model, max_retries=2, **kwargs)
 
         self.domain_name = domain_name
         self.domain_specific_knowledge = domain_specific_knowledge if domain_specific_knowledge else {}
@@ -72,6 +73,7 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
             logger.warning(f"DSDMA base prompt template not found for domain '{domain_name}', using fallback")
             # Create a PromptCollection with fallback data
             from ciris_engine.schemas.dma.prompts import PromptCollection, PromptTemplate
+
             self.prompt_template_data = PromptCollection(
                 name="dsdma_base_fallback",
                 description="Fallback DSDMA prompt collection",
@@ -79,15 +81,17 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
                     "system_guidance_header": PromptTemplate(
                         name="system_guidance_header",
                         template=self.DEFAULT_TEMPLATE if self.DEFAULT_TEMPLATE else "",
-                        description="Fallback system guidance"
+                        description="Fallback system guidance",
                     )
-                }
+                },
             )
-            self.prompt_template = prompt_template if prompt_template is not None else (self.DEFAULT_TEMPLATE if self.DEFAULT_TEMPLATE else "")
+            self.prompt_template = (
+                prompt_template
+                if prompt_template is not None
+                else (self.DEFAULT_TEMPLATE if self.DEFAULT_TEMPLATE else "")
+            )
 
-        logger.info(
-            f"BaseDSDMA '{self.domain_name}' initialized with model: {self.model_name}"
-        )
+        logger.info(f"BaseDSDMA '{self.domain_name}' initialized with model: {self.model_name}")
 
     class LLMOutputForDSDMA(BaseModel):
         score: float = Field(..., ge=0.0, le=1.0)
@@ -98,12 +102,12 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
     async def evaluate(self, *args: Any, **kwargs: Any) -> DSDMAResult:  # type: ignore[override]
         """Evaluate thought within domain-specific context."""
         # Extract arguments - maintain backward compatibility
-        input_data = args[0] if args else kwargs.get('input_data')
-        current_context = args[1] if len(args) > 1 else kwargs.get('current_context')
-        
+        input_data = args[0] if args else kwargs.get("input_data")
+        current_context = args[1] if len(args) > 1 else kwargs.get("current_context")
+
         if not input_data:
             raise ValueError("input_data is required")
-            
+
         # Extract DMAInputData if provided
         dma_input_data: Optional[DMAInputData] = None
         if current_context and isinstance(current_context, dict):
@@ -115,7 +119,9 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
 
         return await self.evaluate_thought(input_data, dma_input_data)
 
-    async def evaluate_thought(self, thought_item: ProcessingQueueItem, current_context: Optional[DMAInputData]) -> DSDMAResult:
+    async def evaluate_thought(
+        self, thought_item: ProcessingQueueItem, current_context: Optional[DMAInputData]
+    ) -> DSDMAResult:
 
         thought_content_str = str(thought_item.content)
 
@@ -123,28 +129,36 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
         if current_context:
             # Use typed DMAInputData fields
             context_str = f"Round {current_context.round_number}, Ponder count: {current_context.current_thought_depth}"
-            rules_summary_str = self.domain_specific_knowledge.get("rules_summary", "General domain guidance") if isinstance(self.domain_specific_knowledge, dict) else "General domain guidance"
+            rules_summary_str = (
+                self.domain_specific_knowledge.get("rules_summary", "General domain guidance")
+                if isinstance(self.domain_specific_knowledge, dict)
+                else "General domain guidance"
+            )
 
             # Get system snapshot from DMAInputData - CRITICAL requirement
             if not current_context.system_snapshot:
-                raise ValueError(f"CRITICAL: System snapshot is required for DSDMA evaluation in domain '{self.domain_name}'")
+                raise ValueError(
+                    f"CRITICAL: System snapshot is required for DSDMA evaluation in domain '{self.domain_name}'"
+                )
             system_snapshot = current_context.system_snapshot
             user_profiles_data = system_snapshot.user_profiles
             # Convert list of UserProfile to dict format expected by format_user_profiles
             user_profiles_dict = {}
             for profile in user_profiles_data:
                 user_profiles_dict[profile.user_id] = {
-                    'name': profile.display_name,
-                    'nick': profile.display_name,
-                    'interests': getattr(profile, 'interests', []),
-                    'primary_channel': getattr(profile, 'primary_channel', None)
+                    "name": profile.display_name,
+                    "nick": profile.display_name,
+                    "interests": getattr(profile, "interests", []),
+                    "primary_channel": getattr(profile, "primary_channel", None),
                 }
             user_profiles_block = format_user_profiles(user_profiles_dict)
             system_snapshot_block = format_system_snapshot(system_snapshot)
 
             # Get identity from system snapshot - CRITICAL requirement
             if not system_snapshot.agent_identity:
-                raise ValueError(f"CRITICAL: Agent identity is required for DSDMA evaluation in domain '{self.domain_name}'")
+                raise ValueError(
+                    f"CRITICAL: Agent identity is required for DSDMA evaluation in domain '{self.domain_name}'"
+                )
             # Format identity block from agent_identity data
             identity_block = f"Agent: {system_snapshot.agent_identity.get('agent_id', 'Unknown')}\n"
             identity_block += f"Description: {system_snapshot.agent_identity.get('description', 'No description')}\n"
@@ -152,13 +166,17 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
         else:
             # Fallback to old logic for backwards compatibility
             context_str = "No specific platform context provided."
-            rules_summary_str = self.domain_specific_knowledge.get("rules_summary", "General domain guidance") if isinstance(self.domain_specific_knowledge, dict) else "General domain guidance"
+            rules_summary_str = (
+                self.domain_specific_knowledge.get("rules_summary", "General domain guidance")
+                if isinstance(self.domain_specific_knowledge, dict)
+                else "General domain guidance"
+            )
 
             system_snapshot_block = ""
             user_profiles_block = ""
             identity_block = ""
 
-            if hasattr(thought_item, 'context') and thought_item.context:
+            if hasattr(thought_item, "context") and thought_item.context:
                 system_snapshot = thought_item.context.get("system_snapshot")
                 if system_snapshot:
                     user_profiles_data = system_snapshot.get("user_profiles")
@@ -171,10 +189,15 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
 
         task_history_block = ""
 
-        template_has_blocks = any(placeholder in self.prompt_template for placeholder in [
-            "{task_history_block}", "{escalation_guidance_block}",
-            "{system_snapshot_block}", "{user_profiles_block}"
-        ])
+        template_has_blocks = any(
+            placeholder in self.prompt_template
+            for placeholder in [
+                "{task_history_block}",
+                "{escalation_guidance_block}",
+                "{system_snapshot_block}",
+                "{user_profiles_block}",
+            ]
+        )
 
         if template_has_blocks:
             try:
@@ -185,7 +208,7 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
                     user_profiles_block=user_profiles_block,
                     domain_name=self.domain_name,
                     rules_summary_str=rules_summary_str,
-                    context_str=context_str
+                    context_str=context_str,
                 )
             except KeyError as e:
                 logger.error(f"Missing template variable in DSDMA template: {e}")
@@ -196,7 +219,7 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
                     user_profiles_block,
                     escalation_guidance_block,
                     f"You are a domain-specific evaluator for the '{self.domain_name}' domain. "
-                    f"Consider the domain rules: '{rules_summary_str}' and context: '{context_str}'."
+                    f"Consider the domain rules: '{rules_summary_str}' and context: '{context_str}'.",
                 )
         else:
             system_message_template = self.prompt_template
@@ -211,35 +234,32 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
                 )
 
             system_message_content = system_message_template.format(
-                domain_name=self.domain_name,
-                rules_summary_str=rules_summary_str,
-                context_str=context_str
+                domain_name=self.domain_name, rules_summary_str=rules_summary_str, context_str=context_str
             )
 
         full_snapshot_and_profile_context_str = system_snapshot_block + user_profiles_block
         user_message_content = f"{full_snapshot_and_profile_context_str}\nEvaluate this thought for the '{self.domain_name}' domain: \"{thought_content_str}\""
 
-        logger.debug(f"DSDMA '{self.domain_name}' input to LLM for thought {thought_item.thought_id}:\nSystem: {system_message_content}\nUser: {user_message_content}")
+        logger.debug(
+            f"DSDMA '{self.domain_name}' input to LLM for thought {thought_item.thought_id}:\nSystem: {system_message_content}\nUser: {user_message_content}"
+        )
 
         messages = [
             {"role": "system", "content": COVENANT_TEXT},
             {"role": "system", "content": system_message_content},
-            {"role": "user", "content": user_message_content}
+            {"role": "user", "content": user_message_content},
         ]
 
         try:
             llm_eval_data, _ = await self.call_llm_structured(
-                messages=messages,
-                response_model=BaseDSDMA.LLMOutputForDSDMA,
-                max_tokens=512,
-                temperature=0.0
+                messages=messages, response_model=BaseDSDMA.LLMOutputForDSDMA, max_tokens=512, temperature=0.0
             )
 
             result = DSDMAResult(
                 domain=self.domain_name,
                 domain_alignment=min(max(llm_eval_data.score, 0.0), 1.0),
                 flags=llm_eval_data.flags,
-                reasoning=llm_eval_data.reasoning
+                reasoning=llm_eval_data.reasoning,
             )
             logger.info(
                 f"DSDMA '{self.domain_name}' (instructor) evaluation successful for thought ID {thought_item.thought_id}: "
@@ -256,19 +276,17 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
                 domain=self.domain_name,
                 domain_alignment=0.0,
                 flags=["LLM_Error_Instructor"],
-                reasoning=f"Failed DSDMA evaluation via instructor: {str(e)}"
+                reasoning=f"Failed DSDMA evaluation via instructor: {str(e)}",
             )
 
-    async def evaluate_alias(
-        self, input_data: ProcessingQueueItem, **kwargs: Any
-    ) -> DSDMAResult:
+    async def evaluate_alias(self, input_data: ProcessingQueueItem, **kwargs: Any) -> DSDMAResult:
         """Alias for evaluate_thought to satisfy BaseDMA."""
         # Extract DMAInputData if available, otherwise None
-        context_raw = kwargs.get('current_context')
+        context_raw = kwargs.get("current_context")
         dma_input_data: Optional[DMAInputData] = None
 
-        if isinstance(context_raw, dict) and 'dma_input_data' in context_raw:
-            dma_input_data = context_raw['dma_input_data']
+        if isinstance(context_raw, dict) and "dma_input_data" in context_raw:
+            dma_input_data = context_raw["dma_input_data"]
         elif isinstance(context_raw, DMAInputData):
             dma_input_data = context_raw
 

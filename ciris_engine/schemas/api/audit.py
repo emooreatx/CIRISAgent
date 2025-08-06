@@ -1,13 +1,16 @@
 """
 Audit API response schemas - fully typed replacements for Dict[str, Any].
 """
-from typing import Optional
+
 from datetime import datetime
+from typing import Optional
+
 from pydantic import BaseModel, Field
 
 
 class AuditContext(BaseModel):
     """Structured audit context information."""
+
     entity_id: Optional[str] = Field(None, description="Entity being audited")
     entity_type: Optional[str] = Field(None, description="Type of entity")
     operation: Optional[str] = Field(None, description="Operation performed")
@@ -24,6 +27,7 @@ class AuditContext(BaseModel):
 
 class EntryVerification(BaseModel):
     """Audit entry verification details."""
+
     signature_valid: bool = Field(..., description="Whether signature is valid")
     hash_chain_valid: bool = Field(..., description="Whether hash chain is intact")
     verified_at: datetime = Field(..., description="When verification occurred")

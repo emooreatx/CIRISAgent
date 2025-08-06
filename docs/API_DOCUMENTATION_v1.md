@@ -327,7 +327,7 @@ const health = await client.system.getServiceHealthDetails();
 Total: 78 endpoints across 12 modules
 
 1. **Agent** (6 endpoints)
-2. **Auth** (8 endpoints)  
+2. **Auth** (8 endpoints)
 3. **Memory** (10 endpoints)
 4. **System** (19 endpoints including extensions)
 5. **Config** (4 endpoints)

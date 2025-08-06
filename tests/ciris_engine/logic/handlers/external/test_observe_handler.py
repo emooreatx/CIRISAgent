@@ -14,46 +14,43 @@ Tests cover:
 - Observation filtering and relevance
 """
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from contextlib import contextmanager
 from datetime import datetime, timezone
-import uuid
-from typing import Optional, Any, List, Dict
+from typing import Any, List, Optional
+from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
+
+from ciris_engine.logic.buses.bus_manager import BusManager
 from ciris_engine.logic.handlers.external.observe_handler import ObserveHandler
 from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies
-from ciris_engine.logic.buses.bus_manager import BusManager
-from ciris_engine.schemas.actions.parameters import ObserveParams
-from ciris_engine.schemas.runtime.models import Thought, ThoughtContext, Task
-from ciris_engine.schemas.runtime.enums import (
-    ThoughtStatus, HandlerActionType, TaskStatus, ThoughtType
-)
-from ciris_engine.schemas.runtime.contexts import DispatchContext
-from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
-from ciris_engine.schemas.runtime.system_context import ChannelContext
-from ciris_engine.schemas.telemetry.core import ServiceCorrelation
-from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.logic.secrets.service import SecretsService
-from ciris_engine.schemas.services.graph_core import GraphScope, NodeType
-from contextlib import contextmanager
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.actions.parameters import ObserveParams
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from ciris_engine.schemas.runtime.contexts import DispatchContext
+from ciris_engine.schemas.runtime.enums import HandlerActionType, TaskStatus, ThoughtStatus, ThoughtType
+from ciris_engine.schemas.runtime.models import Task, Thought, ThoughtContext
+from ciris_engine.schemas.runtime.system_context import ChannelContext
 
 
 @contextmanager
 def patch_persistence_properly(test_task: Optional[Task] = None) -> Any:
     """Properly patch persistence in both handler and base handler."""
-    with patch('ciris_engine.logic.handlers.external.observe_handler.persistence') as mock_p, \
-         patch('ciris_engine.logic.infrastructure.handlers.base_handler.persistence') as mock_base_p:
+    with patch("ciris_engine.logic.handlers.external.observe_handler.persistence") as mock_p, patch(
+        "ciris_engine.logic.infrastructure.handlers.base_handler.persistence"
+    ) as mock_base_p:
         # Configure handler persistence
         mock_p.get_task_by_id.return_value = test_task
         mock_p.add_thought = Mock()
         mock_p.update_thought_status = Mock(return_value=True)
         mock_p.add_correlation = Mock()
-        
+
         # Configure base handler persistence
         mock_base_p.add_thought = Mock()
         mock_base_p.update_thought_status = Mock(return_value=True)
         mock_base_p.add_correlation = Mock()
-        
+
         yield mock_p, mock_base_p
 
 
@@ -100,25 +97,29 @@ def mock_bus_manager(mock_memory_bus: AsyncMock) -> Mock:
     manager.memory = mock_memory_bus
     manager.audit_service = AsyncMock()
     manager.audit_service.log_event = AsyncMock()
-    
+
     # Add communication bus for active observation
     manager.communication = AsyncMock()
-    manager.communication.fetch_messages = AsyncMock(return_value=[
-        Mock(message_id="msg1", content="Test message 1", author_id="user1"),
-        Mock(message_id="msg2", content="Test message 2", author_id="user2")
-    ])
-    
+    manager.communication.fetch_messages = AsyncMock(
+        return_value=[
+            Mock(message_id="msg1", content="Test message 1", author_id="user1"),
+            Mock(message_id="msg2", content="Test message 2", author_id="user2"),
+        ]
+    )
+
     return manager
 
 
 @pytest.fixture
-def handler_dependencies(mock_bus_manager: Mock, mock_time_service: Mock, mock_secrets_service: Mock) -> ActionHandlerDependencies:
+def handler_dependencies(
+    mock_bus_manager: Mock, mock_time_service: Mock, mock_secrets_service: Mock
+) -> ActionHandlerDependencies:
     """Create handler dependencies."""
     return ActionHandlerDependencies(
         bus_manager=mock_bus_manager,
         time_service=mock_time_service,
         secrets_service=mock_secrets_service,
-        shutdown_callback=None
+        shutdown_callback=None,
     )
 
 
@@ -140,7 +141,7 @@ def channel_context() -> ChannelContext:
         is_active=True,
         last_activity=None,
         message_count=0,
-        moderation_level="standard"
+        moderation_level="standard",
     )
 
 
@@ -166,7 +167,7 @@ def dispatch_context(channel_context: ChannelContext) -> DispatchContext:
         epistemic_data=None,
         correlation_id="corr_123",
         span_id=None,
-        trace_id=None
+        trace_id=None,
     )
 
 
@@ -193,8 +194,8 @@ def test_thought() -> Thought:
             round_number=1,
             depth=1,
             channel_id="test_channel_123",
-            parent_thought_id=None
-        )
+            parent_thought_id=None,
+        ),
     )
 
 
@@ -214,7 +215,7 @@ def test_task() -> Task:
         outcome=None,
         signed_by=None,
         signature=None,
-        signed_at=None
+        signed_at=None,
     )
 
 
@@ -227,8 +228,8 @@ def observe_params(channel_context: ChannelContext) -> ObserveParams:
         context={
             "observation_type": "user_behavior",
             "tags": "ethics,user_interest",
-            "content": "User seems interested in AI ethics"
-        }
+            "content": "User seems interested in AI ethics",
+        },
     )
 
 
@@ -242,7 +243,7 @@ def action_result(observe_params: ObserveParams) -> ActionSelectionDMAResult:
         raw_llm_response="OBSERVE: User interested in ethics",
         reasoning="This helps understand user interests",
         evaluation_time_ms=100.0,
-        resource_usage=None
+        resource_usage=None,
     )
 
 
@@ -251,42 +252,47 @@ class TestObserveHandler:
 
     @pytest.mark.asyncio
     async def test_successful_active_observation(
-        self, observe_handler: ObserveHandler, action_result: ActionSelectionDMAResult,
-        test_thought: Thought, dispatch_context: DispatchContext,
-        mock_memory_bus: AsyncMock, test_task: Task, mock_bus_manager: Mock
+        self,
+        observe_handler: ObserveHandler,
+        action_result: ActionSelectionDMAResult,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_memory_bus: AsyncMock,
+        test_task: Task,
+        mock_bus_manager: Mock,
     ) -> None:
         """Test successful active observation fetching messages."""
         # Mock communication bus to return some messages
         mock_bus_manager.communication = AsyncMock()
-        mock_bus_manager.communication.fetch_messages = AsyncMock(return_value=[
-            Mock(author_id="user_456", content="Test message 1"),
-            Mock(author_id="user_789", content="Test message 2")
-        ])
-        
+        mock_bus_manager.communication.fetch_messages = AsyncMock(
+            return_value=[
+                Mock(author_id="user_456", content="Test message 1"),
+                Mock(author_id="user_789", content="Test message 2"),
+            ]
+        )
+
         with patch_persistence_properly(test_task) as (mock_persistence, mock_base_persistence):
             # Execute handler
-            follow_up_id = await observe_handler.handle(
-                action_result, test_thought, dispatch_context
-            )
-            
+            follow_up_id = await observe_handler.handle(action_result, test_thought, dispatch_context)
+
             # Verify communication bus was called to fetch messages
             mock_bus_manager.communication.fetch_messages.assert_called_once()
             fetch_call = mock_bus_manager.communication.fetch_messages.call_args
-            assert fetch_call.kwargs['channel_id'] == "test_channel_123"
-            assert fetch_call.kwargs['limit'] == 50  # ACTIVE_OBSERVE_LIMIT
-            
+            assert fetch_call.kwargs["channel_id"] == "test_channel_123"
+            assert fetch_call.kwargs["limit"] == 50  # ACTIVE_OBSERVE_LIMIT
+
             # The observe handler recalls info about fetched messages, not memorize new ones
             # It should call memory.recall for each unique user/channel
             assert mock_memory_bus.recall.call_count >= 2  # At least for channel and users
-            
+
             # Verify follow-up thought was created with fetch info
             assert follow_up_id is not None
             # Check the base handler persistence was used
             assert mock_base_persistence.update_thought_status.called
             update_call = mock_base_persistence.update_thought_status.call_args
-            assert update_call.kwargs['thought_id'] == "thought_123"
-            assert update_call.kwargs['status'] == ThoughtStatus.COMPLETED
-            
+            assert update_call.kwargs["thought_id"] == "thought_123"
+            assert update_call.kwargs["status"] == ThoughtStatus.COMPLETED
+
             # Verify follow-up was created
             mock_base_persistence.add_thought.assert_called_once()
             follow_up_call = mock_base_persistence.add_thought.call_args[0][0]
@@ -294,8 +300,13 @@ class TestObserveHandler:
 
     @pytest.mark.asyncio
     async def test_passive_observation(
-        self, observe_handler: ObserveHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        mock_memory_bus: AsyncMock, test_task: Task, channel_context: ChannelContext
+        self,
+        observe_handler: ObserveHandler,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_memory_bus: AsyncMock,
+        test_task: Task,
+        channel_context: ChannelContext,
     ) -> None:
         """Test passive observation mode - now always creates follow-up."""
         # Create passive observation params
@@ -305,10 +316,10 @@ class TestObserveHandler:
             context={
                 "observation": "User mentioned they work nights",
                 "type": "user_info",
-                "tags": "schedule,availability"
-            }
+                "tags": "schedule,availability",
+            },
         )
-        
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.OBSERVE,
             action_parameters=params,
@@ -316,22 +327,22 @@ class TestObserveHandler:
             raw_llm_response=None,
             reasoning=None,
             evaluation_time_ms=None,
-            resource_usage=None
+            resource_usage=None,
         )
-        
+
         with patch_persistence_properly(test_task) as (mock_persistence, mock_base_persistence):
             # Execute handler
             follow_up_id = await observe_handler.handle(result, test_thought, dispatch_context)
-            
+
             # Handler now always creates follow-up thoughts (active=True is forced)
             assert follow_up_id is not None
-            
+
             # Should perform active observation (fetching messages)
             observe_handler.bus_manager.communication.fetch_messages.assert_called_once()
-            
+
             # Should update thought status
             mock_base_persistence.update_thought_status.assert_called_once()
-            
+
             # Should create follow-up thought
             mock_base_persistence.add_thought.assert_called_once()
             follow_up_call = mock_base_persistence.add_thought.call_args[0][0]
@@ -339,8 +350,13 @@ class TestObserveHandler:
 
     @pytest.mark.asyncio
     async def test_observation_without_author_info(
-        self, observe_handler: ObserveHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        mock_memory_bus: AsyncMock, test_task: Task, mock_bus_manager: Mock
+        self,
+        observe_handler: ObserveHandler,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_memory_bus: AsyncMock,
+        test_task: Task,
+        mock_bus_manager: Mock,
     ) -> None:
         """Test observation without author information."""
         # Create params without author info
@@ -350,10 +366,10 @@ class TestObserveHandler:
             context={
                 "observation": "General channel activity increased",
                 "type": "channel_activity",
-                "tags": "activity,metrics"
-            }
+                "tags": "activity,metrics",
+            },
         )
-        
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.OBSERVE,
             action_parameters=params,
@@ -361,24 +377,29 @@ class TestObserveHandler:
             raw_llm_response=None,
             reasoning=None,
             evaluation_time_ms=None,
-            resource_usage=None
+            resource_usage=None,
         )
-        
+
         # Setup communication mock
         setup_communication_mock(mock_bus_manager)
-        
+
         with patch_persistence_properly(test_task) as (mock_persistence, mock_base_persistence):
             # Execute handler
             await observe_handler.handle(result, test_thought, dispatch_context)
-            
+
             # Should use channel context from dispatch context
             # Verify communication bus was called
             mock_bus_manager.communication.fetch_messages.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_different_observation_types(
-        self, observe_handler: ObserveHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        mock_memory_bus: AsyncMock, test_task: Task, mock_bus_manager: Mock
+        self,
+        observe_handler: ObserveHandler,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_memory_bus: AsyncMock,
+        test_task: Task,
+        mock_bus_manager: Mock,
     ) -> None:
         """Test various observation types."""
         observation_types = [
@@ -386,29 +407,25 @@ class TestObserveHandler:
             ("channel_activity", "Channel topic shifted to technical discussion"),
             ("system_event", "High latency detected in responses"),
             ("user_preference", "User prefers bullet points over paragraphs"),
-            ("interaction_pattern", "User tends to ask follow-up questions")
+            ("interaction_pattern", "User tends to ask follow-up questions"),
         ]
-        
+
         # Setup communication mock
         setup_communication_mock(mock_bus_manager)
-        
+
         with patch_persistence_properly(test_task) as (mock_persistence, mock_base_persistence):
             for obs_type, content in observation_types:
                 # Reset mocks
                 mock_memory_bus.recall.reset_mock()
                 mock_persistence.add_thought.reset_mock()
-                
+
                 # Create params for this observation type
                 params = ObserveParams(
                     channel_context=dispatch_context.channel_context,
                     active=True,
-                    context={
-                        "observation_type": obs_type,
-                        "content": content,
-                        "tags": obs_type
-                    }
+                    context={"observation_type": obs_type, "content": content, "tags": obs_type},
                 )
-                
+
                 result = ActionSelectionDMAResult(
                     selected_action=HandlerActionType.OBSERVE,
                     action_parameters=params,
@@ -416,21 +433,25 @@ class TestObserveHandler:
                     raw_llm_response=None,
                     reasoning=None,
                     evaluation_time_ms=None,
-                    resource_usage=None
+                    resource_usage=None,
                 )
-                
+
                 # Execute handler
                 await observe_handler.handle(result, test_thought, dispatch_context)
-                
+
                 # The observe handler fetches messages, not memorizes
                 # Just verify it completes without error for different observation types
                 assert True  # Handler should complete successfully
 
     @pytest.mark.asyncio
     async def test_channel_context_integration(
-        self, observe_handler: ObserveHandler,
-        test_thought: Thought, dispatch_context: DispatchContext,
-        mock_memory_bus: AsyncMock, test_task: Task, mock_bus_manager: Mock
+        self,
+        observe_handler: ObserveHandler,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_memory_bus: AsyncMock,
+        test_task: Task,
+        mock_bus_manager: Mock,
     ) -> None:
         """Test integration with channel context."""
         # Update dispatch context with different channel info
@@ -443,16 +464,14 @@ class TestObserveHandler:
             is_active=True,
             last_activity=datetime.now(timezone.utc),
             message_count=42,
-            moderation_level="strict"
+            moderation_level="strict",
         )
-        
+
         # Create params without channel context to test dispatch context usage
         params = ObserveParams(
-            channel_context=None,  # Should use dispatch context
-            active=True,
-            context={"test": "channel_context"}
+            channel_context=None, active=True, context={"test": "channel_context"}  # Should use dispatch context
         )
-        
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.OBSERVE,
             action_parameters=params,
@@ -460,43 +479,43 @@ class TestObserveHandler:
             raw_llm_response=None,
             reasoning=None,
             evaluation_time_ms=None,
-            resource_usage=None
+            resource_usage=None,
         )
-        
+
         # Setup communication mock
         setup_communication_mock(mock_bus_manager)
-        
+
         with patch_persistence_properly(test_task) as (mock_persistence, mock_base_persistence):
             # Execute handler
-            await observe_handler.handle(
-                result, test_thought, dispatch_context
-            )
-            
+            await observe_handler.handle(result, test_thought, dispatch_context)
+
             # Verify channel context was used to fetch messages
             mock_bus_manager.communication.fetch_messages.assert_called_once()
             fetch_call = mock_bus_manager.communication.fetch_messages.call_args
-            assert fetch_call.kwargs['channel_id'] == "discord_123_456"
-            assert fetch_call.kwargs['handler_name'] == "ObserveHandler"
+            assert fetch_call.kwargs["channel_id"] == "discord_123_456"
+            assert fetch_call.kwargs["handler_name"] == "ObserveHandler"
 
     @pytest.mark.asyncio
     async def test_observation_with_long_context(
-        self, observe_handler: ObserveHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        mock_memory_bus: AsyncMock, test_task: Task, channel_context: ChannelContext, mock_bus_manager: Mock
+        self,
+        observe_handler: ObserveHandler,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_memory_bus: AsyncMock,
+        test_task: Task,
+        channel_context: ChannelContext,
+        mock_bus_manager: Mock,
     ) -> None:
         """Test observation with very long context."""
         # Create very long observation context
         long_content = "User provided detailed feedback: " + "point " * 200
-        
+
         params = ObserveParams(
             channel_context=channel_context,
             active=True,
-            context={
-                "observation": long_content,
-                "type": "feedback",
-                "tags": "feedback,detailed"
-            }
+            context={"observation": long_content, "type": "feedback", "tags": "feedback,detailed"},
         )
-        
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.OBSERVE,
             action_parameters=params,
@@ -504,16 +523,16 @@ class TestObserveHandler:
             raw_llm_response=None,
             reasoning=None,
             evaluation_time_ms=None,
-            resource_usage=None
+            resource_usage=None,
         )
-        
+
         # Setup communication mock
         setup_communication_mock(mock_bus_manager)
-        
+
         with patch_persistence_properly(test_task) as (mock_persistence, mock_base_persistence):
             # Execute handler
             follow_up_id = await observe_handler.handle(result, test_thought, dispatch_context)
-            
+
             # The observe handler fetches messages, not memorizes content
             # Just verify handler completes successfully
             assert follow_up_id is not None
@@ -532,24 +551,22 @@ class TestObserveHandler:
                 raw_llm_response=None,
                 reasoning=None,
                 evaluation_time_ms=None,
-                resource_usage=None
+                resource_usage=None,
             )
-            
+
             # Mock the validation method to raise an error
-            with patch.object(observe_handler, '_validate_and_convert_params') as mock_validate:
+            with patch.object(observe_handler, "_validate_and_convert_params") as mock_validate:
                 mock_validate.side_effect = ValueError("Invalid observation type")
-                
+
                 # Execute handler - should handle validation error
-                follow_up_id = await observe_handler.handle(
-                    result, test_thought, dispatch_context
-                )
-                
+                follow_up_id = await observe_handler.handle(result, test_thought, dispatch_context)
+
                 # Verify thought status was updated
                 mock_base_persistence.update_thought_status.assert_called()
                 # The status might be COMPLETED or FAILED depending on implementation
                 update_call = mock_base_persistence.update_thought_status.call_args
-                assert update_call.kwargs['thought_id'] == "thought_123"
-                
+                assert update_call.kwargs["thought_id"] == "thought_123"
+
                 # Verify error follow-up was created
                 assert follow_up_id is not None
                 follow_up_call = mock_base_persistence.add_thought.call_args[0][0]
@@ -557,21 +574,24 @@ class TestObserveHandler:
 
     @pytest.mark.asyncio
     async def test_memory_bus_failure(
-        self, observe_handler: ObserveHandler, action_result: ActionSelectionDMAResult,
-        test_thought: Thought, dispatch_context: DispatchContext,
-        mock_memory_bus: AsyncMock, test_task: Task, mock_bus_manager: Mock
+        self,
+        observe_handler: ObserveHandler,
+        action_result: ActionSelectionDMAResult,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_memory_bus: AsyncMock,
+        test_task: Task,
+        mock_bus_manager: Mock,
     ) -> None:
         """Test handling when communication bus fails."""
         # Configure communication bus to raise exception
         mock_bus_manager.communication = AsyncMock()
         mock_bus_manager.communication.fetch_messages.side_effect = Exception("Communication failed")
-        
+
         with patch_persistence_properly(test_task) as (mock_persistence, mock_base_persistence):
             # Execute handler - should handle the error gracefully
-            follow_up_id = await observe_handler.handle(
-                action_result, test_thought, dispatch_context
-            )
-            
+            follow_up_id = await observe_handler.handle(action_result, test_thought, dispatch_context)
+
             # Should create an error follow-up
             assert follow_up_id is not None
             follow_up_call = mock_base_persistence.add_thought.call_args[0][0]
@@ -579,23 +599,25 @@ class TestObserveHandler:
 
     @pytest.mark.asyncio
     async def test_observation_from_task_description(
-        self, observe_handler: ObserveHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        mock_memory_bus: AsyncMock, test_task: Task, channel_context: ChannelContext, mock_bus_manager: Mock
+        self,
+        observe_handler: ObserveHandler,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_memory_bus: AsyncMock,
+        test_task: Task,
+        channel_context: ChannelContext,
+        mock_bus_manager: Mock,
     ) -> None:
         """Test extracting observation from task description."""
         # The test_task fixture has a description with message info
         # Handler might extract this for context
-        
+
         params = ObserveParams(
             channel_context=channel_context,
             active=True,
-            context={
-                "observation": "Acknowledging user greeting",
-                "type": "interaction",
-                "tags": "greeting"
-            }
+            context={"observation": "Acknowledging user greeting", "type": "interaction", "tags": "greeting"},
         )
-        
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.OBSERVE,
             action_parameters=params,
@@ -603,54 +625,59 @@ class TestObserveHandler:
             raw_llm_response=None,
             reasoning=None,
             evaluation_time_ms=None,
-            resource_usage=None
+            resource_usage=None,
         )
-        
+
         # Setup communication mock
         setup_communication_mock(mock_bus_manager)
-        
+
         with patch_persistence_properly(test_task) as (mock_persistence, mock_base_persistence):
             # Execute handler
             follow_up_id = await observe_handler.handle(result, test_thought, dispatch_context)
-            
+
             # Handler fetches messages from channel
             # Verify it completed successfully
             assert follow_up_id is not None
 
     @pytest.mark.asyncio
     async def test_audit_trail(
-        self, observe_handler: ObserveHandler, action_result: ActionSelectionDMAResult,
-        test_thought: Thought, dispatch_context: DispatchContext,
-        mock_bus_manager: Mock, test_task: Task
+        self,
+        observe_handler: ObserveHandler,
+        action_result: ActionSelectionDMAResult,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_bus_manager: Mock,
+        test_task: Task,
     ) -> None:
         """Test audit logging for OBSERVE actions."""
         # Setup communication mock
         setup_communication_mock(mock_bus_manager)
-        
+
         with patch_persistence_properly(test_task) as (mock_persistence, mock_base_persistence):
             # Execute handler
-            await observe_handler.handle(
-                action_result, test_thought, dispatch_context
-            )
-            
+            await observe_handler.handle(action_result, test_thought, dispatch_context)
+
             # Verify audit logs were created
             audit_calls = mock_bus_manager.audit_service.log_event.call_args_list
             assert len(audit_calls) >= 1  # At least start audit
-            
+
             # Check start audit
             start_call = audit_calls[0]
-            assert "handler_action_observe" in str(start_call[1]['event_type']).lower()
-            assert start_call[1]['event_data']['outcome'] == "start"
-            
+            assert "handler_action_observe" in str(start_call[1]["event_type"]).lower()
+            assert start_call[1]["event_data"]["outcome"] == "start"
+
             # The observe handler only logs a second audit if follow-up creation fails
             # So we might only have one audit log for successful execution
 
     @pytest.mark.skip(reason="Service correlation tracking not currently implemented in handlers")
     @pytest.mark.asyncio
     async def test_service_correlation_tracking(
-        self, observe_handler: ObserveHandler, action_result: ActionSelectionDMAResult,
-        test_thought: Thought, dispatch_context: DispatchContext,
-        test_task: Task
+        self,
+        observe_handler: ObserveHandler,
+        action_result: ActionSelectionDMAResult,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        test_task: Task,
     ) -> None:
         """Test service correlation tracking for telemetry."""
         # This test is skipped because correlation tracking is not currently
@@ -660,8 +687,14 @@ class TestObserveHandler:
 
     @pytest.mark.asyncio
     async def test_multi_tag_observations(
-        self, observe_handler: ObserveHandler, test_thought: Thought, dispatch_context: DispatchContext,
-        mock_memory_bus: AsyncMock, test_task: Task, channel_context: ChannelContext, mock_bus_manager: Mock
+        self,
+        observe_handler: ObserveHandler,
+        test_thought: Thought,
+        dispatch_context: DispatchContext,
+        mock_memory_bus: AsyncMock,
+        test_task: Task,
+        channel_context: ChannelContext,
+        mock_bus_manager: Mock,
     ) -> None:
         """Test observations with multiple tags for categorization."""
         # Create observation with many tags
@@ -671,10 +704,10 @@ class TestObserveHandler:
             context={
                 "observation": "User asked complex technical question about distributed systems",
                 "type": "user_interest",
-                "tags": "technical,distributed_systems,complex_question,expertise_level:high"
-            }
+                "tags": "technical,distributed_systems,complex_question,expertise_level:high",
+            },
         )
-        
+
         result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.OBSERVE,
             action_parameters=params,
@@ -682,16 +715,16 @@ class TestObserveHandler:
             raw_llm_response=None,
             reasoning=None,
             evaluation_time_ms=None,
-            resource_usage=None
+            resource_usage=None,
         )
-        
+
         # Setup communication mock
         setup_communication_mock(mock_bus_manager)
-        
+
         with patch_persistence_properly(test_task) as (mock_persistence, mock_base_persistence):
             # Execute handler
             follow_up_id = await observe_handler.handle(result, test_thought, dispatch_context)
-            
+
             # Verify handler completed successfully
             assert follow_up_id is not None
             # The observe handler doesn't store new observations, it fetches messages

@@ -1,35 +1,35 @@
-import logging
 import asyncio
-from typing import Any, Dict, Optional, Callable, Awaitable, TYPE_CHECKING, Union
+import logging
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, Optional, Union
 
-from ciris_engine.logic.processors.support.thought_escalation import escalate_dma_failure
-from ciris_engine.schemas.runtime.models import Thought
-from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
-from ciris_engine.schemas.runtime.enums import HandlerActionType
-from ciris_engine.schemas.runtime.system_context import ThoughtState
 from ciris_engine.logic import persistence
-from ciris_engine.schemas.telemetry.core import ServiceCorrelation, CorrelationType, TraceContext, ServiceRequestData, ServiceResponseData, ServiceCorrelationStatus, MetricData, LogData
+from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
+from ciris_engine.logic.processors.support.thought_escalation import escalate_dma_failure
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult, CSDMAResult, DSDMAResult, EthicalDMAResult
 from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
+from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.schemas.runtime.models import Thought
+from ciris_engine.schemas.runtime.system_context import ThoughtState
+from ciris_engine.schemas.telemetry.core import (
+    CorrelationType,
+    ServiceCorrelation,
+    ServiceCorrelationStatus,
+    TraceContext,
+)
 
-from .pdma import EthicalPDMAEvaluator
+from .action_selection_pdma import ActionSelectionPDMAEvaluator
 from .csdma import CSDMAEvaluator
 from .dsdma_base import BaseDSDMA
-from .action_selection_pdma import ActionSelectionPDMAEvaluator
 from .exceptions import DMAFailure
-from ciris_engine.schemas.dma.results import (
-    EthicalDMAResult,
-    CSDMAResult,
-    DSDMAResult,
-    ActionSelectionDMAResult,
-)
+from .pdma import EthicalPDMAEvaluator
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-    from ciris_engine.protocols.services.graph.telemetry import TelemetryServiceProtocol
 
 logger = logging.getLogger(__name__)
 
 DMA_RETRY_LIMIT = 3
+
 
 async def run_dma_with_retries(
     run_fn: Callable[..., Awaitable[Any]],
@@ -46,27 +46,27 @@ async def run_dma_with_retries(
         try:
             async with asyncio.timeout(timeout_seconds):
                 # Pass time_service if the function expects it
-                if time_service and 'time_service' not in kwargs:
-                    kwargs['time_service'] = time_service
+                if time_service and "time_service" not in kwargs:
+                    kwargs["time_service"] = time_service
                 return await run_fn(*args, **kwargs)
         except TimeoutError as e:
             last_error = e
             attempt += 1
-            logger.error(
-                "DMA %s timed out after %.1f seconds on attempt %s", run_fn.__name__, timeout_seconds, attempt
-            )
+            logger.error("DMA %s timed out after %.1f seconds on attempt %s", run_fn.__name__, timeout_seconds, attempt)
         except Exception as e:  # noqa: BLE001
             last_error = e
             attempt += 1
             # Only log full details on first failure
             if attempt == 1:
                 logger.warning(
-                    "DMA %s attempt %s failed: %s", run_fn.__name__, attempt, str(e).replace('\n', ' ')[:200]
+                    "DMA %s attempt %s failed: %s", run_fn.__name__, attempt, str(e).replace("\n", " ")[:200]
                 )
             elif attempt == retry_limit:
                 logger.warning(
                     "DMA %s final attempt %s failed (same error repeated %s times)",
-                    run_fn.__name__, attempt, attempt - 1
+                    run_fn.__name__,
+                    attempt,
+                    attempt - 1,
                 )
 
             # Add small delay between retries to reduce log spam
@@ -74,11 +74,7 @@ async def run_dma_with_retries(
                 await asyncio.sleep(0.1)  # 100ms delay
 
     thought_arg = next(
-        (
-            arg
-            for arg in args
-            if isinstance(arg, (Thought, ProcessingQueueItem))
-        ),
+        (arg for arg in args if isinstance(arg, (Thought, ProcessingQueueItem))),
         None,
     )
 
@@ -86,6 +82,7 @@ async def run_dma_with_retries(
         escalate_dma_failure(thought_arg, run_fn.__name__, last_error, retry_limit, time_service)
 
     raise DMAFailure(f"{run_fn.__name__} failed after {retry_limit} attempts: {last_error}")
+
 
 async def run_pdma(
     evaluator: EthicalPDMAEvaluator,
@@ -98,25 +95,21 @@ async def run_pdma(
     if not time_service:
         raise RuntimeError("TimeService is required for DMA execution")
     start_time = time_service.now()
-    
+
     # Create trace for PDMA execution
     trace_id = f"task_{thought.source_task_id or 'unknown'}_{thought.thought_id}"
     span_id = f"pdma_{thought.thought_id}"
     parent_span_id = f"thought_processor_{thought.thought_id}"
-    
+
     trace_context = TraceContext(
         trace_id=trace_id,
         span_id=span_id,
         parent_span_id=parent_span_id,
         span_name="run_ethical_pdma",
         span_kind="internal",
-        baggage={
-            "thought_id": thought.thought_id,
-            "task_id": thought.source_task_id or "",
-            "dma_type": "ethical_pdma"
-        }
+        baggage={"thought_id": thought.thought_id, "task_id": thought.source_task_id or "", "dma_type": "ethical_pdma"},
     )
-    
+
     correlation = ServiceCorrelation(
         correlation_id=f"trace_{span_id}_{start_time.timestamp()}",
         correlation_type=CorrelationType.TRACE_SPAN,
@@ -132,7 +125,7 @@ async def run_pdma(
             "task_id": thought.source_task_id or "",
             "component_type": "dma",
             "dma_type": "ethical_pdma",
-            "trace_depth": "3"
+            "trace_depth": "3",
         },
         request_data=None,
         response_data=None,
@@ -141,13 +134,13 @@ async def run_pdma(
         log_data=None,
         retention_policy="raw",
         ttl_seconds=None,
-        parent_correlation_id=None
+        parent_correlation_id=None,
     )
-    
+
     # Add correlation
     if time_service:
         persistence.add_correlation(correlation, time_service)
-    
+
     try:
         ctx = context
         if ctx is None:
@@ -156,9 +149,7 @@ async def run_pdma(
                 context_data = getattr(thought, "initial_context", None)
 
             if context_data is None:
-                raise DMAFailure(
-                    f"No context available for thought {thought.thought_id}"
-                )
+                raise DMAFailure(f"No context available for thought {thought.thought_id}")
 
             if isinstance(context_data, ThoughtState):
                 ctx = context_data
@@ -166,17 +157,13 @@ async def run_pdma(
                 try:
                     ctx = ThoughtState.model_validate(context_data)
                 except Exception as e:  # noqa: BLE001
-                    raise DMAFailure(
-                        f"Invalid context for thought {thought.thought_id}: {e}"
-                    ) from e
+                    raise DMAFailure(f"Invalid context for thought {thought.thought_id}: {e}") from e
             else:
-                raise DMAFailure(
-                    f"Unsupported context type {type(context_data)} for thought {thought.thought_id}"
-                )
+                raise DMAFailure(f"Unsupported context type {type(context_data)} for thought {thought.thought_id}")
 
         logger.info(f"[DEBUG TIMING] About to call evaluator.evaluate for PDMA on thought {thought.thought_id}")
         result = await evaluator.evaluate(thought, context=ctx)
-        
+
         # Update correlation with success
         if time_service:
             end_time = time_service.now()
@@ -186,16 +173,16 @@ async def run_pdma(
                     "success": "true",
                     "result_summary": f"Ethical evaluation completed: decision={result.decision}",
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
-                    "response_timestamp": end_time.isoformat()
+                    "response_timestamp": end_time.isoformat(),
                 },
                 status=ServiceCorrelationStatus.COMPLETED,
                 metric_value=None,
-                tags=None
+                tags=None,
             )
             persistence.update_correlation(update_req, time_service)
-        
+
         return result
-    
+
     except Exception as e:
         # Update correlation with failure
         if time_service:
@@ -206,17 +193,18 @@ async def run_pdma(
                     "success": "false",
                     "error_message": str(e),
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
-                    "response_timestamp": end_time.isoformat()
+                    "response_timestamp": end_time.isoformat(),
                 },
                 status=ServiceCorrelationStatus.FAILED,
                 metric_value=None,
-                tags=None
+                tags=None,
             )
             persistence.update_correlation(update_req, time_service)
         raise
 
+
 async def run_csdma(
-    evaluator: CSDMAEvaluator, 
+    evaluator: CSDMAEvaluator,
     thought: ProcessingQueueItem,
     time_service: Optional["TimeServiceProtocol"] = None,
 ) -> CSDMAResult:
@@ -224,25 +212,21 @@ async def run_csdma(
     if not time_service:
         raise RuntimeError("TimeService is required for DMA execution")
     start_time = time_service.now()
-    
+
     # Create trace for CSDMA execution
     trace_id = f"task_{thought.source_task_id or 'unknown'}_{thought.thought_id}"
     span_id = f"csdma_{thought.thought_id}"
     parent_span_id = f"thought_processor_{thought.thought_id}"
-    
+
     trace_context = TraceContext(
         trace_id=trace_id,
         span_id=span_id,
         parent_span_id=parent_span_id,
         span_name="run_csdma",
         span_kind="internal",
-        baggage={
-            "thought_id": thought.thought_id,
-            "task_id": thought.source_task_id or "",
-            "dma_type": "csdma"
-        }
+        baggage={"thought_id": thought.thought_id, "task_id": thought.source_task_id or "", "dma_type": "csdma"},
     )
-    
+
     correlation = ServiceCorrelation(
         correlation_id=f"trace_{span_id}_{start_time.timestamp()}",
         correlation_type=CorrelationType.TRACE_SPAN,
@@ -258,7 +242,7 @@ async def run_csdma(
             "task_id": thought.source_task_id or "",
             "component_type": "dma",
             "dma_type": "csdma",
-            "trace_depth": "3"
+            "trace_depth": "3",
         },
         request_data=None,
         response_data=None,
@@ -267,16 +251,16 @@ async def run_csdma(
         log_data=None,
         retention_policy="raw",
         ttl_seconds=None,
-        parent_correlation_id=None
+        parent_correlation_id=None,
     )
-    
+
     # Add correlation
     if time_service:
         persistence.add_correlation(correlation, time_service)
-    
+
     try:
         result = await evaluator.evaluate_thought(thought)
-        
+
         # Update correlation with success
         if time_service:
             end_time = time_service.now()
@@ -284,18 +268,18 @@ async def run_csdma(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "true",
-                    "result_summary": f"CSDMA evaluation completed",
+                    "result_summary": "CSDMA evaluation completed",
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
-                    "response_timestamp": end_time.isoformat()
+                    "response_timestamp": end_time.isoformat(),
                 },
                 status=ServiceCorrelationStatus.COMPLETED,
                 metric_value=None,
-                tags=None
+                tags=None,
             )
             persistence.update_correlation(update_req, time_service)
-        
+
         return result
-    
+
     except Exception as e:
         # Update correlation with failure
         if time_service:
@@ -306,14 +290,15 @@ async def run_csdma(
                     "success": "false",
                     "error_message": str(e),
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
-                    "response_timestamp": end_time.isoformat()
+                    "response_timestamp": end_time.isoformat(),
                 },
                 status=ServiceCorrelationStatus.FAILED,
                 metric_value=None,
-                tags=None
+                tags=None,
             )
             persistence.update_correlation(update_req, time_service)
         raise
+
 
 async def run_dsdma(
     dsdma: BaseDSDMA,
@@ -325,25 +310,21 @@ async def run_dsdma(
     if not time_service:
         raise RuntimeError("TimeService is required for DMA execution")
     start_time = time_service.now()
-    
+
     # Create trace for DSDMA execution
     trace_id = f"task_{thought.source_task_id or 'unknown'}_{thought.thought_id}"
     span_id = f"dsdma_{thought.thought_id}"
     parent_span_id = f"thought_processor_{thought.thought_id}"
-    
+
     trace_context = TraceContext(
         trace_id=trace_id,
         span_id=span_id,
         parent_span_id=parent_span_id,
         span_name="run_dsdma",
         span_kind="internal",
-        baggage={
-            "thought_id": thought.thought_id,
-            "task_id": thought.source_task_id or "",
-            "dma_type": "dsdma"
-        }
+        baggage={"thought_id": thought.thought_id, "task_id": thought.source_task_id or "", "dma_type": "dsdma"},
     )
-    
+
     correlation = ServiceCorrelation(
         correlation_id=f"trace_{span_id}_{start_time.timestamp()}",
         correlation_type=CorrelationType.TRACE_SPAN,
@@ -359,7 +340,7 @@ async def run_dsdma(
             "task_id": thought.source_task_id or "",
             "component_type": "dma",
             "dma_type": "dsdma",
-            "trace_depth": "3"
+            "trace_depth": "3",
         },
         request_data=None,
         response_data=None,
@@ -368,17 +349,17 @@ async def run_dsdma(
         log_data=None,
         retention_policy="raw",
         ttl_seconds=None,
-        parent_correlation_id=None
+        parent_correlation_id=None,
     )
-    
+
     # Add correlation
     if time_service:
         persistence.add_correlation(correlation, time_service)
-    
+
     try:
         # Use evaluate method which handles Dict[str, Any] to DMAInputData conversion
         result = await dsdma.evaluate(thought, current_context=context)
-        
+
         # Update correlation with success
         if time_service:
             end_time = time_service.now()
@@ -386,18 +367,18 @@ async def run_dsdma(
                 correlation_id=correlation.correlation_id,
                 response_data={
                     "success": "true",
-                    "result_summary": f"DSDMA evaluation completed",
+                    "result_summary": "DSDMA evaluation completed",
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
-                    "response_timestamp": end_time.isoformat()
+                    "response_timestamp": end_time.isoformat(),
                 },
                 status=ServiceCorrelationStatus.COMPLETED,
                 metric_value=None,
-                tags=None
+                tags=None,
             )
             persistence.update_correlation(update_req, time_service)
-        
+
         return result
-    
+
     except Exception as e:
         # Update correlation with failure
         if time_service:
@@ -408,56 +389,53 @@ async def run_dsdma(
                     "success": "false",
                     "error_message": str(e),
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
-                    "response_timestamp": end_time.isoformat()
+                    "response_timestamp": end_time.isoformat(),
                 },
                 status=ServiceCorrelationStatus.FAILED,
                 metric_value=None,
-                tags=None
+                tags=None,
             )
             persistence.update_correlation(update_req, time_service)
         raise
 
+
 async def run_action_selection_pdma(
-    evaluator: ActionSelectionPDMAEvaluator, 
+    evaluator: ActionSelectionPDMAEvaluator,
     triaged_inputs: Union[Dict[str, Any], "EnhancedDMAInputs"],
     time_service: Optional["TimeServiceProtocol"] = None,
 ) -> ActionSelectionDMAResult:
     """Select the next handler action using the triaged DMA results."""
     from ciris_engine.schemas.dma.faculty import EnhancedDMAInputs
-    
+
     if not time_service:
         raise RuntimeError("TimeService is required for DMA execution")
     start_time = time_service.now()
-    
+
     # Handle both dict and EnhancedDMAInputs
     if isinstance(triaged_inputs, EnhancedDMAInputs):
         original_thought = triaged_inputs.original_thought
     else:
-        original_thought = triaged_inputs.get('original_thought', {})
-    
-    thought_id = original_thought.thought_id if hasattr(original_thought, 'thought_id') else 'unknown'
-    task_id = original_thought.source_task_id if hasattr(original_thought, 'source_task_id') else 'unknown'
-    
+        original_thought = triaged_inputs.get("original_thought", {})
+
+    thought_id = original_thought.thought_id if hasattr(original_thought, "thought_id") else "unknown"
+    task_id = original_thought.source_task_id if hasattr(original_thought, "source_task_id") else "unknown"
+
     logger.debug(f"run_action_selection_pdma: Starting evaluation for thought {thought_id}")
 
     # Create trace for action selection PDMA execution
     trace_id = f"task_{task_id}_{thought_id}"
     span_id = f"action_selection_pdma_{thought_id}"
     parent_span_id = f"thought_processor_{thought_id}"
-    
+
     trace_context = TraceContext(
         trace_id=trace_id,
         span_id=span_id,
         parent_span_id=parent_span_id,
         span_name="run_action_selection_pdma",
         span_kind="internal",
-        baggage={
-            "thought_id": thought_id,
-            "task_id": task_id,
-            "dma_type": "action_selection_pdma"
-        }
+        baggage={"thought_id": thought_id, "task_id": task_id, "dma_type": "action_selection_pdma"},
     )
-    
+
     correlation = ServiceCorrelation(
         correlation_id=f"trace_{span_id}_{start_time.timestamp()}",
         correlation_type=CorrelationType.TRACE_SPAN,
@@ -473,7 +451,7 @@ async def run_action_selection_pdma(
             "task_id": task_id,
             "component_type": "dma",
             "dma_type": "action_selection_pdma",
-            "trace_depth": "3"
+            "trace_depth": "3",
         },
         request_data=None,
         response_data=None,
@@ -482,13 +460,13 @@ async def run_action_selection_pdma(
         log_data=None,
         retention_policy="raw",
         ttl_seconds=None,
-        parent_correlation_id=None
+        parent_correlation_id=None,
     )
-    
+
     # Add correlation
     if time_service:
         persistence.add_correlation(correlation, time_service)
-    
+
     try:
         # Handle both dict and EnhancedDMAInputs
         if isinstance(triaged_inputs, EnhancedDMAInputs):
@@ -508,17 +486,17 @@ async def run_action_selection_pdma(
                 faculty_evaluations=triaged_inputs.get("faculty_evaluations"),
                 faculty_enhanced=triaged_inputs.get("faculty_enhanced", False),
                 recursive_evaluation=triaged_inputs.get("recursive_evaluation", False),
-                conscience_feedback=triaged_inputs.get("conscience_feedback")
+                conscience_feedback=triaged_inputs.get("conscience_feedback"),
             )
-        
+
         result = await evaluator.evaluate(enhanced_inputs)
 
         logger.debug(f"run_action_selection_pdma: Evaluation completed. Result type: {type(result)}, Result: {result}")
-        if hasattr(result, 'selected_action'):
+        if hasattr(result, "selected_action"):
             logger.debug(f"run_action_selection_pdma: Selected action: {result.selected_action}")
             if result.selected_action == HandlerActionType.OBSERVE:
                 logger.warning("OBSERVE ACTION DEBUG: run_action_selection_pdma returning OBSERVE action successfully")
-        
+
         # Update correlation with success
         if time_service:
             end_time = time_service.now()
@@ -528,16 +506,16 @@ async def run_action_selection_pdma(
                     "success": "true",
                     "result_summary": f"Action selected: {result.selected_action if result and hasattr(result, 'selected_action') else 'none'}",
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
-                    "response_timestamp": end_time.isoformat()
+                    "response_timestamp": end_time.isoformat(),
                 },
                 status=ServiceCorrelationStatus.COMPLETED,
                 metric_value=None,
-                tags=None
+                tags=None,
             )
             persistence.update_correlation(update_req, time_service)
 
         return result
-    
+
     except Exception as e:
         # Update correlation with failure
         if time_service:
@@ -548,11 +526,11 @@ async def run_action_selection_pdma(
                     "success": "false",
                     "error_message": str(e),
                     "execution_time_ms": str((end_time - start_time).total_seconds() * 1000),
-                    "response_timestamp": end_time.isoformat()
+                    "response_timestamp": end_time.isoformat(),
                 },
                 status=ServiceCorrelationStatus.FAILED,
                 metric_value=None,
-                tags=None
+                tags=None,
             )
             persistence.update_correlation(update_req, time_service)
         raise

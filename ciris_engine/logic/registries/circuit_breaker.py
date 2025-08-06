@@ -5,29 +5,34 @@ Provides fault tolerance by monitoring service failures and temporarily
 disabling failing services to prevent cascading failures.
 """
 
-import time
 import logging
-from enum import Enum
-from typing import Optional, Any
+import time
 from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
+
 
 class CircuitBreakerError(Exception):
     """Exception raised when circuit breaker is open and service is unavailable"""
 
+
 class CircuitState(Enum):
-    CLOSED = "closed"      # Normal operation
-    OPEN = "open"          # Service disabled due to failures
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Service disabled due to failures
     HALF_OPEN = "half_open"  # Testing if service has recovered
+
 
 @dataclass
 class CircuitBreakerConfig:
     """Configuration for circuit breaker behavior"""
+
     failure_threshold: int = 5
     recovery_timeout: float = 60.0
     success_threshold: int = 3
     timeout_duration: float = 30.0
+
 
 class CircuitBreaker:
     """
@@ -57,8 +62,7 @@ class CircuitBreaker:
 
         if self.state == CircuitState.OPEN:
             # Check if recovery timeout has elapsed
-            if (self.last_failure_time and
-                time.time() - self.last_failure_time >= self.config.recovery_timeout):
+            if self.last_failure_time and time.time() - self.last_failure_time >= self.config.recovery_timeout:
                 self._transition_to_half_open()
                 return True
             return False
@@ -70,9 +74,7 @@ class CircuitBreaker:
     def check_and_raise(self) -> None:
         """Check if service is available, raise CircuitBreakerError if not"""
         if not self.is_available():
-            raise CircuitBreakerError(
-                f"Circuit breaker '{self.name}' is {self.state.value}, service unavailable"
-            )
+            raise CircuitBreakerError(f"Circuit breaker '{self.name}' is {self.state.value}, service unavailable")
 
     def record_success(self) -> None:
         """Record a successful operation"""
@@ -121,7 +123,7 @@ class CircuitBreaker:
             "state": self.state.value,
             "failure_count": self.failure_count,
             "success_count": self.success_count,
-            "last_failure_time": self.last_failure_time
+            "last_failure_time": self.last_failure_time,
         }
 
     def reset(self) -> None:

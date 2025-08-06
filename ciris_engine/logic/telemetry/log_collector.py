@@ -11,9 +11,10 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from uuid import uuid4
 
-from ciris_engine.schemas.telemetry.core import ServiceCorrelation, ServiceCorrelationStatus, CorrelationType
 from ciris_engine.logic.persistence.models.correlations import add_correlation
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.telemetry.core import CorrelationType, ServiceCorrelation, ServiceCorrelationStatus
+
 
 class TSDBLogHandler(logging.Handler):
     """Logging handler that stores logs as TSDB correlations."""
@@ -28,7 +29,7 @@ class TSDBLogHandler(logging.Handler):
         """Process log record and store as correlation."""
         try:
             from ciris_engine.schemas.telemetry.core import LogData
-            
+
             # Create LogData for the log entry
             log_data = LogData(
                 log_level=record.levelname,
@@ -40,10 +41,10 @@ class TSDBLogHandler(logging.Handler):
                 extra_fields={
                     "pathname": record.pathname,
                     "thread": str(record.thread),
-                    "process": str(record.process)
-                }
+                    "process": str(record.process),
+                },
             )
-            
+
             # Create the correlation with log data
             timestamp = datetime.fromtimestamp(record.created, timezone.utc)
             log_correlation = ServiceCorrelation(
@@ -63,7 +64,7 @@ class TSDBLogHandler(logging.Handler):
                     "module": record.module or "unknown",
                 },
                 status=ServiceCorrelationStatus.COMPLETED,
-                retention_policy="raw"
+                retention_policy="raw",
             )
 
             if self._async_loop and self._async_loop.is_running():
@@ -92,6 +93,7 @@ class TSDBLogHandler(logging.Handler):
         """Set the async event loop for asynchronous storage."""
         self._async_loop = loop
 
+
 class LogCorrelationCollector:
     """
     Service that configures logging to store logs in TSDB.
@@ -100,10 +102,12 @@ class LogCorrelationCollector:
     and store them as correlations, enabling time-series queries.
     """
 
-    def __init__(self,
-                 log_levels: Optional[List[str]] = None,
-                 tags: Optional[Dict[str, str]] = None,
-                 loggers: Optional[List[str]] = None):
+    def __init__(
+        self,
+        log_levels: Optional[List[str]] = None,
+        tags: Optional[Dict[str, str]] = None,
+        loggers: Optional[List[str]] = None,
+    ):
         """
         Initialize the log collector.
 
@@ -128,9 +132,7 @@ class LogCorrelationCollector:
             handler.set_async_loop(loop)
 
             # Set formatter
-            formatter = logging.Formatter(
-                '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-            )
+            formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
             handler.setFormatter(formatter)
 
             # Set level based on configured levels
@@ -177,9 +179,7 @@ class LogCorrelationCollector:
                 handler = TSDBLogHandler(tags=self.tags)
                 handler.set_async_loop(loop)
 
-                formatter = logging.Formatter(
-                    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-                )
+                formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
                 handler.setFormatter(formatter)
 
                 min_level = min(getattr(logging, level) for level in self.log_levels)

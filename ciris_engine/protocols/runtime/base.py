@@ -4,18 +4,20 @@ Base protocols that all CIRIS components inherit from.
 These form the foundation of the Protocol-Module-Schema architecture.
 Every component in CIRIS must implement one of these base protocols.
 """
-from typing import Dict, List, Protocol, TYPE_CHECKING, Any
+
 from abc import abstractmethod
+from typing import TYPE_CHECKING, Any, Dict, List, Protocol
 
 if TYPE_CHECKING:
-    from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+    from ciris_engine.schemas.dma.core import DMAContext, DMADecision
+    from ciris_engine.schemas.handlers.schemas import HandlerContext, HandlerResult
     from ciris_engine.schemas.runtime.adapter_management import AdapterConfig, AdapterStatus
+    from ciris_engine.schemas.runtime.enums import ServiceType
+    from ciris_engine.schemas.runtime.models import Task, Thought
+    from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
     from ciris_engine.schemas.services.graph_core import GraphNode
     from ciris_engine.schemas.services.operations import MemoryQuery
-    from ciris_engine.schemas.runtime.models import Task, Thought
-    from ciris_engine.schemas.handlers.schemas import HandlerContext, HandlerResult
-    from ciris_engine.schemas.dma.core import DMAContext, DMADecision
-    from ciris_engine.schemas.runtime.enums import ServiceType
+
 
 class ServiceProtocol(Protocol):
     """Root protocol for ALL services in CIRIS."""
@@ -60,6 +62,7 @@ class ServiceProtocol(Protocol):
         """
         ...
 
+
 class GraphServiceProtocol(ServiceProtocol, Protocol):
     """Base for services that store everything in the graph."""
 
@@ -78,6 +81,7 @@ class GraphServiceProtocol(ServiceProtocol, Protocol):
         """Get the type of nodes this service manages."""
         ...
 
+
 class CoreServiceProtocol(ServiceProtocol, Protocol):
     """Base for services that cannot be stored in the graph."""
 
@@ -86,6 +90,7 @@ class CoreServiceProtocol(ServiceProtocol, Protocol):
         """Get resource limits for this service."""
         ...
 
+
 class VisibilityServiceProtocol(ServiceProtocol, Protocol):
     """Base for services that provide transparency and compliance."""
 
@@ -93,6 +98,7 @@ class VisibilityServiceProtocol(ServiceProtocol, Protocol):
     async def get_visibility_data(self) -> dict:  # Service-specific visibility data
         """Get visibility/transparency data."""
         ...
+
 
 class BaseHandlerProtocol(Protocol):
     """Root protocol for all action handlers."""
@@ -106,6 +112,7 @@ class BaseHandlerProtocol(Protocol):
     def get_action_type(self) -> str:
         """Get the action type this handler processes."""
         ...
+
 
 class BaseAdapterProtocol(Protocol):
     """Root protocol for all platform adapters."""
@@ -139,6 +146,7 @@ class BaseAdapterProtocol(Protocol):
     async def run_lifecycle(self, agent_task: Any) -> None:
         """Run the adapter lifecycle."""
         ...
+
 
 class BaseDMAProtocol(Protocol):
     """Root protocol for Decision Making Algorithms."""

@@ -4,21 +4,20 @@ Handles identity verification and token management for Wise Authorities.
 Authentication = "Who are you?"
 """
 
-from typing import Protocol, Optional, List, TYPE_CHECKING, Tuple, Union
 from abc import abstractmethod
 from datetime import datetime
+from typing import TYPE_CHECKING, List, Optional, Protocol, Tuple, Union
 
 from ...runtime.base import ServiceProtocol
 
 if TYPE_CHECKING:
-    from ciris_engine.schemas.services.authority_core import WACertificate, WARole, TokenType
     from ciris_engine.schemas.runtime.models import Task
+    from ciris_engine.schemas.services.authority_core import TokenType, WACertificate, WARole
 else:
     from ciris_engine.schemas.services.authority_core import WACertificate, WARole, TokenType
 
-from ciris_engine.schemas.services.authority.wise_authority import (
-    AuthenticationResult, WAUpdate, TokenVerification
-)
+from ciris_engine.schemas.services.authority.wise_authority import AuthenticationResult, TokenVerification, WAUpdate
+
 
 class AuthenticationServiceProtocol(ServiceProtocol, Protocol):
     """Protocol for authentication service - identity management."""
@@ -39,8 +38,9 @@ class AuthenticationServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    async def create_wa(self, name: str, email: str, scopes: List[str],
-                       role: WARole = WARole.OBSERVER) -> WACertificate:
+    async def create_wa(
+        self, name: str, email: str, scopes: List[str], role: WARole = WARole.OBSERVER
+    ) -> WACertificate:
         """Create a new Wise Authority identity."""
         ...
 
@@ -50,7 +50,9 @@ class AuthenticationServiceProtocol(ServiceProtocol, Protocol):
         ...
 
     @abstractmethod
-    async def update_wa(self, wa_id: str, updates: Optional[WAUpdate] = None, **kwargs: Union[str, bool, datetime]) -> Optional[WACertificate]:
+    async def update_wa(
+        self, wa_id: str, updates: Optional[WAUpdate] = None, **kwargs: Union[str, bool, datetime]
+    ) -> Optional[WACertificate]:
         """Update a Wise Authority identity."""
         ...
 

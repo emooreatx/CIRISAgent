@@ -3,34 +3,40 @@ Typed node data schemas for graph nodes.
 
 Replaces the generic NodeAttributes.data: Dict[str, Union[...]] with specific typed schemas.
 """
-from typing import Dict, List, Optional, Union
+
 from datetime import datetime, timezone
-from pydantic import BaseModel, Field, ConfigDict, field_serializer
+from typing import Dict, List, Optional, Union
+
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
+
 
 class ValidationRule(BaseModel):
     """A single validation rule for configuration."""
+
     rule_type: str = Field(..., description="Type of validation: range, regex, enum, etc.")
     parameters: Dict[str, Union[str, int, float, bool]] = Field(..., description="Rule parameters")
     error_message: Optional[str] = Field(None, description="Custom error message")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class BaseNodeData(BaseModel):
     """Base class for all typed node data."""
+
     version: int = Field(1, description="Schema version for migration")
     created_at: datetime = Field(..., description="When this data was created")
     updated_at: datetime = Field(..., description="Last update time")
 
-    model_config = ConfigDict(
-        extra="forbid"  # No extra fields allowed
-    )
+    model_config = ConfigDict(extra="forbid")  # No extra fields allowed
 
-    @field_serializer('created_at', 'updated_at')
+    @field_serializer("created_at", "updated_at")
     def serialize_datetime(self, dt: datetime) -> str:
         return dt.isoformat()
 
+
 class ConfigNodeData(BaseNodeData):
     """Data for configuration nodes."""
+
     key: str = Field(..., description="Configuration key")
     value: Union[str, int, float, bool, List[str], Dict[str, str]] = Field(..., description="Configuration value")
     description: Optional[str] = Field(None, description="What this config controls")
@@ -38,8 +44,10 @@ class ConfigNodeData(BaseNodeData):
     is_sensitive: bool = Field(False, description="Whether this is a sensitive config")
     validation_rules: Optional[List[ValidationRule]] = Field(None, description="Validation rules for this config")
 
+
 class TelemetryNodeData(BaseNodeData):
     """Data for telemetry/metrics nodes."""
+
     metric_name: str = Field(..., description="Name of the metric")
     metric_value: float = Field(..., description="Numeric value")
     metric_type: str = Field(..., description="Type: counter, gauge, histogram")
@@ -52,8 +60,10 @@ class TelemetryNodeData(BaseNodeData):
     end_time: Optional[datetime] = Field(None, description="End of measurement period")
     sample_count: Optional[int] = Field(None, description="Number of samples in this period")
 
+
 class AuditNodeData(BaseNodeData):
     """Data for audit event nodes."""
+
     event_type: str = Field(..., description="Type of audit event")
     event_category: str = Field(..., description="Category: security, compliance, operational")
     actor: str = Field(..., description="Who/what triggered this event")
@@ -71,8 +81,10 @@ class AuditNodeData(BaseNodeData):
     evidence: Dict[str, str] = Field(default_factory=dict, description="Supporting evidence")
     error_details: Optional[str] = Field(None, description="Error message if failed")
 
+
 class MemoryNodeData(BaseNodeData):
     """Data for memory/knowledge nodes."""
+
     content: str = Field(..., description="The actual memory content")
     memory_type: str = Field(..., description="Type: fact, experience, learning, insight")
     source: str = Field(..., description="Where this memory came from")
@@ -86,8 +98,10 @@ class MemoryNodeData(BaseNodeData):
     last_accessed: Optional[datetime] = Field(None, description="Last access time")
     importance_score: float = Field(0.5, description="Importance 0.0-1.0")
 
+
 class TaskNodeData(BaseNodeData):
     """Data for task-related nodes."""
+
     task_id: str = Field(..., description="Associated task ID")
     task_type: str = Field(..., description="Type of task")
     status: str = Field(..., description="Current status")
@@ -103,12 +117,14 @@ class TaskNodeData(BaseNodeData):
     milestones: List[str] = Field(default_factory=list, description="Completed milestones")
     blockers: List[str] = Field(default_factory=list, description="Current blockers")
 
-    @field_serializer('deadline')
+    @field_serializer("deadline")
     def serialize_optional_datetime(self, dt: Optional[datetime]) -> Optional[str]:
         return dt.isoformat() if dt else None
 
+
 class EnvironmentNodeData(BaseNodeData):
     """Data for environment/context nodes."""
+
     environment_type: str = Field(..., description="Type: channel, user, system")
     identifier: str = Field(..., description="Unique identifier")
     display_name: Optional[str] = Field(None, description="Human-readable name")
@@ -123,15 +139,10 @@ class EnvironmentNodeData(BaseNodeData):
     last_interaction: Optional[datetime] = Field(None, description="Last interaction time")
     interaction_count: int = Field(0, description="Total interactions")
 
+
 # Type alias for all possible node data types
-NodeData = Union[
-    ConfigNodeData,
-    TelemetryNodeData,
-    AuditNodeData,
-    MemoryNodeData,
-    TaskNodeData,
-    EnvironmentNodeData
-]
+NodeData = Union[ConfigNodeData, TelemetryNodeData, AuditNodeData, MemoryNodeData, TaskNodeData, EnvironmentNodeData]
+
 
 def create_node_data(node_type: str, data: dict) -> NodeData:
     """Factory function to create appropriate node data based on type."""

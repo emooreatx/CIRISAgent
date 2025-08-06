@@ -4,16 +4,20 @@ Configuration Bootstrap for Graph-Based Config System.
 Loads essential configuration from multiple sources in priority order,
 then migrates to graph-based configuration for runtime management.
 """
-import yaml
+
 import logging
 from pathlib import Path
-from typing import Any, Optional, Dict
+from typing import Any, Dict, Optional
+
 import aiofiles
+import yaml
 
 from ciris_engine.schemas.config.essential import EssentialConfig
+
 from .env_utils import get_env_var
 
 logger = logging.getLogger(__name__)
+
 
 class ConfigBootstrap:
     """Load essential config from multiple sources in priority order."""
@@ -89,8 +93,7 @@ class ConfigBootstrap:
 
     @staticmethod
     async def load_essential_config(
-        config_path: Optional[Path] = None,
-        cli_overrides: Optional[Dict[str, Any]] = None
+        config_path: Optional[Path] = None, cli_overrides: Optional[Dict[str, Any]] = None
     ) -> EssentialConfig:
         """
         Load essential configuration from multiple sources.
@@ -115,7 +118,7 @@ class ConfigBootstrap:
         yaml_path = config_path or Path("config/essential.yaml")
         if yaml_path.exists():
             try:
-                async with aiofiles.open(yaml_path, 'r') as f:
+                async with aiofiles.open(yaml_path, "r") as f:
                     yaml_content = await f.read()
                     yaml_data = yaml.safe_load(yaml_content) or {}
                 config_data = ConfigBootstrap._deep_merge(config_data, yaml_data)
@@ -159,16 +162,12 @@ class ConfigBootstrap:
             "limits.max_active_tasks": "MAX_ACTIVE_TASKS",
             "security.max_thought_depth": "MAX_THOUGHT_DEPTH",
             "log_level": "LOG_LEVEL",
-            "debug_mode": "DEBUG_MODE"
+            "debug_mode": "DEBUG_MODE",
         }
 
         for key, env_var in env_sources.items():
             if get_env_var(env_var):
-                metadata[key] = {
-                    "source": "env_var",
-                    "env_var": env_var,
-                    "bootstrap_phase": True
-                }
+                metadata[key] = {"source": "env_var", "env_var": env_var, "bootstrap_phase": True}
 
         # Mark file-sourced configs
         if yaml_path and yaml_path.exists():
@@ -176,11 +175,7 @@ class ConfigBootstrap:
             # For now, mark all non-env values as file-sourced
             for key in ["database", "services", "security", "limits"]:
                 if key not in metadata:
-                    metadata[key] = {
-                        "source": "config_file",
-                        "file": str(yaml_path),
-                        "bootstrap_phase": True
-                    }
+                    metadata[key] = {"source": "config_file", "file": str(yaml_path), "bootstrap_phase": True}
 
         # Everything else is from defaults
         return metadata

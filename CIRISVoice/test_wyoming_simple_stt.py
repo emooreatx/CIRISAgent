@@ -5,20 +5,22 @@ Based directly on faster-whisper structure.
 """
 import asyncio
 import logging
-from wyoming.info import AsrModel, AsrProgram, Attribution, Info
-from wyoming.server import AsyncServer, AsyncEventHandler
-from wyoming.event import Event
+
 from wyoming.asr import Transcribe, Transcript
-from wyoming.audio import AudioStart, AudioStop, AudioChunk
+from wyoming.audio import AudioChunk, AudioStart, AudioStop
+from wyoming.event import Event
+from wyoming.info import AsrModel, AsrProgram, Attribution, Info
+from wyoming.server import AsyncEventHandler, AsyncServer
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class SimpleHandler(AsyncEventHandler):
     """Simple event handler."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        
+
         # Create wyoming info
         wyoming_info = Info(
             asr=[
@@ -45,7 +47,7 @@ class SimpleHandler(AsyncEventHandler):
                 )
             ],
         )
-        
+
         # Pre-create event like faster-whisper does
         self.wyoming_info_event = wyoming_info.event()
         self.audio_buffer = bytearray()
@@ -59,23 +61,23 @@ class SimpleHandler(AsyncEventHandler):
             await self.write_event(self.wyoming_info_event)
             _LOGGER.debug("Sent info")
             return True
-            
+
         if Transcribe.is_type(event.type):
             _LOGGER.debug("Transcribe event")
             return True
-            
+
         if AudioStart.is_type(event.type):
             _LOGGER.debug("Audio start")
             self.is_recording = True
             self.audio_buffer = bytearray()
             return True
-            
+
         if AudioChunk.is_type(event.type):
             if self.is_recording:
                 chunk = AudioChunk.from_event(event)
                 self.audio_buffer.extend(chunk.audio)
             return True
-            
+
         if AudioStop.is_type(event.type):
             _LOGGER.debug("Audio stop")
             self.is_recording = False

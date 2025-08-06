@@ -34,7 +34,7 @@ Telemetry Module
 ```python
 from ciris_engine.telemetry import (
     TelemetryService,
-    ResourceMonitor, 
+    ResourceMonitor,
     SecurityFilter,
     CollectorManager
 )
@@ -100,7 +100,7 @@ print(f"Uptime: {snapshot.telemetry.uptime_hours} hours")
 ```python
 # Message processing metrics
 await telemetry.record_metric("message_processed", 1.0)
-await telemetry.record_metric("message_filtered", 1.0) 
+await telemetry.record_metric("message_filtered", 1.0)
 await telemetry.record_metric("message_priority_high", 1.0)
 
 # Response time metrics
@@ -148,12 +148,12 @@ await telemetry.record_metric("trust_score_update", 1.0)
 class AgentIntrospection:
     def __init__(self, telemetry_service: TelemetryService):
         self.telemetry = telemetry_service
-    
+
     async def get_current_status(self) -> Dict[str, Any]:
         """Get complete agent status with telemetry data"""
         snapshot = SystemSnapshot()
         await self.telemetry.update_system_snapshot(snapshot)
-        
+
         return {
             "performance": {
                 "messages_processed_24h": snapshot.telemetry.messages_processed_24h,
@@ -167,12 +167,12 @@ class AgentIntrospection:
             },
             "timestamp": snapshot.telemetry.epoch_seconds
         }
-    
+
     async def check_performance_thresholds(self) -> Dict[str, bool]:
         """Check if agent performance is within acceptable thresholds"""
         status = await self.get_current_status()
         performance = status["performance"]
-        
+
         return {
             "error_rate_acceptable": status["health"]["error_rate"] < 0.05,  # < 5% error rate
             "processing_volume_healthy": performance["messages_processed_24h"] > 0,
@@ -239,45 +239,45 @@ await resource_monitor.set_resource_budget(resource_budget)
 class ResourceAwareAgent:
     def __init__(self, resource_monitor: ResourceMonitor):
         self.resource_monitor = resource_monitor
-    
+
     async def check_resource_availability(self) -> bool:
         """Check if resources are available for processing"""
         snapshot = await self.resource_monitor.get_current_snapshot()
-        
+
         # Check if any resources are at critical levels
         if snapshot.cpu_usage > 90.0:
             logger.warning("CPU usage critical, deferring processing")
             return False
-        
+
         if snapshot.memory_usage > 95.0:
             logger.warning("Memory usage critical, deferring processing")
             return False
-        
+
         if snapshot.disk_usage > 95.0:
             logger.warning("Disk usage critical, deferring processing")
             return False
-        
+
         return True
-    
+
     async def process_with_resource_awareness(self, task):
         """Process task with resource monitoring"""
         if not await self.check_resource_availability():
             # Queue task for later when resources improve
             await self.queue_for_later(task)
             return
-        
+
         # Monitor resources during processing
         start_snapshot = await self.resource_monitor.get_current_snapshot()
-        
+
         try:
             result = await self.process_task(task)
-            
+
             # Record resource usage metrics
             end_snapshot = await self.resource_monitor.get_current_snapshot()
             await self.record_resource_usage(start_snapshot, end_snapshot)
-            
+
             return result
-            
+
         except Exception as e:
             logger.error(f"Task processing failed: {e}")
             # Check if failure was resource-related
@@ -311,7 +311,7 @@ security_filter = SecurityFilter(
     max_metric_name_length=100,
     allowed_metric_prefixes=[
         "performance.",
-        "health.", 
+        "health.",
         "resource.",
         "error.",
         "processing."
@@ -395,47 +395,47 @@ await collector_manager.start()
 ```python
 class TelemetryAwareService(Service):
     """Base class for services with telemetry integration"""
-    
+
     def __init__(self, telemetry_service: TelemetryService):
         super().__init__()
         self.telemetry = telemetry_service
         self.service_name = self.__class__.__name__
-    
+
     async def record_operation(self, operation: str, duration: float = None, success: bool = True):
         """Record service operation metrics"""
         metric_name = f"{self.service_name.lower()}.{operation}"
-        
+
         # Record operation count
         await self.telemetry.record_metric(f"{metric_name}.count", 1.0)
-        
+
         # Record duration if provided
         if duration is not None:
             await self.telemetry.record_metric(f"{metric_name}.duration_ms", duration)
-        
+
         # Record success/failure
         if success:
             await self.telemetry.record_metric(f"{metric_name}.success", 1.0)
         else:
             await self.telemetry.record_metric(f"{metric_name}.error", 1.0)
-    
+
     async def execute_with_telemetry(self, operation_name: str, operation_func, *args, **kwargs):
         """Execute operation with automatic telemetry recording"""
         start_time = datetime.utcnow()
-        
+
         try:
             result = await operation_func(*args, **kwargs)
             duration = (datetime.utcnow() - start_time).total_seconds() * 1000
             await self.record_operation(operation_name, duration, success=True)
             return result
-            
+
         except Exception as e:
             duration = (datetime.utcnow() - start_time).total_seconds() * 1000
             await self.record_operation(operation_name, duration, success=False)
-            
+
             # Record specific error types
             error_type = type(e).__name__
             await self.telemetry.record_metric(f"{self.service_name.lower()}.error.{error_type.lower()}", 1.0)
-            
+
             raise
 ```
 
@@ -446,29 +446,29 @@ class TelemetryAwareService(Service):
 ```python
 class OptimizedTelemetryService(TelemetryService):
     """Optimized telemetry service with batching and compression"""
-    
+
     def __init__(self, buffer_size: int = 1000, batch_size: int = 100):
         super().__init__(buffer_size)
         self.batch_size = batch_size
         self.metric_batch = []
         self.batch_lock = asyncio.Lock()
-    
+
     async def record_metric(self, metric_name: str, value: float = 1.0) -> None:
         """Record metric with batching for efficiency"""
         async with self.batch_lock:
             self.metric_batch.append((metric_name, value, datetime.utcnow()))
-            
+
             if len(self.metric_batch) >= self.batch_size:
                 await self.flush_batch()
-    
+
     async def flush_batch(self):
         """Flush batched metrics to storage"""
         if not self.metric_batch:
             return
-        
+
         batch = self.metric_batch.copy()
         self.metric_batch.clear()
-        
+
         # Process batch efficiently
         for metric_name, value, timestamp in batch:
             sanitized = self._filter.sanitize(metric_name, value)
@@ -487,28 +487,28 @@ class OptimizedTelemetryService(TelemetryService):
 # Debug telemetry recording issues
 async def debug_telemetry_issues(telemetry_service: TelemetryService):
     """Debug common telemetry recording problems"""
-    
+
     # Test basic metric recording
     test_metric = "debug_test_metric"
     await telemetry_service.record_metric(test_metric, 1.0)
-    
+
     # Check if metric was recorded
     if test_metric in telemetry_service._history:
         print("✓ Basic metric recording working")
     else:
         print("✗ Basic metric recording failed")
         print("Check security filter configuration")
-    
+
     # Test security filter
     security_filter = telemetry_service._filter
     filtered_result = security_filter.sanitize("test_metric", 1.0)
-    
+
     if filtered_result is not None:
         print("✓ Security filter allowing test metrics")
     else:
         print("✗ Security filter blocking all metrics")
         print("Review security filter rules")
-    
+
     # Check service status
     if hasattr(telemetry_service, '_running') and telemetry_service._running:
         print("✓ Telemetry service is running")
@@ -523,7 +523,7 @@ async def debug_telemetry_issues(telemetry_service: TelemetryService):
 # Diagnose resource monitoring problems
 async def diagnose_resource_monitor(resource_monitor: ResourceMonitor):
     """Diagnose resource monitoring issues"""
-    
+
     # Check psutil availability
     try:
         import psutil
@@ -532,7 +532,7 @@ async def diagnose_resource_monitor(resource_monitor: ResourceMonitor):
         print(f"  Memory: {psutil.virtual_memory().total / (1024**3):.1f} GB")
     except ImportError:
         print("⚠ psutil not available, using basic monitoring")
-    
+
     # Test resource snapshot
     try:
         snapshot = await resource_monitor.get_current_snapshot()

@@ -56,7 +56,7 @@ export default function AuditPage() {
   const [isExporting, setIsExporting] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
   const [hideStartEvents, setHideStartEvents] = useState(false);
-  
+
   // Set default date range to last 7 days
   const defaultEndDate = new Date();
   const defaultStartDate = new Date();
@@ -76,7 +76,7 @@ export default function AuditPage() {
 
   // Extract entries from paginated response
   let entries = data?.items || [];
-  
+
   // Filter out start events if requested
   if (hideStartEvents) {
     entries = entries.filter((entry: AuditEntry) => {
@@ -108,7 +108,7 @@ export default function AuditPage() {
     'processor.pause',
     'processor.resume',
   ];
-  
+
   const services = [
     'all',
     'auth',
@@ -130,7 +130,7 @@ export default function AuditPage() {
       [key]: value === 'all' ? undefined : value,
     }));
   };
-  
+
   const handleExport = async () => {
     setIsExporting(true);
     try {
@@ -158,7 +158,7 @@ export default function AuditPage() {
       setIsExporting(false);
     }
   };
-  
+
   const convertToCSV = (entries: AuditEntry[]) => {
     const headers = ['Timestamp', 'Service', 'Action', 'User/Actor', 'Details', 'Status', 'Result'];
     const rows = entries.map(entry => [
@@ -170,13 +170,13 @@ export default function AuditPage() {
       entry.status || '',
       entry.result || 'success'
     ]);
-    
+
     return [
       headers.join(','),
       ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
     ].join('\n');
   };
-  
+
   const getSeverityColor = (entry: AuditEntry) => {
     // Determine severity based on action and result
     const outcome = entry.context?.metadata?.outcome || entry.result || entry.status;
@@ -201,7 +201,7 @@ export default function AuditPage() {
     }
     return 'bg-gray-50 text-gray-700 ring-gray-600/20';
   };
-  
+
   const getActionBadgeColor = (action: string) => {
     if (action?.includes('LOGIN') || action?.includes('LOGOUT')) {
       return 'bg-indigo-50 text-indigo-700 ring-indigo-700/10';
@@ -282,7 +282,7 @@ export default function AuditPage() {
                     className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                   />
                 </div>
-                
+
                 <div>
                   <label htmlFor="end_time" className="block text-sm font-medium text-gray-700">
                     End Date
@@ -353,7 +353,7 @@ export default function AuditPage() {
                   </select>
                 </div>
               </div>
-              
+
               <div className="mt-4 flex justify-between items-center">
                 <div className="flex items-center">
                   <input
@@ -510,7 +510,7 @@ export default function AuditPage() {
               </tbody>
             </table>
           </div>
-          
+
           {/* Pagination info */}
           {entries && entries.length > 0 && (
             <div className="mt-4 flex items-center justify-between text-sm text-gray-700">

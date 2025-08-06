@@ -1,12 +1,11 @@
 """Unit tests for ServiceInitializer."""
 
-import pytest
-import asyncio
-import tempfile
 import os
-from unittest.mock import Mock, AsyncMock, patch, MagicMock, call
-from datetime import datetime, timezone
+import tempfile
 from pathlib import Path
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 from ciris_engine.logic.runtime.service_initializer import ServiceInitializer
 from ciris_engine.schemas.config.essential import EssentialConfig
@@ -31,13 +30,15 @@ class TestServiceInitializer:
         config.openai_api_key = "test-key"
         config.anthropic_api_key = None
         # Add model_dump method that returns a dict for config migration
-        config.model_dump = Mock(return_value={
-            "data_dir": temp_data_dir,
-            "db_path": os.path.join(temp_data_dir, "test.db"),
-            "log_level": "INFO",
-            "openai_api_key": "test-key",
-            "anthropic_api_key": None
-        })
+        config.model_dump = Mock(
+            return_value={
+                "data_dir": temp_data_dir,
+                "db_path": os.path.join(temp_data_dir, "test.db"),
+                "log_level": "INFO",
+                "openai_api_key": "test-key",
+                "anthropic_api_key": None,
+            }
+        )
         return config
 
     @pytest.fixture
@@ -52,17 +53,21 @@ class TestServiceInitializer:
     @pytest.mark.asyncio
     async def test_initialize_all(self, service_initializer, mock_essential_config):
         """Test initializing all services."""
-        with patch.object(service_initializer, 'initialize_infrastructure_services') as mock_infra:
-            with patch.object(service_initializer, 'initialize_memory_service') as mock_memory:
-                with patch.object(service_initializer, 'initialize_security_services') as mock_security:
-                    with patch.object(service_initializer, 'initialize_all_services') as mock_all:
-                        with patch.object(service_initializer, 'verify_core_services') as mock_verify:
+        with patch.object(service_initializer, "initialize_infrastructure_services") as mock_infra:
+            with patch.object(service_initializer, "initialize_memory_service") as mock_memory:
+                with patch.object(service_initializer, "initialize_security_services") as mock_security:
+                    with patch.object(service_initializer, "initialize_all_services") as mock_all:
+                        with patch.object(service_initializer, "verify_core_services") as mock_verify:
 
                             # Call the actual initialization sequence
                             await service_initializer.initialize_infrastructure_services()
                             await service_initializer.initialize_memory_service(mock_essential_config)
-                            await service_initializer.initialize_security_services(mock_essential_config, mock_essential_config)
-                            await service_initializer.initialize_all_services(mock_essential_config, mock_essential_config, "test_agent", None, [])
+                            await service_initializer.initialize_security_services(
+                                mock_essential_config, mock_essential_config
+                            )
+                            await service_initializer.initialize_all_services(
+                                mock_essential_config, mock_essential_config, "test_agent", None, []
+                            )
                             service_initializer.verify_core_services()
 
                             # Verify methods were called
@@ -79,7 +84,7 @@ class TestServiceInitializer:
 
         # Should create time service
         assert service_initializer.time_service is not None
-        assert hasattr(service_initializer.time_service, 'now')
+        assert hasattr(service_initializer.time_service, "now")
 
         # Should create other infrastructure services
         assert service_initializer.shutdown_service is not None
@@ -143,8 +148,11 @@ class TestServiceInitializer:
         mock_auth_service = Mock()
         mock_auth_service.start = AsyncMock()
 
-        with patch('ciris_engine.logic.services.infrastructure.authentication.AuthenticationService', return_value=mock_auth_service):
-            with patch('ciris_engine.logic.runtime.service_initializer.WiseAuthorityService') as mock_wa_class:
+        with patch(
+            "ciris_engine.logic.services.infrastructure.authentication.AuthenticationService",
+            return_value=mock_auth_service,
+        ):
+            with patch("ciris_engine.logic.runtime.service_initializer.WiseAuthorityService") as mock_wa_class:
                 mock_wa = Mock()
                 mock_wa.start = AsyncMock()
                 mock_wa_class.return_value = mock_wa
@@ -168,16 +176,18 @@ class TestServiceInitializer:
         service_initializer.service_registry = Mock()
         service_initializer.bus_manager = Mock()
         service_initializer.bus_manager.memory = Mock()
-        
+
         # Mock config_service for AdaptiveFilterService
         mock_config_service = AsyncMock()
         mock_config_service.get_config = AsyncMock(return_value=None)
         service_initializer.config_service = mock_config_service
 
         # Initialize services (part of initialize_all_services)
-        with patch.object(service_initializer, '_initialize_llm_services'):
-            with patch.object(service_initializer, '_initialize_audit_services'):
-                await service_initializer.initialize_all_services(mock_essential_config, mock_essential_config, "test_agent", None, [])
+        with patch.object(service_initializer, "_initialize_llm_services"):
+            with patch.object(service_initializer, "_initialize_audit_services"):
+                await service_initializer.initialize_all_services(
+                    mock_essential_config, mock_essential_config, "test_agent", None, []
+                )
 
         # Should create services
         assert service_initializer.telemetry_service is not None
@@ -192,7 +202,7 @@ class TestServiceInitializer:
         # This prevents OpenAICompatibleClient from being registered
         service_initializer._skip_llm_init = True
         mock_essential_config.mock_llm = True
-        
+
         # Add required services attribute
         mock_essential_config.services = Mock()
         mock_essential_config.services.llm_endpoint = "https://api.openai.com/v1"
@@ -224,7 +234,7 @@ class TestServiceInitializer:
         # Clear secondary LLM keys to ensure only primary is initialized in this test
         os.environ.pop("CIRIS_OPENAI_API_KEY_2", None)
 
-        with patch('ciris_engine.logic.runtime.service_initializer.OpenAICompatibleClient') as mock_llm_class:
+        with patch("ciris_engine.logic.runtime.service_initializer.OpenAICompatibleClient") as mock_llm_class:
             mock_llm = AsyncMock()
             mock_llm_class.return_value = mock_llm
 
@@ -254,9 +264,9 @@ class TestServiceInitializer:
         service_initializer.memory_service = mock_service2
 
         # Manually stop services (since there's no shutdown_all method)
-        if hasattr(service_initializer.time_service, 'stop'):
+        if hasattr(service_initializer.time_service, "stop"):
             service_initializer.time_service.stop()
-        if hasattr(service_initializer.memory_service, 'stop'):
+        if hasattr(service_initializer.memory_service, "stop"):
             service_initializer.memory_service.stop()
 
         # All services should be stopped
@@ -274,7 +284,7 @@ class TestServiceInitializer:
 
         # Should not raise when stopping
         try:
-            if hasattr(service_initializer.time_service, 'stop'):
+            if hasattr(service_initializer.time_service, "stop"):
                 service_initializer.time_service.stop()
         except Exception:
             pass  # Expected
@@ -332,14 +342,10 @@ class TestServiceInitializer:
         service_initializer.llm_service = Mock()
 
         # Mock the private initialization methods
-        with patch.object(service_initializer, '_initialize_llm_services'):
-            with patch.object(service_initializer, '_initialize_audit_services'):
+        with patch.object(service_initializer, "_initialize_llm_services"):
+            with patch.object(service_initializer, "_initialize_audit_services"):
                 await service_initializer.initialize_all_services(
-                    mock_essential_config,
-                    mock_essential_config,
-                    "test_agent",
-                    None,
-                    []
+                    mock_essential_config, mock_essential_config, "test_agent", None, []
                 )
 
         # Just verify some key services exist after initialization
@@ -355,35 +361,41 @@ class TestServiceInitializer:
         # Mock each initialization phase to track order
         async def track_call(phase):
             calls.append(phase)
-        
+
         def track_call_sync(phase):
             calls.append(phase)
 
         # Track actual method calls - use return_value instead of side_effect to avoid immediate execution
-        with patch.object(service_initializer, 'initialize_infrastructure_services') as mock_infra:
-            with patch.object(service_initializer, 'initialize_memory_service') as mock_memory:
-                with patch.object(service_initializer, 'initialize_security_services') as mock_security:
-                    with patch.object(service_initializer, 'initialize_all_services') as mock_all:
-                        with patch.object(service_initializer, 'verify_core_services', return_value=True) as mock_verify:
+        with patch.object(service_initializer, "initialize_infrastructure_services") as mock_infra:
+            with patch.object(service_initializer, "initialize_memory_service") as mock_memory:
+                with patch.object(service_initializer, "initialize_security_services") as mock_security:
+                    with patch.object(service_initializer, "initialize_all_services") as mock_all:
+                        with patch.object(
+                            service_initializer, "verify_core_services", return_value=True
+                        ) as mock_verify:
 
                             # Call initialization sequence
                             await service_initializer.initialize_infrastructure_services()
-                            calls.append('infrastructure')
-                            
+                            calls.append("infrastructure")
+
                             await service_initializer.initialize_memory_service(mock_essential_config)
-                            calls.append('memory')
-                            
-                            await service_initializer.initialize_security_services(mock_essential_config, mock_essential_config)
-                            calls.append('security')
-                            
-                            await service_initializer.initialize_all_services(mock_essential_config, mock_essential_config, "test_agent", None, [])
-                            calls.append('services')
-                            
+                            calls.append("memory")
+
+                            await service_initializer.initialize_security_services(
+                                mock_essential_config, mock_essential_config
+                            )
+                            calls.append("security")
+
+                            await service_initializer.initialize_all_services(
+                                mock_essential_config, mock_essential_config, "test_agent", None, []
+                            )
+                            calls.append("services")
+
                             service_initializer.verify_core_services()
-                            calls.append('verify')
+                            calls.append("verify")
 
         # Verify order
-        assert calls.index('infrastructure') < calls.index('memory')
-        assert calls.index('memory') < calls.index('security')
-        assert calls.index('security') < calls.index('services')
-        assert calls.index('services') < calls.index('verify')
+        assert calls.index("infrastructure") < calls.index("memory")
+        assert calls.index("memory") < calls.index("security")
+        assert calls.index("security") < calls.index("services")
+        assert calls.index("services") < calls.index("verify")

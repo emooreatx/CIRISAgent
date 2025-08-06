@@ -1,23 +1,20 @@
 """Unit tests for LocalGraphMemoryService."""
 
+import asyncio
+import os
+import tempfile
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 import pytest_asyncio
-import asyncio
-import tempfile
-import os
-from unittest.mock import MagicMock, AsyncMock
-from datetime import datetime, timezone
 
+from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.logic.services.graph.memory_service import LocalGraphMemoryService
 from ciris_engine.logic.services.lifecycle.time import TimeService
-from ciris_engine.logic.secrets.service import SecretsService
-from ciris_engine.schemas.services.graph_core import (
-    GraphNode, NodeType, GraphScope, GraphNodeAttributes
-)
-from ciris_engine.schemas.services.operations import (
-    MemoryOpStatus, MemoryQuery
-)
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphNodeAttributes, GraphScope, NodeType
+from ciris_engine.schemas.services.operations import MemoryOpStatus, MemoryQuery
 
 
 @pytest.fixture
@@ -41,7 +38,7 @@ def secrets_service():
 @pytest.fixture
 def temp_db():
     """Create a temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
     yield db_path
     os.unlink(db_path)
@@ -50,11 +47,7 @@ def temp_db():
 @pytest_asyncio.fixture
 async def memory_service(temp_db, secrets_service, time_service):
     """Create a memory service for testing."""
-    service = LocalGraphMemoryService(
-        db_path=temp_db,
-        secrets_service=secrets_service,
-        time_service=time_service
-    )
+    service = LocalGraphMemoryService(db_path=temp_db, secrets_service=secrets_service, time_service=time_service)
     service.start()
     yield service
     service.stop()
@@ -68,10 +61,7 @@ async def test_memory_service_memorize(memory_service):
         id="test_node_1",
         type=NodeType.CONCEPT,
         scope=GraphScope.LOCAL,
-        attributes=GraphNodeAttributes(
-            created_by="test_user",
-            tags=["test", "memory"]
-        )
+        attributes=GraphNodeAttributes(created_by="test_user", tags=["test", "memory"]),
     )
 
     # Store the node
@@ -95,16 +85,13 @@ async def test_memory_service_recall(memory_service):
             "test": "data",
             "created_by": "test_user",
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        },
     )
     await memory_service.memorize(node)
 
     # Recall the node
-    query = MemoryQuery(
-        node_id="test_recall_1",
-        scope=GraphScope.LOCAL
-    )
+    query = MemoryQuery(node_id="test_recall_1", scope=GraphScope.LOCAL)
     nodes = await memory_service.recall(query)
 
     # Verify we got the node back
@@ -123,10 +110,7 @@ async def test_memory_service_forget(memory_service):
         id="test_forget_1",
         type=NodeType.CONCEPT,
         scope=GraphScope.LOCAL,
-        attributes=GraphNodeAttributes(
-            created_by="test_user",
-            tags=["forget", "test"]
-        )
+        attributes=GraphNodeAttributes(created_by="test_user", tags=["forget", "test"]),
     )
     await memory_service.memorize(node)
 
@@ -154,8 +138,8 @@ async def test_memory_service_search(memory_service):
                 "category": "test" if i % 2 == 0 else "other",
                 "created_by": "test_user",
                 "created_at": datetime.now(timezone.utc).isoformat(),
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            },
         )
         for i in range(5)
     ]
@@ -165,20 +149,14 @@ async def test_memory_service_search(memory_service):
 
     # Search by type
     from ciris_engine.schemas.services.graph.memory import MemorySearchFilter
-    filter = MemorySearchFilter(
-        node_type=NodeType.CONCEPT,
-        scope=GraphScope.LOCAL
-    )
+
+    filter = MemorySearchFilter(node_type=NodeType.CONCEPT, scope=GraphScope.LOCAL)
     results = await memory_service.search("", filters=filter)
     # The search returns all matching nodes
     assert len(results) == 5  # All nodes are returned
 
     # Search with limit - NOTE: The current implementation doesn't respect the limit filter
-    filter_with_limit = MemorySearchFilter(
-        node_type=NodeType.CONCEPT,
-        scope=GraphScope.LOCAL,
-        limit=2
-    )
+    filter_with_limit = MemorySearchFilter(node_type=NodeType.CONCEPT, scope=GraphScope.LOCAL, limit=2)
     results = await memory_service.search("", filters=filter_with_limit)
     # The implementation DOES respect the limit filter
     assert len(results) == 2  # Returns only 2 nodes as requested
@@ -197,17 +175,14 @@ async def test_memory_service_timeseries(memory_service):
             metric_name="test_metric",
             value=i * 10.0,
             tags={"test": "data", "index": str(i)},  # Add unique tag
-            scope="local"
+            scope="local",
         )
         assert result.status == MemoryOpStatus.OK
         # Add small delay to ensure different timestamps
         await asyncio.sleep(0.01)
 
     # Recall timeseries data
-    retrieved = await memory_service.recall_timeseries(
-        scope="local",
-        hours=24
-    )
+    retrieved = await memory_service.recall_timeseries(scope="local", hours=24)
 
     # Should have at least the 3 metrics we stored
     assert len(retrieved) >= 3
@@ -253,10 +228,7 @@ async def test_memory_service_status(memory_service):
             id=f"status_node_{i}",
             type=NodeType.CONCEPT,
             scope=GraphScope.LOCAL,
-            attributes=GraphNodeAttributes(
-                created_by="test_user",
-                tags=[f"status_{i}"]
-            )
+            attributes=GraphNodeAttributes(created_by="test_user", tags=[f"status_{i}"]),
         )
         await memory_service.memorize(node)
 
@@ -277,8 +249,8 @@ async def test_memory_service_secrets_integration(memory_service, secrets_servic
             "api_key": "sk-12345",
             "created_by": "test_user",
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        },
     )
 
     # Store node - secrets should be processed
@@ -302,10 +274,7 @@ async def test_memory_service_graph_query(memory_service):
         id="parent_node",
         type=NodeType.CONCEPT,
         scope=GraphScope.LOCAL,
-        attributes=GraphNodeAttributes(
-            created_by="test_user",
-            tags=["parent"]
-        )
+        attributes=GraphNodeAttributes(created_by="test_user", tags=["parent"]),
     )
     await memory_service.memorize(parent)
 
@@ -318,18 +287,13 @@ async def test_memory_service_graph_query(memory_service):
             "parent_id": "parent_node",
             "created_by": "test_user",
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        },
     )
     await memory_service.memorize(child)
 
     # Query with depth
-    query = MemoryQuery(
-        node_id="parent_node",
-        scope=GraphScope.LOCAL,
-        include_edges=True,
-        depth=1
-    )
+    query = MemoryQuery(node_id="parent_node", scope=GraphScope.LOCAL, include_edges=True, depth=1)
     nodes = await memory_service.recall(query)
 
     # Should get parent node

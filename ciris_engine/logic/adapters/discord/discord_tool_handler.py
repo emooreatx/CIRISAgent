@@ -1,27 +1,24 @@
 """Discord tool handling component for tool execution operations."""
-import discord
-import logging
-import asyncio
-import uuid
-from typing import Dict, List, Optional, TYPE_CHECKING, Any
 
-from ciris_engine.schemas.telemetry.core import (
-    ServiceCorrelation,
-    ServiceCorrelationStatus,
-)
-from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
-from ciris_engine.schemas.adapters.tools import ToolInfo, ToolParameterSchema, ToolExecutionResult, ToolExecutionStatus
+import asyncio
+import logging
+import uuid
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+import discord
+
 from ciris_engine.logic import persistence
+from ciris_engine.schemas.adapters.tool_execution import ToolExecutionArgs, ToolHandlerContext
+from ciris_engine.schemas.adapters.tools import ToolExecutionResult, ToolExecutionStatus, ToolInfo, ToolParameterSchema
+from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
 from ciris_engine.schemas.telemetry.core import (
     CorrelationType,
+    ServiceCorrelation,
+    ServiceCorrelationStatus,
     ServiceRequestData,
     ServiceResponseData,
-    MetricData,
-    LogData,
-    TraceContext
 )
-from datetime import datetime, timezone
-from ciris_engine.schemas.adapters.tool_execution import ToolExecutionArgs, ToolHandlerContext
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
@@ -30,10 +27,16 @@ from ciris_engine.logic.services.lifecycle.time import TimeService
 
 logger = logging.getLogger(__name__)
 
+
 class DiscordToolHandler:
     """Handles Discord tool execution and result management."""
 
-    def __init__(self, tool_registry: Optional[Any] = None, client: Optional[discord.Client] = None, time_service: Optional["TimeServiceProtocol"] = None) -> None:
+    def __init__(
+        self,
+        tool_registry: Optional[Any] = None,
+        client: Optional[discord.Client] = None,
+        time_service: Optional["TimeServiceProtocol"] = None,
+    ) -> None:
         """Initialize the tool handler.
 
         Args:
@@ -49,6 +52,7 @@ class DiscordToolHandler:
         # Ensure we have a time service
         if self._time_service is None:
             from ciris_engine.logic.services.lifecycle.time import TimeService
+
             self._time_service = TimeService()
 
     def set_client(self, client: discord.Client) -> None:
@@ -87,7 +91,7 @@ class DiscordToolHandler:
                 success=False,
                 data=None,
                 error="Tool registry not configured",
-                correlation_id=str(uuid.uuid4())
+                correlation_id=str(uuid.uuid4()),
             )
 
         handler = self.tool_registry.get_handler(tool_name)
@@ -98,21 +102,25 @@ class DiscordToolHandler:
                 success=False,
                 data=None,
                 error=f"Tool handler for '{tool_name}' not found",
-                correlation_id=str(uuid.uuid4())
+                correlation_id=str(uuid.uuid4()),
             )
 
         # Convert dict to typed args
         typed_args = ToolExecutionArgs(
             correlation_id=tool_args.get("correlation_id", str(uuid.uuid4())),
-            thought_id=tool_args.get('thought_id'),
-            task_id=tool_args.get('task_id'),
-            channel_id=tool_args.get('channel_id'),
-            timeout_seconds=tool_args.get('timeout_seconds', 30.0),
-            tool_specific_params={k: v for k, v in tool_args.items() if k not in ['correlation_id', 'thought_id', 'task_id', 'channel_id', 'timeout_seconds']}
+            thought_id=tool_args.get("thought_id"),
+            task_id=tool_args.get("task_id"),
+            channel_id=tool_args.get("channel_id"),
+            timeout_seconds=tool_args.get("timeout_seconds", 30.0),
+            tool_specific_params={
+                k: v
+                for k, v in tool_args.items()
+                if k not in ["correlation_id", "thought_id", "task_id", "channel_id", "timeout_seconds"]
+            },
         )
-        
+
         correlation_id = str(typed_args.correlation_id or uuid.uuid4())
-        
+
         # Create properly typed request data
         now = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
         request_data = ServiceRequestData(
@@ -123,7 +131,7 @@ class DiscordToolHandler:
             thought_id=typed_args.thought_id,
             task_id=typed_args.task_id,
             channel_id=typed_args.channel_id,
-            timeout_seconds=typed_args.timeout_seconds
+            timeout_seconds=typed_args.timeout_seconds,
         )
 
         persistence.add_correlation(
@@ -144,28 +152,27 @@ class DiscordToolHandler:
                 trace_context=None,
                 retention_policy="raw",
                 ttl_seconds=None,
-                parent_correlation_id=None
+                parent_correlation_id=None,
             ),
-            time_service=self._time_service if self._time_service else TimeService()
+            time_service=self._time_service if self._time_service else TimeService(),
         )
 
         try:
             import time
+
             start_time = time.time()
             # Create context for tool handler
             handler_context = ToolHandlerContext(
-                tool_name=tool_name,
-                handler_name="DiscordAdapter",
-                bot_instance=self.client
+                tool_name=tool_name, handler_name="DiscordAdapter", bot_instance=self.client
             )
-            
+
             # Merge all params with bot
             tool_args_with_bot = {**typed_args.get_all_params(), "bot": self.client}
             result = await handler(tool_args_with_bot)
             _execution_time = (time.time() - start_time) * 1000
 
             result_dict = result if isinstance(result, dict) else result.__dict__
-            
+
             # Create properly typed response data
             response_now = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
             ServiceResponseData(
@@ -179,17 +186,19 @@ class DiscordToolHandler:
                 execution_time_ms=_execution_time,
                 response_timestamp=response_now,
                 tokens_used=None,
-                memory_bytes=None
+                memory_bytes=None,
             )
 
             # Create ToolExecutionResult
             execution_result = ToolExecutionResult(
                 tool_name=tool_name,
-                status=ToolExecutionStatus.COMPLETED if result_dict.get("success", True) else ToolExecutionStatus.FAILED,
+                status=(
+                    ToolExecutionStatus.COMPLETED if result_dict.get("success", True) else ToolExecutionStatus.FAILED
+                ),
                 success=result_dict.get("success", True),
                 data=result_dict,
                 error=result_dict.get("error"),
-                correlation_id=correlation_id or str(uuid.uuid4())
+                correlation_id=correlation_id or str(uuid.uuid4()),
             )
 
             if correlation_id:
@@ -200,9 +209,9 @@ class DiscordToolHandler:
                         response_data=result_dict,
                         status=ServiceCorrelationStatus.COMPLETED,
                         metric_value=None,
-                        tags=None
+                        tags=None,
                     ),
-                    correlation_or_time_service=self._time_service if self._time_service else TimeService()
+                    correlation_or_time_service=self._time_service if self._time_service else TimeService(),
                 )
 
             return execution_result
@@ -218,9 +227,9 @@ class DiscordToolHandler:
                         response_data=error_result,
                         status=ServiceCorrelationStatus.FAILED,
                         metric_value=None,
-                        tags=None
+                        tags=None,
                     ),
-                    correlation_or_time_service=self._time_service if self._time_service else TimeService()
+                    correlation_or_time_service=self._time_service if self._time_service else TimeService(),
                 )
 
             return ToolExecutionResult(
@@ -229,7 +238,7 @@ class DiscordToolHandler:
                 success=False,
                 data=None,
                 error=str(e),
-                correlation_id=correlation_id or str(uuid.uuid4())
+                correlation_id=correlation_id or str(uuid.uuid4()),
             )
 
     async def get_tool_result(self, correlation_id: str, timeout: int = 10) -> Optional[ToolExecutionResult]:
@@ -259,9 +268,9 @@ class DiscordToolHandler:
         if not self.tool_registry:
             return []
 
-        if hasattr(self.tool_registry, 'tools'):
+        if hasattr(self.tool_registry, "tools"):
             return list(self.tool_registry.tools.keys())
-        elif hasattr(self.tool_registry, 'get_tools'):
+        elif hasattr(self.tool_registry, "get_tools"):
             return list(self.tool_registry.get_tools().keys())
         else:
             logger.warning("Tool registry interface not recognized")
@@ -273,39 +282,37 @@ class DiscordToolHandler:
             return None
 
         # Check if the tool registry has a method to get tool description
-        if hasattr(self.tool_registry, 'get_tool_description'):
+        if hasattr(self.tool_registry, "get_tool_description"):
             tool_desc = self.tool_registry.get_tool_description(tool_name)
             if tool_desc:
                 # Convert tool description to ToolInfo
                 parameter_properties = {}
                 required_params = []
-                if hasattr(tool_desc, 'parameters'):
+                if hasattr(tool_desc, "parameters"):
                     for param in tool_desc.parameters:
-                        param_name = getattr(param, 'name', 'unknown')
+                        param_name = getattr(param, "name", "unknown")
                         parameter_properties[param_name] = {
-                            "type": getattr(param.type, 'value', str(param.type)),
-                            "description": getattr(param, 'description', ''),
+                            "type": getattr(param.type, "value", str(param.type)),
+                            "description": getattr(param, "description", ""),
                         }
-                        if getattr(param, 'default', None) is not None:
-                            parameter_properties[param_name]["default"] = getattr(param, 'default')
-                        if getattr(param, 'enum', None) is not None:
-                            parameter_properties[param_name]["enum"] = getattr(param, 'enum')
-                        if getattr(param, 'required', True):
+                        if getattr(param, "default", None) is not None:
+                            parameter_properties[param_name]["default"] = getattr(param, "default")
+                        if getattr(param, "enum", None) is not None:
+                            parameter_properties[param_name]["enum"] = getattr(param, "enum")
+                        if getattr(param, "required", True):
                             required_params.append(param_name)
-                
+
                 parameters = ToolParameterSchema(
-                    type="object",
-                    properties=parameter_properties,
-                    required=required_params
+                    type="object", properties=parameter_properties, required=required_params
                 )
 
                 return ToolInfo(
                     name=tool_desc.name,
                     description=tool_desc.description,
-                    category=getattr(tool_desc, 'category', 'discord'),
+                    category=getattr(tool_desc, "category", "discord"),
                     parameters=parameters,
                     cost=0.0,
-                    when_to_use=getattr(tool_desc, 'when_to_use', None)
+                    when_to_use=getattr(tool_desc, "when_to_use", None),
                 )
 
         # Fallback to basic info if tool exists
@@ -314,13 +321,9 @@ class DiscordToolHandler:
                 name=tool_name,
                 description=f"Discord tool: {tool_name}",
                 category="discord",
-                parameters=ToolParameterSchema(
-                    type="object",
-                    properties={},
-                    required=[]
-                ),
+                parameters=ToolParameterSchema(type="object", properties={}, required=[]),
                 cost=0.0,
-                when_to_use=None
+                when_to_use=None,
             )
 
         return None

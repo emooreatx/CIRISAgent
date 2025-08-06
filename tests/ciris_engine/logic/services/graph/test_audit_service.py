@@ -1,22 +1,21 @@
 """Unit tests for GraphAuditService."""
 
+import os
+import tempfile
+from datetime import datetime, timezone
+from unittest.mock import AsyncMock, Mock
+
 import pytest
 import pytest_asyncio
-import tempfile
-import os
-from datetime import datetime, timezone
-from unittest.mock import Mock, AsyncMock, MagicMock
 
+from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.services.graph.audit_service import GraphAuditService
 from ciris_engine.logic.services.lifecycle.time import TimeService
-from ciris_engine.logic.buses.memory_bus import MemoryBus
-from ciris_engine.schemas.services.operations import MemoryOpStatus, MemoryOpResult
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
-from ciris_engine.schemas.services.graph.audit import (
-    AuditEventData, VerificationReport, AuditQueryResult, AuditQuery
-)
 from ciris_engine.schemas.runtime.audit import AuditActionContext, AuditRequest
 from ciris_engine.schemas.runtime.enums import HandlerActionType
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.services.graph.audit import AuditEventData, AuditQuery, VerificationReport
+from ciris_engine.schemas.services.operations import MemoryOpResult, MemoryOpStatus
 
 
 @pytest.fixture
@@ -28,7 +27,7 @@ def time_service():
 @pytest.fixture
 def temp_db():
     """Create a temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
     yield db_path
     os.unlink(db_path)
@@ -40,10 +39,7 @@ def memory_bus():
     bus = Mock(spec=MemoryBus)
 
     # Mock memorize to return success
-    bus.memorize = AsyncMock(return_value=MemoryOpResult(
-        status=MemoryOpStatus.OK,
-        error=None
-    ))
+    bus.memorize = AsyncMock(return_value=MemoryOpResult(status=MemoryOpStatus.OK, error=None))
 
     # Mock recall to return empty list by default
     bus.recall = AsyncMock(return_value=[])
@@ -68,7 +64,7 @@ async def audit_service(memory_bus, temp_db, time_service):
             time_service=time_service,
             db_path=temp_db,
             export_path=export_path,  # Provide export path for tests
-            enable_hash_chain=False  # Disable for faster tests
+            enable_hash_chain=False,  # Disable for faster tests
         )
         await service.start()
         yield service
@@ -92,15 +88,11 @@ async def test_audit_service_log_action(audit_service):
         thought_id="test_thought_123",
         task_id="test_task_456",
         handler_name="test_handler",
-        parameters={"param1": "value1"}
+        parameters={"param1": "value1"},
     )
 
     # Log the action
-    await audit_service.log_action(
-        action_type=HandlerActionType.SPEAK,
-        context=context,
-        outcome="success"
-    )
+    await audit_service.log_action(action_type=HandlerActionType.SPEAK, context=context, outcome="success")
 
     # Verify memory bus was called
     assert audit_service._memory_bus.memorize.called
@@ -110,18 +102,10 @@ async def test_audit_service_log_action(audit_service):
 async def test_audit_service_log_event(audit_service):
     """Test logging a general event."""
     # Create simple event data without optional fields that cause issues
-    event_data = AuditEventData(
-        entity_id="test_entity",
-        actor="test_user",
-        outcome="success",
-        severity="info"
-    )
+    event_data = AuditEventData(entity_id="test_entity", actor="test_user", outcome="success", severity="info")
 
     # Log the event
-    await audit_service.log_event(
-        event_type="custom_event",
-        event_data=event_data
-    )
+    await audit_service.log_event(event_type="custom_event", event_data=event_data)
 
     # Verify memory bus was called now that the bug is fixed
     assert audit_service._memory_bus.memorize.called
@@ -141,33 +125,28 @@ async def test_audit_service_get_audit_trail(audit_service, memory_bus):
             event_type="test_event",
             actor="test_actor",
             details={"detail": "value"},
-            outcome="success"
+            outcome="success",
         )
     ]
 
     # Mock memory bus to return audit nodes
-    from ciris_engine.schemas.services.nodes import AuditEntry as AuditEntryNode, AuditEntryContext
-    from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
+    from ciris_engine.schemas.services.graph_core import GraphScope
+    from ciris_engine.schemas.services.nodes import AuditEntry as AuditEntryNode
+    from ciris_engine.schemas.services.nodes import AuditEntryContext
 
     mock_node = AuditEntryNode(
         id="audit_entry1",
         action="test_event",
         actor="test_actor",
         timestamp=mock_entries[0].timestamp,
-        context=AuditEntryContext(
-            service_name="GraphAuditService",
-            correlation_id="entry1"
-        ),
+        context=AuditEntryContext(service_name="GraphAuditService", correlation_id="entry1"),
         scope=GraphScope.LOCAL,
-        attributes={}  # Required field
+        attributes={},  # Required field
     )
     memory_bus.recall.return_value = [mock_node.to_graph_node()]
 
     # Get audit trail - requires entity_id
-    entries = await audit_service.get_audit_trail(
-        entity_id="entity1",
-        hours=24
-    )
+    entries = await audit_service.get_audit_trail(entity_id="entity1", hours=24)
 
     # Should have retrieved entries
     assert len(entries) >= 0  # May be empty if no entries stored
@@ -178,15 +157,10 @@ async def test_audit_service_get_audit_trail(audit_service, memory_bus):
 @pytest.mark.asyncio
 async def test_audit_service_query_audit_trail(audit_service, memory_bus):
     """Test querying audit trail with filters."""
-    from ciris_engine.schemas.services.graph.audit import AuditQuery
-    
+
     # Create an AuditQuery object
     start_time = datetime.now(timezone.utc)
-    query = AuditQuery(
-        start_time=start_time,
-        action_types=["test_event"],
-        limit=5
-    )
+    query = AuditQuery(start_time=start_time, action_types=["test_event"], limit=5)
 
     # Query audit trail
     results = await audit_service.query_audit_trail(query)
@@ -243,7 +217,7 @@ async def test_audit_service_log_conscience_event(audit_service):
         thought_id="test_thought_123",
         decision="allow",
         reasoning="Action permitted based on ethical guidelines",
-        metadata={"risk_level": "low", "confidence": 0.95}
+        metadata={"risk_level": "low", "confidence": 0.95},
     )
 
     # Verify memory bus was called now that the bug is fixed
@@ -255,8 +229,7 @@ async def test_audit_service_export_data(audit_service):
     """Test exporting audit data."""
     # Export should work now that export_path is configured
     export_path = await audit_service.export_audit_data(
-        format="jsonl",  # Use supported format
-        start_time=datetime.now(timezone.utc)
+        format="jsonl", start_time=datetime.now(timezone.utc)  # Use supported format
     )
     # Should return a valid path
     assert export_path is not None
@@ -271,10 +244,7 @@ async def test_audit_service_error_handling(audit_service, memory_bus):
     memory_bus.memorize.side_effect = Exception("Database error")
 
     # Log event should not raise, just log error
-    event_data = AuditEventData(
-        entity_id="test",
-        actor="test"
-    )
+    event_data = AuditEventData(entity_id="test", actor="test")
 
     # Should not raise exception
     await audit_service.log_event("test_event", event_data)
@@ -289,11 +259,7 @@ async def test_audit_service_cache_management(audit_service):
     """Test audit entry cache management."""
     # Log multiple events to fill cache
     for i in range(5):
-        event_data = AuditEventData(
-            entity_id=f"entity_{i}",
-            actor=f"actor_{i}",
-            severity="info"
-        )
+        event_data = AuditEventData(entity_id=f"entity_{i}", actor=f"actor_{i}", severity="info")
         await audit_service.log_event(f"event_{i}", event_data)
 
     # Check status shows cached entries

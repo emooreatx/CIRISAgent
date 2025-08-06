@@ -4,18 +4,20 @@ Shutdown Service for CIRIS Trinity Architecture.
 Manages graceful shutdown coordination across the system.
 This replaces the shutdown_manager.py utility with a proper service.
 """
+
 import asyncio
 import logging
-from typing import Awaitable, Callable, List, Optional, Dict, Any
 from threading import Lock
+from typing import Awaitable, Callable, Dict, List, Optional
 
-from ciris_engine.protocols.services import ShutdownServiceProtocol
 from ciris_engine.logic.services.base_infrastructure_service import BaseInfrastructureService
+from ciris_engine.protocols.services import ShutdownServiceProtocol
 from ciris_engine.schemas.runtime.enums import ServiceType
-from ciris_engine.schemas.services.metadata import ServiceMetadata
 from ciris_engine.schemas.services.core import ServiceCapabilities
+from ciris_engine.schemas.services.metadata import ServiceMetadata
 
 logger = logging.getLogger(__name__)
+
 
 class ShutdownService(BaseInfrastructureService, ShutdownServiceProtocol):
     """Service for coordinating graceful shutdown."""
@@ -24,7 +26,7 @@ class ShutdownService(BaseInfrastructureService, ShutdownServiceProtocol):
         """Initialize the shutdown service."""
         # Initialize base class without time_service (we ARE a critical infrastructure service)
         super().__init__(service_name="ShutdownService", version="1.0.0")
-        
+
         # Shutdown-specific attributes
         self._shutdown_requested = False
         self._shutdown_reason: Optional[str] = None
@@ -59,10 +61,10 @@ class ShutdownService(BaseInfrastructureService, ShutdownServiceProtocol):
         """Get list of actions this service provides."""
         return [
             "request_shutdown",
-            "register_shutdown_handler", 
+            "register_shutdown_handler",
             "is_shutdown_requested",
             "get_shutdown_reason",
-            "emergency_shutdown"
+            "emergency_shutdown",
         ]
 
     def _check_dependencies(self) -> bool:
@@ -75,37 +77,41 @@ class ShutdownService(BaseInfrastructureService, ShutdownServiceProtocol):
         # Get metadata dict from parent's _get_metadata()
         service_metadata = self._get_metadata()
         metadata_dict = service_metadata.model_dump() if isinstance(service_metadata, ServiceMetadata) else {}
-        
+
         # Add infrastructure-specific metadata from parent
-        metadata_dict.update({
-            "category": "infrastructure",
-            "critical": True,
-            "description": "Coordinates graceful system shutdown",
-            "supports_emergency": True,
-            "max_handlers": 100
-        })
-        
+        metadata_dict.update(
+            {
+                "category": "infrastructure",
+                "critical": True,
+                "description": "Coordinates graceful system shutdown",
+                "supports_emergency": True,
+                "max_handlers": 100,
+            }
+        )
+
         return ServiceCapabilities(
             service_name=self.service_name,
             actions=self._get_actions(),
             version=self._version,
             dependencies=list(self._dependencies),
-            metadata=metadata_dict
+            metadata=metadata_dict,
         )
 
     def _collect_custom_metrics(self) -> Dict[str, float]:
         """Collect shutdown-specific metrics."""
         metrics = super()._collect_custom_metrics()
-        
+
         with self._lock:
             handler_count = len(self._shutdown_handlers) + len(self._async_shutdown_handlers)
-        
-        metrics.update({
-            "shutdown_requested": float(self._shutdown_requested),
-            "registered_handlers": float(handler_count),
-            "emergency_mode": float(self._emergency_mode)
-        })
-        
+
+        metrics.update(
+            {
+                "shutdown_requested": float(self._shutdown_requested),
+                "registered_handlers": float(handler_count),
+                "emergency_mode": float(self._emergency_mode),
+            }
+        )
+
         return metrics
 
     async def request_shutdown(self, reason: str) -> None:
@@ -215,6 +221,7 @@ class ShutdownService(BaseInfrastructureService, ShutdownServiceProtocol):
     def wait_for_shutdown(self) -> None:
         """Wait for shutdown to be requested (blocking)."""
         import time
+
         while not self._shutdown_requested:
             time.sleep(0.1)
 
@@ -222,11 +229,7 @@ class ShutdownService(BaseInfrastructureService, ShutdownServiceProtocol):
         """Wait for shutdown to be requested (async)."""
         await self._wait_for_shutdown()
 
-    async def emergency_shutdown(
-        self,
-        reason: str,
-        timeout_seconds: int = 5
-    ) -> None:
+    async def emergency_shutdown(self, reason: str, timeout_seconds: int = 5) -> None:
         """
         Execute emergency shutdown without negotiation.
 
@@ -255,8 +258,7 @@ class ShutdownService(BaseInfrastructureService, ShutdownServiceProtocol):
 
             # Execute async handlers with timeout
             await asyncio.wait_for(
-                self._execute_async_handlers(),
-                timeout=timeout_seconds / 2  # Use half timeout for handlers
+                self._execute_async_handlers(), timeout=timeout_seconds / 2  # Use half timeout for handlers
             )
         except asyncio.TimeoutError:
             logger.warning("Emergency shutdown handlers timed out")
@@ -269,11 +271,11 @@ class ShutdownService(BaseInfrastructureService, ShutdownServiceProtocol):
             logger.critical("Emergency shutdown timeout reached - forcing termination")
             import os
             import signal
-            
+
             # Safety check: only kill our own process
             pid = os.getpid()
             logger.critical(f"Sending SIGKILL to process {pid}")
-            
+
             try:
                 os.kill(pid, signal.SIGKILL)
             except OSError as e:
@@ -290,4 +292,5 @@ class ShutdownService(BaseInfrastructureService, ShutdownServiceProtocol):
         # Try graceful exit first
         logger.info("Attempting graceful exit...")
         import sys
+
         sys.exit(1)

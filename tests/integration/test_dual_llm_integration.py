@@ -2,12 +2,15 @@
 Integration test for dual LLM service functionality.
 Tests actual initialization with environment variables.
 """
-import os
-import pytest
+
 import asyncio
+import os
+
+import pytest
+
+from ciris_engine.logic.registries.base import ServiceRegistry
 from ciris_engine.logic.runtime.service_initializer import ServiceInitializer
 from ciris_engine.schemas.config.essential import EssentialConfig
-from ciris_engine.logic.registries.base import ServiceRegistry
 from ciris_engine.schemas.runtime.enums import ServiceType
 
 
@@ -50,41 +53,45 @@ async def test_dual_llm_service_real_initialization():
         providers_info = []
         for i, provider in enumerate(llm_providers):
             # Check basic properties
-            assert hasattr(provider, 'model_name'), "LLM provider should have model_name"
-            providers_info.append({
-                'provider': f'provider_{i}',  # Generic name
-                'model': getattr(provider, 'model_name', 'unknown'),
-                'base_url': getattr(provider, 'base_url', 'default'),
-                'priority': 'HIGH' if i == 0 else 'NORMAL'  # Assume first is primary
-            })
+            assert hasattr(provider, "model_name"), "LLM provider should have model_name"
+            providers_info.append(
+                {
+                    "provider": f"provider_{i}",  # Generic name
+                    "model": getattr(provider, "model_name", "unknown"),
+                    "base_url": getattr(provider, "base_url", "default"),
+                    "priority": "HIGH" if i == 0 else "NORMAL",  # Assume first is primary
+                }
+            )
 
         # Sort by priority for consistent checking
-        providers_info.sort(key=lambda x: x['priority'])
+        providers_info.sort(key=lambda x: x["priority"])
 
         # Primary should have HIGH priority
-        assert any(p['priority'] == 'HIGH' for p in providers_info), \
-            "Primary provider not found with HIGH priority"
+        assert any(p["priority"] == "HIGH" for p in providers_info), "Primary provider not found with HIGH priority"
 
         # Secondary should have NORMAL priority
-        assert any(p['priority'] == 'NORMAL' for p in providers_info), \
-            "Secondary provider not found with NORMAL priority"
+        assert any(
+            p["priority"] == "NORMAL" for p in providers_info
+        ), "Secondary provider not found with NORMAL priority"
 
         # Check that we have different models for primary and secondary
-        models = [p['model'] for p in providers_info]
+        models = [p["model"] for p in providers_info]
         assert len(set(models)) == 2, "Primary and secondary should use different models"
 
         print("\nDual LLM Service Configuration:")
         for info in providers_info:
-            print(f"  {info['provider']}: {info['model']} at {info.get('base_url', 'default')} (Priority: {info['priority']})")
+            print(
+                f"  {info['provider']}: {info['model']} at {info.get('base_url', 'default')} (Priority: {info['priority']})"
+            )
 
     finally:
         # Cleanup
-        if hasattr(initializer, 'shutdown_service') and initializer.shutdown_service:
+        if hasattr(initializer, "shutdown_service") and initializer.shutdown_service:
             await initializer.shutdown_service.request_shutdown("Test complete")
 
         # Stop all services
-        if hasattr(initializer, 'llm_service') and initializer.llm_service:
-            if hasattr(initializer.llm_service, 'stop'):
+        if hasattr(initializer, "llm_service") and initializer.llm_service:
+            if hasattr(initializer.llm_service, "stop"):
                 await initializer.llm_service.stop()
 
 

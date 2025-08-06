@@ -33,8 +33,8 @@ export class MemoryResource extends BaseResource {
     // If query looks like a node ID, search by ID
     const isNodeId = query && (
       // Known node type prefixes (case-insensitive)
-      query.toLowerCase().startsWith('metric_') || 
-      query.toLowerCase().startsWith('audit_') || 
+      query.toLowerCase().startsWith('metric_') ||
+      query.toLowerCase().startsWith('audit_') ||
       query.toLowerCase().startsWith('log_') ||
       query.toLowerCase().startsWith('dream_schedule_') ||
       query.toLowerCase().startsWith('thought_') ||
@@ -60,18 +60,18 @@ export class MemoryResource extends BaseResource {
       // Generic pattern: contains underscore (not at start) and 10-digit timestamp
       (query.includes('_') && !query.startsWith('_') && /\d{10}/.test(query))
     );
-    
+
     const body: any = {
       ...(isNodeId ? { node_id: query } : { query }),
       ...options
     };
-    
+
     // Debug logging
     console.log('Memory query:', { query, isNodeId, body });
-    
+
     const response = await this.transport.post<any>('/v1/memory/query', body);
     console.log('Memory query response:', response);
-    
+
     // Handle both direct array response and data wrapper
     return Array.isArray(response) ? response : (response.data || response);
   }

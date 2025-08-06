@@ -2,17 +2,14 @@
 Unit tests for base observer numeric ID handling.
 Tests that the observer properly includes numeric IDs in task descriptions and thought content.
 """
+
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import Mock, AsyncMock, MagicMock, patch
-from datetime import datetime, timezone
-import uuid
 
 from ciris_engine.logic.adapters.base_observer import BaseObserver
-from ciris_engine.schemas.runtime.messages import DiscordMessage
-from ciris_engine.schemas.runtime.models import Task, Thought, TaskContext
-from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus, ThoughtType
 from ciris_engine.logic.services.lifecycle.time import TimeService
-from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
+from ciris_engine.schemas.runtime.messages import DiscordMessage
 
 
 class ConcreteObserver(BaseObserver[DiscordMessage]):
@@ -55,7 +52,7 @@ class TestBaseObserverNumericIds:
             bus_manager=mock_bus_manager,
             memory_service=mock_memory_service,
             time_service=time_service,
-            origin_service="test"
+            origin_service="test",
         )
 
     @pytest.mark.asyncio
@@ -68,7 +65,7 @@ class TestBaseObserverNumericIds:
             author_name="SomeComputerGuy",
             content="Hello, do you remember me?",
             channel_id="1234567890",
-            is_bot=False
+            is_bot=False,
         )
 
         # Mock persistence to capture the task
@@ -84,9 +81,9 @@ class TestBaseObserverNumericIds:
             captured_thought = thought
 
         # Patch persistence and database calls
-        with patch('ciris_engine.logic.persistence.add_task', side_effect=capture_task):
-            with patch('ciris_engine.logic.persistence.add_thought', side_effect=capture_thought):
-                with patch('ciris_engine.logic.persistence.get_correlations_by_channel', return_value=[]):
+        with patch("ciris_engine.logic.persistence.add_task", side_effect=capture_task):
+            with patch("ciris_engine.logic.persistence.add_thought", side_effect=capture_thought):
+                with patch("ciris_engine.logic.persistence.get_correlations_by_channel", return_value=[]):
                     await observer._create_passive_observation_result(test_msg)
 
         # Verify task was created with numeric ID in description
@@ -107,14 +104,14 @@ class TestBaseObserverNumericIds:
                 "author": "User1",
                 "author_id": "111111111111111111",
                 "content": "First message",
-                "timestamp": "2024-01-01T00:00:00Z"
+                "timestamp": "2024-01-01T00:00:00Z",
             },
             {
                 "author": "User2",
                 "author_id": "222222222222222222",
                 "content": "Second message",
-                "timestamp": "2024-01-01T00:01:00Z"
-            }
+                "timestamp": "2024-01-01T00:01:00Z",
+            },
         ]
 
         # Current message
@@ -124,7 +121,7 @@ class TestBaseObserverNumericIds:
             author_name="User3",
             content="Current message",
             channel_id="1234567890",
-            is_bot=False
+            is_bot=False,
         )
 
         captured_thought = None
@@ -134,9 +131,9 @@ class TestBaseObserverNumericIds:
             captured_thought = thought
 
         # Patch persistence and correlation history
-        with patch('ciris_engine.logic.persistence.add_task'):
-            with patch('ciris_engine.logic.persistence.add_thought', side_effect=capture_thought):
-                with patch.object(observer, '_get_correlation_history', return_value=mock_history):
+        with patch("ciris_engine.logic.persistence.add_task"):
+            with patch("ciris_engine.logic.persistence.add_thought", side_effect=capture_thought):
+                with patch.object(observer, "_get_correlation_history", return_value=mock_history):
                     await observer._create_passive_observation_result(current_msg)
 
         # Verify all messages in history have numeric IDs
@@ -157,7 +154,7 @@ class TestBaseObserverNumericIds:
             author_name="UrgentUser",
             content="URGENT: Please help immediately!",
             channel_id="1234567890",
-            is_bot=False
+            is_bot=False,
         )
 
         # Mock filter result
@@ -177,8 +174,8 @@ class TestBaseObserverNumericIds:
             captured_thought = thought
 
         # Patch persistence
-        with patch('ciris_engine.logic.persistence.add_task', side_effect=capture_task):
-            with patch('ciris_engine.logic.persistence.add_thought', side_effect=capture_thought):
+        with patch("ciris_engine.logic.persistence.add_task", side_effect=capture_task):
+            with patch("ciris_engine.logic.persistence.add_thought", side_effect=capture_thought):
                 await observer._create_priority_observation_result(test_msg, filter_result)
 
         # Verify priority task includes numeric ID
@@ -189,4 +186,3 @@ class TestBaseObserverNumericIds:
         # Verify priority thought includes numeric ID
         assert captured_thought is not None
         assert "UrgentUser (ID: 999888777666555444)" in captured_thought.content
-

@@ -29,15 +29,15 @@ class VibeType(str, Enum):
 class PositivityService(Service):
     """
     Tracks positive moments and good vibes in the community.
-    
+
     No ledgers, no balances, no reciprocity calculations.
     Just noting when good things happen.
     """
-    
+
     def __init__(self, memory_bus: Optional[MemoryBus] = None) -> None:
         super().__init__()
         self._memory_bus = memory_bus
-    
+
     async def celebrate_moment(
         self,
         vibe_type: VibeType,
@@ -48,7 +48,7 @@ class PositivityService(Service):
     ) -> str:
         """
         Record a positive moment. No tracking who did what, just that it happened.
-        
+
         Returns:
             Event ID for the celebration
         """
@@ -56,9 +56,9 @@ class PositivityService(Service):
             if not self._memory_bus:
                 logger.warning("No memory bus - can't save the good vibes!")
                 return ""
-            
+
             event_id = f"vibe_{int(datetime.now(timezone.utc).timestamp())}"
-            
+
             # Just record that something good happened
             vibe_node = GraphNode(
                 id=event_id,
@@ -75,37 +75,37 @@ class PositivityService(Service):
                     "is_group_vibe": len(participants) > 2 if participants else False
                 }
             )
-            
+
             await self._memory_bus.memorize(
                 node=vibe_node,
                 handler_name="positivity_service",
                 metadata={"spreading_joy": True}
             )
-            
+
             logger.info(f"✨ Recorded {vibe_type.value}: {description[:50]}...")
             return event_id
-            
+
         except Exception as e:
             logger.error(f"Couldn't save the good vibes: {e}")
             return ""
-    
+
     async def get_recent_vibes(
-        self, 
+        self,
         hours: int = 24,
         channel_id: Optional[str] = None
     ) -> Dict[str, any]:
         """
         Get a summary of recent positive vibes.
-        
+
         No individual tracking - just overall community mood.
         """
         try:
             if not self._memory_bus:
                 return {"vibe_check": "unknown", "reason": "no memory bus"}
-            
+
             # Query recent vibe nodes
             # (In a real implementation, this would use proper graph queries)
-            
+
             # For now, return a simple summary
             return {
                 "vibe_check": "good",  # good, great, amazing, quiet
@@ -115,19 +115,19 @@ class PositivityService(Service):
                 "group_vibes": True,  # Are people vibing together?
                 "message": "The community seems happy!"
             }
-            
+
         except Exception as e:
             logger.error(f"Vibe check failed: {e}")
             return {"vibe_check": "unknown", "reason": str(e)}
-    
+
     async def vibe_check(self, channel_id: Optional[str] = None) -> str:
         """
         Simple vibe check - how's the mood?
-        
+
         Returns a simple string describing the vibes.
         """
         vibes = await self.get_recent_vibes(hours=6, channel_id=channel_id)
-        
+
         vibe_status = vibes.get("vibe_check", "unknown")
         if vibe_status == "amazing":
             return "✨ Vibes are IMMACULATE! ✨"
@@ -139,23 +139,23 @@ class PositivityService(Service):
             return "😴 Pretty quiet, but that's okay too"
         else:
             return "🤷 Vibe status unclear"
-    
+
     async def start(self) -> None:
         """Start the positivity service."""
         logger.info("😊 PositivityService started - ready to spread good vibes!")
-    
+
     async def stop(self) -> None:
         """Stop the positivity service."""
         logger.info("👋 PositivityService stopped - keep the good times rolling!")
-    
+
     async def is_healthy(self) -> bool:
         """Always healthy when you're positive!"""
         return True
-    
+
     async def get_capabilities(self) -> List[str]:
         """What can we do?"""
         return [
             "celebrate_moment",
-            "vibe_check", 
+            "vibe_check",
             "spread_joy_not_score"
         ]

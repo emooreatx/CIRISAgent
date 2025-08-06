@@ -5,37 +5,24 @@ Tests how the Discord adapter handles deferrals, including
 notifications to human WAs and deferral resolution through Discord.
 """
 
-import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timezone, timedelta
-from typing import Optional, List, Dict, Any
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
+from unittest.mock import AsyncMock, Mock
 
-from ciris_engine.schemas.services.authority.wise_authority import (
-    PendingDeferral, DeferralResolution
-)
-from ciris_engine.schemas.services.authority_core import (
-    DeferralResponse, WARole, WACertificate
-)
+import pytest
+
+from ciris_engine.schemas.services.authority.wise_authority import PendingDeferral
+from ciris_engine.schemas.services.authority_core import DeferralResponse, WACertificate, WARole
 
 
 class MockDiscordMessage:
     """Mock Discord message for testing."""
+
     def __init__(self, content: str, author_id: str = "123456", channel_id: str = "789012"):
         self.content = content
-        self.author = Mock(
-            id=author_id,
-            name=f"User_{author_id}",
-            mention=f"<@{author_id}>"
-        )
-        self.channel = Mock(
-            id=channel_id,
-            name=f"channel_{channel_id}",
-            send=AsyncMock()
-        )
-        self.guild = Mock(
-            id="111111",
-            name="Test Guild"
-        )
+        self.author = Mock(id=author_id, name=f"User_{author_id}", mention=f"<@{author_id}>")
+        self.channel = Mock(id=channel_id, name=f"channel_{channel_id}", send=AsyncMock())
+        self.guild = Mock(id="111111", name="Test Guild")
         self.created_at = datetime.now(timezone.utc)
         self.id = "msg_" + str(hash(content))[:8]
 
@@ -49,10 +36,7 @@ class MockDiscordAdapter:
         self.deferral_notifications: Dict[str, List[str]] = {}  # channel_id -> messages
 
     async def send_deferral_notification(
-        self,
-        channel_id: str,
-        deferral: PendingDeferral,
-        wa_mentions: List[str]
+        self, channel_id: str, deferral: PendingDeferral, wa_mentions: List[str]
     ) -> None:
         """Send deferral notification to Discord channel."""
         # Build notification message
@@ -79,13 +63,15 @@ To resolve, use: `/wa resolve {deferral.deferral_id} [approve|reject|modify] [re
         self.deferral_notifications[channel_id].append(message)
 
         # Track sent message
-        self.sent_messages.append({
-            "channel_id": channel_id,
-            "content": message,
-            "type": "deferral_notification",
-            "deferral_id": deferral.deferral_id,
-            "mentions": wa_mentions
-        })
+        self.sent_messages.append(
+            {
+                "channel_id": channel_id,
+                "content": message,
+                "type": "deferral_notification",
+                "deferral_id": deferral.deferral_id,
+                "mentions": wa_mentions,
+            }
+        )
 
     async def handle_wa_command(self, message: MockDiscordMessage) -> Optional[str]:
         """Handle WA commands from Discord."""
@@ -127,7 +113,7 @@ To resolve, use: `/wa resolve {deferral.deferral_id} [approve|reject|modify] [re
                 reason=reason,
                 modified_time=None,
                 wa_id=wa_cert.wa_id,
-                signature=f"discord_{message.id}"
+                signature=f"discord_{message.id}",
             )
 
             # Resolve deferral
@@ -168,7 +154,7 @@ To resolve, use: `/wa resolve {deferral.deferral_id} [approve|reject|modify] [re
                 adapter_id="discord",
                 adapter_name="Discord",
                 adapter_metadata_json=None,
-                last_auth=datetime.now(timezone.utc)
+                last_auth=datetime.now(timezone.utc),
             )
         return None
 
@@ -182,34 +168,36 @@ class TestDiscordDeferrals:
         service = AsyncMock()
 
         # Setup pending deferrals
-        service.get_pending_deferrals = AsyncMock(return_value=[
-            PendingDeferral(
-                deferral_id="defer_001",
-                created_at=datetime.now(timezone.utc),
-                deferred_by="agent_123",
-                task_id="task_spam_001",
-                thought_id="thought_spam_001",
-                reason="Potential spam detected, needs human review",
-                channel_id="discord_123",
-                user_id="user_456",
-                priority="high",
-                requires_role="AUTHORITY",
-                status="pending"
-            ),
-            PendingDeferral(
-                deferral_id="defer_002",
-                created_at=datetime.now(timezone.utc) - timedelta(hours=1),
-                deferred_by="agent_123",
-                task_id="task_mod_001",
-                thought_id="thought_mod_001",
-                reason="User reported for inappropriate behavior",
-                channel_id="discord_456",
-                user_id="user_789",
-                priority="critical",
-                requires_role="AUTHORITY",
-                status="pending"
-            )
-        ])
+        service.get_pending_deferrals = AsyncMock(
+            return_value=[
+                PendingDeferral(
+                    deferral_id="defer_001",
+                    created_at=datetime.now(timezone.utc),
+                    deferred_by="agent_123",
+                    task_id="task_spam_001",
+                    thought_id="thought_spam_001",
+                    reason="Potential spam detected, needs human review",
+                    channel_id="discord_123",
+                    user_id="user_456",
+                    priority="high",
+                    requires_role="AUTHORITY",
+                    status="pending",
+                ),
+                PendingDeferral(
+                    deferral_id="defer_002",
+                    created_at=datetime.now(timezone.utc) - timedelta(hours=1),
+                    deferred_by="agent_123",
+                    task_id="task_mod_001",
+                    thought_id="thought_mod_001",
+                    reason="User reported for inappropriate behavior",
+                    channel_id="discord_456",
+                    user_id="user_789",
+                    priority="critical",
+                    requires_role="AUTHORITY",
+                    status="pending",
+                ),
+            ]
+        )
 
         service.resolve_deferral = AsyncMock(return_value=True)
 
@@ -235,16 +223,12 @@ class TestDiscordDeferrals:
             user_id="suspect_user",
             priority="critical",
             requires_role="AUTHORITY",
-            status="pending"
+            status="pending",
         )
 
         # Send notification with specific WA mentions
         wa_mentions = ["<@wa_security_lead>", "<@wa_moderator_001>"]
-        await discord_adapter.send_deferral_notification(
-            "security_channel",
-            deferral,
-            wa_mentions
-        )
+        await discord_adapter.send_deferral_notification("security_channel", deferral, wa_mentions)
 
         # Verify notification was sent
         assert len(discord_adapter.sent_messages) == 1
@@ -279,8 +263,7 @@ class TestDiscordDeferrals:
         """Test approving a deferral through Discord."""
         # Create message from authorized WA
         message = MockDiscordMessage(
-            "/wa resolve defer_001 approve Reviewed and confirmed not spam",
-            author_id="wa_authority_discord"
+            "/wa resolve defer_001 approve Reviewed and confirmed not spam", author_id="wa_authority_discord"
         )
 
         # Handle command
@@ -305,8 +288,7 @@ class TestDiscordDeferrals:
         """Test rejecting a deferral through Discord."""
         # Create message from authorized WA
         message = MockDiscordMessage(
-            "/wa resolve defer_002 reject User violated community guidelines",
-            author_id="wa_authority_discord"
+            "/wa resolve defer_002 reject User violated community guidelines", author_id="wa_authority_discord"
         )
 
         # Handle command
@@ -327,10 +309,7 @@ class TestDiscordDeferrals:
     async def test_unauthorized_resolution_attempt(self, discord_adapter):
         """Test that non-AUTHORITY users cannot resolve deferrals."""
         # Create message from regular user
-        message = MockDiscordMessage(
-            "/wa resolve defer_001 approve Should not work",
-            author_id="regular_user_123"
-        )
+        message = MockDiscordMessage("/wa resolve defer_001 approve Should not work", author_id="regular_user_123")
 
         # Handle command
         response = await discord_adapter.handle_wa_command(message)
@@ -346,7 +325,7 @@ class TestDiscordDeferrals:
         deferrals = [
             PendingDeferral(
                 deferral_id=f"defer_batch_{i}",
-                created_at=datetime.now(timezone.utc) - timedelta(minutes=i*10),
+                created_at=datetime.now(timezone.utc) - timedelta(minutes=i * 10),
                 deferred_by="agent_123",
                 task_id=f"task_batch_{i}",
                 thought_id=f"thought_batch_{i}",
@@ -355,18 +334,14 @@ class TestDiscordDeferrals:
                 user_id=f"user_{i}",
                 priority=["low", "medium", "high", "critical"][i % 4],
                 requires_role="AUTHORITY",
-                status="pending"
+                status="pending",
             )
             for i in range(5)
         ]
 
         # Send all notifications
         for deferral in deferrals:
-            await discord_adapter.send_deferral_notification(
-                "batch_channel",
-                deferral,
-                ["@here"]
-            )
+            await discord_adapter.send_deferral_notification("batch_channel", deferral, ["@here"])
 
         # Verify all sent
         assert len(discord_adapter.sent_messages) == 5
@@ -395,11 +370,7 @@ class TestDiscordDeferrals:
         )
 
         # Send notification
-        await discord_adapter.send_deferral_notification(
-            "medical_channel",
-            deferral,
-            ["<@medical_wa_team>"]
-        )
+        await discord_adapter.send_deferral_notification("medical_channel", deferral, ["<@medical_wa_team>"])
 
         # Verify context is included
         sent = discord_adapter.sent_messages[0]
@@ -432,7 +403,7 @@ class TestDiscordDeferrals:
         # This would be a more complex command in real implementation
         message = MockDiscordMessage(
             "/wa resolve defer_001 modify Approve with additional monitoring for 7 days",
-            author_id="wa_authority_discord"
+            author_id="wa_authority_discord",
         )
 
         # Handle command
@@ -475,15 +446,11 @@ class TestDiscordDeferralIntegration:
             user_id="user_asking",
             priority="medium",
             requires_role="AUTHORITY",
-            status="pending"
+            status="pending",
         )
 
         # Step 2: Notification sent
-        await discord_adapter.send_deferral_notification(
-            "general_channel",
-            deferral,
-            ["<@wa_on_duty>"]
-        )
+        await discord_adapter.send_deferral_notification("general_channel", deferral, ["<@wa_on_duty>"])
 
         assert len(discord_adapter.sent_messages) == 1
 
@@ -496,8 +463,7 @@ class TestDiscordDeferralIntegration:
 
         # Step 4: WA resolves
         resolve_msg = MockDiscordMessage(
-            "/wa resolve integration_defer_001 approve Proceed with standard protocol",
-            author_id="wa_authority_discord"
+            "/wa resolve integration_defer_001 approve Proceed with standard protocol", author_id="wa_authority_discord"
         )
 
         resolution_response = await discord_adapter.handle_wa_command(resolve_msg)

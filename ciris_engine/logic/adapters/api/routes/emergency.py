@@ -4,28 +4,28 @@ Emergency Shutdown endpoint for CIRIS API.
 Provides cryptographically signed emergency shutdown functionality
 that operates outside normal authentication (signature IS the auth).
 """
-import logging
-from datetime import datetime, timezone, timedelta
-from typing import Dict, Any
-from fastapi import APIRouter, Request, HTTPException
+
 import base64
 import json
+import logging
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict
+
+from fastapi import APIRouter, HTTPException, Request
 
 try:
     # Try to import Ed25519 verification
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
     from cryptography.exceptions import InvalidSignature
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
     CRYPTO_AVAILABLE = True
 except ImportError:
     CRYPTO_AVAILABLE = False
     logging.warning("Ed25519 crypto not available - emergency shutdown will be disabled")
 
-from ciris_engine.schemas.services.shutdown import (
-    WASignedCommand,
-    EmergencyShutdownStatus,
-    EmergencyCommandType
-)
 from ciris_engine.schemas.api.responses import SuccessResponse
+from ciris_engine.schemas.services.shutdown import EmergencyCommandType, EmergencyShutdownStatus, WASignedCommand
+
 from ..constants import ERROR_SHUTDOWN_SERVICE_NOT_AVAILABLE
 
 logger = logging.getLogger(__name__)
@@ -41,6 +41,7 @@ ROOT_WA_AUTHORITY_KEYS = [
     # Example Ed25519 public key (base64 encoded)
     # "MCowBQYDK2VwAyEAGb9ECWmEzf6FQbrBZ9w7lshQhqowtrbLDFw4rXAxZuE="
 ]
+
 
 def verify_signature(command: WASignedCommand) -> bool:
     """
@@ -60,7 +61,7 @@ def verify_signature(command: WASignedCommand) -> bool:
         # Decode the public key (handle URL-safe base64)
         # Add padding if needed
         key_b64 = command.wa_public_key
-        key_b64 += '=' * (4 - len(key_b64) % 4) if len(key_b64) % 4 else ''
+        key_b64 += "=" * (4 - len(key_b64) % 4) if len(key_b64) % 4 else ""
         public_key_bytes = base64.urlsafe_b64decode(key_b64)
         public_key = Ed25519PublicKey.from_public_bytes(public_key_bytes)
 
@@ -84,21 +85,21 @@ def verify_signature(command: WASignedCommand) -> bool:
 
         # Decode and verify signature (handle URL-safe base64)
         sig_b64 = command.signature
-        sig_b64 += '=' * (4 - len(sig_b64) % 4) if len(sig_b64) % 4 else ''
+        sig_b64 += "=" * (4 - len(sig_b64) % 4) if len(sig_b64) % 4 else ""
         signature_bytes = base64.urlsafe_b64decode(sig_b64)
-        
+
         # Debug logging
         logger.info(f"Message to verify: {message.decode()}")
         logger.info(f"Message bytes length: {len(message)}")
         logger.info(f"Signature bytes length: {len(signature_bytes)}")
         logger.info(f"Public key bytes length: {len(public_key_bytes)}")
-        
+
         public_key.verify(signature_bytes, message)
 
         return True
 
-    except InvalidSignature as e:
-        logger.warning(f"Signature verification failed - Invalid signature")
+    except InvalidSignature:
+        logger.warning("Signature verification failed - Invalid signature")
         logger.warning(f"Public key (raw): {command.wa_public_key}")
         logger.warning(f"Signature (raw): {command.signature}")
         logger.warning(f"Message: {message.decode()}")
@@ -111,8 +112,10 @@ def verify_signature(command: WASignedCommand) -> bool:
     except Exception as e:
         logger.error(f"Unexpected error during signature verification: {type(e).__name__}: {e}")
         import traceback
+
         logger.error(traceback.format_exc())
         return False
+
 
 def verify_timestamp(command: WASignedCommand, window_minutes: int = 5) -> bool:
     """
@@ -144,6 +147,7 @@ def verify_timestamp(command: WASignedCommand, window_minutes: int = 5) -> bool:
 
     return True
 
+
 def is_authorized_key(public_key: str) -> bool:
     """
     Check if the public key is authorized for emergency shutdown.
@@ -163,11 +167,9 @@ def is_authorized_key(public_key: str) -> bool:
     # In production, this would be more sophisticated
     return public_key in ROOT_WA_AUTHORITY_KEYS
 
+
 @router.post("/emergency/shutdown", response_model=SuccessResponse[EmergencyShutdownStatus])
-async def emergency_shutdown(
-    command: WASignedCommand,
-    request: Request
-) -> SuccessResponse[EmergencyShutdownStatus]:
+async def emergency_shutdown(command: WASignedCommand, request: Request) -> SuccessResponse[EmergencyShutdownStatus]:
     """
     Execute emergency shutdown with cryptographically signed command.
 
@@ -193,10 +195,7 @@ async def emergency_shutdown(
     logger.info(f"Command details: type={command.command_type}, issued_at={command.issued_at}, reason={command.reason}")
 
     # Initialize status
-    status = EmergencyShutdownStatus(
-        command_received=datetime.now(timezone.utc),
-        command_verified=False
-    )
+    status = EmergencyShutdownStatus(command_received=datetime.now(timezone.utc), command_verified=False)
 
     # Verify command type
     if command.command_type != EmergencyCommandType.SHUTDOWN_NOW:
@@ -228,19 +227,19 @@ async def emergency_shutdown(
 
     # Get runtime control service if available
     runtime_service = None
-    service_registry = getattr(request.app.state, 'service_registry', None)
+    service_registry = getattr(request.app.state, "service_registry", None)
     if service_registry:
         try:
             from ciris_engine.schemas.runtime.enums import ServiceType
+
             runtime_service = await service_registry.get_service(
-                handler="emergency", 
-                service_type=ServiceType.RUNTIME_CONTROL
+                handler="emergency", service_type=ServiceType.RUNTIME_CONTROL
             )
         except Exception as e:
             logger.warning(f"RuntimeControlService not available: {e}")
 
     # If we have runtime control service, use it
-    if runtime_service and hasattr(runtime_service, 'handle_emergency_shutdown'):
+    if runtime_service and hasattr(runtime_service, "handle_emergency_shutdown"):
         try:
             logger.info("Delegating to RuntimeControlService for emergency shutdown")
             status = await runtime_service.handle_emergency_shutdown(command)
@@ -254,11 +253,11 @@ async def emergency_shutdown(
 
     try:
         # Get shutdown service directly from runtime
-        runtime = getattr(request.app.state, 'runtime', None)
+        runtime = getattr(request.app.state, "runtime", None)
         if not runtime:
             raise HTTPException(status_code=503, detail="Runtime not available")
 
-        shutdown_service = getattr(runtime, 'shutdown_service', None)
+        shutdown_service = getattr(runtime, "shutdown_service", None)
         if not shutdown_service:
             raise HTTPException(status_code=503, detail=ERROR_SHUTDOWN_SERVICE_NOT_AVAILABLE)
 
@@ -284,6 +283,7 @@ async def emergency_shutdown(
         status.verification_error = f"Shutdown failed: {str(e)}"
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @router.get("/emergency/test")
 async def test_emergency_endpoint() -> dict:
     """
@@ -296,5 +296,5 @@ async def test_emergency_endpoint() -> dict:
         "status": "ok",
         "message": "Emergency endpoint accessible",
         "crypto_available": CRYPTO_AVAILABLE,
-        "timestamp": datetime.now(timezone.utc).isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }

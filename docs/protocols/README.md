@@ -9,7 +9,7 @@ The CIRIS Agent implements a sophisticated **Service-Oriented Architecture (SOA)
 ### 1. **Interface Segregation**
 Each protocol defines a specific contract with minimal, cohesive responsibilities. Services implement only the protocols they need.
 
-### 2. **Type Safety** 
+### 2. **Type Safety**
 Generic typing and Pydantic models ensure compile-time type checking and runtime validation throughout the system.
 
 ### 3. **Hot-Swappable Modularity**
@@ -34,11 +34,11 @@ The primary interface for runtime system management, enabling live debugging and
 ```python
 # Processor Control
 async def single_step() -> ProcessorControlResponse
-async def pause_processing() -> ProcessorControlResponse  
+async def pause_processing() -> ProcessorControlResponse
 async def resume_processing() -> ProcessorControlResponse
 async def get_processor_queue_status() -> Dict[str, Any]
 
-# Adapter Management  
+# Adapter Management
 async def load_adapter(adapter_type: str, adapter_id: str, config: Dict[str, Any]) -> AdapterOperationResponse
 async def unload_adapter(adapter_id: str, force: bool = False) -> AdapterOperationResponse
 async def list_adapters() -> List[Dict[str, Any]]
@@ -58,15 +58,15 @@ async def get_runtime_snapshot() -> RuntimeStateSnapshot
 ```python
 # Hot-swap a Discord adapter configuration
 response = await runtime_control.update_config(
-    "discord.home_channel", 
+    "discord.home_channel",
     "new-channel-id",
     ConfigScope.SESSION
 )
 
 # Load additional adapter instance
 await runtime_control.load_adapter(
-    "discord", 
-    "discord_admin", 
+    "discord",
+    "discord_admin",
     {"token": "admin_bot_token", "home_channel": "admin-alerts"}
 )
 ```
@@ -115,7 +115,7 @@ async def fetch_messages(channel_id: str, limit: int = 50) -> List[Message]
 async def health_check() -> bool
 ```
 
-##### 2. **WiseAuthorityService** 
+##### 2. **WiseAuthorityService**
 ```python
 async def fetch_guidance(request: GuidanceRequest) -> GuidanceResponse
 async def send_deferral(deferral: Deferral) -> DeferralResponse
@@ -154,11 +154,11 @@ Type-safe interface for the agent's 3×3×3 ethical reasoning pipeline.
 ```python
 class BaseDMAInterface(Protocol, Generic[InputT, DMAResultT]):
     async def evaluate(
-        self, 
+        self,
         input_data: InputT,
         faculty: Optional[EpistemicFaculty] = None
     ) -> DMAResultT
-    
+
     async def evaluate_with_recursive_faculties(
         self,
         input_data: InputT,
@@ -177,7 +177,7 @@ async def evaluate(
 ```
 Applies foundational ethical principles (beneficence, non-maleficence, justice, autonomy).
 
-##### **CSDMAInterface** 
+##### **CSDMAInterface**
 ```python
 async def evaluate(
     input_data: ActionRequest,
@@ -217,7 +217,7 @@ Comprehensive system observability and processor control.
 async def get_system_snapshot() -> SystemSnapshot
 async def get_processing_queue_status() -> Dict[str, Any]
 
-# Health Monitoring  
+# Health Monitoring
 async def health_check() -> HealthCheckResult
 async def get_service_health() -> Dict[str, ServiceHealth]
 
@@ -244,7 +244,7 @@ async def scan_content(content: str) -> SecretsScanResult
 async def filter_secrets(content: str) -> FilteredContent
 ```
 
-##### **SecretsStoreInterface**  
+##### **SecretsStoreInterface**
 ```python
 async def store_secret(secret_data: str, metadata: SecretMetadata) -> str
 async def retrieve_secret(secret_id: str, context: AccessContext) -> str
@@ -292,7 +292,7 @@ class MyService:
     async def operation(self):
         if self.circuit_breaker.is_open():
             raise ServiceUnavailableError("Circuit breaker open")
-        
+
         try:
             result = await self._do_operation()
             self.circuit_breaker.record_success()
@@ -323,7 +323,7 @@ DMAs use generic typing for safety:
 ```python
 class MyDMA(EthicalDMAInterface):
     async def evaluate(
-        self, 
+        self,
         input_data: ActionRequest,
         faculty: Optional[EpistemicFaculty] = None
     ) -> EthicalDMAResult:
@@ -346,7 +346,7 @@ Protocols use configuration templates (formerly profiles) for initial setup:
         "home_channel": "general"
     },
     "api_config": {
-        "host": "0.0.0.0", 
+        "host": "0.0.0.0",
         "port": 8000
     }
 }
@@ -441,7 +441,7 @@ Services can negotiate protocol versions during registration.
 The protocol architecture supports future enhancements:
 
 1. **Multi-Agent Protocols**: Network service protocols for agent collaboration
-2. **External Integration**: Standardized protocols for third-party service integration  
+2. **External Integration**: Standardized protocols for third-party service integration
 3. **Performance Optimization**: Protocol-level caching and optimization hints
 4. **Security Enhancement**: Advanced authentication and authorization protocols
 

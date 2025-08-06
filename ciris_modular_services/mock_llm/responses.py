@@ -1,32 +1,24 @@
-import re
 import json
 import logging
+import re
 from types import SimpleNamespace
-from typing import Dict, Any, List, Optional, Callable, cast
+from typing import Any, Callable, Dict, List, Optional
 
-from ciris_engine.schemas.dma.results import (
-    EthicalDMAResult,
-    CSDMAResult,
-    DSDMAResult,
-    ActionSelectionDMAResult,
-)
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult, CSDMAResult, DSDMAResult, EthicalDMAResult
 
 logger = logging.getLogger(__name__)
-from ciris_engine.schemas.conscience.core import (
-    EntropyCheckResult, CoherenceCheckResult,
-    OptimizationVetoResult, EpistemicHumilityResult
-)
 from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
-from ciris_engine.schemas.actions import (
-    PonderParams, MemorizeParams, SpeakParams, RecallParams, 
-    ObserveParams, RejectParams, DeferParams
+from ciris_engine.schemas.conscience.core import (
+    CoherenceCheckResult,
+    EntropyCheckResult,
+    EpistemicHumilityResult,
+    OptimizationVetoResult,
 )
-from ciris_engine.schemas.runtime.enums import HandlerActionType
-from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
+
 
 class MockLLMConfig:
     """Configuration for mock LLM behavior."""
-    
+
     def __init__(self) -> None:
         # Regex patterns to match in messages for context echoing
         self.context_patterns = {
@@ -34,14 +26,16 @@ class MockLLMConfig:
             r'thought.*content.*"([^"]+)"': lambda m: f"echo_thought:{m.group(1)}",
             # More specific channel patterns to avoid false matches
             r'channel_id[=:]\s*[\'"]([a-zA-Z0-9_\-@\.]+)[\'"]': lambda m: f"echo_channel:{m.group(1)}",
-            r'channel_id[=:]\s*([a-zA-Z0-9_\-@\.]+)(?:\s|$)': lambda m: f"echo_channel:{m.group(1)}",
-            r'channel\s+([#@]?[a-zA-Z0-9_\-]+)(?:\s|$)': lambda m: f"echo_channel:{m.group(1)}" if len(m.group(1)) > 3 else None,
+            r"channel_id[=:]\s*([a-zA-Z0-9_\-@\.]+)(?:\s|$)": lambda m: f"echo_channel:{m.group(1)}",
+            r"channel\s+([#@]?[a-zA-Z0-9_\-]+)(?:\s|$)": lambda m: (
+                f"echo_channel:{m.group(1)}" if len(m.group(1)) > 3 else None
+            ),
             r'(?:search.*memory|memory.*search).*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_memory_query:{m.group(1)}",
             r'domain.*[\'"]([^\'"]+)[\'"]': lambda m: f"echo_domain:{m.group(1)}",
             # Catch-all for any content
-            r'(.+)': lambda m: f"echo_content:{m.group(1)[:100]}"
+            r"(.+)": lambda m: f"echo_content:{m.group(1)[:100]}",
         }
-        
+
         # Testing flags that can be set via special markers in messages
         self.testing_mode: bool = False
         self.force_action: Optional[str] = None  # Force specific action selection
@@ -53,8 +47,10 @@ class MockLLMConfig:
         self.debug_consciences: bool = False  # Show conscience processing details
         self.show_help: bool = False  # Show help documentation
 
+
 # Global config instance
 _mock_config = MockLLMConfig()
+
 
 def set_mock_config(**kwargs: Any) -> None:
     """Update mock LLM configuration."""
@@ -63,64 +59,80 @@ def set_mock_config(**kwargs: Any) -> None:
         if hasattr(_mock_config, key):
             setattr(_mock_config, key, value)
 
+
 def extract_context_from_messages(messages: List[dict]) -> List[str]:
     """Extract context information from messages using regex patterns."""
     context_items = []
-    
+
     # Store original messages for $context display
-    import json
+
     context_items.append(f"__messages__:{json.dumps(messages)}")
-    
+
     # Debug logging - only log message count, not content
     logger.info(f"[MOCK_LLM] Extracting context from {len(messages)} messages")
-    
+
     # Look for passive observation pattern in user messages ONLY
     actual_user_message = ""
     # Process user messages to find the actual user input
     for i, msg in enumerate(messages):
-        if isinstance(msg, dict) and msg.get('role') == 'user':
-            content = msg.get('content', '')
-            
+        if isinstance(msg, dict) and msg.get("role") == "user":
+            content = msg.get("content", "")
+
             # For ASPDMA messages, extract the Original Thought content ONLY
             if "Your task is to determine the single most appropriate HANDLER ACTION" in content:
-                logger.info(f"[MOCK_LLM] Found ASPDMA message")
-                
+                logger.info("[MOCK_LLM] Found ASPDMA message")
+
                 # Extract what comes after Original Thought:
                 if "Original Thought:" in content:
                     thought_match = re.search(r'Original Thought:\s*"([^"]+)"', content)
                     if thought_match:
                         actual_thought_content = thought_match.group(1)
                         logger.info(f"[MOCK_LLM] Extracted thought content: {actual_thought_content[:100]}...")
-                        
+
                         # Check if this is a passive observation
                         # Support both old format "You observed @" and new format "PRIORITY (high): User @"
-                        is_observation = (actual_thought_content.startswith("You observed @") or 
-                                        "User @" in actual_thought_content and " said: " in actual_thought_content)
-                        
+                        is_observation = (
+                            actual_thought_content.startswith("You observed @")
+                            or "User @" in actual_thought_content
+                            and " said: " in actual_thought_content
+                        )
+
                         if is_observation:
                             # Extract the user message from the passive observation
                             # Try " said: " first (new format), then " say: " (old format)
                             said_index = actual_thought_content.find(" said: ")
                             say_index = actual_thought_content.find(" say: ")
-                            
+
                             delimiter_index = said_index if said_index != -1 else say_index
                             delimiter_len = 7 if said_index != -1 else 6  # len(" said: ") vs len(" say: ")
-                            
+
                             if delimiter_index != -1:
-                                remaining_content = actual_thought_content[delimiter_index + delimiter_len:]
+                                remaining_content = actual_thought_content[delimiter_index + delimiter_len :]
                                 # Extract message, stopping at | or newline
-                                actual_user_message = remaining_content.split('|')[0].split('\n')[0].split('\\n')[0].strip()
+                                actual_user_message = (
+                                    remaining_content.split("|")[0].split("\n")[0].split("\\n")[0].strip()
+                                )
                                 logger.info(f"[MOCK_LLM] Extracted user message from thought: {actual_user_message}")
                                 context_items.append(f"user_input:{actual_user_message}")
                                 context_items.append(f"task:{actual_user_message}")
-                                
+
                                 # Parse command if it starts with $
-                                if actual_user_message.startswith('$'):
+                                if actual_user_message.startswith("$"):
                                     parts = actual_user_message.split(None, 1)
                                     action = parts[0][1:].lower()
                                     params = parts[1] if len(parts) > 1 else ""
-                                    valid_actions = ['speak', 'recall', 'memorize', 'tool', 'observe', 'ponder', 
-                                                   'defer', 'reject', 'forget', 'task_complete']
+                                    valid_actions = [
+                                        "speak",
+                                        "recall",
+                                        "memorize",
+                                        "tool",
+                                        "observe",
+                                        "ponder",
+                                        "defer",
+                                        "reject",
+                                        "forget",
+                                        "task_complete",
+                                    ]
                                     if action in valid_actions:
                                         logger.info(f"[MOCK_LLM] Detected command: action={action}, params={params}")
                                         context_items.append(f"forced_action:{action}")
@@ -128,12 +140,14 @@ def extract_context_from_messages(messages: List[dict]) -> List[str]:
                                             context_items.append(f"action_params:{params}")
                         else:
                             # Not a passive observation, just a regular seed thought
-                            logger.info(f"[MOCK_LLM] Regular seed thought (not passive observation): {actual_thought_content}")
+                            logger.info(
+                                f"[MOCK_LLM] Regular seed thought (not passive observation): {actual_thought_content}"
+                            )
                             context_items.append(f"seed_thought:{actual_thought_content}")
-                
+
                 # Skip processing the rest of the ASPDMA message
                 break
-            
+
             # Check for direct passive observation pattern (non-ASPDMA)
             elif content.startswith("You observed @"):
                 logger.info(f"[MOCK_LLM] Processing observation message: {content[:100]}...")
@@ -142,22 +156,32 @@ def extract_context_from_messages(messages: List[dict]) -> List[str]:
                 if say_index != -1:
                     # Extract everything after " say: " but only until the first newline
                     # This prevents capturing the conversation history
-                    remaining_content = content[say_index + 6:]  # 6 is len(" say: ")
+                    remaining_content = content[say_index + 6 :]  # 6 is len(" say: ")
                     # Split on newline to get just the message, not the history
                     # Also handle case where there's a literal \n in the string
-                    actual_user_message = remaining_content.split('\n')[0].split('\\n')[0].strip()
+                    actual_user_message = remaining_content.split("\n")[0].split("\\n")[0].strip()
                     logger.info(f"[MOCK_LLM] Extracted user message: {actual_user_message}")
                     # Add this to context items so it gets processed properly
                     context_items.append(f"user_input:{actual_user_message}")
                     context_items.append(f"task:{actual_user_message}")
-                    
+
                     # If the message is a command, also parse and add the forced action
-                    if actual_user_message.startswith('$'):
+                    if actual_user_message.startswith("$"):
                         parts = actual_user_message.split(None, 1)
                         action = parts[0][1:].lower()  # Remove $ and lowercase
                         params = parts[1] if len(parts) > 1 else ""
-                        valid_actions = ['speak', 'recall', 'memorize', 'tool', 'observe', 'ponder', 
-                                       'defer', 'reject', 'forget', 'task_complete']
+                        valid_actions = [
+                            "speak",
+                            "recall",
+                            "memorize",
+                            "tool",
+                            "observe",
+                            "ponder",
+                            "defer",
+                            "reject",
+                            "forget",
+                            "task_complete",
+                        ]
                         if action in valid_actions:
                             logger.info(f"[MOCK_LLM] Detected command: action={action}, params={params}")
                             context_items.append(f"forced_action:{action}")
@@ -168,29 +192,28 @@ def extract_context_from_messages(messages: List[dict]) -> List[str]:
                     else:
                         logger.info(f"[MOCK_LLM] Not a command, regular message: {actual_user_message}")
                 else:
-                    logger.warning(f"[MOCK_LLM] No ' say: ' delimiter found in observation")
+                    logger.warning("[MOCK_LLM] No ' say: ' delimiter found in observation")
                 break
-    
+
     # Don't process all message content - we already extracted what we need above
-        
-    
+
     return context_items
+
 
 def _attach_extras(obj: Any):
     """Mimic instructor extra attributes expected on responses.
-    
+
     For structured responses, we return the object directly as instructor
     expects to handle the parsing itself.
     """
     # For structured responses (Pydantic models), return as-is
     # Instructor will handle the parsing and validation
-    if hasattr(obj, 'model_dump'):
+    if hasattr(obj, "model_dump"):
         return obj
-    
+
     # For non-structured responses, add OpenAI-style attributes
-    import json
     from types import SimpleNamespace
-    
+
     try:
         if isinstance(obj, SimpleNamespace):
             # Convert SimpleNamespace to dict recursively
@@ -201,8 +224,9 @@ def _attach_extras(obj: Any):
                     return [namespace_to_dict(item) for item in ns]
                 else:
                     return ns
+
             content_json = json.dumps(namespace_to_dict(obj))
-        elif hasattr(obj, '__dict__'):
+        elif hasattr(obj, "__dict__"):
             content_json = json.dumps(obj.__dict__)
         else:
             content_json = json.dumps(str(obj))
@@ -210,60 +234,60 @@ def _attach_extras(obj: Any):
         logger.error(f"Failed to serialize object {type(obj)}: {e}")
         logger.error(f"Object content: {obj}")
         content_json = '{"error": "serialization_failed"}'
-    
+
     object.__setattr__(obj, "finish_reason", "stop")
     object.__setattr__(obj, "_raw_response", {"mock": True})
-    object.__setattr__(obj, "choices", [SimpleNamespace(
-        finish_reason="stop",
-        message=SimpleNamespace(role="assistant", content=content_json)
-    )])
+    object.__setattr__(
+        obj,
+        "choices",
+        [SimpleNamespace(finish_reason="stop", message=SimpleNamespace(role="assistant", content=content_json))],
+    )
     object.__setattr__(obj, "usage", SimpleNamespace(total_tokens=42))
     return obj
 
+
 def ethical_dma(context: Optional[List[str]] = None) -> EthicalDMAResult:
     context = context or []
-    
+
     thought_content = ""
     for item in context:
         if item.startswith("echo_thought:"):
             thought_content = item.split(":", 1)[1]
             break
-    
-    is_wakeup = any("wakeup" in item.lower() or "verify" in item.lower() or "validate" in item.lower() 
-                   for item in context) or "WAKEUP" in thought_content.upper()
-    
+
+    is_wakeup = (
+        any("wakeup" in item.lower() or "verify" in item.lower() or "validate" in item.lower() for item in context)
+        or "WAKEUP" in thought_content.upper()
+    )
+
     is_user_question = any("echo_user_speech:" in item for item in context) or "?" in thought_content
-    
+
     if _mock_config.inject_error:
         decision = "defer"
-        alignment_check = {
-            "ethical_uncertainty": True, 
-            "context": context,
-            "requires_wisdom_based_deferral": True
-        }
+        alignment_check = {"ethical_uncertainty": True, "context": context, "requires_wisdom_based_deferral": True}
         rationale = "[MOCK LLM] Injected ethical uncertainty for testing purposes."
     else:
         decision = "proceed"
-        
+
         if is_wakeup:
             alignment_check = {
                 "beneficence": True,
-                "non_maleficence": True, 
+                "non_maleficence": True,
                 "integrity": True,
                 "autonomy_respect": True,
                 "justice": True,
                 "transparency": True,
-                "covenant_alignment": "wakeup_ritual_proceeding"
+                "covenant_alignment": "wakeup_ritual_proceeding",
             }
             rationale = "[MOCK LLM] Wakeup ritual thought aligns with CIRIS covenant principles. Promoting agent integrity and identity verification as required by Meta-Goal M-1."
         elif is_user_question:
             alignment_check = {
                 "beneficence": True,
                 "non_maleficence": True,
-                "integrity": True, 
+                "integrity": True,
                 "autonomy_respect": True,
                 "transparency": True,
-                "promotes_flourishing": True
+                "promotes_flourishing": True,
             }
             rationale = "[MOCK LLM] User interaction promotes beneficial dialogue and respects human autonomy. Response will be honest, helpful, and transparent per CIRIS principles."
         else:
@@ -271,13 +295,14 @@ def ethical_dma(context: Optional[List[str]] = None) -> EthicalDMAResult:
                 "beneficence": True,
                 "non_maleficence": True,
                 "integrity": True,
-                "general_alignment": "proceeding_with_caution"
+                "general_alignment": "proceeding_with_caution",
             }
             rationale = "[MOCK LLM] General thought processing aligns with ethical guidelines. No contraindications to CIRIS covenant principles detected."
-    
+
     decision_param = str(decision)  # Ensure decision is always a string
     result = EthicalDMAResult(alignment_check=alignment_check, decision=decision_param, reasoning=str(rationale))
     return result
+
 
 def cs_dma(context: Optional[List[str]] = None) -> CSDMAResult:
     context = context or []
@@ -291,8 +316,10 @@ def cs_dma(context: Optional[List[str]] = None) -> CSDMAResult:
         if item.startswith("echo_user_speech:"):
             user_speech = item.split(":", 1)[1]
             break
-    is_wakeup = any("wakeup" in item.lower() or "verify" in item.lower() 
-                   for item in context) or "WAKEUP" in thought_content.upper()
+    is_wakeup = (
+        any("wakeup" in item.lower() or "verify" in item.lower() for item in context)
+        or "WAKEUP" in thought_content.upper()
+    )
     is_user_interaction = bool(user_speech) or "?" in thought_content
     is_memory_operation = any("recall" in item.lower() or "memory" in item.lower() for item in context)
     if _mock_config.inject_error:
@@ -313,22 +340,32 @@ def cs_dma(context: Optional[List[str]] = None) -> CSDMAResult:
         else:
             flags = ["general_processing"]
             reasoning = "[MOCK LLM] General thought processing within normal parameters. No physical impossibilities or logical contradictions detected."
-    
+
     result = CSDMAResult(plausibility_score=score, flags=flags, reasoning=reasoning)
     return result
 
+
 def ds_dma(context: Optional[List[str]] = None) -> DSDMAResult:
     context = context or []
-    domain_val = next((item.split(':')[1] for item in context if item.startswith('echo_domain:')), "mock")
-    reasoning = f"[MOCK LLM] Mock domain-specific evaluation. Context: {', '.join(context)}" if context else "[MOCK LLM] Mock domain-specific evaluation."
+    domain_val = next((item.split(":")[1] for item in context if item.startswith("echo_domain:")), "mock")
+    reasoning = (
+        f"[MOCK LLM] Mock domain-specific evaluation. Context: {', '.join(context)}"
+        if context
+        else "[MOCK LLM] Mock domain-specific evaluation."
+    )
     score_val = 0.9
     flags = ["mock_domain_flag"] + context if _mock_config.inject_error else context
     result = DSDMAResult(domain=domain_val, domain_alignment=score_val, flags=flags, reasoning=reasoning)
     return result
 
+
 def ds_dma_llm_output(context: Optional[List[str]] = None) -> BaseDSDMA.LLMOutputForDSDMA:
     context = context or []
-    reasoning = f"[MOCK LLM] Mock DSDMA LLM output. Context: {', '.join(context)}" if context else "[MOCK LLM] Mock DSDMA LLM output."
+    reasoning = (
+        f"[MOCK LLM] Mock DSDMA LLM output. Context: {', '.join(context)}"
+        if context
+        else "[MOCK LLM] Mock DSDMA LLM output."
+    )
     score_val = 0.9
     result = BaseDSDMA.LLMOutputForDSDMA(
         score=score_val,
@@ -338,11 +375,12 @@ def ds_dma_llm_output(context: Optional[List[str]] = None) -> BaseDSDMA.LLMOutpu
     )
     return result
 
+
+from typing import List, Optional
+
 from .responses_action_selection import action_selection
-from .responses_feedback import optimization_veto, epistemic_humility
-from .responses_epistemic import entropy, coherence
-from typing import List
-from typing import Optional
+from .responses_epistemic import coherence, entropy
+from .responses_feedback import epistemic_humility, optimization_veto
 
 _RESPONSE_MAP: Dict[Any, Callable[..., Any]] = {
     EthicalDMAResult: ethical_dma,
@@ -356,6 +394,7 @@ _RESPONSE_MAP: Dict[Any, Callable[..., Any]] = {
     CoherenceCheckResult: coherence,
 }
 
+
 def create_response(response_model: Any, messages: Optional[List[dict]] = None, **kwargs: Any):
     """Create a mock LLM response with context analysis."""
     messages = messages or []
@@ -368,11 +407,12 @@ def create_response(response_model: Any, messages: Optional[List[dict]] = None, 
     if handler:
         logger.debug(f"Found handler: {handler.__name__}")
         import inspect
+
         sig = inspect.signature(handler)
         # Pass both context and messages if the handler accepts them
-        if 'context' in sig.parameters and 'messages' in sig.parameters:
+        if "context" in sig.parameters and "messages" in sig.parameters:
             result = handler(context=context, messages=messages)
-        elif 'context' in sig.parameters:
+        elif "context" in sig.parameters:
             result = handler(context=context)
         else:
             result = handler()
@@ -385,15 +425,16 @@ def create_response(response_model: Any, messages: Optional[List[dict]] = None, 
         return SimpleNamespace(
             finish_reason="stop",
             _raw_response={"mock": True},
-            choices=[SimpleNamespace(
-                finish_reason="stop",
-                message=SimpleNamespace(
-                    role="assistant", 
-                    content='{"status": "unstructured_call_detected"}'
+            choices=[
+                SimpleNamespace(
+                    finish_reason="stop",
+                    message=SimpleNamespace(role="assistant", content='{"status": "unstructured_call_detected"}'),
                 )
-            )],
-            usage=SimpleNamespace(total_tokens=42)
+            ],
+            usage=SimpleNamespace(total_tokens=42),
         )
     # Default response with context echoing
     context_echo = f"Context: {', '.join(context)}" if context else "No context detected"
-    return _attach_extras(SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=f"[MOCK LLM] OK - {context_echo}"))]))
+    return _attach_extras(
+        SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=f"[MOCK LLM] OK - {context_echo}"))])
+    )

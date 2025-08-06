@@ -5,7 +5,7 @@ Provides SQL DDL for all database tables used by the agent.
 """
 
 # Tasks table for tracking agent tasks
-TASKS_TABLE_V1 = '''
+TASKS_TABLE_V1 = """
 CREATE TABLE IF NOT EXISTS tasks (
     task_id TEXT PRIMARY KEY,
     channel_id TEXT NOT NULL,
@@ -23,10 +23,10 @@ CREATE TABLE IF NOT EXISTS tasks (
     signature TEXT,
     signed_at TEXT
 );
-'''
+"""
 
 # Thoughts table for agent reasoning
-THOUGHTS_TABLE_V1 = '''
+THOUGHTS_TABLE_V1 = """
 CREATE TABLE IF NOT EXISTS thoughts (
     thought_id TEXT PRIMARY KEY,
     source_task_id TEXT NOT NULL,
@@ -44,10 +44,10 @@ CREATE TABLE IF NOT EXISTS thoughts (
     final_action_json TEXT,
     FOREIGN KEY (source_task_id) REFERENCES tasks(task_id)
 );
-'''
+"""
 
 # Feedback mappings for tracking responses
-FEEDBACK_MAPPINGS_TABLE_V1 = '''
+FEEDBACK_MAPPINGS_TABLE_V1 = """
 CREATE TABLE IF NOT EXISTS feedback_mappings (
     feedback_id TEXT PRIMARY KEY,
     source_message_id TEXT,
@@ -55,10 +55,10 @@ CREATE TABLE IF NOT EXISTS feedback_mappings (
     feedback_type TEXT,  -- 'identity' or 'environment'
     created_at TEXT NOT NULL
 );
-'''
+"""
 
 # Graph nodes for memory storage
-GRAPH_NODES_TABLE_V1 = '''
+GRAPH_NODES_TABLE_V1 = """
 CREATE TABLE IF NOT EXISTS graph_nodes (
     node_id TEXT NOT NULL,
     scope TEXT NOT NULL,
@@ -71,10 +71,10 @@ CREATE TABLE IF NOT EXISTS graph_nodes (
     PRIMARY KEY (node_id, scope)
 );
 CREATE INDEX IF NOT EXISTS idx_graph_nodes_scope ON graph_nodes(scope);
-'''
+"""
 
 # Graph edges for relationships
-GRAPH_EDGES_TABLE_V1 = '''
+GRAPH_EDGES_TABLE_V1 = """
 CREATE TABLE IF NOT EXISTS graph_edges (
     edge_id TEXT PRIMARY KEY,
     source_node_id TEXT NOT NULL,
@@ -90,10 +90,10 @@ CREATE TABLE IF NOT EXISTS graph_edges (
 CREATE INDEX IF NOT EXISTS idx_graph_edges_scope ON graph_edges(scope);
 CREATE INDEX IF NOT EXISTS idx_graph_edges_source ON graph_edges(source_node_id);
 CREATE INDEX IF NOT EXISTS idx_graph_edges_target ON graph_edges(target_node_id);
-'''
+"""
 
 # Service correlations with TSDB capabilities
-SERVICE_CORRELATIONS_TABLE_V1 = '''
+SERVICE_CORRELATIONS_TABLE_V1 = """
 CREATE TABLE IF NOT EXISTS service_correlations (
     correlation_id TEXT PRIMARY KEY,
     service_type TEXT NOT NULL,
@@ -135,10 +135,10 @@ CREATE INDEX IF NOT EXISTS idx_correlations_retention ON service_correlations(re
 CREATE INDEX IF NOT EXISTS idx_correlations_type_timestamp ON service_correlations(correlation_type, timestamp);
 CREATE INDEX IF NOT EXISTS idx_correlations_metric_timestamp ON service_correlations(metric_name, timestamp);
 CREATE INDEX IF NOT EXISTS idx_correlations_log_level_timestamp ON service_correlations(log_level, timestamp);
-'''
+"""
 
 # Audit log with hash chain and signatures
-AUDIT_LOG_TABLE_V1 = '''
+AUDIT_LOG_TABLE_V1 = """
 CREATE TABLE IF NOT EXISTS audit_log (
     entry_id INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id TEXT NOT NULL UNIQUE,              -- UUID for the event
@@ -169,10 +169,10 @@ CREATE INDEX IF NOT EXISTS idx_audit_event_type ON audit_log(event_type);
 CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(event_timestamp);
 CREATE INDEX IF NOT EXISTS idx_audit_originator ON audit_log(originator_id);
 CREATE INDEX IF NOT EXISTS idx_audit_sequence ON audit_log(sequence_number);
-'''
+"""
 
 # Audit roots for Merkle tree verification
-AUDIT_ROOTS_TABLE_V1 = '''
+AUDIT_ROOTS_TABLE_V1 = """
 CREATE TABLE IF NOT EXISTS audit_roots (
     root_id INTEGER PRIMARY KEY AUTOINCREMENT,
     sequence_start INTEGER NOT NULL,
@@ -186,10 +186,10 @@ CREATE TABLE IF NOT EXISTS audit_roots (
 
 -- Create index for root lookup
 CREATE INDEX IF NOT EXISTS idx_audit_roots_range ON audit_roots(sequence_start, sequence_end);
-'''
+"""
 
 # Audit signing keys
-AUDIT_SIGNING_KEYS_TABLE_V1 = '''
+AUDIT_SIGNING_KEYS_TABLE_V1 = """
 CREATE TABLE IF NOT EXISTS audit_signing_keys (
     key_id TEXT PRIMARY KEY,
     public_key TEXT NOT NULL,                   -- PEM format public key
@@ -204,10 +204,10 @@ CREATE TABLE IF NOT EXISTS audit_signing_keys (
 -- Create index for active key lookup
 CREATE INDEX IF NOT EXISTS idx_audit_keys_active ON audit_signing_keys(created_at)
 WHERE revoked_at IS NULL;
-'''
+"""
 
 # WA certificate table
-WA_CERT_TABLE_V1 = '''
+WA_CERT_TABLE_V1 = """
 CREATE TABLE IF NOT EXISTS wa_cert (
   wa_id              TEXT PRIMARY KEY,
   name               TEXT NOT NULL,
@@ -245,7 +245,7 @@ CREATE INDEX IF NOT EXISTS idx_wa_role ON wa_cert(role);
 CREATE INDEX IF NOT EXISTS idx_wa_parent ON wa_cert(parent_wa_id);
 CREATE INDEX IF NOT EXISTS idx_wa_created ON wa_cert(created DESC);
 CREATE INDEX IF NOT EXISTS idx_wa_token_type ON wa_cert(token_type);
-'''
+"""
 
 # All table definitions
 ALL_TABLES = [

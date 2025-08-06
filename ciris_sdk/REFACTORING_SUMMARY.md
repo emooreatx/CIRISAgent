@@ -87,7 +87,7 @@ For SDK users, no immediate changes are required. However, we recommend:
    ```python
    # Old way
    context = {"channel_id": "123", "user_id": "456"}
-   
+
    # New way (recommended)
    from ciris_sdk.telemetry_models import InteractionContext
    context = InteractionContext(channel_id="123", user_id="456")
@@ -97,7 +97,7 @@ For SDK users, no immediate changes are required. However, we recommend:
    ```python
    # Old way
    filters = {"service": "agent", "level": "ERROR"}
-   
+
    # New way (recommended)
    from ciris_sdk.telemetry_models import QueryFilter, QueryFilters
    filters = QueryFilters(filters=[

@@ -50,7 +50,7 @@ class CIRISVoiceClient:
         )
         self.channel_id = f"voice_{config.channel_id}"  # Prefix for voice channels
         self.profile = config.profile
-        
+
     async def initialize(self):
         """Initialize the client and authenticate."""
         try:
@@ -70,14 +70,14 @@ class CIRISVoiceClient:
                 "profile": self.profile,
                 **(context or {})
             }
-            
+
             # Use the SDK's agent interact method
             response = await self.client.agent.interact(
                 message=content,
                 channel_id=self.channel_id,
                 context=full_context
             )
-            
+
             # Convert SDK response to expected format
             return {
                 "content": response.response,
@@ -85,7 +85,7 @@ class CIRISVoiceClient:
                 "state": response.state,
                 "processing_time": response.processing_time_ms
             }
-            
+
         except CIRISTimeoutError:
             logger.error("CIRIS API timeout")
             return {"content": "I need more time to think about that. Please try again."}
@@ -101,26 +101,26 @@ class CIRISVoiceClient:
         try:
             # Get agent status
             status = await self.client.agent.get_status()
-            
+
             # Extract last response from status if available
             # Note: The actual structure depends on API implementation
             if hasattr(status, 'last_interaction'):
                 return status.last_interaction.response
-            
+
             # Alternative: Get conversation history
             history = await self.client.agent.get_history(
                 channel_id=self.channel_id,
                 limit=1
             )
-            
+
             if history.messages:
                 last_message = history.messages[-1]
                 if last_message.is_agent:
                     return last_message.content
-                    
+
         except CIRISError as e:
             logger.error(f"Failed to get response: {e}")
-            
+
         return None
 
     async def close(self):
@@ -140,11 +140,11 @@ class WyomingEventHandler:
     def __init__(self, config):
         # ... existing code ...
         self.ciris_client = CIRISVoiceClient(config)
-        
+
     async def initialize(self):
         """Initialize services."""
         await self.ciris_client.initialize()
-        
+
     async def handle_transcript(self, transcript: str) -> str:
         """Process user transcript through CIRIS."""
         response = await self.ciris_client.send_message(
@@ -169,7 +169,7 @@ class CIRISConfig:
         # Existing config
         self.api_url = os.getenv("CIRIS_API_URL", "http://localhost:8080")
         self.api_key = os.getenv("CIRIS_API_KEY", "")
-        
+
         # New SDK-specific config
         self.username = os.getenv("CIRIS_USERNAME", "voice_user")
         self.password = os.getenv("CIRIS_PASSWORD", "voice_password")
@@ -232,7 +232,7 @@ async def track_interaction(self, duration_ms: int, success: bool):
    # test_sdk_connection.py
    import asyncio
    from ciris_sdk import CIRISClient
-   
+
    async def test():
        client = CIRISClient(base_url="http://localhost:8080")
        response = await client.agent.interact(
@@ -240,7 +240,7 @@ async def track_interaction(self, duration_ms: int, success: bool):
            channel_id="voice_test"
        )
        print(f"Response: {response.response}")
-   
+
    asyncio.run(test())
    ```
 
@@ -268,11 +268,11 @@ async def track_interaction(self, duration_ms: int, success: bool):
 # Complete voice interaction flow
 async def handle_voice_command(transcript: str, user_id: str):
     client = CIRISVoiceClient(config)
-    
+
     try:
         # Initialize if needed
         await client.initialize()
-        
+
         # Send voice command
         response = await client.send_message(
             content=transcript,
@@ -282,10 +282,10 @@ async def handle_voice_command(transcript: str, user_id: str):
                 "timestamp": datetime.now().isoformat()
             }
         )
-        
+
         # Return voice response
         return response["content"]
-        
+
     finally:
         await client.close()
 ```

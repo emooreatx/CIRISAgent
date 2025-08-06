@@ -4,22 +4,21 @@ This test specifically reproduces the bootstrap bug where ConfigNode
 fails to convert from GraphNode due to missing 'key' field.
 """
 
-import pytest
-import pytest_asyncio
-import tempfile
+import json
 import os
 import sqlite3
-import json
-from datetime import datetime, timezone
-from pathlib import Path
+import tempfile
 
+import pytest
+import pytest_asyncio
+
+from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.logic.services.graph.config_service import GraphConfigService
 from ciris_engine.logic.services.graph.memory_service import LocalGraphMemoryService
 from ciris_engine.logic.services.lifecycle.time import TimeService
-from ciris_engine.logic.secrets.service import SecretsService
-from ciris_engine.schemas.services.nodes import ConfigNode, ConfigValue
-from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.config.essential import EssentialConfig
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
+from ciris_engine.schemas.services.nodes import ConfigNode, ConfigValue
 
 
 @pytest.fixture
@@ -31,7 +30,7 @@ def time_service():
 @pytest.fixture
 def temp_db():
     """Create a temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
     yield db_path
     os.unlink(db_path)
@@ -45,7 +44,8 @@ async def memory_service_factory(temp_db, time_service):
     async def _create_service():
         # Initialize the database if needed
         conn = sqlite3.connect(temp_db)
-        conn.execute('''
+        conn.execute(
+            """
             CREATE TABLE IF NOT EXISTS graph_nodes (
                 node_id TEXT NOT NULL,
                 scope TEXT NOT NULL,
@@ -57,21 +57,18 @@ async def memory_service_factory(temp_db, time_service):
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (node_id, scope)
             )
-        ''')
+        """
+        )
         conn.commit()
         conn.close()
 
         # Create a secrets service
-        secrets_db = temp_db.replace('.db', '_secrets.db')
+        secrets_db = temp_db.replace(".db", "_secrets.db")
         secrets_service = SecretsService(db_path=secrets_db, time_service=time_service)
         await secrets_service.start()
 
         # Create memory service
-        service = LocalGraphMemoryService(
-            db_path=temp_db,
-            secrets_service=secrets_service,
-            time_service=time_service
-        )
+        service = LocalGraphMemoryService(db_path=temp_db, secrets_service=secrets_service, time_service=time_service)
         service.start()
         created_services.append((service, secrets_service))
         return service
@@ -108,17 +105,9 @@ async def test_config_bootstrap_bug_reproduction(memory_service_factory, time_se
             for key, value in section_data.items():
                 full_key = f"{section_name}.{key}"
                 # This is exactly what ServiceInitializer does
-                await config_service1.set_config(
-                    key=full_key,
-                    value=value,
-                    updated_by="system_bootstrap"
-                )
+                await config_service1.set_config(key=full_key, value=value, updated_by="system_bootstrap")
         else:
-            await config_service1.set_config(
-                key=section_name,
-                value=section_data,
-                updated_by="system_bootstrap"
-            )
+            await config_service1.set_config(key=section_name, value=section_data, updated_by="system_bootstrap")
 
     # Verify it works in same session
     test_config = await config_service1.get_config("limits.max_active_tasks")
@@ -135,9 +124,7 @@ async def test_config_bootstrap_bug_reproduction(memory_service_factory, time_se
 
     # This is where the bug manifests - let's check what's actually in the database
     conn = sqlite3.connect(temp_db)
-    cursor = conn.execute(
-        "SELECT node_id, attributes_json FROM graph_nodes WHERE node_type = 'config'"
-    )
+    cursor = conn.execute("SELECT node_id, attributes_json FROM graph_nodes WHERE node_type = 'config'")
     rows = cursor.fetchall()
     conn.close()
 
@@ -148,7 +135,7 @@ async def test_config_bootstrap_bug_reproduction(memory_service_factory, time_se
         attrs = json.loads(attrs_json) if attrs_json else {}
         print(f"\nNode ID: {node_id}")
         print(f"Has 'key' field: {'key' in attrs}")
-        if 'key' in attrs:
+        if "key" in attrs:
             print(f"Key value: {attrs['key']}")
         else:
             print(f"Attributes keys: {list(attrs.keys())}")
@@ -171,7 +158,7 @@ async def test_config_bootstrap_bug_reproduction(memory_service_factory, time_se
             print(f"Node type: {node.type}")
             attrs = node.attributes if isinstance(node.attributes, dict) else node.attributes.model_dump()
             print(f"Attributes keys: {list(attrs.keys())}")
-            if 'key' in attrs:
+            if "key" in attrs:
                 print(f"Key value: {attrs['key']}")
         raise
 
@@ -190,7 +177,7 @@ async def test_config_node_serialization_fix(time_service):
         value=ConfigValue(string_value="test_value"),
         version=1,
         updated_by="test_user",
-        updated_at=time_service.now()
+        updated_at=time_service.now(),
     )
 
     # Convert to GraphNode
@@ -230,7 +217,7 @@ async def test_direct_graph_node_creation(time_service):
         "key": "limits.max_active_tasks",
         "value": {"int_value": 10},
         "previous_version": None,
-        "node_class": "ConfigNode"
+        "node_class": "ConfigNode",
     }
 
     # Create GraphNode as stored in DB
@@ -241,7 +228,7 @@ async def test_direct_graph_node_creation(time_service):
         attributes=attributes,
         version=1,
         updated_by="system_bootstrap",
-        updated_at=now
+        updated_at=now,
     )
 
     # Try to convert back to ConfigNode
@@ -293,15 +280,17 @@ if __name__ == "__main__":
 
     async def main():
         time_service = TimeService()
-        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             temp_db = f.name
 
         try:
             # Create factory closure
             services = []
+
             async def factory():
                 conn = sqlite3.connect(temp_db)
-                conn.execute('''
+                conn.execute(
+                    """
                     CREATE TABLE IF NOT EXISTS graph_nodes (
                         node_id TEXT NOT NULL,
                         scope TEXT NOT NULL,
@@ -313,18 +302,17 @@ if __name__ == "__main__":
                         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         PRIMARY KEY (node_id, scope)
                     )
-                ''')
+                """
+                )
                 conn.commit()
                 conn.close()
 
-                secrets_db = temp_db.replace('.db', '_secrets.db')
+                secrets_db = temp_db.replace(".db", "_secrets.db")
                 secrets_service = SecretsService(db_path=secrets_db, time_service=time_service)
                 await secrets_service.start()
 
                 memory_service = LocalGraphMemoryService(
-                    db_path=temp_db,
-                    secrets_service=secrets_service,
-                    time_service=time_service
+                    db_path=temp_db, secrets_service=secrets_service, time_service=time_service
                 )
                 await memory_service.start()
                 services.append((memory_service, secrets_service))
@@ -340,7 +328,7 @@ if __name__ == "__main__":
 
         finally:
             os.unlink(temp_db)
-            secrets_db = temp_db.replace('.db', '_secrets.db')
+            secrets_db = temp_db.replace(".db", "_secrets.db")
             if os.path.exists(secrets_db):
                 os.unlink(secrets_db)
 

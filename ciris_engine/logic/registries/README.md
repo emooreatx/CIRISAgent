@@ -14,7 +14,7 @@ The service registry employs a two-tier priority system:
 **Example Workflow:**
 ```
 Priority Group 0: [OpenAI(CRITICAL), Anthropic(HIGH)] - FALLBACK strategy
-Priority Group 1: [LocalLLM1(NORMAL), LocalLLM2(NORMAL)] - ROUND_ROBIN strategy  
+Priority Group 1: [LocalLLM1(NORMAL), LocalLLM2(NORMAL)] - ROUND_ROBIN strategy
 Priority Group 2: [MockLLM(FALLBACK)] - FALLBACK strategy
 ```
 
@@ -145,7 +145,7 @@ class CircuitBreaker:
         if self.state == CircuitState.CLOSED:
             if self.failure_count >= self.config.failure_threshold:
                 self._transition_to_open()
-    
+
     def record_success(self) -> None:
         """Record successful operation and possibly close circuit"""
         if self.state == CircuitState.HALF_OPEN:
@@ -161,27 +161,27 @@ class CircuitBreaker:
 #### **Multi-Tier Service Selection**
 ```python
 async def get_service(
-    self, 
-    handler: str, 
+    self,
+    handler: str,
     service_type: str,
     required_capabilities: Optional[List[str]] = None,
     fallback_to_global: bool = True
 ) -> Optional[Any]:
     """Get the best available service with fallback support"""
-    
+
     # 1. Try handler-specific services first
     handler_providers = self._providers.get(handler, {}).get(service_type, [])
     service = await self._get_service_from_providers(
         handler_providers, required_capabilities
     )
-    
+
     # 2. Fallback to global services if needed
     if service is None and fallback_to_global:
         global_providers = self._global_services.get(service_type, [])
         service = await self._get_service_from_providers(
             global_providers, required_capabilities
         )
-    
+
     return service
 ```
 
@@ -197,22 +197,22 @@ async def _validate_provider(
     required_capabilities: Optional[List[str]] = None,
 ) -> Optional[Any]:
     """Validate provider availability with health checking"""
-    
+
     # 1. Check capability requirements
     if required_capabilities:
         if not all(cap in provider.capabilities for cap in required_capabilities):
             return None
-    
+
     # 2. Check circuit breaker status
     if provider.circuit_breaker and not provider.circuit_breaker.is_available():
         return None
-    
+
     # 3. Perform health check if supported
     if hasattr(provider.instance, "is_healthy"):
         if not await provider.instance.is_healthy():
             provider.circuit_breaker.record_failure()
             return None
-    
+
     provider.circuit_breaker.record_success()
     return provider.instance
 ```
@@ -227,7 +227,7 @@ async def _get_service_from_providers(
     required_capabilities: Optional[List[str]] = None
 ) -> Optional[Any]:
     """Get service with priority group and strategy support"""
-    
+
     # Group providers by priority group
     grouped: Dict[int, List[ServiceProvider]] = {}
     for p in providers:
@@ -257,8 +257,8 @@ async def _get_service_from_providers(
 #### **Service Registry Information**
 ```python
 def get_provider_info(
-    self, 
-    handler: Optional[str] = None, 
+    self,
+    handler: Optional[str] = None,
     service_type: Optional[str] = None
 ) -> Dict[str, Any]:
     """Get comprehensive information about registered providers"""
@@ -286,11 +286,11 @@ class CIRISRuntime:
         self.service_registry = ServiceRegistry(
             required_services=["communication", "memory", "audit", "llm"]
         )
-    
+
     async def start(self):
         # Register runtime-specific services
         await self._register_services()
-        
+
         # Wait for all required services
         ready = await self.service_registry.wait_ready(timeout=30.0)
         if not ready:
@@ -310,9 +310,9 @@ class DiscordRuntime:
             priority=Priority.HIGH,
             capabilities=["async_messaging", "file_upload", "rich_embeds"]
         )
-        
+
         self.service_registry.register(
-            handler="*", 
+            handler="*",
             service_type="observer",
             provider=self.discord_observer,
             priority=Priority.HIGH,
@@ -324,7 +324,7 @@ class CLIRuntime:
         # Normal priority CLI services as fallbacks
         self.service_registry.register(
             handler="*",
-            service_type="communication", 
+            service_type="communication",
             provider=self.cli_adapter,
             priority=Priority.NORMAL,
             capabilities=["text_input", "console_output"]
@@ -338,7 +338,7 @@ class CLIRuntime:
 class BaseHandler:
     def __init__(self, dependencies: ActionHandlerDependencies):
         self.service_registry = dependencies.service_registry
-    
+
     async def _get_communication_service(self):
         """Get communication service with capability requirements"""
         return await self.service_registry.get_service(
@@ -346,7 +346,7 @@ class BaseHandler:
             service_type="communication",
             required_capabilities=["async_messaging"]
         )
-    
+
     async def _get_memory_service(self):
         """Get memory service for data persistence"""
         return await self.service_registry.get_service(
@@ -366,7 +366,7 @@ class ActionSelectionPDMA:
             service_type="llm",
             required_capabilities=["structured_output", "function_calling"]
         )
-        
+
         if not llm_service:
             logger.error("No suitable LLM service available for action selection")
             raise DMAFailure("LLM service unavailable")
@@ -398,18 +398,18 @@ async def get_service_with_fallback(self, handler: str, service_type: str):
         service = await self.get_service(handler, service_type)
         if service:
             return service
-        
+
         # 2. Try global fallback
         service = await self.get_service(handler, service_type, fallback_to_global=True)
         if service:
             return service
-        
+
         # 3. Use mock service for testing/degraded mode
         if self.config.allow_mock_services:
             return self._get_mock_service(service_type)
-        
+
         return None
-        
+
     except CircuitBreakerError:
         logger.warning(f"Circuit breaker open for {service_type} service")
         return None
@@ -460,7 +460,7 @@ discord_provider = registry.register(
 
 # Register fallback CLI communication service
 cli_provider = registry.register(
-    handler="SpeakHandler", 
+    handler="SpeakHandler",
     service_type="communication",
     provider=cli_adapter,
     priority=Priority.NORMAL,
@@ -503,7 +503,7 @@ registry.register(
 for i, llm in enumerate(llm_pool):
     registry.register(
         handler="EthicalPDMA",
-        service_type="llm", 
+        service_type="llm",
         provider=llm,
         priority=Priority.NORMAL,
         priority_group=1,  # Group for round-robin
@@ -556,7 +556,7 @@ class CustomLLMService(HealthCheckProtocol):
             return response is not None
         except Exception:
             return False
-    
+
     async def generate_response(self, prompt: str) -> str:
         """Main service functionality"""
         # Implementation here
@@ -579,7 +579,7 @@ registry.register(
 
 #### **Efficient Service Lookup**
 - **Priority-based sorting**: Services sorted by priority for fast selection
-- **Capability matching**: Early filtering based on required capabilities  
+- **Capability matching**: Early filtering based on required capabilities
 - **Circuit breaker caching**: Avoid repeated health checks for failed services
 - **Round-robin state**: Efficient load balancing across service pools
 
@@ -604,7 +604,7 @@ def get_stats(self) -> dict:
 
 #### **Service Registry Metrics**
 - **Provider counts**: Number of registered providers per service type
-- **Health status**: Current health of all registered services  
+- **Health status**: Current health of all registered services
 - **Circuit breaker states**: Real-time fault tolerance status
 - **Service resolution latency**: Time taken for service discovery
 
@@ -619,7 +619,7 @@ curl -X PUT http://localhost:8080/v1/runtime/services/OpenAIProvider_123/priorit
   -H "Content-Type: application/json" \
   -d '{
     "priority": "CRITICAL",
-    "priority_group": 0, 
+    "priority_group": 0,
     "strategy": "FALLBACK"
   }'
 
@@ -637,7 +637,7 @@ The registry provides detailed insights into service selection behavior:
 # Get comprehensive service analytics
 analytics = await runtime_control.get_service_selection_explanation()
 
-# Monitor service health in real-time  
+# Monitor service health in real-time
 health = await runtime_control.get_service_health_status()
 print(f"Overall health: {health['overall_health']}")
 print(f"Services: {health['total_services']} total, {health['healthy_services']} healthy")
@@ -656,7 +656,7 @@ registry.register(
     strategy=SelectionStrategy.FALLBACK
 )
 
-# Load-balanced backup pool (Group 1)  
+# Load-balanced backup pool (Group 1)
 for i, llm in enumerate(backup_llm_pool):
     registry.register(
         service_type="llm",
@@ -668,7 +668,7 @@ for i, llm in enumerate(backup_llm_pool):
 
 # Emergency fallback (Group 2)
 registry.register(
-    service_type="llm", 
+    service_type="llm",
     provider=local_llm,
     priority=Priority.FALLBACK,
     priority_group=2,

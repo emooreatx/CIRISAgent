@@ -6,13 +6,7 @@ These protocols define the interfaces for:
 - ProcessorProtocol: Base interface for state processors
 """
 
-from .agent import (
-    AgentProcessorProtocol,
-    ProcessingSchedule,
-    AgentProcessorMetrics,
-    QueueStatus,
-    StepResult
-)
+from .agent import AgentProcessorMetrics, AgentProcessorProtocol, ProcessingSchedule, QueueStatus, StepResult
 from .base import ProcessorProtocol
 
 __all__ = [
@@ -21,5 +15,5 @@ __all__ = [
     "ProcessingSchedule",
     "AgentProcessorMetrics",
     "QueueStatus",
-    "StepResult"
+    "StepResult",
 ]

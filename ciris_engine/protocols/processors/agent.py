@@ -8,14 +8,15 @@ This protocol defines the interface for the main agent processor that:
 - Respects RuntimeControl commands
 """
 
-from typing import Protocol, Optional, Dict, Any, List, TYPE_CHECKING
 from abc import abstractmethod
 from datetime import datetime
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Protocol
 
 if TYPE_CHECKING:
     from ciris_engine.schemas.processors.state import StateTransitionRecord
 else:
     StateTransitionRecord = Any
+
 
 class ProcessingSchedule(Protocol):
     """Schedule for state transitions."""
@@ -24,6 +25,7 @@ class ProcessingSchedule(Protocol):
     dream_interval_hours: float
     work_play_ratio: float
     solitude_triggers: List[str]
+
 
 class AgentProcessorMetrics(Protocol):
     """Detailed processor metrics."""
@@ -37,6 +39,7 @@ class AgentProcessorMetrics(Protocol):
     queue_depth: int
     memory_usage_mb: float
 
+
 class QueueStatus(Protocol):
     """Processing queue status."""
 
@@ -47,6 +50,7 @@ class QueueStatus(Protocol):
     blocked_items: int
     priority_distribution: Dict[str, int]
 
+
 class StepResult(Protocol):
     """Result of a single-step processing operation."""
 
@@ -55,6 +59,7 @@ class StepResult(Protocol):
     processing_time_ms: float
     next_state: Optional[str]  # AgentState
     error: Optional[str]
+
 
 class AgentProcessorProtocol(Protocol):
     """

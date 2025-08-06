@@ -665,12 +665,12 @@ if sqlite3 data/ciris_engine.db "PRAGMA integrity_check;" | grep -q "ok"; then
     echo "✅ Main database integrity OK"
 else
     echo "❌ Main database corrupted, attempting repair..."
-    
+
     # Attempt repair
     sqlite3 data/ciris_engine.db ".recover" | sqlite3 data/ciris_engine_recovered.db
     mv data/ciris_engine.db data/ciris_engine_corrupted.db
     mv data/ciris_engine_recovered.db data/ciris_engine.db
-    
+
     echo "Database recovery attempted"
 fi
 
@@ -793,7 +793,7 @@ When contacting support, please provide:
    ```bash
    # Last 100 lines of logs
    tail -100 logs/latest.log
-   
+
    # Recent audit events
    tail -50 audit_logs.jsonl
    ```

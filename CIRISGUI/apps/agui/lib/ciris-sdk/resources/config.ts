@@ -44,7 +44,7 @@ export interface ConfigListResponse {
 // Helper function to extract actual value from wrapper
 export function unwrapConfigValue(wrapper: ConfigValueWrapper | null | undefined): any {
   if (!wrapper) return null;
-  
+
   if (wrapper.string_value !== null && wrapper.string_value !== undefined) return wrapper.string_value;
   if (wrapper.int_value !== null && wrapper.int_value !== undefined) return wrapper.int_value;
   if (wrapper.float_value !== null && wrapper.float_value !== undefined) return wrapper.float_value;
@@ -105,10 +105,10 @@ export class ConfigResource extends BaseResource {
     const results = await Promise.allSettled(
       Object.entries(updates).map(([key, value]) => this.set(key, value))
     );
-    
+
     const updated: string[] = [];
     const failed: string[] = [];
-    
+
     results.forEach((result, index) => {
       const key = Object.keys(updates)[index];
       if (result.status === 'fulfilled') {
@@ -117,7 +117,7 @@ export class ConfigResource extends BaseResource {
         failed.push(key);
       }
     });
-    
+
     return {
       success: failed.length === 0,
       updated,
@@ -157,11 +157,11 @@ export class ConfigResource extends BaseResource {
   async getConfig(): Promise<ConfigData> {
     const response = await this.getAll();
     const config: ConfigData = {};
-    
+
     response.configs.forEach(item => {
       config[item.key] = unwrapConfigValue(item.value);
     });
-    
+
     return config;
   }
 
@@ -176,7 +176,7 @@ export class ConfigResource extends BaseResource {
   }> {
     return this.updateMultiple(updates);
   }
-  
+
   /**
    * Get a single configuration value by key (returns unwrapped value)
    */
@@ -189,7 +189,7 @@ export class ConfigResource extends BaseResource {
       updated_by: configValue.updated_by
     };
   }
-  
+
   /**
    * Update a single configuration value by key
    */
@@ -202,7 +202,7 @@ export class ConfigResource extends BaseResource {
       message: 'Configuration updated successfully'
     };
   }
-  
+
   /**
    * Get configuration values by prefix
    */

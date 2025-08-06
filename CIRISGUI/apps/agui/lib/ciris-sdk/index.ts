@@ -1,5 +1,5 @@
 // CIRIS TypeScript SDK
-// 
+//
 // A TypeScript SDK for the CIRIS v1 API that mirrors the Python SDK functionality
 // with automatic response unwrapping, rate limiting, and type safety.
 
@@ -47,4 +47,3 @@ export type {
   PermissionRequestResponse,
   PermissionGrantRequest
 } from './resources/users';
-

@@ -1,5 +1,5 @@
-from src.tts_service import create_tts_service
 from src.config import TTSConfig
+from src.tts_service import create_tts_service
 
 
 def test_create_tts_service_openai():

@@ -1,18 +1,18 @@
 import logging
 from typing import Optional
 
-from ciris_engine.schemas.runtime.models import Thought
-from ciris_engine.schemas.actions import PonderParams
-from ciris_engine.schemas.runtime.enums import (
-    ThoughtStatus, HandlerActionType,
-)
-from ciris_engine.schemas.runtime.contexts import DispatchContext
-from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.logic import persistence
-from ciris_engine.logic.infrastructure.handlers.base_handler import BaseActionHandler, ActionHandlerDependencies
+from ciris_engine.logic.infrastructure.handlers.base_handler import ActionHandlerDependencies, BaseActionHandler
+from ciris_engine.schemas.actions import PonderParams
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
+from ciris_engine.schemas.runtime.contexts import DispatchContext
+from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
+from ciris_engine.schemas.runtime.models import Thought
+
 # Configuration handled through ActionHandlerDependencies
 
 logger = logging.getLogger(__name__)
+
 
 class PonderHandler(BaseActionHandler):
     def __init__(self, dependencies: ActionHandlerDependencies, max_rounds: Optional[int] = None) -> None:
@@ -24,14 +24,14 @@ class PonderHandler(BaseActionHandler):
         self,
         result: ActionSelectionDMAResult,  # Updated to v1 result schema
         thought: Thought,
-        dispatch_context: DispatchContext
+        dispatch_context: DispatchContext,
     ) -> Optional[str]:
         """Process ponder action and update thought."""
         params = result.action_parameters
         # Handle the union type properly
         if isinstance(params, PonderParams):
             ponder_params = params
-        elif hasattr(params, 'model_dump'):
+        elif hasattr(params, "model_dump"):
             # Try to convert from another Pydantic model
             try:
                 ponder_params = PonderParams(**params.model_dump())
@@ -43,7 +43,7 @@ class PonderHandler(BaseActionHandler):
             logger.warning(f"Expected PonderParams but got {type(params)}")
             ponder_params = PonderParams(questions=[])
 
-        questions_list = ponder_params.questions if hasattr(ponder_params, 'questions') else []
+        questions_list = ponder_params.questions if hasattr(ponder_params, "questions") else []
 
         # Note: epistemic_data handling removed - not part of typed DispatchContext
         # If epistemic data is needed, it should be passed through proper typed fields
@@ -51,7 +51,9 @@ class PonderHandler(BaseActionHandler):
         current_thought_depth = thought.thought_depth
         new_thought_depth = current_thought_depth + 1
 
-        logger.info(f"Thought ID {thought.thought_id} pondering (depth: {new_thought_depth}). Questions: {questions_list}")
+        logger.info(
+            f"Thought ID {thought.thought_id} pondering (depth: {new_thought_depth}). Questions: {questions_list}"
+        )
 
         # The thought depth conscience will handle max depth enforcement
         # We just need to process the ponder normally
@@ -66,28 +68,20 @@ class PonderHandler(BaseActionHandler):
         follow_up_content = self._generate_ponder_follow_up_content(
             task_context, questions_list, new_thought_depth, thought
         )
-        
+
         # Use centralized method to complete thought and create follow-up
         follow_up_id = self.complete_thought_and_create_followup(
-            thought=thought,
-            follow_up_content=follow_up_content,
-            action_result=result
+            thought=thought, follow_up_content=follow_up_content, action_result=result
         )
-        
+
         await self._audit_log(
-            HandlerActionType.PONDER,
-            dispatch_context,
-            outcome="success" if follow_up_id else "failed"
+            HandlerActionType.PONDER, dispatch_context, outcome="success" if follow_up_id else "failed"
         )
-        
+
         return follow_up_id
 
     def _generate_ponder_follow_up_content(
-        self,
-        task_context: str,
-        questions_list: list,
-        thought_depth: int,
-        thought: Thought
+        self, task_context: str, questions_list: list, thought_depth: int, thought: Thought
     ) -> str:
         """Generate dynamic follow-up content based on ponder count and previous failures."""
 
@@ -96,32 +90,32 @@ class PonderHandler(BaseActionHandler):
         # Add thought-depth specific guidance
         if thought_depth == 1:
             follow_up_content = (
-                f"Continuing work on: \"{task_context}\"\n"
+                f'Continuing work on: "{task_context}"\n'
                 f"Current considerations: {base_questions}\n"
                 "Please proceed with your next action."
             )
         elif thought_depth == 2:
             follow_up_content = (
-                f"Second action for: \"{task_context}\"\n"
+                f'Second action for: "{task_context}"\n'
                 f"Current focus: {base_questions}\n"
                 "You've taken one action already. Continue making progress on this task."
             )
         elif thought_depth == 3:
             follow_up_content = (
-                f"Third action for: \"{task_context}\"\n"
+                f'Third action for: "{task_context}"\n'
                 f"Working on: {base_questions}\n"
                 "You're making good progress with multiple actions. Keep going!"
             )
         elif thought_depth == 4:
             follow_up_content = (
-                f"Fourth action for: \"{task_context}\"\n"
+                f'Fourth action for: "{task_context}"\n'
                 f"Current needs: {base_questions}\n"
                 "You've taken several actions (RECALL, OBSERVE, MEMORIZE, etc.). "
                 "Continue if more work is needed, or consider if the task is complete."
             )
         elif thought_depth == 5:
             follow_up_content = (
-                f"Fifth action for: \"{task_context}\"\n"
+                f'Fifth action for: "{task_context}"\n'
                 f"Addressing: {base_questions}\n"
                 "You're deep into this task with multiple actions. Consider: "
                 "1) Is the task nearly complete? "
@@ -130,7 +124,7 @@ class PonderHandler(BaseActionHandler):
             )
         elif thought_depth == 6:
             follow_up_content = (
-                f"Sixth action for: \"{task_context}\"\n"
+                f'Sixth action for: "{task_context}"\n'
                 f"Final steps: {base_questions}\n"
                 "You're approaching the action limit (7 total). Consider: "
                 "1) Can you complete the task with one more action? "
@@ -139,7 +133,7 @@ class PonderHandler(BaseActionHandler):
             )
         elif thought_depth >= 7:
             follow_up_content = (
-                f"Seventh action for: \"{task_context}\"\n"
+                f'Seventh action for: "{task_context}"\n'
                 f"Final action: {base_questions}\n"
                 "This is your last action for this task chain. You should either: "
                 "1) TASK_COMPLETE - If the work is done or substantially complete "

@@ -2,28 +2,33 @@
 State management for the CIRISAgent processor.
 Handles transitions between WAKEUP, DREAM, PLAY, WORK, SOLITUDE, and SHUTDOWN states.
 """
+
 import logging
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
-from ciris_engine.schemas.processors.states import AgentState
-from ciris_engine.schemas.processors.state import (
-    StateTransitionRecord, StateMetadata, StateHistory, StateMetrics, StateConfiguration
-)
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.processors.state import StateHistory, StateMetadata, StateMetrics, StateTransitionRecord
+from ciris_engine.schemas.processors.states import AgentState
 
 logger = logging.getLogger(__name__)
+
 
 class StateTransition:
     """Represents a state transition with validation rules."""
 
-    def __init__(self, from_state: AgentState, to_state: AgentState,
-                 condition_fn: Optional[Callable[['StateManager'], bool]] = None,
-                 on_transition_fn: Optional[Callable[['StateManager', AgentState, AgentState], None]] = None) -> None:
+    def __init__(
+        self,
+        from_state: AgentState,
+        to_state: AgentState,
+        condition_fn: Optional[Callable[["StateManager"], bool]] = None,
+        on_transition_fn: Optional[Callable[["StateManager", AgentState, AgentState], None]] = None,
+    ) -> None:
         self.from_state = from_state
         self.to_state = to_state
         self.condition_fn = condition_fn  # Optional validation function
         self.on_transition_fn = on_transition_fn  # Optional transition handler
+
 
 class StateManager:
     """Manages agent state transitions and state-specific behaviors."""
@@ -37,7 +42,6 @@ class StateManager:
         StateTransition(AgentState.SOLITUDE, AgentState.SHUTDOWN),
         # Special startup transition - only allowed during initialization
         StateTransition(AgentState.SHUTDOWN, AgentState.WAKEUP),
-
         # Other valid transitions
         StateTransition(AgentState.WAKEUP, AgentState.WORK),
         StateTransition(AgentState.WAKEUP, AgentState.DREAM),
@@ -61,8 +65,7 @@ class StateManager:
 
         # Initialize metadata for the initial state
         self.state_metadata[initial_state] = StateMetadata(
-            entered_at=self.time_service.now_iso(),
-            metrics=StateMetrics()
+            entered_at=self.time_service.now_iso(), metrics=StateMetrics()
         )
 
     def _build_transition_map(self) -> Dict[AgentState, Dict[AgentState, StateTransition]]:
@@ -80,7 +83,7 @@ class StateManager:
             timestamp=self.time_service.now_iso(),
             from_state=old_state.value if old_state else None,
             to_state=new_state.value,
-            metadata=None  # Optional field, explicitly set to None
+            metadata=None,  # Optional field, explicitly set to None
         )
         self.state_history.append(record)
 
@@ -116,9 +119,7 @@ class StateManager:
             # Allow SHUTDOWN -> WAKEUP for startup sequence
 
         if not self.can_transition_to(target_state):
-            logger.warning(
-                f"Invalid state transition attempted: {self.current_state.value} -> {target_state.value}"
-            )
+            logger.warning(f"Invalid state transition attempted: {self.current_state.value} -> {target_state.value}")
             return False
 
         old_state = self.current_state
@@ -129,9 +130,7 @@ class StateManager:
             try:
                 transition.on_transition_fn(self, old_state, target_state)
             except Exception as e:
-                logger.error(
-                    f"Error in transition handler for {old_state.value} -> {target_state.value}: {e}"
-                )
+                logger.error(f"Error in transition handler for {old_state.value} -> {target_state.value}: {e}")
                 return False
 
         # Update state
@@ -140,14 +139,14 @@ class StateManager:
 
         logger.info(f"State transition: {old_state.value} -> {target_state.value}")
         import datetime
+
         timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
         print(f"[{timestamp}] [STATE] Transition: {old_state.value} -> {target_state.value}")  # Print to console
 
         # Initialize metadata for new state if needed
         if target_state not in self.state_metadata:
             self.state_metadata[target_state] = StateMetadata(
-                entered_at=self.time_service.now_iso(),
-                metrics=StateMetrics()
+                entered_at=self.time_service.now_iso(), metrics=StateMetrics()
             )
 
         return True
@@ -159,16 +158,14 @@ class StateManager:
     def get_state_metadata(self) -> StateMetadata:
         """Get metadata for current state."""
         return self.state_metadata.get(
-            self.current_state, 
-            StateMetadata(entered_at=self.time_service.now_iso(), metrics=StateMetrics())
+            self.current_state, StateMetadata(entered_at=self.time_service.now_iso(), metrics=StateMetrics())
         )
 
     def update_state_metadata(self, key: str, value: Any) -> None:
         """Update metadata for current state."""
         if self.current_state not in self.state_metadata:
             self.state_metadata[self.current_state] = StateMetadata(
-                entered_at=self.time_service.now_iso(),
-                metrics=StateMetrics()
+                entered_at=self.time_service.now_iso(), metrics=StateMetrics()
             )
         self.state_metadata[self.current_state].add_metric(key, value)
 
@@ -204,16 +201,15 @@ class StateManager:
     def get_state_history(self) -> List[StateTransitionRecord]:
         """Get the complete state transition history as typed records."""
         return self.state_history.copy()
-    
+
     def get_state_history_summary(self) -> StateHistory:
         """Get a complete summary of state history and current state."""
         current_metadata = self.state_metadata.get(
-            self.current_state,
-            StateMetadata(entered_at=self.time_service.now_iso(), metrics=StateMetrics())
+            self.current_state, StateMetadata(entered_at=self.time_service.now_iso(), metrics=StateMetrics())
         )
-        
+
         return StateHistory(
             transitions=self.state_history.copy(),
             current_state=self.current_state,
-            current_state_metadata=current_metadata
+            current_state_metadata=current_metadata,
         )

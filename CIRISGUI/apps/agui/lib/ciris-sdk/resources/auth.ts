@@ -86,7 +86,7 @@ export class AuthResource extends BaseResource {
   async refresh(): Promise<LoginResponse> {
     try {
       const response = await this.transport.post<LoginResponse>('/v1/auth/refresh');
-      
+
       // Update stored token
       const token: AuthToken = {
         access_token: response.access_token,
@@ -97,7 +97,7 @@ export class AuthResource extends BaseResource {
         created_at: Date.now()
       };
       AuthStore.saveToken(token);
-      
+
       return response;
     } catch (error) {
       throw new CIRISAuthError(this.buildErrorMessage('refresh', (error as Error).message));
@@ -161,9 +161,9 @@ export class AuthResource extends BaseResource {
     try {
       const response = await this.transport.get<LoginResponse>(
         `/v1/auth/oauth/${provider}/callback`,
-        { 
+        {
           params: { code, state },
-          skipAuth: true 
+          skipAuth: true
         }
       );
 

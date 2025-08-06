@@ -4,8 +4,9 @@ Decision Making Algorithm (DMA) protocols for the CIRIS Trinity Architecture.
 These protocols define contracts for all decision making algorithms.
 DMAs evaluate actions based on different criteria to guide agent behavior.
 """
-from typing import List, Any
+
 from abc import abstractmethod
+from typing import Any, List
 
 from ciris_engine.protocols.runtime.base import BaseDMAProtocol
 
@@ -13,16 +14,20 @@ from ciris_engine.protocols.runtime.base import BaseDMAProtocol
 # CORE DMA PROTOCOLS
 # ============================================================================
 
+
 class PDMAProtocol(BaseDMAProtocol):
     """Principled Decision Making Algorithm - evaluates ethical implications."""
+
     # The evaluate method from BaseDMAProtocol is sufficient
     # Implementation returns EthicalDMAResult which contains:
     # - alignment_check: Detailed ethical analysis
     # - decision: The ethically optimal action
     # - rationale: Justification for the decision
 
+
 class CSDMAProtocol(BaseDMAProtocol):
     """Common Sense Decision Making Algorithm - evaluates practical implications."""
+
     # The evaluate method from BaseDMAProtocol is sufficient
     # Implementation returns CSDMAResult which contains:
     # - plausibility_score: How plausible/practical the action is (0-1)
@@ -30,14 +35,17 @@ class CSDMAProtocol(BaseDMAProtocol):
     # - reasoning: Common sense reasoning about the action
     # - raw_llm_response: The full reasoning chain
 
+
 class DSDMAProtocol(BaseDMAProtocol):
     """Domain Specific Decision Making Algorithm - evaluates based on agent's job/identity."""
+
     # The evaluate method from BaseDMAProtocol is sufficient
     # Implementation returns DSDMAResult which contains:
     # - score: Domain alignment score (0-1)
     # - recommended_action: Domain-specific recommendation
     # - flags: Any domain-specific concerns
     # - reasoning: Domain expertise reasoning
+
 
 class ActionSelectionDMAProtocol(BaseDMAProtocol):
     """
@@ -47,6 +55,7 @@ class ActionSelectionDMAProtocol(BaseDMAProtocol):
     not just WHAT we choose. It takes input from all other DMAs and ensures
     the selection process itself is principled.
     """
+
     # The evaluate method from BaseDMAProtocol is sufficient
     # Implementation returns ActionSelectionDMAResult which contains:
     # - selected_action: The action selected by the meta-evaluation
@@ -54,9 +63,11 @@ class ActionSelectionDMAProtocol(BaseDMAProtocol):
     # - reasoning: Explanation of the recursive reasoning
     # - reliability: Reliability score for the selection
 
+
 # ============================================================================
 # SPECIALIZED DMA PROTOCOLS (Future Extensions)
 # ============================================================================
+
 
 class EmergencyDMAProtocol(BaseDMAProtocol):
     """Emergency Decision Making Algorithm - for critical situations."""
@@ -75,6 +86,7 @@ class EmergencyDMAProtocol(BaseDMAProtocol):
     async def get_emergency_protocols(self) -> List[str]:
         """Get emergency protocols to follow."""
         ...
+
 
 class CollaborativeDMAProtocol(BaseDMAProtocol):
     """Collaborative Decision Making Algorithm - for multi-agent scenarios."""

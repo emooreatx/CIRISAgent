@@ -1,41 +1,42 @@
 """WA Authentication Service - Core authentication logic implementation."""
 
-import json
-import os
-import sqlite3
-import hashlib
-import secrets
-import base64
 import asyncio
+import base64
 import functools
+import hashlib
 import inspect
+import json
 import logging
-from typing import Optional, List, Dict, Tuple, Callable, TypeVar, Union, TYPE_CHECKING, Any
+import os
+import secrets
+import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-import aiofiles
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union
 
+import aiofiles
 import jwt
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
-from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-from ciris_engine.schemas.services.authority_core import (
-    WACertificate, ChannelIdentity,
-    AuthorizationContext, WARole, TokenType, JWTSubType
-)
-from ciris_engine.schemas.services.authority.wise_authority import (
-    AuthenticationResult, WAUpdate, TokenVerification
-)
-from ciris_engine.protocols.services.infrastructure.authentication import AuthenticationServiceProtocol
-from ciris_engine.protocols.runtime.base import ServiceProtocol
 from ciris_engine.logic.services.base_infrastructure_service import BaseInfrastructureService
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
-from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.logic.services.lifecycle.time import TimeService
+from ciris_engine.protocols.services.infrastructure.authentication import AuthenticationServiceProtocol
+from ciris_engine.schemas.runtime.enums import ServiceType
+from ciris_engine.schemas.services.authority.wise_authority import AuthenticationResult, TokenVerification, WAUpdate
+from ciris_engine.schemas.services.authority_core import (
+    AuthorizationContext,
+    ChannelIdentity,
+    JWTSubType,
+    TokenType,
+    WACertificate,
+    WARole,
+)
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 
 if TYPE_CHECKING:
     from ciris_engine.schemas.runtime.models import Task
@@ -43,7 +44,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Type variable for decorators
-F = TypeVar('F', bound=Callable)
+F = TypeVar("F", bound=Callable)
+
 
 class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProtocol):
     """Infrastructure service for WA authentication and identity management."""
@@ -81,6 +83,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
     def get_service_type(self) -> ServiceType:
         """Get service type - authentication is part of wise authority infrastructure."""
         from ciris_engine.schemas.runtime.enums import ServiceType
+
         return ServiceType.WISE_AUTHORITY
 
     def _get_actions(self) -> List[str]:
@@ -92,7 +95,6 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             "verify_token",
             "verify_token_sync",
             "create_channel_token",
-            
             # WA management
             "create_wa",
             "get_wa",
@@ -100,17 +102,15 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             "revoke_wa",
             "list_was",
             "rotate_keys",
-            
             # Utility operations
             "bootstrap_if_needed",
             "update_last_login",
             "sign_task",
             "verify_task_signature",
-            
             # Key operations
             "generate_keypair",
             "sign_data",
-            "hash_password"
+            "hash_password",
         ]
 
     def _check_dependencies(self) -> bool:
@@ -121,7 +121,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
     @staticmethod
     def _encode_public_key(pubkey_bytes: bytes) -> str:
         """Encode public key using base64url without padding."""
-        return base64.urlsafe_b64encode(pubkey_bytes).decode().rstrip('=')
+        return base64.urlsafe_b64encode(pubkey_bytes).decode().rstrip("=")
 
     @staticmethod
     def _decode_public_key(pubkey_str: str) -> bytes:
@@ -129,22 +129,22 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
         # Add padding if necessary
         padding = 4 - (len(pubkey_str) % 4)
         if padding != 4:
-            pubkey_str += '=' * padding
+            pubkey_str += "=" * padding
         return base64.urlsafe_b64decode(pubkey_str)
 
     def _derive_encryption_key(self, salt: bytes) -> bytes:
         """Derive an encryption key from machine-specific data.
-        
+
         Args:
             salt: Random salt for key derivation
-            
+
         Returns:
             32-byte derived encryption key
         """
         # Use machine ID and hostname as key material
         machine_id = ""
         hostname = ""
-        
+
         try:
             # Try to get machine ID (Linux)
             machine_id_path = Path("/etc/machine-id")
@@ -153,54 +153,45 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             else:
                 # Fallback to hostname
                 import socket
+
                 hostname = socket.gethostname()
         except Exception:
             hostname = "default"
-        
+
         # Combine machine-specific data with purpose identifier
         key_material = f"{machine_id}:{hostname}:gateway-secret-encryption".encode()
-        
+
         # Use PBKDF2 to derive a 32-byte key with the provided salt
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=salt,
-            iterations=100000,
-            backend=default_backend()
-        )
+        kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=100000, backend=default_backend())
         return kdf.derive(key_material)
-    
+
     def _encrypt_secret(self, secret: bytes) -> bytes:
         """Encrypt a secret using AES-GCM with random salt.
-        
+
         Format: salt (32 bytes) + nonce (12 bytes) + ciphertext + tag (16 bytes)
         """
         # Generate random salt for key derivation
         salt = os.urandom(32)
-        
+
         # Derive encryption key with the salt
         key = self._derive_encryption_key(salt)
-        
+
         # Generate a random 96-bit nonce for GCM
         nonce = os.urandom(12)
-        
+
         # Create cipher
-        cipher = Cipher(
-            algorithms.AES(key),
-            modes.GCM(nonce),
-            backend=default_backend()
-        )
+        cipher = Cipher(algorithms.AES(key), modes.GCM(nonce), backend=default_backend())
         encryptor = cipher.encryptor()
-        
+
         # Encrypt and get tag
         ciphertext = encryptor.update(secret) + encryptor.finalize()
-        
+
         # Return salt + nonce + ciphertext + tag
         return salt + nonce + ciphertext + encryptor.tag
-    
+
     def _decrypt_secret(self, encrypted: bytes) -> bytes:
         """Decrypt a secret using AES-GCM.
-        
+
         Expected format: salt (32 bytes) + nonce (12 bytes) + ciphertext + tag (16 bytes)
         """
         # Check minimum length: salt(32) + nonce(12) + tag(16) = 60 bytes minimum
@@ -211,38 +202,30 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
                 # Try legacy decryption with hardcoded salt
                 legacy_salt = b"ciris-gateway-encryption-salt"
                 key = self._derive_encryption_key(legacy_salt)
-                
+
                 nonce = encrypted[:12]
                 tag = encrypted[-16:]
                 ciphertext = encrypted[12:-16]
-                
-                cipher = Cipher(
-                    algorithms.AES(key),
-                    modes.GCM(nonce, tag),
-                    backend=default_backend()
-                )
+
+                cipher = Cipher(algorithms.AES(key), modes.GCM(nonce, tag), backend=default_backend())
                 decryptor = cipher.decryptor()
                 return decryptor.update(ciphertext) + decryptor.finalize()
             except Exception:
                 raise ValueError("Invalid encrypted data format")
-        
+
         # Extract components for new format
         salt = encrypted[:32]
         nonce = encrypted[32:44]
         tag = encrypted[-16:]
         ciphertext = encrypted[44:-16]
-        
+
         # Derive key with extracted salt
         key = self._derive_encryption_key(salt)
-        
+
         # Create cipher
-        cipher = Cipher(
-            algorithms.AES(key),
-            modes.GCM(nonce, tag),
-            backend=default_backend()
-        )
+        cipher = Cipher(algorithms.AES(key), modes.GCM(nonce, tag), backend=default_backend())
         decryptor = cipher.decryptor()
-        
+
         # Decrypt
         return decryptor.update(ciphertext) + decryptor.finalize()
 
@@ -259,7 +242,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             except Exception as e:
                 logger.warning(f"Failed to decrypt gateway secret: {type(e).__name__}")
                 # Fall through to regenerate
-        
+
         # Check for legacy unencrypted secret
         if secret_path.exists():
             # Read and encrypt the existing secret
@@ -294,35 +277,32 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
         """Get WA certificate by ID."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute(
-                "SELECT * FROM wa_cert WHERE wa_id = ? AND active = 1",
-                (wa_id,)
-            )
+            cursor = conn.execute("SELECT * FROM wa_cert WHERE wa_id = ? AND active = 1", (wa_id,))
             row = cursor.fetchone()
 
             if row:
                 # Map database fields to schema fields
                 row_dict = dict(row)
                 wa_dict = {
-                    'wa_id': row_dict['wa_id'],
-                    'name': row_dict['name'],
-                    'role': row_dict['role'],
-                    'pubkey': row_dict['pubkey'],
-                    'jwt_kid': row_dict['jwt_kid'],
-                    'password_hash': row_dict.get('password_hash'),
-                    'api_key_hash': row_dict.get('api_key_hash'),
-                    'oauth_provider': row_dict.get('oauth_provider'),
-                    'oauth_external_id': row_dict.get('oauth_external_id'),
-                    'auto_minted': bool(row_dict.get('auto_minted', 0)),
-                    'veilid_id': row_dict.get('veilid_id'),
-                    'parent_wa_id': row_dict.get('parent_wa_id'),
-                    'parent_signature': row_dict.get('parent_signature'),
-                    'scopes_json': row_dict['scopes_json'],
-                    'adapter_id': row_dict.get('adapter_id'),
-                    'adapter_name': row_dict.get('adapter_name'),
-                    'adapter_metadata_json': row_dict.get('adapter_metadata_json'),
-                    'created_at': row_dict['created'],
-                    'last_auth': row_dict.get('last_login')
+                    "wa_id": row_dict["wa_id"],
+                    "name": row_dict["name"],
+                    "role": row_dict["role"],
+                    "pubkey": row_dict["pubkey"],
+                    "jwt_kid": row_dict["jwt_kid"],
+                    "password_hash": row_dict.get("password_hash"),
+                    "api_key_hash": row_dict.get("api_key_hash"),
+                    "oauth_provider": row_dict.get("oauth_provider"),
+                    "oauth_external_id": row_dict.get("oauth_external_id"),
+                    "auto_minted": bool(row_dict.get("auto_minted", 0)),
+                    "veilid_id": row_dict.get("veilid_id"),
+                    "parent_wa_id": row_dict.get("parent_wa_id"),
+                    "parent_signature": row_dict.get("parent_signature"),
+                    "scopes_json": row_dict["scopes_json"],
+                    "adapter_id": row_dict.get("adapter_id"),
+                    "adapter_name": row_dict.get("adapter_name"),
+                    "adapter_metadata_json": row_dict.get("adapter_metadata_json"),
+                    "created_at": row_dict["created"],
+                    "last_auth": row_dict.get("last_login"),
                 }
                 return WACertificate(**wa_dict)
             return None
@@ -331,35 +311,32 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
         """Get WA certificate by JWT key ID."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute(
-                "SELECT * FROM wa_cert WHERE jwt_kid = ? AND active = 1",
-                (jwt_kid,)
-            )
+            cursor = conn.execute("SELECT * FROM wa_cert WHERE jwt_kid = ? AND active = 1", (jwt_kid,))
             row = cursor.fetchone()
 
             if row:
                 # Map database fields to schema fields
                 row_dict = dict(row)
                 wa_dict = {
-                    'wa_id': row_dict['wa_id'],
-                    'name': row_dict['name'],
-                    'role': row_dict['role'],
-                    'pubkey': row_dict['pubkey'],
-                    'jwt_kid': row_dict['jwt_kid'],
-                    'password_hash': row_dict.get('password_hash'),
-                    'api_key_hash': row_dict.get('api_key_hash'),
-                    'oauth_provider': row_dict.get('oauth_provider'),
-                    'oauth_external_id': row_dict.get('oauth_external_id'),
-                    'auto_minted': bool(row_dict.get('auto_minted', 0)),
-                    'veilid_id': row_dict.get('veilid_id'),
-                    'parent_wa_id': row_dict.get('parent_wa_id'),
-                    'parent_signature': row_dict.get('parent_signature'),
-                    'scopes_json': row_dict['scopes_json'],
-                    'adapter_id': row_dict.get('adapter_id'),
-                    'adapter_name': row_dict.get('adapter_name'),
-                    'adapter_metadata_json': row_dict.get('adapter_metadata_json'),
-                    'created_at': row_dict['created'],
-                    'last_auth': row_dict.get('last_login')
+                    "wa_id": row_dict["wa_id"],
+                    "name": row_dict["name"],
+                    "role": row_dict["role"],
+                    "pubkey": row_dict["pubkey"],
+                    "jwt_kid": row_dict["jwt_kid"],
+                    "password_hash": row_dict.get("password_hash"),
+                    "api_key_hash": row_dict.get("api_key_hash"),
+                    "oauth_provider": row_dict.get("oauth_provider"),
+                    "oauth_external_id": row_dict.get("oauth_external_id"),
+                    "auto_minted": bool(row_dict.get("auto_minted", 0)),
+                    "veilid_id": row_dict.get("veilid_id"),
+                    "parent_wa_id": row_dict.get("parent_wa_id"),
+                    "parent_signature": row_dict.get("parent_signature"),
+                    "scopes_json": row_dict["scopes_json"],
+                    "adapter_id": row_dict.get("adapter_id"),
+                    "adapter_name": row_dict.get("adapter_name"),
+                    "adapter_metadata_json": row_dict.get("adapter_metadata_json"),
+                    "created_at": row_dict["created"],
+                    "last_auth": row_dict.get("last_login"),
                 }
                 return WACertificate(**wa_dict)
             return None
@@ -370,7 +347,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(
                 "SELECT * FROM wa_cert WHERE oauth_provider = ? AND oauth_external_id = ? AND active = 1",
-                (provider, external_id)
+                (provider, external_id),
             )
             row = cursor.fetchone()
 
@@ -378,25 +355,25 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
                 # Map database fields to schema fields
                 row_dict = dict(row)
                 wa_dict = {
-                    'wa_id': row_dict['wa_id'],
-                    'name': row_dict['name'],
-                    'role': row_dict['role'],
-                    'pubkey': row_dict['pubkey'],
-                    'jwt_kid': row_dict['jwt_kid'],
-                    'password_hash': row_dict.get('password_hash'),
-                    'api_key_hash': row_dict.get('api_key_hash'),
-                    'oauth_provider': row_dict.get('oauth_provider'),
-                    'oauth_external_id': row_dict.get('oauth_external_id'),
-                    'auto_minted': bool(row_dict.get('auto_minted', 0)),
-                    'veilid_id': row_dict.get('veilid_id'),
-                    'parent_wa_id': row_dict.get('parent_wa_id'),
-                    'parent_signature': row_dict.get('parent_signature'),
-                    'scopes_json': row_dict['scopes_json'],
-                    'adapter_id': row_dict.get('adapter_id'),
-                    'adapter_name': row_dict.get('adapter_name'),
-                    'adapter_metadata_json': row_dict.get('adapter_metadata_json'),
-                    'created_at': row_dict['created'],
-                    'last_auth': row_dict.get('last_login')
+                    "wa_id": row_dict["wa_id"],
+                    "name": row_dict["name"],
+                    "role": row_dict["role"],
+                    "pubkey": row_dict["pubkey"],
+                    "jwt_kid": row_dict["jwt_kid"],
+                    "password_hash": row_dict.get("password_hash"),
+                    "api_key_hash": row_dict.get("api_key_hash"),
+                    "oauth_provider": row_dict.get("oauth_provider"),
+                    "oauth_external_id": row_dict.get("oauth_external_id"),
+                    "auto_minted": bool(row_dict.get("auto_minted", 0)),
+                    "veilid_id": row_dict.get("veilid_id"),
+                    "parent_wa_id": row_dict.get("parent_wa_id"),
+                    "parent_signature": row_dict.get("parent_signature"),
+                    "scopes_json": row_dict["scopes_json"],
+                    "adapter_id": row_dict.get("adapter_id"),
+                    "adapter_name": row_dict.get("adapter_name"),
+                    "adapter_metadata_json": row_dict.get("adapter_metadata_json"),
+                    "created_at": row_dict["created"],
+                    "last_auth": row_dict.get("last_login"),
                 }
                 return WACertificate(**wa_dict)
             return None
@@ -405,35 +382,32 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
         """Get WA certificate by adapter ID."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute(
-                "SELECT * FROM wa_cert WHERE adapter_id = ? AND active = 1",
-                (adapter_id,)
-            )
+            cursor = conn.execute("SELECT * FROM wa_cert WHERE adapter_id = ? AND active = 1", (adapter_id,))
             row = cursor.fetchone()
 
             if row:
                 # Map database fields to schema fields
                 row_dict = dict(row)
                 wa_dict = {
-                    'wa_id': row_dict['wa_id'],
-                    'name': row_dict['name'],
-                    'role': row_dict['role'],
-                    'pubkey': row_dict['pubkey'],
-                    'jwt_kid': row_dict['jwt_kid'],
-                    'password_hash': row_dict.get('password_hash'),
-                    'api_key_hash': row_dict.get('api_key_hash'),
-                    'oauth_provider': row_dict.get('oauth_provider'),
-                    'oauth_external_id': row_dict.get('oauth_external_id'),
-                    'auto_minted': bool(row_dict.get('auto_minted', 0)),
-                    'veilid_id': row_dict.get('veilid_id'),
-                    'parent_wa_id': row_dict.get('parent_wa_id'),
-                    'parent_signature': row_dict.get('parent_signature'),
-                    'scopes_json': row_dict['scopes_json'],
-                    'adapter_id': row_dict.get('adapter_id'),
-                    'adapter_name': row_dict.get('adapter_name'),
-                    'adapter_metadata_json': row_dict.get('adapter_metadata_json'),
-                    'created_at': row_dict['created'],
-                    'last_auth': row_dict.get('last_login')
+                    "wa_id": row_dict["wa_id"],
+                    "name": row_dict["name"],
+                    "role": row_dict["role"],
+                    "pubkey": row_dict["pubkey"],
+                    "jwt_kid": row_dict["jwt_kid"],
+                    "password_hash": row_dict.get("password_hash"),
+                    "api_key_hash": row_dict.get("api_key_hash"),
+                    "oauth_provider": row_dict.get("oauth_provider"),
+                    "oauth_external_id": row_dict.get("oauth_external_id"),
+                    "auto_minted": bool(row_dict.get("auto_minted", 0)),
+                    "veilid_id": row_dict.get("veilid_id"),
+                    "parent_wa_id": row_dict.get("parent_wa_id"),
+                    "parent_signature": row_dict.get("parent_signature"),
+                    "scopes_json": row_dict["scopes_json"],
+                    "adapter_id": row_dict.get("adapter_id"),
+                    "adapter_name": row_dict.get("adapter_name"),
+                    "adapter_metadata_json": row_dict.get("adapter_metadata_json"),
+                    "created_at": row_dict["created"],
+                    "last_auth": row_dict.get("last_login"),
                 }
                 return WACertificate(**wa_dict)
             return None
@@ -446,34 +420,39 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
 
             # Map schema fields to database fields
             db_dict = {
-                'wa_id': wa_dict['wa_id'],
-                'name': wa_dict['name'],
-                'role': wa_dict['role'],
-                'pubkey': wa_dict['pubkey'],
-                'jwt_kid': wa_dict['jwt_kid'],
-                'password_hash': wa_dict.get('password_hash'),
-                'api_key_hash': wa_dict.get('api_key_hash'),
-                'oauth_provider': wa_dict.get('oauth_provider'),
-                'oauth_external_id': wa_dict.get('oauth_external_id'),
-                'veilid_id': wa_dict.get('veilid_id'),
-                'auto_minted': int(wa_dict.get('auto_minted', False)),
-                'parent_wa_id': wa_dict.get('parent_wa_id'),
-                'parent_signature': wa_dict.get('parent_signature'),
-                'scopes_json': wa_dict['scopes_json'],
-                'adapter_id': wa_dict.get('adapter_id'),
-                'token_type': wa_dict.get('token_type', 'standard'),
-                'created': wa_dict['created_at'].isoformat() if isinstance(wa_dict['created_at'], datetime) else wa_dict['created_at'],
-                'last_login': wa_dict['last_auth'].isoformat() if wa_dict.get('last_auth') and isinstance(wa_dict['last_auth'], datetime) else wa_dict.get('last_auth'),
-                'active': 1  # New WAs are active by default
+                "wa_id": wa_dict["wa_id"],
+                "name": wa_dict["name"],
+                "role": wa_dict["role"],
+                "pubkey": wa_dict["pubkey"],
+                "jwt_kid": wa_dict["jwt_kid"],
+                "password_hash": wa_dict.get("password_hash"),
+                "api_key_hash": wa_dict.get("api_key_hash"),
+                "oauth_provider": wa_dict.get("oauth_provider"),
+                "oauth_external_id": wa_dict.get("oauth_external_id"),
+                "veilid_id": wa_dict.get("veilid_id"),
+                "auto_minted": int(wa_dict.get("auto_minted", False)),
+                "parent_wa_id": wa_dict.get("parent_wa_id"),
+                "parent_signature": wa_dict.get("parent_signature"),
+                "scopes_json": wa_dict["scopes_json"],
+                "adapter_id": wa_dict.get("adapter_id"),
+                "token_type": wa_dict.get("token_type", "standard"),
+                "created": (
+                    wa_dict["created_at"].isoformat()
+                    if isinstance(wa_dict["created_at"], datetime)
+                    else wa_dict["created_at"]
+                ),
+                "last_login": (
+                    wa_dict["last_auth"].isoformat()
+                    if wa_dict.get("last_auth") and isinstance(wa_dict["last_auth"], datetime)
+                    else wa_dict.get("last_auth")
+                ),
+                "active": 1,  # New WAs are active by default
             }
 
-            columns = ', '.join(db_dict.keys())
-            placeholders = ', '.join(['?' for _ in db_dict])
+            columns = ", ".join(db_dict.keys())
+            placeholders = ", ".join(["?" for _ in db_dict])
 
-            conn.execute(
-                f"INSERT INTO wa_cert ({columns}) VALUES ({placeholders})",
-                list(db_dict.values())
-            )
+            conn.execute(f"INSERT INTO wa_cert ({columns}) VALUES ({placeholders})", list(db_dict.values()))
             conn.commit()
 
     async def _create_adapter_observer(self, adapter_id: str, name: str) -> WACertificate:
@@ -498,28 +477,29 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             jwt_kid=jwt_kid,
             scopes_json='["read:any", "write:message"]',
             adapter_id=adapter_id,
-            created_at=timestamp
+            created_at=timestamp,
         )
 
         await self._store_wa_certificate(observer)
         return observer
 
-
-    async def update_wa(self, wa_id: str, updates: Optional[WAUpdate] = None, **kwargs: Union[str, bool, datetime]) -> Optional[WACertificate]:
+    async def update_wa(
+        self, wa_id: str, updates: Optional[WAUpdate] = None, **kwargs: Union[str, bool, datetime]
+    ) -> Optional[WACertificate]:
         """Update WA certificate fields."""
         if updates:
             # Convert WAUpdate to kwargs
             update_kwargs = {}
             if updates.name:
-                update_kwargs['name'] = updates.name
+                update_kwargs["name"] = updates.name
             if updates.role:
-                update_kwargs['role'] = updates.role
+                update_kwargs["role"] = updates.role
             if updates.permissions:
-                update_kwargs['scopes_json'] = json.dumps(updates.permissions)
+                update_kwargs["scopes_json"] = json.dumps(updates.permissions)
             if updates.metadata:
-                update_kwargs['metadata'] = json.dumps(updates.metadata)
+                update_kwargs["metadata"] = json.dumps(updates.metadata)
             if updates.is_active is not None:
-                update_kwargs['active'] = str(int(updates.is_active))
+                update_kwargs["active"] = str(int(updates.is_active))
             kwargs.update(update_kwargs)
         if not kwargs:
             return await self.get_wa(wa_id)
@@ -529,14 +509,11 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             if isinstance(value, datetime):
                 kwargs[key] = value.isoformat()
 
-        set_clause = ', '.join([f"{key} = ?" for key in kwargs.keys()])
+        set_clause = ", ".join([f"{key} = ?" for key in kwargs.keys()])
         values = list(kwargs.values()) + [wa_id]
 
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute(
-                f"UPDATE wa_cert SET {set_clause} WHERE wa_id = ?",
-                values
-            )
+            conn.execute(f"UPDATE wa_cert SET {set_clause} WHERE wa_id = ?", values)
             conn.commit()
 
         # Return updated WA
@@ -573,25 +550,25 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
                 # Map database fields to schema fields
                 row_dict = dict(row)
                 wa_dict = {
-                    'wa_id': row_dict['wa_id'],
-                    'name': row_dict['name'],
-                    'role': row_dict['role'],
-                    'pubkey': row_dict['pubkey'],
-                    'jwt_kid': row_dict['jwt_kid'],
-                    'password_hash': row_dict.get('password_hash'),
-                    'api_key_hash': row_dict.get('api_key_hash'),
-                    'oauth_provider': row_dict.get('oauth_provider'),
-                    'oauth_external_id': row_dict.get('oauth_external_id'),
-                    'auto_minted': bool(row_dict.get('auto_minted', 0)),
-                    'veilid_id': row_dict.get('veilid_id'),
-                    'parent_wa_id': row_dict.get('parent_wa_id'),
-                    'parent_signature': row_dict.get('parent_signature'),
-                    'scopes_json': row_dict['scopes_json'],
-                    'adapter_id': row_dict.get('adapter_id'),
-                    'adapter_name': row_dict.get('adapter_name'),
-                    'adapter_metadata_json': row_dict.get('adapter_metadata_json'),
-                    'created_at': row_dict['created'],
-                    'last_auth': row_dict.get('last_login')
+                    "wa_id": row_dict["wa_id"],
+                    "name": row_dict["name"],
+                    "role": row_dict["role"],
+                    "pubkey": row_dict["pubkey"],
+                    "jwt_kid": row_dict["jwt_kid"],
+                    "password_hash": row_dict.get("password_hash"),
+                    "api_key_hash": row_dict.get("api_key_hash"),
+                    "oauth_provider": row_dict.get("oauth_provider"),
+                    "oauth_external_id": row_dict.get("oauth_external_id"),
+                    "auto_minted": bool(row_dict.get("auto_minted", 0)),
+                    "veilid_id": row_dict.get("veilid_id"),
+                    "parent_wa_id": row_dict.get("parent_wa_id"),
+                    "parent_signature": row_dict.get("parent_signature"),
+                    "scopes_json": row_dict["scopes_json"],
+                    "adapter_id": row_dict.get("adapter_id"),
+                    "adapter_name": row_dict.get("adapter_name"),
+                    "adapter_metadata_json": row_dict.get("adapter_metadata_json"),
+                    "created_at": row_dict["created"],
+                    "last_auth": row_dict.get("last_login"),
                 }
                 result.append(WACertificate(**wa_dict))
 
@@ -599,7 +576,9 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
 
     async def update_last_login(self, wa_id: str) -> None:
         """Update last login timestamp."""
-        await self.update_wa(wa_id, last_login=self._time_service.now() if self._time_service else datetime.now(timezone.utc))
+        await self.update_wa(
+            wa_id, last_login=self._time_service.now() if self._time_service else datetime.now(timezone.utc)
+        )
 
     # JWTService Protocol Implementation
 
@@ -611,84 +590,81 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             raise ValueError(f"WA {wa_id} not found")
 
         payload = {
-            'sub': wa.wa_id,
-            'sub_type': JWTSubType.ANON.value,
-            'name': wa.name,
-            'scope': wa.scopes,
-            'iat': int(self._time_service.timestamp() if self._time_service else datetime.now(timezone.utc).timestamp()),
+            "sub": wa.wa_id,
+            "sub_type": JWTSubType.ANON.value,
+            "name": wa.name,
+            "scope": wa.scopes,
+            "iat": int(
+                self._time_service.timestamp() if self._time_service else datetime.now(timezone.utc).timestamp()
+            ),
         }
 
         # For observer tokens, use adapter_id and make them long-lived (no expiry)
         if wa.role == WARole.OBSERVER and wa.adapter_id:
-            payload['adapter'] = wa.adapter_id
+            payload["adapter"] = wa.adapter_id
             # No expiry for observer tokens by default
             if ttl > 0:
                 # Only add expiry if explicitly requested
-                payload['exp'] = int(self._time_service.timestamp() if self._time_service else datetime.now(timezone.utc).timestamp()) + ttl
+                payload["exp"] = (
+                    int(
+                        self._time_service.timestamp() if self._time_service else datetime.now(timezone.utc).timestamp()
+                    )
+                    + ttl
+                )
         else:
             # For non-observer tokens, include channel and expiry
-            payload['channel'] = channel_id
-            payload['exp'] = int(self._time_service.timestamp() if self._time_service else datetime.now(timezone.utc).timestamp()) + ttl
+            payload["channel"] = channel_id
+            payload["exp"] = (
+                int(self._time_service.timestamp() if self._time_service else datetime.now(timezone.utc).timestamp())
+                + ttl
+            )
 
-        return jwt.encode(
-            payload,
-            self.gateway_secret,
-            algorithm='HS256',
-            headers={'kid': wa.jwt_kid}
-        )
+        return jwt.encode(payload, self.gateway_secret, algorithm="HS256", headers={"kid": wa.jwt_kid})
 
     def create_gateway_token(self, wa: WACertificate, expires_hours: int = 8) -> str:
         """Create gateway-signed token (OAuth/password auth)."""
         now = int(self._time_service.timestamp() if self._time_service else datetime.now(timezone.utc).timestamp())
 
         payload = {
-            'sub': wa.wa_id,
-            'sub_type': JWTSubType.OAUTH.value if wa.oauth_provider else JWTSubType.USER.value,
-            'name': wa.name,
-            'scope': wa.scopes,
-            'iat': now,
-            'exp': now + (expires_hours * 3600)
+            "sub": wa.wa_id,
+            "sub_type": JWTSubType.OAUTH.value if wa.oauth_provider else JWTSubType.USER.value,
+            "name": wa.name,
+            "scope": wa.scopes,
+            "iat": now,
+            "exp": now + (expires_hours * 3600),
         }
 
         if wa.oauth_provider:
-            payload['oauth_provider'] = wa.oauth_provider
+            payload["oauth_provider"] = wa.oauth_provider
 
-        return jwt.encode(
-            payload,
-            self.gateway_secret,
-            algorithm='HS256',
-            headers={'kid': wa.jwt_kid}
-        )
+        return jwt.encode(payload, self.gateway_secret, algorithm="HS256", headers={"kid": wa.jwt_kid})
 
     def _create_authority_token(self, wa: WACertificate, private_key: bytes) -> str:
         """Create WA-signed authority token."""
         now = int(self._time_service.timestamp() if self._time_service else datetime.now(timezone.utc).timestamp())
 
         payload = {
-            'sub': wa.wa_id,
-            'sub_type': JWTSubType.AUTHORITY.value,
-            'name': wa.name,
-            'scope': wa.scopes,
-            'iat': now,
-            'exp': now + (24 * 3600)  # 24 hours
+            "sub": wa.wa_id,
+            "sub_type": JWTSubType.AUTHORITY.value,
+            "name": wa.name,
+            "scope": wa.scopes,
+            "iat": now,
+            "exp": now + (24 * 3600),  # 24 hours
         }
 
         # Load Ed25519 private key
         signing_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key)
 
-        return jwt.encode(
-            payload,
-            signing_key,
-            algorithm='EdDSA',
-            headers={'kid': wa.jwt_kid}
-        )
+        return jwt.encode(payload, signing_key, algorithm="EdDSA", headers={"kid": wa.jwt_kid})
 
-    async def _verify_jwt_and_get_context(self, token: str) -> Optional[Tuple[AuthorizationContext, Optional[datetime]]]:
+    async def _verify_jwt_and_get_context(
+        self, token: str
+    ) -> Optional[Tuple[AuthorizationContext, Optional[datetime]]]:
         """Verify any JWT token and return auth context and expiration (internal method)."""
         try:
             # Decode header to get kid
             header = jwt.get_unverified_header(token)
-            kid = header.get('kid')
+            kid = header.get("kid")
 
             if not kid:
                 return None
@@ -700,51 +676,51 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
 
             # Try to verify with different keys/algorithms based on the issuer (kid)
             decoded = None
-            
+
             # First try gateway-signed tokens (most common)
             try:
-                decoded = jwt.decode(token, self.gateway_secret, algorithms=['HS256'])
+                decoded = jwt.decode(token, self.gateway_secret, algorithms=["HS256"])
             except jwt.InvalidTokenError:
                 pass
-            
+
             # If gateway verification failed, try WA-signed tokens
             if not decoded:
                 try:
                     public_key_bytes = self._decode_public_key(wa.pubkey)
                     public_key = ed25519.Ed25519PublicKey.from_public_bytes(public_key_bytes)
-                    decoded = jwt.decode(token, public_key, algorithms=['EdDSA'])
+                    decoded = jwt.decode(token, public_key, algorithms=["EdDSA"])
                 except jwt.InvalidTokenError:
                     pass
-            
+
             # If no verification succeeded, token is invalid
             if not decoded:
                 return None
-            
+
             # Validate sub_type and algorithm after verification
             # IMPORTANT: We must validate that the token was verified with the expected algorithm
             # to prevent algorithm confusion attacks
-            sub_type = decoded.get('sub_type')
-            
+            sub_type = decoded.get("sub_type")
+
             # Determine which verification succeeded based on the algorithm
             verified_with_gateway = False
             verified_with_wa_key = False
-            
+
             # Re-verify to determine which key actually verified the token
             try:
-                jwt.decode(token, self.gateway_secret, algorithms=['HS256'])
+                jwt.decode(token, self.gateway_secret, algorithms=["HS256"])
                 verified_with_gateway = True
             except jwt.InvalidTokenError:
                 pass
-                
+
             if not verified_with_gateway:
                 try:
                     public_key_bytes = self._decode_public_key(wa.pubkey)
                     public_key = ed25519.Ed25519PublicKey.from_public_bytes(public_key_bytes)
-                    jwt.decode(token, public_key, algorithms=['EdDSA'])
+                    jwt.decode(token, public_key, algorithms=["EdDSA"])
                     verified_with_wa_key = True
                 except jwt.InvalidTokenError:
                     pass
-            
+
             # Validate that the token type matches the verification method
             if sub_type == JWTSubType.AUTHORITY.value:
                 # Authority tokens must be verified with WA key (EdDSA)
@@ -767,19 +743,19 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
                 token_type = TokenType.STANDARD
 
             context = AuthorizationContext(
-                wa_id=decoded['sub'],
+                wa_id=decoded["sub"],
                 role=wa.role,
                 token_type=token_type,
-                sub_type=JWTSubType(decoded['sub_type']),
-                scopes=decoded['scope'],
-                channel_id=decoded.get('channel')
+                sub_type=JWTSubType(decoded["sub_type"]),
+                scopes=decoded["scope"],
+                channel_id=decoded.get("channel"),
             )
 
             # Update last login
             await self.update_last_login(wa.wa_id)
 
             # Extract expiration if present
-            exp_timestamp = decoded.get('exp')
+            exp_timestamp = decoded.get("exp")
             expiration = None
             if exp_timestamp:
                 expiration = datetime.fromtimestamp(exp_timestamp, tz=timezone.utc)
@@ -801,12 +777,11 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
         private_bytes = private_key.private_bytes(
             encoding=serialization.Encoding.Raw,
             format=serialization.PrivateFormat.Raw,
-            encryption_algorithm=serialization.NoEncryption()
+            encryption_algorithm=serialization.NoEncryption(),
         )
 
         public_bytes = public_key.public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw
+            encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
         )
 
         return private_bytes, public_bytes
@@ -857,6 +832,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             key = kdf.derive(password.encode())
             # Use constant-time comparison to prevent timing attacks
             import hmac
+
             return hmac.compare_digest(key, stored_key)
         except Exception:
             return False
@@ -869,18 +845,18 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
 
     def _generate_wa_id(self, timestamp: datetime) -> str:
         """Generate a unique WA (Wise Authority) ID.
-        
+
         Format: wa-YYYY-MM-DD-XXXXXX
         - wa: Fixed prefix for all WA IDs
         - YYYY-MM-DD: Date from the provided timestamp
         - XXXXXX: 6 uppercase hexadecimal characters (cryptographically random)
-        
+
         Args:
             timestamp: The timestamp to use for the date portion
-            
+
         Returns:
             A unique WA ID string
-            
+
         Example:
             wa-2025-07-14-A3F2B1
         """
@@ -898,7 +874,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             if not claims:
                 return None
 
-            if hasattr(claims, 'get'):
+            if hasattr(claims, "get"):
                 wa_id = claims.get("wa_id")
             else:
                 wa_id = getattr(claims, "wa_id", None)
@@ -918,9 +894,13 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
                 wa_id=wa_id,
                 name=wa.name,
                 role=wa.role.value,
-                expires_at=datetime.fromtimestamp(claims.get("exp", 0), tz=timezone.utc) if hasattr(claims, 'get') else (self._time_service.now() if self._time_service else datetime.now(timezone.utc)),
+                expires_at=(
+                    datetime.fromtimestamp(claims.get("exp", 0), tz=timezone.utc)
+                    if hasattr(claims, "get")
+                    else (self._time_service.now() if self._time_service else datetime.now(timezone.utc))
+                ),
                 permissions=wa.scopes,
-                metadata={}
+                metadata={},
             )
         except Exception as e:
             logger.error(f"Authentication failed: {e}")
@@ -948,15 +928,19 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             result = await self._verify_jwt_and_get_context(token)
             if not result:
                 return None
-            
+
             context, expiration = result
-            
+
             # Get the WA name
             wa = await self.get_wa(context.wa_id)
             wa_name = wa.name if wa else context.wa_id
-            
+
             # Use expiration from token, or current time as fallback
-            expires_at = expiration if expiration else (self._time_service.now() if self._time_service else datetime.now(timezone.utc))
+            expires_at = (
+                expiration
+                if expiration
+                else (self._time_service.now() if self._time_service else datetime.now(timezone.utc))
+            )
 
             return TokenVerification(
                 valid=True,
@@ -964,21 +948,15 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
                 name=wa_name,
                 role=context.role.value,
                 expires_at=expires_at,
-                error=None
+                error=None,
             )
         except Exception as e:
             logger.error(f"Token verification failed: {e}")
-            return TokenVerification(
-                valid=False,
-                wa_id=None,
-                name=None,
-                role=None,
-                expires_at=None,
-                error=str(e)
-            )
+            return TokenVerification(valid=False, wa_id=None, name=None, role=None, expires_at=None, error=str(e))
 
-    async def create_wa(self, name: str, email: str, scopes: List[str],
-                       role: WARole = WARole.OBSERVER) -> WACertificate:
+    async def create_wa(
+        self, name: str, email: str, scopes: List[str], role: WARole = WARole.OBSERVER
+    ) -> WACertificate:
         """Create a new Wise Authority identity."""
         # Generate keypair
         private_key, public_key = self.generate_keypair()
@@ -995,7 +973,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             pubkey=self._encode_public_key(public_key),
             jwt_kid=jwt_kid,
             scopes_json=json.dumps(scopes),
-            created_at=timestamp
+            created_at=timestamp,
         )
 
         # Store in database
@@ -1040,7 +1018,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
 
         # Verify token
         result = await self._verify_jwt_and_get_context(token)
-        
+
         if result:
             context, _ = result  # We don't need expiration here
             # Cache valid tokens
@@ -1051,14 +1029,15 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
 
     def _require_scope(self, scope: str) -> Callable[[F], F]:
         """Decorator to require specific scope for endpoint."""
+
         def decorator(func: F) -> F:
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 # Extract auth context from kwargs
-                auth_context = kwargs.get('auth_context')
+                auth_context = kwargs.get("auth_context")
 
                 if not auth_context:
                     # Try to get token and verify it
-                    token = kwargs.get('token')
+                    token = kwargs.get("token")
                     if token:
                         auth_context = await self._verify_token_internal(token)
 
@@ -1066,27 +1045,27 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
                     raise ValueError(f"Authentication required for scope '{scope}'")
 
                 # Check if the auth context has the required scope
-                if not hasattr(auth_context, 'scopes') or scope not in auth_context.scopes:
+                if not hasattr(auth_context, "scopes") or scope not in auth_context.scopes:
                     raise ValueError(
                         f"Insufficient permissions: Requires scope '{scope}', "
                         f"but user has scopes: {getattr(auth_context, 'scopes', [])}"
                     )
 
                 # Add auth context to kwargs if not already present
-                if 'auth_context' not in kwargs:
-                    kwargs['auth_context'] = auth_context
+                if "auth_context" not in kwargs:
+                    kwargs["auth_context"] = auth_context
 
                 return await func(*args, **kwargs)
 
             def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 # Extract auth context from kwargs
-                auth_context = kwargs.get('auth_context')
+                auth_context = kwargs.get("auth_context")
 
                 if not auth_context:
                     raise ValueError(f"Authentication required for scope '{scope}'")
 
                 # Check if the auth context has the required scope
-                if not hasattr(auth_context, 'scopes') or scope not in auth_context.scopes:
+                if not hasattr(auth_context, "scopes") or scope not in auth_context.scopes:
                     raise ValueError(
                         f"Insufficient permissions: Requires scope '{scope}', "
                         f"but user has scopes: {getattr(auth_context, 'scopes', [])}"
@@ -1101,9 +1080,10 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
                 wrapper = functools.wraps(func)(sync_wrapper)
 
             # Add metadata to indicate this function requires authentication
-            setattr(wrapper, '_requires_scope', scope)
+            setattr(wrapper, "_requires_scope", scope)
 
             return wrapper  # type: ignore
+
         return decorator
 
     def _require_wa_auth(self, scope: str) -> Callable[[F], F]:
@@ -1120,6 +1100,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
         Returns:
             Decorated function that enforces authentication
         """
+
         def decorator(func: F) -> F:
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 # Extract token from various sources
@@ -1127,12 +1108,12 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
                 auth_context = None
 
                 # Check if 'token' is in kwargs
-                if 'token' in kwargs:
-                    token = kwargs.get('token')
+                if "token" in kwargs:
+                    token = kwargs.get("token")
 
                 # Check if 'auth_context' is already provided
-                if 'auth_context' in kwargs:
-                    auth_context = kwargs.get('auth_context')
+                if "auth_context" in kwargs:
+                    auth_context = kwargs.get("auth_context")
 
                 # If no auth context yet, try to verify the token
                 if not auth_context and token:
@@ -1153,11 +1134,10 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
                 sig = inspect.signature(func)
 
                 # If function has **kwargs or auth_context parameter, pass it
-                if 'auth_context' in sig.parameters or any(
-                    p.kind == inspect.Parameter.VAR_KEYWORD
-                    for p in sig.parameters.values()
+                if "auth_context" in sig.parameters or any(
+                    p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values()
                 ):
-                    kwargs['auth_context'] = auth_context
+                    kwargs["auth_context"] = auth_context
 
                 # Call the original function
                 return await func(*args, **kwargs)
@@ -1165,16 +1145,14 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 # For synchronous functions, we need to handle auth differently
                 # This is a simplified version that expects auth_context to be pre-verified
-                auth_context = kwargs.get('auth_context')
+                auth_context = kwargs.get("auth_context")
 
                 if not auth_context:
                     raise ValueError("Authentication required: No auth_context provided")
 
                 # Verify the required scope
-                if not hasattr(auth_context, 'has_scope') or not auth_context.has_scope(scope):
-                    raise ValueError(
-                        f"Insufficient permissions: Requires scope '{scope}'"
-                    )
+                if not hasattr(auth_context, "has_scope") or not auth_context.has_scope(scope):
+                    raise ValueError(f"Insufficient permissions: Requires scope '{scope}'")
 
                 return func(*args, **kwargs)
 
@@ -1185,10 +1163,11 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
                 wrapper = functools.wraps(func)(sync_wrapper)
 
             # Add metadata to indicate this function requires authentication
-            setattr(wrapper, '_requires_wa_auth', True)
-            setattr(wrapper, '_required_scope', scope)
+            setattr(wrapper, "_requires_wa_auth", True)
+            setattr(wrapper, "_required_scope", scope)
 
             return wrapper  # type: ignore
+
         return decorator
 
     def _get_adapter_token(self, adapter_id: str) -> Optional[str]:
@@ -1231,18 +1210,18 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
 
         # Create data to sign - the certificate attributes
         cert_data = {
-            'wa_id': wa_id,
-            'name': 'CIRIS System Authority',
-            'role': WARole.AUTHORITY.value,
-            'pubkey': self._encode_public_key(public_key),
-            'parent_wa_id': parent_wa_id,
-            'created_at': timestamp.isoformat()
+            "wa_id": wa_id,
+            "name": "CIRIS System Authority",
+            "role": WARole.AUTHORITY.value,
+            "pubkey": self._encode_public_key(public_key),
+            "parent_wa_id": parent_wa_id,
+            "created_at": timestamp.isoformat(),
         }
 
         # Sign with the system's private key (self-signed for now)
         # In production, this would be signed by the parent's private key
-        signature_data = json.dumps(cert_data, sort_keys=True, separators=(',', ':'))
-        parent_signature = self.sign_data(signature_data.encode('utf-8'), private_key)
+        signature_data = json.dumps(cert_data, sort_keys=True, separators=(",", ":"))
+        parent_signature = self.sign_data(signature_data.encode("utf-8"), private_key)
 
         # Create the certificate
         system_wa = WACertificate(
@@ -1253,16 +1232,18 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             jwt_kid=jwt_kid,
             parent_wa_id=parent_wa_id,
             parent_signature=parent_signature,
-            scopes_json=json.dumps([
-                "system.task.create",
-                "system.task.sign",
-                "system.wakeup",
-                "system.dream",
-                "system.shutdown",
-                "memory.read",
-                "memory.write"
-            ]),
-            created_at=timestamp
+            scopes_json=json.dumps(
+                [
+                    "system.task.create",
+                    "system.task.sign",
+                    "system.wakeup",
+                    "system.dream",
+                    "system.shutdown",
+                    "memory.read",
+                    "memory.write",
+                ]
+            ),
+            created_at=timestamp,
         )
 
         # Store in database
@@ -1271,7 +1252,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
 
         return system_wa
 
-    async def sign_task(self, task: 'Task', wa_id: str) -> Tuple[str, str]:
+    async def sign_task(self, task: "Task", wa_id: str) -> Tuple[str, str]:
         """Sign a task with a WA's private key.
 
         Returns:
@@ -1295,22 +1276,22 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
 
         # Create canonical representation of task for signing
         task_data = {
-            'task_id': task.task_id,
-            'description': task.description,
-            'status': task.status.value if hasattr(task.status, 'value') else str(task.status),
-            'priority': task.priority,
-            'created_at': task.created_at,
-            'parent_task_id': task.parent_task_id,
-            'context': task.context.model_dump() if task.context else None
+            "task_id": task.task_id,
+            "description": task.description,
+            "status": task.status.value if hasattr(task.status, "value") else str(task.status),
+            "priority": task.priority,
+            "created_at": task.created_at,
+            "parent_task_id": task.parent_task_id,
+            "context": task.context.model_dump() if task.context else None,
         }
 
-        canonical_json = json.dumps(task_data, sort_keys=True, separators=(',', ':'))
-        signature = self.sign_data(canonical_json.encode('utf-8'), private_key)
+        canonical_json = json.dumps(task_data, sort_keys=True, separators=(",", ":"))
+        signature = self.sign_data(canonical_json.encode("utf-8"), private_key)
         signed_at = (self._time_service.now() if self._time_service else datetime.now(timezone.utc)).isoformat()
 
         return signature, signed_at
 
-    async def verify_task_signature(self, task: 'Task') -> bool:
+    async def verify_task_signature(self, task: "Task") -> bool:
         """Verify a task's signature.
 
         Returns:
@@ -1326,23 +1307,19 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
 
         # Recreate the canonical representation
         task_data = {
-            'task_id': task.task_id,
-            'description': task.description,
-            'status': task.status.value if hasattr(task.status, 'value') else str(task.status),
-            'priority': task.priority,
-            'created_at': task.created_at,
-            'parent_task_id': task.parent_task_id,
-            'context': task.context.model_dump() if task.context else None
+            "task_id": task.task_id,
+            "description": task.description,
+            "status": task.status.value if hasattr(task.status, "value") else str(task.status),
+            "priority": task.priority,
+            "created_at": task.created_at,
+            "parent_task_id": task.parent_task_id,
+            "context": task.context.model_dump() if task.context else None,
         }
 
-        canonical_json = json.dumps(task_data, sort_keys=True, separators=(',', ':'))
+        canonical_json = json.dumps(task_data, sort_keys=True, separators=(",", ":"))
 
         # Verify the signature
-        return self._verify_signature(
-            canonical_json.encode('utf-8'),
-            task.signature,
-            wa.pubkey
-        )
+        return self._verify_signature(canonical_json.encode("utf-8"), task.signature, wa.pubkey)
 
     async def bootstrap_if_needed(self) -> None:
         """Bootstrap the system if no WAs exist."""
@@ -1356,10 +1333,10 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
                     root_data = json.loads(content)
 
                 # Convert created timestamp - handle both 'Z' and '+00:00' formats
-                created_str = root_data['created']
-                if created_str.endswith('Z'):
-                    created_str = created_str[:-1] + '+00:00'
-                root_data['created'] = datetime.fromisoformat(created_str)
+                created_str = root_data["created"]
+                if created_str.endswith("Z"):
+                    created_str = created_str[:-1] + "+00:00"
+                root_data["created"] = datetime.fromisoformat(created_str)
 
                 root_wa = WACertificate(**root_data)
                 await self._store_wa_certificate(root_wa)
@@ -1389,24 +1366,21 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             adapter_info = {}
 
         # Add default instance_id if not present
-        if 'instance_id' not in adapter_info:
-            adapter_info['instance_id'] = 'default'
+        if "instance_id" not in adapter_info:
+            adapter_info["instance_id"] = "default"
 
         # Create channel identity from adapter info
         channel_identity = ChannelIdentity(
             adapter_type=adapter_type,
-            adapter_instance_id=adapter_info.get('instance_id', 'default'),
-            external_user_id=adapter_info.get('user_id', 'system'),
-            external_username=adapter_info.get('username', adapter_type),
-            metadata=adapter_info
+            adapter_instance_id=adapter_info.get("instance_id", "default"),
+            external_user_id=adapter_info.get("user_id", "system"),
+            external_username=adapter_info.get("username", adapter_type),
+            metadata=adapter_info,
         )
 
         # Create or get adapter observer
         adapter_id = f"{adapter_type}_{channel_identity.adapter_instance_id}"
-        observer = await self._create_adapter_observer(
-            adapter_id,
-            f"{adapter_type}_observer"
-        )
+        observer = await self._create_adapter_observer(adapter_id, f"{adapter_type}_observer")
 
         # Generate token - for observers, channel_id is not used
         token = await self.create_channel_token(observer.wa_id, adapter_id, ttl=0)  # ttl=0 means no expiry
@@ -1421,26 +1395,26 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
         try:
             # For sync verification, we can only verify gateway-signed tokens
             # since authority tokens require async DB lookups for public keys
-            
+
             # Try gateway-signed token verification
             try:
                 # Verify the token with gateway secret first
-                decoded = jwt.decode(token, self.gateway_secret, algorithms=['HS256'])
-                
+                decoded = jwt.decode(token, self.gateway_secret, algorithms=["HS256"])
+
                 # Now that the token is verified, we can trust its contents
                 # Validate that this is indeed a gateway-signed token type
-                sub_type = decoded.get('sub_type')
+                sub_type = decoded.get("sub_type")
                 if sub_type in [JWTSubType.ANON.value, JWTSubType.OAUTH.value, JWTSubType.USER.value]:
                     # Valid gateway token
                     return dict(decoded)
                 else:
                     # Invalid sub_type for gateway token
                     return None
-                    
+
             except jwt.InvalidTokenError:
                 # Token failed verification with gateway secret
                 pass
-            
+
             # Authority tokens require async DB access for public key retrieval
             # So we cannot verify them in sync mode
             return None
@@ -1451,13 +1425,23 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""
         from ciris_engine.schemas.services.core import ServiceCapabilities
+
         return ServiceCapabilities(
             service_name="AuthenticationService",
             actions=[
-                "authenticate", "create_token", "verify_token", "create_wa",
-                "revoke_wa", "update_wa", "list_was", "get_wa", "rotate_keys",
-                "bootstrap_if_needed", "create_channel_token", "verify_token_sync",
-                "update_last_login"
+                "authenticate",
+                "create_token",
+                "verify_token",
+                "create_wa",
+                "revoke_wa",
+                "update_wa",
+                "list_was",
+                "get_wa",
+                "rotate_keys",
+                "bootstrap_if_needed",
+                "create_channel_token",
+                "verify_token_sync",
+                "update_last_login",
             ],
             version="1.0.0",
             dependencies=["TimeService"],
@@ -1465,8 +1449,8 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
                 "description": "Infrastructure service for WA authentication and identity management",
                 "features": ["jwt_tokens", "certificate_management", "channel_auth", "role_based_access"],
                 "token_types": ["channel", "standard", "oauth"],
-                "supported_algorithms": ["HS256", "EdDSA"]
-            }
+                "supported_algorithms": ["HS256", "EdDSA"],
+            },
         )
 
     def get_status(self) -> ServiceStatus:
@@ -1477,35 +1461,37 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
         cert_count = 0
         role_counts = {"OBSERVER": 0, "USER": 0, "ADMIN": 0, "AUTHORITY": 0, "ROOT": 0}
         revoked_count = 0
-        
+
         try:
             with sqlite3.connect(self.db_path) as conn:
                 # Active certificates
                 cursor = conn.execute("SELECT COUNT(*) FROM wa_cert WHERE active = 1")
                 cert_count = cursor.fetchone()[0]
-                
+
                 # Count by role
                 cursor = conn.execute("SELECT role, COUNT(*) FROM wa_cert WHERE active = 1 GROUP BY role")
                 for role, count in cursor.fetchall():
                     if role in role_counts:
                         role_counts[role] = count
-                
+
                 # Revoked certificates
                 cursor = conn.execute("SELECT COUNT(*) FROM wa_cert WHERE active = 0")
                 revoked_count = cursor.fetchone()[0]
-                
+
         except Exception as e:
-            logger.warning(f"Authentication service health check failed: {type(e).__name__}: {str(e)} - Unable to access auth database")
+            logger.warning(
+                f"Authentication service health check failed: {type(e).__name__}: {str(e)} - Unable to access auth database"
+            )
 
         current_time = self._time_service.now() if self._time_service else datetime.now(timezone.utc)
         uptime_seconds = 0.0
         if self._start_time:
             uptime_seconds = (current_time - self._start_time).total_seconds()
-        
+
         # Calculate token cache stats
         auth_context_cached = len(self._token_cache)
         channel_tokens_cached = len(self._channel_token_cache)
-        
+
         # Build custom metrics
         custom_metrics = {
             "active_certificates": float(cert_count),
@@ -1517,9 +1503,9 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             "root_certificates": float(role_counts["ROOT"]),
             "auth_contexts_cached": float(auth_context_cached),
             "channel_tokens_cached": float(channel_tokens_cached),
-            "total_tokens_cached": float(auth_context_cached + channel_tokens_cached)
+            "total_tokens_cached": float(auth_context_cached + channel_tokens_cached),
         }
-            
+
         return ServiceStatus(
             service_name="AuthenticationService",
             service_type="infrastructure_service",
@@ -1529,10 +1515,10 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
             metrics={
                 "certificate_count": float(cert_count),
                 "cached_tokens": float(len(self._channel_token_cache)),
-                "active_sessions": 0.0
+                "active_sessions": 0.0,
             },
             custom_metrics=custom_metrics,
-            last_health_check=current_time
+            last_health_check=current_time,
         )
 
     async def start(self) -> None:
@@ -1562,5 +1548,7 @@ class AuthenticationService(BaseInfrastructureService, AuthenticationServiceProt
                 conn.execute("SELECT 1")
             return True
         except Exception as e:
-            logger.warning(f"Authentication service health check failed: {type(e).__name__}: {str(e)} - Unable to access auth database")
+            logger.warning(
+                f"Authentication service health check failed: {type(e).__name__}: {str(e)} - Unable to access auth database"
+            )
             return False

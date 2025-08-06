@@ -1,11 +1,13 @@
 import json
-from typing import Any
-from ciris_engine.schemas.runtime.models import Task, Thought, ThoughtContext, TaskContext, TaskOutcome, FinalAction
-from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
 import logging
 import uuid
+from typing import Any
+
+from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
+from ciris_engine.schemas.runtime.models import FinalAction, Task, TaskContext, TaskOutcome, Thought, ThoughtContext
 
 logger = logging.getLogger(__name__)
+
 
 def map_row_to_task(row: Any) -> Task:
     row_dict = dict(row)
@@ -19,30 +21,21 @@ def map_row_to_task(row: Any) -> Task:
                     channel_id=ctx_data.get("channel_id"),
                     user_id=ctx_data.get("user_id"),
                     correlation_id=ctx_data.get("correlation_id", str(uuid.uuid4())),
-                    parent_task_id=ctx_data.get("parent_task_id")
+                    parent_task_id=ctx_data.get("parent_task_id"),
                 )
             else:
                 # Provide required fields for TaskContext
                 row_dict["context"] = TaskContext(
-                    channel_id=None,
-                    user_id=None,
-                    correlation_id=str(uuid.uuid4()),
-                    parent_task_id=None
+                    channel_id=None, user_id=None, correlation_id=str(uuid.uuid4()), parent_task_id=None
                 )
         except Exception as e:
             logger.warning(f"Failed to decode context_json for task {row_dict.get('task_id')}: {e}")
             row_dict["context"] = TaskContext(
-                channel_id=None,
-                user_id=None,
-                correlation_id=str(uuid.uuid4()),
-                parent_task_id=None
+                channel_id=None, user_id=None, correlation_id=str(uuid.uuid4()), parent_task_id=None
             )
     else:
         row_dict["context"] = TaskContext(
-            channel_id=None,
-            user_id=None,
-            correlation_id=str(uuid.uuid4()),
-            parent_task_id=None
+            channel_id=None, user_id=None, correlation_id=str(uuid.uuid4()), parent_task_id=None
         )
     if row_dict.get("outcome_json"):
         try:
@@ -66,9 +59,12 @@ def map_row_to_task(row: Any) -> Task:
     try:
         row_dict["status"] = TaskStatus(row_dict["status"])
     except Exception:
-        logger.warning(f"Invalid status value '{row_dict['status']}' for task {row_dict.get('task_id')}. Defaulting to PENDING.")
+        logger.warning(
+            f"Invalid status value '{row_dict['status']}' for task {row_dict.get('task_id')}. Defaulting to PENDING."
+        )
         row_dict["status"] = TaskStatus.PENDING
     return Task(**row_dict)
+
 
 def map_row_to_thought(row: Any) -> Thought:
     row_dict = dict(row)
@@ -81,7 +77,7 @@ def map_row_to_thought(row: Any) -> Thought:
                 # Note: task_id and correlation_id are required fields
                 task_id = ctx_data.get("task_id")
                 correlation_id = ctx_data.get("correlation_id")
-                
+
                 if task_id and correlation_id:
                     row_dict["context"] = ThoughtContext(
                         task_id=task_id,
@@ -89,7 +85,7 @@ def map_row_to_thought(row: Any) -> Thought:
                         round_number=ctx_data.get("round_number", 0),
                         depth=ctx_data.get("depth", 0),
                         parent_thought_id=ctx_data.get("parent_thought_id"),
-                        correlation_id=correlation_id
+                        correlation_id=correlation_id,
                     )
                 else:
                     # Missing required fields, set to None
@@ -131,6 +127,8 @@ def map_row_to_thought(row: Any) -> Thought:
     try:
         row_dict["status"] = ThoughtStatus(row_dict["status"])
     except Exception:
-        logger.warning(f"Invalid status value '{row_dict['status']}' for thought {row_dict.get('thought_id')}. Defaulting to PENDING.")
+        logger.warning(
+            f"Invalid status value '{row_dict['status']}' for thought {row_dict.get('thought_id')}. Defaulting to PENDING."
+        )
         row_dict["status"] = ThoughtStatus.PENDING
     return Thought(**row_dict)

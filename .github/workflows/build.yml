@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Essential for accurate SonarQube results
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -163,12 +163,12 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1  # Just need the latest commit message
-          
+
       - name: Notify CIRISManager
         run: |
           # Extract changelog and assess risk
           CHANGELOG=$(git log -1 --pretty=format:"%s")
-          
+
           # Simple risk assessment based on commit message
           if echo "$CHANGELOG" | grep -qiE "breaking|major|critical|security"; then
             RISK_LEVEL="high"
@@ -177,11 +177,11 @@ jobs:
           else
             RISK_LEVEL="medium"
           fi
-          
+
           # Extract version (use short SHA)
           VERSION="${{ github.sha }}"
           VERSION="${VERSION:0:7}"
-          
+
           # Notify CIRISManager about new images with rich context
           # CIRISManager will orchestrate the deployment
           response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST https://agents.ciris.ai/manager/v1/updates/notify \
@@ -189,7 +189,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{
               \"agent_image\": \"ghcr.io/cirisai/ciris-agent:latest\",
-              \"gui_image\": \"ghcr.io/cirisai/ciris-gui:latest\", 
+              \"gui_image\": \"ghcr.io/cirisai/ciris-gui:latest\",
               \"strategy\": \"canary\",
               \"source\": \"github-actions\",
               \"commit_sha\": \"${{ github.sha }}\",
@@ -197,14 +197,14 @@ jobs:
               \"risk_level\": \"$RISK_LEVEL\",
               \"version\": \"$VERSION\"
             }")
-          
+
           # Extract HTTP status
           http_status=$(echo "$response" | grep "HTTP_STATUS:" | cut -d: -f2)
           body=$(echo "$response" | sed '/HTTP_STATUS:/d')
-          
+
           echo "Response body: $body"
           echo "HTTP status: $http_status"
-          
+
           # Check if successful (2xx status code)
           if [[ "$http_status" =~ ^2[0-9][0-9]$ ]]; then
             echo "✅ Successfully notified CIRISManager"
@@ -221,22 +221,22 @@ jobs:
         run: |
           # Give CIRISManager time to process
           sleep 10
-          
+
           # Check deployment status
           echo "Checking deployment status..."
           status_response=$(curl -s -w "\nHTTP_STATUS:%{http_code}" https://agents.ciris.ai/manager/v1/updates/status \
             -H "Authorization: Bearer ${{ secrets.DEPLOY_TOKEN }}")
-          
+
           status_http=$(echo "$status_response" | grep "HTTP_STATUS:" | cut -d: -f2)
           status_body=$(echo "$status_response" | sed '/HTTP_STATUS:/d')
-          
+
           if [[ "$status_http" =~ ^2[0-9][0-9]$ ]]; then
             echo "Deployment Status:"
             echo "$status_body" | jq '.'
           else
             echo "Could not retrieve deployment status"
           fi
-          
+
           echo ""
           echo "CIRISManager will handle the deployment orchestration."
           echo "Agents will be notified based on the canary deployment strategy."
@@ -256,16 +256,16 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             cd /home/ciris/CIRISAgent
-            
+
             # Pull latest GUI image
             echo "Pulling latest GUI image..."
             docker pull ghcr.io/cirisai/ciris-gui:latest
-            
+
             # Update GUI container (no agent negotiation needed - just infrastructure)
             echo "Updating GUI container..."
             docker-compose -f deployment/docker-compose.dev-prod.yml up -d ciris-gui
-            
+
             # Verify GUI is running
             docker ps | grep ciris-gui
-            
+
             echo "GUI deployment complete!"

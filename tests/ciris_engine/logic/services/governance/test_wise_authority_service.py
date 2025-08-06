@@ -1,23 +1,26 @@
 """Unit tests for Wise Authority Service."""
 
+import os
+import tempfile
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 import pytest_asyncio
-from datetime import datetime, timezone, timedelta
-from unittest.mock import MagicMock, AsyncMock
-import tempfile
-import os
 
 from ciris_engine.logic.services.governance.wise_authority import WiseAuthorityService
-from ciris_engine.logic.services.lifecycle.time import TimeService
 from ciris_engine.logic.services.infrastructure.authentication import AuthenticationService
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.logic.services.lifecycle.time import TimeService
 from ciris_engine.schemas.services.authority_core import (
-    WARole, DeferralRequest, DeferralResponse, GuidanceRequest, GuidanceResponse,
-    WAPermission, DeferralApprovalContext
+    DeferralApprovalContext,
+    DeferralRequest,
+    DeferralResponse,
+    GuidanceRequest,
+    GuidanceResponse,
+    WARole,
 )
-from ciris_engine.schemas.services.context import (
-    GuidanceContext, DeferralContext
-)
+from ciris_engine.schemas.services.context import GuidanceContext
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 
 
 @pytest.fixture
@@ -30,13 +33,15 @@ def time_service():
 def temp_db():
     """Create a temporary database for testing."""
     import sqlite3
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
-    
+
     # Create the tasks table (needed for new deferral system)
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS tasks (
             task_id TEXT PRIMARY KEY,
             channel_id TEXT NOT NULL,
@@ -53,9 +58,11 @@ def temp_db():
             signature TEXT,
             signed_at TEXT
         )
-    """)
+    """
+    )
     # Also create thoughts table for compatibility
-    cursor.execute("""
+    cursor.execute(
+        """
         CREATE TABLE IF NOT EXISTS thoughts (
             thought_id TEXT PRIMARY KEY,
             task_id TEXT,
@@ -71,10 +78,11 @@ def temp_db():
             defer_until TIMESTAMP,
             metadata TEXT
         )
-    """)
+    """
+    )
     conn.commit()
     conn.close()
-    
+
     yield db_path
     os.unlink(db_path)
 
@@ -82,20 +90,15 @@ def temp_db():
 @pytest_asyncio.fixture
 async def auth_service(temp_db, time_service):
     """Create an authentication service for testing."""
-    service = AuthenticationService(
-        db_path=temp_db,
-        time_service=time_service,
-        key_dir=None
-    )
+    service = AuthenticationService(db_path=temp_db, time_service=time_service, key_dir=None)
     await service.start()
 
     # Mock some methods for testing
-    service.get_wa = AsyncMock(return_value=MagicMock(
-        wa_id="wa-2025-06-24-TEST01",
-        role=WARole.AUTHORITY,
-        active=True,
-        created_at=datetime.now(timezone.utc)
-    ))
+    service.get_wa = AsyncMock(
+        return_value=MagicMock(
+            wa_id="wa-2025-06-24-TEST01", role=WARole.AUTHORITY, active=True, created_at=datetime.now(timezone.utc)
+        )
+    )
     service.bootstrap_if_needed = AsyncMock()
 
     yield service
@@ -105,11 +108,7 @@ async def auth_service(temp_db, time_service):
 @pytest_asyncio.fixture
 async def wise_authority_service(auth_service, time_service, temp_db):
     """Create a wise authority service for testing."""
-    service = WiseAuthorityService(
-        time_service=time_service,
-        auth_service=auth_service,
-        db_path=temp_db
-    )
+    service = WiseAuthorityService(time_service=time_service, auth_service=auth_service, db_path=temp_db)
     yield service
 
 
@@ -134,29 +133,17 @@ async def test_check_authorization(wise_authority_service, auth_service):
     await wise_authority_service.start()
 
     # Test ROOT authorization - can do everything
-    auth_service.get_wa.return_value = MagicMock(
-        wa_id="wa-2025-06-24-ROOT01",
-        role=WARole.ROOT,
-        active=True
-    )
+    auth_service.get_wa.return_value = MagicMock(wa_id="wa-2025-06-24-ROOT01", role=WARole.ROOT, active=True)
     assert await wise_authority_service.check_authorization("wa-2025-06-24-ROOT01", "mint_wa") is True
     assert await wise_authority_service.check_authorization("wa-2025-06-24-ROOT01", "approve_deferrals") is True
 
     # Test AUTHORITY authorization - can't mint WAs
-    auth_service.get_wa.return_value = MagicMock(
-        wa_id="wa-2025-06-24-AUTH01",
-        role=WARole.AUTHORITY,
-        active=True
-    )
+    auth_service.get_wa.return_value = MagicMock(wa_id="wa-2025-06-24-AUTH01", role=WARole.AUTHORITY, active=True)
     assert await wise_authority_service.check_authorization("wa-2025-06-24-AUTH01", "approve_deferrals") is True
     assert await wise_authority_service.check_authorization("wa-2025-06-24-AUTH01", "mint_wa") is False
 
     # Test OBSERVER authorization - limited permissions
-    auth_service.get_wa.return_value = MagicMock(
-        wa_id="wa-2025-06-24-OBS01",
-        role=WARole.OBSERVER,
-        active=True
-    )
+    auth_service.get_wa.return_value = MagicMock(wa_id="wa-2025-06-24-OBS01", role=WARole.OBSERVER, active=True)
     assert await wise_authority_service.check_authorization("wa-2025-06-24-OBS01", "read") is True
     assert await wise_authority_service.check_authorization("wa-2025-06-24-OBS01", "send_message") is True
     assert await wise_authority_service.check_authorization("wa-2025-06-24-OBS01", "approve_deferrals") is False
@@ -169,22 +156,29 @@ async def test_request_approval(wise_authority_service, time_service, auth_servi
 
     # Create task in database for deferral
     import sqlite3
+
     conn = sqlite3.connect(temp_db)
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO tasks (task_id, channel_id, description, status, priority, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, ("task-123", "test-channel", "Test task", "active", 0,
-          time_service.now().isoformat(), time_service.now().isoformat()))
+    """,
+        (
+            "task-123",
+            "test-channel",
+            "Test task",
+            "active",
+            0,
+            time_service.now().isoformat(),
+            time_service.now().isoformat(),
+        ),
+    )
     conn.commit()
     conn.close()
 
     # Test auto-approval for ROOT
-    auth_service.get_wa.return_value = MagicMock(
-        wa_id="wa-2025-06-24-ROOT01",
-        role=WARole.ROOT,
-        active=True
-    )
+    auth_service.get_wa.return_value = MagicMock(wa_id="wa-2025-06-24-ROOT01", role=WARole.ROOT, active=True)
 
     context = DeferralApprovalContext(
         task_id="task-123",
@@ -192,7 +186,7 @@ async def test_request_approval(wise_authority_service, time_service, auth_servi
         action_name="read_data",
         action_params={"resource": "public_data"},
         requester_id="wa-2025-06-24-ROOT01",
-        channel_id="test-channel"
+        channel_id="test-channel",
     )
 
     # ROOT should auto-approve
@@ -201,11 +195,7 @@ async def test_request_approval(wise_authority_service, time_service, auth_servi
 
     # Test deferral for unauthorized action
     # Update mock to return OBSERVER
-    auth_service.get_wa.return_value = MagicMock(
-        wa_id="wa-2025-06-24-OBS01",
-        role=WARole.OBSERVER,
-        active=True
-    )
+    auth_service.get_wa.return_value = MagicMock(wa_id="wa-2025-06-24-OBS01", role=WARole.OBSERVER, active=True)
 
     context.requester_id = "wa-2025-06-24-OBS01"  # Observer can't approve
     approved = await wise_authority_service.request_approval("approve_deferrals", context)
@@ -223,13 +213,24 @@ async def test_send_deferral(wise_authority_service, time_service, temp_db):
 
     # First create a task in the database
     import sqlite3
+
     conn = sqlite3.connect(temp_db)
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO tasks (task_id, channel_id, description, status, priority, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, ("task-789", "test-channel", "Test task", "active", 0, 
-          time_service.now().isoformat(), time_service.now().isoformat()))
+    """,
+        (
+            "task-789",
+            "test-channel",
+            "Test task",
+            "active",
+            0,
+            time_service.now().isoformat(),
+            time_service.now().isoformat(),
+        ),
+    )
     conn.commit()
     conn.close()
 
@@ -239,7 +240,7 @@ async def test_send_deferral(wise_authority_service, time_service, temp_db):
         thought_id="thought-101",
         reason="Requires human review for sensitive action",
         defer_until=time_service.now() + timedelta(hours=24),
-        context={"action": "delete_user_data", "user_id": "user-123"}
+        context={"action": "delete_user_data", "user_id": "user-123"},
     )
 
     # Send deferral
@@ -260,27 +261,38 @@ async def test_get_pending_deferrals(wise_authority_service, time_service, temp_
 
     # Create tasks in the database first
     import sqlite3
+
     conn = sqlite3.connect(temp_db)
     cursor = conn.cursor()
-    
+
     # Create all tasks first
     for i in range(3):
-        cursor.execute("""
+        cursor.execute(
+            """
             INSERT INTO tasks (task_id, channel_id, description, status, priority, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (f"task-{i}", "test-channel", f"Test task {i}", "active", 0,
-              time_service.now().isoformat(), time_service.now().isoformat()))
+        """,
+            (
+                f"task-{i}",
+                "test-channel",
+                f"Test task {i}",
+                "active",
+                0,
+                time_service.now().isoformat(),
+                time_service.now().isoformat(),
+            ),
+        )
     conn.commit()
     conn.close()
-    
+
     # Then add deferrals
     for i in range(3):
         deferral = DeferralRequest(
             task_id=f"task-{i}",
             thought_id=f"thought-{i}",
             reason=f"Test deferral {i}",
-            defer_until=time_service.now() + timedelta(hours=i+1),
-            context={"test": f"value-{i}"}
+            defer_until=time_service.now() + timedelta(hours=i + 1),
+            context={"test": f"value-{i}"},
         )
         await wise_authority_service.send_deferral(deferral)
 
@@ -290,10 +302,10 @@ async def test_get_pending_deferrals(wise_authority_service, time_service, temp_
 
     # Check deferral structure
     first = pending[0]
-    assert hasattr(first, 'deferral_id')
-    assert hasattr(first, 'task_id')
-    assert hasattr(first, 'thought_id')
-    assert hasattr(first, 'reason')
+    assert hasattr(first, "deferral_id")
+    assert hasattr(first, "task_id")
+    assert hasattr(first, "thought_id")
+    assert hasattr(first, "reason")
     assert first.status == "pending"
 
 
@@ -304,13 +316,24 @@ async def test_resolve_deferral(wise_authority_service, time_service, temp_db):
 
     # Create task in database first
     import sqlite3
+
     conn = sqlite3.connect(temp_db)
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO tasks (task_id, channel_id, description, status, priority, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, ("task-resolve", "test-channel", "Test task", "active", 0,
-          time_service.now().isoformat(), time_service.now().isoformat()))
+    """,
+        (
+            "task-resolve",
+            "test-channel",
+            "Test task",
+            "active",
+            0,
+            time_service.now().isoformat(),
+            time_service.now().isoformat(),
+        ),
+    )
     conn.commit()
     conn.close()
 
@@ -320,16 +343,13 @@ async def test_resolve_deferral(wise_authority_service, time_service, temp_db):
         thought_id="thought-resolve",
         reason="Test resolution",
         defer_until=time_service.now() + timedelta(hours=1),
-        context={}
+        context={},
     )
     deferral_id = await wise_authority_service.send_deferral(deferral)
 
     # Resolve it
     response = DeferralResponse(
-        approved=True,
-        reason="Approved after review",
-        wa_id="wa-2025-06-24-AUTH01",
-        signature="test-signature"
+        approved=True, reason="Approved after review", wa_id="wa-2025-06-24-AUTH01", signature="test-signature"
     )
 
     resolved = await wise_authority_service.resolve_deferral(deferral_id, response)
@@ -382,10 +402,7 @@ async def test_list_permissions(wise_authority_service, auth_service):
 
     # Test ROOT permissions
     auth_service.get_wa.return_value = MagicMock(
-        wa_id="wa-2025-06-24-ROOT01",
-        role=WARole.ROOT,
-        active=True,
-        created_at=datetime.now(timezone.utc)
+        wa_id="wa-2025-06-24-ROOT01", role=WARole.ROOT, active=True, created_at=datetime.now(timezone.utc)
     )
     permissions = await wise_authority_service.list_permissions("wa-2025-06-24-ROOT01")
     assert len(permissions) > 0
@@ -393,10 +410,7 @@ async def test_list_permissions(wise_authority_service, auth_service):
 
     # Test AUTHORITY permissions
     auth_service.get_wa.return_value = MagicMock(
-        wa_id="wa-2025-06-24-AUTH01",
-        role=WARole.AUTHORITY,
-        active=True,
-        created_at=datetime.now(timezone.utc)
+        wa_id="wa-2025-06-24-AUTH01", role=WARole.AUTHORITY, active=True, created_at=datetime.now(timezone.utc)
     )
     permissions = await wise_authority_service.list_permissions("wa-2025-06-24-AUTH01")
     assert len(permissions) > 0
@@ -405,10 +419,7 @@ async def test_list_permissions(wise_authority_service, auth_service):
 
     # Test OBSERVER permissions
     auth_service.get_wa.return_value = MagicMock(
-        wa_id="wa-2025-06-24-OBS01",
-        role=WARole.OBSERVER,
-        active=True,
-        created_at=datetime.now(timezone.utc)
+        wa_id="wa-2025-06-24-OBS01", role=WARole.OBSERVER, active=True, created_at=datetime.now(timezone.utc)
     )
     permissions = await wise_authority_service.list_permissions("wa-2025-06-24-OBS01")
     assert len(permissions) > 0
@@ -428,7 +439,7 @@ async def test_fetch_guidance(wise_authority_service):
         task_id="task-guid-01",
         question="Should I allow this user action?",
         ethical_considerations=["user_safety", "data_privacy"],
-        domain_context={"action": "data_export"}
+        domain_context={"action": "data_export"},
     )
 
     # Fetch guidance (should return None as no WA has provided guidance yet)
@@ -446,7 +457,7 @@ async def test_get_guidance(wise_authority_service):
         context="Should I proceed with user data deletion?",
         options=["Delete immediately", "Confirm with user", "Archive instead"],
         recommendation="Confirm with user",
-        urgency="high"
+        urgency="high",
     )
 
     # Get guidance
@@ -465,17 +476,13 @@ async def test_grant_revoke_permissions(wise_authority_service):
 
     # Try to grant permission (should fail - permissions are role-based)
     granted = await wise_authority_service.grant_permission(
-        wa_id="wa-2025-06-24-TEST01",
-        permission="special_access",
-        resource="sensitive_data"
+        wa_id="wa-2025-06-24-TEST01", permission="special_access", resource="sensitive_data"
     )
     assert granted is False  # Can't grant dynamic permissions in beta
 
     # Try to revoke permission (should fail - permissions are role-based)
     revoked = await wise_authority_service.revoke_permission(
-        wa_id="wa-2025-06-24-TEST01",
-        permission="read",
-        resource="public_data"
+        wa_id="wa-2025-06-24-TEST01", permission="read", resource="public_data"
     )
     assert revoked is False  # Can't revoke role-based permissions
 
@@ -487,13 +494,24 @@ async def test_deferral_with_modified_time(wise_authority_service, time_service,
 
     # Create task in database first
     import sqlite3
+
     conn = sqlite3.connect(temp_db)
     cursor = conn.cursor()
-    cursor.execute("""
+    cursor.execute(
+        """
         INSERT INTO tasks (task_id, channel_id, description, status, priority, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, ("task-mod-time", "test-channel", "Test task", "active", 0,
-          time_service.now().isoformat(), time_service.now().isoformat()))
+    """,
+        (
+            "task-mod-time",
+            "test-channel",
+            "Test task",
+            "active",
+            0,
+            time_service.now().isoformat(),
+            time_service.now().isoformat(),
+        ),
+    )
     conn.commit()
     conn.close()
 
@@ -504,7 +522,7 @@ async def test_deferral_with_modified_time(wise_authority_service, time_service,
         thought_id="thought-mod-time",
         reason="Needs extended review",
         defer_until=original_defer_time,
-        context={}
+        context={},
     )
     deferral_id = await wise_authority_service.send_deferral(deferral)
 
@@ -515,7 +533,7 @@ async def test_deferral_with_modified_time(wise_authority_service, time_service,
         reason="Approved but needs more time",
         modified_time=new_defer_time,
         wa_id="wa-2025-06-24-AUTH01",
-        signature="test-signature"
+        signature="test-signature",
     )
 
     resolved = await wise_authority_service.resolve_deferral(deferral_id, response)

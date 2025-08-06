@@ -262,7 +262,7 @@ export default function WAPage() {
               </div>
             )}
           </div>
-          
+
           {isLoading ? (
             <div className="text-center py-8">
               <p className="text-gray-500">Loading deferrals...</p>
@@ -291,13 +291,13 @@ export default function WAPage() {
                           {deferral.status.toUpperCase()}
                         </span>
                       </div>
-                      
+
                       <p className="text-sm text-gray-600 mb-2">{deferral.question}</p>
-                      
+
                       <div className="flex items-center text-xs text-gray-500 space-x-4">
                         <span>{new Date(deferral.created_at).toLocaleString()}</span>
                       </div>
-                      
+
                       {deferral.resolution && (
                         <div className="mt-3 p-3 bg-gray-50 rounded-md">
                           <p className="text-xs font-medium text-gray-700">
@@ -312,7 +312,7 @@ export default function WAPage() {
                         </div>
                       )}
                     </div>
-                    
+
                     {deferral.status === 'pending' && canResolve && (
                       <button
                         onClick={(e) => {
@@ -331,12 +331,12 @@ export default function WAPage() {
                       </span>
                     )}
                   </div>
-                  
+
                   {/* Inline Resolution Form */}
                   {expandedDeferral === deferral.deferral_id && canResolve && (
                     <div className="mt-4 p-4 bg-gray-50 rounded-md border border-gray-200">
                       <h4 className="text-sm font-medium text-gray-900 mb-3">Resolve Deferral</h4>
-                      
+
                       <div className="space-y-3">
                         <div>
                           <label className="text-sm font-medium text-gray-700">Decision</label>
@@ -363,7 +363,7 @@ export default function WAPage() {
                             </label>
                           </div>
                         </div>
-                        
+
                         <div>
                           <label htmlFor={`reasoning-${deferral.deferral_id}`} className="block text-sm font-medium text-gray-700">
                             Reasoning
@@ -377,7 +377,7 @@ export default function WAPage() {
                             onChange={(e) => setReasoning(e.target.value)}
                           />
                         </div>
-                        
+
                         <div className="flex items-center justify-end space-x-2">
                           <button
                             onClick={() => {
@@ -412,25 +412,25 @@ export default function WAPage() {
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg font-medium text-gray-900 mb-4">Deferral Details</h3>
-            
+
             <div className="space-y-4">
               <div>
                 <h4 className="text-sm font-medium text-gray-700">Thought ID</h4>
                 <p className="mt-1 text-sm font-mono text-gray-600">{selectedDeferral.thought_id}</p>
               </div>
-              
+
               <div>
                 <h4 className="text-sm font-medium text-gray-700">Question</h4>
                 <p className="mt-1 text-sm text-gray-600">{selectedDeferral.question}</p>
               </div>
-              
+
               <div>
                 <h4 className="text-sm font-medium text-gray-700">Context</h4>
                 <pre className="mt-1 text-sm text-gray-600 bg-gray-50 p-3 rounded-md overflow-x-auto">
                   {JSON.stringify(selectedDeferral.context, null, 2)}
                 </pre>
               </div>
-              
+
               {canResolve && (
                 <div className="mt-4 flex justify-end">
                   <button
@@ -451,11 +451,11 @@ export default function WAPage() {
         <div className="px-4 py-5 sm:p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Provide Guidance</h3>
           <p className="text-sm text-gray-500 mb-4">
-            {canResolve 
+            {canResolve
               ? "As a Wise Authority, you can provide guidance on any topic to help the system make better decisions."
               : "Once you are minted as a Wise Authority, you can provide guidance to help the system."}
           </p>
-          
+
           {canResolve ? (
             <button
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700"
@@ -517,7 +517,7 @@ export default function WAPage() {
                       </label>
                     </div>
                   </div>
-                  
+
                   <div>
                     <label htmlFor="reasoning" className="block text-sm font-medium text-gray-700">
                       Reasoning
@@ -536,7 +536,7 @@ export default function WAPage() {
                       Your reasoning will be recorded and may be used for future guidance.
                     </p>
                   </div>
-                  
+
                   <div className="mt-4">
                     <div className="flex items-center justify-between">
                       <label htmlFor="signature" className="block text-sm font-medium text-gray-700">

@@ -15,7 +15,7 @@ export function OAuthConfigModal({ onClose }: OAuthConfigModalProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
-  
+
   // Add form state
   const [newProvider, setNewProvider] = useState('');
   const [clientId, setClientId] = useState('');
@@ -40,7 +40,7 @@ export function OAuthConfigModal({ onClose }: OAuthConfigModalProps) {
 
   const handleAddProvider = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       setSaving(true);
       setError(null);
@@ -49,13 +49,13 @@ export function OAuthConfigModal({ onClose }: OAuthConfigModalProps) {
         clientId,
         clientSecret
       );
-      
+
       // Reset form
       setNewProvider('');
       setClientId('');
       setClientSecret('');
       setShowAddForm(false);
-      
+
       // Reload providers
       await loadProviders();
     } catch (err) {
@@ -162,7 +162,7 @@ export function OAuthConfigModal({ onClose }: OAuthConfigModalProps) {
                                       Callback URL:
                                     </p>
                                     <code className="block mt-1 p-2 bg-gray-100 rounded text-gray-800">
-                                      {typeof window !== 'undefined' 
+                                      {typeof window !== 'undefined'
                                         ? `${window.location.origin}/oauth/{agent}/callback`
                                         : provider.callback_url}
                                     </code>
@@ -195,7 +195,7 @@ export function OAuthConfigModal({ onClose }: OAuthConfigModalProps) {
                         {showAddForm ? (
                           <form onSubmit={handleAddProvider} className="mt-6 bg-blue-50 rounded-lg p-4">
                             <h4 className="text-sm font-medium text-gray-900 mb-4">Add OAuth Provider</h4>
-                            
+
                             <div className="space-y-4">
                               <div>
                                 <label htmlFor="provider" className="block text-sm font-medium text-gray-700">

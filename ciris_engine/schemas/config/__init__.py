@@ -5,15 +5,15 @@ Provides essential configuration schemas for bootstrap
 and agent identity templates.
 """
 
+from .agent import AgentTemplate
 from .essential import (
-    EssentialConfig,
     DatabaseConfig,
-    ServiceEndpointsConfig,
-    SecurityConfig,
+    EssentialConfig,
     OperationalLimitsConfig,
+    SecurityConfig,
+    ServiceEndpointsConfig,
     TelemetryConfig,
 )
-from .agent import AgentTemplate
 
 __all__ = [
     "EssentialConfig",

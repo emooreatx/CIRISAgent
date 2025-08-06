@@ -1,12 +1,12 @@
 """Visibility Service Protocol."""
 
-from typing import Protocol
 from abc import abstractmethod
+from typing import Protocol
+
+from ciris_engine.schemas.services.visibility import ReasoningTrace, TaskDecisionHistory, VisibilitySnapshot
 
 from ...runtime.base import ServiceProtocol
-from ciris_engine.schemas.services.visibility import (
-    ReasoningTrace, TaskDecisionHistory, VisibilitySnapshot
-)
+
 
 class VisibilityServiceProtocol(ServiceProtocol, Protocol):
     """Protocol for visibility service."""

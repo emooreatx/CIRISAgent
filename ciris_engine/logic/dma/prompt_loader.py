@@ -5,13 +5,16 @@ This module provides functionality to load prompts from YAML files,
 separating prompt content from business logic for better maintainability.
 """
 
-import yaml
 import logging
-from typing import Any, Optional, Dict
 from pathlib import Path
-from ciris_engine.schemas.dma.prompts import PromptCollection, PromptMetadata
+from typing import Any, Optional
+
+import yaml
+
+from ciris_engine.schemas.dma.prompts import PromptCollection
 
 logger = logging.getLogger(__name__)
+
 
 class DMAPromptLoader:
     """Loads and manages DMA prompts from YAML files."""
@@ -53,14 +56,16 @@ class DMAPromptLoader:
             raise FileNotFoundError(f"Prompt template not found: {template_path}")
 
         try:
-            with open(template_path, 'r', encoding='utf-8') as f:
+            with open(template_path, "r", encoding="utf-8") as f:
                 template_data = yaml.safe_load(f)
 
             if not isinstance(template_data, dict):
-                raise ValueError(f"Invalid template format in {template_path}: expected dict, got {type(template_data)}")
+                raise ValueError(
+                    f"Invalid template format in {template_path}: expected dict, got {type(template_data)}"
+                )
 
             logger.debug(f"Loaded prompt template: {template_name}")
-            
+
             # Convert dict to PromptCollection
             prompt_collection = PromptCollection(
                 component_name=template_name,
@@ -84,16 +89,16 @@ class DMAPromptLoader:
                 closing_reminder=template_data.get("closing_reminder"),
                 context_integration=template_data.get("context_integration"),
                 uses_covenant_header=bool(template_data.get("covenant_header", False)),
-                supports_agent_modes=bool(template_data.get("supports_agent_modes", True))
+                supports_agent_modes=bool(template_data.get("supports_agent_modes", True)),
             )
-            
+
             # Add any agent-specific variations
             for key, value in template_data.items():
                 if "_mode_" in key and isinstance(value, str):
                     prompt_collection.agent_variations[key] = value
                 elif key not in prompt_collection.model_fields and isinstance(value, str):
                     prompt_collection.custom_prompts[key] = value
-            
+
             return prompt_collection
 
         except yaml.YAMLError as e:
@@ -140,7 +145,7 @@ class DMAPromptLoader:
         if template_data.response_guidance:
             system_parts.append(template_data.response_guidance.format(**kwargs))
 
-        return '\n\n'.join(system_parts)
+        return "\n\n".join(system_parts)
 
     def get_user_message(self, template_data: PromptCollection, **kwargs: Any) -> str:
         """
@@ -171,8 +176,10 @@ class DMAPromptLoader:
         """
         return template_data.uses_covenant_header
 
+
 # Global instance for convenience
 _default_loader = None
+
 
 def get_prompt_loader() -> DMAPromptLoader:
     """Get the default prompt loader instance."""

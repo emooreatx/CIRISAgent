@@ -1,12 +1,15 @@
 """Discord message handling component for the Discord adapter."""
-import discord
-import logging
-import asyncio
-from typing import List, Optional, Any
 
-from ciris_engine.schemas.runtime.messages import FetchedMessage, DiscordMessage
+import asyncio
+import logging
+from typing import Any, List, Optional
+
+import discord
+
+from ciris_engine.schemas.runtime.messages import DiscordMessage, FetchedMessage
 
 logger = logging.getLogger(__name__)
+
 
 class DiscordMessageHandler:
     """Handles Discord message operations including sending, fetching, and splitting."""
@@ -42,7 +45,7 @@ class DiscordMessageHandler:
 
         # Wait for client to be ready - this will wait through reconnections
         # wait_until_ready() handles the case where the client is closed and reconnecting
-        if hasattr(self.client, 'wait_until_ready'):
+        if hasattr(self.client, "wait_until_ready"):
             # This method waits until the client's internal cache is ready
             # It will wait through disconnections and reconnections
             await self.client.wait_until_ready()
@@ -84,7 +87,7 @@ class DiscordMessageHandler:
             raise ValueError("Discord client is not initialized")
 
         channel = await self._resolve_channel(channel_id)
-        if not channel or not hasattr(channel, 'history'):
+        if not channel or not hasattr(channel, "history"):
             logger.error(f"Could not find Discord channel with ID {channel_id}")
             return []
 
@@ -118,8 +121,8 @@ class DiscordMessageHandler:
             author_name=message.author.display_name,
             channel_id=str(message.channel.id),
             is_bot=message.author.bot,
-            is_dm=getattr(getattr(message.channel, '__class__', None), '__name__', '') == 'DMChannel',
-            raw_message=message
+            is_dm=getattr(getattr(message.channel, "__class__", None), "__name__", "") == "DMChannel",
+            raw_message=message,
         )
 
     def _split_message(self, content: str, max_length: int = 1950) -> List[str]:
@@ -136,7 +139,7 @@ class DiscordMessageHandler:
             return [content]
 
         chunks = []
-        lines = content.split('\n')
+        lines = content.split("\n")
         current_chunk = ""
 
         for line in lines:
@@ -146,13 +149,13 @@ class DiscordMessageHandler:
                     current_chunk = ""
 
                 for i in range(0, len(line), max_length):
-                    chunks.append(line[i:i + max_length])
+                    chunks.append(line[i : i + max_length])
             else:
                 if len(current_chunk) + len(line) + 1 > max_length:
                     chunks.append(current_chunk.rstrip())
-                    current_chunk = line + '\n'
+                    current_chunk = line + "\n"
                 else:
-                    current_chunk += line + '\n'
+                    current_chunk += line + "\n"
 
         if current_chunk:
             chunks.append(current_chunk.rstrip())
@@ -177,20 +180,20 @@ class DiscordMessageHandler:
 
         # Parse the channel ID from various formats
         parsed_channel_id = channel_id
-        
+
         # Handle discord_guildid_channelid format
-        if channel_id.startswith('discord_') and channel_id.count('_') == 2:
+        if channel_id.startswith("discord_") and channel_id.count("_") == 2:
             # Format: discord_guildid_channelid
-            parts = channel_id.split('_')
+            parts = channel_id.split("_")
             parsed_channel_id = parts[2]  # Get the channel ID part
             logger.debug(f"Parsed channel ID from discord_guild_channel format: {parsed_channel_id}")
-        
+
         # Handle discord_channelid format
-        elif channel_id.startswith('discord_'):
+        elif channel_id.startswith("discord_"):
             # Format: discord_channelid
-            parsed_channel_id = channel_id.replace('discord_', '')
+            parsed_channel_id = channel_id.replace("discord_", "")
             logger.debug(f"Parsed channel ID from discord_channel format: {parsed_channel_id}")
-        
+
         # Otherwise assume it's already a plain channel ID
 
         try:

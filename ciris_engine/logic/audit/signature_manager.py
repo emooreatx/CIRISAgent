@@ -7,20 +7,21 @@ Designed for resource-constrained deployments with minimal overhead.
 
 import base64
 import hashlib
-import sqlite3
 import logging
 import os
+import sqlite3
 from pathlib import Path
 from typing import Optional
 
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.asymmetric import rsa, padding
-from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes, PublicKeyTypes
 from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes, PublicKeyTypes
 
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 
 logger = logging.getLogger(__name__)
+
 
 class AuditSignatureManager:
     """Manages signing keys and signatures for audit entries"""
@@ -59,10 +60,7 @@ class AuditSignatureManager:
                 logger.info("Loading existing audit signing keys")
 
                 with open(private_key_path, "rb") as f:
-                    self._private_key = serialization.load_pem_private_key(
-                        f.read(),
-                        password=None
-                    )
+                    self._private_key = serialization.load_pem_private_key(f.read(), password=None)
 
                 with open(public_key_path, "rb") as f:
                     self._public_key = serialization.load_pem_public_key(f.read())
@@ -81,10 +79,7 @@ class AuditSignatureManager:
 
     def _generate_new_keypair(self) -> None:
         """Generate a new RSA key pair"""
-        self._private_key = rsa.generate_private_key(
-            public_exponent=65537,
-            key_size=2048
-        )
+        self._private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 
         self._public_key = self._private_key.public_key()
 
@@ -102,7 +97,7 @@ class AuditSignatureManager:
         private_pem = self._private_key.private_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption()
+            encryption_algorithm=serialization.NoEncryption(),
         )
 
         with open(private_key_path, "wb") as f:
@@ -113,8 +108,7 @@ class AuditSignatureManager:
 
         # Save public key
         public_pem = self._public_key.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
+            encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo
         )
 
         with open(public_key_path, "wb") as f:
@@ -128,12 +122,11 @@ class AuditSignatureManager:
             raise RuntimeError("Public key not initialized")
 
         public_pem = self._public_key.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
+            encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo
         )
 
         hash_bytes = hashlib.sha256(public_pem).digest()
-        return base64.b64encode(hash_bytes[:16]).decode('ascii')
+        return base64.b64encode(hash_bytes[:16]).decode("ascii")
 
     def _register_public_key(self) -> None:
         """Register the public key in the database"""
@@ -145,10 +138,7 @@ class AuditSignatureManager:
             cursor = conn.cursor()
 
             # Check if key already exists
-            cursor.execute(
-                "SELECT key_id FROM audit_signing_keys WHERE key_id = ?",
-                (self._key_id,)
-            )
+            cursor.execute("SELECT key_id FROM audit_signing_keys WHERE key_id = ?", (self._key_id,))
 
             if cursor.fetchone():
                 logger.debug(f"Key {self._key_id} already registered")
@@ -157,21 +147,17 @@ class AuditSignatureManager:
 
             # Insert new key
             public_pem = self._public_key.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            ).decode('ascii')
+                encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo
+            ).decode("ascii")
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO audit_signing_keys
                 (key_id, public_key, algorithm, key_size, created_at)
                 VALUES (?, ?, ?, ?, ?)
-            """, (
-                self._key_id,
-                public_pem,
-                'rsa-pss',
-                2048,
-                self._time_service.now_iso()
-            ))
+            """,
+                (self._key_id, public_pem, "rsa-pss", 2048, self._time_service.now_iso()),
+            )
 
             conn.commit()
             conn.close()
@@ -193,16 +179,13 @@ class AuditSignatureManager:
         try:
             # Sign the hash using RSA-PSS
             signature = self._private_key.sign(
-                entry_hash.encode('utf-8'),
-                padding.PSS(
-                    mgf=padding.MGF1(hashes.SHA256()),
-                    salt_length=padding.PSS.MAX_LENGTH
-                ),
-                hashes.SHA256()
+                entry_hash.encode("utf-8"),
+                padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
+                hashes.SHA256(),
             )
 
             # Return base64 encoded signature
-            return base64.b64encode(signature).decode('ascii')
+            return base64.b64encode(signature).decode("ascii")
 
         except Exception as e:
             logger.error(f"Failed to sign entry: {e}")
@@ -227,16 +210,13 @@ class AuditSignatureManager:
                 logger.error("Only RSA keys are supported for verification")
                 return False
 
-            signature_bytes = base64.b64decode(signature.encode('ascii'))
+            signature_bytes = base64.b64decode(signature.encode("ascii"))
 
             public_key.verify(
                 signature_bytes,
-                entry_hash.encode('utf-8'),
-                padding.PSS(
-                    mgf=padding.MGF1(hashes.SHA256()),
-                    salt_length=padding.PSS.MAX_LENGTH
-                ),
-                hashes.SHA256()
+                entry_hash.encode("utf-8"),
+                padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
+                hashes.SHA256(),
             )
 
             return True
@@ -254,10 +234,7 @@ class AuditSignatureManager:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
-            cursor.execute(
-                "SELECT public_key FROM audit_signing_keys WHERE key_id = ?",
-                (key_id,)
-            )
+            cursor.execute("SELECT public_key FROM audit_signing_keys WHERE key_id = ?", (key_id,))
 
             row = cursor.fetchone()
             conn.close()
@@ -266,7 +243,7 @@ class AuditSignatureManager:
                 return None
 
             # Load public key from PEM
-            return serialization.load_pem_public_key(row[0].encode('ascii'))
+            return serialization.load_pem_public_key(row[0].encode("ascii"))
 
         except Exception as e:
             logger.error(f"Failed to load public key {key_id}: {e}")
@@ -293,11 +270,14 @@ class AuditSignatureManager:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE audit_signing_keys
                 SET revoked_at = ?
                 WHERE key_id = ?
-            """, (self._time_service.now_iso(), key_id))
+            """,
+                (self._time_service.now_iso(), key_id),
+            )
 
             conn.commit()
             conn.close()
@@ -316,11 +296,14 @@ class AuditSignatureManager:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT key_id, algorithm, key_size, created_at, revoked_at
                 FROM audit_signing_keys
                 WHERE key_id = ?
-            """, (self._key_id,))
+            """,
+                (self._key_id,),
+            )
 
             row = cursor.fetchone()
             conn.close()
@@ -332,7 +315,7 @@ class AuditSignatureManager:
                     "key_size": row[2],
                     "created_at": row[3],
                     "revoked_at": row[4],
-                    "active": row[4] is None
+                    "active": row[4] is None,
                 }
             else:
                 return {"error": "Key not found in database"}

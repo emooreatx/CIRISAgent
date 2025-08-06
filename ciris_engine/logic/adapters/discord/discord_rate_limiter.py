@@ -1,9 +1,10 @@
 """Discord rate limiting component."""
+
 import asyncio
 import logging
-from typing import Dict, Any
-from collections import defaultdict
 import time
+from collections import defaultdict
+from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -71,16 +72,13 @@ class DiscordRateLimiter:
         "channels/{channel_id}/messages": {"limit": 5, "window": 5.0},
         "channels/{channel_id}/messages/{message_id}": {"limit": 5, "window": 5.0},
         "channels/{channel_id}/messages/{message_id}/reactions": {"limit": 1, "window": 0.25},
-
         # Channels
         "channels/{channel_id}": {"limit": 5, "window": 15.0},
         "guilds/{guild_id}/channels": {"limit": 2, "window": 10.0},
-
         # Users/Members
         "users/{user_id}": {"limit": 5, "window": 15.0},
         "guilds/{guild_id}/members/{user_id}": {"limit": 5, "window": 15.0},
         "guilds/{guild_id}/members/{user_id}/roles/{role_id}": {"limit": 10, "window": 10.0},
-
         # Webhooks
         "webhooks/{webhook_id}": {"limit": 5, "window": 15.0},
         "webhooks/{webhook_id}/{webhook_token}": {"limit": 30, "window": 60.0},
@@ -98,12 +96,7 @@ class DiscordRateLimiter:
         self._bucket_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
         # Statistics
-        self._stats = {
-            "requests": 0,
-            "rate_limited": 0,
-            "total_wait_time": 0.0,
-            "max_wait_time": 0.0
-        }
+        self._stats = {"requests": 0, "rate_limited": 0, "total_wait_time": 0.0, "max_wait_time": 0.0}
 
     async def acquire(self, endpoint: str, method: str = "GET") -> None:
         """Wait if necessary before making an API call.
@@ -189,20 +182,20 @@ class DiscordRateLimiter:
         import re
 
         # Channel endpoints
-        endpoint = re.sub(r'channels/\d+', 'channels/{channel_id}', endpoint)
-        endpoint = re.sub(r'messages/\d+', 'messages/{message_id}', endpoint)
+        endpoint = re.sub(r"channels/\d+", "channels/{channel_id}", endpoint)
+        endpoint = re.sub(r"messages/\d+", "messages/{message_id}", endpoint)
 
         # Guild endpoints
-        endpoint = re.sub(r'guilds/\d+', 'guilds/{guild_id}', endpoint)
-        endpoint = re.sub(r'members/\d+', 'members/{user_id}', endpoint)
-        endpoint = re.sub(r'roles/\d+', 'roles/{role_id}', endpoint)
+        endpoint = re.sub(r"guilds/\d+", "guilds/{guild_id}", endpoint)
+        endpoint = re.sub(r"members/\d+", "members/{user_id}", endpoint)
+        endpoint = re.sub(r"roles/\d+", "roles/{role_id}", endpoint)
 
         # User endpoints
-        endpoint = re.sub(r'users/\d+', 'users/{user_id}', endpoint)
+        endpoint = re.sub(r"users/\d+", "users/{user_id}", endpoint)
 
         # Webhook endpoints
-        endpoint = re.sub(r'webhooks/\d+', 'webhooks/{webhook_id}', endpoint)
-        endpoint = re.sub(r'webhooks/\d+/[\w-]+', 'webhooks/{webhook_id}/{webhook_token}', endpoint)
+        endpoint = re.sub(r"webhooks/\d+", "webhooks/{webhook_id}", endpoint)
+        endpoint = re.sub(r"webhooks/\d+/[\w-]+", "webhooks/{webhook_id}/{webhook_token}", endpoint)
 
         return endpoint
 
@@ -218,10 +211,7 @@ class DiscordRateLimiter:
         async with self._bucket_locks[bucket_key]:
             if bucket_key not in self._endpoint_buckets:
                 limits = self.ENDPOINT_LIMITS.get(bucket_key, {"limit": 5, "window": 60.0})
-                self._endpoint_buckets[bucket_key] = RateLimitBucket(
-                    int(limits["limit"]),
-                    limits["window"]
-                )
+                self._endpoint_buckets[bucket_key] = RateLimitBucket(int(limits["limit"]), limits["window"])
             return self._endpoint_buckets[bucket_key]
 
     async def _wait_and_log(self, wait_time: float, bucket_type: str, endpoint: str) -> None:
@@ -247,17 +237,11 @@ class DiscordRateLimiter:
         return {
             **self._stats,
             "average_wait_time": (
-                self._stats["total_wait_time"] / self._stats["requests"]
-                if self._stats["requests"] > 0 else 0.0
+                self._stats["total_wait_time"] / self._stats["requests"] if self._stats["requests"] > 0 else 0.0
             ),
-            "buckets_tracked": len(self._endpoint_buckets)
+            "buckets_tracked": len(self._endpoint_buckets),
         }
 
     def reset_stats(self) -> None:
         """Reset statistics."""
-        self._stats = {
-            "requests": 0,
-            "rate_limited": 0,
-            "total_wait_time": 0.0,
-            "max_wait_time": 0.0
-        }
+        self._stats = {"requests": 0, "rate_limited": 0, "total_wait_time": 0.0, "max_wait_time": 0.0}

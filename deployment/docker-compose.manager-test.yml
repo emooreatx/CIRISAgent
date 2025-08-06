@@ -6,13 +6,13 @@ services:
     container_name: ciris-agent-stable
     command: ["sh", "-c", "while true; do echo 'Stable agent running' && sleep 30; done"]
     restart: unless-stopped
-    
+
   agent-crasher:
     image: alpine:latest
     container_name: ciris-agent-crasher
     command: ["sh", "-c", "echo 'Will crash' && sleep 5 && exit 1"]
     restart: unless-stopped
-    
+
   agent-stopper:
     image: alpine:latest
     container_name: ciris-agent-stopper

@@ -1,21 +1,15 @@
 """Unit tests for DreamProcessor."""
 
-import pytest
-import asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timezone, timedelta
-from typing import Dict, Any
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, Mock, patch
 
-from ciris_engine.logic.processors.states.dream_processor import (
-    DreamProcessor, DreamPhase, DreamSession
-)
-from ciris_engine.schemas.processors.states import AgentState
-from ciris_engine.schemas.processors.results import DreamResult
-from ciris_engine.schemas.processors.base import MetricsUpdate
-from ciris_engine.schemas.runtime.enums import ThoughtType, TaskStatus
-from ciris_engine.schemas.runtime.models import Task, Thought
-from ciris_engine.schemas.services.graph_core import GraphNode, NodeType, GraphScope
+import pytest
+
 from ciris_engine.logic.config import ConfigAccessor
+from ciris_engine.logic.processors.states.dream_processor import DreamPhase, DreamProcessor
+from ciris_engine.schemas.processors.results import DreamResult
+from ciris_engine.schemas.processors.states import AgentState
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 
 
 class TestDreamProcessor:
@@ -26,21 +20,15 @@ class TestDreamProcessor:
         """Create mock services."""
         current_time = datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
         return {
-            'time_service': Mock(
-                now=Mock(return_value=current_time),
-                now_iso=Mock(return_value=current_time.isoformat())
+            "time_service": Mock(
+                now=Mock(return_value=current_time), now_iso=Mock(return_value=current_time.isoformat())
             ),
-            'resource_monitor': Mock(
-                snapshot=Mock(healthy=True, warnings=[], critical=[])
+            "resource_monitor": Mock(snapshot=Mock(healthy=True, warnings=[], critical=[])),
+            "memory_service": Mock(),
+            "telemetry_service": Mock(memorize_metric=AsyncMock()),
+            "self_configuration": Mock(
+                analyze_patterns=AsyncMock(return_value=[]), apply_recommendations=AsyncMock(return_value=0)
             ),
-            'memory_service': Mock(),
-            'telemetry_service': Mock(
-                memorize_metric=AsyncMock()
-            ),
-            'self_configuration': Mock(
-                analyze_patterns=AsyncMock(return_value=[]),
-                apply_recommendations=AsyncMock(return_value=0)
-            )
         }
 
     @pytest.fixture
@@ -55,10 +43,9 @@ class TestDreamProcessor:
     def mock_thought_processor(self):
         """Create mock thought processor."""
         return Mock(
-            get_processing_queue=Mock(return_value=Mock(
-                pending_items=Mock(return_value=[]),
-                is_empty=Mock(return_value=True)
-            ))
+            get_processing_queue=Mock(
+                return_value=Mock(pending_items=Mock(return_value=[]), is_empty=Mock(return_value=True))
+            )
         )
 
     @pytest.fixture
@@ -77,27 +64,22 @@ class TestDreamProcessor:
             startup_channel_id="test_channel",  # Add channel_id for task creation
             pulse_interval=1.0,  # Short for testing
             min_dream_duration=1,  # 1 minute for testing
-            max_dream_duration=2   # 2 minutes for testing
+            max_dream_duration=2,  # 2 minutes for testing
         )
         # Inject memory bus directly
-        processor.memory_bus = Mock(
-            search=AsyncMock(return_value=[]),
-            memorize=AsyncMock()
-        )
-        processor.communication_bus = Mock(
-            send_message=AsyncMock()
-        )
+        processor.memory_bus = Mock(search=AsyncMock(return_value=[]), memorize=AsyncMock())
+        processor.communication_bus = Mock(send_message=AsyncMock())
         # Mock task_manager to handle create_task calls
         processor.task_manager = Mock(
             create_task=Mock(return_value=Mock(task_id="test_task")),
             activate_pending_tasks=Mock(return_value=0),
-            get_tasks_needing_seed=Mock(return_value=[])
+            get_tasks_needing_seed=Mock(return_value=[]),
         )
         processor.thought_manager = Mock(
             generate_seed_thoughts=Mock(return_value=0),
             populate_queue=Mock(return_value=0),
             get_queue_batch=Mock(return_value=[]),
-            mark_thoughts_processing=Mock(return_value=[])
+            mark_thoughts_processing=Mock(return_value=[]),
         )
         return processor
 
@@ -126,10 +108,10 @@ class TestDreamProcessor:
         dream_processor.initialize()
 
         # Patch persistence functions
-        with patch('ciris_engine.logic.persistence.get_tasks_by_status') as mock_get_tasks:
-            with patch('ciris_engine.logic.persistence.update_task_status'):
-                with patch('ciris_engine.logic.persistence.count_active_tasks', return_value=0):
-                    with patch('ciris_engine.logic.persistence.get_pending_tasks_for_activation', return_value=[]):
+        with patch("ciris_engine.logic.persistence.get_tasks_by_status") as mock_get_tasks:
+            with patch("ciris_engine.logic.persistence.update_task_status"):
+                with patch("ciris_engine.logic.persistence.count_active_tasks", return_value=0):
+                    with patch("ciris_engine.logic.persistence.get_pending_tasks_for_activation", return_value=[]):
                         mock_get_tasks.return_value = []
 
                         # Start dreaming to create session
@@ -238,8 +220,9 @@ class TestDreamProcessor:
 
         # Find consolidation task calls
         consolidation_calls = [
-            call for call in dream_processor.task_manager.create_task.call_args_list
-            if call.kwargs.get('description') and 'Consolidate' in call.kwargs['description']
+            call
+            for call in dream_processor.task_manager.create_task.call_args_list
+            if call.kwargs.get("description") and "Consolidate" in call.kwargs["description"]
         ]
         assert len(consolidation_calls) > 0
 
@@ -249,15 +232,15 @@ class TestDreamProcessor:
         # Mock insight nodes
         mock_insights = [
             GraphNode(
-                id='insight1',
+                id="insight1",
                 type=NodeType.CONCEPT,
                 scope=GraphScope.LOCAL,
                 attributes={
-                    'insight_type': 'behavioral_pattern',
-                    'pattern_type': 'frequency',
-                    'description': 'High frequency of SPEAK actions',
-                    'actionable': True
-                }
+                    "insight_type": "behavioral_pattern",
+                    "pattern_type": "frequency",
+                    "description": "High frequency of SPEAK actions",
+                    "actionable": True,
+                },
             )
         ]
 
@@ -266,7 +249,7 @@ class TestDreamProcessor:
         insights = await dream_processor._process_behavioral_insights()
 
         assert len(insights) == 2  # Pattern + action opportunity
-        assert any('High frequency of SPEAK actions' in i for i in insights)
+        assert any("High frequency of SPEAK actions" in i for i in insights)
 
     @pytest.mark.asyncio
     async def test_self_configuration_task(self, dream_processor):
@@ -278,9 +261,13 @@ class TestDreamProcessor:
 
         # Find self-configuration task calls
         config_calls = [
-            call for call in dream_processor.task_manager.create_task.call_args_list
-            if call.kwargs.get('description') and 
-            ('parameter' in call.kwargs['description'].lower() or 'configuration' in call.kwargs['description'].lower())
+            call
+            for call in dream_processor.task_manager.create_task.call_args_list
+            if call.kwargs.get("description")
+            and (
+                "parameter" in call.kwargs["description"].lower()
+                or "configuration" in call.kwargs["description"].lower()
+            )
         ]
         assert len(config_calls) > 0
 
@@ -303,8 +290,8 @@ class TestDreamProcessor:
 
         # Get summary
         summary = dream_processor.get_dream_summary()
-        assert summary['state'] == 'dreaming'
-        assert summary['current_session'] is not None
+        assert summary["state"] == "dreaming"
+        assert summary["current_session"] is not None
 
     @pytest.mark.asyncio
     async def test_minimum_dream_duration(self, dream_processor):
@@ -332,7 +319,9 @@ class TestDreamProcessor:
         # Dream will exit when duration is reached via _should_exit check
         # Just verify session was created properly
         assert dream_processor.current_session is not None
-        assert dream_processor.current_session.planned_duration.total_seconds() == dream_processor.max_dream_duration * 60
+        assert (
+            dream_processor.current_session.planned_duration.total_seconds() == dream_processor.max_dream_duration * 60
+        )
 
     @pytest.mark.asyncio
     async def test_error_handling_in_phase(self, dream_processor):
@@ -347,7 +336,7 @@ class TestDreamProcessor:
 
         # Process should handle error gracefully
         result = await dream_processor.process(30)
-        
+
         # Restore original method
         dream_processor._analyze_ponder_patterns = original_analyze
 

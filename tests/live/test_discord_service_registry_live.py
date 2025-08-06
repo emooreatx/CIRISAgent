@@ -1,4 +1,5 @@
 import os
+
 import pytest
 from dotenv import load_dotenv
 
@@ -26,7 +27,7 @@ async def test_discord_runtime_service_registry_live():
             startup_channel_id=channel,
             # Explicitly disable API adapter to avoid port conflicts
             host=None,
-            port=None
+            port=None,
         )
     except RuntimeError as e:
         if "No valid adapters specified" in str(e):

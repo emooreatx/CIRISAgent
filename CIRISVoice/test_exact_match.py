@@ -5,15 +5,17 @@ Exact match of faster-whisper Wyoming structure for testing.
 import asyncio
 import logging
 from functools import partial
-from wyoming.info import AsrModel, AsrProgram, Attribution, Info
-from wyoming.server import AsyncServer, AsyncEventHandler
-from wyoming.event import Event
+
 from wyoming.asr import Transcribe, Transcript
-from wyoming.audio import AudioStart, AudioStop, AudioChunk
+from wyoming.audio import AudioChunk, AudioStart, AudioStop
+from wyoming.event import Event
+from wyoming.info import AsrModel, AsrProgram, Attribution, Info
+from wyoming.server import AsyncEventHandler, AsyncServer
 
 __version__ = "1.0.0"
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class TestHandler(AsyncEventHandler):
     """Event handler matching faster-whisper structure."""
@@ -33,21 +35,21 @@ class TestHandler(AsyncEventHandler):
             await self.write_event(self.wyoming_info_event)
             _LOGGER.debug("Sent info")
             return True
-            
+
         if Transcribe.is_type(event.type):
             return True
-            
+
         if AudioStart.is_type(event.type):
             self.is_recording = True
             self.audio_buffer = bytearray()
             return True
-            
+
         if AudioChunk.is_type(event.type):
             if self.is_recording:
                 chunk = AudioChunk.from_event(event)
                 self.audio_buffer.extend(chunk.audio)
             return True
-            
+
         if AudioStop.is_type(event.type):
             self.is_recording = False
             if len(self.audio_buffer) > 0:
@@ -62,7 +64,7 @@ async def main() -> None:
     """Main function."""
     logging.basicConfig(level=logging.DEBUG)
     _LOGGER.info("Starting test Wyoming server matching faster-whisper structure")
-    
+
     # Create wyoming info exactly like faster-whisper
     wyoming_info = Info(
         asr=[
@@ -94,7 +96,7 @@ async def main() -> None:
 
     server = AsyncServer.from_uri("tcp://0.0.0.0:10303")
     _LOGGER.info("Ready on port 10303")
-    
+
     # Use partial like faster-whisper does
     await server.run(
         partial(

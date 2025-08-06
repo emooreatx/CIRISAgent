@@ -1,27 +1,23 @@
 import logging
 from typing import List, Optional
 
-from ciris_engine.schemas.runtime.models import Thought
+from ciris_engine.logic.infrastructure.handlers.base_handler import BaseActionHandler
+from ciris_engine.logic.infrastructure.handlers.exceptions import FollowUpCreationError
+from ciris_engine.logic.utils.channel_utils import extract_channel_id
 from ciris_engine.schemas.actions import ObserveParams
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
-from ciris_engine.schemas.runtime.enums import (
-    ThoughtStatus, HandlerActionType,
-)
 from ciris_engine.schemas.runtime.contexts import DispatchContext
+from ciris_engine.schemas.runtime.enums import HandlerActionType, ThoughtStatus
 from ciris_engine.schemas.runtime.messages import FetchedMessage
+from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.runtime.system_context import ChannelContext
-from ciris_engine.schemas.services.graph_core import GraphScope
-from ciris_engine.schemas.services.graph_core import NodeType
-from ciris_engine.logic.utils.channel_utils import extract_channel_id
-from ciris_engine.logic import persistence
-from ciris_engine.logic.infrastructure.handlers.base_handler import BaseActionHandler
-from ciris_engine.logic.infrastructure.handlers.helpers import create_follow_up_thought
-from ciris_engine.logic.infrastructure.handlers.exceptions import FollowUpCreationError
+from ciris_engine.schemas.services.graph_core import GraphScope, NodeType
 
 PASSIVE_OBSERVE_LIMIT = 10
 ACTIVE_OBSERVE_LIMIT = 50
 
 logger = logging.getLogger(__name__)
+
 
 class ObserveHandler(BaseActionHandler):
 
@@ -34,7 +30,7 @@ class ObserveHandler(BaseActionHandler):
         if channel_id:
             recall_ids.add(f"channel/{channel_id}")
         for msg in messages or []:
-            aid = msg.author_id if hasattr(msg, 'author_id') else getattr(msg, 'author_id', None)
+            aid = msg.author_id if hasattr(msg, "author_id") else getattr(msg, "author_id", None)
             if aid:
                 recall_ids.add(f"user/{aid}")
         for rid in recall_ids:
@@ -52,17 +48,9 @@ class ObserveHandler(BaseActionHandler):
                         node_type = NodeType.CONCEPT
 
                     from ciris_engine.schemas.services.operations import MemoryQuery
-                    query = MemoryQuery(
-                        node_id=rid,
-                        scope=scope,
-                        type=node_type,
-                        include_edges=False,
-                        depth=1
-                    )
-                    await self.bus_manager.memory.recall(
-                        recall_query=query,
-                        handler_name=self.__class__.__name__
-                    )
+
+                    query = MemoryQuery(node_id=rid, scope=scope, type=node_type, include_edges=False, depth=1)
+                    await self.bus_manager.memory.recall(recall_query=query, handler_name=self.__class__.__name__)
                 except Exception:
                     continue
 
@@ -96,9 +84,7 @@ class ObserveHandler(BaseActionHandler):
             await self._handle_error(HandlerActionType.OBSERVE, dispatch_context, thought_id, e)
             # Mark thought as failed and create error follow-up
             return self.complete_thought_and_create_followup(
-                thought=thought,
-                follow_up_content=f"OBSERVE action failed: {e}",
-                action_result=result
+                thought=thought, follow_up_content=f"OBSERVE action failed: {e}", action_result=result
             )
 
         # Always do active observation - agent should always create follow-up thoughts
@@ -109,7 +95,7 @@ class ObserveHandler(BaseActionHandler):
         channel_context: Optional[ChannelContext] = params.channel_context or dispatch_context.channel_context
 
         # Fallback to thought context if needed
-        if not channel_context and thought.context and hasattr(thought.context, 'system_snapshot'):
+        if not channel_context and thought.context and hasattr(thought.context, "system_snapshot"):
             channel_context = thought.context.system_snapshot.channel_context
 
         # Update params with the resolved channel context
@@ -129,9 +115,7 @@ class ObserveHandler(BaseActionHandler):
             if not channel_id:
                 raise RuntimeError(f"No channel_id ({channel_id})")
             messages = await self.bus_manager.communication.fetch_messages(
-                channel_id=str(channel_id).lstrip("#"),
-                limit=ACTIVE_OBSERVE_LIMIT,
-                handler_name=self.__class__.__name__
+                channel_id=str(channel_id).lstrip("#"), limit=ACTIVE_OBSERVE_LIMIT, handler_name=self.__class__.__name__
             )
             if messages is None:
                 raise RuntimeError("Failed to fetch messages via multi-service sink")
@@ -149,14 +133,12 @@ class ObserveHandler(BaseActionHandler):
             if action_performed
             else f"CIRIS_FOLLOW_UP_THOUGHT: OBSERVE action failed: {follow_up_info}"
         )
-        
+
         # Use centralized method to complete thought and create follow-up
         follow_up_id = self.complete_thought_and_create_followup(
-            thought=thought,
-            follow_up_content=follow_up_text,
-            action_result=result
+            thought=thought, follow_up_content=follow_up_text, action_result=result
         )
-        
+
         if not follow_up_id:
             logger.critical(f"Failed to create follow-up for {thought_id}")
             await self._audit_log(
@@ -165,5 +147,5 @@ class ObserveHandler(BaseActionHandler):
                 outcome="failed_followup",
             )
             raise FollowUpCreationError("Failed to create follow-up thought")
-        
+
         return follow_up_id

@@ -164,7 +164,7 @@ function OAuthLogin({ provider }) {
     // Redirect to OAuth start endpoint
     window.location.href = `/v2/auth/oauth/${provider}/start`;
   };
-  
+
   return (
     <button onClick={handleLogin}>
       Login with {provider}
@@ -176,22 +176,22 @@ function OAuthLogin({ provider }) {
 async function handleOAuthCallback() {
   const params = new URLSearchParams(window.location.search);
   const error = params.get('error');
-  
+
   if (error) {
     console.error('OAuth error:', error);
     return;
   }
-  
+
   // The API handles the callback automatically
   // The response includes the API key
   const response = await fetch(window.location.href);
   const data = await response.json();
-  
+
   if (data.access_token) {
     // Store the API key
     localStorage.setItem('api_key', data.access_token);
     localStorage.setItem('user_role', data.role);
-    
+
     // Redirect to app
     window.location.href = '/dashboard';
   }
@@ -208,16 +208,16 @@ from ciris_sdk import CIRISClient
 def login_with_oauth(provider='google'):
     auth_url = f"http://localhost:8080/v2/auth/oauth/{provider}/start"
     webbrowser.open(auth_url)
-    
+
     # After user completes OAuth flow, they'll get an API key
     api_key = input("Enter your API key: ")
-    
+
     # Create client with API key
     client = CIRISClient(
         base_url="http://localhost:8080",
         api_key=api_key
     )
-    
+
     return client
 ```
 

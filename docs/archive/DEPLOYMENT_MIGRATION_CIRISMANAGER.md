@@ -76,7 +76,7 @@ systemctl enable ciris-manager
 1. **Pull Latest Images**: `docker-compose pull`
 2. **Notify Agents**: Send graceful shutdown request
 3. **Wait for Exit**: Agents exit with code 0 when ready
-4. **Automatic Restart**: 
+4. **Automatic Restart**:
    - With CIRIS Manager: Happens within 60s automatically
    - Without: Run `docker-compose up -d`
 
@@ -89,7 +89,7 @@ systemctl enable ciris-manager
 ## Troubleshooting
 
 ### Container Won't Restart
-- Check exit code: `docker ps -a` 
+- Check exit code: `docker ps -a`
 - Exit 0 = Won't auto-restart (correct for updates)
 - Non-zero = Will auto-restart (for crashes)
 

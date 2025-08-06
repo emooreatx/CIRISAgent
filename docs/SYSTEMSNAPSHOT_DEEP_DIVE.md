@@ -33,7 +33,7 @@ SystemSnapshot
 │   ├── agent_identity (WHO AM I?)
 │   ├── agent_purpose
 │   └── allowed_capabilities
-├── Communication Layer  
+├── Communication Layer
 │   ├── channel_context (WHERE AM I?)
 │   ├── adapter_channels
 │   └── enriched_users

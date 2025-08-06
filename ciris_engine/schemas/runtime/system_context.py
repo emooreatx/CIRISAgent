@@ -3,12 +3,16 @@ System and runtime context schemas.
 
 Provides type-safe contexts for system state and runtime operations.
 """
-from typing import Dict, List, Optional, Any, Union
+
 from datetime import datetime
-from pydantic import BaseModel, Field, ConfigDict, field_serializer
-from ciris_engine.schemas.runtime.resources import ResourceUsage
+from typing import Any, Dict, List, Optional, Union
+
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
+
 # Import ToolInfo directly - no Dict[str, Any] allowed per our principles
 from ciris_engine.schemas.adapters.tools import ToolInfo
+from ciris_engine.schemas.runtime.resources import ResourceUsage
+
 
 class SystemSnapshot(BaseModel):
     """System state snapshot for processing context.
@@ -35,135 +39,98 @@ class SystemSnapshot(BaseModel):
 
     # Channel context (PRIMARY FIELDS - almost always set)
     channel_id: Optional[str] = Field(
-        None,
-        description="ID of the communication channel (e.g., Discord channel ID, 'cli', 'api')"
+        None, description="ID of the communication channel (e.g., Discord channel ID, 'cli', 'api')"
     )
-    channel_context: Optional['ChannelContext'] = Field(
-        None,
-        description="Full channel context with metadata - the most important field"
+    channel_context: Optional["ChannelContext"] = Field(
+        None, description="Full channel context with metadata - the most important field"
     )
 
     # Current processing state (set when processing tasks/thoughts)
-    current_task_details: Optional['TaskSummary'] = Field(
-        None,
-        description="Summary of the task currently being processed"
+    current_task_details: Optional["TaskSummary"] = Field(
+        None, description="Summary of the task currently being processed"
     )
-    current_thought_summary: Optional['ThoughtSummary'] = Field(
-        None,
-        description="Summary of the thought currently being processed"
+    current_thought_summary: Optional["ThoughtSummary"] = Field(
+        None, description="Summary of the thought currently being processed"
     )
 
     # System overview (computed during snapshot building)
     system_counts: Dict[str, int] = Field(
-        default_factory=dict,
-        description="Counts: total_tasks, total_thoughts, pending_tasks, pending_thoughts"
+        default_factory=dict, description="Counts: total_tasks, total_thoughts, pending_tasks, pending_thoughts"
     )
-    top_pending_tasks_summary: List['TaskSummary'] = Field(
-        default_factory=list,
-        description="Top 10 pending tasks by priority"
+    top_pending_tasks_summary: List["TaskSummary"] = Field(
+        default_factory=list, description="Top 10 pending tasks by priority"
     )
-    recently_completed_tasks_summary: List['TaskSummary'] = Field(
-        default_factory=list,
-        description="10 most recently completed tasks"
+    recently_completed_tasks_summary: List["TaskSummary"] = Field(
+        default_factory=list, description="10 most recently completed tasks"
     )
 
     # Agent identity (loaded once from graph memory)
     agent_identity: Dict[str, Union[str, int, float, bool, list, dict]] = Field(
-        default_factory=dict,
-        description="Raw agent identity data from graph node - typed values only"
+        default_factory=dict, description="Raw agent identity data from graph node - typed values only"
     )
-    identity_purpose: Optional[str] = Field(
-        None,
-        description="Agent's purpose statement extracted from identity"
-    )
+    identity_purpose: Optional[str] = Field(None, description="Agent's purpose statement extracted from identity")
     identity_capabilities: List[str] = Field(
-        default_factory=list,
-        description="List of agent capabilities from identity"
+        default_factory=list, description="List of agent capabilities from identity"
     )
     identity_restrictions: List[str] = Field(
-        default_factory=list,
-        description="List of agent restrictions from identity"
+        default_factory=list, description="List of agent restrictions from identity"
     )
-    
+
     # Version information
-    agent_version: Optional[str] = Field(
-        None,
-        description="CIRIS agent version (e.g., 1.0.4-beta)"
-    )
-    agent_codename: Optional[str] = Field(
-        None,
-        description="Release codename (e.g., Graceful Guardian)"
-    )
-    agent_code_hash: Optional[str] = Field(
-        None,
-        description="Code hash for exact version identification"
-    )
+    agent_version: Optional[str] = Field(None, description="CIRIS agent version (e.g., 1.0.4-beta)")
+    agent_codename: Optional[str] = Field(None, description="Release codename (e.g., Graceful Guardian)")
+    agent_code_hash: Optional[str] = Field(None, description="Code hash for exact version identification")
 
     # Security context (from secrets service)
     detected_secrets: List[str] = Field(
-        default_factory=list,
-        description="Patterns of secrets detected in current context (masked representations)"
+        default_factory=list, description="Patterns of secrets detected in current context (masked representations)"
     )
-    secrets_filter_version: int = Field(
-        0,
-        description="Version of the secrets filter being used"
-    )
-    total_secrets_stored: int = Field(
-        0,
-        description="Total number of secrets in secure storage"
-    )
+    secrets_filter_version: int = Field(0, description="Version of the secrets filter being used")
+    total_secrets_stored: int = Field(0, description="Total number of secrets in secure storage")
 
     # Service health (from service registry)
     service_health: Dict[str, bool] = Field(
-        default_factory=dict,
-        description="Health status of each service (service_name -> is_healthy)"
+        default_factory=dict, description="Health status of each service (service_name -> is_healthy)"
     )
     circuit_breaker_status: Dict[str, str] = Field(
-        default_factory=dict,
-        description="Circuit breaker status for each service (service_name -> state)"
+        default_factory=dict, description="Circuit breaker status for each service (service_name -> state)"
     )
 
     # Runtime context
     shutdown_context: Optional[Dict[str, Union[str, int, bool]]] = Field(
-        None,
-        description="Shutdown context if system is shutting down"
+        None, description="Shutdown context if system is shutting down"
     )
 
     # Resource alerts - CRITICAL for mission-critical systems
     resource_alerts: List[str] = Field(
-        default_factory=list,
-        description="CRITICAL resource alerts that require immediate attention"
+        default_factory=list, description="CRITICAL resource alerts that require immediate attention"
     )
 
     # User profiles (used by context builder)
-    user_profiles: List['UserProfile'] = Field(
-        default_factory=list,
-        description="User profile information"
-    )
+    user_profiles: List["UserProfile"] = Field(default_factory=list, description="User profile information")
 
     # Telemetry summary for resource usage
-    telemetry_summary: Optional['TelemetrySummary'] = Field(
-        None,
-        description="Aggregated telemetry data for resource usage tracking"
+    telemetry_summary: Optional["TelemetrySummary"] = Field(
+        None, description="Aggregated telemetry data for resource usage tracking"
     )
-    
+
     # Adapter channels - for agent visibility into available communication channels
     adapter_channels: Dict[str, List[Dict[str, Union[str, int, bool]]]] = Field(
-        default_factory=dict,
-        description="Available channels by adapter type with typed channel info"
+        default_factory=dict, description="Available channels by adapter type with typed channel info"
     )
-    
+
     # Available tools - for agent visibility into tools across all adapters
     # Type-safe: Use ToolInfo objects, not Dict[str, Any]
     available_tools: Dict[str, List[ToolInfo]] = Field(
-        default_factory=dict,
-        description="Available tools by adapter type with full ToolInfo objects"
+        default_factory=dict, description="Available tools by adapter type with full ToolInfo objects"
     )
 
-    model_config = ConfigDict(extra = "forbid")  # Be strict about fields to catch misuse
+    model_config = ConfigDict(extra="forbid")  # Be strict about fields to catch misuse
+
 
 class TaskSummary(BaseModel):
     """Summary of a task for system snapshot."""
+
     task_id: str = Field(..., description="Unique task identifier")
     channel_id: str = Field(..., description="Channel where task originated")
     created_at: datetime = Field(..., description="Task creation time")
@@ -184,10 +151,12 @@ class TaskSummary(BaseModel):
     result_data: Optional[Dict[str, str]] = Field(None, description="Structured result data")
     error: Optional[str] = Field(None, description="Error if failed")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class ThoughtState(BaseModel):
     """State for a thought being processed."""
+
     thought_id: str = Field(..., description="Unique thought identifier")
     task_id: str = Field(..., description="Associated task ID")
     content: str = Field(..., description="Thought content")
@@ -210,10 +179,12 @@ class ThoughtState(BaseModel):
     # Decision
     selected_action: Optional[str] = Field(None, description="Action selected")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class UserProfile(BaseModel):
     """User profile information."""
+
     user_id: str = Field(..., description="Unique user identifier")
     display_name: str = Field(..., description="User display name")
     created_at: datetime = Field(..., description="Profile creation time")
@@ -232,14 +203,16 @@ class UserProfile(BaseModel):
     is_wa: bool = Field(False, description="Whether user is Wise Authority")
     permissions: List[str] = Field(default_factory=list, description="Granted permissions")
     restrictions: List[str] = Field(default_factory=list, description="Applied restrictions")
-    
+
     # Additional context
     notes: Optional[str] = Field(None, description="Additional notes or context about the user")
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 class ChannelContext(BaseModel):
     """Context for a communication channel."""
+
     channel_id: str = Field(..., description="Unique channel identifier")
     channel_type: str = Field(..., description="Type of channel (discord, cli, api)")
     created_at: datetime = Field(..., description="Channel creation time")
@@ -258,15 +231,16 @@ class ChannelContext(BaseModel):
     allowed_actions: List[str] = Field(default_factory=list, description="Allowed actions in channel")
     moderation_level: str = Field("standard", description="Moderation level")
 
-    @field_serializer('created_at', 'last_activity')
+    @field_serializer("created_at", "last_activity")
     def serialize_datetimes(self, dt: Optional[datetime], _info: Any) -> Optional[str]:
         return dt.isoformat() if dt else None
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
 
 
 class AuditVerification(BaseModel):
     """Audit chain verification result."""
+
     verified_at: datetime = Field(..., description="When verification occurred")
     result: str = Field(..., description="Verification result: valid, invalid, partial")
     entries_verified: int = Field(..., description="Number of entries verified")
@@ -277,12 +251,12 @@ class AuditVerification(BaseModel):
     issues: List[str] = Field(default_factory=list, description="Issues found during verification")
     missing_entries: List[str] = Field(default_factory=list, description="Missing entry IDs")
 
-    model_config = ConfigDict(extra = "forbid")
-
+    model_config = ConfigDict(extra="forbid")
 
 
 class ThoughtSummary(BaseModel):
     """Summary of a thought for context."""
+
     thought_id: str = Field(..., description="Thought ID")
     content: Optional[str] = Field(None, description="Thought content")
     status: Optional[str] = Field(None, description="Thought status")
@@ -290,7 +264,8 @@ class ThoughtSummary(BaseModel):
     thought_type: Optional[str] = Field(None, description="Type of thought")
     thought_depth: Optional[int] = Field(None, description="Processing depth")
 
-    model_config = ConfigDict(extra = "allow")
+    model_config = ConfigDict(extra="allow")
+
 
 class TelemetrySummary(BaseModel):
     """Summary of recent telemetry metrics for system context."""
@@ -321,7 +296,7 @@ class TelemetrySummary(BaseModel):
     cost_last_hour_cents: float = Field(0.0, description="Total cost in the last hour (cents)")
     carbon_last_hour_grams: float = Field(0.0, description="Total carbon emissions in the last hour (grams)")
     energy_last_hour_kwh: float = Field(0.0, description="Total energy usage in the last hour (kWh)")
-    
+
     # Resource consumption totals (actuals for the last 24 hours)
     tokens_24h: float = Field(0.0, description="Total tokens used in the last 24 hours")
     cost_24h_cents: float = Field(0.0, description="Total cost in the last 24 hours (cents)")
@@ -333,11 +308,12 @@ class TelemetrySummary(BaseModel):
     avg_thought_depth: float = Field(0.0, description="Average thought processing depth")
     queue_saturation: float = Field(0.0, description="Queue saturation 0-1")
 
-    @field_serializer('window_start', 'window_end')
+    @field_serializer("window_start", "window_end")
     def serialize_datetimes(self, dt: datetime, _info: Any) -> Optional[str]:
         return dt.isoformat() if dt else None
 
-    model_config = ConfigDict(extra = "forbid")
+    model_config = ConfigDict(extra="forbid")
+
 
 __all__ = [
     "SystemSnapshot",
@@ -348,5 +324,5 @@ __all__ = [
     "ResourceUsage",  # Re-exported from resources module
     "AuditVerification",
     "TelemetrySummary",
-    "ThoughtSummary"
+    "ThoughtSummary",
 ]

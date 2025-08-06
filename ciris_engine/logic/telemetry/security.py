@@ -4,15 +4,14 @@ import logging
 import re
 import time
 from collections import deque
-from typing import Deque, Dict, Tuple, Any
+from typing import Any, Deque, Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
-EMAIL_RE = re.compile(
-    r"[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,6}", re.ASCII
-)
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,6}", re.ASCII)
 SSN_RE = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
 PHONE_RE = re.compile(r"\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b")
+
 
 class SecurityFilter:
     """Sanitize telemetry metrics to prevent sensitive data leaks."""
@@ -24,9 +23,7 @@ class SecurityFilter:
     ) -> None:
         self.bounds = bounds or {}
         self.rate_limits = rate_limits or {}
-        self._history: Dict[str, Deque[float]] = {
-            name: deque() for name in self.rate_limits
-        }
+        self._history: Dict[str, Deque[float]] = {name: deque() for name in self.rate_limits}
 
     def sanitize(self, metric_name: str, value: Any) -> Tuple[str, Any] | None:
         # Rate limiting

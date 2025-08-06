@@ -16,7 +16,7 @@ import {
 
 export default function DashboardPage() {
   const { currentAgent, isLoadingAgents } = useAgent();
-  
+
   // Fetch all necessary data
   const { data: health } = useQuery({
     queryKey: ["dashboard-health"],

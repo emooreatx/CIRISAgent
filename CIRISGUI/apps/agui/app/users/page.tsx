@@ -22,11 +22,11 @@ export default function UsersPage() {
   const [waMintUser, setWAMintUser] = useState<UserDetail | null>(null);
   const [showOAuthConfig, setShowOAuthConfig] = useState(false);
   const [showAddUser, setShowAddUser] = useState(false);
-  
+
   // Pagination
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  
+
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [filterRole, setFilterRole] = useState<APIRole | ''>('');
@@ -46,7 +46,7 @@ export default function UsersPage() {
         api_role: filterRole || undefined,
         auth_type: filterAuthType || undefined,
       });
-      
+
       setUsers(response.items);
       setTotalPages(response.pages);
     } catch (err) {
@@ -136,7 +136,7 @@ export default function UsersPage() {
               placeholder="Search by name..."
             />
           </div>
-          
+
           <div>
             <label htmlFor="role" className="block text-sm font-medium text-gray-700">
               API Role

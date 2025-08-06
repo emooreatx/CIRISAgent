@@ -15,18 +15,18 @@ import asyncio
 import os
 import sys
 import tempfile
-from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
-from ciris_engine.schemas.config.essential import EssentialConfig
-from ciris_engine.logic.utils.shutdown_manager import request_global_shutdown
 import logging
 
+from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
+from ciris_engine.logic.utils.shutdown_manager import request_global_shutdown
+from ciris_engine.schemas.config.essential import EssentialConfig
+
 # Set up logging to see what's happening
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -47,7 +47,7 @@ async def test_complete_startup():
                 startup_channel_id="test-channel",
                 adapter_configs={},
                 mock_llm=True,  # Use mock LLM for testing
-                timeout=5  # Short timeout for testing
+                timeout=5,  # Short timeout for testing
             )
 
             logger.info("Initializing runtime...")
@@ -63,15 +63,13 @@ async def test_complete_startup():
 
             # Start the agent processor to test wakeup
             logger.info("Starting agent processor...")
-            processor_task = asyncio.create_task(
-                runtime.agent_processor.start_processing(num_rounds=2)
-            )
+            processor_task = asyncio.create_task(runtime.agent_processor.start_processing(num_rounds=2))
 
             # Let it run for a bit to test wakeup
             await asyncio.sleep(2)
 
             # Check if wakeup processor started without errors
-            if hasattr(runtime.agent_processor, 'wakeup_processor'):
+            if hasattr(runtime.agent_processor, "wakeup_processor"):
                 wakeup = runtime.agent_processor.wakeup_processor
                 logger.info(f"✓ Wakeup processor status: {wakeup.get_status()}")
 

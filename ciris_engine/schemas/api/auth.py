@@ -4,13 +4,17 @@ Authentication and authorization schemas for CIRIS API v2.0.
 Implements role-based access control with clear hierarchy:
 OBSERVER < ADMIN < AUTHORITY < ROOT
 """
-from enum import Enum
-from typing import Set, Optional, Dict, Any, List
+
 from datetime import datetime, timezone
-from pydantic import BaseModel, Field, ConfigDict
+from enum import Enum
+from typing import Any, Dict, List, Optional, Set
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class UserRole(str, Enum):
     """User roles in order of increasing privilege."""
+
     OBSERVER = "OBSERVER"
     ADMIN = "ADMIN"
     AUTHORITY = "AUTHORITY"
@@ -25,15 +29,17 @@ class UserRole(str, Enum):
             "ADMIN": 2,
             "AUTHORITY": 3,
             "SYSTEM_ADMIN": 4,
-            "SERVICE_ACCOUNT": 2  # Same level as ADMIN for shutdown operations
+            "SERVICE_ACCOUNT": 2,  # Same level as ADMIN for shutdown operations
         }[self.value]
 
     def has_permission(self, required_role: "UserRole") -> bool:
         """Check if this role meets or exceeds required role."""
         return self.level >= required_role.level
 
+
 class Permission(str, Enum):
     """Granular permissions for fine-grained access control."""
+
     # Observer permissions
     VIEW_MESSAGES = "view_messages"
     VIEW_TELEMETRY = "view_telemetry"
@@ -63,6 +69,7 @@ class Permission(str, Enum):
     FULL_ACCESS = "full_access"
     EMERGENCY_SHUTDOWN = "emergency_shutdown"
     MANAGE_SENSITIVE_CONFIG = "manage_sensitive_config"
+
 
 # Role to permissions mapping
 ROLE_PERMISSIONS: Dict[UserRole, Set[Permission]] = {
@@ -131,11 +138,13 @@ ROLE_PERMISSIONS: Dict[UserRole, Set[Permission]] = {
         Permission.RUNTIME_CONTROL,  # For shutdown operations
         Permission.VIEW_TOOLS,
         Permission.VIEW_LOGS,
-    }
+    },
 }
+
 
 class AuthContext(BaseModel):
     """Authentication context for API requests."""
+
     user_id: str = Field(..., description="Unique user identifier")
     role: UserRole = Field(..., description="User's role")
     permissions: Set[Permission] = Field(..., description="Granted permissions")
@@ -158,7 +167,7 @@ class AuthContext(BaseModel):
             api_key_id=api_key.id,
             session_id=None,
             authenticated_at=datetime.now(timezone.utc),
-            request=None
+            request=None,
         )
 
     def has_permission(self, permission: Permission) -> bool:
@@ -167,8 +176,10 @@ class AuthContext(BaseModel):
             return True  # SYSTEM_ADMIN has all permissions
         return permission in self.permissions
 
+
 class APIKey(BaseModel):
     """API key model for authentication."""
+
     id: str = Field(..., description="Unique key identifier")
     key_hash: str = Field(..., description="Hashed API key")
     user_id: str = Field(..., description="User who owns this key")
@@ -189,25 +200,33 @@ class APIKey(BaseModel):
 
         return True
 
+
 class LoginRequest(BaseModel):
     """Request to authenticate with username/password."""
+
     username: str = Field(..., description="Username")
     password: str = Field(..., description="Password")
 
+
 class LoginResponse(BaseModel):
     """Response after successful login."""
+
     access_token: str = Field(..., description="JWT access token")
     token_type: str = Field("bearer", description="Token type")
     expires_in: int = Field(..., description="Token lifetime in seconds")
     user_id: str = Field(..., description="Authenticated user ID")
     role: UserRole = Field(..., description="User's role")
 
+
 class TokenRefreshRequest(BaseModel):
     """Request to refresh access token."""
+
     refresh_token: str = Field(..., description="Refresh token")
+
 
 class UserInfo(BaseModel):
     """Current user information."""
+
     user_id: str = Field(..., description="User ID")
     username: str = Field(..., description="Username")
     role: UserRole = Field(..., description="User's role")
@@ -218,6 +237,7 @@ class UserInfo(BaseModel):
 
 class TokenResponse(BaseModel):
     """Token information response."""
+
     user_id: str
     role: UserRole
     scopes: List[str]
@@ -226,14 +246,13 @@ class TokenResponse(BaseModel):
 
 class OAuth2StartRequest(BaseModel):
     """OAuth2 flow start request."""
-    redirect_uri: Optional[str] = Field(
-        None,
-        description="Custom redirect URI after authentication"
-    )
+
+    redirect_uri: Optional[str] = Field(None, description="Custom redirect URI after authentication")
 
 
 class OAuth2CallbackResponse(BaseModel):
     """OAuth2 callback response with API key."""
+
     access_token: str = Field(..., description="API key for accessing CIRIS API")
     token_type: str = Field("Bearer", description="Token type")
     expires_in: int = Field(..., description="Token expiration in seconds")
@@ -246,19 +265,15 @@ class OAuth2CallbackResponse(BaseModel):
 
 class APIKeyCreateRequest(BaseModel):
     """Request to create a new API key."""
+
     role: UserRole = Field(..., description="Role for the API key")
-    description: Optional[str] = Field(
-        None,
-        description="Description of the key's purpose"
-    )
-    expires_in_days: Optional[int] = Field(
-        None,
-        description="Number of days until key expires (None = no expiration)"
-    )
+    description: Optional[str] = Field(None, description="Description of the key's purpose")
+    expires_in_days: Optional[int] = Field(None, description="Number of days until key expires (None = no expiration)")
 
 
 class APIKeyResponse(BaseModel):
     """Response with created API key."""
+
     api_key: str = Field(..., description="The generated API key (show only once!)")
     role: UserRole = Field(..., description="Role assigned to the key")
     expires_at: Optional[datetime] = Field(None, description="When the key expires")
@@ -269,6 +284,7 @@ class APIKeyResponse(BaseModel):
 
 class APIKeyInfo(BaseModel):
     """API key information (without the actual key)."""
+
     key_id: str = Field(..., description="Key identifier (partial)")
     role: UserRole = Field(..., description="Role assigned to the key")
     expires_at: Optional[datetime] = Field(None, description="When the key expires")
@@ -281,20 +297,25 @@ class APIKeyInfo(BaseModel):
 
 class APIKeyListResponse(BaseModel):
     """List of API keys."""
+
     api_keys: List[APIKeyInfo] = Field(..., description="List of API keys")
     total: int = Field(..., description="Total number of keys")
 
 
 class PermissionRequestResponse(BaseModel):
     """Response for permission request operation."""
+
     success: bool = Field(..., description="Whether the request was successful")
-    status: str = Field(..., description="Status of the request (already_granted, already_requested, request_submitted)")
+    status: str = Field(
+        ..., description="Status of the request (already_granted, already_requested, request_submitted)"
+    )
     message: str = Field(..., description="Human-readable message")
     requested_at: Optional[datetime] = Field(None, description="When the permission was requested")
 
 
 class PermissionRequestUser(BaseModel):
     """User with permission request information."""
+
     id: str = Field(..., description="User ID")
     email: Optional[str] = Field(None, description="User email")
     oauth_name: Optional[str] = Field(None, description="Name from OAuth provider")

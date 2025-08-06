@@ -175,8 +175,8 @@ export class UsersResource extends BaseResource {
     error?: string;
     path: string;
   }> {
-    return this.transport.get('/v1/users/wa/key-check', { 
-      params: { path } 
+    return this.transport.get('/v1/users/wa/key-check', {
+      params: { path }
     });
   }
 

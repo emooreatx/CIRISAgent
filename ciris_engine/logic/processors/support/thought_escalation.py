@@ -1,9 +1,8 @@
-
 import logging
-from typing import Dict, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict
 
-from ciris_engine.schemas.runtime.models import Thought
 from ciris_engine.schemas.runtime.enums import ThoughtStatus
+from ciris_engine.schemas.runtime.models import Thought
 
 if TYPE_CHECKING:
     from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
@@ -19,10 +18,12 @@ __all__ = [
     "escalate_due_to_max_thought_rounds",
 ]
 
+
 def _append_escalation(thought: Thought, event: Dict[str, str]) -> Thought:
     """Append an escalation event to the thought (no-op for v1 schema)."""
     # Escalation events are not tracked in v1 schema.
     return thought
+
 
 def escalate_due_to_action_limit(thought: Thought, reason: str, time_service: "TimeServiceProtocol") -> Thought:
     """Escalate when a thought exceeds its action limit."""
@@ -34,6 +35,7 @@ def escalate_due_to_action_limit(thought: Thought, reason: str, time_service: "T
     }
     return _append_escalation(thought, event)
 
+
 def escalate_due_to_sla(thought: Thought, reason: str, time_service: "TimeServiceProtocol") -> Thought:
     """Escalate when a thought breaches its SLA."""
     now = time_service.now().isoformat()
@@ -43,6 +45,7 @@ def escalate_due_to_sla(thought: Thought, reason: str, time_service: "TimeServic
         "type": "sla_breach",
     }
     return _append_escalation(thought, event)
+
 
 def escalate_due_to_conscience(thought: Thought, reason: str, time_service: "TimeServiceProtocol") -> Thought:
     """Escalate when a conscience violation occurs."""
@@ -54,6 +57,7 @@ def escalate_due_to_conscience(thought: Thought, reason: str, time_service: "Tim
     }
     return _append_escalation(thought, event)
 
+
 def escalate_due_to_failure(thought: Thought, reason: str, time_service: "TimeServiceProtocol") -> Thought:
     """Escalate due to internal failure or deferral."""
     now = time_service.now().isoformat()
@@ -63,6 +67,7 @@ def escalate_due_to_failure(thought: Thought, reason: str, time_service: "TimeSe
         "type": "internal_failure",
     }
     return _append_escalation(thought, event)
+
 
 def escalate_dma_failure(
     thought: Any, dma_name: str, error: Exception, retry_limit: int, time_service: "TimeServiceProtocol"
@@ -97,7 +102,10 @@ def escalate_dma_failure(
     thought.status = ThoughtStatus.DEFERRED
     _append_escalation(thought, event)
 
-def escalate_due_to_max_thought_rounds(thought: Thought, max_rounds: int, time_service: "TimeServiceProtocol") -> Thought:
+
+def escalate_due_to_max_thought_rounds(
+    thought: Thought, max_rounds: int, time_service: "TimeServiceProtocol"
+) -> Thought:
     """Escalate when a thought exceeds the allowed action rounds per thought."""
     now = time_service.now().isoformat()
     event = {

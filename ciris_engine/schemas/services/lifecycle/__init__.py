@@ -1,6 +1,6 @@
 """Lifecycle service schemas."""
 
-from .time import TimeServiceConfig, TimeSnapshot, TimeServiceStatus
+from .time import TimeServiceConfig, TimeServiceStatus, TimeSnapshot
 
 __all__ = [
     "TimeServiceConfig",

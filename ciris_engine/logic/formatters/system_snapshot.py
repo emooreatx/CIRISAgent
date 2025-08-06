@@ -1,5 +1,6 @@
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 
+
 def format_system_snapshot(system_snapshot: SystemSnapshot) -> str:
     """Summarize core system counters for LLM prompt context.
 
@@ -17,7 +18,7 @@ def format_system_snapshot(system_snapshot: SystemSnapshot) -> str:
     lines = ["=== System Snapshot ==="]
 
     # CRITICAL: Check for resource alerts FIRST
-    if hasattr(system_snapshot, 'resource_alerts') and system_snapshot.resource_alerts:
+    if hasattr(system_snapshot, "resource_alerts") and system_snapshot.resource_alerts:
         lines.append("🚨🚨🚨 CRITICAL RESOURCE ALERTS 🚨🚨🚨")
         for alert in system_snapshot.resource_alerts:
             lines.append(alert)
@@ -25,26 +26,28 @@ def format_system_snapshot(system_snapshot: SystemSnapshot) -> str:
         lines.append("")  # Empty line for emphasis
 
     # System counts if available
-    if hasattr(system_snapshot, 'system_counts') and system_snapshot.system_counts:
+    if hasattr(system_snapshot, "system_counts") and system_snapshot.system_counts:
         counts = system_snapshot.system_counts
-        if 'pending_tasks' in counts:
+        if "pending_tasks" in counts:
             lines.append(f"Pending Tasks: {counts['pending_tasks']}")
-        if 'pending_thoughts' in counts:
+        if "pending_thoughts" in counts:
             lines.append(f"Pending Thoughts: {counts['pending_thoughts']}")
-        if 'total_tasks' in counts:
+        if "total_tasks" in counts:
             lines.append(f"Total Tasks: {counts['total_tasks']}")
-        if 'total_thoughts' in counts:
+        if "total_thoughts" in counts:
             lines.append(f"Total Thoughts: {counts['total_thoughts']}")
 
     # Telemetry/Resource Usage Summary
-    if hasattr(system_snapshot, 'telemetry_summary') and system_snapshot.telemetry_summary:
+    if hasattr(system_snapshot, "telemetry_summary") and system_snapshot.telemetry_summary:
         telemetry = system_snapshot.telemetry_summary
         lines.append("")
         lines.append("=== Resource Usage ===")
 
         # Current hour usage
         if telemetry.tokens_last_hour > 0:
-            lines.append(f"Tokens (Last Hour): {int(telemetry.tokens_last_hour):,} tokens, ${telemetry.cost_last_hour_cents/100:.2f}, {telemetry.carbon_last_hour_grams:.1f}g CO2, {telemetry.energy_last_hour_kwh:.3f} kWh")
+            lines.append(
+                f"Tokens (Last Hour): {int(telemetry.tokens_last_hour):,} tokens, ${telemetry.cost_last_hour_cents/100:.2f}, {telemetry.carbon_last_hour_grams:.1f}g CO2, {telemetry.energy_last_hour_kwh:.3f} kWh"
+            )
 
         # 24h usage
         if telemetry.messages_processed_24h > 0 or telemetry.thoughts_processed_24h > 0:
@@ -55,9 +58,13 @@ def format_system_snapshot(system_snapshot: SystemSnapshot) -> str:
 
         # Activity metrics
         if telemetry.messages_processed_24h > 0:
-            lines.append(f"Messages Processed: {telemetry.messages_current_hour} (current hour), {telemetry.messages_processed_24h} (24h)")
+            lines.append(
+                f"Messages Processed: {telemetry.messages_current_hour} (current hour), {telemetry.messages_processed_24h} (24h)"
+            )
         if telemetry.thoughts_processed_24h > 0:
-            lines.append(f"Thoughts Processed: {telemetry.thoughts_current_hour} (current hour), {telemetry.thoughts_processed_24h} (24h)")
+            lines.append(
+                f"Thoughts Processed: {telemetry.thoughts_current_hour} (current hour), {telemetry.thoughts_processed_24h} (24h)"
+            )
 
         # Error rate if significant
         if telemetry.error_rate_percent > 1.0:

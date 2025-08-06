@@ -63,7 +63,7 @@ class TypedNode(GraphNode):
     # Extra fields beyond GraphNode
     extra_field_1: str
     extra_field_2: int
-    
+
     def to_graph_node(self) -> GraphNode:
         """Convert to generic GraphNode for storage"""
         # Only serialize extra fields to attributes
@@ -72,14 +72,14 @@ class TypedNode(GraphNode):
             "extra_field_2": self.extra_field_2,
             "_node_class": self.__class__.__name__
         }
-        
+
         # Handle datetime serialization
         for key, value in extra_data.items():
             if isinstance(value, datetime):
                 extra_data[key] = value.isoformat()
             elif isinstance(value, BaseModel):
                 extra_data[key] = value.model_dump()
-        
+
         return GraphNode(
             id=self.id,
             type=self.type,
@@ -89,16 +89,16 @@ class TypedNode(GraphNode):
             updated_by=self.updated_by,
             updated_at=self.updated_at
         )
-    
+
     @classmethod
     def from_graph_node(cls, node: GraphNode) -> 'TypedNode':
         """Reconstruct typed node from GraphNode"""
         attrs = node.attributes.copy()
         attrs.pop("_node_class", None)  # Remove metadata
-        
+
         # Handle datetime deserialization
         # ... field-specific logic ...
-        
+
         return cls(
             # Base fields from node
             id=node.id,
@@ -125,7 +125,7 @@ class TypedNode(GraphNode):
 
 ### Incident Management (3)
 - **IncidentNode**: Individual incidents from logs ✅
-- **ProblemNode**: Recurring issues (ITIL-aligned) ✅ 
+- **ProblemNode**: Recurring issues (ITIL-aligned) ✅
 - **IncidentInsightNode**: AI-generated insights ✅
 
 ### Discord-Specific (3)
@@ -165,21 +165,21 @@ class EdgeType(str, Enum):
     # Causal relationships
     CAUSED_BY = "caused_by"
     LEADS_TO = "leads_to"
-    
+
     # Temporal relationships
     BEFORE = "before"
     AFTER = "after"
     DURING = "during"
-    
+
     # Structural relationships
     PARENT_OF = "parent_of"
     CHILD_OF = "child_of"
     RELATED_TO = "related_to"
-    
+
     # Version relationships
     PREVIOUS_VERSION = "previous_version"
     NEXT_VERSION = "next_version"
-    
+
     # Correlation relationships
     CORRELATED_WITH = "correlated_with"
     REFERENCES = "references"
@@ -269,10 +269,10 @@ class ConfigService:
             updated_by=updated_by,
             updated_at=self.time.now()
         )
-        
+
         # Store as generic GraphNode
         await self.memory.memorize(config.to_graph_node())
-        
+
         # Create relationship to previous version
         if previous_config:
             edge = GraphEdge(
@@ -283,13 +283,13 @@ class ConfigService:
                 attributes={"changed_fields": ["value"]}
             )
             await self.memory.add_edge(edge)
-    
+
     async def get_config_history(self, key: str) -> List[ConfigNode]:
         # Find current config
         current = await self.get_config(key)
         if not current:
             return []
-        
+
         # Traverse version history
         history_nodes = await self.memory.traverse(
             start_node=current.id,
@@ -297,7 +297,7 @@ class ConfigService:
             direction="outgoing",
             max_depth=100
         )
-        
+
         # Convert to typed nodes
         return [ConfigNode.from_graph_node(n) for n in history_nodes]
 ```

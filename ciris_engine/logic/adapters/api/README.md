@@ -225,14 +225,14 @@ from ciris_sdk import CIRISClient
 async with CIRISClient(base_url="http://localhost:8080") as client:
     # Send message to agent
     result = await client.agent.send("Hello CIRIS!")
-    
+
     # Wait for response
     response = await client.agent.ask("What is your purpose?")
     print(response)
-    
+
     # Browse memory
     nodes = await client.memory.graph.nodes(scope="identity")
-    
+
     # View current thoughts
     thoughts = await client.visibility.thoughts(limit=5)
 ```

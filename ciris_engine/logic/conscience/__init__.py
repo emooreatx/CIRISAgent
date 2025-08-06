@@ -1,13 +1,8 @@
 """conscience components."""
 
+from .core import CoherenceConscience, EntropyConscience, EpistemicHumilityConscience, OptimizationVetoConscience
 from .interface import ConscienceInterface
 from .registry import conscienceRegistry
-from .core import (
-    EntropyConscience,
-    CoherenceConscience,
-    OptimizationVetoConscience,
-    EpistemicHumilityConscience,
-)
 from .thought_depth_guardrail import ThoughtDepthGuardrail
 
 __all__ = [

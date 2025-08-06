@@ -217,7 +217,7 @@ sanitized_trace = "/home/[USER]/[PROJECT]/api_key.py"
 ### Rate Limiting
 Per-metric-type limits prevent information leakage:
 - Error metrics: 10/minute
-- Performance metrics: 100/minute  
+- Performance metrics: 100/minute
 - Resource metrics: 60/minute
 - Debug metrics: 20/minute
 
@@ -330,7 +330,7 @@ class CustomCollector(BaseCollector):
     def __init__(self, telemetry_service):
         super().__init__(interval_ms=1000)
         self.telemetry = telemetry_service
-    
+
     async def collect(self):
         # Custom metric collection logic
         custom_value = await get_custom_metric()

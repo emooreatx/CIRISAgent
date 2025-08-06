@@ -84,12 +84,12 @@ AUDIT_LOG_PATH="./audit_logs.jsonl"
    # CLI mode
    python main.py --mode cli
 
-   # Discord mode  
+   # Discord mode
    python main.py --mode discord
 
    # API mode
    python main.py --mode api
-   
+
    # Note: Profiles are only used during initial agent creation
    # Use --profile only with --wa-bootstrap for new agents
    ```
@@ -125,7 +125,7 @@ AUDIT_LOG_PATH="./audit_logs.jsonl"
    ```bash
    # Customize docker-compose.yml
    cp docker-compose.yml docker-compose.local.yml
-   
+
    # Start services
    docker-compose -f docker-compose.local.yml up -d
    ```

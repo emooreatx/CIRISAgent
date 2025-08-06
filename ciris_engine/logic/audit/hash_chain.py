@@ -7,15 +7,15 @@ tamper-evident audit logs for the CIRIS Agent system.
 
 import hashlib
 import json
-import sqlite3
 import logging
+import sqlite3
 import threading
-from typing import Optional, List
-from ciris_engine.schemas.audit.hash_chain import (
-    HashChainVerificationResult, ChainSummary
-)
+from typing import List, Optional
+
+from ciris_engine.schemas.audit.hash_chain import ChainSummary, HashChainVerificationResult
 
 logger = logging.getLogger(__name__)
+
 
 class AuditHashChain:
     """Manages the cryptographic hash chain for audit entries"""
@@ -53,14 +53,14 @@ class AuditHashChain:
             "originator_id": entry["originator_id"],
             "event_payload": entry.get("event_payload", ""),
             "sequence_number": entry["sequence_number"],
-            "previous_hash": entry["previous_hash"]
+            "previous_hash": entry["previous_hash"],
         }
 
         # Convert to deterministic JSON
-        canonical_json = json.dumps(canonical, sort_keys=True, separators=(',', ':'))
+        canonical_json = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
 
         # Compute SHA-256 hash
-        return hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
+        return hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
 
     def prepare_entry(self, entry: dict) -> dict:
         """Prepare an entry for the hash chain by adding chain fields"""
@@ -73,7 +73,7 @@ class AuditHashChain:
             if last_entry:
                 self._last_hash = last_entry["entry_hash"]
                 self._sequence_number = last_entry["sequence_number"]
-            
+
             self._sequence_number += 1
             entry["sequence_number"] = self._sequence_number
             entry["previous_hash"] = self._last_hash or "genesis"
@@ -91,11 +91,13 @@ class AuditHashChain:
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
 
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT * FROM audit_log
                 ORDER BY sequence_number DESC
                 LIMIT 1
-            """)
+            """
+            )
 
             row = cursor.fetchone()
             conn.close()
@@ -119,27 +121,29 @@ class AuditHashChain:
 
             # Build query
             if end_seq:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT * FROM audit_log
                     WHERE sequence_number >= ? AND sequence_number <= ?
                     ORDER BY sequence_number
-                """, (start_seq, end_seq))
+                """,
+                    (start_seq, end_seq),
+                )
             else:
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT * FROM audit_log
                     WHERE sequence_number >= ?
                     ORDER BY sequence_number
-                """, (start_seq,))
+                """,
+                    (start_seq,),
+                )
 
             entries = [dict(row) for row in cursor.fetchall()]
 
             if not entries:
                 result = HashChainVerificationResult(
-                    valid=True,
-                    entries_checked=0,
-                    errors=[],
-                    last_sequence=0,
-                    tampering_location=None
+                    valid=True, entries_checked=0, errors=[], last_sequence=0, tampering_location=None
                 )
             else:
                 errors: List[str] = []
@@ -147,10 +151,13 @@ class AuditHashChain:
 
                 # If not starting from sequence 1, get the previous entry's hash
                 if start_seq > 1:
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         SELECT entry_hash FROM audit_log
                         WHERE sequence_number = ?
-                    """, (start_seq - 1,))
+                    """,
+                        (start_seq - 1,),
+                    )
                     prev_row = cursor.fetchone()
                     if prev_row:
                         previous_hash = prev_row[0]
@@ -179,7 +186,7 @@ class AuditHashChain:
                     entries_checked=len(entries),
                     errors=errors,
                     last_sequence=entries[-1]["sequence_number"] if entries else 0,
-                    tampering_location=None
+                    tampering_location=None,
                 )
 
         except sqlite3.Error as e:
@@ -189,7 +196,7 @@ class AuditHashChain:
                 entries_checked=0,
                 errors=[f"Database error: {e}"],
                 last_sequence=0,
-                tampering_location=None
+                tampering_location=None,
             )
         finally:
             if conn:
@@ -221,13 +228,14 @@ class AuditHashChain:
         for error in errors:
             # Look for specific error patterns
             import re
+
             # Pattern for "Entry hash mismatch at sequence X"
-            match = re.search(r'at sequence (\d+)', error)
+            match = re.search(r"at sequence (\d+)", error)
             if match:
                 tampered_sequences.append(int(match.group(1)))
                 continue
             # Pattern for "Hash chain break at sequence X"
-            match = re.search(r'sequence (\d+)', error)
+            match = re.search(r"sequence (\d+)", error)
             if match:
                 tampered_sequences.append(int(match.group(1)))
 
@@ -266,7 +274,7 @@ class AuditHashChain:
                 current_hash=self._last_hash,
                 oldest_entry=oldest,
                 newest_entry=newest,
-                error=None
+                error=None,
             )
 
         except sqlite3.Error as e:
@@ -278,5 +286,5 @@ class AuditHashChain:
                 current_hash=None,
                 oldest_entry=None,
                 newest_entry=None,
-                error=str(e)
+                error=str(e),
             )

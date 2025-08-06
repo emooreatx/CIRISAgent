@@ -121,10 +121,10 @@ export default function ApiDemoPage() {
           description: 'Generate interactive graph visualization of memories',
           endpoint: 'GET /v1/memory/visualize/graph',
           method: 'GET' as const,
-          execute: () => cirisClient.memory.getVisualization({ 
-            layout: 'timeline', 
-            hours: 24, 
-            limit: 30 
+          execute: () => cirisClient.memory.getVisualization({
+            layout: 'timeline',
+            hours: 24,
+            limit: 30
           }),
           params: { layout: 'timeline', hours: 24, limit: 30 }
         }
@@ -201,7 +201,7 @@ export default function ApiDemoPage() {
           description: 'Register a new adapter (e.g., Discord, CLI)',
           endpoint: 'POST /v1/system/adapters/{type}',
           method: 'POST' as const,
-          execute: () => cirisClient.system.registerAdapter('cli', { 
+          execute: () => cirisClient.system.registerAdapter('cli', {
             enabled: true,
             priority: 2
           }),
@@ -316,7 +316,7 @@ export default function ApiDemoPage() {
           description: 'Historical resource usage data',
           endpoint: 'GET /v1/telemetry/resources/history',
           method: 'GET' as const,
-          execute: () => cirisClient.telemetry.getResourceHistory({ 
+          execute: () => cirisClient.telemetry.getResourceHistory({
             start_time: new Date(Date.now() - 3600000).toISOString(),
             end_time: new Date().toISOString()
           })
@@ -345,9 +345,9 @@ export default function ApiDemoPage() {
           description: 'Search audit entries by criteria',
           endpoint: 'POST /v1/audit/search',
           method: 'POST' as const,
-          execute: () => cirisClient.audit.searchEntries({ 
+          execute: () => cirisClient.audit.searchEntries({
             service: 'api',
-            page_size: 5 
+            page_size: 5
           }),
           params: { service: 'api', page_size: 5 }
         }

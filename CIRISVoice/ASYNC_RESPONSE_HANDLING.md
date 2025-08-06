@@ -18,7 +18,7 @@ class CIRISVoiceClient:
         self.client = CIRISClient(base_url=config.api_url)
         self.quick_timeout = 2.0  # 2 seconds for initial response
         self.channel_id = f"voice_{config.channel_id}"
-        
+
     async def send_message_async(self, content: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Send message with immediate acknowledgment."""
         try:
@@ -31,23 +31,23 @@ class CIRISVoiceClient:
                 ),
                 timeout=self.quick_timeout
             )
-            
+
             # Got response within timeout - return it
             return {
                 "content": response.response,
                 "message_id": response.message_id,
                 "complete": True
             }
-            
+
         except asyncio.TimeoutError:
             # Timeout - return acknowledgment and continue async
             message_id = str(uuid.uuid4())
-            
+
             # Start async processing
             asyncio.create_task(
                 self._process_async(message_id, content, context)
             )
-            
+
             # Return immediate acknowledgment
             return {
                 "content": "I'm thinking about that. Give me a moment...",
@@ -69,13 +69,13 @@ async def _process_async(self, message_id: str, content: str, context: dict):
             context=context,
             timeout=30.0  # 30 second timeout for complex requests
         )
-        
+
         # Store response for later retrieval
         await self._store_response(message_id, response.response)
-        
+
         # Optional: Send notification if supported
         await self._notify_response_ready(message_id)
-        
+
     except Exception as e:
         logger.error(f"Async processing failed: {e}")
         await self._store_response(message_id, "I had trouble with that request.")
@@ -92,17 +92,17 @@ class WyomingEventHandler:
     def __init__(self, config):
         self.ciris_client = CIRISVoiceClient(config)
         self.pending_responses = {}  # Track pending async responses
-        
+
     async def handle_transcript(self, transcript: str) -> str:
         """Handle voice input with async fallback."""
-        
+
         # Check if this is a follow-up query
         if self._is_followup_query(transcript):
             return await self._handle_followup(transcript)
-        
+
         # Send to CIRIS
         response = await self.ciris_client.send_message_async(transcript)
-        
+
         if response["complete"]:
             # Got immediate response
             return response["content"]
@@ -112,10 +112,10 @@ class WyomingEventHandler:
                 "original_query": transcript,
                 "timestamp": time.time()
             }
-            
+
             # Return acknowledgment
             return response["content"]
-    
+
     def _is_followup_query(self, transcript: str) -> bool:
         """Detect if user is asking for a pending response."""
         followup_phrases = [
@@ -127,23 +127,23 @@ class WyomingEventHandler:
         ]
         transcript_lower = transcript.lower()
         return any(phrase in transcript_lower for phrase in followup_phrases)
-    
+
     async def _handle_followup(self, transcript: str) -> str:
         """Handle follow-up query for pending responses."""
-        
+
         # Check most recent pending response
         if not self.pending_responses:
             return "I'm not currently working on anything."
-        
+
         # Get most recent pending
         recent_id = max(
             self.pending_responses.keys(),
             key=lambda k: self.pending_responses[k]["timestamp"]
         )
-        
+
         # Check if response is ready
         response = await self.ciris_client.check_response(recent_id)
-        
+
         if response:
             # Clean up and return response
             del self.pending_responses[recent_id]
@@ -164,18 +164,18 @@ class WyomingEventHandler:
 ```python
 class CIRISWebSocketClient:
     """WebSocket-based client for real-time responses."""
-    
+
     async def stream_interact(self, content: str, voice_callback):
         """Stream response chunks as they become available."""
-        
+
         async with self.client.agent.stream_interact(
             message=content,
             channel_id=self.channel_id
         ) as stream:
-            
+
             # Send initial acknowledgment
             await voice_callback("Let me think about that...")
-            
+
             # Accumulate response
             full_response = []
             async for chunk in stream:
@@ -190,7 +190,7 @@ class CIRISWebSocketClient:
                         sentence = " ".join(full_response)
                         await voice_callback(sentence)
                         full_response = []
-            
+
             # Final response if any remainder
             if full_response:
                 await voice_callback(" ".join(full_response))
@@ -204,21 +204,21 @@ class InMemoryResponseCache:
     def __init__(self, ttl_seconds=300):
         self.cache = {}
         self.ttl = ttl_seconds
-    
+
     async def store(self, message_id: str, response: str):
         self.cache[message_id] = {
             "response": response,
             "timestamp": time.time()
         }
-        
+
         # Schedule cleanup
         asyncio.create_task(self._cleanup_old(message_id))
-    
+
     async def get(self, message_id: str) -> Optional[str]:
         if message_id in self.cache:
             return self.cache[message_id]["response"]
         return None
-    
+
     async def _cleanup_old(self, message_id: str):
         await asyncio.sleep(self.ttl)
         self.cache.pop(message_id, None)
@@ -228,14 +228,14 @@ class RedisResponseCache:
     def __init__(self, redis_url: str, ttl_seconds=300):
         self.redis = aioredis.from_url(redis_url)
         self.ttl = ttl_seconds
-    
+
     async def store(self, message_id: str, response: str):
         await self.redis.setex(
             f"voice_response:{message_id}",
             self.ttl,
             response
         )
-    
+
     async def get(self, message_id: str) -> Optional[str]:
         response = await self.redis.get(f"voice_response:{message_id}")
         return response.decode() if response else None
@@ -255,18 +255,18 @@ async def handle_voice_interaction(transcript: str):
             timeout=2.0
         )
         return response.content  # "The weather in Paris next week..."
-        
+
     except asyncio.TimeoutError:
         # Start async processing
         task_id = await ciris_client.start_async_task(transcript)
-        
+
         # Return immediate acknowledgment
         return "I'm checking the weather forecast for Paris. Ask me again in a moment."
 
 # 3. User says: "Do you have that weather information?"
 async def handle_followup():
     result = await ciris_client.check_pending_tasks()
-    
+
     if result.ready:
         return result.content  # "The weather in Paris next week will be..."
     else:
@@ -280,21 +280,21 @@ async def handle_followup():
 ciris:
   # Quick response for immediate feedback
   quick_timeout_ms: 2000
-  
-  # Full timeout for complex requests  
+
+  # Full timeout for complex requests
   full_timeout_ms: 30000
-  
+
   # Response caching
   cache:
     type: "memory"  # or "redis"
     ttl_seconds: 300
-    
+
   # Acknowledgment messages
   messages:
     thinking: "Let me think about that..."
     still_thinking: "I'm still working on that..."
     timeout: "That's taking longer than expected. Please try again."
-    
+
   # Follow-up detection
   followup_phrases:
     - "are you done"
@@ -358,10 +358,10 @@ For Home Assistant specifically, you might want to:
 # In Home Assistant custom component
 async def async_process(self, text: str) -> str:
     """Process text with CIRIS."""
-    
+
     # Try quick response
     response = await self.ciris.send_message_async(text)
-    
+
     if response["complete"]:
         return response["content"]
     else:
@@ -371,7 +371,7 @@ async def async_process(self, text: str) -> str:
             "thinking",
             {"message_id": response["message_id"]}
         )
-        
+
         # Return acknowledgment
         return response["content"]
 ```

@@ -16,7 +16,7 @@ CIRIS lets you run AI agents that explain their decisions, defer to humans when 
 
 CIRIS wraps LLM calls with:
 - **[Multiple evaluation passes](docs/DMA_CREATION_GUIDE.md)** - Every decision gets ethical, common-sense, and domain checks
-- **[Human escalation](docs/WISE_AUTHORITIES.md)** - Uncertain decisions defer to designated "Wise Authorities"  
+- **[Human escalation](docs/WISE_AUTHORITIES.md)** - Uncertain decisions defer to designated "Wise Authorities"
 - **[Complete audit trails](ciris_engine/logic/audit/README.md)** - Every decision is logged with reasoning
 - **[Type safety](docs/ARCHITECTURE.md#type-safety)** - Zero `Dict[str, Any]` in production code
 - **[Identity system](docs/IDENTITY_AS_GRAPH.md)** - Agents have persistent identity across restarts
@@ -40,7 +40,7 @@ It's technically sophisticated ([21 microservices](docs/ARCHITECTURE.md#services
 
 **Architecture Highlights:**
 - **[21 core services](docs/ARCHITECTURE.md#services)** (all required for proper operation)
-- **[Graph-based memory](ciris_engine/logic/services/memory_service/README.md)** (Neo4j-compatible)  
+- **[Graph-based memory](ciris_engine/logic/services/memory_service/README.md)** (Neo4j-compatible)
 - **[Multiple LLM providers](ciris_engine/logic/services/README.md#llm-service)** (OpenAI, Anthropic, Llama)
 - **[Full async Python](docs/ARCHITECTURE.md#async-design)** with type hints
 - **[100% type coverage](MYPY_ZERO_PLAN.md)** (mypy strict)
@@ -133,7 +133,7 @@ It's technically sophisticated ([21 microservices](docs/ARCHITECTURE.md#services
 - **[Circuit Breaker Protection](ciris_engine/registries/README.md)**: Automatic service protection with graceful degradation, health monitoring, and runtime reset capabilities
 - **[Service Management](docs/api/runtime-control.md)**: Comprehensive service registry management with priority configuration, health monitoring, circuit breaker control, and selection strategy tuning
 
-### 🧩 Ethical Memory & Context  
+### 🧩 Ethical Memory & Context
 - **[Graph Memory](ciris_engine/adapters/local_graph_memory/README.md)**: SQLite-backed graph storage with automatic secrets encryption, scope-based access control, and WA-authorized updates
 - **[Context Management](ciris_engine/context/README.md)**: Multi-source context aggregation with system snapshots, user profile enrichment, and GraphQL integration
 - **[Context Builder](ciris_engine/context/builder_README.md)**: Snapshot helpers and comprehensive channel resolution logic
@@ -173,7 +173,7 @@ The API exposes agent capabilities, not controllers:
 # Send message to agent
 curl -X POST http://localhost:8080/v1/agent/messages \
   -H "Content-Type: application/json" \
-  -d '{"content": "Hello CIRIS!"}'  
+  -d '{"content": "Hello CIRIS!"}'
 
 # Browse agent's memory graph
 curl "http://localhost:8080/v1/memory/graph/search?q=purpose"
@@ -208,7 +208,7 @@ curl -X POST http://localhost:8080/v1/runtime/processor/pause
 
 ### Moral Agency
 - **Principled Decision-Making**: Every action evaluated against ethical frameworks
-- **Self-Reflection**: Continuous assessment of actions against moral principles  
+- **Self-Reflection**: Continuous assessment of actions against moral principles
 - **Wisdom-Based Deferral**: Recognition of limits and escalation to human oversight
 - **Transparency**: Full auditability of reasoning processes and decisions
 
@@ -227,7 +227,7 @@ curl -X POST http://localhost:8080/v1/runtime/processor/pause
 The `HandlerActionType` enum defines comprehensive operations:
 
 **External Actions:** `OBSERVE`, `SPEAK`, `TOOL`
-**Control Responses:** `REJECT`, `PONDER`, `DEFER`  
+**Control Responses:** `REJECT`, `PONDER`, `DEFER`
 **Memory Operations:** `MEMORIZE`, `RECALL`, `FORGET`
 **Terminal:** `TASK_COMPLETE`
 
@@ -248,7 +248,7 @@ All audit events are broadcast to ALL THREE audit services via the transaction o
 Handler Action → Transaction Orchestrator → Broadcast to 3 Audit Services
                                          ↓
                               Each processes independently
-                                         ↓  
+                                         ↓
                               Acknowledgments tracked
                                          ↓
                               Cleanup after all ACK or timeout
@@ -276,7 +276,7 @@ Handler Action → Transaction Orchestrator → Broadcast to 3 Audit Services
 CIRIS Agent/
 ├── ciris_engine/          # Core engine with DMAs, processors, and infrastructure
 │   ├── action_handlers/    # 3×3×3 action processing system
-│   ├── adapters/          # Platform adapters (Discord, CLI, API) 
+│   ├── adapters/          # Platform adapters (Discord, CLI, API)
 │   ├── audit/             # Cryptographic audit trail system
 │   ├── config/            # Multi-source configuration management
 │   ├── context/           # Context aggregation and enrichment
@@ -333,12 +333,12 @@ CIRIS Agent/
    # Core configuration
    export OPENAI_API_KEY="your_api_key_here"
    export DISCORD_BOT_TOKEN="your_discord_bot_token"
-   
+
    # Optional advanced configuration
    export OPENAI_BASE_URL="https://api.together.xyz/v1/"
    export OPENAI_MODEL_NAME="meta-llama/Llama-3-70b-chat-hf"
    export LOG_LEVEL="INFO"
-   
+
    # Discord-specific settings
    export DISCORD_CHANNEL_ID="123456789"
    export DISCORD_DEFERRAL_CHANNEL_ID="987654321"
@@ -407,7 +407,7 @@ Templates in `ciris_templates/` are used when creating new agents:
 **Run comprehensive test suite:**
 ```bash
 pytest tests/ -v                    # Full test suite
-pytest tests/integration/ -v        # Integration tests only  
+pytest tests/integration/ -v        # Integration tests only
 pytest tests/adapters/ -v           # Adapter tests
 pytest --mock-llm                   # Tests with mock LLM service
 ```

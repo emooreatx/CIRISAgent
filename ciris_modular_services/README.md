@@ -27,7 +27,7 @@ ciris_modular_services/
 your_service/
 ├── manifest.json          # REQUIRED: Service declaration
 ├── protocol.py            # REQUIRED: Protocol definition
-├── schemas.py             # REQUIRED: Pydantic schemas  
+├── schemas.py             # REQUIRED: Pydantic schemas
 ├── service.py             # REQUIRED: Implementation
 ├── __init__.py            # REQUIRED: Package init
 └── README.md              # RECOMMENDED: Documentation

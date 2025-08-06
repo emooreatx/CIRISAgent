@@ -1,4 +1,5 @@
 """Config flow for CIRIS integration."""
+
 import logging
 from typing import Any
 
@@ -7,7 +8,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_NAME
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers import config_validation as cv
 
 from .const import (
     CONF_API_KEY,
@@ -28,9 +28,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle the initial step."""
         errors = {}
 
@@ -73,9 +71,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def _test_connection(
-        self, api_url: str, api_key: str | None, timeout: int
-    ) -> None:
+    async def _test_connection(self, api_url: str, api_key: str | None, timeout: int) -> None:
         """Test the API connection."""
         headers = {"Content-Type": "application/json"}
         if api_key:

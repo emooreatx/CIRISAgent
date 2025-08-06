@@ -4,20 +4,22 @@ Base Graph Service - Common implementation for all graph services.
 Provides default implementations of GraphServiceProtocol methods.
 All graph services use the MemoryBus for actual persistence operations.
 """
-from typing import List, Optional, TYPE_CHECKING
-from abc import ABC, abstractmethod
+
 import logging
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, List, Optional
 
 from ciris_engine.protocols.runtime.base import GraphServiceProtocol
-from ciris_engine.schemas.services.graph_core import GraphNode
-from ciris_engine.schemas.services.operations import MemoryQuery, MemoryOpStatus
-from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
+from ciris_engine.schemas.services.graph_core import GraphNode
+from ciris_engine.schemas.services.operations import MemoryOpStatus, MemoryQuery
 
 if TYPE_CHECKING:
     from ciris_engine.logic.buses import MemoryBus
 
 logger = logging.getLogger(__name__)
+
 
 class BaseGraphService(ABC, GraphServiceProtocol):
     """Base class for all graph services providing common functionality.
@@ -29,7 +31,9 @@ class BaseGraphService(ABC, GraphServiceProtocol):
     - Typed schema validation
     """
 
-    def __init__(self, memory_bus: Optional['MemoryBus'] = None, time_service: Optional[TimeServiceProtocol] = None) -> None:
+    def __init__(
+        self, memory_bus: Optional["MemoryBus"] = None, time_service: Optional[TimeServiceProtocol] = None
+    ) -> None:
         """Initialize base graph service.
 
         Args:
@@ -41,7 +45,7 @@ class BaseGraphService(ABC, GraphServiceProtocol):
         self._memory_bus = memory_bus
         self._time_service = time_service
 
-    def _set_memory_bus(self, memory_bus: 'MemoryBus') -> None:
+    def _set_memory_bus(self, memory_bus: "MemoryBus") -> None:
         """Set the memory bus for graph operations."""
         self._memory_bus = memory_bus
 
@@ -63,12 +67,8 @@ class BaseGraphService(ABC, GraphServiceProtocol):
         """Get service capabilities."""
         return ServiceCapabilities(
             service_name=self.service_name,
-            actions=[
-                "store_in_graph",
-                "query_graph",
-                self.get_node_type()
-            ],
-            version="1.0.0"
+            actions=["store_in_graph", "query_graph", self.get_node_type()],
+            version="1.0.0",
         )
 
     def get_status(self) -> ServiceStatus:
@@ -80,8 +80,8 @@ class BaseGraphService(ABC, GraphServiceProtocol):
             uptime_seconds=0.0,  # Would need to track start time for real uptime
             metrics={
                 "memory_bus_available": 1.0 if self._memory_bus is not None else 0.0,
-                "time_service_available": 1.0 if self._time_service is not None else 0.0
-            }
+                "time_service_available": 1.0 if self._time_service is not None else 0.0,
+            },
         )
 
     def is_healthy(self) -> bool:
@@ -101,7 +101,7 @@ class BaseGraphService(ABC, GraphServiceProtocol):
             raise RuntimeError(f"{self.service_name}: Memory bus not available")
 
         # Convert to GraphNode if it has a to_graph_node method
-        if hasattr(node, 'to_graph_node') and callable(getattr(node, 'to_graph_node')):
+        if hasattr(node, "to_graph_node") and callable(getattr(node, "to_graph_node")):
             graph_node = node.to_graph_node()
         else:
             graph_node = node
@@ -125,7 +125,7 @@ class BaseGraphService(ABC, GraphServiceProtocol):
         result = await self._memory_bus.recall(query)
 
         # Handle different result types
-        if hasattr(result, 'status') and hasattr(result, 'data'):
+        if hasattr(result, "status") and hasattr(result, "data"):
             # It's a MemoryOpResult
             if result.status == MemoryOpStatus.OK and result.data:
                 if isinstance(result.data, list):

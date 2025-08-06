@@ -58,10 +58,10 @@ export class ManagerResource extends BaseResource {
   async listAgents(): Promise<AgentInfo[]> {
     // Manager API always goes through the nginx proxy, not the agent endpoint
     // We need to use the origin URL to ensure it goes through the right path
-    const managerUrl = typeof window !== 'undefined' 
+    const managerUrl = typeof window !== 'undefined'
       ? `${window.location.origin}/manager/v1/agents`
       : '/manager/v1/agents';
-    
+
     const response = await this.transport.request<{ agents: AgentInfo[] }>('GET', managerUrl);
     // Extract agents array from response
     return response.agents || [];
@@ -71,7 +71,7 @@ export class ManagerResource extends BaseResource {
    * Get detailed information about a specific agent
    */
   async getAgent(agentId: string): Promise<AgentInfo> {
-    const managerUrl = typeof window !== 'undefined' 
+    const managerUrl = typeof window !== 'undefined'
       ? `${window.location.origin}/manager/v1/agents/${agentId}`
       : `/manager/v1/agents/${agentId}`;
     return this.transport.request<AgentInfo>('GET', managerUrl);
@@ -82,7 +82,7 @@ export class ManagerResource extends BaseResource {
    * Requires: Local authentication and valid WA signature
    */
   async createAgent(data: AgentCreationRequest): Promise<AgentInfo> {
-    const managerUrl = typeof window !== 'undefined' 
+    const managerUrl = typeof window !== 'undefined'
       ? `${window.location.origin}/manager/v1/agents`
       : '/manager/v1/agents';
     return this.transport.request<AgentInfo>('POST', managerUrl, { body: data });
@@ -93,7 +93,7 @@ export class ManagerResource extends BaseResource {
    * Requires: Local authentication
    */
   async notifyUpdate(agentId: string, notification: UpdateNotification): Promise<{ status: string; message: string }> {
-    const managerUrl = typeof window !== 'undefined' 
+    const managerUrl = typeof window !== 'undefined'
       ? `${window.location.origin}/manager/v1/agents/${agentId}/notify-update`
       : `/manager/v1/agents/${agentId}/notify-update`;
     return this.transport.request<{ status: string; message: string }>('POST', managerUrl, { body: notification });
@@ -103,7 +103,7 @@ export class ManagerResource extends BaseResource {
    * Get the deployment status for an agent
    */
   async getDeploymentStatus(agentId: string): Promise<DeploymentStatus> {
-    const managerUrl = typeof window !== 'undefined' 
+    const managerUrl = typeof window !== 'undefined'
       ? `${window.location.origin}/manager/v1/deployments/${agentId}/status`
       : `/manager/v1/deployments/${agentId}/status`;
     return this.transport.request<DeploymentStatus>('GET', managerUrl);
@@ -113,7 +113,7 @@ export class ManagerResource extends BaseResource {
    * Health check endpoint for CIRISManager
    */
   async health(): Promise<ManagerHealth> {
-    const managerUrl = typeof window !== 'undefined' 
+    const managerUrl = typeof window !== 'undefined'
       ? `${window.location.origin}/manager/v1/health`
       : '/manager/v1/health';
     return this.transport.request<ManagerHealth>('GET', managerUrl);

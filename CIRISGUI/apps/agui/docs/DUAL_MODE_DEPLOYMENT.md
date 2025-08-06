@@ -78,7 +78,7 @@ services:
       - "8080:8080"
     environment:
       - CIRIS_ADAPTER=api
-  
+
   gui:
     image: ciris-gui
     ports:

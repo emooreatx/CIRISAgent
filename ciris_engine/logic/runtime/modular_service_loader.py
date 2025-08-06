@@ -4,18 +4,19 @@ Dynamic loader for modular services.
 Discovers and loads services from the ciris_modular_services directory.
 """
 
-import json
-import logging
 import importlib
 import importlib.util
+import json
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional, cast
 
 from ciris_engine.protocols.services import ServiceProtocol
 from ciris_engine.schemas.runtime.enums import ServiceType
-from ciris_engine.schemas.runtime.manifest import ServiceManifest, ModuleLoadResult, ServiceMetadata, ServicePriority
+from ciris_engine.schemas.runtime.manifest import ModuleLoadResult, ServiceManifest, ServiceMetadata, ServicePriority
 
 logger = logging.getLogger(__name__)
+
 
 class ModularServiceLoader:
     """Loads modular services from external packages."""
@@ -41,11 +42,11 @@ class ModularServiceLoader:
                 try:
                     with open(manifest_path) as f:
                         manifest_data = json.load(f)
-                    
+
                     # Parse into typed manifest
                     manifest = ServiceManifest.model_validate(manifest_data)
                     # Store path separately for loading
-                    setattr(manifest, '_path', service_dir)
+                    setattr(manifest, "_path", service_dir)
                     services.append(manifest)
                     logger.info(f"Discovered modular service: {manifest.module.name}")
                 except Exception as e:
@@ -68,7 +69,7 @@ class ModularServiceLoader:
         # Check legacy dependencies format if present
         if not manifest.dependencies:
             return True
-            
+
         # Check protocol dependencies
         for protocol in manifest.dependencies.protocols:
             try:
@@ -100,7 +101,7 @@ class ModularServiceLoader:
             logger.error(f"Dependencies not satisfied for {manifest.module.name}")
             return None
 
-        _service_path = getattr(manifest, '_path', None)
+        _service_path = getattr(manifest, "_path", None)
         if not _service_path:
             logger.error("Manifest missing path information")
             return None
@@ -108,6 +109,7 @@ class ModularServiceLoader:
 
         # Add service directory to Python path temporarily
         import sys
+
         sys.path.insert(0, str(self.services_dir))
 
         try:
@@ -141,7 +143,7 @@ class ModularServiceLoader:
                 is_mock=manifest.module.is_mock,
                 capabilities=manifest.capabilities or [],
                 priority=manifest.services[0].priority if manifest.services else ServicePriority.NORMAL,
-                health_status="loaded"
+                health_status="loaded",
             )
             self.loaded_services[service_name] = service_meta
 
@@ -160,11 +162,8 @@ class ModularServiceLoader:
 
     async def initialize_modular_services(self, service_registry: Any, config: Any) -> ModuleLoadResult:
         """Initialize all discovered modular services."""
-        result = ModuleLoadResult(
-            module_name="modular_services",
-            success=True
-        )
-        
+        result = ModuleLoadResult(module_name="modular_services", success=True)
+
         # Discover services
         discovered = self.discover_services()
 
@@ -188,7 +187,7 @@ class ModularServiceLoader:
                     # Extract default values from configuration
                     for key, param in manifest.configuration.items():
                         service_config[key] = param.default
-                        
+
                 service_instance = service_class(**service_config)
                 await service_instance.start()
 
@@ -199,7 +198,7 @@ class ModularServiceLoader:
                         provider=service_instance,
                         priority=ServicePriority[service_decl.priority.value],
                         capabilities=service_decl.capabilities or manifest.capabilities or [],
-                        metadata=self.loaded_services[manifest.module.name].model_dump()
+                        metadata=self.loaded_services[manifest.module.name].model_dump(),
                     )
 
                 # Update result

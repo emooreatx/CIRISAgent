@@ -14,7 +14,7 @@ export default function AgentsPage() {
     <ProtectedRoute>
       <div className="p-6">
         <h1 className="text-3xl font-bold mb-6">Agents</h1>
-        
+
         <div className="grid gap-4">
           {agents.map((agent) => (
             <Card key={agent.agent_id} className={currentAgent?.agent_id === agent.agent_id ? 'border-primary' : ''}>
@@ -38,7 +38,7 @@ export default function AgentsPage() {
             </Card>
           ))}
         </div>
-        
+
         {agents.length === 0 && (
           <Card>
             <CardContent className="text-center py-8">

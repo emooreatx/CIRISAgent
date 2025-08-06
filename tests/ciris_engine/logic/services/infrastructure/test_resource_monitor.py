@@ -1,20 +1,15 @@
 """Unit tests for Resource Monitor Service."""
 
-import pytest
-import psutil
-import tempfile
-import os
 import asyncio
-from unittest.mock import patch, MagicMock, AsyncMock
-from datetime import datetime, timezone
-from typing import Optional
+import os
+import tempfile
+
+import pytest
 
 from ciris_engine.logic.services.infrastructure.resource_monitor import ResourceMonitorService, ResourceSignalBus
 from ciris_engine.logic.services.lifecycle.time import TimeService
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
-from ciris_engine.schemas.services.resources_core import (
-    ResourceBudget, ResourceLimit, ResourceSnapshot, ResourceAction
-)
+from ciris_engine.schemas.services.resources_core import ResourceAction, ResourceBudget, ResourceLimit, ResourceSnapshot
 
 
 @pytest.fixture
@@ -26,7 +21,7 @@ def time_service():
 @pytest.fixture
 def temp_db():
     """Create a temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
     yield db_path
     os.unlink(db_path)
@@ -48,10 +43,7 @@ def signal_bus():
 def resource_monitor(resource_budget, temp_db, time_service, signal_bus):
     """Create a resource monitor service for testing."""
     return ResourceMonitorService(
-        budget=resource_budget,
-        db_path=temp_db,
-        time_service=time_service,
-        signal_bus=signal_bus
+        budget=resource_budget, db_path=temp_db, time_service=time_service, signal_bus=signal_bus
     )
 
 
@@ -93,17 +85,9 @@ def test_resource_monitor_get_snapshot(resource_monitor):
 async def test_resource_monitor_check_limits(resource_monitor):
     """Test resource limit checking."""
     # Modify budget to have low limits for testing
-    resource_monitor.budget.memory_mb = ResourceLimit(
-        limit=100,
-        warning=50,
-        critical=80,
-        action=ResourceAction.WARN
-    )
+    resource_monitor.budget.memory_mb = ResourceLimit(limit=100, warning=50, critical=80, action=ResourceAction.WARN)
     resource_monitor.budget.cpu_percent = ResourceLimit(
-        limit=80,
-        warning=60,
-        critical=75,
-        action=ResourceAction.THROTTLE
+        limit=80, warning=60, critical=75, action=ResourceAction.THROTTLE
     )
 
     # Set current values that exceed limits
@@ -119,8 +103,6 @@ async def test_resource_monitor_check_limits(resource_monitor):
     assert len(resource_monitor.snapshot.warnings) >= 1
     assert any("cpu_percent" in w for w in resource_monitor.snapshot.warnings)
     assert resource_monitor.snapshot.healthy is False
-
-
 
 
 def test_resource_monitor_status(resource_monitor):

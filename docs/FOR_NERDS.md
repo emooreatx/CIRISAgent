@@ -19,7 +19,7 @@ This is BETA software with:
 - Handling sensitive data without additional security measures
 - Any use case requiring reliability guarantees
 
-**Copyright © 2025 Eric Moore and CIRIS L3C**  
+**Copyright © 2025 Eric Moore and CIRIS L3C**
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -136,17 +136,17 @@ class HandlerActionType(Enum):
     OBSERVE = "OBSERVE"      # Information gathering
     SPEAK = "SPEAK"         # Communication
     TOOL = "TOOL"          # Tool usage
-    
+
     # Control Responses
     REJECT = "REJECT"       # Decline with reason (terminal)
     PONDER = "PONDER"       # Deep reflection
     DEFER = "DEFER"         # Escalate to human
-    
+
     # Memory Operations
     MEMORIZE = "MEMORIZE"   # Store in graph
     RECALL = "RECALL"       # Retrieve from graph
     FORGET = "FORGET"       # Remove from graph
-    
+
     # Terminal
     TASK_COMPLETE = "TASK_COMPLETE"  # End task
 ```
@@ -170,7 +170,7 @@ async def memorize(node: GraphNode) -> MemoryOperationResult:
                 status=MemoryOpStatus.FORBIDDEN,
                 reason="WA authorization required"
             )
-    
+
     # Store in graph with audit trail
     return await graph_db.store(node)
 ```
@@ -253,11 +253,11 @@ async def transition_state(
     # Validate transition
     if not is_valid_transition(from_state, to_state):
         return False
-    
+
     # Execute transition hooks
     await on_exit_state(from_state, context)
     await on_enter_state(to_state, context)
-    
+
     return True
 ```
 
@@ -622,7 +622,7 @@ for svc in services:
 SELECT COUNT(*) FROM audit_events WHERE signature IS NULL;
 
 -- Verify event continuity
-SELECT event_id, timestamp FROM audit_events 
+SELECT event_id, timestamp FROM audit_events
 ORDER BY timestamp DESC LIMIT 10;
 ```
 

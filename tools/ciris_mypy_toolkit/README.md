@@ -110,7 +110,7 @@ ciris_mypy_toolkit/
 ├── core.py                    # Main orchestrator
 ├── analyzers/                 # Code analysis modules
 │   ├── schema_validator.py    # Schema compliance checking
-│   ├── protocol_analyzer.py   # Protocol usage analysis  
+│   ├── protocol_analyzer.py   # Protocol usage analysis
 │   ├── hot_cold_path_analyzer.py # Hot/cold path map generator
 │   └── engine_simplifier.py   # Engine simplification automation (NEW)
 ├── error_fixers/              # Automated fixing modules
@@ -130,7 +130,7 @@ ciris_mypy_toolkit/
 ## Safety Features
 
 - **Conservative Fixing**: Only applies safe, well-tested transformations
-- **Verification**: Validates fixes don't break functionality  
+- **Verification**: Validates fixes don't break functionality
 - **Rollback Support**: Git integration for easy rollback if needed
 - **Progress Tracking**: Clear metrics on what was changed
 
@@ -155,7 +155,7 @@ The toolkit learns from the codebase and can:
 To extend the toolkit:
 
 1. **Add New Analyzers**: Implement the analyzer interface for new checks
-2. **Create Fixers**: Build automated fixes for detected patterns  
+2. **Create Fixers**: Build automated fixes for detected patterns
 3. **Extend CLI**: Add new commands for specific use cases
 4. **Update Patterns**: Keep schema and protocol patterns current
 

@@ -3,14 +3,14 @@
 Test that Task persistence handles retry_count and outcome fields correctly.
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import json
-import sqlite3
-import tempfile
 from datetime import datetime, timezone
+
 from ciris_engine.logic.persistence.utils import map_row_to_task
 from ciris_engine.schemas.runtime.enums import TaskStatus
 
@@ -49,14 +49,14 @@ def test_task_persistence_with_retry_count():
         "parent_task_id": None,
         "context_json": None,
         "outcome_json": "{}",
-        "retry_count": 0  # This should be filtered out
+        "retry_count": 0,  # This should be filtered out
     }
 
     row = MockRow(row_data)
     task = map_row_to_task(row)
 
     # Verify retry_count was filtered out
-    assert not hasattr(task, 'retry_count'), "retry_count should not exist on Task object"
+    assert not hasattr(task, "retry_count"), "retry_count should not exist on Task object"
 
     # Verify outcome is None for empty dict
     assert task.outcome is None, f"Expected outcome=None for empty dict, got {task.outcome}"
@@ -73,7 +73,7 @@ def test_task_persistence_with_retry_count():
         "summary": "Task completed successfully",
         "actions_taken": ["action1", "action2"],
         "memories_created": [],
-        "errors": []
+        "errors": [],
     }
 
     row_data["outcome_json"] = json.dumps(outcome_data)
@@ -102,7 +102,7 @@ def test_task_persistence_with_retry_count():
         "channel_id": "test-channel",
         "user_id": "test-user",
         "correlation_id": "test-correlation",
-        "parent_task_id": None
+        "parent_task_id": None,
     }
 
     row_data["context_json"] = json.dumps(context_data)

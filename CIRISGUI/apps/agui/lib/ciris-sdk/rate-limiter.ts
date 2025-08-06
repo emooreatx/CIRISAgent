@@ -37,7 +37,7 @@ export class RateLimiter {
       const timeSinceRefill = now - bucket.lastRefill;
       const refillRate = this.windowMs / 1000; // tokens per second
       const tokensToAdd = Math.floor(timeSinceRefill * refillRate);
-      
+
       if (tokensToAdd > 0) {
         bucket.tokens = Math.min(bucket.tokens + tokensToAdd, this.globalLimit);
         bucket.lastRefill = now;
@@ -105,11 +105,11 @@ export class RateLimiter {
   getRetryDelay(attempt: number): number {
     const now = Date.now() / 1000;
     const timeUntilReset = Math.max(0, this.globalReset - now);
-    
+
     // Exponential backoff with jitter
     const backoff = this.baseDelayMs * Math.pow(2, attempt);
     const jitter = Math.random() * 0.1 * backoff;
-    
+
     // Use the longer of: time until reset or backoff delay
     return Math.max(timeUntilReset * 1000, backoff + jitter);
   }

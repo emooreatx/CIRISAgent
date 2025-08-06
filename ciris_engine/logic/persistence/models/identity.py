@@ -4,27 +4,24 @@ Identity persistence model for storing and retrieving agent identity from the gr
 This module provides robust functions for managing agent identity as the primary source
 of truth, replacing the legacy profile system.
 """
+
 import json
 import logging
 from typing import Optional
+
 from ciris_engine.logic.persistence import get_db_connection
 from ciris_engine.logic.persistence.models.graph import add_graph_node, get_graph_node
-from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
-from ciris_engine.schemas.runtime.core import (
-    AgentIdentityRoot
-)
-from ciris_engine.schemas.runtime.extended import (
-    CreationCeremonyRequest
-)
-from ciris_engine.schemas.persistence.core import IdentityContext
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.persistence.core import IdentityContext
+from ciris_engine.schemas.runtime.core import AgentIdentityRoot
+from ciris_engine.schemas.runtime.extended import CreationCeremonyRequest
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 
 logger = logging.getLogger(__name__)
 
+
 def store_agent_identity(
-    identity: AgentIdentityRoot,
-    time_service: TimeServiceProtocol,
-    db_path: Optional[str] = None
+    identity: AgentIdentityRoot, time_service: TimeServiceProtocol, db_path: Optional[str] = None
 ) -> bool:
     """
     Store agent identity in the graph database.
@@ -55,9 +52,8 @@ def store_agent_identity(
         logger.error(f"Failed to store agent identity: {e}", exc_info=True)
         return False
 
-def retrieve_agent_identity(
-    db_path: Optional[str] = None
-) -> Optional[AgentIdentityRoot]:
+
+def retrieve_agent_identity(db_path: Optional[str] = None) -> Optional[AgentIdentityRoot]:
     """
     Retrieve agent identity from the graph database.
 
@@ -72,11 +68,7 @@ def retrieve_agent_identity(
         from ciris_engine.schemas.services.nodes import IdentityNode
 
         # Get identity node
-        graph_node = get_graph_node(
-            node_id="agent/identity",
-            scope=GraphScope.IDENTITY,
-            db_path=db_path
-        )
+        graph_node = get_graph_node(node_id="agent/identity", scope=GraphScope.IDENTITY, db_path=db_path)
 
         if not graph_node:
             logger.debug("No identity node found in graph")
@@ -95,11 +87,9 @@ def retrieve_agent_identity(
         logger.error(f"Failed to retrieve agent identity: {e}", exc_info=True)
         return None
 
+
 def update_agent_identity(
-    identity: AgentIdentityRoot,
-    updated_by: str,
-    time_service: TimeServiceProtocol,
-    db_path: Optional[str] = None
+    identity: AgentIdentityRoot, updated_by: str, time_service: TimeServiceProtocol, db_path: Optional[str] = None
 ) -> bool:
     """
     Update agent identity in the graph database.
@@ -117,11 +107,7 @@ def update_agent_identity(
     """
     try:
         # Get current node to preserve version
-        current_node = get_graph_node(
-            node_id="agent/identity",
-            scope=GraphScope.IDENTITY,
-            db_path=db_path
-        )
+        current_node = get_graph_node(node_id="agent/identity", scope=GraphScope.IDENTITY, db_path=db_path)
 
         version = 1
         if current_node:
@@ -135,7 +121,7 @@ def update_agent_identity(
             created_at=time_service.now(),
             updated_at=time_service.now(),
             created_by=updated_by,
-            tags=[f"identity:{identity.agent_id}", f"version:{version}"]
+            tags=[f"identity:{identity.agent_id}", f"version:{version}"],
         )
 
         identity_node = GraphNode(
@@ -145,7 +131,7 @@ def update_agent_identity(
             attributes=attributes,
             version=version,
             updated_by=updated_by,
-            updated_at=time_service.now()
+            updated_at=time_service.now(),
         )
 
         # Store updated identity
@@ -157,12 +143,13 @@ def update_agent_identity(
         logger.error(f"Failed to update agent identity: {e}", exc_info=True)
         return False
 
+
 def store_creation_ceremony(
     ceremony_request: CreationCeremonyRequest,
     new_agent_id: str,
     ceremony_id: str,
     time_service: TimeServiceProtocol,
-    db_path: Optional[str] = None
+    db_path: Optional[str] = None,
 ) -> bool:
     """
     Store a creation ceremony record in the database.
@@ -205,7 +192,7 @@ def store_creation_ceremony(
             "expected_capabilities": json.dumps(ceremony_request.expected_capabilities),
             "ethical_considerations": ceremony_request.ethical_considerations,
             "template_profile_hash": hash(ceremony_request.template_profile),
-            "ceremony_status": "completed"
+            "ceremony_status": "completed",
         }
 
         with get_db_connection(db_path=db_path) as conn:
@@ -218,6 +205,7 @@ def store_creation_ceremony(
     except Exception as e:
         logger.error(f"Failed to store creation ceremony: {e}", exc_info=True)
         return False
+
 
 def get_identity_for_context(db_path: Optional[str] = None) -> IdentityContext:
     """
@@ -232,14 +220,12 @@ def get_identity_for_context(db_path: Optional[str] = None) -> IdentityContext:
         # Import IdentityNode
         from ciris_engine.schemas.services.nodes import IdentityNode
 
-        graph_node = get_graph_node(
-            node_id="agent/identity",
-            scope=GraphScope.IDENTITY,
-            db_path=db_path
-        )
+        graph_node = get_graph_node(node_id="agent/identity", scope=GraphScope.IDENTITY, db_path=db_path)
 
         if not graph_node:
-            raise RuntimeError("CRITICAL: No agent identity found in graph database. System cannot start without identity.")
+            raise RuntimeError(
+                "CRITICAL: No agent identity found in graph database. System cannot start without identity."
+            )
 
         # Convert GraphNode back to IdentityNode
         identity_node = IdentityNode.from_graph_node(graph_node)
@@ -249,6 +235,7 @@ def get_identity_for_context(db_path: Optional[str] = None) -> IdentityContext:
 
         # Convert permitted_actions strings to HandlerActionType enums
         from ciris_engine.schemas.runtime.enums import HandlerActionType
+
         permitted_action_enums = []
         for action_str in identity.permitted_actions:
             try:
@@ -269,7 +256,7 @@ def get_identity_for_context(db_path: Optional[str] = None) -> IdentityContext:
             # Include overrides for DMAs
             dsdma_prompt_template=identity.core_profile.dsdma_prompt_template,
             csdma_overrides=identity.core_profile.csdma_overrides,
-            action_selection_pdma_overrides=identity.core_profile.action_selection_pdma_overrides
+            action_selection_pdma_overrides=identity.core_profile.action_selection_pdma_overrides,
         )
 
     except Exception as e:

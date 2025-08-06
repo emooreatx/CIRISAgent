@@ -1,9 +1,9 @@
 """Core service protocols."""
 
 from .llm import LLMServiceProtocol
-from .tool import ToolServiceProtocol
-from .secrets import SecretsServiceProtocol
 from .runtime_control import RuntimeControlServiceProtocol
+from .secrets import SecretsServiceProtocol
+from .tool import ToolServiceProtocol
 
 __all__ = [
     "LLMServiceProtocol",

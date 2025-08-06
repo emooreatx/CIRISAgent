@@ -20,7 +20,7 @@ export default function PermissionRequest({ error, onRequestPermissions }: Permi
 
     setIsRequesting(true);
     setRequestError(null);
-    
+
     try {
       await onRequestPermissions();
       setRequestSuccess(true);

@@ -1,13 +1,16 @@
 """
 Agent API response schemas - fully typed replacements for Dict[str, Any].
 """
-from typing import Optional, List
+
 from datetime import datetime
+from typing import List, Optional
+
 from pydantic import BaseModel, Field
 
 
 class MessageContext(BaseModel):
     """Context information for messages."""
+
     channel_id: Optional[str] = Field(None, description="Channel/conversation ID")
     thread_id: Optional[str] = Field(None, description="Thread ID if in thread")
     reply_to_id: Optional[str] = Field(None, description="Message being replied to")
@@ -16,6 +19,7 @@ class MessageContext(BaseModel):
 
 class AgentLineage(BaseModel):
     """Agent lineage information."""
+
     model: str = Field(..., description="Base model used")
     version: str = Field(..., description="Agent version")
     parent_id: Optional[str] = Field(None, description="Parent agent ID if derived")
@@ -25,6 +29,7 @@ class AgentLineage(BaseModel):
 
 class ServiceAvailability(BaseModel):
     """Service availability counts by type."""
+
     graph: int = Field(0, description="Graph services available")
     core: int = Field(0, description="Core services available")
     infrastructure: int = Field(0, description="Infrastructure services available")
@@ -34,6 +39,7 @@ class ServiceAvailability(BaseModel):
 
 class ActiveTask(BaseModel):
     """Active task information."""
+
     task_id: str = Field(..., description="Unique task ID")
     type: str = Field(..., description="Task type")
     status: str = Field(..., description="Current status")

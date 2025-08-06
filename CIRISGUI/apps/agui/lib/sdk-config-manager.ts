@@ -1,11 +1,11 @@
 /**
  * SDK Configuration Manager - Centralized management of CIRIS SDK configuration
- * 
+ *
  * This manager ensures that the SDK is always properly configured based on:
  * 1. Deployment mode (standalone vs managed)
  * 2. Selected agent
  * 3. Authentication state
- * 
+ *
  * It provides a single source of truth for SDK configuration and handles
  * all the complexity of multi-agent OAuth authentication.
  */
@@ -30,7 +30,7 @@ class SDKConfigManager {
    */
   configure(agentId: string, authToken?: string): SDKConfig {
     const { mode } = detectDeploymentMode();
-    
+
     // Determine the correct base URL
     let baseURL: string;
     if (mode === 'managed') {
@@ -72,7 +72,7 @@ class SDKConfigManager {
    */
   configureForOAuthCallback(agentId: string, authToken: string): SDKConfig {
     const { mode } = detectDeploymentMode();
-    
+
     // During OAuth callback, we need to be extra careful about the base URL
     let baseURL: string;
     if (mode === 'managed') {
@@ -92,7 +92,7 @@ class SDKConfigManager {
 
     // Always apply during OAuth callback
     this.applyConfiguration(config);
-    
+
     // Store the configuration for future use
     this.storeConfiguration(config);
 
@@ -129,7 +129,7 @@ class SDKConfigManager {
    */
   private applyConfiguration(config: SDKConfig): void {
     this.log('Applying SDK configuration:', config);
-    
+
     // Update the SDK
     cirisClient.setConfig({
       baseURL: config.baseURL,
@@ -138,7 +138,7 @@ class SDKConfigManager {
 
     // Update current config
     this.currentConfig = config;
-    
+
     this.log('SDK configured successfully');
   }
 
@@ -147,7 +147,7 @@ class SDKConfigManager {
    */
   private hasConfigChanged(newConfig: SDKConfig): boolean {
     if (!this.currentConfig) return true;
-    
+
     return (
       this.currentConfig.baseURL !== newConfig.baseURL ||
       this.currentConfig.authToken !== newConfig.authToken ||
@@ -166,9 +166,9 @@ class SDKConfigManager {
       agentId: config.agentId,
       mode: config.mode
     };
-    
+
     localStorage.setItem('sdk_config', JSON.stringify(configToStore));
-    
+
     // Store agent-specific API URL if available
     if (config.mode === 'standalone' && config.baseURL !== window.location.origin) {
       localStorage.setItem(`agent_${config.agentId}_api_url`, config.baseURL);
@@ -185,7 +185,7 @@ class SDKConfigManager {
     try {
       const config = JSON.parse(stored);
       const authToken = AuthStore.getAccessToken() || undefined;
-      
+
       return {
         ...config,
         authToken

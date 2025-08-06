@@ -3,19 +3,21 @@ BusManager - Orchestrates all message buses
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 from ciris_engine.logic.registries.base import ServiceRegistry
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+
+from .base_bus import BaseBus
 from .communication_bus import CommunicationBus
+from .llm_bus import LLMBus
 from .memory_bus import MemoryBus
+from .runtime_control_bus import RuntimeControlBus
 from .tool_bus import ToolBus
 from .wise_bus import WiseBus
-from .llm_bus import LLMBus
-from .runtime_control_bus import RuntimeControlBus
-from .base_bus import BaseBus
 
 logger = logging.getLogger(__name__)
+
 
 class BusManager:
     """
@@ -35,13 +37,13 @@ class BusManager:
         service_registry: ServiceRegistry,
         time_service: TimeServiceProtocol,
         telemetry_service: Optional[Any] = None,
-        audit_service: Optional[Any] = None
+        audit_service: Optional[Any] = None,
     ):
         self.service_registry = service_registry
         self.time_service = time_service
         self.telemetry_service = telemetry_service
         self.audit_service = audit_service
-        
+
         logger.debug(f"BusManager.__init__ called with audit_service={audit_service}")
         logger.debug(f"audit_service type: {type(audit_service)}")
         logger.debug(f"audit_service is None: {audit_service is None}")
@@ -62,7 +64,7 @@ class BusManager:
             "tool": self.tool,
             "wise": self.wise,
             "llm": self.llm,
-            "runtime_control": self.runtime_control
+            "runtime_control": self.runtime_control,
         }
 
         logger.info("BusManager initialized with all message buses")
@@ -82,7 +84,7 @@ class BusManager:
     async def stop(self) -> None:
         """Stop all message buses"""
         import asyncio
-        
+
         logger.info("Stopping all message buses...")
         for name, bus in self._buses.items():
             try:
@@ -112,7 +114,7 @@ class BusManager:
         health = {}
         for name, bus in self._buses.items():
             # A bus is healthy if it's running and queue isn't full
-            is_running = getattr(bus, '_running', False)
+            is_running = getattr(bus, "_running", False)
             queue_healthy = bus.get_queue_size() < bus.max_queue_size * 0.9
             health[name] = is_running and queue_healthy
         return health

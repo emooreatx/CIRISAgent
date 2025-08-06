@@ -3,22 +3,20 @@ Identity management for CIRIS Agent runtime.
 
 Handles loading, creating, and persisting agent identity.
 """
-import logging
-from typing import Optional
-from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from pathlib import Path
-import hashlib
 
+import hashlib
+import logging
+from pathlib import Path
+from typing import Optional
+
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.config.agent import AgentTemplate
 from ciris_engine.schemas.config.essential import EssentialConfig
-from ciris_engine.schemas.runtime.core import (
-    AgentIdentityRoot,
-    CoreProfile,
-    IdentityMetadata
-)
+from ciris_engine.schemas.runtime.core import AgentIdentityRoot, CoreProfile, IdentityMetadata
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 
 logger = logging.getLogger(__name__)
+
 
 class IdentityManager:
     """Manages agent identity lifecycle."""
@@ -43,7 +41,7 @@ class IdentityManager:
 
             # Load template ONLY for initial identity creation
             # Use default_template from config as the template name
-            template_name = getattr(self.config, 'default_template', 'default')
+            template_name = getattr(self.config, "default_template", "default")
             template_path = Path(self.config.template_directory) / f"{template_name}.yaml"
             initial_template = await self._load_template(template_path)
 
@@ -64,9 +62,12 @@ class IdentityManager:
     async def _load_template(self, template_path: Path) -> Optional[AgentTemplate]:
         """Load template from file."""
         from ciris_engine.logic.utils.profile_loader import load_template
+
         return await load_template(template_path)
 
-    async def _get_identity_from_graph(self) -> Optional[dict]:  # NOSONAR: Maintains async consistency in identity chain
+    async def _get_identity_from_graph(
+        self,
+    ) -> Optional[dict]:  # NOSONAR: Maintains async consistency in identity chain
         """Retrieve agent identity from the persistence tier."""
         try:
             from ciris_engine.logic.persistence.models.identity import retrieve_agent_identity
@@ -104,7 +105,7 @@ class IdentityManager:
         # Extract DSDMA configuration from template
         domain_knowledge = {}
         dsdma_prompt_template = None
-        
+
         if template.dsdma_kwargs:
             # Extract domain knowledge from typed model
             if template.dsdma_kwargs.domain_specific_knowledge:
@@ -112,10 +113,11 @@ class IdentityManager:
                     if isinstance(value, dict):
                         # Convert nested dicts to JSON strings
                         import json
+
                         domain_knowledge[key] = json.dumps(value)
                     else:
                         domain_knowledge[key] = str(value)
-            
+
             # Extract prompt template
             if template.dsdma_kwargs.prompt_template:
                 dsdma_prompt_template = template.dsdma_kwargs.prompt_template
@@ -129,9 +131,21 @@ class IdentityManager:
                 role_description=template.role_description,
                 domain_specific_knowledge=domain_knowledge,
                 dsdma_prompt_template=dsdma_prompt_template,
-                csdma_overrides={k: v for k, v in (template.csdma_overrides.__dict__ if template.csdma_overrides else {}).items() if v is not None},
-                action_selection_pdma_overrides={k: v for k, v in (template.action_selection_pdma_overrides.__dict__ if template.action_selection_pdma_overrides else {}).items() if v is not None},
-                last_shutdown_memory=None
+                csdma_overrides={
+                    k: v
+                    for k, v in (template.csdma_overrides.__dict__ if template.csdma_overrides else {}).items()
+                    if v is not None
+                },
+                action_selection_pdma_overrides={
+                    k: v
+                    for k, v in (
+                        template.action_selection_pdma_overrides.__dict__
+                        if template.action_selection_pdma_overrides
+                        else {}
+                    ).items()
+                    if v is not None
+                },
+                last_shutdown_memory=None,
             ),
             identity_metadata=IdentityMetadata(
                 created_at=self.time_service.now(),
@@ -141,7 +155,7 @@ class IdentityManager:
                 lineage_trace=["system"],
                 approval_required=True,
                 approved_by=None,
-                approval_timestamp=None
+                approval_timestamp=None,
             ),
             permitted_actions=[
                 HandlerActionType.OBSERVE,
@@ -153,13 +167,13 @@ class IdentityManager:
                 HandlerActionType.DEFER,
                 HandlerActionType.REJECT,
                 HandlerActionType.PONDER,
-                HandlerActionType.TASK_COMPLETE
+                HandlerActionType.TASK_COMPLETE,
             ],
             restricted_capabilities=[
                 "identity_change_without_approval",
                 "profile_switching",
-                "unauthorized_data_access"
-            ]
+                "unauthorized_data_access",
+            ],
         )
 
     async def verify_identity_integrity(self) -> bool:
@@ -169,7 +183,7 @@ class IdentityManager:
             return False
 
         # Verify core fields
-        required_fields = ['agent_id', 'identity_hash', 'core_profile']
+        required_fields = ["agent_id", "identity_hash", "core_profile"]
         for field in required_fields:
             if not hasattr(self.agent_identity, field) or not getattr(self.agent_identity, field):
                 logger.error(f"Identity missing required field: {field}")

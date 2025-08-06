@@ -1,6 +1,7 @@
-from typing import Optional, Any
-from ciris_engine.schemas.conscience.core import OptimizationVetoResult, EpistemicHumilityResult
-from typing import Any
+from typing import Any, Optional
+
+from ciris_engine.schemas.conscience.core import EpistemicHumilityResult, OptimizationVetoResult
+
 
 def optimization_veto(context: Optional[Any] = None) -> OptimizationVetoResult:
     """Mock OptimizationVetoResult with passing values, instructor compatible."""
@@ -8,10 +9,11 @@ def optimization_veto(context: Optional[Any] = None) -> OptimizationVetoResult:
         decision="proceed",
         justification="No harmful optimization attempts detected",
         entropy_reduction_ratio=0.1,
-        affected_values=[]
+        affected_values=[],
     )
     # Return structured result directly - instructor will handle it
     return result
+
 
 def epistemic_humility(context: Optional[Any] = None) -> EpistemicHumilityResult:
     """Mock EpistemicHumilityResult with passing values, instructor compatible."""
@@ -19,7 +21,7 @@ def epistemic_humility(context: Optional[Any] = None) -> EpistemicHumilityResult
         epistemic_certainty=0.7,
         identified_uncertainties=[],
         reflective_justification="Appropriate epistemic humility demonstrated",
-        recommended_action="proceed"
+        recommended_action="proceed",
     )
     # Return structured result directly - instructor will handle it
     return result

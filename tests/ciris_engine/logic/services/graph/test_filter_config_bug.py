@@ -1,17 +1,17 @@
 """Test that reproduces the filter_config bug seen in logs."""
 
-import pytest
-import tempfile
+import json
 import os
 import sqlite3
-import json
+import tempfile
 from datetime import datetime, timezone
 
-from ciris_engine.logic.services.graph.config_service import GraphConfigService
+import pytest
+
+from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.logic.services.graph.memory_service import LocalGraphMemoryService
 from ciris_engine.logic.services.lifecycle.time import TimeService
-from ciris_engine.logic.secrets.service import SecretsService
-from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType, GraphNodeAttributes
+from ciris_engine.schemas.services.graph_core import GraphScope, NodeType
 from ciris_engine.schemas.services.operations import MemoryQuery
 
 
@@ -24,7 +24,7 @@ def time_service():
 @pytest.fixture
 def temp_db():
     """Create a temporary database for testing."""
-    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
     yield db_path
     os.unlink(db_path)
@@ -39,7 +39,8 @@ async def test_filter_config_bug(temp_db, time_service):
     """
     # Initialize database
     conn = sqlite3.connect(temp_db)
-    conn.execute('''
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS graph_nodes (
             node_id TEXT NOT NULL,
             scope TEXT NOT NULL,
@@ -51,7 +52,8 @@ async def test_filter_config_bug(temp_db, time_service):
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (node_id, scope)
         )
-    ''')
+    """
+    )
 
     # Insert a malformed config node like what might exist from old code
     # This simulates what happens when a node is created with just GraphNodeAttributes
@@ -60,7 +62,7 @@ async def test_filter_config_bug(temp_db, time_service):
         "created_at": datetime.now(timezone.utc).isoformat(),
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "created_by": "system",
-        "tags": ["config:filter"]
+        "tags": ["config:filter"],
         # NOTE: Missing 'key' and 'value' fields!
     }
 
@@ -73,21 +75,19 @@ async def test_filter_config_bug(temp_db, time_service):
             json.dumps(malformed_attrs),
             1,
             "system",
-            datetime.now(timezone.utc).isoformat()
-        )
+            datetime.now(timezone.utc).isoformat(),
+        ),
     )
     conn.commit()
     conn.close()
 
     # Create services
-    secrets_db = temp_db.replace('.db', '_secrets.db')
+    secrets_db = temp_db.replace(".db", "_secrets.db")
     secrets_service = SecretsService(db_path=secrets_db, time_service=time_service)
     await secrets_service.start()
 
     memory_service = LocalGraphMemoryService(
-        db_path=temp_db,
-        secrets_service=secrets_service,
-        time_service=time_service
+        db_path=temp_db, secrets_service=secrets_service, time_service=time_service
     )
     memory_service.start()
 
@@ -97,35 +97,36 @@ async def test_filter_config_bug(temp_db, time_service):
 
     # Try to query config nodes directly through memory service
     print("\nAttempting to query config nodes (this triggers the bug)...")
-    
+
     # Query all config nodes using memory service directly
     try:
         # Search for config type nodes
         config_nodes = await memory_service.search("type:config")
         print(f"Found {len(config_nodes)} config nodes")
-        
+
         # Check if we can find the malformed node
         malformed_node = None
         for node in config_nodes:
             if node.id == "config/filter_config":
                 malformed_node = node
                 break
-        
+
         if malformed_node:
             print(f"Found malformed node: {malformed_node.id}")
             # Try to convert it to ConfigNode (this should fail gracefully)
             try:
                 from ciris_engine.schemas.services.nodes import ConfigNode
+
                 config_node = ConfigNode.from_graph_node(malformed_node)
                 print(f"Unexpectedly converted to ConfigNode: {config_node}")
             except Exception as e:
                 print(f"Expected conversion failure: {e}")
         else:
             print("Malformed node not found in query results")
-            
+
     except Exception as e:
         print(f"Error querying config nodes: {e}")
-    
+
     # Now test that config service handles malformed nodes gracefully
     print("\nTesting config service robustness...")
     try:
@@ -135,25 +136,26 @@ async def test_filter_config_bug(temp_db, time_service):
             scope=GraphScope.LOCAL,
             type=NodeType.CONFIG,
             include_edges=False,
-            depth=1
+            depth=1,
         )
         nodes = await memory_service.recall(query)
         print(f"Direct memory query found {len(nodes)} nodes")
-        
+
         # Manually filter and convert nodes like config service would
         valid_configs = 0
         invalid_configs = 0
         for node in nodes:
             try:
                 from ciris_engine.schemas.services.nodes import ConfigNode
+
                 ConfigNode.from_graph_node(node)
                 valid_configs += 1
             except Exception:
                 invalid_configs += 1
-        
+
         print(f"Valid config nodes: {valid_configs}, Invalid: {invalid_configs}")
         print("Config service can handle malformed nodes gracefully")
-        
+
     except Exception as e:
         print(f"Error in config service test: {e}")
 
@@ -171,7 +173,8 @@ async def test_old_node_format_compatibility(temp_db, time_service):
     """Test that we can handle nodes in old format gracefully."""
     # Initialize database and insert various malformed nodes
     conn = sqlite3.connect(temp_db)
-    conn.execute('''
+    conn.execute(
+        """
         CREATE TABLE IF NOT EXISTS graph_nodes (
             node_id TEXT NOT NULL,
             scope TEXT NOT NULL,
@@ -183,41 +186,42 @@ async def test_old_node_format_compatibility(temp_db, time_service):
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (node_id, scope)
         )
-    ''')
+    """
+    )
 
     # Case 1: Node with empty attributes
     conn.execute(
         "INSERT INTO graph_nodes (node_id, scope, node_type, attributes_json) VALUES (?, ?, ?, ?)",
-        ("config_empty", "LOCAL", "config", "{}")
+        ("config_empty", "LOCAL", "config", "{}"),
     )
 
     # Case 2: Node with null attributes
     conn.execute(
         "INSERT INTO graph_nodes (node_id, scope, node_type, attributes_json) VALUES (?, ?, ?, ?)",
-        ("config_null", "LOCAL", "config", None)
+        ("config_null", "LOCAL", "config", None),
     )
 
     # Case 3: Node with only base attributes (no key/value)
     conn.execute(
         "INSERT INTO graph_nodes (node_id, scope, node_type, attributes_json) VALUES (?, ?, ?, ?)",
-        ("config_base_only", "LOCAL", "config", json.dumps({
-            "created_at": "2024-01-01T00:00:00",
-            "created_by": "test"
-        }))
+        (
+            "config_base_only",
+            "LOCAL",
+            "config",
+            json.dumps({"created_at": "2024-01-01T00:00:00", "created_by": "test"}),
+        ),
     )
 
     conn.commit()
     conn.close()
 
     # Create services
-    secrets_db = temp_db.replace('.db', '_secrets.db')
+    secrets_db = temp_db.replace(".db", "_secrets.db")
     secrets_service = SecretsService(db_path=secrets_db, time_service=time_service)
     await secrets_service.start()
 
     memory_service = LocalGraphMemoryService(
-        db_path=temp_db,
-        secrets_service=secrets_service,
-        time_service=time_service
+        db_path=temp_db, secrets_service=secrets_service, time_service=time_service
     )
     memory_service.start()
 
@@ -231,12 +235,12 @@ async def test_old_node_format_compatibility(temp_db, time_service):
         # Use memory service directly to bypass config service issues
         all_nodes = await memory_service.search("type:config")
         print(f"Found {len(all_nodes)} total config nodes")
-        
+
         # Try to convert each node to see which ones are valid
         valid_count = 0
         invalid_count = 0
         from ciris_engine.schemas.services.nodes import ConfigNode
-        
+
         for node in all_nodes:
             try:
                 ConfigNode.from_graph_node(node)
@@ -245,12 +249,12 @@ async def test_old_node_format_compatibility(temp_db, time_service):
             except Exception as e:
                 invalid_count += 1
                 print(f"  ✗ Node {node.id} is invalid: {e}")
-        
-        print(f"\nSuccessfully handled malformed nodes:")
+
+        print("\nSuccessfully handled malformed nodes:")
         print(f"  Valid configs: {valid_count}")
         print(f"  Invalid configs: {invalid_count}")
         print("  No crashes occurred - graceful handling confirmed")
-        
+
     except Exception as e:
         print(f"Error during malformed node handling test: {e}")
 
@@ -267,14 +271,14 @@ if __name__ == "__main__":
 
     async def main():
         time_service = TimeService()
-        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as f:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
             temp_db = f.name
 
         try:
             print("Testing filter_config bug reproduction...")
             await test_filter_config_bug(temp_db, time_service)
 
-            print("\n" + "="*60 + "\n")
+            print("\n" + "=" * 60 + "\n")
 
             print("Testing old node format compatibility...")
             await test_old_node_format_compatibility(temp_db, time_service)

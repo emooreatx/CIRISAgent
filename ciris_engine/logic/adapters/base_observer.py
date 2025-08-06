@@ -1,24 +1,25 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Awaitable, Callable, Dict, Generic, List, Optional, Set, TypeVar, cast, Any
+from typing import Any, Awaitable, Callable, Dict, Generic, List, Optional, Set, TypeVar, cast
 
 from pydantic import BaseModel
 
-from ciris_engine.schemas.runtime.enums import ThoughtType
-from ciris_engine.schemas.runtime.models import TaskContext, ThoughtContext as ThoughtModelContext
-from ciris_engine.schemas.services.filters_core import FilterResult, FilterPriority
-
+from ciris_engine.logic import persistence
 from ciris_engine.logic.buses import BusManager
 from ciris_engine.logic.secrets.service import SecretsService
-from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
-from ciris_engine.logic import persistence
 from ciris_engine.logic.utils.thought_utils import generate_thought_id
+from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.runtime.enums import ThoughtType
+from ciris_engine.schemas.runtime.models import TaskContext
+from ciris_engine.schemas.runtime.models import ThoughtContext as ThoughtModelContext
+from ciris_engine.schemas.services.filters_core import FilterPriority, FilterResult
 
 logger = logging.getLogger(__name__)
 
 MessageT = TypeVar("MessageT", bound=BaseModel)
 
 PASSIVE_CONTEXT_LIMIT = 10
+
 
 class BaseObserver(Generic[MessageT], ABC):
     """Common functionality for message observers."""
@@ -95,7 +96,9 @@ class BaseObserver(Generic[MessageT], ABC):
 
     async def _process_message_secrets(self, msg: MessageT) -> MessageT:
         if not self.secrets_service:
-            logger.error(f"CRITICAL: secrets_service is None in {self.origin_service} observer! Cannot process secrets.")
+            logger.error(
+                f"CRITICAL: secrets_service is None in {self.origin_service} observer! Cannot process secrets."
+            )
             raise RuntimeError("SecretsService is required but not available")
         try:
             processed_content, secret_refs = await self.secrets_service.process_incoming_text(
@@ -120,71 +123,75 @@ class BaseObserver(Generic[MessageT], ABC):
     async def _get_recall_ids(self, msg: MessageT) -> Set[str]:
         return {f"channel/{getattr(msg, 'channel_id', 'cli')}"}
 
-    async def _get_correlation_history(self, channel_id: str, limit: int = PASSIVE_CONTEXT_LIMIT) -> List[Dict[str, Any]]:
+    async def _get_correlation_history(
+        self, channel_id: str, limit: int = PASSIVE_CONTEXT_LIMIT
+    ) -> List[Dict[str, Any]]:
         """Get message history from correlations database."""
         from ciris_engine.logic.persistence import get_correlations_by_channel
-        
+
         try:
-            correlations = get_correlations_by_channel(
-                channel_id=channel_id,
-                limit=limit
-            )
-            
+            correlations = get_correlations_by_channel(channel_id=channel_id, limit=limit)
+
             history = []
             for corr in correlations:
                 if corr.action_type == "speak" and corr.request_data:
                     # Agent message
                     content = ""
-                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
+                    if hasattr(corr.request_data, "parameters") and corr.request_data.parameters:
                         content = corr.request_data.parameters.get("content", "")
-                        
+
                         # Strip out nested conversation history to prevent recursive history
                         if "=== CONVERSATION HISTORY" in content:
                             # Extract only the first line (the actual message)
-                            lines = content.split('\n')
+                            lines = content.split("\n")
                             content = lines[0] if lines else content
-                    
-                    history.append({
-                        "author": "CIRIS",
-                        "author_id": self.agent_id or "ciris",
-                        "content": content,
-                        "timestamp": corr.timestamp or corr.created_at,
-                        "is_agent": True
-                    })
-                    
+
+                    history.append(
+                        {
+                            "author": "CIRIS",
+                            "author_id": self.agent_id or "ciris",
+                            "content": content,
+                            "timestamp": corr.timestamp or corr.created_at,
+                            "is_agent": True,
+                        }
+                    )
+
                 elif corr.action_type == "observe" and corr.request_data:
                     # User message
-                    if hasattr(corr.request_data, 'parameters') and corr.request_data.parameters:
+                    if hasattr(corr.request_data, "parameters") and corr.request_data.parameters:
                         params = corr.request_data.parameters
-                        history.append({
-                            "author": params.get("author_name", "User"),
-                            "author_id": params.get("author_id", "unknown"),
-                            "content": params.get("content", ""),
-                            "timestamp": corr.timestamp or corr.created_at,
-                            "is_agent": False
-                        })
-            
+                        history.append(
+                            {
+                                "author": params.get("author_name", "User"),
+                                "author_id": params.get("author_id", "unknown"),
+                                "content": params.get("content", ""),
+                                "timestamp": corr.timestamp or corr.created_at,
+                                "is_agent": False,
+                            }
+                        )
+
             return history
-            
+
         except Exception as e:
             logger.warning(f"Failed to get correlation history: {e}")
             # Fallback to empty history
             return []
-    
+
     async def _recall_context(self, msg: MessageT) -> None:
         if not self.memory_service:
             return
         recall_ids = await self._get_recall_ids(msg)
-        
+
         # Get user IDs from correlation history
         channel_id = getattr(msg, "channel_id", "system")
         history = await self._get_correlation_history(channel_id, PASSIVE_CONTEXT_LIMIT)
-        
+
         for hist_msg in history:
             if hist_msg.get("author_id"):
                 recall_ids.add(f"user/{hist_msg['author_id']}")
-        
+
         from ciris_engine.schemas.services.graph_core import GraphNode, GraphNodeAttributes, GraphScope, NodeType
+
         for rid in recall_ids:
             for scope in (
                 GraphScope.IDENTITY,
@@ -199,18 +206,19 @@ class BaseObserver(Generic[MessageT], ABC):
                     else:
                         node_type = NodeType.CONCEPT
                     from datetime import datetime, timezone
+
                     node = GraphNode(
-                        id=rid, 
-                        type=node_type, 
+                        id=rid,
+                        type=node_type,
                         scope=scope,
                         attributes=GraphNodeAttributes(
                             created_by="base_observer",
                             created_at=self.time_service.now() if self.time_service else datetime.now(timezone.utc),
                             updated_at=self.time_service.now() if self.time_service else datetime.now(timezone.utc),
-                            tags=[]
+                            tags=[],
                         ),
                         updated_by="base_observer",
-                        updated_at=self.time_service.now() if self.time_service else datetime.now(timezone.utc)
+                        updated_at=self.time_service.now() if self.time_service else datetime.now(timezone.utc),
                     )
                     await self.memory_service.recall(node)
                 except Exception:
@@ -258,17 +266,18 @@ class BaseObserver(Generic[MessageT], ABC):
                 # Continue without signature
 
         # Import persistence here to avoid circular import
-        from ciris_engine.logic import persistence
+
         persistence.add_task(task)
 
     async def _create_passive_observation_result(self, msg: MessageT) -> None:
         try:
-            from datetime import datetime, timezone
             import uuid
-            from ciris_engine.schemas.runtime.models import Task, Thought
-            from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
-            from ciris_engine.schemas.runtime.system_context import SystemSnapshot, ChannelContext
+            from datetime import datetime, timezone
+
             from ciris_engine.logic import persistence
+            from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
+            from ciris_engine.schemas.runtime.models import Task, Thought
+            from ciris_engine.schemas.runtime.system_context import ChannelContext, SystemSnapshot
 
             # Create minimal system snapshot for passive observation
             channel_context = ChannelContext(
@@ -281,16 +290,13 @@ class BaseObserver(Generic[MessageT], ABC):
                 is_active=True,
                 last_activity=self.time_service.now() if self.time_service else datetime.now(timezone.utc),
                 message_count=0,
-                moderation_level="standard"
+                moderation_level="standard",
             )
 
             SystemSnapshot(
                 channel_context=channel_context,
                 channel_id=getattr(msg, "channel_id", "system"),
-                agent_identity={
-                    "agent_id": self.agent_id or "ciris",
-                    "purpose": "Process and respond to messages"
-                }
+                agent_identity={"agent_id": self.agent_id or "ciris", "purpose": "Process and respond to messages"},
             )
 
             # Get message history from correlations instead of in-memory
@@ -309,15 +315,15 @@ class BaseObserver(Generic[MessageT], ABC):
                     channel_id=getattr(msg, "channel_id", None),
                     user_id=msg.author_id,  # type: ignore[attr-defined]
                     correlation_id=msg.message_id,  # type: ignore[attr-defined]
-                    parent_task_id=None
-                )
+                    parent_task_id=None,
+                ),
             )
 
             await self._sign_and_add_task(task)
 
             # Build conversation context for thought
             thought_lines = [f"You observed @{msg.author_name} (ID: {msg.author_id}) in channel {msg.channel_id} say: {msg.content}"]  # type: ignore[attr-defined]
-            
+
             thought_lines.append("\n=== CONVERSATION HISTORY (Last 10 messages) ===")
             for i, hist_msg in enumerate(history_context, 1):
                 author = hist_msg.get("author", "Unknown")
@@ -326,16 +332,15 @@ class BaseObserver(Generic[MessageT], ABC):
                 hist_msg.get("timestamp", "")
                 thought_lines.append(f"{i}. @{author} (ID: {author_id}): {content}")
 
-            thought_lines.append("\n=== EVALUATE THIS MESSAGE AGAINST YOUR IDENTITY/JOB AND ETHICS AND DECIDE IF AND HOW TO ACT ON IT ===")
+            thought_lines.append(
+                "\n=== EVALUATE THIS MESSAGE AGAINST YOUR IDENTITY/JOB AND ETHICS AND DECIDE IF AND HOW TO ACT ON IT ==="
+            )
             thought_lines.append(f"@{msg.author_name} (ID: {msg.author_id}): {msg.content}")  # type: ignore[attr-defined]
 
             thought_content = "\n".join(thought_lines)
 
             thought = Thought(
-                thought_id=generate_thought_id(
-                    thought_type=ThoughtType.OBSERVATION,
-                    task_id=task.task_id
-                ),
+                thought_id=generate_thought_id(thought_type=ThoughtType.OBSERVATION, task_id=task.task_id),
                 source_task_id=task.task_id,
                 channel_id=getattr(msg, "channel_id", None),
                 thought_type=ThoughtType.OBSERVATION,
@@ -354,8 +359,8 @@ class BaseObserver(Generic[MessageT], ABC):
                     round_number=0,
                     depth=0,
                     parent_thought_id=None,
-                    correlation_id=msg.message_id  # type: ignore[attr-defined]
-                )
+                    correlation_id=msg.message_id,  # type: ignore[attr-defined]
+                ),
             )
 
             persistence.add_thought(thought)
@@ -366,11 +371,12 @@ class BaseObserver(Generic[MessageT], ABC):
 
     async def _create_priority_observation_result(self, msg: MessageT, filter_result: Any) -> None:
         try:
-            from datetime import datetime, timezone
             import uuid
-            from ciris_engine.schemas.runtime.models import Task, Thought
-            from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
+            from datetime import datetime, timezone
+
             from ciris_engine.logic import persistence
+            from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
+            from ciris_engine.schemas.runtime.models import Task, Thought
 
             task_priority = 10 if getattr(filter_result.priority, "value", "") == "critical" else 5
 
@@ -386,16 +392,13 @@ class BaseObserver(Generic[MessageT], ABC):
                     channel_id=getattr(msg, "channel_id", None),
                     user_id=msg.author_id,  # type: ignore[attr-defined]
                     correlation_id=msg.message_id,  # type: ignore[attr-defined]
-                    parent_task_id=None
-                )
+                    parent_task_id=None,
+                ),
             )
             await self._sign_and_add_task(task)
 
             thought = Thought(
-                thought_id=generate_thought_id(
-                    thought_type=ThoughtType.OBSERVATION,
-                    task_id=task.task_id
-                ),
+                thought_id=generate_thought_id(thought_type=ThoughtType.OBSERVATION, task_id=task.task_id),
                 source_task_id=task.task_id,
                 channel_id=getattr(msg, "channel_id", None),
                 thought_type=ThoughtType.OBSERVATION,
@@ -414,8 +417,8 @@ class BaseObserver(Generic[MessageT], ABC):
                     round_number=0,
                     depth=0,
                     parent_thought_id=None,
-                    correlation_id=msg.message_id  # type: ignore[attr-defined]
-                )
+                    correlation_id=msg.message_id,  # type: ignore[attr-defined]
+                ),
             )
             persistence.add_thought(thought)
         except Exception as e:  # pragma: no cover - rarely hit in tests
@@ -425,46 +428,46 @@ class BaseObserver(Generic[MessageT], ABC):
         """Standard message handling flow for all observers."""
         # Check if this is the agent's own message
         is_agent_message = self._is_agent_message(msg)
-        
+
         # Process message for secrets detection and replacement
         processed_msg = await self._process_message_secrets(msg)
-        
+
         # Allow subclasses to enhance the message (e.g., vision processing)
         processed_msg = await self._enhance_message(processed_msg)
-        
+
         # Add ALL messages to history (including agent's own)
         self._history.append(processed_msg)
-        
+
         # If it's the agent's message, stop here (no task creation)
         if is_agent_message:
             logger.debug("Added agent's own message to history (no task created)")
             return
-        
+
         # Apply adaptive filtering to determine message priority and processing
         filter_result = await self._apply_message_filtering(msg, self.origin_service)
         if not filter_result.should_process:
             logger.debug(f"Message filtered out: {filter_result.reasoning}")
             return
-        
+
         # Add filter context to message for downstream processing
-        setattr(processed_msg, '_filter_priority', filter_result.priority)
-        setattr(processed_msg, '_filter_context', filter_result.context_hints)
-        setattr(processed_msg, '_filter_reasoning', filter_result.reasoning)
-        
+        setattr(processed_msg, "_filter_priority", filter_result.priority)
+        setattr(processed_msg, "_filter_context", filter_result.context_hints)
+        setattr(processed_msg, "_filter_reasoning", filter_result.reasoning)
+
         # Process based on priority
-        if filter_result.priority.value in ['critical', 'high']:
+        if filter_result.priority.value in ["critical", "high"]:
             logger.info(f"Processing {filter_result.priority.value} priority message: {filter_result.reasoning}")
             await self._handle_priority_observation(processed_msg, filter_result)
         else:
             await self._handle_passive_observation(processed_msg)
-        
+
         # Recall relevant context
         await self._recall_context(processed_msg)
-    
+
     async def _enhance_message(self, msg: MessageT) -> MessageT:
         """Hook for subclasses to enhance messages (e.g., vision processing)."""
         return msg
-    
+
     async def _handle_priority_observation(self, msg: MessageT, filter_result: Any) -> None:
         """Handle high-priority messages - to be implemented by subclasses"""
         # Default implementation: check if message should be processed by this observer
@@ -472,14 +475,14 @@ class BaseObserver(Generic[MessageT], ABC):
             await self._create_priority_observation_result(msg, filter_result)
         else:
             logger.debug(f"Ignoring priority message from channel {getattr(msg, 'channel_id', 'unknown')}")
-    
+
     async def _handle_passive_observation(self, msg: MessageT) -> None:
         """Handle passive observation routing - to be implemented by subclasses"""
         if await self._should_process_message(msg):
             await self._create_passive_observation_result(msg)
         else:
             logger.debug(f"Ignoring passive message from channel {getattr(msg, 'channel_id', 'unknown')}")
-    
+
     async def _should_process_message(self, msg: MessageT) -> bool:
         """Check if this observer should process the message - to be overridden by subclasses."""
         return True  # Default: process all messages

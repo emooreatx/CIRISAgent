@@ -13,33 +13,33 @@ This guide provides technical details for implementing the Agent Creation Ceremo
 CREATE TABLE creation_ceremonies (
     ceremony_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
-    
+
     -- Participants
     creator_agent_id TEXT NOT NULL,      -- Facilitating agent
     creator_human_id TEXT NOT NULL,      -- Human collaborator
     wise_authority_id TEXT NOT NULL,     -- Approving WA
-    
+
     -- New Agent Details
     new_agent_id TEXT NOT NULL UNIQUE,
     new_agent_name TEXT NOT NULL,
     new_agent_purpose TEXT NOT NULL,
     new_agent_description TEXT NOT NULL,
-    
+
     -- Ceremony Details
     template_profile TEXT NOT NULL,      -- Which template was used
     template_profile_hash TEXT NOT NULL, -- SHA-256 of template
     creation_justification TEXT NOT NULL,
     expected_capabilities JSONB NOT NULL,
     ethical_considerations TEXT NOT NULL,
-    
+
     -- Approval
     wa_signature TEXT NOT NULL,          -- Ed25519 signature
     wa_conditions TEXT,                  -- Any conditions/limitations
-    
+
     -- Status
     ceremony_status TEXT NOT NULL,       -- pending, completed, failed
     ceremony_transcript JSONB,           -- Step-by-step log
-    
+
     -- Indexes
     INDEX idx_new_agent_id (new_agent_id),
     INDEX idx_creator_human (creator_human_id),
@@ -53,7 +53,7 @@ CREATE TABLE agent_lineages (
     ceremony_id UUID NOT NULL REFERENCES creation_ceremonies(ceremony_id),
     lineage_data JSONB NOT NULL,        -- Full IdentityLineage object
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    
+
     -- Ensure one lineage per agent
     UNIQUE(agent_id)
 );
@@ -68,7 +68,7 @@ CREATE TABLE wa_signatures (
     signature TEXT NOT NULL,
     timestamp TIMESTAMP NOT NULL DEFAULT NOW(),
     ceremony_id UUID REFERENCES creation_ceremonies(ceremony_id),
-    
+
     INDEX idx_wa_id (wa_id),
     INDEX idx_ceremony (ceremony_id)
 );
@@ -80,27 +80,27 @@ CREATE TABLE wa_signatures (
 # First node in every agent's graph
 class IdentityRootNode(TypedGraphNode):
     """The genesis node - first memory of existence."""
-    
+
     # Core Identity (Immutable)
     agent_id: str
     agent_name: str
     purpose: str
     description: str
-    
+
     # Creation Record (Immutable)
     lineage: IdentityLineage
     covenant_hash: str  # SHA-256 of CIRIS Covenant at creation
     creation_timestamp: datetime
     ceremony_id: str
-    
+
     # Configuration (Mutable with WA approval)
     permitted_actions: List[HandlerActionType]
     restricted_capabilities: List[str]
-    
+
     # Evolution Tracking
     version: int = 1
     update_log: List[IdentityUpdateEntry] = []
-    
+
     # Metadata
     node_type = "IDENTITY_ROOT"
     node_id = "agent/identity"  # Fixed ID for easy retrieval
@@ -117,7 +117,7 @@ Authentication: Required (Admin or WA role)
 Headers:
   Authorization: Bearer <token>
   WA-Signature: keyid=wa-001,algorithm=ed25519,signature=<base64>
-  
+
 Request Body:
   {
     "ceremony_request": {
@@ -201,7 +201,7 @@ from nacl.encoding import Base64Encoder
 def verify_wa_signature(request_body: dict, signature_header: str) -> bool:
     """
     Verify WA signature on creation request.
-    
+
     Header format: 'keyid=wa-001,algorithm=ed25519,signature=<base64>'
     """
     # Parse header
@@ -209,17 +209,17 @@ def verify_wa_signature(request_body: dict, signature_header: str) -> bool:
     key_id = parts['keyid']
     algorithm = parts['algorithm']
     signature_b64 = parts['signature']
-    
+
     if algorithm != 'ed25519':
         raise ValueError(f"Unsupported algorithm: {algorithm}")
-    
+
     # Get WA public key from database
     wa_public_key = get_wa_public_key(key_id)  # Base64 encoded
-    
+
     # Construct signed message (canonical JSON)
     message = json.dumps(request_body, sort_keys=True, separators=(',', ':'))
     message_bytes = message.encode('utf-8')
-    
+
     # Verify signature
     try:
         verify_key = VerifyKey(wa_public_key, encoder=Base64Encoder)
@@ -235,19 +235,19 @@ def verify_wa_signature(request_body: dict, signature_header: str) -> bool:
 ```python
 class CeremonyPermissions:
     """Who can perform ceremony actions."""
-    
+
     # Initiate ceremony
     INITIATE_CEREMONY = [
         UserRole.WISE_AUTHORITY,
         UserRole.SYSTEM_ADMIN,
         UserRole.CREATOR  # Special role for approved creators
     ]
-    
+
     # Approve ceremony (sign)
     APPROVE_CEREMONY = [
         UserRole.WISE_AUTHORITY
     ]
-    
+
     # View ceremony records
     VIEW_CEREMONIES = [
         UserRole.WISE_AUTHORITY,
@@ -255,7 +255,7 @@ class CeremonyPermissions:
         UserRole.ADMIN,
         UserRole.OBSERVER
     ]
-    
+
     # Emergency abort
     ABORT_CEREMONY = [
         UserRole.WISE_AUTHORITY,
@@ -274,29 +274,29 @@ async def initiate_ceremony(
     wa_signature: str
 ) -> CreationCeremonyResponse:
     """Execute the complete creation ceremony."""
-    
+
     ceremony_id = str(uuid.uuid4())
     transcript = []
-    
+
     try:
         # Step 1: Validate request
         log_step(transcript, "Validating creation request")
         validate_ceremony_request(request)
-        
+
         # Step 2: Verify WA signature
         log_step(transcript, "Verifying WA signature")
         if not verify_wa_signature(request.dict(), wa_signature):
             raise CeremonyError("Invalid WA signature")
-        
+
         # Step 3: Load and validate template
         log_step(transcript, f"Loading template: {request.template}")
         template = load_template(request.template)
         validate_template(template)
-        
+
         # Step 4: Create agent database
         log_step(transcript, "Creating agent database")
         db_path = create_agent_database(request.proposed_name)
-        
+
         # Step 5: Generate identity root
         log_step(transcript, "Generating identity root")
         identity_root = create_identity_root(
@@ -305,11 +305,11 @@ async def initiate_ceremony(
             facilitator_id=facilitator.agent_id,
             template=template
         )
-        
+
         # Step 6: Store identity in graph
         log_step(transcript, "Storing identity in graph database")
         store_identity_root(identity_root, db_path)
-        
+
         # Step 7: Configure container
         log_step(transcript, "Configuring container")
         container_config = create_container_config(
@@ -317,15 +317,15 @@ async def initiate_ceremony(
             template=template,
             environment=request.environment
         )
-        
+
         # Step 8: Update docker-compose
         log_step(transcript, "Updating docker-compose.yml")
         update_docker_compose(container_config)
-        
+
         # Step 9: Start agent
         log_step(transcript, "Starting agent container")
         start_agent_container(container_config.name)
-        
+
         # Step 10: Record ceremony
         log_step(transcript, "Recording ceremony in database")
         record_ceremony(
@@ -336,7 +336,7 @@ async def initiate_ceremony(
             status="completed",
             transcript=transcript
         )
-        
+
         return CreationCeremonyResponse(
             success=True,
             ceremony_id=ceremony_id,
@@ -346,7 +346,7 @@ async def initiate_ceremony(
             identity_root_hash=hash_identity_root(identity_root),
             ceremony_transcript=transcript
         )
-        
+
     except Exception as e:
         log_step(transcript, f"Ceremony failed: {str(e)}")
         record_ceremony(
@@ -371,13 +371,13 @@ def create_identity_root(
     template: Dict
 ) -> IdentityRoot:
     """Create the foundational identity for a new agent."""
-    
+
     # Extract permitted actions from template
     permitted_actions = [
         HandlerActionType(action.upper())
         for action in template.get('permitted_actions', [])
     ]
-    
+
     # Create lineage record
     lineage = IdentityLineage(
         creator_agent_id=facilitator_id,
@@ -385,11 +385,11 @@ def create_identity_root(
         wise_authority_id=request.wise_authority_id or request.human_id,
         creation_ceremony_id=ceremony_id
     )
-    
+
     # Load CIRIS Covenant for hashing
     covenant_text = load_ciris_covenant()
     covenant_hash = hashlib.sha256(covenant_text.encode()).hexdigest()
-    
+
     # Build identity root
     identity = IdentityRoot(
         # Core identity
@@ -399,19 +399,19 @@ def create_identity_root(
         lineage=lineage,
         covenant_hash=covenant_hash,
         creation_timestamp=datetime.utcnow(),
-        
+
         # Configuration from template
         permitted_actions=permitted_actions,
         dsdma_overrides=template.get('dsdma_overrides', {}),
         csdma_overrides=template.get('csdma_overrides', {}),
         action_selection_pdma_overrides=template.get('action_selection_pdma_overrides', {}),
-        
+
         # Initial state
         version=1,
         update_log=[],
         reactivation_count=0
     )
-    
+
     return identity
 ```
 
@@ -424,11 +424,11 @@ def create_container_config(
     environment: Dict[str, str]
 ) -> ContainerConfig:
     """Generate Docker container configuration."""
-    
+
     # Generate consistent naming
     agent_id = f"agent-{agent_name.lower().replace(' ', '-')}"
     container_name = f"ciris-{agent_id}"
-    
+
     # Merge environment variables
     env_vars = {
         'CIRIS_AGENT_NAME': agent_name,
@@ -438,7 +438,7 @@ def create_container_config(
         **template.get('environment', {}),
         **environment  # User overrides
     }
-    
+
     # Build container config
     config = ContainerConfig(
         name=agent_id,
@@ -453,7 +453,7 @@ def create_container_config(
         restart_policy='unless-stopped',
         command=['python', 'main.py', '--wa-bootstrap']
     )
-    
+
     return config
 ```
 
@@ -471,26 +471,26 @@ async def create_agent(
 ):
     """
     Create new agent via ceremony.
-    
+
     Requires WA signature in header.
     """
     # Verify user has permission
     if current_user.role not in CeremonyPermissions.INITIATE_CEREMONY:
         raise HTTPException(403, "Insufficient permissions")
-    
+
     # Get facilitating agent
     facilitator = Agent(
         agent_id="datum",
         agent_name="Datum"
     )
-    
+
     # Execute ceremony
     response = await initiate_ceremony(
         request=request,
         facilitator=facilitator,
         wa_signature=wa_signature
     )
-    
+
     return response
 ```
 
@@ -501,20 +501,20 @@ async def create_agent(
 interface CreationCeremonyForm {
   // Template selection
   template: 'echo' | 'teacher' | 'researcher' | 'custom';
-  
+
   // Identity fields
   proposedName: string;
   proposedPurpose: string;
   proposedDescription: string;
-  
+
   // Justification
   creationJustification: string;
   expectedCapabilities: string[];
   ethicalConsiderations: string;
-  
+
   // Environment overrides
   environment: Record<string, string>;
-  
+
   // WA approval
   waSignature?: string;
 }
@@ -528,7 +528,7 @@ async function submitCreationCeremony(form: CreationCeremonyForm) {
       'WA-Signature': form.waSignature
     }
   });
-  
+
   return response.data;
 }
 ```
@@ -540,7 +540,7 @@ async function submitCreationCeremony(form: CreationCeremonyForm) {
 ```sql
 -- View all ceremonies
 CREATE VIEW ceremony_audit AS
-SELECT 
+SELECT
     c.ceremony_id,
     c.timestamp,
     c.new_agent_name,
@@ -554,7 +554,7 @@ ORDER BY c.timestamp DESC;
 
 -- Failed ceremonies investigation
 CREATE VIEW failed_ceremonies AS
-SELECT 
+SELECT
     ceremony_id,
     timestamp,
     proposed_name,

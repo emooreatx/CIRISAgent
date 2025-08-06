@@ -1,13 +1,13 @@
 """Initialization Service Protocol."""
 
-from typing import Protocol, Callable, Awaitable, Optional
 from abc import abstractmethod
+from typing import Awaitable, Callable, Optional, Protocol
+
+from ciris_engine.schemas.services.lifecycle.initialization import InitializationStatus, InitializationVerification
+from ciris_engine.schemas.services.operations import InitializationPhase
 
 from ...runtime.base import ServiceProtocol
-from ciris_engine.schemas.services.lifecycle.initialization import (
-    InitializationStatus, InitializationVerification
-)
-from ciris_engine.schemas.services.operations import InitializationPhase
+
 
 class InitializationServiceProtocol(ServiceProtocol, Protocol):
     """Protocol for initialization service."""
@@ -20,7 +20,7 @@ class InitializationServiceProtocol(ServiceProtocol, Protocol):
         handler: Callable[[], Awaitable[None]],
         verifier: Optional[Callable[[], Awaitable[bool]]] = None,
         critical: bool = True,
-        timeout: float = 30.0
+        timeout: float = 30.0,
     ) -> None:
         """Register an initialization step."""
         ...

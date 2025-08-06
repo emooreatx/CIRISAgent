@@ -2,23 +2,19 @@
 Unit tests for Discord adapter implementation.
 Tests the adapter without requiring actual Discord connection.
 """
+
+import os
+import tempfile
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
 import pytest_asyncio
-import asyncio
-import tempfile
-import os
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
-from datetime import datetime, timezone
 
 from ciris_engine.logic.adapters.discord.discord_adapter import DiscordAdapter
-from ciris_engine.schemas.runtime.messages import IncomingMessage, DiscordMessage
-from ciris_engine.schemas.services.context import GuidanceContext, DeferralContext
-from ciris_engine.schemas.adapters.tools import (
-    ToolInfo, ToolParameterSchema, ToolExecutionResult,
-    ToolExecutionStatus, ToolResult
-)
-from ciris_engine.logic.services.lifecycle.time import TimeService
 from ciris_engine.logic.persistence import initialize_database
+from ciris_engine.logic.services.lifecycle.time import TimeService
+from ciris_engine.schemas.adapters.tools import ToolExecutionResult, ToolExecutionStatus, ToolInfo, ToolParameterSchema
+from ciris_engine.schemas.services.context import DeferralContext, GuidanceContext
 
 
 class TestDiscordAdapter:
@@ -28,20 +24,21 @@ class TestDiscordAdapter:
     def setup_test_db(self):
         """Set up a temporary test database for each test."""
         # Create a temporary database file
-        with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_file:
             test_db_path = tmp_file.name
-        
+
         # Initialize the database with all required tables
         initialize_database(test_db_path)
-        
+
         # Patch get_db_connection at both import locations to use our test database
-        with patch('ciris_engine.logic.persistence.get_db_connection') as mock_get_conn, \
-             patch('ciris_engine.logic.persistence.models.correlations.get_db_connection') as mock_get_conn2, \
-             patch('ciris_engine.logic.persistence.db.core.get_db_connection') as mock_get_conn3:
+        with patch("ciris_engine.logic.persistence.get_db_connection") as mock_get_conn, patch(
+            "ciris_engine.logic.persistence.models.correlations.get_db_connection"
+        ) as mock_get_conn2, patch("ciris_engine.logic.persistence.db.core.get_db_connection") as mock_get_conn3:
             import sqlite3
+
             # Return a context manager that yields a connection
             from contextlib import contextmanager
-            
+
             @contextmanager
             def get_test_connection(db_path=None):
                 # Use the test db_path from outer scope, ignore the argument
@@ -52,13 +49,13 @@ class TestDiscordAdapter:
                     yield conn
                 finally:
                     conn.close()
-            
+
             mock_get_conn.side_effect = get_test_connection
             mock_get_conn2.side_effect = get_test_connection
             mock_get_conn3.side_effect = get_test_connection
-            
+
             yield test_db_path
-        
+
         # Clean up
         try:
             os.unlink(test_db_path)
@@ -94,10 +91,7 @@ class TestDiscordAdapter:
     async def adapter(self, mock_bot, time_service, mock_bus_manager):
         """Create Discord adapter instance."""
         adapter = DiscordAdapter(
-            token="test-token",
-            bot=mock_bot,
-            time_service=time_service,
-            bus_manager=mock_bus_manager
+            token="test-token", bot=mock_bot, time_service=time_service, bus_manager=mock_bus_manager
         )
         await adapter.start()
         yield adapter
@@ -106,11 +100,7 @@ class TestDiscordAdapter:
     @pytest.mark.asyncio
     async def test_adapter_initialization(self, mock_bot, time_service):
         """Test adapter initializes correctly."""
-        adapter = DiscordAdapter(
-            token="test-token",
-            bot=mock_bot,
-            time_service=time_service
-        )
+        adapter = DiscordAdapter(token="test-token", bot=mock_bot, time_service=time_service)
 
         assert adapter.token == "test-token"
         assert adapter._time_service == time_service
@@ -138,7 +128,7 @@ class TestDiscordAdapter:
         # Check telemetry was emitted
         mock_bus_manager.memory.memorize_metric.assert_called()
         call_args = mock_bus_manager.memory.memorize_metric.call_args
-        assert call_args[1]['metric_name'] == "discord.message.sent"
+        assert call_args[1]["metric_name"] == "discord.message.sent"
 
     @pytest.mark.asyncio
     async def test_send_message_failure(self, adapter, mock_bot):
@@ -158,7 +148,7 @@ class TestDiscordAdapter:
         # Setup mock messages
         mock_msgs = [
             Mock(id="1", content="Message 1", author_id="111", author_name="User1", is_bot=False),
-            Mock(id="2", content="Message 2", author_id="222", author_name="User2", is_bot=False)
+            Mock(id="2", content="Message 2", author_id="222", author_name="User2", is_bot=False),
         ]
 
         # Mock the get_correlations_by_channel function
@@ -167,18 +157,19 @@ class TestDiscordAdapter:
                 correlation_id="1",
                 action_type="observe",
                 request_data=Mock(parameters={"content": "Message 1", "author_id": "111", "author_name": "User1"}),
-                timestamp=Mock(isoformat=lambda: "2024-01-01T00:00:00")
+                timestamp=Mock(isoformat=lambda: "2024-01-01T00:00:00"),
             ),
             Mock(
                 correlation_id="2",
                 action_type="observe",
                 request_data=Mock(parameters={"content": "Message 2", "author_id": "222", "author_name": "User2"}),
-                timestamp=Mock(isoformat=lambda: "2024-01-01T00:01:00")
-            )
+                timestamp=Mock(isoformat=lambda: "2024-01-01T00:01:00"),
+            ),
         ]
-        
-        with patch('ciris_engine.logic.persistence.get_correlations_by_channel',
-                   return_value=mock_correlations) as mock_get_corr:
+
+        with patch(
+            "ciris_engine.logic.persistence.get_correlations_by_channel", return_value=mock_correlations
+        ) as mock_get_corr:
             messages = await adapter.fetch_messages("123456789", limit=10)
 
             assert len(messages) == 2
@@ -194,12 +185,11 @@ class TestDiscordAdapter:
             task_id="task456",
             question="Should I do X?",
             ethical_considerations=["Consider user impact"],
-            domain_context={"context": "Some context"}
+            domain_context={"context": "Some context"},
         )
 
         # Test fetch_guidance which is the actual method
-        with patch.object(adapter, 'fetch_guidance',
-                         return_value="Yes") as mock_fetch:
+        with patch.object(adapter, "fetch_guidance", return_value="Yes") as mock_fetch:
             result = await adapter.fetch_guidance(guidance_ctx)
 
             assert result == "Yes"
@@ -212,12 +202,11 @@ class TestDiscordAdapter:
             thought_id="thought456",
             task_id="task123",
             reason="Complex decision requiring human input",
-            metadata={"options": "Option A, Option B"}
+            metadata={"options": "Option A, Option B"},
         )
 
         # Test send_deferral_legacy which is the actual method
-        with patch.object(adapter, 'send_deferral_legacy',
-                         return_value=True) as mock_defer:
+        with patch.object(adapter, "send_deferral_legacy", return_value=True) as mock_defer:
             result = await adapter.send_deferral_legacy(deferral_ctx)
 
             assert result is True
@@ -231,19 +220,14 @@ class TestDiscordAdapter:
             ToolInfo(
                 name="test_tool",  # Changed from tool_name to name
                 description="A test tool",
-                parameters=ToolParameterSchema(
-                    type="object",
-                    properties={},
-                    required=[]
-                ),
+                parameters=ToolParameterSchema(type="object", properties={}, required=[]),
                 category="testing",
                 cost=0.0,
-                when_to_use="Use this tool for testing"
+                when_to_use="Use this tool for testing",
             )
         ]
 
-        with patch.object(adapter._tool_handler, 'get_available_tools',
-                         return_value=["test_tool"]) as mock_list:
+        with patch.object(adapter._tool_handler, "get_available_tools", return_value=["test_tool"]) as mock_list:
             tools = adapter.list_tools()
 
             assert len(tools) == 1
@@ -259,15 +243,11 @@ class TestDiscordAdapter:
             success=True,
             data={"output": "Test output"},
             error=None,
-            correlation_id="test-correlation-123"
+            correlation_id="test-correlation-123",
         )
 
-        with patch.object(adapter._tool_handler, 'execute_tool',
-                         return_value=expected_result) as mock_execute:
-            result = await adapter.execute_tool(
-                tool_name="test_tool",
-                parameters={"input": "test"}
-            )
+        with patch.object(adapter._tool_handler, "execute_tool", return_value=expected_result) as mock_execute:
+            result = await adapter.execute_tool(tool_name="test_tool", parameters={"input": "test"})
 
             assert result.status == ToolExecutionStatus.COMPLETED
             assert result.success is True
@@ -280,28 +260,21 @@ class TestDiscordAdapter:
         # Clear any startup telemetry
         mock_bus_manager.memory.memorize_metric.reset_mock()
 
-        await adapter._emit_telemetry(
-            "test.metric",
-            value=42.5,
-            tags={"action": "test"}
-        )
+        await adapter._emit_telemetry("test.metric", value=42.5, tags={"action": "test"})
 
         mock_bus_manager.memory.memorize_metric.assert_called_once()
         call_args = mock_bus_manager.memory.memorize_metric.call_args
 
-        assert call_args[1]['metric_name'] == "test.metric"
-        assert call_args[1]['value'] == 42.5
-        assert call_args[1]['tags']['action'] == "test"
-        assert call_args[1]['handler_name'] == "adapter.discord"
+        assert call_args[1]["metric_name"] == "test.metric"
+        assert call_args[1]["value"] == 42.5
+        assert call_args[1]["tags"]["action"] == "test"
+        assert call_args[1]["handler_name"] == "adapter.discord"
 
     @pytest.mark.asyncio
     async def test_start_stop_lifecycle(self, mock_bot, time_service, mock_bus_manager):
         """Test adapter start/stop lifecycle."""
         adapter = DiscordAdapter(
-            token="test-token",
-            bot=mock_bot,
-            time_service=time_service,
-            bus_manager=mock_bus_manager
+            token="test-token", bot=mock_bot, time_service=time_service, bus_manager=mock_bus_manager
         )
 
         # Start adapter - doesn't start bot connection (handled by run_lifecycle)

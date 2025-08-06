@@ -3,23 +3,24 @@ Runtime API schemas for CIRIS.
 
 Provides types needed for API authentication and user management.
 """
+
 from enum import Enum
-from typing import Optional, List
-from datetime import datetime
+from typing import List, Optional
+
 from pydantic import BaseModel, Field
 
-from ciris_engine.schemas.api.auth import UserRole
 from ciris_engine.schemas.services.authority_core import WARole
 
 
 class APIRole(str, Enum):
     """API role levels (separate from UserRole for compatibility)."""
+
     OBSERVER = "OBSERVER"
     ADMIN = "ADMIN"
     AUTHORITY = "AUTHORITY"
     SYSTEM_ADMIN = "SYSTEM_ADMIN"
     SERVICE_ACCOUNT = "SERVICE_ACCOUNT"  # For service-to-service authentication
-    
+
     @property
     def level(self) -> int:
         """Numeric privilege level for comparison."""
@@ -28,12 +29,13 @@ class APIRole(str, Enum):
             "ADMIN": 2,
             "AUTHORITY": 3,
             "SYSTEM_ADMIN": 4,
-            "SERVICE_ACCOUNT": 2  # Same level as ADMIN for shutdown operations
+            "SERVICE_ACCOUNT": 2,  # Same level as ADMIN for shutdown operations
         }[self.value]
 
 
 class APIUserInfo(BaseModel):
     """User information from API authentication."""
+
     user_id: str = Field(..., description="Unique user identifier")
     username: str = Field(..., description="User's display name")
     role: APIRole = Field(..., description="User's API role")
@@ -46,12 +48,13 @@ class APIUserInfo(BaseModel):
 
 class PaginatedResponse(BaseModel):
     """Generic paginated response for list endpoints."""
+
     items: List[BaseModel] = Field(..., description="List of items in current page")
     total: int = Field(..., description="Total number of items")
     page: int = Field(..., description="Current page number (1-based)")
     page_size: int = Field(..., description="Number of items per page")
     pages: int = Field(..., description="Total number of pages")
-    
+
     class Config:
         # Allow generic types
         arbitrary_types_allowed = True

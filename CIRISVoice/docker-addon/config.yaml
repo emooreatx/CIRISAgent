@@ -27,7 +27,7 @@ schema:
   ciris_timeout: int(30,300)
   ciris_channel: str
   stt_provider: list(openai|google|local)
-  tts_provider: list(openai|google|local)  
+  tts_provider: list(openai|google|local)
   tts_voice: str
   log_level: list(DEBUG|INFO|WARNING|ERROR)
   google_cloud_key: str?

@@ -27,11 +27,11 @@ async def main():
         # Simple interaction - no auth required for OBSERVER access
         response = await client.interact("Hello, CIRIS!")
         print(response.response)
-        
+
         # Get agent status
         status = await client.status()
         print(f"Agent state: {status.cognitive_state}")
-        
+
         # Ask a question (returns just the text)
         answer = await client.ask("What is 2 + 2?")
         print(answer)  # "4"
@@ -140,17 +140,17 @@ async def main():
         # Basic interaction (no auth needed)
         response = await client.interact("Hello!")
         print(f"Agent: {response.response}")
-        
+
         # Check status
         status = await client.status()
         print(f"State: {status.cognitive_state}")
-        
+
         # Login for admin functions
         await client.login("admin", "password")
-        
+
         # Access protected resources
         # ... admin operations ...
-        
+
         # Logout
         await client.logout()
 
@@ -173,7 +173,7 @@ CIRIS uses a 4-role model with increasing privileges:
    - Trigger analysis
 
 3. **AUTHORITY**: Strategic decisions
-   - All ADMIN permissions  
+   - All ADMIN permissions
    - Resolve deferrals
    - Provide guidance
    - Grant permissions
@@ -188,7 +188,7 @@ CIRIS uses a 4-role model with increasing privileges:
 The SDK also provides access to all system resources:
 
 - `client.agent` - Agent interaction (primary interface)
-- `client.memory` - Graph memory operations  
+- `client.memory` - Graph memory operations
 - `client.system` - System operations (health, time, resources, runtime, services, shutdown)
 - `client.telemetry` - Metrics and observability
 - `client.auth` - Authentication management
@@ -205,7 +205,7 @@ The v1 API consolidates many endpoints:
 
 - `/v1/runtime/*` → Use `client.system`
 - `/v1/services/*` → Use `client.system.services()`
-- `/v1/logs/*` → Use `client.telemetry.logs()` 
+- `/v1/logs/*` → Use `client.telemetry.logs()`
 - `/v1/visibility/*` → Use `client.telemetry.traces()`
 - `/v1/tools/*` → Part of `client.agent.identity()`
 

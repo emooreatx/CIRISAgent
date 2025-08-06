@@ -2,7 +2,7 @@
 """Analyze SVG positions."""
 import re
 
-with open('timeline_test.svg', 'r') as f:
+with open("timeline_test.svg", "r") as f:
     svg_content = f.read()
 
 # Extract circle positions
@@ -15,12 +15,12 @@ if circles:
         if x not in x_positions:
             x_positions[x] = 0
         x_positions[x] += 1
-    
+
     print(f"Found {len(circles)} nodes")
-    print(f"\nX-position distribution:")
+    print("\nX-position distribution:")
     for x in sorted(x_positions.keys()):
         print(f"  x={x}: {x_positions[x]} nodes")
-    
+
     print(f"\nUnique x-positions: {len(x_positions)}")
     print(f"X-range: {min(x_positions.keys())} to {max(x_positions.keys())}")
 else:

@@ -3,44 +3,50 @@ Schemas for comprehensive telemetry collector operations.
 
 These replace all Dict[str, Any] usage in logic/telemetry/comprehensive_collector.py.
 """
-from typing import Optional, Any
-from pydantic import Field
-from pydantic import BaseModel
+
+from typing import Any, Optional
+
+from pydantic import BaseModel, Field
+
 
 class HealthDetails(BaseModel):
     """Health details for system components."""
+
     adapters: str = Field("unknown", description="Adapter health status")
     services: str = Field("unknown", description="Service health status")
     processor: str = Field("unknown", description="Processor health status")
     error: Optional[str] = Field(None, description="Error message if any")
 
+
 class HealthStatus(BaseModel):
     """Overall system health status."""
+
     overall: str = Field("unknown", description="Overall health: healthy, degraded, critical, error, unknown")
     details: HealthDetails = Field(
-        default_factory=lambda: HealthDetails(
-            adapters="unknown",
-            services="unknown", 
-            processor="unknown",
-            error=None
-        ),
-        description="Health details"
+        default_factory=lambda: HealthDetails(adapters="unknown", services="unknown", processor="unknown", error=None),
+        description="Health details",
     )
+
 
 class MetricEntry(BaseModel):
     """A single metric history entry."""
+
     timestamp: str = Field(..., description="ISO timestamp")
     value: float = Field(..., description="Metric value")
     tags: dict = Field(default_factory=dict, description="Metric tags")
 
+
 class ProcessorStateSnapshot(BaseModel):
     """Snapshot of processor state."""
+
     thoughts_pending: int = Field(0, description="Thoughts pending")
     thoughts_processing: int = Field(0, description="Thoughts processing")
     current_round: int = Field(0, description="Current round number")
 
+
 class SingleStepResult(BaseModel):
     """Result from executing a single processing step."""
+
     status: str = Field(..., description="Status: completed, error")
     error: Optional[str] = Field(None, description="Error message if failed")
     round_number: Optional[int] = Field(None, description="Round number executed")
@@ -51,8 +57,10 @@ class SingleStepResult(BaseModel):
     timestamp: str = Field(..., description="Execution timestamp")
     summary: Optional[dict] = Field(None, description="Execution summary")
 
+
 class ProcessingQueueStatus(BaseModel):
     """Status of the processing queue."""
+
     status: Optional[str] = Field(None, description="Status: available, unavailable")
     size: Optional[int] = Field(None, description="Queue size")
     capacity: Optional[Any] = Field(None, description="Queue capacity")

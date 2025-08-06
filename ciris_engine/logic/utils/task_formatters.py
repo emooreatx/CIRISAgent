@@ -2,10 +2,13 @@
 
 from typing import Dict, List, Optional
 
-def format_task_context(current_task: Dict[str, str],
-                         recent_actions: List[Dict[str, str]],
-                         completed_tasks: Optional[List[Dict[str, str]]] = None,
-                         max_actions: int = 5) -> str:
+
+def format_task_context(
+    current_task: Dict[str, str],
+    recent_actions: List[Dict[str, str]],
+    completed_tasks: Optional[List[Dict[str, str]]] = None,
+    max_actions: int = 5,
+) -> str:
     """Return a formatted summary block for LLM prompts.
 
     Parameters

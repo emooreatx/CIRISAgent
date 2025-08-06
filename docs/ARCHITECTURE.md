@@ -100,9 +100,9 @@ CIRIS has exactly **21 services** - no more, no less. Each service has a specifi
 These services manage different aspects of the graph memory system:
 
 #### 1. Memory Service
-**Purpose**: Core graph operations and memory storage  
-**Protocol**: `MemoryServiceProtocol`  
-**Bus**: `MemoryBus` (supports multiple backends)  
+**Purpose**: Core graph operations and memory storage
+**Protocol**: `MemoryServiceProtocol`
+**Bus**: `MemoryBus` (supports multiple backends)
 **Why**: Central to the "Graph Memory as Identity" architecture. All knowledge is stored as graph memories.
 
 ```python
@@ -115,33 +115,33 @@ await memory_bus.memorize(
 ```
 
 #### 2. Audit Service
-**Purpose**: Immutable audit trail with cryptographic signatures  
-**Protocol**: `AuditServiceProtocol`  
-**Access**: Direct injection  
+**Purpose**: Immutable audit trail with cryptographic signatures
+**Protocol**: `AuditServiceProtocol`
+**Access**: Direct injection
 **Why**: Compliance, debugging, and trust. Every action leaves a permanent trace.
 
 #### 3. Config Service
-**Purpose**: Dynamic configuration stored in graph  
-**Protocol**: `ConfigServiceProtocol`  
-**Access**: Direct injection  
+**Purpose**: Dynamic configuration stored in graph
+**Protocol**: `ConfigServiceProtocol`
+**Access**: Direct injection
 **Why**: Configuration as memory - configs can evolve and be versioned like any other knowledge.
 
 #### 4. Telemetry Service
-**Purpose**: Performance metrics and system health  
-**Protocol**: `TelemetryServiceProtocol`  
-**Access**: Direct injection  
+**Purpose**: Performance metrics and system health
+**Protocol**: `TelemetryServiceProtocol`
+**Access**: Direct injection
 **Why**: Observability without external dependencies. Works offline.
 
 #### 5. Incident Management Service
-**Purpose**: Track problems, incidents, and resolutions  
-**Protocol**: `IncidentServiceProtocol`  
-**Access**: Direct injection  
+**Purpose**: Track problems, incidents, and resolutions
+**Protocol**: `IncidentServiceProtocol`
+**Access**: Direct injection
 **Why**: Learn from failures. Every incident becomes institutional memory.
 
 #### 6. TSDB Consolidation Service
-**Purpose**: Consolidates telemetry into 6-hour summaries for permanent memory  
-**Protocol**: `TSDBConsolidationServiceProtocol`  
-**Access**: Direct injection  
+**Purpose**: Consolidates telemetry into 6-hour summaries for permanent memory
+**Protocol**: `TSDBConsolidationServiceProtocol`
+**Access**: Direct injection
 **Why**: Long-term memory (1000+ years). Raw data kept 24h, summaries forever.
 
 ### Runtime Services (3)
@@ -149,9 +149,9 @@ await memory_bus.memorize(
 Essential runtime services:
 
 #### 7. LLM Service
-**Purpose**: Interface to language models (OpenAI, Anthropic, Mock)  
-**Protocol**: `LLMServiceProtocol`  
-**Bus**: `LLMBus` (supports multiple providers and fallbacks)  
+**Purpose**: Interface to language models (OpenAI, Anthropic, Mock)
+**Protocol**: `LLMServiceProtocol`
+**Bus**: `LLMBus` (supports multiple providers and fallbacks)
 **Why**: Abstract LLM complexity. Support offline mode with mock LLM.
 
 ```python
@@ -164,15 +164,15 @@ response = await llm_bus.generate(
 ```
 
 #### 8. Runtime Control Service
-**Purpose**: Dynamic system control (pause/resume processor, adapter management)  
-**Protocol**: `RuntimeControlProtocol`  
-**Bus**: `RuntimeControlBus` (always present)  
+**Purpose**: Dynamic system control (pause/resume processor, adapter management)
+**Protocol**: `RuntimeControlProtocol`
+**Bus**: `RuntimeControlBus` (always present)
 **Why**: Remote management and debugging. Essential for production operations.
 
 #### 9. Task Scheduler Service
-**Purpose**: Cron-like task scheduling and agent self-directed activities  
-**Protocol**: `TaskSchedulerProtocol`  
-**Access**: Direct injection  
+**Purpose**: Cron-like task scheduling and agent self-directed activities
+**Protocol**: `TaskSchedulerProtocol`
+**Access**: Direct injection
 **Why**: Autonomous operation. Enables proactive agent behavior and maintenance.
 
 ### Infrastructure Services (7)
@@ -180,38 +180,38 @@ response = await llm_bus.generate(
 Foundation services that enable the system:
 
 #### 10. Time Service
-**Purpose**: Consistent time operations across the system  
-**Protocol**: `TimeServiceProtocol`  
-**Access**: Direct injection  
+**Purpose**: Consistent time operations across the system
+**Protocol**: `TimeServiceProtocol`
+**Access**: Direct injection
 **Why**: Testability and consistency. No direct `datetime.now()` calls.
 
 #### 11. Shutdown Service
-**Purpose**: Graceful shutdown coordination  
-**Protocol**: `ShutdownServiceProtocol`  
-**Access**: Direct injection  
+**Purpose**: Graceful shutdown coordination
+**Protocol**: `ShutdownServiceProtocol`
+**Access**: Direct injection
 **Why**: Data integrity. Ensure clean shutdown even in resource-constrained environments.
 
 #### 12. Initialization Service
-**Purpose**: Startup orchestration and dependency management  
-**Protocol**: `InitializationServiceProtocol`  
-**Access**: Direct injection  
+**Purpose**: Startup orchestration and dependency management
+**Protocol**: `InitializationServiceProtocol`
+**Access**: Direct injection
 **Why**: Complex initialization order. Services have interdependencies.
 
 #### 13. Authentication Service
-**Purpose**: System introspection and monitoring  
-**Protocol**: `VisibilityServiceProtocol`  
-**Access**: Direct injection  
+**Purpose**: System introspection and monitoring
+**Protocol**: `VisibilityServiceProtocol`
+**Access**: Direct injection
 **Why**: Understand system state without external tools. Critical for offline deployments.
 
-**Purpose**: Identity verification and access control  
-**Protocol**: `AuthServiceProtocol`  
-**Access**: Direct injection  
+**Purpose**: Identity verification and access control
+**Protocol**: `AuthServiceProtocol`
+**Access**: Direct injection
 **Why**: Multi-tenant support. Different users/organizations in same deployment.
 
 #### 14. Resource Monitor Service
-**Purpose**: Track CPU, memory, disk usage  
-**Protocol**: `ResourceMonitorProtocol`  
-**Access**: Direct injection  
+**Purpose**: Track CPU, memory, disk usage
+**Protocol**: `ResourceMonitorProtocol`
+**Access**: Direct injection
 **Why**: Prevent resource exhaustion in constrained environments (4GB RAM target).
 
 #### 15. Database Maintenance Service
@@ -221,9 +221,9 @@ Foundation services that enable the system:
 **Why**: Critical for 1000-year operation in resource-constrained environments.
 
 #### 16. Secrets Service
-**Purpose**: Cryptographic secret management and encryption  
-**Protocol**: `SecretsServiceProtocol`  
-**Access**: Direct injection  
+**Purpose**: Cryptographic secret management and encryption
+**Protocol**: `SecretsServiceProtocol`
+**Access**: Direct injection
 **Why**: Central security boundary. All secrets encrypted with AES-256-GCM.
 
 ### Governance Services (4)
@@ -231,27 +231,27 @@ Foundation services that enable the system:
 Ethical and operational governance:
 
 #### 17. Wise Authority Service
-**Purpose**: Ethical decision making and guidance  
-**Protocol**: `WiseAuthorityProtocol`  
-**Bus**: `WiseBus` (supports distributed wisdom)  
+**Purpose**: Ethical decision making and guidance
+**Protocol**: `WiseAuthorityProtocol`
+**Bus**: `WiseBus` (supports distributed wisdom)
 **Why**: Ubuntu philosophy. Decisions consider community impact.
 
 #### 18. Adaptive Filter Service
-**Purpose**: Intelligent message prioritization and spam detection  
-**Protocol**: `AdaptiveFilterProtocol`  
-**Access**: Direct injection  
+**Purpose**: Intelligent message prioritization and spam detection
+**Protocol**: `AdaptiveFilterProtocol`
+**Access**: Direct injection
 **Why**: Manages attention economy. Learns what deserves immediate response vs. deferral. Tracks user trust levels.
 
 #### 19. Visibility Service
-**Purpose**: Reasoning transparency - the "why" behind decisions (TRACES)  
-**Protocol**: `VisibilityServiceProtocol`  
-**Access**: Direct injection  
+**Purpose**: Reasoning transparency - the "why" behind decisions (TRACES)
+**Protocol**: `VisibilityServiceProtocol`
+**Access**: Direct injection
 **Why**: Trust through transparency. Explains decision chains, not system metrics.
 
 #### 20. Self Observation Service
-**Purpose**: Behavioral analysis and pattern detection that generates insights  
-**Protocol**: `SelfObservationProtocol`  
-**Access**: Direct injection  
+**Purpose**: Behavioral analysis and pattern detection that generates insights
+**Protocol**: `SelfObservationProtocol`
+**Access**: Direct injection
 **Why**: Continuous learning. Detects patterns, generates insights the agent can act on. Monitors identity variance and triggers WA review if threshold exceeded.
 
 ### Tool Services (1)
@@ -277,8 +277,8 @@ Buses provide:
 ### The 6 Buses
 
 #### 1. MemoryBus
-**Providers**: Neo4j, ArangoDB, In-Memory, SQLite (future)  
-**Purpose**: Abstract graph backend differences  
+**Providers**: Neo4j, ArangoDB, In-Memory, SQLite (future)
+**Purpose**: Abstract graph backend differences
 **Example**:
 ```python
 # Works with any graph backend
@@ -292,8 +292,8 @@ result = await memory_bus.search(
 ```
 
 #### 2. LLMBus
-**Providers**: OpenAI, Anthropic, Llama, Mock  
-**Purpose**: Model abstraction and fallback  
+**Providers**: OpenAI, Anthropic, Llama, Mock
+**Purpose**: Model abstraction and fallback
 **Example**:
 ```python
 # Automatic provider selection based on availability
@@ -304,18 +304,18 @@ response = await llm_bus.generate(
 ```
 
 #### 3. ToolBus
-**Providers**: Adapter-specific tools + core secrets tools  
-**Purpose**: Dynamic tool discovery and execution  
+**Providers**: Adapter-specific tools + core secrets tools
+**Purpose**: Dynamic tool discovery and execution
 **Note**: Core secrets tool service always present, adapters add more
 
 #### 4. CommunicationBus
-**Providers**: Discord, API, CLI adapters  
-**Purpose**: Unified communication interface  
+**Providers**: Discord, API, CLI adapters
+**Purpose**: Unified communication interface
 **Note**: No standalone service - adapters provide communication
 
 #### 5. WiseBus
-**Providers**: Local WA, Distributed WAs, Consensus  
-**Purpose**: Ethical guidance with fallback  
+**Providers**: Local WA, Distributed WAs, Consensus
+**Purpose**: Ethical guidance with fallback
 **Example**:
 ```python
 # Get wisdom from available sources
@@ -326,8 +326,8 @@ guidance = await wise_bus.seek_wisdom(
 ```
 
 #### 6. RuntimeControlBus
-**Providers**: Core runtime control + optional adapter additions  
-**Purpose**: System management interface  
+**Providers**: Core runtime control + optional adapter additions
+**Purpose**: System management interface
 **Note**: Core service always present, adapters may add additional providers
 
 ### Bus vs Direct Access Rules
@@ -357,16 +357,16 @@ class ConfigNode(TypedGraphNode):
     """Configuration stored as graph memory."""
     key: str = Field(..., description="Config key")
     value: ConfigValue = Field(..., description="Typed config value")
-    
+
     # Required fields
     created_at: datetime
     updated_at: datetime
     created_by: str
-    
+
     def to_graph_node(self) -> GraphNode:
         """Convert to generic GraphNode for storage."""
         # Implementation
-    
+
     @classmethod
     def from_graph_node(cls, node: GraphNode) -> "ConfigNode":
         """Reconstruct from generic GraphNode."""
@@ -424,7 +424,7 @@ class MemoryService(ServiceProtocol):
         """Async startup allows concurrent initialization."""
         await self._init_graph_connection()
         await self._load_initial_memories()
-    
+
     async def memorize(self, params: MemorizeParams) -> MemorizeResult:
         """Non-blocking memory storage."""
         async with self._graph_lock:
@@ -442,7 +442,7 @@ class GraphConnection:
     async def __aenter__(self):
         await self.connect()
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.disconnect()
 
@@ -479,7 +479,7 @@ asyncio.create_task(audit_service.log_event(event))
 ```python
 try:
     result = await asyncio.wait_for(
-        llm_bus.generate(prompt), 
+        llm_bus.generate(prompt),
         timeout=30.0
     )
 except asyncio.TimeoutError:
@@ -586,7 +586,7 @@ class DatabaseManager:
         # One connection per thread
         self._thread_local = threading.local()
         self._write_lock = asyncio.Lock()
-    
+
     def get_connection(self):
         if not hasattr(self._thread_local, 'conn'):
             self._thread_local.conn = sqlite3.connect(
@@ -595,7 +595,7 @@ class DatabaseManager:
                 isolation_level='IMMEDIATE'
             )
         return self._thread_local.conn
-    
+
     async def write_operation(self, query, params):
         async with self._write_lock:
             conn = self.get_connection()
@@ -632,7 +632,7 @@ CIRIS follows a strict initialization order to manage dependencies:
 2. DATABASE
    └── SQLite initialization with migrations
 
-3. MEMORY FOUNDATION  
+3. MEMORY FOUNDATION
    ├── SecretsService (memory needs auth)
    └── MemoryService (core graph operations)
 
@@ -683,15 +683,15 @@ CIRIS follows a strict initialization order to manage dependencies:
 CIRIS operates in 6 distinct cognitive states:
 
 ### 1. WAKEUP
-**Purpose**: Identity confirmation and system check  
-**Activities**: 
+**Purpose**: Identity confirmation and system check
+**Activities**:
 - Confirm "I am CIRIS"
 - Load identity from database
 - Verify all services healthy
 - Establish purpose
 
 ### 2. WORK
-**Purpose**: Normal task processing  
+**Purpose**: Normal task processing
 **Activities**:
 - Handle user requests
 - Execute tools
@@ -699,7 +699,7 @@ CIRIS operates in 6 distinct cognitive states:
 - Maintain conversation context
 
 ### 3. PLAY
-**Purpose**: Creative exploration  
+**Purpose**: Creative exploration
 **Activities**:
 - Experiment with new patterns
 - Generate creative content
@@ -707,7 +707,7 @@ CIRIS operates in 6 distinct cognitive states:
 - Lower filtering constraints
 
 ### 4. SOLITUDE
-**Purpose**: Reflection and maintenance  
+**Purpose**: Reflection and maintenance
 **Activities**:
 - Consolidate memories
 - Run maintenance tasks
@@ -715,7 +715,7 @@ CIRIS operates in 6 distinct cognitive states:
 - Process accumulated insights
 
 ### 5. DREAM
-**Purpose**: Deep introspection  
+**Purpose**: Deep introspection
 **Activities**:
 - Analyze behavior patterns
 - Generate new connections
@@ -723,7 +723,7 @@ CIRIS operates in 6 distinct cognitive states:
 - Simulate scenarios
 
 ### 6. SHUTDOWN
-**Purpose**: Graceful termination  
+**Purpose**: Graceful termination
 **Activities**:
 - Save critical state
 - Close connections cleanly
@@ -801,7 +801,7 @@ CIRIS is designed to operate for 1000 years through:
 
 ### 1. Self-Contained Operation
 - No external dependencies for core function
-- Offline-first architecture  
+- Offline-first architecture
 - Local data persistence
 - Embedded documentation
 
@@ -842,7 +842,7 @@ config = {
     },
     "priorities": [
         "patient_safety",
-        "data_sovereignty", 
+        "data_sovereignty",
         "cultural_sensitivity"
     ],
     "language": "swahili",

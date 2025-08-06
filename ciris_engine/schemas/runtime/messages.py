@@ -3,11 +3,15 @@ Message schemas for CIRIS Trinity Architecture.
 
 Typed message structures for all communication types.
 """
-from typing import Optional, Any
-from pydantic import BaseModel, Field, ConfigDict
+
+from typing import Any, Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class IncomingMessage(BaseModel):
     """Schema for incoming messages from various sources."""
+
     message_id: str = Field(..., description="Unique message identifier")
     author_id: str = Field(..., description="Message author ID")
     author_name: str = Field(..., description="Message author name")
@@ -23,8 +27,10 @@ class IncomingMessage(BaseModel):
         """Backward compatibility alias for destination_id."""
         return self.destination_id
 
+
 class DiscordMessage(IncomingMessage):
     """Incoming message specific to the Discord platform."""
+
     is_bot: bool = Field(default=False, description="Whether author is a bot")
     is_dm: bool = Field(default=False, description="Whether this is a DM")
     raw_message: Optional[Any] = Field(default=None, exclude=True)  # Discord.py message object
@@ -34,8 +40,10 @@ class DiscordMessage(IncomingMessage):
             data["destination_id"] = data.get("channel_id")
         super().__init__(**data)
 
+
 class FetchedMessage(BaseModel):
     """Message returned by CommunicationService.fetch_messages."""
+
     message_id: Optional[str] = Field(default=None, alias="id")
     content: Optional[str] = None
     author_id: Optional[str] = None
@@ -44,6 +52,7 @@ class FetchedMessage(BaseModel):
     is_bot: Optional[bool] = False
 
     model_config = ConfigDict(populate_by_name=True, extra="allow")
+
 
 __all__ = [
     "IncomingMessage",

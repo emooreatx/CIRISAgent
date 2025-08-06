@@ -2,6 +2,7 @@ from typing import Optional
 
 from ciris_engine.logic import persistence
 
+
 async def extract_user_nick(
     *,
     message: Optional[object] = None,
@@ -43,10 +44,12 @@ async def extract_user_nick(
                 parent_task = persistence.get_task_by_id(current_thought.source_task_id)
                 if parent_task and parent_task.context:
                     # Check if context has get method (dict-like) or use getattr for objects
-                    if hasattr(parent_task.context, 'get'):
+                    if hasattr(parent_task.context, "get"):
                         nick = parent_task.context.get("author_name") or parent_task.context.get("user_id")
                     else:
-                        nick = getattr(parent_task.context, "author_name", None) or getattr(parent_task.context, "user_id", None)
+                        nick = getattr(parent_task.context, "author_name", None) or getattr(
+                            parent_task.context, "user_id", None
+                        )
                     if nick:
                         return str(nick)
         except Exception:

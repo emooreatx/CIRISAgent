@@ -5,24 +5,28 @@ Provides unified registration and discovery for services, adapters, and tools
 with priority-based fallbacks and circuit breaker patterns for resilience.
 """
 
-from typing import Dict, List, Optional, Protocol, Union, Any, cast
+import asyncio
+import logging
 from dataclasses import dataclass, field
 from enum import Enum
-import logging
-import asyncio
+from typing import Any, Dict, List, Optional, Protocol, Union, cast
+
+from ciris_engine.schemas.runtime.enums import ServiceType
 
 from .circuit_breaker import CircuitBreaker, CircuitBreakerConfig
-from ciris_engine.schemas.runtime.enums import ServiceType
 
 logger = logging.getLogger(__name__)
 
+
 class Priority(Enum):
     """Service priority levels for fallback ordering"""
+
     CRITICAL = 0
     HIGH = 1
     NORMAL = 2
     LOW = 3
     FALLBACK = 9
+
 
 class SelectionStrategy(Enum):
     """Provider selection strategy within a priority group."""
@@ -30,9 +34,11 @@ class SelectionStrategy(Enum):
     FALLBACK = "fallback"  # First available
     ROUND_ROBIN = "round_robin"  # Rotate providers
 
+
 @dataclass
 class ServiceProvider:
     """Represents a registered service provider with metadata"""
+
     name: str
     priority: Priority
     instance: Any
@@ -42,11 +48,14 @@ class ServiceProvider:
     priority_group: int = 0
     strategy: SelectionStrategy = SelectionStrategy.FALLBACK
 
+
 class HealthCheckProtocol(Protocol):
     """Protocol for services that support health checking"""
+
     async def is_healthy(self) -> bool:
         """Check if the service is healthy and ready to handle requests"""
         ...
+
 
 class ServiceRegistry:
     """
@@ -98,15 +107,17 @@ class ServiceRegistry:
             self._services[service_type] = []
 
         provider_name = f"{provider.__class__.__name__}_{id(provider)}"
-        
+
         # CRITICAL SAFETY CHECK: Prevent mixing mock and real LLM services
         if service_type == ServiceType.LLM:
             existing_providers = self._services[service_type]
             is_mock = "Mock" in provider.__class__.__name__ or (metadata and metadata.get("provider") == "mock")
-            
+
             for existing in existing_providers:
-                existing_is_mock = "Mock" in existing.name or (existing.metadata and existing.metadata.get("provider") == "mock")
-                
+                existing_is_mock = "Mock" in existing.name or (
+                    existing.metadata and existing.metadata.get("provider") == "mock"
+                )
+
                 if is_mock != existing_is_mock:
                     error_msg = (
                         f"SECURITY VIOLATION: Attempting to register {'mock' if is_mock else 'real'} "
@@ -134,18 +145,17 @@ class ServiceRegistry:
         self._services[service_type].append(sp)
         self._services[service_type].sort(key=lambda x: x.priority.value)
 
-        logger.info(f"Registered {service_type} service '{provider_name}' "
-                   f"with priority {priority.name} and capabilities {capabilities}")
+        logger.info(
+            f"Registered {service_type} service '{provider_name}' "
+            f"with priority {priority.name} and capabilities {capabilities}"
+        )
 
         return provider_name
 
     # register_global removed - all services are global now, use register_service()
 
     async def get_service(
-        self,
-        handler: str,
-        service_type: ServiceType,
-        required_capabilities: Optional[List[str]] = None
+        self, handler: str, service_type: ServiceType, required_capabilities: Optional[List[str]] = None
     ) -> Optional[Any]:
         """
         Get the best available service.
@@ -158,37 +168,35 @@ class ServiceRegistry:
         Returns:
             Service instance or None if no suitable service available
         """
-        logger.debug(f"ServiceRegistry.get_service: service_type='{service_type}' "
-                    f"({service_type.value if hasattr(service_type, 'value') else service_type}), "
-                    f"capabilities={required_capabilities}")
+        logger.debug(
+            f"ServiceRegistry.get_service: service_type='{service_type}' "
+            f"({service_type.value if hasattr(service_type, 'value') else service_type}), "
+            f"capabilities={required_capabilities}"
+        )
 
         # All services are global now
         # Debug: log all keys in _services
         logger.debug(f"ServiceRegistry._services keys: {list(self._services.keys())}")
         providers = self._services.get(service_type, [])
-        logger.debug(f"ServiceRegistry: Looking for {service_type} (type: {type(service_type)}), found {len(providers)} providers")
-        
+        logger.debug(
+            f"ServiceRegistry: Looking for {service_type} (type: {type(service_type)}), found {len(providers)} providers"
+        )
+
         if service_type in self._services:
             for provider in self._services[service_type]:
                 logger.debug(f"  - Provider: {provider.name}, capabilities: {provider.capabilities}")
 
-        service = await self._get_service_from_providers(
-            providers,
-            required_capabilities
-        )
+        service = await self._get_service_from_providers(providers, required_capabilities)
 
         if service is not None:
             logger.debug(f"Using {service_type} service: {type(service).__name__}")
             return service
 
-        logger.warning(f"No available {service_type.value} service found "
-                      f"with capabilities {required_capabilities}")
+        logger.warning(f"No available {service_type.value} service found " f"with capabilities {required_capabilities}")
         return None
 
     async def _get_service_from_providers(
-        self,
-        providers: List[ServiceProvider],
-        required_capabilities: Optional[List[str]] = None
+        self, providers: List[ServiceProvider], required_capabilities: Optional[List[str]] = None
     ) -> Optional[Any]:
         """Get service from a list of providers with health checking and priority groups."""
 
@@ -228,7 +236,9 @@ class ServiceRegistry:
     ) -> Optional[Any]:
         """Validate provider availability and return instance if usable."""
         if required_capabilities:
-            logger.debug(f"Checking provider '{provider.name}' - has capabilities: {provider.capabilities}, needs: {required_capabilities}")
+            logger.debug(
+                f"Checking provider '{provider.name}' - has capabilities: {provider.capabilities}, needs: {required_capabilities}"
+            )
             if not all(cap in provider.capabilities for cap in required_capabilities):
                 logger.debug(
                     f"Provider '{provider.name}' missing capabilities: "
@@ -242,7 +252,7 @@ class ServiceRegistry:
 
         try:
             # Skip health checks during shutdown to prevent false failures
-            if hasattr(self, '_shutdown_mode') and self._shutdown_mode:
+            if hasattr(self, "_shutdown_mode") and self._shutdown_mode:
                 logger.debug(f"Skipping health check for '{provider.name}' during shutdown")
             elif hasattr(provider.instance, "is_healthy"):
                 try:
@@ -260,9 +270,7 @@ class ServiceRegistry:
 
             if provider.circuit_breaker:
                 provider.circuit_breaker.record_success()
-            logger.debug(
-                f"Selected provider '{provider.name}' with priority {provider.priority.name}"
-            )
+            logger.debug(f"Selected provider '{provider.name}' with priority {provider.priority.name}")
             return provider.instance
 
         except Exception as e:  # noqa: BLE001
@@ -282,10 +290,7 @@ class ServiceRegistry:
         Returns:
             Dictionary containing provider information
         """
-        info: dict[str, Any] = {
-            "services": {},
-            "circuit_breaker_stats": {}
-        }
+        info: dict[str, Any] = {"services": {}, "circuit_breaker_stats": {}}
 
         # All services are global now
         for st, providers in self._services.items():
@@ -299,7 +304,7 @@ class ServiceRegistry:
                     "strategy": p.strategy.value,
                     "capabilities": p.capabilities,
                     "metadata": p.metadata,
-                    "circuit_breaker_state": p.circuit_breaker.state.value if p.circuit_breaker else None
+                    "circuit_breaker_state": p.circuit_breaker.state.value if p.circuit_breaker else None,
                 }
                 for p in providers
             ]
@@ -326,7 +331,7 @@ class ServiceRegistry:
                 if provider.name == provider_name:
                     providers.pop(i)
                     logger.info(f"Unregistered {service_type} provider '{provider_name}'")
-                    
+
                     # Remove circuit breaker
                     if provider_name in self._circuit_breakers:
                         del self._circuit_breakers[provider_name]
@@ -379,17 +384,17 @@ class ServiceRegistry:
         """Get all registered services across all types."""
         all_services = []
         seen = set()  # Track service IDs to avoid duplicates
-        
+
         for service_type, providers in self._services.items():
             for provider in providers:
                 service_id = id(provider.instance)
                 if service_id not in seen:
                     seen.add(service_id)
                     all_services.append(provider.instance)
-        
+
         logger.debug(f"Found {len(all_services)} total registered services")
         return all_services
-    
+
     def clear_all(self) -> None:
         """Clear all registered services and circuit breakers"""
         self._services.clear()
@@ -434,7 +439,9 @@ class ServiceRegistry:
         """Check if any provider exists for the given service type."""
         return bool(self._services.get(service_type))
 
+
 _global_registry: Optional[ServiceRegistry] = None
+
 
 def get_global_registry() -> ServiceRegistry:
     """Get or create the global service registry instance"""

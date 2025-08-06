@@ -24,7 +24,7 @@ function ManagerCallbackContent() {
         // Store manager token
         localStorage.setItem("manager_token", token);
         setManagerToken(token);
-        
+
         // Redirect to manager page
         router.push("/manager");
       } else {
