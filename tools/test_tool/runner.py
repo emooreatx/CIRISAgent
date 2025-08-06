@@ -144,7 +144,17 @@ class TestRunner:
         if self.is_running():
             print("Status: 🟢 Running")
         else:
-            print("Status: 🔴 Completed")
+            # Parse log file to determine success/failure
+            if output_file.exists():
+                parser = LogParser(output_file)
+                results = parser.parse_test_results()
+                failed = len([r for r in results if r.status in ("FAILED", "ERROR")])
+                if failed > 0:
+                    print("Status: 🔴 Completed - FAILED")
+                else:
+                    print("Status: ✅ Completed - SUCCESS")
+            else:
+                print("Status: ⚠️ Completed - UNKNOWN")
 
         # Parse log file for test counts
         if output_file.exists():

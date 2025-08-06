@@ -7,7 +7,6 @@ os.environ["CIRIS_MOCK_LLM"] = "true"
 from unittest.mock import MagicMock
 
 import main as main_module
-from ciris_engine.logic.runtime.ciris_runtime import CIRISRuntime
 
 
 def test_main_function_existence():
@@ -26,17 +25,22 @@ def test_helper_functions_exist():
 
 def test_ciris_runtime_initialization(monkeypatch):
     """Test that CIRISRuntime can be initialized with different adapter types."""
-    mock_runtime = MagicMock()
-    monkeypatch.setattr("ciris_engine.logic.runtime.ciris_runtime.CIRISRuntime", MagicMock(return_value=mock_runtime))
+    mock_runtime_class = MagicMock()
+    mock_runtime_instance = MagicMock()
+    mock_runtime_class.return_value = mock_runtime_instance
+    monkeypatch.setattr("main.CIRISRuntime", mock_runtime_class)
 
     # Test Discord adapter type
-    CIRISRuntime(adapter_types=["discord"], profile_name="test")
+    main_module.CIRISRuntime(adapter_types=["discord"])
 
     # Test CLI adapter type
-    CIRISRuntime(adapter_types=["cli"], profile_name="test")
+    main_module.CIRISRuntime(adapter_types=["cli"])
 
     # Test API adapter type
-    CIRISRuntime(adapter_types=["api"], profile_name="test")
+    main_module.CIRISRuntime(adapter_types=["api"])
 
-    # Verify CIRISRuntime was called 3 times
-    assert CIRISRuntime.call_count == 3  # type: ignore[attr-defined]
+    # Verify CIRISRuntime was called 3 times with correct arguments
+    assert mock_runtime_class.call_count == 3
+    mock_runtime_class.assert_any_call(adapter_types=["discord"])
+    mock_runtime_class.assert_any_call(adapter_types=["cli"])
+    mock_runtime_class.assert_any_call(adapter_types=["api"])

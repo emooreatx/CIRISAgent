@@ -156,10 +156,10 @@ def setup_handler_mocks(
     mock_persistence.add_correlation = Mock()
     mock_persistence.get_task_by_id = Mock(return_value=Mock(task_id="test_task", description="Test task"))
 
-    # Patch persistence in all handler modules AND base handler
+    # Patch persistence in handler modules that import it AND base handler
     monkeypatch.setattr("ciris_engine.logic.handlers.memory.memorize_handler.persistence", mock_persistence)
     monkeypatch.setattr("ciris_engine.logic.handlers.memory.recall_handler.persistence", mock_persistence)
-    monkeypatch.setattr("ciris_engine.logic.handlers.memory.forget_handler.persistence", mock_persistence)
+    # Note: forget_handler doesn't import persistence directly
     monkeypatch.setattr("ciris_engine.logic.infrastructure.handlers.base_handler.persistence", mock_persistence)
 
     # Setup services
