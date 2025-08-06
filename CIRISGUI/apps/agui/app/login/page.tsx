@@ -64,7 +64,16 @@ export default function LoginPage() {
         console.log('CIRISManager not available, trying standalone mode');
       }
 
-      // CIRISManager not available - try standalone mode
+      // CIRISManager not available - check if we're in managed mode
+        if (window.location.hostname === 'agents.ciris.ai') {
+          // We're in managed mode but CIRISManager is unavailable
+          setError(new Error('CIRISManager unavailable - no agents can be accessed'));
+          setAgents([]);
+          setLoadingAgents(false);
+          return; // Exit early
+        }
+
+        // Otherwise try standalone mode
         // In standalone mode, fetch real agent identity from API
         try {
           // Configure SDK for standalone mode
