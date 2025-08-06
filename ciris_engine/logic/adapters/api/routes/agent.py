@@ -57,6 +57,11 @@ class AgentStatus(BaseModel):
     # Core identity
     agent_id: str = Field(..., description="Agent identifier")
     name: str = Field(..., description="Agent name")
+    
+    # Version information
+    version: str = Field(..., description="CIRIS version (e.g., 1.0.4-beta)")
+    codename: str = Field(..., description="Release codename")
+    code_hash: Optional[str] = Field(None, description="Code hash for exact version")
 
     # State information
     cognitive_state: str = Field(..., description=DESC_CURRENT_COGNITIVE_STATE)
@@ -523,10 +528,20 @@ async def get_status(
             elif hasattr(runtime.agent_identity, 'core_profile'):
                 # Use first part of description or role as name
                 agent_name = runtime.agent_identity.core_profile.description.split('.')[0]
+        
+        # Get version information
+        from ciris_engine.constants import CIRIS_VERSION, CIRIS_CODENAME
+        try:
+            from version import __version__ as code_hash
+        except ImportError:
+            code_hash = None
 
         status = AgentStatus(
             agent_id=agent_id,
             name=agent_name,
+            version=CIRIS_VERSION,
+            codename=CIRIS_CODENAME,
+            code_hash=code_hash,
             cognitive_state=cognitive_state,
             uptime_seconds=uptime,
             messages_processed=messages_processed,

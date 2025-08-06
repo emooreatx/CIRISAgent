@@ -82,6 +82,20 @@ class SystemSnapshot(BaseModel):
         default_factory=list,
         description="List of agent restrictions from identity"
     )
+    
+    # Version information
+    agent_version: Optional[str] = Field(
+        None,
+        description="CIRIS agent version (e.g., 1.0.4-beta)"
+    )
+    agent_codename: Optional[str] = Field(
+        None,
+        description="Release codename (e.g., Graceful Guardian)"
+    )
+    agent_code_hash: Optional[str] = Field(
+        None,
+        description="Code hash for exact version identification"
+    )
 
     # Security context (from secrets service)
     detected_secrets: List[Any] = Field(

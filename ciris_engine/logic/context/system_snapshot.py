@@ -413,6 +413,13 @@ async def build_system_snapshot(
     # Get queue status using centralized function
     queue_status = persistence.get_queue_status()
     
+    # Get version information
+    from ciris_engine.constants import CIRIS_VERSION, CIRIS_CODENAME
+    try:
+        from version import __version__ as code_hash
+    except ImportError:
+        code_hash = None
+    
     context_data = {
         "current_task_details": current_task_summary,
         "current_thought_summary": thought_summary,
@@ -431,6 +438,10 @@ async def build_system_snapshot(
         "identity_purpose": identity_purpose,
         "identity_capabilities": identity_capabilities,
         "identity_restrictions": identity_restrictions,
+        # Version information
+        "agent_version": CIRIS_VERSION,
+        "agent_codename": CIRIS_CODENAME,
+        "agent_code_hash": code_hash,
         "shutdown_context": shutdown_context,
         "service_health": service_health,
         "circuit_breaker_status": circuit_breaker_status,
