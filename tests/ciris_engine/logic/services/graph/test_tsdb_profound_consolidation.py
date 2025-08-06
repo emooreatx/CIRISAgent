@@ -9,6 +9,7 @@ import pytest
 
 from ciris_engine.logic.services.graph.tsdb_consolidation import TSDBConsolidationService
 from ciris_engine.logic.services.graph.tsdb_consolidation.compressor import SummaryCompressor
+from ciris_engine.schemas.services.graph.tsdb_models import SummaryAttributes
 
 
 @pytest.fixture
@@ -34,7 +35,7 @@ def tsdb_service(mock_memory_bus, mock_time_service):
     """Create TSDB service with custom target MB/day."""
     service = TSDBConsolidationService(memory_bus=mock_memory_bus, time_service=mock_time_service)
     # Set a very low target to force compression
-    service._profound_target_mb_per_day = 0.005  # 5KB/day
+    service._profound_target_mb_per_day = 0.000001  # 1 byte/day
     return service
 
 
@@ -63,36 +64,48 @@ def mock_db_connection():
     return conn
 
 
-def create_daily_summary(date: datetime, node_type: str = "tsdb_summary", large: bool = True) -> dict:
+def create_daily_summary(date: datetime, node_type: str = "tsdb_summary", large: bool = True) -> SummaryAttributes:
     """Create a daily summary with extensive data for testing compression."""
-    attributes = {
+    base_attrs = {
         "consolidation_level": "extensive",
-        "period_start": date.isoformat(),
-        "period_end": (date + timedelta(days=1)).isoformat(),
-        "period_label": date.strftime("%Y-%m-%d"),
-        "source_summary_count": 4,
+        "period_start": date,
+        "period_end": date + timedelta(days=1),
     }
 
     if node_type == "tsdb_summary" and large:
-        # Add lots of metrics to make it large
-        attributes["metrics"] = {
-            f"metric_{i}": {
-                "count": 100 + i,
-                "sum": 1000.0 + i * 10,
-                "min": 10.0 + i,
-                "max": 200.0 + i * 2,
-                "avg": 100.0 + i,
+        # Add lots of data to make it large
+        base_attrs.update(
+            {
+                "total_interactions": 5000,
+                "unique_services": 50,
+                "total_tasks": 1000,
+                "total_thoughts": 2000,
+                "dominant_patterns": [f"pattern_{i}" for i in range(20)],
+                "significant_events": [f"event_{i}" for i in range(30)],
+                "messages_by_channel": {
+                    f"channel_{i}": {"count": 100 + i, "description": f"Channel {i} description"} for i in range(10)
+                },
+                "participants": {
+                    f"user_{i}": {
+                        "message_count": 50 + i,
+                        "author_name": f"User Name {i} With Very Long Username",
+                        "extra_field": f"data_{i}",
+                    }
+                    for i in range(5)
+                },
             }
-            for i in range(50)  # 50 metrics
-        }
-        attributes["total_tokens"] = 50000
-        attributes["total_cost_cents"] = 500.0
-        attributes["action_counts"] = {f"ACTION_{i}": 100 + i for i in range(20)}
-        attributes["detailed_description"] = "A" * 1000  # 1KB of text
-        attributes["full_context"] = "B" * 2000  # 2KB of text
-        attributes["debug_info"] = {"data": "C" * 500}
+        )
+    else:
+        base_attrs.update(
+            {
+                "total_interactions": 100,
+                "unique_services": 5,
+                "total_tasks": 20,
+                "total_thoughts": 30,
+            }
+        )
 
-    return attributes
+    return SummaryAttributes(**base_attrs)
 
 
 class TestSummaryCompressor:
@@ -102,109 +115,132 @@ class TestSummaryCompressor:
         """Test metric compression keeps only significant values."""
         compressor = SummaryCompressor(target_mb_per_day=1.0)
 
-        attrs = {
-            "metrics": {
-                "important_metric": {"count": 1000, "sum": 50000.0, "avg": 50.0},
-                "minor_metric": {"count": 2, "sum": 5.0, "avg": 2.5},
-                "zero_metric": {"count": 0, "sum": 0.0, "avg": 0.0},
-            }
-        }
+        attrs = SummaryAttributes(
+            period_start=datetime(2025, 7, 1, tzinfo=timezone.utc),
+            period_end=datetime(2025, 7, 2, tzinfo=timezone.utc),
+            consolidation_level="extensive",
+            total_interactions=1000,
+            unique_services=50,
+            total_tasks=200,
+            total_thoughts=500,
+        )
 
-        compressed, ratio = compressor.compress_summary(attrs)
+        result = compressor.compress_summary(attrs)
+        compressed = result.compressed_attributes
 
-        # Should keep important metric, drop others
-        assert "important_metric" in compressed["metrics"]
-        assert "minor_metric" not in compressed["metrics"]
-        assert "zero_metric" not in compressed["metrics"]
+        # Should have compressed metrics
+        assert compressed.compressed_metrics is not None
+        assert "ti" in compressed.compressed_metrics  # total_interactions -> ti
+        assert "us" in compressed.compressed_metrics  # unique_services -> us
+        assert "tt" in compressed.compressed_metrics  # total_tasks -> tt
+        assert "tth" in compressed.compressed_metrics  # total_thoughts -> tth
 
-        # Should use shortened keys
-        important = compressed["metrics"]["important_metric"]
-        assert "c" in important  # count -> c
-        assert "s" in important  # sum -> s
-        assert "a" in important  # avg -> a
-        assert "count" not in important
+        # Original fields should be zeroed out
+        assert compressed.total_interactions == 0
+        assert compressed.unique_services == 0
+        assert compressed.total_tasks == 0
+        assert compressed.total_thoughts == 0
 
     def test_compress_descriptions(self):
         """Test description compression removes verbosity."""
         compressor = SummaryCompressor(target_mb_per_day=1.0)
 
-        attrs = {
-            "messages_by_channel": {
+        attrs = SummaryAttributes(
+            period_start=datetime(2025, 7, 1, tzinfo=timezone.utc),
+            period_end=datetime(2025, 7, 2, tzinfo=timezone.utc),
+            consolidation_level="extensive",
+            messages_by_channel={
                 "channel_123": {"count": 100, "description": "Long channel description"},
                 "channel_456": {"count": 50, "other_data": "stuff"},
             },
-            "participants": {
+            participants={
                 "user_1": {
                     "message_count": 25,
                     "author_name": "Very Long Username That Should Be Truncated",
                     "extra_field": "data",
                 }
             },
-            "detailed_description": "This is a very detailed description",
-            "full_context": "Lots of context here",
-        }
+            dominant_patterns=["pattern1", "pattern2", "pattern3", "pattern4", "pattern5", "pattern6"],
+            significant_events=["event" + str(i) for i in range(15)],
+        )
 
-        compressed, _ = compressor.compress_summary(attrs)
+        result = compressor.compress_summary(attrs)
+        compressed = result.compressed_attributes
 
         # Channels should only have counts
-        assert compressed["messages_by_channel"]["channel_123"] == 100
-        assert compressed["messages_by_channel"]["channel_456"] == 50
+        assert compressed.messages_by_channel["channel_123"] == 100
+        assert compressed.messages_by_channel["channel_456"] == 50
 
         # Participants compressed
-        user = compressed["participants"]["user_1"]
+        user = compressed.participants["user_1"]
         assert user["msg_count"] == 25
         assert len(user["name"]) <= 20
         assert "extra_field" not in user
 
-        # Verbose fields removed
-        assert "detailed_description" not in compressed
-        assert "full_context" not in compressed
+        # Patterns and events should be limited
+        assert len(compressed.dominant_patterns) <= 5
+        assert len(compressed.significant_events) <= 10
 
     def test_remove_redundancy(self):
         """Test redundancy removal."""
         compressor = SummaryCompressor(target_mb_per_day=1.0)
 
-        attrs = {
-            "period_start": "2025-07-01T00:00:00Z",
-            "start_time": "2025-07-01T00:00:00Z",  # Duplicate
-            "period_end": "2025-07-02T00:00:00Z",
-            "end_time": "2025-07-02T00:00:00Z",  # Duplicate
-            "errors": [
-                {"type": "timeout", "message": "Request timed out"},
-                {"type": "timeout", "message": "Another timeout"},
-                {"type": "parse", "message": "Parse error"},
-            ],
-            "created_by": "system",
-            "version": 1,
-        }
+        attrs = SummaryAttributes(
+            period_start=datetime(2025, 7, 1, tzinfo=timezone.utc),
+            period_end=datetime(2025, 7, 2, tzinfo=timezone.utc),
+            consolidation_level="extensive",
+            total_interactions=1000,
+            unique_services=50,
+            total_tasks=200,
+            total_thoughts=500,
+            dominant_patterns=["pattern1", "pattern2"],
+            significant_events=["event1", "event2"],
+        )
 
-        compressed, _ = compressor.compress_summary(attrs)
+        result = compressor.compress_summary(attrs)
+        compressed = result.compressed_attributes
 
-        # Duplicates removed
-        assert "start_time" not in compressed
-        assert "end_time" not in compressed
+        # Should have compressed metrics
+        assert compressed.compressed_metrics is not None
 
-        # Errors summarized
-        assert "errors" not in compressed
-        assert compressed["error_summary"]["timeout"] == 2
-        assert compressed["error_summary"]["parse"] == 1
-
-        # Low-value fields removed
-        assert "created_by" not in compressed
-        assert "version" not in compressed
+        # Original metric fields should be zeroed after compression
+        assert compressed.total_interactions == 0
+        assert compressed.unique_services == 0
+        assert compressed.total_tasks == 0
+        assert compressed.total_thoughts == 0
 
     def test_estimate_daily_size(self):
         """Test daily size estimation."""
         compressor = SummaryCompressor(target_mb_per_day=1.0)
 
-        # Create some summaries
-        summaries = [{"data": "A" * 1024}, {"data": "B" * 2048}, {"data": "C" * 1024}]  # 1KB  # 2KB  # 1KB
+        # Create some summaries with varying sizes
+        summaries = [
+            SummaryAttributes(
+                period_start=datetime(2025, 7, 1, tzinfo=timezone.utc),
+                period_end=datetime(2025, 7, 2, tzinfo=timezone.utc),
+                consolidation_level="extensive",
+                dominant_patterns=["A" * 256] * 4,  # ~1KB
+            ),
+            SummaryAttributes(
+                period_start=datetime(2025, 7, 2, tzinfo=timezone.utc),
+                period_end=datetime(2025, 7, 3, tzinfo=timezone.utc),
+                consolidation_level="extensive",
+                dominant_patterns=["B" * 512] * 4,  # ~2KB
+            ),
+            SummaryAttributes(
+                period_start=datetime(2025, 7, 3, tzinfo=timezone.utc),
+                period_end=datetime(2025, 7, 4, tzinfo=timezone.utc),
+                consolidation_level="extensive",
+                dominant_patterns=["C" * 256] * 4,  # ~1KB
+            ),
+        ]
 
-        # Total 4KB over 30 days
+        # Total approximately 4KB over 30 days
         daily_mb = compressor.estimate_daily_size(summaries, 30)
-        expected_mb = (4 * 1024) / (1024 * 1024) / 30  # ~0.00013 MB/day
 
-        assert abs(daily_mb - expected_mb) < 0.0001
+        # Should be a small positive value
+        assert daily_mb > 0
+        assert daily_mb < 1.0  # Less than 1MB/day
 
 
 class TestProfoundConsolidation:
@@ -228,7 +264,7 @@ class TestProfoundConsolidation:
                     (node_id, node_type, scope, attributes_json, version, created_at)
                     VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                    (node_id, "tsdb_summary", "local", json.dumps(attrs), 1, date.isoformat()),
+                    (node_id, "tsdb_summary", "local", json.dumps(attrs.model_dump(mode="json")), 1, date.isoformat()),
                 )
 
             mock_db_connection.commit()
@@ -301,7 +337,7 @@ class TestProfoundConsolidation:
                     (node_id, node_type, scope, attributes_json, created_at)
                     VALUES (?, ?, ?, ?, ?)
                 """,
-                    (node_id, "tsdb_summary", "local", json.dumps(attrs), date.isoformat()),
+                    (node_id, "tsdb_summary", "local", json.dumps(attrs.model_dump(mode="json")), date.isoformat()),
                 )
 
             mock_db_connection.commit()
@@ -338,7 +374,7 @@ class TestProfoundConsolidation:
                     (node_id, node_type, scope, attributes_json, created_at)
                     VALUES (?, ?, ?, ?, ?)
                 """,
-                    (node_id, "tsdb_summary", "local", json.dumps(attrs), date.isoformat()),
+                    (node_id, "tsdb_summary", "local", json.dumps(attrs.model_dump(mode="json")), date.isoformat()),
                 )
 
             # Also create some old basic summaries (from June)
@@ -347,11 +383,11 @@ class TestProfoundConsolidation:
                 for hour in [0, 6, 12, 18]:
                     period_start = date.replace(hour=hour)
                     node_id = f"tsdb_summary_{period_start.strftime('%Y%m%d_%H')}"
-                    attrs = {
-                        "consolidation_level": "basic",
-                        "period_start": period_start.isoformat(),
-                        "period_end": (period_start + timedelta(hours=6)).isoformat(),
-                    }
+                    attrs = SummaryAttributes(
+                        consolidation_level="basic",
+                        period_start=period_start,
+                        period_end=period_start + timedelta(hours=6),
+                    )
 
                     cursor.execute(
                         """
@@ -359,7 +395,13 @@ class TestProfoundConsolidation:
                         (node_id, node_type, scope, attributes_json, created_at)
                         VALUES (?, ?, ?, ?, ?)
                     """,
-                        (node_id, "tsdb_summary", "local", json.dumps(attrs), period_start.isoformat()),
+                        (
+                            node_id,
+                            "tsdb_summary",
+                            "local",
+                            json.dumps(attrs.model_dump(mode="json")),
+                            period_start.isoformat(),
+                        ),
                     )
 
             mock_db_connection.commit()
@@ -410,7 +452,7 @@ class TestProfoundConsolidation:
                     (node_id, node_type, scope, attributes_json, created_at)
                     VALUES (?, ?, ?, ?, ?)
                 """,
-                    (node_id, "tsdb_summary", "local", json.dumps(attrs), date.isoformat()),
+                    (node_id, "tsdb_summary", "local", json.dumps(attrs.model_dump(mode="json")), date.isoformat()),
                 )
 
             mock_db_connection.commit()

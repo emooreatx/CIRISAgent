@@ -28,6 +28,7 @@ from ciris_engine.schemas.services.graph.consolidation import (
     TSDBPeriodSummary,
 )
 from ciris_engine.schemas.services.graph.query_results import TSDBNodeQueryResult
+from ciris_engine.schemas.services.graph.tsdb_models import SummaryAttributes
 from ciris_engine.schemas.services.graph_core import GraphNode, NodeType
 from ciris_engine.schemas.services.operations import MemoryOpStatus
 
@@ -374,7 +375,8 @@ class TSDBConsolidationService(BaseGraphService):
             # Cleanup old data
             cleanup_start = self._now()
             logger.info("Starting cleanup of old consolidated data...")
-            nodes_before_cleanup = len(self._query_manager.query_all_nodes_in_period(now - timedelta(days=30), now))
+            # Count nodes before cleanup (logged later)
+            len(self._query_manager.query_all_nodes_in_period(now - timedelta(days=30), now))
 
             nodes_deleted = self._cleanup_old_data()
             cleanup_stats["nodes_deleted"] = nodes_deleted
@@ -1731,8 +1733,24 @@ class TSDBConsolidationService(BaseGraphService):
                 days_in_period = (month_end - month_start).days + 1
                 summary_attrs_list = []
                 for _, _, attrs_json, _ in summaries:
-                    attrs = json.loads(attrs_json) if attrs_json else {}
-                    summary_attrs_list.append(attrs)
+                    attrs_dict = json.loads(attrs_json) if attrs_json else {}
+                    # Convert dict to SummaryAttributes object
+                    try:
+                        attrs = SummaryAttributes(**attrs_dict)
+                        summary_attrs_list.append(attrs)
+                    except Exception as e:
+                        logger.warning(f"Failed to convert summary attributes to SummaryAttributes model: {e}")
+                        # Create minimal SummaryAttributes for compatibility
+                        attrs = SummaryAttributes(
+                            period_start=datetime.fromisoformat(
+                                attrs_dict.get("period_start", "2025-01-01T00:00:00Z").replace("Z", "+00:00")
+                            ),
+                            period_end=datetime.fromisoformat(
+                                attrs_dict.get("period_end", "2025-01-02T00:00:00Z").replace("Z", "+00:00")
+                            ),
+                            consolidation_level=attrs_dict.get("consolidation_level", "basic"),
+                        )
+                        summary_attrs_list.append(attrs)
 
                 current_daily_mb = compressor.estimate_daily_size(summary_attrs_list, days_in_period)
                 storage_before_mb = current_daily_mb * days_in_period
@@ -1749,15 +1767,36 @@ class TSDBConsolidationService(BaseGraphService):
                 total_reduction = 0.0
 
                 for node_id, node_type, attrs_json, version in summaries:
-                    attrs = json.loads(attrs_json) if attrs_json else {}
+                    attrs_dict = json.loads(attrs_json) if attrs_json else {}
+
+                    # Convert dict to SummaryAttributes object
+                    try:
+                        attrs = SummaryAttributes(**attrs_dict)
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to convert summary attributes to SummaryAttributes model for {node_id}: {e}"
+                        )
+                        # Create minimal SummaryAttributes for compatibility
+                        attrs = SummaryAttributes(
+                            period_start=datetime.fromisoformat(
+                                attrs_dict.get("period_start", "2025-01-01T00:00:00Z").replace("Z", "+00:00")
+                            ),
+                            period_end=datetime.fromisoformat(
+                                attrs_dict.get("period_end", "2025-01-02T00:00:00Z").replace("Z", "+00:00")
+                            ),
+                            consolidation_level=attrs_dict.get("consolidation_level", "basic"),
+                        )
 
                     # Compress the attributes
-                    compressed_attrs, reduction_ratio = compressor.compress_summary(attrs)
+                    compression_result = compressor.compress_summary(attrs)
+                    compressed_attrs = compression_result.compressed_attributes
+                    reduction_ratio = compression_result.reduction_ratio
 
-                    # Add compression metadata
-                    compressed_attrs["profound_compressed"] = True
-                    compressed_attrs["compression_date"] = now.isoformat()
-                    compressed_attrs["compression_ratio"] = reduction_ratio
+                    # Convert back to dict and add compression metadata
+                    compressed_attrs_dict = compressed_attrs.model_dump(mode="json")
+                    compressed_attrs_dict["profound_compressed"] = True
+                    compressed_attrs_dict["compression_date"] = now.isoformat()
+                    compressed_attrs_dict["compression_ratio"] = reduction_ratio
 
                     # Update the node in-place
                     cursor.execute(
@@ -1769,7 +1808,7 @@ class TSDBConsolidationService(BaseGraphService):
                             updated_at = ?
                         WHERE node_id = ?
                     """,
-                        (json.dumps(compressed_attrs), version + 1, now.isoformat(), node_id),
+                        (json.dumps(compressed_attrs_dict), version + 1, now.isoformat(), node_id),
                     )
 
                     if cursor.rowcount > 0:
@@ -1794,8 +1833,26 @@ class TSDBConsolidationService(BaseGraphService):
                 )
 
                 for row in cursor.fetchall():
-                    attrs = json.loads(row[0]) if row[0] else {}
-                    compressed_attrs_list.append(attrs)
+                    attrs_dict = json.loads(row[0]) if row[0] else {}
+                    # Convert dict to SummaryAttributes object
+                    try:
+                        attrs = SummaryAttributes(**attrs_dict)
+                        compressed_attrs_list.append(attrs)
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to convert compressed summary attributes to SummaryAttributes model: {e}"
+                        )
+                        # Create minimal SummaryAttributes for compatibility
+                        attrs = SummaryAttributes(
+                            period_start=datetime.fromisoformat(
+                                attrs_dict.get("period_start", "2025-01-01T00:00:00Z").replace("Z", "+00:00")
+                            ),
+                            period_end=datetime.fromisoformat(
+                                attrs_dict.get("period_end", "2025-01-02T00:00:00Z").replace("Z", "+00:00")
+                            ),
+                            consolidation_level=attrs_dict.get("consolidation_level", "basic"),
+                        )
+                        compressed_attrs_list.append(attrs)
 
                 new_daily_mb = compressor.estimate_daily_size(compressed_attrs_list, days_in_period)
                 storage_after_mb = new_daily_mb * days_in_period

@@ -1426,7 +1426,7 @@
       },
       {
         "file": "tests/adapters/mock_llm/responses_action_selection.py",
-        "line": 21,
+        "line": 22,
         "class": null,
         "function": "action_selection",
         "context": "other",
@@ -1434,7 +1434,7 @@
       },
       {
         "file": "tests/adapters/mock_llm/responses_action_selection.py",
-        "line": 31,
+        "line": 32,
         "class": null,
         "function": "action_selection",
         "context": "variable_annotation",
@@ -1442,7 +1442,7 @@
       },
       {
         "file": "tests/adapters/mock_llm/responses_action_selection.py",
-        "line": 46,
+        "line": 47,
         "class": null,
         "function": "action_selection",
         "context": "other",
@@ -1450,7 +1450,7 @@
       },
       {
         "file": "tests/adapters/mock_llm/responses_action_selection.py",
-        "line": 231,
+        "line": 228,
         "class": null,
         "function": "action_selection",
         "context": "variable_annotation",
@@ -1458,7 +1458,7 @@
       },
       {
         "file": "tests/adapters/mock_llm/responses.py",
-        "line": 75,
+        "line": 80,
         "class": null,
         "function": "extract_context_from_messages",
         "context": "other",
@@ -1466,7 +1466,7 @@
       },
       {
         "file": "tests/adapters/mock_llm/responses.py",
-        "line": 381,
+        "line": 382,
         "class": null,
         "function": "create_response",
         "context": "other",

@@ -1,11 +1,9 @@
+import json
 import logging
 import re
 from types import SimpleNamespace
 from typing import Any, Dict, List
 
-from ciris_engine.schemas.dma.results import ActionSelectionDMAResult, CSDMAResult, DSDMAResult, EthicalDMAResult
-
-logger = logging.getLogger(__name__)
 from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
 from ciris_engine.schemas.conscience.core import (
     CoherenceCheckResult,
@@ -13,6 +11,13 @@ from ciris_engine.schemas.conscience.core import (
     EpistemicHumilityResult,
     OptimizationVetoResult,
 )
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult, CSDMAResult, DSDMAResult, EthicalDMAResult
+
+from .responses_action_selection import action_selection
+from .responses_epistemic import coherence, entropy
+from .responses_feedback import epistemic_humility, optimization_veto
+
+logger = logging.getLogger(__name__)
 
 
 # Configuration for context echoing and testing behaviors
@@ -360,10 +365,6 @@ def ds_dma_llm_output(context: List[str] = None) -> BaseDSDMA.LLMOutputForDSDMA:
     )
     return _attach_extras(result)
 
-
-from .responses_action_selection import action_selection
-from .responses_epistemic import coherence, entropy
-from .responses_feedback import epistemic_humility, optimization_veto
 
 _RESPONSE_MAP = {
     EthicalDMAResult: ethical_dma,

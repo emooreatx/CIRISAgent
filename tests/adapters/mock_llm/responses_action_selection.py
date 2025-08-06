@@ -1,4 +1,5 @@
 # Protocol-facing mock responses for ActionSelectionDMAResult and related types
+import json
 from typing import Any, Dict, List, Optional
 
 from ciris_engine.schemas.actions.parameters import (
@@ -46,11 +47,9 @@ def action_selection(
     messages_extracted: List[Dict[str, Any]] = []
     for item in context:
         if item.startswith("__messages__:"):
-            import json
-
             try:
                 messages_extracted = json.loads(item.split(":", 1)[1])
-            except:
+            except (json.JSONDecodeError, ValueError):
                 pass
             break
 
@@ -125,8 +124,6 @@ def action_selection(
                     # Check if user wants to display context
                     if action_params.strip() == "$context":
                         # Display the full context
-                        import json
-
                         context_display = "📋 **Full Context Display**\n\n"
                         context_display += "**Extracted Context Items:**\n"
                         for item in context:
@@ -233,10 +230,8 @@ def action_selection(
                     # Parse JSON-like parameters if provided
                     if len(parts) > 1:
                         try:
-                            import json
-
                             tool_params = json.loads(parts[1])
-                        except:
+                        except (json.JSONDecodeError, ValueError):
                             # Try simple key=value parsing
                             for pair in parts[1].split():
                                 if "=" in pair:
