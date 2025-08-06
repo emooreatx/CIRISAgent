@@ -31,7 +31,15 @@ async def build_system_snapshot(
     runtime: Optional[Any] = None,
     service_registry: Optional[Any] = None,
 ) -> SystemSnapshot:
-    """Build system snapshot for the thought."""
+    """Build system snapshot for the thought.
+    
+    CRITICAL: This function MUST NEVER FAIL. It provides the agent's 
+    consciousness and context. If it fails, the agent cannot think,
+    cannot act, and cannot even shut down gracefully (as seen with
+    Datum being trapped in SHUTDOWN state).
+    
+    All errors are logged but handled gracefully with fallback values.
+    """
     from ciris_engine.schemas.runtime.system_context import ThoughtSummary, TaskSummary
 
     thought_summary = None
@@ -161,9 +169,11 @@ async def build_system_snapshot(
                 # The identity is stored as a TypedGraphNode (IdentityNode)
                 # Attributes must be a Pydantic model
                 if not hasattr(identity_result.attributes, 'model_dump'):
-                    raise TypeError(f"Invalid graph node attributes type: {type(identity_result.attributes)}")
-                
-                attrs_dict = identity_result.attributes.model_dump()
+                    logger.error(f"Invalid graph node attributes type: {type(identity_result.attributes)}, expected Pydantic model")
+                    # Use empty dict as fallback to prevent crash
+                    attrs_dict = {}
+                else:
+                    attrs_dict = identity_result.attributes.model_dump()
                 
                 identity_data = {
                     "agent_id": attrs_dict.get("agent_id", ""),
@@ -306,14 +316,18 @@ async def build_system_snapshot(
                     if channels:
                         # Ensure we have ChannelContext objects
                         if not isinstance(channels[0], ChannelContext):
-                            raise TypeError(f"Adapter {adapter_name} returned invalid channel list type: {type(channels[0])}")
+                            logger.error(f"Adapter {adapter_name} returned invalid channel list type: {type(channels[0])}, expected ChannelContext")
+                            # Skip this adapter's channels to prevent crash
+                            continue
                         # Use channel_type from first channel
                         adapter_type = channels[0].channel_type
                         adapter_channels[adapter_type] = channels
                         logger.debug(f"Found {len(channels)} channels for {adapter_type} adapter")
         except Exception as e:
             logger.error(f"Failed to get adapter channels: {e}")
-            raise
+            # Don't raise - continue with empty channels
+            # Agent can still function without full channel awareness
+            adapter_channels = {}
     
     # Get available tools from all adapters via tool bus
     available_tools: Dict[str, List[ToolInfo]] = {}
@@ -323,6 +337,11 @@ async def build_system_snapshot(
             
             # Get all tool services from registry
             tool_services = service_registry.get_services_by_type('tool')
+            
+            # Validate tool_services is iterable
+            if not hasattr(tool_services, '__iter__'):
+                logger.error(f"get_services_by_type('tool') returned non-iterable: {type(tool_services)}")
+                tool_services = []
             
             for tool_service in tool_services:
                 # Get adapter context from the tool service
@@ -350,23 +369,46 @@ async def build_system_snapshot(
                                 
                                 if tool_info:
                                     if not isinstance(tool_info, ToolInfo):
-                                        raise TypeError(f"Tool service returned invalid type: {type(tool_info)}, expected ToolInfo")
+                                        logger.error(f"Tool service {adapter_id} returned invalid type for {tool_name}: {type(tool_info)}, expected ToolInfo")
+                                        # Create a minimal ToolInfo to prevent crashes
+                                        from ciris_engine.schemas.adapters.tools import ToolParameterSchema
+                                        tool_info = ToolInfo(
+                                            name=tool_name,
+                                            description=f"Invalid tool from {adapter_id}",
+                                            schema=ToolParameterSchema(type="object", properties={}, required=[]),
+                                            cost=0.0
+                                        )
+                                        logger.warning(f"Created fallback ToolInfo for {tool_name} to prevent crash")
                                     tool_infos.append(tool_info)
                             except Exception as e:
                                 logger.error(f"Failed to get info for tool {tool_name}: {e}")
                                 raise
                     
                     if tool_infos:
-                        # Group by adapter type (extract from adapter_id)
-                        adapter_type = adapter_id.split('_')[0] if '_' in adapter_id else adapter_id
-                        if adapter_type not in available_tools:
-                            available_tools[adapter_type] = []
-                        available_tools[adapter_type].extend(tool_infos)
-                        logger.debug(f"Found {len(tool_infos)} tools for {adapter_type} adapter")
+                        # CRITICAL: Validate ALL tools are ToolInfo instances before adding
+                        # This prevents the exact bug that trapped Datum in shutdown
+                        valid_tool_infos = []
+                        for ti in tool_infos:
+                            if isinstance(ti, ToolInfo):
+                                valid_tool_infos.append(ti)
+                            else:
+                                logger.error(f"CRITICAL: Non-ToolInfo object in tool_infos: {type(ti)}")
+                                logger.error(f"This would cause SystemSnapshot validation failure!")
+                        
+                        if valid_tool_infos:
+                            # Group by adapter type (extract from adapter_id)
+                            adapter_type = adapter_id.split('_')[0] if '_' in adapter_id else adapter_id
+                            if adapter_type not in available_tools:
+                                available_tools[adapter_type] = []
+                            available_tools[adapter_type].extend(valid_tool_infos)
+                            logger.debug(f"Found {len(valid_tool_infos)} valid tools for {adapter_type} adapter")
                         
         except Exception as e:
             logger.error(f"Failed to get available tools: {e}")
-            raise
+            # Don't raise - just log and continue with empty tools
+            # This prevents SystemSnapshot creation from failing entirely
+            logger.warning("Continuing with no available tools due to error")
+            available_tools = {}
 
     # Get queue status using centralized function
     queue_status = persistence.get_queue_status()
@@ -479,7 +521,8 @@ async def build_system_snapshot(
                     elif hasattr(user_node.attributes, 'model_dump'):
                         attrs = user_node.attributes.model_dump()
                     else:
-                        raise TypeError(f"Invalid user node attributes type: {type(user_node.attributes)}")
+                        logger.error(f"Invalid user node attributes type for user {user_id}: {type(user_node.attributes)}, expected Pydantic model")
+                        attrs = {}  # Use empty dict as fallback
                     
                     # Get edges and connected nodes
                     connected_nodes_info = []
@@ -506,7 +549,8 @@ async def build_system_snapshot(
                                 elif hasattr(connected_node.attributes, 'model_dump'):
                                     connected_attrs = connected_node.attributes.model_dump()
                                 else:
-                                    raise TypeError(f"Invalid connected node attributes type: {type(connected_node.attributes)}")
+                                    logger.error(f"Invalid connected node attributes type for {connected_node_id}: {type(connected_node.attributes)}, expected Pydantic model")
+                                    connected_attrs = {}  # Use empty dict as fallback
                                 connected_nodes_info.append({
                                     'node_id': connected_node.id,
                                     'node_type': connected_node.type,
@@ -600,7 +644,44 @@ async def build_system_snapshot(
         if existing_profiles:
             context_data["user_profiles"] = existing_profiles
 
-    snapshot = SystemSnapshot(**context_data)
+    # Validate available_tools before creating snapshot
+    # This is CRITICAL to prevent the production shutdown bug
+    if available_tools:
+        validated_tools = {}
+        for adapter_type, tools_list in available_tools.items():
+            if not isinstance(tools_list, list):
+                logger.error(f"Invalid tools list for {adapter_type}: {type(tools_list)}, expected list")
+                continue
+            validated_list = []
+            for tool in tools_list:
+                if isinstance(tool, ToolInfo):
+                    validated_list.append(tool)
+                else:
+                    logger.error(f"Invalid tool in {adapter_type}: {type(tool)}, expected ToolInfo")
+                    # Don't add invalid tools to prevent validation errors
+            if validated_list:
+                validated_tools[adapter_type] = validated_list
+        available_tools = validated_tools
+
+    # Update context_data with validated tools
+    context_data["available_tools"] = available_tools
+
+    try:
+        snapshot = SystemSnapshot(**context_data)
+    except Exception as e:
+        logger.error(f"Failed to create SystemSnapshot: {e}")
+        logger.error(f"Context data keys: {list(context_data.keys())}")
+        # Create a minimal snapshot to prevent total failure
+        # This ensures the agent can at least continue basic operations
+        minimal_context = {
+            "current_task_details": context_data.get("current_task_details"),
+            "current_thought_summary": context_data.get("current_thought_summary"),
+            "system_counts": context_data.get("system_counts", {}),
+            "channel_id": context_data.get("channel_id"),
+            "resource_alerts": context_data.get("resource_alerts", [])
+        }
+        logger.warning("Creating minimal SystemSnapshot after validation failure")
+        snapshot = SystemSnapshot(**minimal_context)
 
     # Note: GraphTelemetryService doesn't need update_system_snapshot
     # as it stores telemetry data directly in the graph
