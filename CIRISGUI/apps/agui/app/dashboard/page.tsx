@@ -181,9 +181,19 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold text-gray-900">
             CIRIS System Dashboard
           </h1>
-          <p className="mt-2 text-lg text-gray-600">
-            Real-time monitoring of all system components
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="mt-2 text-lg text-gray-600">
+              Real-time monitoring of all system components
+            </p>
+            {agentStatus?.version && (
+              <div className="mt-2 text-sm text-gray-500">
+                <span className="font-medium">Version:</span> {agentStatus.version}
+                {agentStatus.codename && (
+                  <span className="ml-2 italic">"{agentStatus.codename}"</span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* API Configuration Error Alert */}
@@ -330,6 +340,38 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+        
+        {/* Version Information Card */}
+        {agentStatus?.version && (
+          <div className="bg-white shadow rounded-lg mb-8">
+            <div className="px-4 py-5 sm:p-6">
+              <h2 className="text-lg font-medium text-gray-900 mb-4">
+                Version Information
+              </h2>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">Version</dt>
+                  <dd className="mt-1 text-sm text-gray-900 font-mono">
+                    {agentStatus.version}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">Codename</dt>
+                  <dd className="mt-1 text-sm text-gray-900">
+                    {agentStatus.codename || "N/A"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-gray-500">Code Hash</dt>
+                  <dd className="mt-1 text-sm text-gray-900 font-mono">
+                    {agentStatus.code_hash || "N/A"}
+                  </dd>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Quick Links */}
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">

@@ -31,7 +31,16 @@ async def build_system_snapshot(
     runtime: Optional[Any] = None,
     service_registry: Optional[Any] = None,
 ) -> SystemSnapshot:
-    """Build system snapshot for the thought."""
+    """Build system snapshot for the thought.
+    
+    CRITICAL: This function FAILS FAST AND LOUD on any type safety violation.
+    No fallbacks, no graceful degradation - if the data is wrong, we crash.
+    
+    This ensures we catch type safety issues immediately in development/testing
+    rather than silently corrupting the agent's context in production.
+    
+    Philosophy: Better to crash visibly than operate with invalid data.
+    """
     from ciris_engine.schemas.runtime.system_context import ThoughtSummary, TaskSummary
 
     thought_summary = None
@@ -161,8 +170,7 @@ async def build_system_snapshot(
                 # The identity is stored as a TypedGraphNode (IdentityNode)
                 # Attributes must be a Pydantic model
                 if not hasattr(identity_result.attributes, 'model_dump'):
-                    raise TypeError(f"Invalid graph node attributes type: {type(identity_result.attributes)}")
-                
+                    raise TypeError(f"Invalid graph node attributes type: {type(identity_result.attributes)}, expected Pydantic model")
                 attrs_dict = identity_result.attributes.model_dump()
                 
                 identity_data = {
@@ -306,14 +314,14 @@ async def build_system_snapshot(
                     if channels:
                         # Ensure we have ChannelContext objects
                         if not isinstance(channels[0], ChannelContext):
-                            raise TypeError(f"Adapter {adapter_name} returned invalid channel list type: {type(channels[0])}")
+                            raise TypeError(f"Adapter {adapter_name} returned invalid channel list type: {type(channels[0])}, expected ChannelContext")
                         # Use channel_type from first channel
                         adapter_type = channels[0].channel_type
                         adapter_channels[adapter_type] = channels
                         logger.debug(f"Found {len(channels)} channels for {adapter_type} adapter")
         except Exception as e:
             logger.error(f"Failed to get adapter channels: {e}")
-            raise
+            raise  # FAIL FAST AND LOUD
     
     # Get available tools from all adapters via tool bus
     available_tools: Dict[str, List[ToolInfo]] = {}
@@ -323,6 +331,11 @@ async def build_system_snapshot(
             
             # Get all tool services from registry
             tool_services = service_registry.get_services_by_type('tool')
+            
+            # Validate tool_services is iterable
+            if not hasattr(tool_services, '__iter__'):
+                logger.error(f"get_services_by_type('tool') returned non-iterable: {type(tool_services)}")
+                tool_services = []
             
             for tool_service in tool_services:
                 # Get adapter context from the tool service
@@ -350,13 +363,18 @@ async def build_system_snapshot(
                                 
                                 if tool_info:
                                     if not isinstance(tool_info, ToolInfo):
-                                        raise TypeError(f"Tool service returned invalid type: {type(tool_info)}, expected ToolInfo")
+                                        raise TypeError(f"Tool service {adapter_id} returned invalid type for {tool_name}: {type(tool_info)}, expected ToolInfo")
                                     tool_infos.append(tool_info)
                             except Exception as e:
                                 logger.error(f"Failed to get info for tool {tool_name}: {e}")
                                 raise
                     
                     if tool_infos:
+                        # Verify ALL tools are ToolInfo instances - FAIL FAST
+                        for ti in tool_infos:
+                            if not isinstance(ti, ToolInfo):
+                                raise TypeError(f"Non-ToolInfo object in tool_infos: {type(ti)}, this violates type safety!")
+                        
                         # Group by adapter type (extract from adapter_id)
                         adapter_type = adapter_id.split('_')[0] if '_' in adapter_id else adapter_id
                         if adapter_type not in available_tools:
@@ -366,10 +384,17 @@ async def build_system_snapshot(
                         
         except Exception as e:
             logger.error(f"Failed to get available tools: {e}")
-            raise
+            raise  # FAIL FAST AND LOUD
 
     # Get queue status using centralized function
     queue_status = persistence.get_queue_status()
+    
+    # Get version information
+    from ciris_engine.constants import CIRIS_VERSION, CIRIS_CODENAME
+    try:
+        from version import __version__ as code_hash
+    except ImportError:
+        code_hash = None
     
     context_data = {
         "current_task_details": current_task_summary,
@@ -389,6 +414,10 @@ async def build_system_snapshot(
         "identity_purpose": identity_purpose,
         "identity_capabilities": identity_capabilities,
         "identity_restrictions": identity_restrictions,
+        # Version information
+        "agent_version": CIRIS_VERSION,
+        "agent_codename": CIRIS_CODENAME,
+        "agent_code_hash": code_hash,
         "shutdown_context": shutdown_context,
         "service_health": service_health,
         "circuit_breaker_status": circuit_breaker_status,
@@ -479,7 +508,7 @@ async def build_system_snapshot(
                     elif hasattr(user_node.attributes, 'model_dump'):
                         attrs = user_node.attributes.model_dump()
                     else:
-                        raise TypeError(f"Invalid user node attributes type: {type(user_node.attributes)}")
+                        raise TypeError(f"Invalid user node attributes type for user {user_id}: {type(user_node.attributes)}, expected Pydantic model")
                     
                     # Get edges and connected nodes
                     connected_nodes_info = []
@@ -506,7 +535,7 @@ async def build_system_snapshot(
                                 elif hasattr(connected_node.attributes, 'model_dump'):
                                     connected_attrs = connected_node.attributes.model_dump()
                                 else:
-                                    raise TypeError(f"Invalid connected node attributes type: {type(connected_node.attributes)}")
+                                    raise TypeError(f"Invalid connected node attributes type for {connected_node_id}: {type(connected_node.attributes)}, expected Pydantic model")
                                 connected_nodes_info.append({
                                     'node_id': connected_node.id,
                                     'node_type': connected_node.type,
@@ -600,6 +629,7 @@ async def build_system_snapshot(
         if existing_profiles:
             context_data["user_profiles"] = existing_profiles
 
+    # Create the snapshot - FAIL FAST AND LOUD if there's any problem
     snapshot = SystemSnapshot(**context_data)
 
     # Note: GraphTelemetryService doesn't need update_system_snapshot
