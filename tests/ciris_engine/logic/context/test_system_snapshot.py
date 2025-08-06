@@ -13,9 +13,11 @@ from ciris_engine.logic.buses.bus_manager import BusManager
 @pytest.fixture
 def mock_channel_context():
     """Create a mock channel context."""
+    from datetime import datetime, timezone
     return ChannelContext(
         channel_id="test_channel",
         channel_type="test",
+        created_at=datetime.now(timezone.utc),
         channel_metadata={}
     )
 
@@ -465,9 +467,8 @@ async def test_build_system_snapshot_error_resilience(mock_bus_manager, mock_cha
 @pytest.mark.asyncio
 async def test_build_system_snapshot_with_task_and_thought():
     """Test snapshot with task and thought context."""
-    from ciris_engine.schemas.runtime.models import Task, Thought
+    from ciris_engine.schemas.runtime.models import Task, Thought, TaskContext, ThoughtContext
     from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
-    from ciris_engine.schemas.runtime.contexts import TaskContext, ThoughtContext
     
     # Create mock task
     task = Task(
@@ -477,7 +478,7 @@ async def test_build_system_snapshot_with_task_and_thought():
         priority=10,
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
-        context=TaskContext()
+        context=TaskContext(correlation_id="test_correlation")
     )
     
     # Create mock thought
@@ -511,6 +512,7 @@ async def test_build_system_snapshot_with_task_and_thought():
         channel_context=ChannelContext(
             channel_id="test",
             channel_type="test",
+            created_at=datetime.now(timezone.utc),
             channel_metadata={}
         ),
         task=task,
