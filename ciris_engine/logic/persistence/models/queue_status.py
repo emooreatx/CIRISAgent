@@ -5,9 +5,8 @@ from typing import Optional
 
 from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
 
-from ..analytics import count_thoughts_by_status
 from .tasks import count_tasks
-from .thoughts import count_thoughts
+from .thoughts import get_thoughts_by_status
 
 
 @dataclass
@@ -40,16 +39,15 @@ def get_queue_status(db_path: Optional[str] = None) -> QueueStatus:
 
     # Get thought counts
     # Note: count_thoughts() already returns PENDING + PROCESSING count
-    pending_thoughts = count_thoughts_by_status(ThoughtStatus.PENDING)
-    processing_thoughts = count_thoughts_by_status(ThoughtStatus.PROCESSING)
-    total_pending_and_processing = count_thoughts(db_path=db_path)
+    pending_thoughts = len(get_thoughts_by_status(ThoughtStatus.PENDING, db_path=db_path))
+    processing_thoughts = len(get_thoughts_by_status(ThoughtStatus.PROCESSING, db_path=db_path))
 
     # For total thoughts, we need all statuses
     total_thoughts = (
         pending_thoughts
         + processing_thoughts
-        + count_thoughts_by_status(ThoughtStatus.COMPLETED)
-        + count_thoughts_by_status(ThoughtStatus.FAILED)
+        + len(get_thoughts_by_status(ThoughtStatus.COMPLETED, db_path=db_path))
+        + len(get_thoughts_by_status(ThoughtStatus.FAILED, db_path=db_path))
     )
 
     return QueueStatus(

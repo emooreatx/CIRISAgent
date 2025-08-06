@@ -1,19 +1,21 @@
 from typing import List, Optional
 
-from ciris_engine.logic.persistence.models import tasks as task_ops
-from ciris_engine.logic.persistence.models import thoughts as thought_ops
-from ciris_engine.logic.persistence.models.tasks import count_tasks
-from ciris_engine.logic.persistence.models.thoughts import count_thoughts
+from ciris_engine.logic.persistence.models.tasks import count_tasks, get_tasks_by_status
+from ciris_engine.logic.persistence.models.thoughts import (
+    count_thoughts,
+    get_thoughts_by_status,
+    get_thoughts_by_task_id,
+)
 from ciris_engine.schemas.runtime.enums import TaskStatus, ThoughtStatus
 from ciris_engine.schemas.runtime.models import Task, Thought
 
 
 def get_pending_thoughts_for_active_tasks(limit: Optional[int] = None) -> List[Thought]:
     """Return all thoughts pending or processing for ACTIVE tasks."""
-    active_tasks = task_ops.get_tasks_by_status(TaskStatus.ACTIVE)
+    active_tasks = get_tasks_by_status(TaskStatus.ACTIVE)
     active_task_ids = {t.task_id for t in active_tasks}
-    pending_thoughts = thought_ops.get_thoughts_by_status(ThoughtStatus.PENDING)
-    processing_thoughts = thought_ops.get_thoughts_by_status(ThoughtStatus.PROCESSING)
+    pending_thoughts = get_thoughts_by_status(ThoughtStatus.PENDING)
+    processing_thoughts = get_thoughts_by_status(ThoughtStatus.PROCESSING)
     all_thoughts = pending_thoughts + processing_thoughts
     filtered = [th for th in all_thoughts if th.source_task_id in active_task_ids]
     if limit is not None:
@@ -23,10 +25,10 @@ def get_pending_thoughts_for_active_tasks(limit: Optional[int] = None) -> List[T
 
 def count_pending_thoughts_for_active_tasks() -> int:
     """Return the count of thoughts pending or processing for ACTIVE tasks."""
-    active_tasks = task_ops.get_tasks_by_status(TaskStatus.ACTIVE)
+    active_tasks = get_tasks_by_status(TaskStatus.ACTIVE)
     active_task_ids = {t.task_id for t in active_tasks}
-    pending_thoughts = thought_ops.get_thoughts_by_status(ThoughtStatus.PENDING)
-    processing_thoughts = thought_ops.get_thoughts_by_status(ThoughtStatus.PROCESSING)
+    pending_thoughts = get_thoughts_by_status(ThoughtStatus.PENDING)
+    processing_thoughts = get_thoughts_by_status(ThoughtStatus.PROCESSING)
     all_thoughts = pending_thoughts + processing_thoughts
     filtered = [th for th in all_thoughts if th.source_task_id in active_task_ids]
     return len(filtered)
@@ -39,10 +41,10 @@ def count_active_tasks() -> int:
 
 def get_tasks_needing_seed_thought(limit: Optional[int] = None) -> List[Task]:
     """Get active tasks that don't yet have thoughts."""
-    active_tasks = task_ops.get_tasks_by_status(TaskStatus.ACTIVE)
+    active_tasks = get_tasks_by_status(TaskStatus.ACTIVE)
     tasks_needing_seed: List[Task] = []
     for task in active_tasks:
-        thoughts = thought_ops.get_thoughts_by_task_id(task.task_id)
+        thoughts = get_thoughts_by_task_id(task.task_id)
         if not thoughts:
             tasks_needing_seed.append(task)
     if limit:
@@ -57,11 +59,11 @@ def pending_thoughts() -> bool:
 
 def thought_exists_for(task_id: str) -> bool:
     """Check if any thoughts exist for the given task."""
-    thoughts = thought_ops.get_thoughts_by_task_id(task_id)
+    thoughts = get_thoughts_by_task_id(task_id)
     return len(thoughts) > 0
 
 
 def count_thoughts_by_status(status: ThoughtStatus) -> int:
     """Count thoughts with the given status."""
-    thoughts = thought_ops.get_thoughts_by_status(status)
+    thoughts = get_thoughts_by_status(status)
     return len(thoughts)

@@ -5,14 +5,15 @@ Replaces Dict[str, Any] in service method calls.
 """
 
 from datetime import datetime, timezone
-from typing import Any, List, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ciris_engine.schemas.actions.parameters import MemorizeParams, RecallParams
-
 from .metadata import ServiceMetadata
+
+if TYPE_CHECKING:
+    from ciris_engine.schemas.actions.parameters import MemorizeParams, RecallParams
 
 
 class ServiceRequest(BaseModel):
@@ -41,7 +42,7 @@ class ServiceResponse(BaseModel):
 class MemorizeRequest(ServiceRequest):
     """Request for memory service memorize method."""
 
-    node_data: MemorizeParams = Field(..., description="Memory node data")
+    node_data: "MemorizeParams" = Field(..., description="Memory node data")
 
 
 class MemorizeResponse(ServiceResponse):
@@ -54,7 +55,7 @@ class MemorizeResponse(ServiceResponse):
 class RecallRequest(ServiceRequest):
     """Request for memory service recall method."""
 
-    query_params: RecallParams = Field(..., description="Recall query parameters")
+    query_params: "RecallParams" = Field(..., description="Recall query parameters")
 
 
 class RecallResponse(ServiceResponse):
