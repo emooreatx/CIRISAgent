@@ -9,7 +9,7 @@ import sys
 from .main import Grace
 
 
-def main():
+def main() -> None:
     """Main entry point."""
     grace = Grace()
 

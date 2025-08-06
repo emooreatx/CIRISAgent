@@ -13,7 +13,7 @@ from .schedule import get_current_session, get_next_transition, get_remaining_ti
 class Grace:
     """Your sustainable development companion."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize Grace."""
         self.context = WorkContext()
 
@@ -166,7 +166,7 @@ class Grace:
                 message.append("\n⏳ Deployment building...")
             else:
                 message.append("\n⏰ OAuth fix not detected yet")
-        except:
+        except Exception:
             message.append("\nCould not check OAuth status")
 
         return "\n".join(message)

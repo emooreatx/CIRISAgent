@@ -6,13 +6,13 @@ import json
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 
 class WorkContext:
     """Manages work context and state."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize context manager."""
         self.context_dir = Path.home() / ".grace"
         self.context_dir.mkdir(exist_ok=True)
@@ -32,7 +32,7 @@ class WorkContext:
         with open(self.context_file, "w") as f:
             json.dump(context, f, indent=2)
 
-    def load(self) -> Optional[Dict]:
+    def load(self) -> Optional[Dict[str, Any]]:
         """Load saved context."""
         if not self.context_file.exists():
             return None
@@ -84,7 +84,7 @@ class WorkContext:
                 check=True,
             )
             return result.stdout.strip()
-        except:
+        except Exception:
             return "unknown"
 
     def _get_last_commit(self) -> str:
@@ -97,7 +97,7 @@ class WorkContext:
                 check=True,
             )
             return result.stdout.strip()
-        except:
+        except Exception:
             return "no commits"
 
     def _has_uncommitted_changes(self) -> bool:
@@ -110,5 +110,5 @@ class WorkContext:
                 check=True,
             )
             return bool(result.stdout.strip())
-        except:
+        except Exception:
             return False

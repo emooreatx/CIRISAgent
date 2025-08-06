@@ -25,7 +25,7 @@ def check_production() -> Dict[str, str]:
             status["production"] = "UP" if code == "200" else f"HTTP {code}"
         else:
             status["production"] = "DOWN"
-    except:
+    except Exception:
         status["production"] = "UNREACHABLE"
 
     # Check datum agent
@@ -49,7 +49,7 @@ def check_production() -> Dict[str, str]:
             status["datum"] = "HEALTHY" if code == "200" else f"HTTP {code}"
         else:
             status["datum"] = "DOWN"
-    except:
+    except Exception:
         status["datum"] = "UNREACHABLE"
 
     return status
@@ -75,7 +75,7 @@ def check_ci_status() -> Dict[str, str]:
                 else:
                     return {"ci_cd": status.upper()}
         return {"ci_cd": "NO RUNS"}
-    except:
+    except Exception:
         return {"ci_cd": "ERROR"}
 
 
@@ -115,7 +115,7 @@ def check_deployment() -> str:
                     return f"Recent deployment completed [{commit}]"
 
         return ""
-    except:
+    except Exception:
         return ""
 
 
