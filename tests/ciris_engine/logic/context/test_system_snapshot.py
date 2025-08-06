@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import List, Dict
 
 from ciris_engine.logic.context.system_snapshot import build_system_snapshot
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot
+from ciris_engine.schemas.runtime.system_context import SystemSnapshot, ChannelContext
 from ciris_engine.schemas.adapters.tools import ToolInfo, ToolParameterSchema
 from ciris_engine.schemas.runtime.models import Task, TaskContext
 from ciris_engine.schemas.runtime.enums import TaskStatus
@@ -50,7 +50,13 @@ def mock_thought():
     thought.source_task_id = "test_task"
     thought.thought_type = "ANALYSIS"
     thought.thought_depth = 1
-    thought.context = Mock(channel_id="test_channel")
+    # Context with just channel_id, no channel_context
+    # The function extracts channel_id but channel_context remains None
+    context = Mock()
+    context.channel_id = "test_channel"
+    # Make sure we don't have system_snapshot attribute that would trigger channel_context extraction
+    context.system_snapshot = None
+    thought.context = context
     return thought
 
 
@@ -149,12 +155,15 @@ async def test_build_system_snapshot_with_tools(mock_resource_monitor, mock_runt
     )
     
     assert isinstance(snapshot, SystemSnapshot)
-    # Tools are in model_extra as they're not defined fields
-    assert "available_tools" in snapshot.model_extra
-    tools = snapshot.model_extra["available_tools"]
-    assert "test_adapter" in tools
-    assert len(tools["test_adapter"]) == 1
-    assert tools["test_adapter"][0].name == "test_tool"
+    # Check available_tools field - should contain ToolInfo objects
+    assert snapshot.available_tools is not None
+    assert "test" in snapshot.available_tools  # adapter_type extracted from "test_adapter"
+    assert len(snapshot.available_tools["test"]) == 1
+    # Tools are stored as ToolInfo objects per our type safety principles
+    tool_info = snapshot.available_tools["test"][0]
+    assert isinstance(tool_info, ToolInfo)
+    assert tool_info.name == "test_tool"
+    assert tool_info.description == "A test tool"
 
 
 @pytest.mark.asyncio
@@ -208,10 +217,9 @@ async def test_build_system_snapshot_with_memory_service():
     )
     
     assert isinstance(snapshot, SystemSnapshot)
-    # Identity is in model_extra
-    assert "agent_identity" in snapshot.model_extra
-    identity = snapshot.model_extra["agent_identity"]
-    assert identity["agent_id"] == "test_agent"
+    # agent_identity is a regular field
+    assert snapshot.agent_identity is not None
+    assert snapshot.agent_identity["agent_id"] == "test_agent"
 
 
 @pytest.mark.asyncio
@@ -281,10 +289,9 @@ async def test_build_system_snapshot_with_service_registry():
     )
     
     assert isinstance(snapshot, SystemSnapshot)
-    # Service health is in model_extra
-    assert "service_health" in snapshot.model_extra
-    health = snapshot.model_extra["service_health"]
-    assert "test_handler.service" in health
+    # service_health is a regular field
+    assert snapshot.service_health is not None
+    assert "test_handler.service" in snapshot.service_health
 
 
 @pytest.mark.asyncio
