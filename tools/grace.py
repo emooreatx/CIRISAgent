@@ -156,7 +156,15 @@ class GraceFlow:
         # Check agents.ciris.ai (production)
         try:
             result = subprocess.run(
-                ["curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", "https://agents.ciris.ai/v1/system/health"],
+                [
+                    "curl",
+                    "-s",
+                    "-o",
+                    "/dev/null",
+                    "-w",
+                    "%{http_code}",
+                    "https://agents.ciris.ai/api/datum/v1/system/health",
+                ],
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -171,7 +179,7 @@ class GraceFlow:
                 [
                     "curl",
                     "-s",
-                    "https://agents.ciris.ai/v1/agent/status",
+                    "https://agents.ciris.ai/api/datum/v1/agent/status",
                     "-H",
                     "Authorization: Bearer admin:ciris_admin_password",
                 ],
