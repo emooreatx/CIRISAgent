@@ -7,7 +7,6 @@ from typing import List, Dict
 from ciris_engine.logic.context.system_snapshot import build_system_snapshot
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot, ChannelContext
 from ciris_engine.schemas.adapters.tools import ToolInfo, ToolParameterSchema
-from ciris_engine.schemas.infrastructure.bus import ServiceRegistration
 from ciris_engine.logic.buses.bus_manager import BusManager
 
 
@@ -61,16 +60,15 @@ def mock_bus_manager(mock_adapter_with_tools):
     """Create a mock bus manager with adapters."""
     bus_manager = Mock(spec=BusManager)
     
-    # Mock service registry with adapters
+    # Mock service registry with adapters - using a simple mock object
     service_registry = Mock()
-    service_registry.get_all_services = Mock(return_value=[
-        ServiceRegistration(
-            service_id="test_adapter",
-            service_type="adapter",
-            service_instance=mock_adapter_with_tools,
-            tags={"adapter_type": "test"}
-        )
-    ])
+    mock_service_reg = Mock()
+    mock_service_reg.service_id = "test_adapter"
+    mock_service_reg.service_type = "adapter"
+    mock_service_reg.service_instance = mock_adapter_with_tools
+    mock_service_reg.tags = {"adapter_type": "test"}
+    
+    service_registry.get_all_services = Mock(return_value=[mock_service_reg])
     bus_manager.service_registry = service_registry
     
     # Mock other required services
@@ -239,20 +237,22 @@ async def test_build_system_snapshot_with_service_health(mock_bus_manager, mock_
         error="Connection failed"
     ))
     
-    # Add services to registry
+    # Add services to registry - using mock objects
+    mock_healthy_reg = Mock()
+    mock_healthy_reg.service_id = "healthy"
+    mock_healthy_reg.service_type = "core"
+    mock_healthy_reg.service_instance = healthy_service
+    mock_healthy_reg.tags = {}
+    
+    mock_unhealthy_reg = Mock()
+    mock_unhealthy_reg.service_id = "unhealthy"
+    mock_unhealthy_reg.service_type = "core"
+    mock_unhealthy_reg.service_instance = unhealthy_service
+    mock_unhealthy_reg.tags = {}
+    
     mock_bus_manager.service_registry.get_all_services = Mock(return_value=[
-        ServiceRegistration(
-            service_id="healthy",
-            service_type="core",
-            service_instance=healthy_service,
-            tags={}
-        ),
-        ServiceRegistration(
-            service_id="unhealthy",
-            service_type="core",
-            service_instance=unhealthy_service,
-            tags={}
-        )
+        mock_healthy_reg,
+        mock_unhealthy_reg
     ])
     
     # Build snapshot
@@ -289,14 +289,15 @@ async def test_build_system_snapshot_with_channels(mock_bus_manager, mock_channe
     adapter.get_type = Mock(return_value="discord")
     adapter.get_channels = Mock(return_value=[channel1, channel2])
     
-    # Add adapter to registry
+    # Add adapter to registry - using mock object
+    mock_discord_reg = Mock()
+    mock_discord_reg.service_id = "discord_adapter"
+    mock_discord_reg.service_type = "adapter"
+    mock_discord_reg.service_instance = adapter
+    mock_discord_reg.tags = {"adapter_type": "discord"}
+    
     mock_bus_manager.service_registry.get_all_services = Mock(return_value=[
-        ServiceRegistration(
-            service_id="discord_adapter",
-            service_type="adapter",
-            service_instance=adapter,
-            tags={"adapter_type": "discord"}
-        )
+        mock_discord_reg
     ])
     
     # Build snapshot
@@ -435,13 +436,14 @@ async def test_build_system_snapshot_error_resilience(mock_bus_manager, mock_cha
     failing_service = Mock()
     failing_service.get_health_status = Mock(side_effect=Exception("Health check failed"))
     
+    mock_failing_reg = Mock()
+    mock_failing_reg.service_id = "failing"
+    mock_failing_reg.service_type = "core"
+    mock_failing_reg.service_instance = failing_service
+    mock_failing_reg.tags = {}
+    
     mock_bus_manager.service_registry.get_all_services = Mock(return_value=[
-        ServiceRegistration(
-            service_id="failing",
-            service_type="core",
-            service_instance=failing_service,
-            tags={}
-        )
+        mock_failing_reg
     ])
     
     # Should not crash
