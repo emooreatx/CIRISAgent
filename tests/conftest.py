@@ -15,9 +15,9 @@ os.environ["CIRIS_MOCK_LLM"] = "true"
 os.environ["CIRIS_LOG_DIR"] = "test_logs"
 os.environ["CIRIS_DATA_DIR"] = "test_data"
 
-from pathlib import Path
+from pathlib import Path  # noqa: E402
 
-import pytest
+import pytest  # noqa: E402
 
 # Load environment variables from .env file for all tests
 try:
@@ -46,12 +46,15 @@ except ImportError:
     # If python-dotenv is not installed, silently continue
     pass
 
-import gc
-import time
+import gc  # noqa: E402
+import time  # noqa: E402
 
-# Import database fixtures to ensure test database is available
+# Import database fixtures and API fixtures - must be imported after os.environ setup
+from tests.fixtures.api import random_api_port  # noqa: E402
+from tests.fixtures.database import clean_db, test_db  # noqa: E402
 
-# Import API fixtures to ensure port randomization
+# Make fixtures available to all tests by explicitly referencing them
+__all__ = ["test_db", "clean_db", "random_api_port"]
 
 
 @pytest.fixture(scope="session", autouse=True)
