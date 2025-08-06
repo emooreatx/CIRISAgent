@@ -1,9 +1,8 @@
 """Service protocols package - organized by functional area."""
 
 # Re-export base protocols from runtime
-from ..runtime.base import CoreServiceProtocol, GraphServiceProtocol
 from ..runtime.base import ServiceProtocol  # Alias for backward compatibility
-from ..runtime.base import ServiceProtocol as Service
+from ..runtime.base import CoreServiceProtocol, GraphServiceProtocol
 from ..runtime.base import VisibilityServiceProtocol as BaseVisibilityServiceProtocol
 
 # Adaptation service protocols - self-improvement

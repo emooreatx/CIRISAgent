@@ -110,7 +110,7 @@ class Transport:
                     error = error_data["error"]
                     message = error.get("message", resp.text)
                     raise CIRISAPIError(resp.status_code, message, error.get("code"), error.get("details"))
-            except:
+            except Exception:
                 pass
             raise CIRISAPIError(resp.status_code, resp.text)
 

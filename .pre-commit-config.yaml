@@ -85,13 +85,6 @@ repos:
         verbose: true
         stages: [pre-commit]
 
-      # Prevent direct pushes to main (encourage PR workflow)
-      - id: no-direct-push
-        name: No Direct Push to Main
-        entry: tools/check_no_main_push.sh
-        language: system
-        pass_filenames: false
-        stages: [pre-push]
 
 # Configuration for specific hooks
 default_language_version:

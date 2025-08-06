@@ -162,7 +162,7 @@ class GraceFlow:
                 timeout=5,
             )
             status["production"] = "UP" if result.stdout.strip() == "200" else f"DOWN ({result.stdout.strip()})"
-        except:
+        except Exception:
             status["production"] = "UNREACHABLE"
 
         # Check Datum specifically
@@ -183,7 +183,7 @@ class GraceFlow:
                 status["datum"] = "RUNNING"
             else:
                 status["datum"] = "CHECK NEEDED"
-        except:
+        except Exception:
             status["datum"] = "UNREACHABLE"
 
         # Check CI/CD (GitHub Actions)
@@ -205,7 +205,7 @@ class GraceFlow:
                     status["ci_cd"] = "NO RECENT RUNS"
             else:
                 status["ci_cd"] = "CHECK MANUALLY"
-        except:
+        except Exception:
             status["ci_cd"] = "GH CLI NOT CONFIGURED"
 
         # Check SonarCloud quality gate
@@ -219,7 +219,7 @@ class GraceFlow:
                 status["quality"] = "FAILING"
             else:
                 status["quality"] = "UNKNOWN"
-        except:
+        except Exception:
             status["quality"] = "CHECK MANUALLY"
 
         return status
