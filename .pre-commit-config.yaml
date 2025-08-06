@@ -45,7 +45,7 @@ repos:
     hooks:
       - id: bandit
         args: ['-r', 'ciris_engine/', '--skip', 'B101']
-        exclude: '^(tests|tools)/'
+        exclude: '^(tests|tools|\.githooks)/'
 
   # Check for common issues
   - repo: https://github.com/pre-commit/pre-commit-hooks
