@@ -73,38 +73,7 @@ export default function LoginPage() {
           return; // Exit early
         }
 
-        // Otherwise try standalone mode
-        // In standalone mode, fetch real agent identity from API
-        try {
-          // Configure SDK for standalone mode
-          cirisClient.setConfig({ baseURL: window.location.origin });
-
-          // Fetch real identity from the API
-          const identity = await cirisClient.agent.getIdentity();
-
-          // Create agent info from real identity
-          const realAgent: AgentInfo = {
-            agent_id: identity.agent_id,
-            agent_name: identity.name,  // Real name from API!
-            container_name: 'standalone',
-            status: 'running',
-            api_endpoint: window.location.origin,
-            created_at: new Date().toISOString(),
-            update_available: false
-          };
-
-          setAgents([realAgent]);
-          setSelectedAgent(realAgent.agent_id);
-        } catch (error) {
-          console.error('Failed to fetch agent identity:', error);
-          setError(error instanceof Error ? error : new Error('Failed to fetch agent identity'));
-          // Fail fast - don't create fake data
-          setAgents([]);
-        } finally {
-          setLoadingAgents(false);
-        }
-
-      // Try standalone API
+      // Otherwise try standalone mode
       try {
         console.log('Trying standalone mode...');
         // Configure SDK for standalone mode
@@ -174,7 +143,7 @@ export default function LoginPage() {
       if (agents.length > 1 || agent.container_name !== 'standalone') {
         // Managed mode: use agent-specific paths
         redirectUri = encodeURIComponent(`${window.location.origin}/oauth/${selectedAgent}/callback`);
-        oauthUrl = `${window.location.origin}/api/${agent.agent_id}/auth/oauth/${provider}/login`;
+        oauthUrl = `${window.location.origin}/api/${agent.agent_id}/v1/auth/oauth/${provider}/login`;
       } else {
         // Standalone mode: direct OAuth
         redirectUri = encodeURIComponent(`${window.location.origin}/oauth/callback`);
