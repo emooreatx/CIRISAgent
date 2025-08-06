@@ -36,6 +36,9 @@ export interface AgentStatus {
   current_task?: any;
   services_active: number;
   memory_usage_mb: number;
+  version: string;  // e.g., "1.0.4-beta"
+  codename: string; // e.g., "Graceful Guardian"
+  code_hash?: string; // Optional code hash for exact version
 }
 
 export interface AgentIdentity {
