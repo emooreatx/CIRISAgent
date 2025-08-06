@@ -261,13 +261,6 @@ export class Transport {
       url = new URL(path);
     } else {
       // Path is relative, combine with baseURL
-      // In managed mode (when baseURL contains /api/), nginx adds /v1
-      // so we need to strip it from SDK paths
-      if (this.baseURL.includes('/api/') && path.startsWith('/v1/')) {
-        // Remove '/v1' prefix and ensure path doesn't start with /
-        path = path.substring(4); // This gives us 'auth/me' instead of '/auth/me'
-      }
-
       // Ensure baseURL ends with / for proper URL construction
       const base = this.baseURL.endsWith('/') ? this.baseURL : this.baseURL + '/';
       url = new URL(path, base);
@@ -282,11 +275,10 @@ export class Transport {
     }
 
     // Debug logging
-    if (process.env.NODE_ENV === 'development' || this.baseURL.includes('/api/')) {
+    if (process.env.NODE_ENV === 'development') {
       console.log('[CIRIS SDK] Transport debug:', {
         baseURL: this.baseURL,
-        originalPath: path,
-        strippedV1: this.baseURL.includes('/api/') && path.startsWith('/v1/'),
+        path: path,
         finalURL: url.toString()
       });
     }

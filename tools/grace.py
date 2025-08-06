@@ -221,14 +221,29 @@ class GraceFlow:
             result = subprocess.run(
                 ["python", "tools/sonar.py", "quality-gate"], capture_output=True, text=True, timeout=10
             )
-            if "PASSED" in result.stdout:
+            if "OK" in result.stdout:
                 status["quality"] = "PASSING"
-            elif "FAILED" in result.stdout:
+            elif "ERROR" in result.stdout:
                 status["quality"] = "FAILING"
             else:
                 status["quality"] = "UNKNOWN"
         except Exception:
             status["quality"] = "CHECK MANUALLY"
+
+        # Quick type safety check using mypy toolkit
+        try:
+            result = subprocess.run(
+                ["python", "-m", "ciris_mypy_toolkit", "check-protocols", "--quiet"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                status["type_safety"] = "✓"
+            else:
+                status["type_safety"] = "✗"
+        except Exception:
+            status["type_safety"] = "?"
 
         return status
 
@@ -404,11 +419,13 @@ class GraceFlow:
         datum = prod_status.get("datum", "UNKNOWN")
         ci = prod_status.get("ci_cd", "UNKNOWN")
         quality = prod_status.get("quality", "UNKNOWN")
+        type_safety = prod_status.get("type_safety", "?")
 
         message += f"{get_symbol(prod)} Production: {prod}\n"
         message += f"{get_symbol(datum)} Datum: {datum}\n"
         message += f"{get_symbol(ci)} CI/CD: {ci}\n"
-        message += f"{get_symbol(quality)} Quality: {quality}\n"
+        message += f"{get_symbol(quality)} SonarCloud: {quality}\n"
+        message += f"{type_safety} Type Safety\n"
 
         # Quick action if needed
         if "DOWN" in prod or "UNREACHABLE" in prod or datum not in ["RUNNING", "UP"]:

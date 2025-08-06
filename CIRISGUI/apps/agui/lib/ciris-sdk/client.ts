@@ -13,6 +13,7 @@ import { EmergencyResource } from './resources/emergency';
 import { UsersResource } from './resources/users';
 import { ManagerResource } from './resources/manager';
 import { User } from './types';
+import { SDK_VERSION } from './version';
 
 export interface CIRISClientOptions {
   baseURL?: string;
@@ -111,6 +112,20 @@ export class CIRISClient {
     if (options.authToken !== undefined) {
       this.transport.setAuthToken(options.authToken);
     }
+  }
+
+  /**
+   * Get SDK version information
+   */
+  getVersion() {
+    return SDK_VERSION;
+  }
+
+  /**
+   * Get SDK version string
+   */
+  getVersionString(): string {
+    return SDK_VERSION.version;
   }
 
   /**
