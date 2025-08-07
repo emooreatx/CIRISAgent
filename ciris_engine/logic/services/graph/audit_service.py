@@ -35,26 +35,27 @@ except ImportError:
 if TYPE_CHECKING:
     from ciris_engine.logic.registries.base import ServiceRegistry
 
-from ciris_engine.protocols.services import AuditService as AuditServiceProtocol
-from ciris_engine.schemas.runtime.audit import AuditActionContext, AuditRequest
-from ciris_engine.schemas.runtime.enums import HandlerActionType, ServiceType
-from ciris_engine.schemas.runtime.memory import TimeSeriesDataPoint
-
-# TSDB functionality integrated into graph nodes
-from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
-from ciris_engine.schemas.services.nodes import AuditEntry as AuditEntryNode
-from ciris_engine.schemas.services.nodes import AuditEntryContext
-
-# Type alias for protocol compatibility
-AuditEntry = AuditEntryNode
 from ciris_engine.constants import UTC_TIMEZONE_SUFFIX
 from ciris_engine.logic.audit.hash_chain import AuditHashChain
 from ciris_engine.logic.audit.verifier import AuditVerifier
 from ciris_engine.logic.buses.memory_bus import MemoryBus
 from ciris_engine.logic.services.base_graph_service import BaseGraphService
+from ciris_engine.protocols.services import AuditService as AuditServiceProtocol
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.runtime.audit import AuditActionContext, AuditRequest
+from ciris_engine.schemas.runtime.enums import HandlerActionType, ServiceType
+from ciris_engine.schemas.runtime.memory import TimeSeriesDataPoint
 from ciris_engine.schemas.services.graph.audit import AuditEventData, AuditQuery, VerificationReport
+from ciris_engine.schemas.services.graph.memory import MemoryQuery
+
+# TSDB functionality integrated into graph nodes
+from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
+from ciris_engine.schemas.services.nodes import AuditEntry as AuditEntryNode
+from ciris_engine.schemas.services.nodes import AuditEntryContext
 from ciris_engine.schemas.services.operations import MemoryOpStatus
+
+# Type alias for protocol compatibility
+AuditEntry = AuditEntryNode
 
 logger = logging.getLogger(__name__)
 

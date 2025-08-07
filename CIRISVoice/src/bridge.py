@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import sys
 
 from wyoming.asr import Transcribe, Transcript
@@ -116,7 +117,7 @@ class CIRISWyomingHandler(AsyncEventHandler):
                     value = getattr(event, attr)
                     if not callable(value):
                         event_attrs[attr] = str(value)
-                except:
+                except Exception:
                     pass
 
         logger.info(f"Event type: {type(event).__name__}")

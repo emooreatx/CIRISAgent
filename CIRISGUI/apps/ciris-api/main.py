@@ -57,7 +57,7 @@ async def get_current_user(request: Request):
 
     try:
         return await client.auth.get_current_user()
-    except:
+    except Exception:
         return None
 
 
