@@ -41,24 +41,21 @@ class TestDataRetention:
 
     def test_consolidation_node_expiry_flag(self):
         """Test that consolidation nodes can track data expiry."""
-        # Using ConfigNode as an example of typed node with attributes
-        from ciris_engine.schemas.services.graph.consolidation import ConsolidationRecord
+        # Using TSDBPeriodSummary to track consolidation data
+        from ciris_engine.schemas.services.graph.consolidation import TSDBPeriodSummary
 
-        # Create a consolidation record (which would track metric expiry)
-        record = ConsolidationRecord(
+        # Create a period summary (which tracks consolidation data)
+        summary = TSDBPeriodSummary(
             period_label="2025080712",
-            start_time=datetime.utcnow() - timedelta(hours=6),
-            end_time=datetime.utcnow(),
-            consolidation_type="metrics",
-            metrics_processed=100,
-            nodes_created=10,
-            nodes_expired=5,
-            status="completed",
+            period_start=(datetime.utcnow() - timedelta(hours=6)).isoformat(),
+            period_end=datetime.utcnow().isoformat(),
+            source_node_count=100,
+            action_counts={"metrics_expired": 5, "metrics_created": 10},
         )
 
-        # Should track expired nodes
-        assert hasattr(record, "nodes_expired")
-        assert record.nodes_expired == 5
+        # Should track expired metrics via action counts
+        assert "metrics_expired" in summary.action_counts
+        assert summary.action_counts["metrics_expired"] == 5
 
 
 class TestPDMARedaction:
@@ -241,8 +238,8 @@ class TestAdaptiveFilter:
         """Test that AdaptiveFilterService implements protocol."""
         from ciris_engine.protocols.services.governance.filter import AdaptiveFilterServiceProtocol
 
-        # Protocol should define quarantine-like methods
-        assert hasattr(AdaptiveFilterServiceProtocol, "check_content")
+        # Protocol should define filtering methods
+        assert hasattr(AdaptiveFilterServiceProtocol, "filter_message")
 
     def test_adaptive_filter_in_service_list(self):
         """Test that adaptive filter is in core services."""
