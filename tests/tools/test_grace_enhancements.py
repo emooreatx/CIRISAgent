@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from tools.grace.context import SessionContext
+from tools.grace.context import WorkContext
 from tools.grace.main import (
     check_production_incidents,
     fix_precommit_issues,
@@ -24,8 +24,8 @@ class TestGraceAntiGoodhart:
     """Test anti-Goodhart principles in Grace."""
 
     def test_no_time_tracking_in_context(self):
-        """Test that SessionContext no longer tracks time."""
-        context = SessionContext()
+        """Test that WorkContext no longer tracks time."""
+        context = WorkContext()
 
         # These methods should not exist
         assert not hasattr(context, "log_work")
@@ -34,7 +34,7 @@ class TestGraceAntiGoodhart:
 
     def test_session_flow_without_time(self):
         """Test that session flow focuses on rhythm not hours."""
-        context = SessionContext()
+        context = WorkContext()
 
         # Start morning session
         context.start_session("morning")
@@ -45,7 +45,7 @@ class TestGraceAntiGoodhart:
         assert "hours_worked" not in context.current_session
         assert "target_hours" not in context.current_session
 
-    @patch("tools.grace.main.SessionContext")
+    @patch("tools.grace.main.WorkContext")
     def test_status_shows_philosophy_not_hours(self, mock_context_class):
         """Test that status shows anti-Goodhart philosophy."""
         mock_context = MagicMock()
@@ -222,7 +222,7 @@ class TestGracePhilosophy:
         """Test that night command emphasizes choice not obligation."""
         from tools.grace.main import night
 
-        with patch("tools.grace.main.SessionContext") as mock_context:
+        with patch("tools.grace.main.WorkContext") as mock_context:
             with patch("builtins.print") as mock_print:
                 night()
 
@@ -233,7 +233,7 @@ class TestGracePhilosophy:
 
     def test_error_messages_are_helpful(self):
         """Test that error messages are constructive not punitive."""
-        context = SessionContext()
+        context = WorkContext()
 
         # Try to end non-existent session
         with patch("builtins.print") as mock_print:
