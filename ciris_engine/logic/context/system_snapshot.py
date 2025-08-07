@@ -176,6 +176,10 @@ async def build_system_snapshot(
                     "role": attrs_dict.get("role_description", ""),
                     "trust_level": attrs_dict.get("trust_level", 0.5),
                 }
+                # Include stewardship if present (Book VI compliance)
+                if "stewardship" in attrs_dict:
+                    identity_data["stewardship"] = attrs_dict["stewardship"]
+
                 identity_purpose = attrs_dict.get("role_description", "")
                 identity_capabilities = attrs_dict.get("permitted_actions", [])
                 identity_restrictions = attrs_dict.get("restricted_capabilities", [])
