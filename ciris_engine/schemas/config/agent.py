@@ -9,6 +9,40 @@ from typing import Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+class StewardshipCalculation(BaseModel):
+    """Schema for the Stewardship Tier calculation details."""
+    creator_influence_score: int = Field(..., description="Creator-Influence Score (CIS)")
+    risk_magnitude: int = Field(..., description="Risk Magnitude (RM)")
+    formula: str = Field(..., description="Formula used for calculation")
+    result: int = Field(..., description="Calculated Stewardship Tier (ST)")
+
+
+class CreatorLedgerEntry(BaseModel):
+    """Schema for the Creator Ledger entry."""
+    creator_id: str = Field(..., description="Identifier for the creator or creating team")
+    creation_timestamp: str = Field(..., description="ISO 8601 timestamp of the creation entry")
+    covenant_version: str = Field(..., description="Version of the Covenant applied")
+    book_vi_compliance_check: str = Field(..., description="Status of the Book VI compliance check")
+    stewardship_tier_calculation: StewardshipCalculation = Field(..., description="Details of the ST calculation")
+    public_key_fingerprint: str = Field(..., description="Fingerprint of the public key used for signing")
+    signature: str = Field(..., description="Cryptographic signature of the ledger entry's content")
+
+
+class CreatorIntentStatement(BaseModel):
+    """Schema for the Creator Intent Statement (CIS)."""
+    purpose_and_functionalities: List[str] = Field(..., description="The intended purpose and functionalities")
+    limitations_and_design_choices: List[str] = Field(..., description="Known limitations and key design choices")
+    anticipated_benefits: List[str] = Field(..., description="Anticipated benefits of the creation")
+    anticipated_risks: List[str] = Field(..., description="Anticipated risks associated with the creation")
+
+
+class Stewardship(BaseModel):
+    """Schema for Book VI Stewardship information."""
+    stewardship_tier: int = Field(..., description="Calculated Stewardship Tier (ST) for the agent")
+    creator_intent_statement: CreatorIntentStatement = Field(..., description="The Creator Intent Statement (CIS)")
+    creator_ledger_entry: CreatorLedgerEntry = Field(..., description="The entry for the Creator Ledger")
+
+
 class AgentTemplate(BaseModel):
     """Agent profile template for identity configuration."""
 
@@ -33,7 +67,20 @@ class AgentTemplate(BaseModel):
     api_config: Optional["APIAdapterOverrides"] = Field(None, description="API adapter configuration overrides")
     cli_config: Optional["CLIAdapterOverrides"] = Field(None, description="CLI adapter configuration overrides")
 
+    # Book VI Compliance
+    stewardship: Optional["Stewardship"] = Field(None, description="Book VI Stewardship information")
+
     model_config = ConfigDict(extra="allow")  # Allow additional fields for extensibility
+
+    @field_validator("stewardship", mode="before")
+    @classmethod
+    def convert_stewardship(cls, v):
+        """Convert dict to Stewardship if needed."""
+        if v is None:
+            return None
+        if isinstance(v, dict):
+            return Stewardship(**v)
+        return v
 
     @field_validator("dsdma_kwargs", mode="before")
     @classmethod
@@ -120,7 +167,7 @@ class ActionSelectionOverrides(BaseModel):
     system_prompt: Optional[str] = Field(None, description="Override system prompt")
     user_prompt_template: Optional[str] = Field(None, description="Override user prompt template")
     action_descriptions: Optional[Dict[str, str]] = Field(None, description="Override action descriptions")
-    model_config = ConfigDict(extra="forbid")  # Strict validation
+    model_config = ConfigDict(extra="allow")  # Allow for additional, template-specific guidance
 
 
 class DiscordAdapterOverrides(BaseModel):

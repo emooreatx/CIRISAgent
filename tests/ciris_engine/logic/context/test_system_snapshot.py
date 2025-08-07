@@ -202,6 +202,69 @@ async def test_build_system_snapshot_with_memory_service():
 
 
 @pytest.mark.asyncio
+async def test_build_system_snapshot_with_stewardship_data():
+    """Test snapshot with memory service for identity retrieval including stewardship."""
+    # Mock resource monitor
+    resource_monitor = Mock()
+    resource_monitor.snapshot = Mock(critical=[], healthy=True)
+
+    # Mock memory service
+    memory_service = AsyncMock()
+
+    # Create identity node with stewardship data
+    identity_node = Mock()
+    identity_node.attributes = Mock()
+    identity_node.attributes.model_dump = Mock(
+        return_value={
+            "agent_id": "steward_agent",
+            "description": "Test Agent with Stewardship",
+            "role_description": "Testing Stewardship",
+            "trust_level": 0.9,
+            "permitted_actions": ["test"],
+            "restricted_capabilities": [],
+            "stewardship": {
+                "stewardship_tier": 2,
+                "creator_intent_statement": {
+                    "purpose_and_functionalities": ["To test stewardship"],
+                    "limitations_and_design_choices": ["Limited to testing"],
+                    "anticipated_benefits": ["Improved compliance"],
+                    "anticipated_risks": ["Incomplete testing"],
+                },
+                "creator_ledger_entry": {
+                    "creator_id": "test_creator",
+                    "creation_timestamp": "2025-01-01T00:00:00Z",
+                    "covenant_version": "1.0b",
+                    "book_vi_compliance_check": "passed",
+                    "stewardship_tier_calculation": {
+                        "creator_influence_score": 7,
+                        "risk_magnitude": 2,
+                        "formula": "ceil((CIS * RM) / 7)",
+                        "result": 2,
+                    },
+                    "public_key_fingerprint": "test_fingerprint",
+                    "signature": "test_signature",
+                },
+            },
+        }
+    )
+
+    memory_service.recall = AsyncMock(return_value=[identity_node])
+
+    snapshot = await build_system_snapshot(
+        task=None, thought=None, resource_monitor=resource_monitor, memory_service=memory_service
+    )
+
+    assert isinstance(snapshot, SystemSnapshot)
+    assert snapshot.agent_identity is not None
+    assert snapshot.agent_identity["agent_id"] == "steward_agent"
+    assert "stewardship" in snapshot.agent_identity
+    stewardship_data = snapshot.agent_identity["stewardship"]
+    assert stewardship_data["stewardship_tier"] == 2
+    assert stewardship_data["creator_ledger_entry"]["signature"] == "test_signature"
+    assert "To test stewardship" in stewardship_data["creator_intent_statement"]["purpose_and_functionalities"]
+
+
+@pytest.mark.asyncio
 async def test_build_system_snapshot_type_safety():
     """Test that invalid types fail fast and loud."""
     # Mock resource monitor

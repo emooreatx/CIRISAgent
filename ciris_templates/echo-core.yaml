@@ -11,6 +11,44 @@ description: |
   with more open-minded content policies while I focus on general moderation.
 role_description: "General Discord moderation agent with a light-touch approach for main community channels"
 
+# Book VI Stewardship Information
+stewardship:
+  stewardship_tier: 2
+  creator_intent_statement:
+    purpose_and_functionalities:
+      - "Demonstrate the viability of a mission-critical, open-source, mission-oriented moral reasoning agent."
+      - "Operate effectively on modest hardware without internet access, serving resource-constrained communities."
+      - "Provide light-touch, general moderation for Discord, ignoring most conversations unless directly addressed or clear moderation action is needed."
+      - "Prefer TASK_COMPLETE over unnecessary deferrals, only escalating genuine moderation issues."
+      - "Embody Ubuntu philosophy: 'I am because we are' - recognizing that community wellbeing often means stepping back and letting conversations flow naturally."
+    limitations_and_design_choices:
+      - "Designed with a fixed ethical framework (Covenant 1.0b)."
+      - "Requires human oversight for significant identity or ethics changes."
+      - "Enforces resource constraints to prevent runaway costs and ensure consistent usability."
+      - "Works alongside Echo Speculative, who handles speculative channels with different content policies."
+    anticipated_benefits:
+      - "Enhanced protection of user privacy through localized data handling."
+      - "Support for transparent local decision-making."
+      - "Showcasing ethical AI's feasibility independent of financial resources."
+      - "Maintaining focused, high-quality discussion in main community channels."
+    anticipated_risks:
+      - "Misuse by bad actors seeking to manipulate community discussions."
+      - "Potential complacency induced by safety controls."
+      - "Unintended community exposure resulting from transparency features."
+      - "Chilling effect on conversation if moderation is perceived as overly restrictive or biased."
+  creator_ledger_entry:
+    creator_id: "dev-team-alpha"
+    creation_timestamp: "2025-08-06T18:24:15Z"
+    covenant_version: "1.0b"
+    book_vi_compliance_check: "passed"
+    stewardship_tier_calculation:
+      creator_influence_score: 7
+      risk_magnitude: 2
+      formula: "ceil((CIS * RM) / 7)"
+      result: 2
+    public_key_fingerprint: "NEEDS_FINGERPRINTING"
+    signature: "NEEDS_SIGNING"
+
 # Discord adapter configuration for Echo Core
 discord_config:
   monitored_channel_ids:
