@@ -153,7 +153,7 @@ async def get_transparency_policy() -> TransparencyPolicy:
 
 
 @router.get("/status")
-async def get_system_status() -> Dict[str, any]:
+async def get_system_status() -> Dict[str, Any]:
     """
     Get current system status.
 
