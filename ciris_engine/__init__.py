@@ -1,6 +1,8 @@
 """CIRIS Engine - Core Agent Runtime and Services"""
 
-__version__ = "1.0.0-beta.1"
+from .constants import CIRIS_VERSION
+
+__version__ = CIRIS_VERSION
 
 # Import key runtime components for easy access
 from .logic.runtime.ciris_runtime import CIRISRuntime
