@@ -5,6 +5,7 @@ Main Grace class - ties everything together simply.
 import os
 import subprocess
 from datetime import datetime
+from pathlib import Path
 
 from .context import WorkContext
 from .health import check_all, check_deployment
@@ -387,6 +388,9 @@ class Grace:
         deployment = check_deployment()
         if deployment:
             message.append(deployment)
+        else:
+            # If no deployment info, still show something
+            message.append("No recent deployments found")
 
         # Check incidents log if available (for production containers)
         incidents = self.check_incidents()
