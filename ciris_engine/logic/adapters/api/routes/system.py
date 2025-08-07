@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, field_serializer
 
+from ciris_engine.constants import CIRIS_VERSION
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
 from ciris_engine.schemas.api.responses import SuccessResponse
 from ciris_engine.schemas.api.telemetry import ServiceMetrics, TimeSyncStatus
@@ -192,7 +193,7 @@ async def get_system_health(request: Request) -> SuccessResponse[SystemHealthRes
     # Check cognitive state if runtime is available
     cognitive_state = None
     runtime = getattr(request.app.state, "runtime", None)
-    if runtime and hasattr(runtime, "agent_processor"):
+    if runtime and hasattr(runtime, "agent_processor") and runtime.agent_processor is not None:
         try:
             cognitive_state = runtime.agent_processor.get_current_state()
         except Exception as e:
@@ -274,7 +275,7 @@ async def get_system_health(request: Request) -> SuccessResponse[SystemHealthRes
 
     response = SystemHealthResponse(
         status=status,
-        version="1.0.2",
+        version=CIRIS_VERSION,
         uptime_seconds=uptime_seconds,
         services=services,
         initialization_complete=init_complete,
@@ -435,7 +436,7 @@ async def control_runtime(
         # Get cognitive state if available
         cognitive_state = None
         runtime = getattr(request.app.state, "runtime", None)
-        if runtime and hasattr(runtime, "agent_processor"):
+        if runtime and hasattr(runtime, "agent_processor") and runtime.agent_processor is not None:
             try:
                 cognitive_state = runtime.agent_processor.get_current_state()
             except Exception as e:

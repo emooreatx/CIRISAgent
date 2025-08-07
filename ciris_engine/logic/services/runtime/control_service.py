@@ -232,6 +232,18 @@ class RuntimeControlService(BaseService, RuntimeControlServiceProtocol):
                     oldest_message_age_seconds=None,
                 )
 
+            # Check if agent processor is available
+            if not hasattr(self.runtime, "agent_processor") or self.runtime.agent_processor is None:
+                logger.debug("Agent processor not yet initialized, returning empty queue status")
+                return ProcessorQueueStatus(
+                    processor_name="agent",
+                    queue_size=0,
+                    max_size=1000,
+                    processing_rate=0.0,
+                    average_latency_ms=0.0,
+                    oldest_message_age_seconds=None,
+                )
+
             # Get queue status from agent processor
             queue_status = self.runtime.agent_processor.get_queue_status()
 

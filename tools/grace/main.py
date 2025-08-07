@@ -2,6 +2,7 @@
 Main Grace class - ties everything together simply.
 """
 
+import os
 import subprocess
 from datetime import datetime
 
@@ -47,6 +48,12 @@ class Grace:
         # Show problems first
         if health.get("production") != "UP":
             message.append(f"\n🔴 Production: {health.get('production', 'UNKNOWN')}")
+            # Check for incidents in production containers
+            for container in ["ciris-agent-datum", "container0", "container1"]:
+                incidents = self.check_incidents(container)
+                if incidents:
+                    message.append(incidents)
+                    break  # Show incidents from first container with issues
         if health.get("datum") not in ["HEALTHY", "HTTP 200"]:
             message.append(f"🔴 Datum: {health.get('datum', 'UNKNOWN')}")
         if health.get("ci_cd") in ["FAILURE", "FAILED"]:
@@ -145,6 +152,220 @@ class Grace:
 
         return "\n".join(message)
 
+    def incidents(self, container_name: str = "ciris-agent-datum") -> str:
+        """Check incidents log for a specific container.
+
+        Args:
+            container_name: Docker container name (default: ciris-agent-datum)
+
+        Returns:
+            Formatted incidents report
+        """
+        message = [f"Incidents Check: {container_name}\n" + "─" * 40]
+
+        # Check if this is a production container and SSH key exists
+        prod_containers = ["ciris-agent-datum", "container0", "container1"]
+        ssh_key = os.path.expanduser("~/.ssh/ciris_deploy")
+
+        if container_name in prod_containers and os.path.exists(ssh_key):
+            # Try SSH to production
+            try:
+                result = subprocess.run(
+                    [
+                        "ssh",
+                        "-i",
+                        ssh_key,
+                        "root@108.61.119.117",
+                        f"docker exec {container_name} tail -n 100 /app/logs/incidents_latest.log",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                if result.returncode == 0:
+                    message[0] = f"Incidents Check: {container_name} (PRODUCTION)\n" + "─" * 40
+                else:
+                    # SSH failed, fall back to local
+                    result = subprocess.run(
+                        ["docker", "exec", container_name, "tail", "-n", "100", "/app/logs/incidents_latest.log"],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+            except Exception:
+                # SSH failed, fall back to local
+                result = subprocess.run(
+                    ["docker", "exec", container_name, "tail", "-n", "100", "/app/logs/incidents_latest.log"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+        else:
+            # Local Docker check
+            try:
+                result = subprocess.run(
+                    ["docker", "exec", container_name, "tail", "-n", "100", "/app/logs/incidents_latest.log"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+            except Exception:
+                # Final fallback
+                message.append(f"❌ Could not access container {container_name}")
+                message.append("Container may not exist or Docker/SSH is not available")
+                return "\n".join(message)
+
+        if result.returncode != 0:
+            message.append(f"❌ Could not access container {container_name}")
+            message.append("Container may not exist or Docker is not available")
+            return "\n".join(message)
+
+        if not result.stdout.strip():
+            message.append("✅ No incidents found - log is clean!")
+            return "\n".join(message)
+
+        lines = result.stdout.strip().split("\n")
+
+        # Analyze errors
+        error_types = {}
+        recent_errors = []
+
+        for line in lines:
+            if "ERROR" in line:
+                # Track recent errors
+                recent_errors.append(line)
+
+                # Categorize errors
+                if "AttributeError: 'NoneType'" in line:
+                    error_types["NoneType errors"] = error_types.get("NoneType errors", 0) + 1
+                elif "ValidationError" in line:
+                    error_types["Validation errors"] = error_types.get("Validation errors", 0) + 1
+                elif "ImportError" in line:
+                    error_types["Import errors"] = error_types.get("Import errors", 0) + 1
+                elif "KeyError" in line:
+                    error_types["Key errors"] = error_types.get("Key errors", 0) + 1
+                elif "TypeError" in line:
+                    error_types["Type errors"] = error_types.get("Type errors", 0) + 1
+                else:
+                    error_types["Other errors"] = error_types.get("Other errors", 0) + 1
+
+        # Report summary
+        if error_types:
+            message.append(f"\n🚨 Found {sum(error_types.values())} errors:")
+            for error_type, count in sorted(error_types.items(), key=lambda x: -x[1]):
+                message.append(f"  • {error_type}: {count}")
+
+            # Show last 5 errors
+            message.append("\nRecent errors (last 5):")
+            for error in recent_errors[-5:]:
+                # Extract key info
+                if "File" in error:
+                    # Try to extract file and line
+                    parts = error.split("File")
+                    if len(parts) > 1:
+                        file_info = parts[1].split(",")[0].strip()
+                        message.append(f"  📍 {file_info}")
+                else:
+                    # Show truncated error
+                    if len(error) > 100:
+                        error = error[:97] + "..."
+                    message.append(f"  • {error}")
+
+            message.append("\n💡 RCA Mode:")
+            message.append("  docker exec " + container_name + " python debug_tools.py")
+            message.append("  Check traces, thoughts, and handler metrics")
+        else:
+            message.append("✅ No ERROR entries found in recent logs")
+
+        return "\n".join(message)
+
+    def check_incidents(self, container_name: str = None) -> str:
+        """Check incidents_latest.log for critical errors.
+
+        Args:
+            container_name: Docker container name to check. If None, checks local log.
+
+        Returns:
+            Formatted string with incidents summary, or empty string if no issues.
+        """
+        message = []
+
+        # Try Docker container first if name provided
+        if container_name:
+            try:
+                result = subprocess.run(
+                    ["docker", "exec", container_name, "tail", "-n", "50", "/app/logs/incidents_latest.log"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    lines = result.stdout.strip().split("\n")
+                    # Count error types
+                    error_counts = {}
+                    for line in lines:
+                        if "ERROR" in line:
+                            # Extract error type
+                            if "AttributeError" in line:
+                                error_counts["AttributeError"] = error_counts.get("AttributeError", 0) + 1
+                            elif "ValidationError" in line:
+                                error_counts["ValidationError"] = error_counts.get("ValidationError", 0) + 1
+                            elif "ImportError" in line:
+                                error_counts["ImportError"] = error_counts.get("ImportError", 0) + 1
+                            elif "KeyError" in line:
+                                error_counts["KeyError"] = error_counts.get("KeyError", 0) + 1
+                            else:
+                                error_counts["Other"] = error_counts.get("Other", 0) + 1
+
+                    if error_counts:
+                        message.append(f"\n🚨 Incidents in {container_name}:")
+                        for error_type, count in error_counts.items():
+                            message.append(f"  - {error_type}: {count} errors")
+
+                        # Show last few lines for context
+                        message.append("\nLast 3 errors:")
+                        error_lines = [l for l in lines if "ERROR" in l][-3:]
+                        for line in error_lines:
+                            # Truncate long lines
+                            if len(line) > 80:
+                                line = line[:77] + "..."
+                            message.append(f"  {line}")
+            except Exception:
+                # Silently fail if container doesn't exist or Docker not available
+                pass
+
+        # Try local log file
+        else:
+            try:
+                with open("/app/logs/incidents_latest.log", "r") as f:
+                    lines = f.readlines()[-50:]  # Last 50 lines
+
+                error_counts = {}
+                for line in lines:
+                    if "ERROR" in line:
+                        # Extract error type
+                        if "AttributeError" in line:
+                            error_counts["AttributeError"] = error_counts.get("AttributeError", 0) + 1
+                        elif "ValidationError" in line:
+                            error_counts["ValidationError"] = error_counts.get("ValidationError", 0) + 1
+                        elif "ImportError" in line:
+                            error_counts["ImportError"] = error_counts.get("ImportError", 0) + 1
+                        else:
+                            error_counts["Other"] = error_counts.get("Other", 0) + 1
+
+                if error_counts:
+                    message.append("\n🚨 Local incidents detected:")
+                    for error_type, count in error_counts.items():
+                        message.append(f"  - {error_type}: {count} errors")
+            except FileNotFoundError:
+                # No local incidents log - that's fine
+                pass
+            except Exception:
+                # Other errors - silently fail
+                pass
+
+        return "\n".join(message) if message else ""
+
     def deploy_status(self) -> str:
         """Check deployment status."""
         message = ["Deployment Status\n" + "─" * 40]
@@ -168,6 +389,11 @@ class Grace:
                 message.append("\n⏰ OAuth fix not detected yet")
         except Exception:
             message.append("\nCould not check OAuth status")
+
+        # Check incidents log if available (for production containers)
+        incidents = self.check_incidents()
+        if incidents:
+            message.append(incidents)
 
         return "\n".join(message)
 
