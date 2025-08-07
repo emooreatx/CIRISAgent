@@ -127,7 +127,7 @@ class TestGraceDeploymentStatus:
         grace = Grace()
         assert hasattr(grace, "deploy_status")
 
-    @patch("tools.grace.health.check_deployment")
+    @patch("tools.grace.main.check_deployment")
     def test_deploy_shows_failures(self, mock_check):
         """Test that deployment status shows failures correctly."""
         mock_check.return_value = "❌ Recent deployment FAILED [abc123]"
@@ -138,7 +138,7 @@ class TestGraceDeploymentStatus:
         assert "❌" in status
         assert "FAILED" in status
 
-    @patch("tools.grace.health.check_deployment")
+    @patch("tools.grace.main.check_deployment")
     def test_deploy_shows_success(self, mock_check):
         """Test that deployment status shows success correctly."""
         mock_check.return_value = "✅ Recent deployment succeeded [def456]"
