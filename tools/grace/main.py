@@ -410,51 +410,106 @@ class Grace:
 
         return "\n".join(message)
 
-    def precommit(self) -> str:
-        """Check and fix pre-commit issues."""
+    def precommit(self, autofix: bool = False) -> str:
+        """Check and optionally fix pre-commit issues.
+
+        Args:
+            autofix: If True, attempt to automatically fix issues
+        """
         message = ["Pre-commit Status\n" + "─" * 40]
 
-        # First run pre-commit to see issues
+        # Check for uncommitted changes first
+        git_status = subprocess.run(["git", "status", "--porcelain"], capture_output=True, text=True)
+        has_changes = bool(git_status.stdout.strip())
+
+        if has_changes:
+            message.append("📝 You have uncommitted changes\n")
+
+        # Run pre-commit to see issues
         try:
             result = subprocess.run(["pre-commit", "run", "--all-files"], capture_output=True, text=True, timeout=60)
 
-            # Count failures
-            failures = result.stdout.count("Failed")
-            passes = result.stdout.count("Passed")
+            # Parse output more intelligently
+            lines = result.stdout.split("\n")
+            hook_results = {}
+
+            for line in lines:
+                if "...." in line:
+                    parts = line.split("....")
+                    if len(parts) >= 2:
+                        hook_name = parts[0].strip()
+                        status = parts[-1].strip()
+                        hook_results[hook_name] = status
+
+            # Count results
+            passes = sum(1 for s in hook_results.values() if "Passed" in s)
+            failures = sum(1 for s in hook_results.values() if "Failed" in s)
 
             message.append(f"✅ Passed: {passes} hooks")
             if failures > 0:
                 message.append(f"❌ Failed: {failures} hooks")
 
-                # Parse specific failures
-                if "black" in result.stdout and "Failed" in result.stdout:
-                    message.append("\n🔧 Black: Files need formatting")
-                    message.append("  Fix: black . --exclude=venv")
+                # Analyze specific failures with actionable fixes
+                fixes_applied = []
 
-                if "isort" in result.stdout and "Failed" in result.stdout:
-                    message.append("\n🔧 Isort: Imports need sorting")
-                    message.append("  Fix: isort . --skip=venv")
+                for hook, status in hook_results.items():
+                    if "Failed" not in status:
+                        continue
 
-                if "ruff" in result.stdout and "Failed" in result.stdout:
-                    # Count ruff errors
-                    ruff_errors = result.stdout.count("E")
-                    message.append(f"\n🔧 Ruff: {ruff_errors} linting errors")
-                    message.append("  Fix: ruff check --fix")
+                    # Black formatter
+                    if "black" in hook.lower():
+                        message.append("\n🔧 Black: Code formatting needed")
+                        if autofix:
+                            subprocess.run(["pre-commit", "run", "black", "--all-files"], capture_output=True)
+                            fixes_applied.append("black")
+                            message.append("  ✅ Auto-formatted")
+                        else:
+                            message.append("  Run: grace fix")
 
-                if "mypy" in result.stdout and "Failed" in result.stdout:
-                    message.append("\n🔧 MyPy: Type annotation errors")
-                    message.append("  Analyze: python -m tools.ciris_mypy_toolkit analyze")
-                    message.append("  Fix: python -m tools.ciris_mypy_toolkit fix --systematic")
+                    # Import sorting
+                    elif "isort" in hook.lower():
+                        message.append("\n🔧 Isort: Import sorting needed")
+                        if autofix:
+                            subprocess.run(["pre-commit", "run", "isort", "--all-files"], capture_output=True)
+                            fixes_applied.append("isort")
+                            message.append("  ✅ Auto-sorted")
+                        else:
+                            message.append("  Run: grace fix")
 
+                    # Trailing whitespace
+                    elif "trailing" in hook.lower():
+                        message.append("\n🔧 Trailing whitespace found")
+                        if autofix:
+                            subprocess.run(
+                                ["pre-commit", "run", "trailing-whitespace", "--all-files"], capture_output=True
+                            )
+                            fixes_applied.append("whitespace")
+                            message.append("  ✅ Auto-cleaned")
+
+                    # End of file
+                    elif "end-of-file" in hook.lower():
+                        message.append("\n🔧 Missing newline at end of file")
+                        if autofix:
+                            subprocess.run(
+                                ["pre-commit", "run", "end-of-file-fixer", "--all-files"], capture_output=True
+                            )
+                            fixes_applied.append("newlines")
+                            message.append("  ✅ Auto-fixed")
+
+                # Check for Dict[str, Any] violations (from Grace hook)
                 if "Dict[str, Any]" in result.stdout:
                     dict_count = result.stdout.count("Dict[str, Any]")
-                    message.append(f"\n⚠️  Dict[str, Any]: {dict_count} violations")
-                    message.append("  This violates 'No Dicts' principle")
+                    message.append(f"\n📝 Dict[str, Any]: {dict_count} violations")
+                    message.append("  These are quality reminders, not blockers")
+                    message.append("  Review with: python -m tools.quality_analyzer")
 
-                message.append("\n💡 Quick fix all formatters:")
-                message.append("  black . --exclude=venv && isort . --skip=venv")
-                message.append("\n💡 Smart commit (handles hook modifications):")
-                message.append('  ./tools/smart_commit.sh "your message"')
+                if fixes_applied:
+                    message.append(f"\n✨ Applied fixes: {', '.join(fixes_applied)}")
+                    message.append("Run 'grace precommit' again to verify")
+                elif not autofix and failures > 0:
+                    message.append("\n💡 Auto-fix available:")
+                    message.append("  grace fix")
+                    message.append("\n🎯 Anti-Goodhart: Perfect is the enemy of done")
             else:
                 message.append("\n🎉 All pre-commit hooks passing!")
 
@@ -464,3 +519,7 @@ class Grace:
             message.append(f"❌ Error running pre-commit: {e}")
 
         return "\n".join(message)
+
+    def fix(self) -> str:
+        """Shortcut for auto-fixing pre-commit issues."""
+        return self.precommit(autofix=True)
