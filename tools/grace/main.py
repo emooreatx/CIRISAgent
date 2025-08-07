@@ -8,7 +8,7 @@ from datetime import datetime
 
 from .context import WorkContext
 from .health import check_all, check_deployment
-from .schedule import get_current_session, get_next_transition, get_remaining_time
+from .schedule import get_current_session, get_next_transition
 
 
 class Grace:
@@ -28,15 +28,12 @@ class Grace:
 
         session = get_current_session()
         if session:
-            remaining = get_remaining_time()
-            message.append(f"Session: {session} ({remaining:.1f}h remaining)")
+            message.append(f"Session: {session}")
+            # Anti-Goodhart: "What gets measured gets gamed"
+            # We show sessions for rhythm, not hours for performance
         else:
             next_hour, next_desc = get_next_transition()
             message.append(f"Break until {next_hour}:00 - {next_desc}")
-
-        # Work today
-        hours = self.context.get_today_hours()
-        message.append(f"Today: {hours:.1f} hours worked")
 
         # System health
         health = check_all()
@@ -92,9 +89,9 @@ class Grace:
         # Normal morning
         message.append("✅ Systems operational")
 
-        remaining = get_remaining_time()
-        message.append(f"\nYou have {remaining:.1f} hours until break")
+        message.append("\nMorning session active")
         message.append("Best for: Complex problems, architecture decisions")
+        message.append("\n💡 Goodhart's Law: Optimizing for hours worked optimizes for sitting, not solving")
 
         return "\n".join(message)
 
@@ -103,12 +100,9 @@ class Grace:
         # Save context
         self.context.save("Taking a break")
 
-        # Log approximate work time
+        # Session awareness, not time tracking
         session = get_current_session()
-        if session:
-            # Rough estimate - you've worked part of this session
-            hours = 1.5  # Conservative estimate
-            self.context.log_work(hours)
+        # Anti-pattern avoided: Not tracking hours prevents gaming the metric
 
         return "Context saved. Enjoy your break.\nRun 'grace resume' when you return."
 
@@ -126,8 +120,7 @@ class Grace:
             message.append("📝 You have uncommitted changes")
             message.append(f"Last commit: {ctx.get('last_commit', 'unknown')}")
 
-        remaining = get_remaining_time()
-        message.append(f"\n{remaining:.1f} hours until next break")
+        message.append(f"\n{session.capitalize()} session in progress")
 
         if session == "midday":
             message.append("Good for: Code review, bug fixes, documentation")
@@ -138,17 +131,12 @@ class Grace:
 
     def night(self) -> str:
         """Night session choice point."""
-        hours_today = self.context.get_today_hours()
-
         message = ["Choice point. How are you feeling?\n"]
-        message.append(f"Today: {hours_today:.1f} hours already")
 
-        if hours_today > 6:
-            message.append("You've put in a solid day.")
-            message.append("Rest is earned, not weakness.")
-        else:
-            message.append("If you code: Pick something you WANT to explore")
-            message.append("If you rest: Tomorrow you'll be fresh")
+        # Anti-Goodhart: Judge by energy and clarity, not hours logged
+        message.append("If you code: Pick something you WANT to explore")
+        message.append("If you rest: Tomorrow you'll be fresh")
+        message.append("\n🎯 Reminder: Quality emerges from well-rested minds, not exhausted ones")
 
         return "\n".join(message)
 
