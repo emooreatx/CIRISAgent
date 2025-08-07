@@ -270,6 +270,14 @@ class TSDBDataConverter:
         try:
             # Convert dict to typed model if needed
             if isinstance(raw_task, dict):
+                # Clean thoughts list before creating RawTaskData
+                if "thoughts" in raw_task and raw_task["thoughts"]:
+                    cleaned_thoughts = []
+                    for thought in raw_task["thoughts"]:
+                        # Remove None values from thought dicts
+                        cleaned_thought = {k: v for k, v in thought.items() if v is not None}
+                        cleaned_thoughts.append(cleaned_thought)
+                    raw_task["thoughts"] = cleaned_thoughts
                 raw_task = RawTaskData(**raw_task)
             # Extract handlers from thoughts
             handlers_used = []
@@ -338,7 +346,9 @@ class TSDBDataConverter:
         try:
             # Convert dict to typed model if needed
             if isinstance(raw_thought, dict):
-                raw_thought = RawThoughtData(**raw_thought)
+                # Filter out None values that cause validation issues
+                cleaned_thought = {k: v for k, v in raw_thought.items() if v is not None}
+                raw_thought = RawThoughtData(**cleaned_thought)
             final_action = None
             handler = None
 

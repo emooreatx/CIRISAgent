@@ -94,4 +94,6 @@ __all__ = [
 ]
 
 # Version indicator for v1 API
-__version__ = "1.0.0-pre-beta"
+from ciris_engine.constants import CIRIS_VERSION
+
+__version__ = CIRIS_VERSION
