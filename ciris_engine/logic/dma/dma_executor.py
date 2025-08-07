@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, Optional, Unio
 from ciris_engine.logic import persistence
 from ciris_engine.logic.processors.support.processing_queue import ProcessingQueueItem
 from ciris_engine.logic.processors.support.thought_escalation import escalate_dma_failure
+from ciris_engine.schemas.dma.faculty import EnhancedDMAInputs
 from ciris_engine.schemas.dma.results import ActionSelectionDMAResult, CSDMAResult, DSDMAResult, EthicalDMAResult
 from ciris_engine.schemas.persistence.core import CorrelationUpdateRequest
 from ciris_engine.schemas.runtime.enums import HandlerActionType
@@ -401,11 +402,10 @@ async def run_dsdma(
 
 async def run_action_selection_pdma(
     evaluator: ActionSelectionPDMAEvaluator,
-    triaged_inputs: Union[Dict[str, Any], "EnhancedDMAInputs"],
+    triaged_inputs: Union[Dict[str, Any], EnhancedDMAInputs],
     time_service: Optional["TimeServiceProtocol"] = None,
 ) -> ActionSelectionDMAResult:
     """Select the next handler action using the triaged DMA results."""
-    from ciris_engine.schemas.dma.faculty import EnhancedDMAInputs
 
     if not time_service:
         raise RuntimeError("TimeService is required for DMA execution")

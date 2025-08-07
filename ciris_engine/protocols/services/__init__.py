@@ -2,7 +2,6 @@
 
 # Re-export base protocols from runtime
 from ..runtime.base import ServiceProtocol  # Alias for backward compatibility
-from ..runtime.base import ServiceProtocol as Service  # Alias for base_bus.py
 from ..runtime.base import CoreServiceProtocol, GraphServiceProtocol
 from ..runtime.base import VisibilityServiceProtocol as BaseVisibilityServiceProtocol
 

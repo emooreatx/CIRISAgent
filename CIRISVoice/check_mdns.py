@@ -19,7 +19,7 @@ try:
     with open("/data/options.json", "r") as f:
         options = json.load(f)
         print(json.dumps(options, indent=2))
-except:
+except Exception:
     print("Could not read addon options")
 
 # Check if we're advertising on mDNS

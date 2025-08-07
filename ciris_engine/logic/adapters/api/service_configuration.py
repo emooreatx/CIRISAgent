@@ -22,6 +22,8 @@ class ServiceMapping:
         # If no app_state_name specified, use runtime_attr
         if self.app_state_name is None:
             self.app_state_name = self.runtime_attr
+        # Ensure app_state_name is never None after initialization
+        assert self.app_state_name is not None
 
 
 class ApiServiceConfiguration:
@@ -122,6 +124,9 @@ class ApiServiceConfiguration:
             result.append((mapping.runtime_attr, mapping.app_state_name, mapping.special_handler))
 
         return result
+
+    # Adapter-created services - will be defined after AdapterService class
+    ADAPTER_CREATED_SERVICES: List["AdapterService"] = []
 
 
 @dataclass

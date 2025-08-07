@@ -170,3 +170,58 @@ class Grace:
             message.append("\nCould not check OAuth status")
 
         return "\n".join(message)
+
+    def precommit(self) -> str:
+        """Check and fix pre-commit issues."""
+        message = ["Pre-commit Status\n" + "─" * 40]
+
+        # First run pre-commit to see issues
+        try:
+            result = subprocess.run(["pre-commit", "run", "--all-files"], capture_output=True, text=True, timeout=60)
+
+            # Count failures
+            failures = result.stdout.count("Failed")
+            passes = result.stdout.count("Passed")
+
+            message.append(f"✅ Passed: {passes} hooks")
+            if failures > 0:
+                message.append(f"❌ Failed: {failures} hooks")
+
+                # Parse specific failures
+                if "black" in result.stdout and "Failed" in result.stdout:
+                    message.append("\n🔧 Black: Files need formatting")
+                    message.append("  Fix: black . --exclude=venv")
+
+                if "isort" in result.stdout and "Failed" in result.stdout:
+                    message.append("\n🔧 Isort: Imports need sorting")
+                    message.append("  Fix: isort . --skip=venv")
+
+                if "ruff" in result.stdout and "Failed" in result.stdout:
+                    # Count ruff errors
+                    ruff_errors = result.stdout.count("E")
+                    message.append(f"\n🔧 Ruff: {ruff_errors} linting errors")
+                    message.append("  Fix: ruff check --fix")
+
+                if "mypy" in result.stdout and "Failed" in result.stdout:
+                    message.append("\n🔧 MyPy: Type annotation errors")
+                    message.append("  Analyze: python -m tools.ciris_mypy_toolkit analyze")
+                    message.append("  Fix: python -m tools.ciris_mypy_toolkit fix --systematic")
+
+                if "Dict[str, Any]" in result.stdout:
+                    dict_count = result.stdout.count("Dict[str, Any]")
+                    message.append(f"\n⚠️  Dict[str, Any]: {dict_count} violations")
+                    message.append("  This violates 'No Dicts' principle")
+
+                message.append("\n💡 Quick fix all formatters:")
+                message.append("  black . --exclude=venv && isort . --skip=venv")
+                message.append("\n💡 Smart commit (handles hook modifications):")
+                message.append('  ./tools/smart_commit.sh "your message"')
+            else:
+                message.append("\n🎉 All pre-commit hooks passing!")
+
+        except subprocess.TimeoutExpired:
+            message.append("⏱️  Pre-commit check timed out")
+        except Exception as e:
+            message.append(f"❌ Error running pre-commit: {e}")
+
+        return "\n".join(message)

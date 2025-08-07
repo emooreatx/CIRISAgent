@@ -28,6 +28,7 @@ def main() -> None:
         "night": grace.night,
         "deploy": grace.deploy_status,
         "deployment": grace.deploy_status,
+        "precommit": grace.precommit,
         # Aliases
         "s": grace.status,
         "m": grace.morning,
@@ -35,6 +36,7 @@ def main() -> None:
         "r": grace.resume,
         "n": grace.night,
         "d": grace.deploy_status,
+        "pc": grace.precommit,
     }
 
     if command in commands:
@@ -42,13 +44,14 @@ def main() -> None:
     elif command in ["help", "-h", "--help"]:
         print("Grace - Sustainable development companion\n")
         print("Commands:")
-        print("  status    - Current session and system health")
-        print("  morning   - Morning check-in")
-        print("  pause     - Save context before break")
-        print("  resume    - Resume after break")
-        print("  night     - Evening choice point")
-        print("  deploy    - Check deployment status")
-        print("\nShort forms: s, m, p, r, n, d")
+        print("  status     - Current session and system health")
+        print("  morning    - Morning check-in")
+        print("  pause      - Save context before break")
+        print("  resume     - Resume after break")
+        print("  night      - Evening choice point")
+        print("  deploy     - Check deployment status")
+        print("  precommit  - Check and fix pre-commit issues")
+        print("\nShort forms: s, m, p, r, n, d, pc")
     else:
         print(f"Unknown command: {command}")
         print("Try 'grace help' for available commands")
