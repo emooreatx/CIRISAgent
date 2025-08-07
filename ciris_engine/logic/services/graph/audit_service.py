@@ -46,13 +46,12 @@ from ciris_engine.schemas.runtime.audit import AuditActionContext, AuditRequest
 from ciris_engine.schemas.runtime.enums import HandlerActionType, ServiceType
 from ciris_engine.schemas.runtime.memory import TimeSeriesDataPoint
 from ciris_engine.schemas.services.graph.audit import AuditEventData, AuditQuery, VerificationReport
-from ciris_engine.schemas.services.graph.memory import MemoryQuery
 
 # TSDB functionality integrated into graph nodes
 from ciris_engine.schemas.services.graph_core import GraphNode, GraphScope, NodeType
 from ciris_engine.schemas.services.nodes import AuditEntry as AuditEntryNode
 from ciris_engine.schemas.services.nodes import AuditEntryContext
-from ciris_engine.schemas.services.operations import MemoryOpStatus
+from ciris_engine.schemas.services.operations import MemoryOpStatus, MemoryQuery
 
 # Type alias for protocol compatibility
 AuditEntry = AuditEntryNode
