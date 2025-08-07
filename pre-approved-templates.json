@@ -1,36 +1,32 @@
 {
   "version": "1.0",
-  "created_at": "2025-08-07T02:57:51.367878Z",
+  "created_at": "2025-08-07T15:47:44.337897Z",
   "templates": {
     "default": {
-      "checksum": "sha256:abaf7ef729b4da27142ae100d6838ea0b3daa5efe68d01ffa2f1f20302d5c41f",
+      "checksum": "sha256:cb7adf02f99e357c66e49f3d39a901fd9828b2d9e8803d291578fc04de4e4ecc",
       "description": "Datum - baseline agent template"
     },
     "sage": {
-      "checksum": "sha256:30e0b3d4ae9126e915b7e4957f1573c2447c4cd6b5c7d893f04796618ecfe98c",
+      "checksum": "sha256:37335305ab535eb778c1882f603c828e903a3f758be0e79c93c3cfa99f0bf823",
       "description": "Sage - wise questioning agent"
     },
     "scout": {
-      "checksum": "sha256:7e0e591b16b4f9a0ce9671494c5779e2512a9ac5100546a4b4214b84e39ed3b4",
+      "checksum": "sha256:2b8f95e13e63cd38320eded5315427488ca12268f350ae688a8e5588ffec17e4",
       "description": "Scout - direct action demonstrator"
     },
     "echo-core": {
-      "checksum": "sha256:aa8cdb9659233f24af4280e00d92eaad10694e690fcdd184b02d9ae8a0e5eb6a",
+      "checksum": "sha256:308a8164d9ac01bebc2edfcb00a26e0025be1fc89dab0ae0e87c5021ad01ba72",
       "description": "Echo-Core - general community moderation"
     },
     "echo-speculative": {
-      "checksum": "sha256:a6d666e2648310c9a66535ab47cc7200527e893103a4ac08b436193f7717772b",
+      "checksum": "sha256:65f405786577ab939ac6ad17b72f45e9b03afa4dff182ffd20e1cf8792478529",
       "description": "Echo-Speculative - speculative discussion moderation"
     },
     "echo": {
-      "checksum": "sha256:02a793b21fe61ac4486bd3947c34ca3bb9addae34cfccd789a269b1673832acd",
+      "checksum": "sha256:28822454acc8c9eee5f029c47d6d0dc303d99659655cc9caff5f800e3ad9182f",
       "description": "Echo - base moderation template"
-    },
-    "test": {
-      "checksum": "sha256:8dafbcdd23be895d4ead77fb10c4cfd374b3597f5dffe2ff1f03c409e7fd2011",
-      "description": "Test - testing template"
     }
   },
-  "root_signature": "NEEDS_SIGNING",
-  "root_public_key": "NEEDS_KEY"
+  "root_signature": "UJa+O0obNdX8xmtgx2N2c0D7+ynUlqSlATLcF12F0yuynhYX3cXZ0MrlNzqH49fe6NYzmVqAU83CPCgBxFtmBQ==",
+  "root_public_key": "7Bp+e4M4M+eLzwiwuoMLb4aoKZJuXDsQ8NamVJzveAk="
 }

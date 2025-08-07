@@ -29,7 +29,6 @@ TEMPLATES = {
     "echo-core": "Echo-Core - general community moderation",
     "echo-speculative": "Echo-Speculative - speculative discussion moderation",
     "echo": "Echo - base moderation template",
-    "test": "Test - testing template",
 }
 
 
