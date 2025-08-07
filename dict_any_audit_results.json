@@ -1,9 +1,9 @@
 {
   "production": {
-    "occurrences": 158,
-    "files_affected": 75,
+    "occurrences": 159,
+    "files_affected": 76,
     "categories": {
-      "generic_data": 138,
+      "generic_data": 139,
       "parameters": 5,
       "configuration": 3,
       "api_request": 2,
@@ -737,6 +737,14 @@
         "class": "APIRuntimeControlService",
         "function": "get_runtime_status",
         "context": "return_type",
+        "usage_hint": "generic_data"
+      },
+      {
+        "file": "ciris_engine/logic/adapters/api/models.py",
+        "line": 18,
+        "class": "StandardResponse",
+        "function": null,
+        "context": "other",
         "usage_hint": "generic_data"
       },
       {
@@ -2584,7 +2592,7 @@
     ]
   },
   "total_all_code": {
-    "occurrences": 320,
-    "files_affected": 108
+    "occurrences": 321,
+    "files_affected": 109
   }
 }

@@ -14,16 +14,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from .middleware.rate_limiter import RateLimitMiddleware
 
 # Import all route modules from adapter
-from .routes import (  # dsar,  # TODO: Fix imports before re-enabling; transparency,  # TODO: Fix imports before re-enabling
+from .routes import (
     agent,
     audit,
     auth,
     config,
+    dsar,
     emergency,
     memory,
     system,
     system_extensions,
     telemetry,
+    transparency,
     users,
     wa,
 )

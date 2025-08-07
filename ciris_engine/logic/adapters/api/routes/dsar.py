@@ -9,13 +9,10 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
-from ..models import StandardResponse
-
-# TODO: Re-enable auth when TokenData is properly defined
-# from ciris_engine.schemas.auth import TokenData
-# from ..auth import get_current_user
+from ..auth import get_current_user
+from ..models import StandardResponse, TokenData
 
 router = APIRouter(prefix="/v1/dsr", tags=["DSAR"])
 
@@ -28,7 +25,7 @@ class DSARRequest(BaseModel):
         description="Type of request: access, delete, export, or correct",
         pattern="^(access|delete|export|correct)$",
     )
-    email: EmailStr = Field(..., description="Contact email for the request")
+    email: str = Field(..., description="Contact email for the request")
     user_identifier: Optional[str] = Field(None, description="Discord ID, username, or other identifier")
     details: Optional[str] = Field(None, description="Additional details about the request")
     urgent: bool = Field(False, description="Whether this is an urgent request")
@@ -163,18 +160,19 @@ async def check_dsar_status(ticket_id: str) -> StandardResponse:
 
 
 @router.get("/", response_model=StandardResponse)
-async def list_dsar_requests() -> StandardResponse:
+async def list_dsar_requests(
+    current_user: TokenData = Depends(get_current_user),
+) -> StandardResponse:
     """
     List all DSAR requests (admin only).
 
     This endpoint is for administrators to review pending requests.
     """
-    # TODO: Re-enable auth check when TokenData is properly defined
-    # if current_user.role not in ["ADMIN", "SYSTEM_ADMIN"]:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
-    #         detail="Only administrators can list DSAR requests",
-    #     )
+    if current_user.role not in ["ADMIN", "SYSTEM_ADMIN"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can list DSAR requests",
+        )
 
     # Filter to show only pending requests
     pending_requests = [
@@ -204,6 +202,7 @@ async def update_dsar_status(
     ticket_id: str,
     new_status: str,
     notes: Optional[str] = None,
+    current_user: TokenData = Depends(get_current_user),
 ) -> StandardResponse:
     """
     Update the status of a DSAR request (admin only).
@@ -211,12 +210,11 @@ async def update_dsar_status(
     Status workflow:
     - pending_review → in_progress → completed/rejected
     """
-    # TODO: Re-enable auth check when TokenData is properly defined
-    # if current_user.role not in ["ADMIN", "SYSTEM_ADMIN"]:
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
-    #         detail="Only administrators can update DSAR status",
-    #     )
+    if current_user.role not in ["ADMIN", "SYSTEM_ADMIN"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only administrators can update DSAR status",
+        )
 
     if ticket_id not in _dsar_requests:
         raise HTTPException(
@@ -241,14 +239,14 @@ async def update_dsar_status(
     import logging
 
     logger = logging.getLogger(__name__)
-    logger.info(f"DSAR {ticket_id} status updated to {new_status}")
+    logger.info(f"DSAR {ticket_id} status updated to {new_status} by {current_user.username}")
 
     return StandardResponse(
         success=True,
         data={
             "ticket_id": ticket_id,
             "new_status": new_status,
-            "updated_by": "admin",  # TODO: Get from auth when implemented
+            "updated_by": current_user.username,
         },
         message=f"DSAR {ticket_id} status updated to {new_status}",
         metadata={
