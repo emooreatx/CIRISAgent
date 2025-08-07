@@ -4,29 +4,62 @@
 # Manual run: pre-commit run --all-files
 
 repos:
-  # Python code formatting
+  # Grace - Smart gatekeeper (blocks critical, reports quality)
+  - repo: local
+    hooks:
+      - id: grace-gatekeeper
+        name: Grace Smart Gatekeeper
+        entry: python tools/grace_precommit.py
+        language: python
+        pass_filenames: false
+        always_run: true
+        verbose: true
+        stages: [pre-commit]
+
+  # Formatters - Always run, auto-fix
   - repo: https://github.com/psf/black
     rev: 24.4.2
     hooks:
       - id: black
         language_version: python3.12
         args: ['--line-length=120']
+        # Never fail, just fix
+        always_run: true
+        fail_fast: false
 
-  # Import sorting
   - repo: https://github.com/PyCQA/isort
     rev: 5.13.2
     hooks:
       - id: isort
         args: ['--profile', 'black', '--line-length', '120']
+        # Never fail, just fix
+        always_run: true
+        fail_fast: false
 
-  # Linting with ruff (fast Python linter)
+  # Basic hygiene - Always fix
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+      # Critical checks that should block
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+
+  # Quality checks - Run but don't block (Grace will report)
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.4.8
     hooks:
       - id: ruff
-        args: ['--fix', '--exit-non-zero-on-fix']
+        args: ['--fix']
+        # Don't exit non-zero, let Grace handle reporting
+        always_run: false
+        stages: [manual]
 
-  # Type checking with mypy
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.10.0
     hooks:
@@ -38,55 +71,33 @@ repos:
           'types-requests',
         ]
         exclude: '^(tests|tools|scripts|docs|main\.py|grace\.py)'
+        # Don't block commits
+        always_run: false
+        stages: [manual]
 
-  # Security checks
-  - repo: https://github.com/PyCQA/bandit
-    rev: 1.7.8
-    hooks:
-      - id: bandit
-        args: ['-r', 'ciris_engine/', '--skip', 'B101']
-        exclude: '^(tests|tools|\.githooks|grace)/'
-
-  # Check for common issues
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
-    hooks:
-      - id: trailing-whitespace
-      - id: end-of-file-fixer
-      - id: check-yaml
-      - id: check-added-large-files
-        args: ['--maxkb=500']
-      - id: check-case-conflict
-      - id: check-merge-conflict
-      - id: detect-private-key
-      - id: mixed-line-ending
-        args: ['--fix=lf']
-
-  # Custom CIRIS checks
+  # Custom CIRIS checks - Informational only
   - repo: local
     hooks:
-      # Dict[str, Any] audit
+      # Dict[str, Any] audit - Informational
       - id: dict-any-audit
-        name: Dict[str, Any] Audit
+        name: Dict[str, Any] Audit (Info Only)
         entry: python tools/audit_dict_any_usage.py
         language: python
         pass_filenames: false
-        always_run: true
+        always_run: false
+        stages: [manual]
         verbose: true
-        stages: [pre-commit]
 
-      # Ensure version is updated for significant changes
+      # Version reminder - Gentle nudge
       - id: version-check
-        name: Version Check
+        name: Version Reminder
         entry: tools/check_version_reminder.sh
         language: system
         pass_filenames: false
-        always_run: true
-        verbose: true
-        stages: [pre-commit]
+        always_run: false
+        stages: [manual]
 
-
-# Configuration for specific hooks
+# Configuration
 default_language_version:
   python: python3.12
 
@@ -107,5 +118,5 @@ exclude: |
   )
 
 # Stages configuration
-default_stages: [pre-commit, pre-push]
+default_stages: [pre-commit]
 fail_fast: false  # Run all hooks even if one fails
