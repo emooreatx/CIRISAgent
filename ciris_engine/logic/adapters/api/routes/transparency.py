@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-router = APIRouter(prefix="/v1/transparency", tags=["Transparency"])
+router = APIRouter(prefix="/transparency", tags=["Transparency"])
 
 
 class ActionCount(BaseModel):

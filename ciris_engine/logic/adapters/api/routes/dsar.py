@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from ..auth import get_current_user
 from ..models import StandardResponse, TokenData
 
-router = APIRouter(prefix="/v1/dsr", tags=["DSAR"])
+router = APIRouter(prefix="/dsr", tags=["DSAR"])
 
 
 class DSARRequest(BaseModel):
