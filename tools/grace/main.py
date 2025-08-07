@@ -388,21 +388,6 @@ class Grace:
         if deployment:
             message.append(deployment)
 
-        # Check if OAuth fix is live (simple check)
-        try:
-            result = subprocess.run(
-                ["curl", "-s", "https://agents.ciris.ai"], capture_output=True, text=True, timeout=10
-            )
-            if "/api/${agent.agent_id}/v1/auth/oauth/" in result.stdout:
-                message.append("\n✅ OAuth fix is LIVE!")
-                message.append("Ready to test login functionality")
-            elif deployment and "in progress" in deployment:
-                message.append("\n⏳ Deployment building...")
-            else:
-                message.append("\n⏰ OAuth fix not detected yet")
-        except Exception:
-            message.append("\nCould not check OAuth status")
-
         # Check incidents log if available (for production containers)
         incidents = self.check_incidents()
         if incidents:
