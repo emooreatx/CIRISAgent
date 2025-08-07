@@ -5,16 +5,16 @@ Provides type-safe contexts for system state and runtime operations.
 """
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 # Import ToolInfo directly - no Dict[str, Any] allowed per our principles
 from ciris_engine.schemas.adapters.tools import ToolInfo
-from ciris_engine.schemas.runtime.resources import ResourceUsage
 
-if TYPE_CHECKING:
-    from ciris_engine.schemas.runtime.extended import ShutdownContext
+# Import ShutdownContext directly to avoid forward reference issues
+from ciris_engine.schemas.runtime.extended import ShutdownContext
+from ciris_engine.schemas.runtime.resources import ResourceUsage
 
 
 class SystemSnapshot(BaseModel):
@@ -100,9 +100,7 @@ class SystemSnapshot(BaseModel):
     )
 
     # Runtime context
-    shutdown_context: Optional["ShutdownContext"] = Field(
-        None, description="Shutdown context if system is shutting down"
-    )
+    shutdown_context: Optional[ShutdownContext] = Field(None, description="Shutdown context if system is shutting down")
 
     # Resource alerts - CRITICAL for mission-critical systems
     resource_alerts: List[str] = Field(
