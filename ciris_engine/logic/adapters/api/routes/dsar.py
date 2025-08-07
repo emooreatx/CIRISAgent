@@ -11,10 +11,10 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr, Field
 
-from ciris_engine.logic.adapters.api.models import StandardResponse
 from ciris_engine.schemas.auth import TokenData
 
 from ..auth import get_current_user
+from ..models import StandardResponse
 
 router = APIRouter(prefix="/v1/dsr", tags=["DSAR"])
 
