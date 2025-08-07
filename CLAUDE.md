@@ -197,9 +197,48 @@ Only for multi-provider services:
 
 ## Development Tools
 
+### Grace - Sustainable Development Companion
+
+Grace is your intelligent pre-commit gatekeeper and development assistant that ensures sustainable coding practices:
+
+```bash
+# Quick status check
+python -m tools.grace status           # Current session, health, reminders
+
+# Pre-commit assistance
+python -m tools.grace precommit        # Detailed pre-commit status and fixes
+
+# Session management
+python -m tools.grace morning          # Morning check-in
+python -m tools.grace pause            # Save context before break
+python -m tools.grace resume           # Resume after break
+python -m tools.grace night            # Evening choice point
+
+# Deployment monitoring
+python -m tools.grace deploy           # Check deployment status
+```
+
+**Grace Philosophy:**
+- **Be strict about safety, gentle about style** - Blocks only critical issues (syntax errors, security)
+- **Progress over perfection** - Quality issues are reminders, not blockers
+- **Sustainable pace** - Tracks work sessions and encourages breaks
+
+**Pre-commit Integration:**
+Grace is the primary pre-commit hook. It:
+1. Auto-formats with black and isort
+2. Blocks critical issues (syntax, merge conflicts, secrets)
+3. Reports quality issues as gentle reminders
+4. Runs all checks concurrently for speed
+
 ### Essential Tools
 
 ```bash
+# Version Management (ALWAYS bump version after significant changes)
+python tools/bump_version.py patch     # Bug fixes (1.1.X)
+python tools/bump_version.py minor     # New features (1.X.0)
+python tools/bump_version.py major     # Breaking changes (X.0.0)
+python tools/bump_version.py build     # Build increment only (1.1.4-betaX)
+
 # SonarCloud Analysis
 python tools/sonar.py quality-gate      # Check quality gate status
 python tools/sonar.py hotspots         # List security hotspots
@@ -211,6 +250,11 @@ python tools/test_runner.py start --coverage  # Start tests in Docker
 python tools/test_runner.py status     # Check progress
 python tools/test_runner.py logs       # View output
 python tools/test_runner.py results    # Summary when done
+
+# Test Tool (Docker-based testing)
+python -m tools.test_tool test tests/  # Run tests in Docker
+python -m tools.test_tool status       # Check test progress
+python -m tools.test_tool results      # Get test results
 
 # Debug Tools (run inside container)
 docker exec <container> python debug_tools.py  # Interactive debugging
@@ -282,6 +326,7 @@ response = requests.post(
 3. **Type Safety First**: All data uses Pydantic schemas
 4. **Protocol-Driven**: All services implement clear protocols
 5. **Forward Only**: No backwards compatibility
+6. **Version Everything**: Always bump version after significant changes
 
 ## Why This Architecture?
 
