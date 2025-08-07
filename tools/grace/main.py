@@ -42,15 +42,40 @@ class Grace:
         if "deployment" in health:
             message.append(f"\n🚀 {health['deployment']}")
 
-        # Show problems first
+        # ALWAYS check production incidents - they can happen even when service is UP
+        prod_containers = ["ciris-agent-datum", "container0", "container1"]
+        ssh_key = os.path.expanduser("~/.ssh/ciris_deploy")
+
+        if os.path.exists(ssh_key):
+            # We have SSH access, check production incidents
+            for container in prod_containers:
+                try:
+                    result = subprocess.run(
+                        [
+                            "ssh",
+                            "-i",
+                            ssh_key,
+                            "root@108.61.119.117",
+                            f"docker exec {container} tail -n 20 /app/logs/incidents_latest.log | grep ERROR | tail -3",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    if result.returncode == 0 and result.stdout.strip():
+                        message.append(f"\n⚠️ Recent errors in {container}:")
+                        for line in result.stdout.strip().split("\n")[:2]:  # Show max 2 errors
+                            # Extract just the error message part
+                            if " - ERROR - " in line:
+                                error_part = line.split(" - ERROR - ")[-1][:80]  # First 80 chars
+                                message.append(f"  • {error_part}...")
+                        break  # Only show first container with errors
+                except:
+                    pass  # Silent fail, don't disrupt status
+
+        # Show other problems
         if health.get("production") != "UP":
             message.append(f"\n🔴 Production: {health.get('production', 'UNKNOWN')}")
-            # Check for incidents in production containers
-            for container in ["ciris-agent-datum", "container0", "container1"]:
-                incidents = self.check_incidents(container)
-                if incidents:
-                    message.append(incidents)
-                    break  # Show incidents from first container with issues
         if health.get("datum") not in ["HEALTHY", "HTTP 200"]:
             message.append(f"🔴 Datum: {health.get('datum', 'UNKNOWN')}")
         if health.get("ci_cd") in ["FAILURE", "FAILED"]:
