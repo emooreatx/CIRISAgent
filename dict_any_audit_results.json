@@ -605,7 +605,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/base_observer.py",
-        "line": 128,
+        "line": 127,
         "class": "BaseObserver",
         "function": "_get_correlation_history",
         "context": "other",
