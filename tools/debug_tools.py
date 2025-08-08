@@ -17,6 +17,7 @@ Usage:
     python debug_tools.py guidance           # Show all guidance thoughts
     python debug_tools.py context <channel>  # Show conversation context for channel
     python debug_tools.py history            # Analyze conversation history in thoughts
+    python debug_tools.py contexts           # Analyze all context building patterns
 """
 
 import json
@@ -704,6 +705,105 @@ def analyze_conversation_history():
     conn.close()
 
 
+def analyze_context_building():
+    """Analyze context building patterns in recent thoughts."""
+    print(f"\n{'='*100}")
+    print("CONTEXT BUILDING ANALYSIS")
+    print(f"{'='*100}")
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Get recent thoughts with context
+    query = """
+    SELECT t.thought_id, t.thought_type, t.content, t.created_at, t.context
+    FROM thoughts t
+    WHERE t.created_at > datetime('now', '-2 hours')
+      AND t.content IS NOT NULL
+    ORDER BY t.created_at DESC
+    LIMIT 30
+    """
+
+    cursor.execute(query)
+    thoughts = cursor.fetchall()
+
+    print(f"\nAnalyzing {len(thoughts)} recent thoughts for context patterns:\n")
+
+    # Statistics
+    with_user_context = 0
+    with_channel_context = 0
+    with_conversation_history = 0
+    channel_ids_found = set()
+    user_ids_found = set()
+
+    for thought in thoughts:
+        thought_id = thought[0]
+        thought_type = thought[1]
+        content = thought[2] if thought[2] else ""
+        created = thought[3]
+        context = thought[4] if thought[4] else ""
+
+        # Check for various context elements
+        has_user = False
+        has_channel = False
+        has_history = False
+
+        # Check content for patterns
+        if "@" in content and "ID:" in content:
+            has_user = True
+            with_user_context += 1
+            # Extract user IDs
+            import re
+
+            user_pattern = r"ID:\s*([^\s\)]+)"
+            matches = re.findall(user_pattern, content)
+            user_ids_found.update(matches[:3])  # First 3 user IDs
+
+        if "channel" in content.lower() or "discord_" in content:
+            has_channel = True
+            with_channel_context += 1
+            # Extract channel IDs
+            channel_pattern = r"(discord_\d+_\d+|cli_[^\s]+|api_[^\s]+)"
+            matches = re.findall(channel_pattern, content)
+            channel_ids_found.update(matches[:3])
+
+        if "CONVERSATION HISTORY" in content:
+            has_history = True
+            with_conversation_history += 1
+
+        # Print summary for this thought
+        indicators = []
+        if has_user:
+            indicators.append("U")
+        if has_channel:
+            indicators.append("C")
+        if has_history:
+            indicators.append("H")
+
+        indicator_str = f"[{'/'.join(indicators) if indicators else '-'}]"
+        print(f"{created}: {thought_type:12} {indicator_str:8} {thought_id[:20]}...")
+
+    print(f"\n{'='*50}")
+    print(f"CONTEXT STATISTICS:")
+    print(
+        f"  With user context:     {with_user_context}/{len(thoughts)} ({with_user_context*100//len(thoughts) if thoughts else 0}%)"
+    )
+    print(
+        f"  With channel context:  {with_channel_context}/{len(thoughts)} ({with_channel_context*100//len(thoughts) if thoughts else 0}%)"
+    )
+    print(
+        f"  With conversation:     {with_conversation_history}/{len(thoughts)} ({with_conversation_history*100//len(thoughts) if thoughts else 0}%)"
+    )
+    print(f"\n  Unique channels found: {len(channel_ids_found)}")
+    for ch_id in list(channel_ids_found)[:3]:
+        print(f"    - {ch_id}")
+    print(f"\n  Unique users found:    {len(user_ids_found)}")
+    for user_id in list(user_ids_found)[:3]:
+        print(f"    - {user_id}")
+
+    conn.close()
+
+
 def main():
     """Main entry point."""
     if len(sys.argv) < 2:
@@ -771,6 +871,9 @@ def main():
     elif command == "history":
         analyze_conversation_history()
 
+    elif command == "contexts":
+        analyze_context_building()
+
     else:
         print(__doc__)
 
@@ -793,6 +896,7 @@ __all__ = [
     "show_guidance_thoughts",
     "show_channel_context",
     "analyze_conversation_history",
+    "analyze_context_building",
 ]
 
 
