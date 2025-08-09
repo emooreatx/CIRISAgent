@@ -212,8 +212,13 @@ class TestIncidentCaptureHandler:
 
     def test_emit_with_file_error(self, incident_handler, monkeypatch):
         """Test emit handles file write errors gracefully."""
-        # Make the log file unwritable
-        incident_handler.log_file.chmod(0o444)
+
+        # Mock the file write to raise an exception
+        def mock_write_text(content):
+            raise PermissionError("Cannot write to file")
+
+        monkeypatch.setattr(incident_handler.log_file, "write_text", mock_write_text)
+        monkeypatch.setattr(incident_handler.log_file, "read_text", lambda: "")
 
         record = logging.LogRecord(
             name="test.logger",
@@ -231,9 +236,6 @@ class TestIncidentCaptureHandler:
         # Should not raise, but call handleError
         incident_handler.emit(record)
         incident_handler.handleError.assert_called_once()
-
-        # Restore permissions
-        incident_handler.log_file.chmod(0o644)
 
     def test_log_file_header(self, incident_handler):
         """Test that log file has proper header."""
