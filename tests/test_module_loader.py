@@ -229,7 +229,7 @@ class TestModuleLoader:
         warnings = loader.get_mock_warnings()
 
         assert len(warnings) > 0
-        assert any("MOCK MODULE ACTIVE" in w for w in warnings)
+        assert any("MOCK MODULES ACTIVE" in w for w in warnings)
         assert any("mock_llm" in w for w in warnings)
 
     def test_multiple_mock_modules(self, temp_modules_dir):
