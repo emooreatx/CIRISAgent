@@ -213,12 +213,16 @@ class TestIncidentCaptureHandler:
     def test_emit_with_file_error(self, incident_handler, monkeypatch):
         """Test emit handles file write errors gracefully."""
 
-        # Mock the file write to raise an exception
+        # Mock the Path methods to raise an exception
         def mock_write_text(content):
             raise PermissionError("Cannot write to file")
 
-        monkeypatch.setattr(incident_handler.log_file, "write_text", mock_write_text)
-        monkeypatch.setattr(incident_handler.log_file, "read_text", lambda: "")
+        def mock_read_text():
+            return ""
+
+        # Use monkeypatch on the Path class methods
+        monkeypatch.setattr("pathlib.Path.write_text", mock_write_text)
+        monkeypatch.setattr("pathlib.Path.read_text", mock_read_text)
 
         record = logging.LogRecord(
             name="test.logger",

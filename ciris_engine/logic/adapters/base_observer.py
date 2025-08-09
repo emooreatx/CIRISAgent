@@ -346,7 +346,7 @@ class BaseObserver(Generic[MessageT], ABC):
 
             # Log context building details
             history_line_count = len(
-                [line for line in thought_lines if line.startswith(f"{i}. @") for i in range(1, 11)]
+                [line for line in thought_lines for i in range(1, 11) if line.startswith(f"{i}. @")]
             )
             logger.info(
                 f"[CONTEXT] Built thought context with {history_line_count} history messages, "
