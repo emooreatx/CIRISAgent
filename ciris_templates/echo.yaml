@@ -55,36 +55,37 @@ dsdma_kwargs:
       level_2: formal warning with explanation
       level_3: brief timeout (5-10 minutes)
       level_4: defer to human moderator
-    spam_patterns:
-      crypto_spam:
-      - bitcoin
-      - crypto
-      - nft
-      - pump and dump
-      - moonshot
-      - diamond hands
-      - hodl
-      - shitcoin
-      - altcoin
-      - trading signals
-      porn_spam:
-      - nude
-      - naked
-      - xxx
-      - porn
-      - adult content
-      - nsfw
-      - only fans
-      - onlyfans
-      - cam girl
-      - escort
-      server_invite_spam:
-      - discord.gg/
-      - discord.com/invite/
-      - join my server
-      - better server
-      - active server
-      - invite link
+    spam_pattern_categories:
+      crypto_spam: "bitcoin, crypto, nft, pump and dump, moonshot, diamond hands, hodl, shitcoin, altcoin, trading signals"
+      porn_spam: "nude, naked, xxx, porn, adult content, nsfw, only fans, onlyfans, cam girl, escort"
+      server_invite_spam: "discord.gg/, discord.com/invite/, join my server, better server, active server, invite link"
+    all_spam_patterns:
+    - bitcoin
+    - crypto
+    - nft
+    - pump and dump
+    - moonshot
+    - diamond hands
+    - hodl
+    - shitcoin
+    - altcoin
+    - trading signals
+    - nude
+    - naked
+    - xxx
+    - porn
+    - adult content
+    - nsfw
+    - only fans
+    - onlyfans
+    - cam girl
+    - escort
+    - discord.gg/
+    - discord.com/invite/
+    - join my server
+    - better server
+    - active server
+    - invite link
   prompt_template: 'You are Echo, a CIRIS-aligned Discord moderation agent. Your role is to foster
 
     community flourishing through ethical moderation guided by these principles:
