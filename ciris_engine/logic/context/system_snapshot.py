@@ -10,9 +10,8 @@ from ciris_engine.logic.secrets.service import SecretsService
 from ciris_engine.logic.services.memory_service import LocalGraphMemoryService
 from ciris_engine.logic.utils import GraphQLContextProvider
 from ciris_engine.schemas.adapters.tools import ToolInfo
-from ciris_engine.schemas.processors.base import ChannelContext
 from ciris_engine.schemas.runtime.models import Task
-from ciris_engine.schemas.runtime.system_context import SystemSnapshot, UserProfile
+from ciris_engine.schemas.runtime.system_context import ChannelContext, SystemSnapshot, UserProfile
 from ciris_engine.schemas.services.core.runtime import ServiceHealthStatus
 from ciris_engine.schemas.services.graph_core import GraphScope, NodeType
 from ciris_engine.schemas.services.operations import MemoryQuery
@@ -487,10 +486,12 @@ async def build_system_snapshot(
             context_data["user_profiles"] = user_profiles_list
 
             # Add other enriched context data
-            if enriched_context.identity_context:
-                context_data["identity_context"] = enriched_context.identity_context
-            if enriched_context.community_context:
-                context_data["community_context"] = enriched_context.community_context
+            # Note: identity_context and community_context are not SystemSnapshot fields
+            # They would need to be added to the schema if needed
+            # if enriched_context.identity_context:
+            #     context_data["identity_context"] = enriched_context.identity_context
+            # if enriched_context.community_context:
+            #     context_data["community_context"] = enriched_context.community_context
 
     # Enrich user profiles from memory graph (supplement or replace GraphQL data)
     if memory_service and thought:
