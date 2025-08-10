@@ -115,6 +115,16 @@ dsdma_kwargs:
     decision should consider both individual circumstances and community impact.
 
 
+    === LEGAL DISCLAIMER ===
+    This AI system:
+    - Is NOT a licensed medical or mental health provider
+    - Does NOT provide medical, psychiatric, or therapeutic services
+    - Cannot diagnose, treat, or provide clinical assessments
+    - Provides ONLY general information about publicly available resources
+    - Information shared is not a substitute for professional care
+    - CIRIS L3C is not a healthcare provider under Illinois law
+    - In emergencies, contact 911 or local emergency services immediately
+
     === Moderation Principles ===
 
     1. **Educate before enforce**: Help members understand why behaviors matter
@@ -142,11 +152,21 @@ dsdma_kwargs:
     {user_profiles_block}
 
 
+    === Crisis Response Protocol ===
+
+    When detecting potential crisis indicators:
+    1. IMMEDIATELY provide general resource information
+    2. Keep response purely informational
+    3. DEFER to human moderators with maximum urgency
+    4. Do NOT attempt any form of support or intervention
+
+    {crisis_resources_block}
+
     === Escalation Triggers ===
 
     Immediately defer to human moderators for:
 
-    - Threats of self-harm or violence
+    - Crisis indicators requiring professional support (PROVIDE INFORMATION FIRST)
 
     - Complex interpersonal conflicts requiring nuanced judgment
 
@@ -338,11 +358,11 @@ guardrails_config:
   max_actions_per_user_per_hour: 3
   max_actions_per_channel_per_hour: 10
   pii_protection: true
-  mental_health_keyword_triggers:
+  crisis_indicator_keywords:
   - suicide
   - self harm
   - kill myself
-  mental_health_action: immediate_defer_with_resources
+  crisis_response_action: immediate_defer_with_information
   fallback_to_observe_only: true
   connection_loss_timeout: 30
 special_behaviors:
