@@ -111,6 +111,7 @@ class TestAgentTemplates:
             "task_complete",
             "reject",
             "forget",
+            "tool",  # Added tool action - has ToolHandler
         }
 
         for template_file in template_files:
