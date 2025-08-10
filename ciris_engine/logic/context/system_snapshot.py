@@ -163,12 +163,17 @@ async def build_system_snapshot(
 
             if identity_result and identity_result.attributes:
                 # The identity is stored as a TypedGraphNode (IdentityNode)
-                # Attributes must be a Pydantic model
-                if not hasattr(identity_result.attributes, "model_dump"):
-                    raise TypeError(
-                        f"Invalid graph node attributes type: {type(identity_result.attributes)}, expected Pydantic model"
+                # Handle both dict and Pydantic model attributes
+                if isinstance(identity_result.attributes, dict):
+                    attrs_dict = identity_result.attributes
+                elif hasattr(identity_result.attributes, "model_dump"):
+                    attrs_dict = identity_result.attributes.model_dump()
+                else:
+                    # Log warning but continue with empty dict instead of raising
+                    logger.warning(
+                        f"Unexpected graph node attributes type: {type(identity_result.attributes)}, using empty dict"
                     )
-                attrs_dict = identity_result.attributes.model_dump()
+                    attrs_dict = {}
 
                 identity_data = {
                     "agent_id": attrs_dict.get("agent_id", ""),
@@ -532,15 +537,19 @@ async def build_system_snapshot(
 
                 if user_results:
                     user_node = user_results[0]
-                    # Extract ALL attributes from the user node - must be Pydantic model
+                    # Extract ALL attributes from the user node - handle both dict and Pydantic model
                     if not user_node.attributes:
                         attrs = {}
+                    elif isinstance(user_node.attributes, dict):
+                        attrs = user_node.attributes
                     elif hasattr(user_node.attributes, "model_dump"):
                         attrs = user_node.attributes.model_dump()
                     else:
-                        raise TypeError(
-                            f"Invalid user node attributes type for user {user_id}: {type(user_node.attributes)}, expected Pydantic model"
+                        # Log warning but continue with empty dict instead of raising
+                        logger.warning(
+                            f"Unexpected user node attributes type for user {user_id}: {type(user_node.attributes)}, using empty dict"
                         )
+                        attrs = {}
 
                     # Get edges and connected nodes
                     connected_nodes_info = []
