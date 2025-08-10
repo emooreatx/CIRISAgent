@@ -451,7 +451,7 @@ action_selection_pdma_overrides:
 
     For Mental Health Concerns:
 
-    Use the crisis resources block template
+    {crisis_resources_block}
 
 
     When Deferring (WBD):
