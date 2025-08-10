@@ -211,7 +211,9 @@ class TestAddCorrelation:
             handler_name="trace_handler",
             action_type="trace",
             status=ServiceCorrelationStatus.PENDING,
-            correlation_type=CorrelationType.TRACE,
+            correlation_type=CorrelationType.TRACE_SPAN,
+            created_at=datetime.now(timezone.utc).isoformat(),
+            updated_at=datetime.now(timezone.utc).isoformat(),
             timestamp=datetime.now(timezone.utc),
             trace_context=TraceContext(
                 trace_id="trace_123", span_id="span_456", span_name="test_span", parent_span_id="parent_789"
@@ -251,7 +253,7 @@ class TestUpdateCorrelation:
         update_request = CorrelationUpdateRequest(
             correlation_id="test_corr_001",
             status=ServiceCorrelationStatus.FAILED,
-            response_data={"success": False, "error_message": "Test error"},
+            response_data={"success": "false", "error_message": "Test error", "execution_time_ms": "200.5"},
             metric_value=200.5,
             tags={"updated": "true"},
         )
@@ -285,6 +287,8 @@ class TestUpdateCorrelation:
             status=ServiceCorrelationStatus.FAILED,
             correlation_type=CorrelationType.SERVICE_INTERACTION,
             timestamp=datetime.now(timezone.utc),
+            created_at=datetime.now(timezone.utc).isoformat(),
+            updated_at=datetime.now(timezone.utc).isoformat(),
         )
 
         # Use old signature
@@ -386,6 +390,8 @@ class TestGetCorrelationsByTaskAndAction:
                 status=ServiceCorrelationStatus.COMPLETED if i < 2 else ServiceCorrelationStatus.FAILED,
                 correlation_type=CorrelationType.SERVICE_INTERACTION,
                 timestamp=datetime.now(timezone.utc),
+                created_at=datetime.now(timezone.utc).isoformat(),
+                updated_at=datetime.now(timezone.utc).isoformat(),
             )
             add_correlation(correlation, time_service, db_path=temp_db)
 
@@ -425,9 +431,12 @@ class TestGetCorrelationsByTypeAndTime:
                 handler_name="handler",
                 action_type="action",
                 status=ServiceCorrelationStatus.COMPLETED,
-                correlation_type=CorrelationType.SERVICE_INTERACTION if i % 2 == 0 else CorrelationType.METRIC,
+                correlation_type=(
+                    CorrelationType.SERVICE_INTERACTION if i % 2 == 0 else CorrelationType.METRIC_DATAPOINT
+                ),
                 timestamp=base_time - timedelta(hours=i),
                 created_at=(base_time - timedelta(hours=i)).isoformat(),
+                updated_at=(base_time - timedelta(hours=i)).isoformat(),
             )
             add_correlation(correlation, time_service, db_path=temp_db)
 
@@ -446,8 +455,6 @@ class TestGetCorrelationsByTypeAndTime:
         # Get all metrics
         metric_correlations = get_correlations_by_type_and_time(
             correlation_type=CorrelationType.METRIC_DATAPOINT,
-            created_at=datetime.now(timezone.utc).isoformat(),
-            updated_at=datetime.now(timezone.utc).isoformat(),
             start_time=base_time - timedelta(days=1),
             end_time=base_time,
             db_path=temp_db,
@@ -467,7 +474,7 @@ class TestGetCorrelationsByChannel:
                 correlation_id=f"channel_corr_{i}",
                 service_type="communication",
                 handler_name=f"handler_{i}",
-                action_type="message",
+                action_type="speak",
                 request_data=ServiceRequestData(
                     service_type="communication",
                     method_name="message",
@@ -479,6 +486,8 @@ class TestGetCorrelationsByChannel:
                 status=ServiceCorrelationStatus.COMPLETED,
                 correlation_type=CorrelationType.SERVICE_INTERACTION,
                 timestamp=datetime.now(timezone.utc),
+                created_at=datetime.now(timezone.utc).isoformat(),
+                updated_at=datetime.now(timezone.utc).isoformat(),
             )
             add_correlation(correlation, time_service, db_path=temp_db)
 
