@@ -251,7 +251,13 @@ class TestDSDMAEvaluator:
         messages = call_args.kwargs["messages"]
 
         # System message should contain CORE IDENTITY block
-        system_content = messages[0]["content"]
+        # First message is Covenant, second should be the system prompt with identity
+        if len(messages) > 1:
+            system_content = messages[1]["content"]
+        else:
+            # If only one message, it should contain identity
+            system_content = messages[0]["content"]
+
         assert "=== CORE IDENTITY - THIS IS WHO YOU ARE! ===" in system_content
         assert "Agent: test_agent" in system_content
         assert "Description: Test agent for DSDMA evaluation" in system_content

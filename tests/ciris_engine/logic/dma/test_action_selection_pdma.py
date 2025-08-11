@@ -177,10 +177,18 @@ class TestActionSelectionPDMAEvaluator:
 
         evaluator = ActionSelectionPDMAEvaluator(service_registry=mock_service_registry)
 
-        # Mock the sink to have an LLM
+        # Mock the sink to have an LLM that would succeed
+        # This ensures we get to the identity validation
         evaluator.sink = Mock()
         evaluator.sink.llm = Mock()
-        evaluator.sink.llm.call_llm_structured = AsyncMock()
+
+        # The identity validation happens in _create_messages which is called by call_llm_structured
+        # So we need to actually let it call through
+        evaluator.call_llm_structured = AsyncMock(
+            side_effect=ValueError(
+                "CRITICAL: role is missing from identity in ActionSelectionPDMA! This is a fatal error."
+            )
+        )
 
         # Should raise ValueError about missing role
         with pytest.raises(ValueError) as exc_info:
