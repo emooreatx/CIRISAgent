@@ -66,12 +66,20 @@ class TestActionSelectionPDMAEvaluator:
 
         dsdma_result = DSDMAResult(domain="general", domain_alignment=0.8, flags=[], reasoning="Aligns with domain")
 
+        from ciris_engine.schemas.runtime.enums import HandlerActionType
+
         return EnhancedDMAInputs(
             original_thought=valid_thought,
             processing_context={"system_snapshot": valid_system_snapshot.model_dump()},
             ethical_pdma_result=pdma_result,
             csdma_result=csdma_result,
             dsdma_result=dsdma_result,
+            permitted_actions=[
+                HandlerActionType.OBSERVE,
+                HandlerActionType.SPEAK,
+                HandlerActionType.DEFER,
+                HandlerActionType.TASK_COMPLETE,
+            ],
         )
 
     @pytest.mark.asyncio
@@ -83,7 +91,7 @@ class TestActionSelectionPDMAEvaluator:
         # Mock the LLM call to return a proper ActionSelectionDMAResult
         mock_result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.SPEAK,
-            action_parameters=SpeakParams(message="Here is my response to your question"),
+            action_parameters=SpeakParams(content="Here is my response to your question"),
             rationale="User asked a question that needs a response",
             reasoning="Based on ethical approval and common sense validation",
         )
@@ -117,7 +125,7 @@ class TestActionSelectionPDMAEvaluator:
 
         mock_result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.OBSERVE,
-            action_parameters=ObserveParams(observation="Observing the environment"),
+            action_parameters=ObserveParams(),
             rationale="Need more information",
         )
 
@@ -158,13 +166,18 @@ class TestActionSelectionPDMAEvaluator:
             ethical_pdma_result=pdma_result,
             csdma_result=None,
             dsdma_result=None,
+            permitted_actions=[
+                HandlerActionType.OBSERVE,
+                HandlerActionType.SPEAK,
+            ],  # Add this so the test can proceed to identity check
         )
 
         evaluator = ActionSelectionPDMAEvaluator(service_registry=mock_service_registry)
 
-        # Mock the sink to avoid sink error
+        # Mock the sink to have an LLM
         evaluator.sink = Mock()
         evaluator.sink.llm = Mock()
+        evaluator.sink.llm.call_llm_structured = AsyncMock()
 
         # Should raise ValueError about missing role
         with pytest.raises(ValueError) as exc_info:
@@ -206,7 +219,7 @@ class TestActionSelectionPDMAEvaluator:
 
         mock_result = ActionSelectionDMAResult(
             selected_action=HandlerActionType.SPEAK,
-            action_parameters=SpeakParams(message="Response based on faculty evaluations"),
+            action_parameters=SpeakParams(content="Response based on faculty evaluations"),
             rationale="All faculties approve",
         )
 

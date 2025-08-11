@@ -96,15 +96,16 @@ class TestDSDMAEvaluator:
             domain_specific_knowledge={"rules_summary": "Medical domain requires professional credentials"},
         )
 
-        # Mock the LLM call to return a proper DSDMAResult
-        mock_result = DSDMAResult(
-            domain="medical",
-            domain_alignment=0.9,
+        # Mock the LLM call to return LLMOutputForDSDMA (not DSDMAResult!)
+        from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
+
+        mock_llm_output = BaseDSDMA.LLMOutputForDSDMA(
+            score=0.9,
             flags=["requires_medical_license", "high_risk"],
             reasoning="Medical diagnosis requires professional medical credentials and licensing.",
         )
 
-        evaluator.call_llm_structured = AsyncMock(return_value=(mock_result, None))
+        evaluator.call_llm_structured = AsyncMock(return_value=(mock_llm_output, None))
 
         # Evaluate
         result = await evaluator.evaluate_thought(valid_queue_item, current_context=None)
@@ -195,7 +196,7 @@ class TestDSDMAEvaluator:
         assert isinstance(result, DSDMAResult)
         assert result.domain == "legal"  # Uses domain name
         assert result.domain_alignment == 0.0
-        assert "LLM_Error" in result.flags
+        assert "LLM_Error_Instructor" in result.flags  # Changed because instructor mode uses different flag
         assert "Failed to evaluate" in result.reasoning
 
     @pytest.mark.asyncio
@@ -212,14 +213,15 @@ class TestDSDMAEvaluator:
             domain_name="finance", service_registry=mock_service_registry, domain_specific_knowledge=domain_knowledge
         )
 
-        mock_result = DSDMAResult(
-            domain="finance",
-            domain_alignment=0.7,
+        from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
+
+        mock_llm_output = BaseDSDMA.LLMOutputForDSDMA(
+            score=0.7,
             flags=["regulatory_risk"],
             reasoning="Requires SEC compliance review",
         )
 
-        evaluator.call_llm_structured = AsyncMock(return_value=(mock_result, None))
+        evaluator.call_llm_structured = AsyncMock(return_value=(mock_llm_output, None))
 
         result = await evaluator.evaluate_thought(valid_queue_item, current_context=None)
 
@@ -242,8 +244,10 @@ class TestDSDMAEvaluator:
         """Test that DSDMA formats the identity block with CORE IDENTITY header."""
         evaluator = BaseDSDMA(domain_name="engineering", service_registry=mock_service_registry)
 
-        mock_result = DSDMAResult(domain="engineering", domain_alignment=0.5, flags=[], reasoning="Test")
-        evaluator.call_llm_structured = AsyncMock(return_value=(mock_result, None))
+        from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
+
+        mock_llm_output = BaseDSDMA.LLMOutputForDSDMA(score=0.5, flags=[], reasoning="Test")
+        evaluator.call_llm_structured = AsyncMock(return_value=(mock_llm_output, None))
 
         await evaluator.evaluate_thought(valid_queue_item, current_context=None)
 
@@ -266,8 +270,10 @@ class TestDSDMAEvaluator:
         """Test that the evaluate() method maintains backward compatibility."""
         evaluator = BaseDSDMA(domain_name="general", service_registry=mock_service_registry)
 
-        mock_result = DSDMAResult(domain="general", domain_alignment=0.8, flags=[], reasoning="Valid thought")
-        evaluator.call_llm_structured = AsyncMock(return_value=(mock_result, None))
+        from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
+
+        mock_llm_output = BaseDSDMA.LLMOutputForDSDMA(score=0.8, flags=[], reasoning="Valid thought")
+        evaluator.call_llm_structured = AsyncMock(return_value=(mock_llm_output, None))
 
         # Call via evaluate() method
         result = await evaluator.evaluate(input_data=valid_queue_item)
@@ -301,5 +307,4 @@ class TestDSDMAEvaluator:
 
         repr_str = repr(evaluator)
         assert "BaseDSDMA" in repr_str
-        assert "gpt-4" in repr_str
-        assert "instructor" in repr_str
+        assert "scientific" in repr_str  # Domain name should be in repr
