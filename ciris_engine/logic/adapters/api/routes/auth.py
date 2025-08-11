@@ -44,10 +44,8 @@ PROVIDER_NAME_DESC = "Provider name"
 AGENT_ID = os.getenv("CIRIS_AGENT_ID", "datum")
 OAUTH_CALLBACK_PATH = f"/v1/auth/oauth/{AGENT_ID}/{{provider}}/callback"
 DEFAULT_OAUTH_BASE_URL = "https://agents.ciris.ai"
-# Get agent ID from environment, default to 'datum' if not set
-AGENT_ID = os.getenv("CIRIS_AGENT_ID", "datum")
-OAUTH_CALLBACK_PATH = f"/v1/auth/oauth/{AGENT_ID}/{{provider}}/callback"
-DEFAULT_OAUTH_BASE_URL = "https://agents.ciris.ai"
+# Error messages
+FETCH_USER_INFO_ERROR = "Failed to fetch user info"
 
 
 # Helper functions
@@ -513,7 +511,7 @@ async def oauth_callback(
                 )
 
                 if user_response.status_code != 200:
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to fetch user info")
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=FETCH_USER_INFO_ERROR)
 
                 user_info = user_response.json()
                 external_id = user_info["id"]
@@ -550,7 +548,7 @@ async def oauth_callback(
                 )
 
                 if user_response.status_code != 200:
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to fetch user info")
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=FETCH_USER_INFO_ERROR)
 
                 user_info = user_response.json()
                 external_id = str(user_info["id"])
@@ -599,7 +597,7 @@ async def oauth_callback(
                 )
 
                 if user_response.status_code != 200:
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to fetch user info")
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=FETCH_USER_INFO_ERROR)
 
                 user_info = user_response.json()
                 external_id = user_info["id"]
