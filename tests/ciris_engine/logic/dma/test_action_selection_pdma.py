@@ -8,7 +8,7 @@ import pytest
 from ciris_engine.logic.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
 from ciris_engine.schemas.dma.faculty import ConscienceFailureContext, EnhancedDMAInputs
 from ciris_engine.schemas.dma.prompts import PromptCollection
-from ciris_engine.schemas.dma.results import ActionSelectionResult
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.runtime.enums import HandlerActionType
 from ciris_engine.schemas.runtime.models import Thought
 
@@ -66,7 +66,7 @@ class TestActionSelectionPDMAEvaluator:
 
         result = await evaluator.evaluate(mock_input_data)
 
-        assert isinstance(result, ActionSelectionResult)
+        assert isinstance(result, ActionSelectionDMAResult)
         assert result.action == HandlerActionType.SPEAK
         assert result.action_params["content"] == "Hello"
         assert result.explanation == "Responding to user"
@@ -112,7 +112,7 @@ class TestActionSelectionPDMAEvaluator:
 
         # Mock special case handler
         with patch.object(evaluator, "_handle_special_cases") as mock_special:
-            mock_special.return_value = ActionSelectionResult(
+            mock_special.return_value = ActionSelectionDMAResult(
                 action=HandlerActionType.TASK_COMPLETE, action_params={}, explanation="Wakeup complete"
             )
 
