@@ -296,7 +296,7 @@ CIRIS Agent/
 │   ├── telemetry/         # Observability and resource monitoring
 │   └── utils/             # Core infrastructure utilities
 ├── ciris_profiles/        # Agent creation templates (see docs/CIRIS_PROFILES.md)
-├── ciris_adk/            # Adapter Development Kit
+├── CIRISVoice/           # Home Assistant voice integration (Wyoming protocol)
 ├── ciris_sdk/            # Client SDK for external integrations
 ├── CIRISVoice/           # Voice interaction capabilities
 ├── CIRISGUI/             # Web-based management interface
@@ -577,7 +577,7 @@ ciris_engine/
     └── README.md                # Utility infrastructure
 
 Supporting Modules:
-├── ciris_adk/
+├── CIRISVoice/
 │   └── README.md                # Adapter Development Kit
 ├── ciris_sdk/
 │   └── README.md                # Client SDK documentation
@@ -653,7 +653,7 @@ Supporting Modules:
 - **[Contributing Guide](CONTRIBUTING.md)** - Development workflow and standards
 - **Runtime System** - Hot-swappable modular architecture
 - **[DMA Creation Guide](docs/DMA_CREATION_GUIDE.md)** - Creating custom Decision Making Algorithms
-- **[Adapter Development Kit](ciris_adk/README.md)** - Building new platform adapters
+- **[Voice Integration](CIRISVoice/README.md)** - Home Assistant voice bridge using Wyoming protocol
 - **[SDK Documentation](ciris_sdk/README.md)** - Client SDK for external integrations
 
 ---

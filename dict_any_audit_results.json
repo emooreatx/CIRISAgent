@@ -1,14 +1,14 @@
 {
   "production": {
-    "occurrences": 159,
-    "files_affected": 78,
+    "occurrences": 154,
+    "files_affected": 74,
     "categories": {
-      "generic_data": 139,
+      "generic_data": 136,
       "parameters": 5,
       "configuration": 3,
-      "api_request": 2,
-      "context_data": 7,
-      "api_response": 3
+      "api_request": 1,
+      "api_response": 3,
+      "context_data": 6
     },
     "findings": [
       {
@@ -450,46 +450,6 @@
         "function": "modify_deferral",
         "context": "return_type",
         "usage_hint": "generic_data"
-      },
-      {
-        "file": "ciris_adk/services/comms.py",
-        "line": 20,
-        "class": "CommunicationService",
-        "function": "fetch_messages",
-        "context": "other",
-        "usage_hint": "generic_data"
-      },
-      {
-        "file": "ciris_adk/services/audit.py",
-        "line": 24,
-        "class": "AuditRecord",
-        "function": null,
-        "context": "variable_annotation",
-        "usage_hint": "api_request"
-      },
-      {
-        "file": "ciris_adk/services/tool.py",
-        "line": 17,
-        "class": "ToolService",
-        "function": "call_tool",
-        "context": "other",
-        "usage_hint": "generic_data"
-      },
-      {
-        "file": "ciris_adk/services/tool.py",
-        "line": 19,
-        "class": "ToolService",
-        "function": "call_tool",
-        "context": "return_type",
-        "usage_hint": "generic_data"
-      },
-      {
-        "file": "ciris_adk/services/wa.py",
-        "line": 9,
-        "class": "WiseAuthorityService",
-        "function": "fetch_guidance",
-        "context": "function_parameter",
-        "usage_hint": "context_data"
       },
       {
         "file": "ciris_modular_services/mock_llm/schemas.py",
@@ -2592,7 +2552,7 @@
     ]
   },
   "total_all_code": {
-    "occurrences": 321,
-    "files_affected": 111
+    "occurrences": 316,
+    "files_affected": 107
   }
 }
