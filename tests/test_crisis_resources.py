@@ -194,7 +194,9 @@ class TestCrisisResources:
             if resources["phone_numbers"]:
                 print("  Phone Numbers:")
                 for number in resources["phone_numbers"]:
-                    print(f"    ℹ {number} (not validated)")
+                    # Mask phone numbers in logs
+                    masked = number[:3] + "*" * (len(number) - 6) + number[-3:] if len(number) > 6 else "***"
+                    print(f"    ℹ {masked} (not validated)")
 
             if resources["email_addresses"]:
                 print("  Email Addresses:")

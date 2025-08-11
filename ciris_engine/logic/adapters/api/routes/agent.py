@@ -168,9 +168,8 @@ async def interact(
             # Store the updated user
             auth_service._users[user.wa_id] = user
 
-            logger.info(
-                f"Auto-created permission request for OAuth user {user.oauth_email or user.name} (ID: {user.wa_id})"
-            )
+            # Don't log potentially sensitive email addresses
+            logger.info(f"Auto-created permission request for OAuth user ID: {user.wa_id}")
 
         # Build detailed error response
         error_detail = {

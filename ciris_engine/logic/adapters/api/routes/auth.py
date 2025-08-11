@@ -123,7 +123,8 @@ async def logout(
     """
     if auth.api_key_id:
         auth_service.revoke_api_key(auth.api_key_id)
-        logger.info(f"User {auth.user_id} logged out, API key {auth.api_key_id} revoked")
+        # Don't log sensitive API key ID
+        logger.info(f"User {auth.user_id} logged out, API key revoked")
 
     return None
 

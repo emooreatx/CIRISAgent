@@ -741,7 +741,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/api/routes/agent.py",
-        "line": 400,
+        "line": 399,
         "class": null,
         "function": "get_history",
         "context": "other",
