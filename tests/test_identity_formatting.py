@@ -11,7 +11,7 @@ import pytest
 
 from ciris_engine.logic.dma.action_selection_pdma import ActionSelectionPDMAEvaluator
 from ciris_engine.logic.dma.csdma import CSDMAEvaluator
-from ciris_engine.logic.dma.dsdma_base import DSDMAEvaluator
+from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
 
 
@@ -30,7 +30,7 @@ class TestIdentityFormatting:
         )
 
         # Create DSDMA evaluator
-        dsdma = DSDMAEvaluator(domain_name="test_domain", llm_provider=MagicMock(), domain_specific_knowledge={})
+        dsdma = BaseDSDMA(domain_name="test_domain", service_registry=MagicMock(), domain_specific_knowledge={})
 
         # The identity block should be formatted when evaluate is called
         # This would be tested in integration, but we can check the format
@@ -58,7 +58,7 @@ class TestIdentityFormatting:
             }
         )
 
-        dsdma = DSDMAEvaluator(domain_name="test_domain", llm_provider=MagicMock(), domain_specific_knowledge={})
+        dsdma = BaseDSDMA(domain_name="test_domain", service_registry=MagicMock(), domain_specific_knowledge={})
 
         # Create a mock thought with the system snapshot
         thought = MagicMock()

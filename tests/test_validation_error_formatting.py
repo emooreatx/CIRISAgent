@@ -8,7 +8,7 @@ import pytest
 from pydantic import BaseModel, Field, ValidationError
 
 from ciris_engine.logic.infrastructure.handlers.base_handler import BaseActionHandler
-from ciris_engine.schemas.aspdma.action import ActionSelectionDMAResult
+from ciris_engine.schemas.dma.results import ActionSelectionDMAResult
 from ciris_engine.schemas.runtime.enums import HandlerScope
 
 

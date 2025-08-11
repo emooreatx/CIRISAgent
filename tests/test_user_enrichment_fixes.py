@@ -10,7 +10,7 @@ import pytest
 from pydantic import BaseModel
 
 from ciris_engine.logic.context.system_snapshot import SystemSnapshot
-from ciris_engine.schemas.runtime.messages import UserProfile
+from ciris_engine.schemas.runtime.system_context import UserProfile
 from ciris_engine.schemas.services.graph_core import GraphEdge, GraphNode, RecallQuery
 
 
