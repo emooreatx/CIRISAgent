@@ -159,10 +159,24 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
                 raise ValueError(
                     f"CRITICAL: Agent identity is required for DSDMA evaluation in domain '{self.domain_name}'"
                 )
-            # Format identity block from agent_identity data
-            identity_block = f"Agent: {system_snapshot.agent_identity.get('agent_id', 'Unknown')}\n"
-            identity_block += f"Description: {system_snapshot.agent_identity.get('description', 'No description')}\n"
-            identity_block += f"Role: {system_snapshot.agent_identity.get('role', 'No role defined')}"
+            # Format identity block from agent_identity data - FAIL FAST if incomplete
+            agent_id = system_snapshot.agent_identity.get("agent_id")
+            description = system_snapshot.agent_identity.get("description")
+            role = system_snapshot.agent_identity.get("role")
+
+            # CRITICAL: Identity must be complete - no defaults allowed
+            if not agent_id:
+                raise ValueError(f"CRITICAL: agent_id is missing from identity! This is a fatal error.")
+            if not description:
+                raise ValueError(f"CRITICAL: description is missing from identity! This is a fatal error.")
+            if not role:
+                raise ValueError(f"CRITICAL: role is missing from identity! This is a fatal error.")
+
+            identity_block = "=== CORE IDENTITY - THIS IS WHO YOU ARE! ===\n"
+            identity_block += f"Agent: {agent_id}\n"
+            identity_block += f"Description: {description}\n"
+            identity_block += f"Role: {role}\n"
+            identity_block += "============================================"
         else:
             # Fallback to old logic for backwards compatibility
             context_str = "No specific platform context provided."
@@ -183,7 +197,37 @@ class BaseDSDMA(BaseDMA, DSDMAProtocol):
                     user_profiles_block = format_user_profiles(user_profiles_data)
                     system_snapshot_block = format_system_snapshot(system_snapshot)
 
-                identity_block = thought_item.context.get("identity_context", "")
+                # Extract identity from system_snapshot if available
+                if system_snapshot and system_snapshot.get("agent_identity"):
+                    agent_id = system_snapshot["agent_identity"].get("agent_id")
+                    description = system_snapshot["agent_identity"].get("description")
+                    role = system_snapshot["agent_identity"].get("role")
+
+                    # CRITICAL: Identity must be complete - no defaults allowed
+                    if not agent_id:
+                        raise ValueError(
+                            f"CRITICAL: agent_id is missing from identity in fallback path! This is a fatal error."
+                        )
+                    if not description:
+                        raise ValueError(
+                            f"CRITICAL: description is missing from identity in fallback path! This is a fatal error."
+                        )
+                    if not role:
+                        raise ValueError(
+                            f"CRITICAL: role is missing from identity in fallback path! This is a fatal error."
+                        )
+
+                    identity_block = "=== CORE IDENTITY - THIS IS WHO YOU ARE! ===\n"
+                    identity_block += f"Agent: {agent_id}\n"
+                    identity_block += f"Description: {description}\n"
+                    identity_block += f"Role: {role}\n"
+                    identity_block += "============================================"
+                else:
+                    # CRITICAL: No identity found - this is a fatal error
+                    raise ValueError(
+                        f"CRITICAL: No agent identity found in system_snapshot for DSDMA domain '{self.domain_name}'! "
+                        "Identity is required for ALL DMA evaluations. This is a fatal error."
+                    )
 
         escalation_guidance_block = get_escalation_guidance(0)
 

@@ -132,9 +132,34 @@ class CSDMAEvaluator(BaseDMA, CSDMAProtocol):
                 user_profiles_block = format_user_profiles(user_profiles_data)
                 system_snapshot_block = format_system_snapshot(system_snapshot)
 
+        # Extract and validate identity - FAIL FAST if missing
         identity_block = ""
         if hasattr(thought_item, "context") and thought_item.context:
-            identity_block = thought_item.context.get("identity_context", "")
+            system_snapshot = thought_item.context.get("system_snapshot")
+            if system_snapshot and system_snapshot.get("agent_identity"):
+                agent_id = system_snapshot["agent_identity"].get("agent_id")
+                description = system_snapshot["agent_identity"].get("description")
+                role = system_snapshot["agent_identity"].get("role")
+
+                # CRITICAL: Identity must be complete - no defaults allowed
+                if not agent_id:
+                    raise ValueError(f"CRITICAL: agent_id is missing from identity in CSDMA! This is a fatal error.")
+                if not description:
+                    raise ValueError(f"CRITICAL: description is missing from identity in CSDMA! This is a fatal error.")
+                if not role:
+                    raise ValueError(f"CRITICAL: role is missing from identity in CSDMA! This is a fatal error.")
+
+                identity_block = "=== CORE IDENTITY - THIS IS WHO YOU ARE! ===\n"
+                identity_block += f"Agent: {agent_id}\n"
+                identity_block += f"Description: {description}\n"
+                identity_block += f"Role: {role}\n"
+                identity_block += "============================================"
+            else:
+                # CRITICAL: No identity found - this is a fatal error
+                raise ValueError(
+                    "CRITICAL: No agent identity found in system_snapshot for CSDMA! "
+                    "Identity is required for ALL DMA evaluations. This is a fatal error."
+                )
 
         messages = self._create_csdma_messages_for_instructor(
             thought_content_str,
