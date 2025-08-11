@@ -5,7 +5,7 @@ Handles data access, deletion, and export requests.
 
 import json
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -72,12 +72,12 @@ async def submit_dsar(
     Returns a ticket ID for tracking the request.
     """
     # Generate unique ticket ID
-    ticket_id = f"DSAR-{datetime.utcnow().strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
+    ticket_id = f"DSAR-{datetime.now(timezone.utc).strftime('%Y%m%d')}-{uuid.uuid4().hex[:8].upper()}"
 
     # Calculate estimated completion (14 days for pilot, urgent in 3 days)
     from datetime import timedelta
 
-    submitted_at = datetime.utcnow()
+    submitted_at = datetime.now(timezone.utc)
     estimated_completion = submitted_at + timedelta(days=14 if not request.urgent else 3)
 
     # Store request (in production, this would go to a database)
@@ -100,8 +100,13 @@ async def submit_dsar(
     # Log for audit trail
     import logging
 
+    from ciris_engine.logic.utils.log_sanitizer import sanitize_email, sanitize_for_log
+
     logger = logging.getLogger(__name__)
-    logger.info(f"DSAR request submitted: {ticket_id} - Type: {request.request_type} - Email: {request.email}")
+    # Sanitize user input before logging to prevent log injection
+    safe_email = sanitize_email(request.email)
+    safe_type = sanitize_for_log(request.request_type, max_length=50)
+    logger.info(f"DSAR request submitted: {ticket_id} - Type: {safe_type} - Email: {safe_email}")
 
     # Prepare response
     response_data = DSARResponse(
@@ -120,7 +125,7 @@ async def submit_dsar(
         message="DSAR request successfully submitted",
         metadata={
             "ticket_id": ticket_id,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     )
 
@@ -154,7 +159,7 @@ async def check_dsar_status(ticket_id: str) -> StandardResponse:
         data=status_data.model_dump(),
         message="DSAR status retrieved",
         metadata={
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     )
 
@@ -192,7 +197,7 @@ async def list_dsar_requests(
         data={"requests": pending_requests, "total": len(pending_requests)},
         message=f"Found {len(pending_requests)} pending DSAR requests",
         metadata={
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     )
 
@@ -231,15 +236,20 @@ async def update_dsar_status(
 
     # Update the record
     _dsar_requests[ticket_id]["status"] = new_status
-    _dsar_requests[ticket_id]["last_updated"] = datetime.utcnow().isoformat()
+    _dsar_requests[ticket_id]["last_updated"] = datetime.now(timezone.utc).isoformat()
     if notes:
         _dsar_requests[ticket_id]["notes"] = notes
 
     # Log the update
     import logging
 
+    from ciris_engine.logic.utils.log_sanitizer import sanitize_for_log, sanitize_username
+
     logger = logging.getLogger(__name__)
-    logger.info(f"DSAR {ticket_id} status updated to {new_status} by {current_user.username}")
+    # Sanitize user input before logging to prevent log injection
+    safe_username = sanitize_username(current_user.username)
+    safe_status = sanitize_for_log(new_status, max_length=50)
+    logger.info(f"DSAR {ticket_id} status updated to {safe_status} by {safe_username}")
 
     return StandardResponse(
         success=True,
@@ -250,6 +260,6 @@ async def update_dsar_status(
         },
         message=f"DSAR {ticket_id} status updated to {new_status}",
         metadata={
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         },
     )
