@@ -45,10 +45,9 @@ class TestBaseDSDMA:
     def evaluator(self, mock_service_registry):
         """Create a BaseDSDMA instance."""
         with patch("ciris_engine.logic.dma.dsdma_base.get_prompt_loader") as mock_loader:
-            mock_loader.return_value.load_prompt_template.return_value = {
-                "system": "Domain system prompt",
-                "user": "Domain user prompt",
-            }
+            mock_prompt_collection = Mock()
+            mock_prompt_collection.get_prompt.return_value = "Mock prompt"
+            mock_loader.return_value.load_prompt_template.return_value = mock_prompt_collection
             evaluator = ConcreteDSDMA(
                 domain_name="test_domain", service_registry=mock_service_registry, model_name="test-model"
             )
@@ -107,7 +106,9 @@ class TestBaseDSDMA:
         }
 
         with patch("ciris_engine.logic.dma.dsdma_base.get_prompt_loader") as mock_loader:
-            mock_loader.return_value.load_prompt_template.return_value = {"system": "System", "user": "User"}
+            mock_prompt_collection = Mock()
+            mock_prompt_collection.get_prompt.return_value = "Mock prompt"
+            mock_loader.return_value.load_prompt_template.return_value = mock_prompt_collection
             evaluator = ConcreteDSDMA(
                 domain_name="specialized_domain",
                 service_registry=mock_service_registry,
@@ -131,7 +132,9 @@ class TestBaseDSDMA:
         custom_template = "Custom domain evaluation for {domain_name}"
 
         with patch("ciris_engine.logic.dma.dsdma_base.get_prompt_loader") as mock_loader:
-            mock_loader.return_value.load_prompt_template.return_value = {"system": "System", "user": "User"}
+            mock_prompt_collection = Mock()
+            mock_prompt_collection.get_prompt.return_value = "Mock prompt"
+            mock_loader.return_value.load_prompt_template.return_value = mock_prompt_collection
             evaluator = ConcreteDSDMA(
                 domain_name="custom_domain", service_registry=mock_service_registry, prompt_template=custom_template
             )
@@ -215,7 +218,9 @@ class TestBaseDSDMA:
     def test_initialization_with_defaults(self, mock_service_registry):
         """Test initialization with default values."""
         with patch("ciris_engine.logic.dma.dsdma_base.get_prompt_loader") as mock_loader:
-            mock_loader.return_value.load_prompt_template.return_value = {}
+            mock_prompt_collection = Mock()
+            mock_prompt_collection.get_prompt.return_value = "Mock prompt"
+            mock_loader.return_value.load_prompt_template.return_value = mock_prompt_collection
 
             evaluator = ConcreteDSDMA(domain_name="default_domain", service_registry=mock_service_registry)
 
@@ -228,7 +233,9 @@ class TestBaseDSDMA:
         domain_knowledge = {"key": "value"}
 
         with patch("ciris_engine.logic.dma.dsdma_base.get_prompt_loader") as mock_loader:
-            mock_loader.return_value.load_prompt_template.return_value = {}
+            mock_prompt_collection = Mock()
+            mock_prompt_collection.get_prompt.return_value = "Mock prompt"
+            mock_loader.return_value.load_prompt_template.return_value = mock_prompt_collection
 
             evaluator = ConcreteDSDMA(
                 domain_name="full_domain",

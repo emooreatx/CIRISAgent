@@ -39,10 +39,9 @@ class TestCSDMAEvaluator:
     def evaluator(self, mock_service_registry):
         """Create a CSDMAEvaluator instance."""
         with patch("ciris_engine.logic.dma.csdma.get_prompt_loader") as mock_loader:
-            mock_loader.return_value.load_prompt_template.return_value = {
-                "system": "System prompt",
-                "user": "User prompt",
-            }
+            mock_prompt_collection = Mock()
+            mock_prompt_collection.get_prompt.return_value = "Mock prompt"
+            mock_loader.return_value.load_prompt_template.return_value = mock_prompt_collection
             evaluator = CSDMAEvaluator(service_registry=mock_service_registry, model_name="test-model")
             evaluator.sink = AsyncMock()
             return evaluator
@@ -94,10 +93,9 @@ class TestCSDMAEvaluator:
         environmental_kg = {"physics": "laws", "resources": "constraints"}
 
         with patch("ciris_engine.logic.dma.csdma.get_prompt_loader") as mock_loader:
-            mock_loader.return_value.load_prompt_template.return_value = {
-                "system": "System prompt",
-                "user": "User prompt",
-            }
+            mock_prompt_collection = Mock()
+            mock_prompt_collection.get_prompt.return_value = "Mock prompt"
+            mock_loader.return_value.load_prompt_template.return_value = mock_prompt_collection
             evaluator = CSDMAEvaluator(service_registry=mock_service_registry, environmental_kg=environmental_kg)
             evaluator.sink = AsyncMock()
             evaluator.sink.dispatch.return_value = CSDMAResult(
@@ -114,10 +112,9 @@ class TestCSDMAEvaluator:
         task_kg = {"domain": "specific", "rules": "applied"}
 
         with patch("ciris_engine.logic.dma.csdma.get_prompt_loader") as mock_loader:
-            mock_loader.return_value.load_prompt_template.return_value = {
-                "system": "System prompt",
-                "user": "User prompt",
-            }
+            mock_prompt_collection = Mock()
+            mock_prompt_collection.get_prompt.return_value = "Mock prompt"
+            mock_loader.return_value.load_prompt_template.return_value = mock_prompt_collection
             evaluator = CSDMAEvaluator(service_registry=mock_service_registry, task_specific_kg=task_kg)
             evaluator.sink = AsyncMock()
             evaluator.sink.dispatch.return_value = CSDMAResult(
@@ -212,7 +209,9 @@ class TestCSDMAEvaluator:
     def test_initialization(self, mock_service_registry):
         """Test proper initialization of evaluator."""
         with patch("ciris_engine.logic.dma.csdma.get_prompt_loader") as mock_loader:
-            mock_loader.return_value.load_prompt_template.return_value = {"system": "System", "user": "User"}
+            mock_prompt_collection = Mock()
+            mock_prompt_collection.get_prompt.return_value = "Mock prompt"
+            mock_loader.return_value.load_prompt_template.return_value = mock_prompt_collection
 
             evaluator = CSDMAEvaluator(service_registry=mock_service_registry, model_name="custom-model", max_retries=5)
 

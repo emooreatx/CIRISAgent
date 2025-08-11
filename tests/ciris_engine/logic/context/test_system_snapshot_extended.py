@@ -98,12 +98,7 @@ class TestSystemSnapshotExtended:
     @pytest.fixture
     def complex_task(self):
         """Create a complex task with nested context."""
-        context = TaskContext(
-            correlation_id="correlation_789",
-            channel_id="task_channel",
-            user_id="user_123",
-            metadata={"environment": "test"},
-        )
+        context = TaskContext(correlation_id="correlation_789", channel_id="task_channel", user_id="user_123")
 
         task = Task(
             task_id="complex_task_456",
