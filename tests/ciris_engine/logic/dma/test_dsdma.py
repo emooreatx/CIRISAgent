@@ -97,7 +97,6 @@ class TestDSDMAEvaluator:
         )
 
         # Mock the LLM call to return LLMOutputForDSDMA (not DSDMAResult!)
-        from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
 
         mock_llm_output = BaseDSDMA.LLMOutputForDSDMA(
             score=0.9,
@@ -197,7 +196,7 @@ class TestDSDMAEvaluator:
         assert result.domain == "legal"  # Uses domain name
         assert result.domain_alignment == 0.0
         assert "LLM_Error_Instructor" in result.flags  # Changed because instructor mode uses different flag
-        assert "Failed to evaluate" in result.reasoning
+        assert "Failed DSDMA evaluation" in result.reasoning
 
     @pytest.mark.asyncio
     async def test_dsdma_uses_domain_specific_knowledge(
@@ -212,8 +211,6 @@ class TestDSDMAEvaluator:
         evaluator = BaseDSDMA(
             domain_name="finance", service_registry=mock_service_registry, domain_specific_knowledge=domain_knowledge
         )
-
-        from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
 
         mock_llm_output = BaseDSDMA.LLMOutputForDSDMA(
             score=0.7,
@@ -244,8 +241,6 @@ class TestDSDMAEvaluator:
         """Test that DSDMA formats the identity block with CORE IDENTITY header."""
         evaluator = BaseDSDMA(domain_name="engineering", service_registry=mock_service_registry)
 
-        from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
-
         mock_llm_output = BaseDSDMA.LLMOutputForDSDMA(score=0.5, flags=[], reasoning="Test")
         evaluator.call_llm_structured = AsyncMock(return_value=(mock_llm_output, None))
 
@@ -269,8 +264,6 @@ class TestDSDMAEvaluator:
     ):
         """Test that the evaluate() method maintains backward compatibility."""
         evaluator = BaseDSDMA(domain_name="general", service_registry=mock_service_registry)
-
-        from ciris_engine.logic.dma.dsdma_base import BaseDSDMA
 
         mock_llm_output = BaseDSDMA.LLMOutputForDSDMA(score=0.8, flags=[], reasoning="Valid thought")
         evaluator.call_llm_structured = AsyncMock(return_value=(mock_llm_output, None))

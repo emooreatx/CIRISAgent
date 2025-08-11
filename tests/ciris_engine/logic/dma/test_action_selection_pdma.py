@@ -105,7 +105,7 @@ class TestActionSelectionPDMAEvaluator:
         assert isinstance(result, ActionSelectionDMAResult)
         assert result.selected_action == HandlerActionType.SPEAK
         assert isinstance(result.action_parameters, SpeakParams)
-        assert result.action_parameters.message == "Here is my response to your question"
+        assert result.action_parameters.content == "Here is my response to your question"
 
         # Verify LLM was called with proper messages (not dicts with Any!)
         evaluator.call_llm_structured.assert_called_once()
@@ -160,11 +160,14 @@ class TestActionSelectionPDMAEvaluator:
 
         pdma_result = EthicalDMAResult(decision="approve", reasoning="OK", alignment_check={})
 
+        # Need a valid CSDMA result even for this test
+        csdma_result = CSDMAResult(plausibility_score=0.5, flags=[], reasoning="Test")
+
         inputs = EnhancedDMAInputs(
             original_thought=valid_thought,
             processing_context={"system_snapshot": incomplete_snapshot.model_dump()},
             ethical_pdma_result=pdma_result,
-            csdma_result=None,
+            csdma_result=csdma_result,  # Can't be None - context_builder expects it
             dsdma_result=None,
             permitted_actions=[
                 HandlerActionType.OBSERVE,
