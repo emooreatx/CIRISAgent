@@ -29,6 +29,9 @@ logger = logging.getLogger(__name__)
 # Type variable for decorated functions
 F = TypeVar("F", bound=Callable[..., Any])
 
+# Semaphore to limit concurrent telemetry tasks
+TELEMETRY_TASK_SEMAPHORE = asyncio.Semaphore(100)
+
 
 def _prepare_log_context(
     func: Callable, self: Any, args: Any, kwargs: Any, service_name: str, message_template: Optional[str]
@@ -225,8 +228,13 @@ def trace_span(
                 # Store correlation if we have access to telemetry
                 if hasattr(self, "_telemetry_service"):
                     try:
-                        # Store asynchronously and save reference to prevent GC
-                        task = asyncio.create_task(self._telemetry_service._store_correlation(correlation))
+
+                        async def bounded_store_correlation(telemetry_service, correlation):
+                            async with TELEMETRY_TASK_SEMAPHORE:
+                                await telemetry_service._store_correlation(correlation)
+
+                        # Store asynchronously with bounded concurrency
+                        task = asyncio.create_task(bounded_store_correlation(self._telemetry_service, correlation))
                         # Fire and forget - we don't await the task
                         task.add_done_callback(lambda t: None)  # Suppress warnings
                     except Exception:

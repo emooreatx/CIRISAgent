@@ -23,6 +23,9 @@ from ..dependencies.auth import AuthContext, require_observer
 
 logger = logging.getLogger(__name__)
 
+# Minimum uptime in seconds before defaulting task count
+MIN_UPTIME_FOR_DEFAULT_TASKS = 60
+
 router = APIRouter(prefix="/agent", tags=["agent"])
 
 # Request/Response schemas
@@ -511,7 +514,7 @@ def _count_wakeup_tasks(uptime: float) -> int:
         count = sum(1 for task in completed_tasks if any(task.task_id.startswith(prefix) for prefix in wakeup_prefixes))
 
         # If no wakeup tasks found but system has been running, assume standard cycle
-        if count == 0 and uptime > 60:
+        if count == 0 and uptime > MIN_UPTIME_FOR_DEFAULT_TASKS:
             return 5  # Standard wakeup cycle completes 5 tasks
 
         return count

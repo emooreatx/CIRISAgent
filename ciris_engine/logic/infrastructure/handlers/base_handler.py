@@ -34,6 +34,9 @@ T = TypeVar("T", bound=BaseModel)
 
 logger = logging.getLogger(__name__)
 
+# Maximum number of validation errors to show in error messages
+MAX_VALIDATION_ERRORS_SHOWN = 3
+
 
 class ActionHandlerDependencies:
     """Dependencies for action handlers - clean and simple."""
@@ -233,9 +236,9 @@ class BaseActionHandler(ABC):
                     field = ".".join(str(x) for x in error["loc"])
                     msg = error["msg"]
                     error_msgs.append(f"{field}: {msg}")
-                error_summary = "; ".join(error_msgs[:3])  # Limit to first 3 errors
-                if len(e.errors()) > 3:
-                    error_summary += f" (and {len(e.errors()) - 3} more)"
+                error_summary = "; ".join(error_msgs[:MAX_VALIDATION_ERRORS_SHOWN])
+                if len(e.errors()) > MAX_VALIDATION_ERRORS_SHOWN:
+                    error_summary += f" (and {len(e.errors()) - MAX_VALIDATION_ERRORS_SHOWN} more)"
                 raise ValueError(f"Invalid parameters for {param_class.__name__}: {error_summary}")
 
         # Try to convert BaseModel to dict first
@@ -249,9 +252,9 @@ class BaseActionHandler(ABC):
                     field = ".".join(str(x) for x in error["loc"])
                     msg = error["msg"]
                     error_msgs.append(f"{field}: {msg}")
-                error_summary = "; ".join(error_msgs[:3])  # Limit to first 3 errors
-                if len(e.errors()) > 3:
-                    error_summary += f" (and {len(e.errors()) - 3} more)"
+                error_summary = "; ".join(error_msgs[:MAX_VALIDATION_ERRORS_SHOWN])
+                if len(e.errors()) > MAX_VALIDATION_ERRORS_SHOWN:
+                    error_summary += f" (and {len(e.errors()) - MAX_VALIDATION_ERRORS_SHOWN} more)"
                 raise ValueError(f"Invalid parameters for {param_class.__name__}: {error_summary}")
 
         raise TypeError(f"Expected {param_class.__name__} or dict, got {type(params).__name__}")

@@ -32,7 +32,7 @@ from ciris_engine.logic.config import get_sqlite_db_full_path
 def generate_secure_password(length: int = 16) -> str:
     """Generate a cryptographically secure random password."""
     # Use a mix of letters, digits, and special characters
-    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*-_+=[]{}|;:,.<>?"
     password = "".join(secrets.choice(alphabet) for _ in range(length))
     return password
 
@@ -225,8 +225,8 @@ def main():
         # Prompt for password
         while True:
             new_password = getpass.getpass("Enter new admin password: ")
-            if len(new_password) < 8:
-                print("❌ Password must be at least 8 characters")
+            if len(new_password) < 12:
+                print("❌ Password must be at least 12 characters")
                 continue
             confirm = getpass.getpass("Confirm new password: ")
             if new_password != confirm:

@@ -741,7 +741,7 @@
       },
       {
         "file": "ciris_engine/logic/adapters/api/routes/agent.py",
-        "line": 399,
+        "line": 402,
         "class": null,
         "function": "get_history",
         "context": "other",
@@ -781,7 +781,7 @@
       },
       {
         "file": "ciris_engine/logic/utils/observability_decorators.py",
-        "line": 35,
+        "line": 38,
         "class": null,
         "function": "_prepare_log_context",
         "context": "return_type",
