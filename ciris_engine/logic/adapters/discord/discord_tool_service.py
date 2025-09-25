@@ -28,6 +28,8 @@ class DiscordToolService(ToolService):
         self._client = client
         self._time_service = time_service
         self._results: Dict[str, ToolExecutionResult] = {}
+        self._tool_executions = 0
+        self._tool_failures = 0
 
         # Define available tools
         self._tools = {
@@ -41,6 +43,7 @@ class DiscordToolService(ToolService):
             "discord_remove_role": self._remove_role,
             "discord_get_user_info": self._get_user_info,
             "discord_get_channel_info": self._get_channel_info,
+            "discord_get_guild_moderators": self._get_guild_moderators,
         }
 
     def set_client(self, client: discord.Client) -> None:
@@ -60,8 +63,10 @@ class DiscordToolService(ToolService):
         logger.info(f"[DISCORD_TOOLS] execute_tool called with tool_name={tool_name}, parameters={parameters}")
 
         correlation_id = parameters.get("correlation_id", str(uuid.uuid4()))
+        self._tool_executions += 1
 
         if not self._client:
+            self._tool_failures += 1
             return ToolExecutionResult(
                 tool_name=tool_name,
                 status=ToolExecutionStatus.FAILED,
@@ -72,6 +77,8 @@ class DiscordToolService(ToolService):
             )
 
         if tool_name not in self._tools:
+            self._tool_executions += 1  # Must increment total count
+            self._tool_failures += 1  # Unknown tool is a failure!
             return ToolExecutionResult(
                 tool_name=tool_name,
                 status=ToolExecutionStatus.NOT_FOUND,
@@ -454,16 +461,57 @@ class DiscordToolService(ToolService):
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    def get_available_tools(self) -> List[str]:
+    async def _get_guild_moderators(self, params: dict) -> dict:
+        """Get list of guild members with moderator permissions, excluding ECHO users."""
+        guild_id = params.get("guild_id")
+
+        if not guild_id:
+            return {"success": False, "error": "guild_id is required"}
+
+        try:
+            if not self._client:
+                return {"success": False, "error": "Discord client not initialized"}
+            
+            guild = self._client.get_guild(int(guild_id))
+            if not guild:
+                guild = await self._client.fetch_guild(int(guild_id))
+            
+            if not guild:
+                return {"success": False, "error": f"Guild with ID {guild_id} not found"}
+
+            moderators = []
+            
+            # Iterate through guild members to find those with moderator permissions
+            async for member in guild.fetch_members(limit=None):
+                # Check if user has moderator permissions (can manage messages, kick, ban, etc.)
+                if (member.guild_permissions.manage_messages or 
+                    member.guild_permissions.kick_members or 
+                    member.guild_permissions.ban_members or
+                    member.guild_permissions.manage_roles):
+                    
+                    # Filter out ECHO users
+                    if "ECHO" not in str(member.display_name).upper() and "ECHO" not in str(member.name).upper():
+                        moderators.append({
+                            "user_id": str(member.id),
+                            "username": member.name,
+                            "display_name": member.display_name,
+                            "nickname": member.nick
+                        })
+
+            return {"success": True, "data": {"moderators": moderators}}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def get_available_tools(self) -> List[str]:
         """Get list of available Discord tools."""
         return list(self._tools.keys())
 
-    def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[ToolExecutionResult]:
+    async def get_tool_result(self, correlation_id: str, timeout: float = 30.0) -> Optional[ToolExecutionResult]:
         """Get result of a tool execution by correlation ID."""
         # All Discord tools are synchronous, so results are available immediately
         return self._results.get(correlation_id)
 
-    def validate_parameters(self, tool_name: str, parameters: dict) -> bool:
+    async def validate_parameters(self, tool_name: str, parameters: dict) -> bool:
         """Validate parameters for a Discord tool."""
         required_params = {
             "discord_send_message": ["channel_id", "content"],
@@ -476,6 +524,7 @@ class DiscordToolService(ToolService):
             "discord_remove_role": ["guild_id", "user_id", "role_name"],
             "discord_get_user_info": ["user_id"],
             "discord_get_channel_info": ["channel_id"],
+            "discord_get_guild_moderators": ["guild_id"],
         }
 
         if tool_name not in required_params:
@@ -483,7 +532,7 @@ class DiscordToolService(ToolService):
 
         return all(param in parameters for param in required_params[tool_name])
 
-    def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
+    async def get_tool_info(self, tool_name: str) -> Optional[ToolInfo]:
         """Get detailed information about a specific Discord tool."""
         tool_schemas = {
             "discord_send_message": ToolParameterSchema(
@@ -591,6 +640,11 @@ class DiscordToolService(ToolService):
                 properties={"channel_id": {"type": "string", "description": "Channel ID to get info for"}},
                 required=["channel_id"],
             ),
+            "discord_get_guild_moderators": ToolParameterSchema(
+                type="object",
+                properties={"guild_id": {"type": "string", "description": "Guild ID to get moderators for"}},
+                required=["guild_id"],
+            ),
         }
 
         tool_descriptions = {
@@ -604,6 +658,7 @@ class DiscordToolService(ToolService):
             "discord_remove_role": "Remove a role from a user in a Discord guild",
             "discord_get_user_info": "Get information about a Discord user",
             "discord_get_channel_info": "Get information about a Discord channel",
+            "discord_get_guild_moderators": "Get list of guild members with moderator permissions, excluding ECHO users",
         }
 
         if tool_name not in tool_schemas:
@@ -620,7 +675,7 @@ class DiscordToolService(ToolService):
         """Get detailed information about all available Discord tools."""
         infos = []
         for tool_name in self._tools:
-            info = self.get_tool_info(tool_name)
+            info = await self.get_tool_info(tool_name)
             if info:
                 infos.append(info)
         return infos
@@ -631,7 +686,7 @@ class DiscordToolService(ToolService):
 
     def get_service_type(self) -> ServiceType:
         """Get the type of this service."""
-        return ServiceType.ADAPTER
+        return ServiceType.TOOL
 
     def get_capabilities(self) -> ServiceCapabilities:
         """Get service capabilities."""
@@ -671,13 +726,13 @@ class DiscordToolService(ToolService):
             last_health_check=datetime.now(timezone.utc) if self._time_service is None else self._time_service.now(),
         )
 
-    def list_tools(self) -> List[str]:
+    async def list_tools(self) -> List[str]:
         """List available tools - required by ToolServiceProtocol."""
         return list(self._tools.keys())
 
-    def get_tool_schema(self, tool_name: str) -> Optional[ToolParameterSchema]:
+    async def get_tool_schema(self, tool_name: str) -> Optional[ToolParameterSchema]:
         """Get parameter schema for a specific tool - required by ToolServiceProtocol."""
-        tool_info = self.get_tool_info(tool_name)
+        tool_info = await self.get_tool_info(tool_name)
         if tool_info:
             return tool_info.parameters
         return None

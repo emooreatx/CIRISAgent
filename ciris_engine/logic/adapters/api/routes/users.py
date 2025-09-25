@@ -29,7 +29,7 @@ ERROR_CREATE_USER_FAILED = "Failed to create user"
 ERROR_CHANGE_PASSWORD_FAILED = "Failed to change password. Check current password."
 ERROR_CANNOT_DEMOTE_SELF = "Cannot demote your own role"
 ERROR_CANNOT_DEACTIVATE_SELF = "Cannot deactivate your own account"
-ERROR_ONLY_ADMIN_MINT_WA = "Only SYSTEM_ADMIN can mint Wise Authorities"
+ERROR_ONLY_ADMIN_MINT_WA = "Only ADMIN or higher can mint Wise Authorities"
 ERROR_CANNOT_MINT_ROOT = "Cannot mint new ROOT authorities. ROOT is singular."
 ERROR_INVALID_SIGNATURE = "Invalid ROOT signature"
 ERROR_SIGNATURE_OR_KEY_REQUIRED = "Either signature or private_key_path must be provided"
@@ -183,10 +183,10 @@ async def list_users(
 
     # Convert to UserSummary objects
     items = []
-    for user in users[start:end]:
+    for user_id, user in users[start:end]:
         items.append(
             UserSummary(
-                user_id=user.wa_id,
+                user_id=user_id,  # Use the actual user_id key, not wa_id
                 username=user.name,
                 auth_type=user.auth_type,
                 api_role=user.api_role,
@@ -273,7 +273,7 @@ async def request_permissions(
     # Store the updated user
     auth_service._users[user.wa_id] = user
 
-    logger.info(f"Permission request submitted by user {user.oauth_email or user.name} (ID: {user.wa_id})")
+    logger.info(f"Permission request submitted by user ID: {user.wa_id}")
 
     return PermissionRequestResponse(
         success=True,
@@ -361,7 +361,7 @@ async def get_user(
     api_keys = auth_service.list_user_api_keys(user_id)
 
     return UserDetail(
-        user_id=user.wa_id,
+        user_id=user_id,  # Return the actual user_id passed to endpoint, not wa_id
         username=user.name,
         auth_type=user.auth_type,
         api_role=user.api_role,
@@ -428,7 +428,7 @@ async def change_password(
     # Check permissions
     if user_id != auth.user_id:
         # Only SYSTEM_ADMIN can change other users' passwords
-        await check_permissions([PERMISSION_USERS_WRITE])(auth)
+        await check_permissions([PERMISSION_USERS_WRITE])(auth, auth_service)
         # SYSTEM_ADMIN doesn't need to provide current password
         success = await auth_service.change_password(
             user_id=user_id, new_password=request.new_password, skip_current_check=True
@@ -455,7 +455,7 @@ async def mint_wise_authority(
     """
     Mint a user as a Wise Authority.
 
-    Requires: SYSTEM_ADMIN role and valid Ed25519 signature from ROOT private key.
+    Requires: ADMIN role or higher and valid Ed25519 signature from ROOT private key.
 
     The signature should be over the message:
     "MINT_WA:{user_id}:{wa_role}:{timestamp}"
@@ -463,8 +463,8 @@ async def mint_wise_authority(
     If no signature is provided and private_key_path is specified, will attempt
     to sign automatically using the key at that path.
     """
-    # Check if user is SYSTEM_ADMIN
-    if auth.role != APIRole.SYSTEM_ADMIN:
+    # Check if user is ADMIN or higher
+    if auth.role.level < APIRole.ADMIN.level:
         raise HTTPException(status_code=403, detail=ERROR_ONLY_ADMIN_MINT_WA)
 
     # Validate that request.wa_role is not ROOT
@@ -640,7 +640,7 @@ async def list_user_api_keys(
     """
     # Check permissions
     if user_id != auth.user_id:
-        await check_permissions([PERMISSION_USERS_READ])(auth)
+        await check_permissions([PERMISSION_USERS_READ])(auth, auth_service)
 
     keys = auth_service.list_user_api_keys(user_id)
 

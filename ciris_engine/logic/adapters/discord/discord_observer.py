@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from ciris_engine.logic.adapters.base_observer import BaseObserver
 from ciris_engine.logic.adapters.discord.discord_vision_helper import DiscordVisionHelper
@@ -11,7 +11,7 @@ from ciris_engine.schemas.runtime.models import TaskContext, ThoughtType
 
 logger = logging.getLogger(__name__)
 
-PASSIVE_CONTEXT_LIMIT = 10
+PASSIVE_CONTEXT_LIMIT = 20
 
 
 class DiscordObserver(BaseObserver[DiscordMessage]):
@@ -89,11 +89,15 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
         logger.info("DiscordObserver stopped")
 
     def _extract_channel_id(self, full_channel_id: str) -> str:
-        """Extract the raw channel ID from discord_guildid_channelid format."""
-        if full_channel_id.startswith("discord_") and full_channel_id.count("_") == 2:
-            # Format: discord_guildid_channelid
+        """Extract the raw channel ID from discord_channelid or discord_guildid_channelid format."""
+        if full_channel_id.startswith("discord_"):
             parts = full_channel_id.split("_")
-            return parts[2]  # Return just the channel ID part
+            if len(parts) == 2:
+                # Format: discord_channelid
+                return parts[1]
+            elif len(parts) == 3:
+                # Format: discord_guildid_channelid
+                return parts[2]
         return full_channel_id  # Return as-is if not in expected format
 
     def _should_process_message(self, msg: DiscordMessage) -> bool:
@@ -123,8 +127,38 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
 
         return is_from_monitored or is_from_deferral
 
+    def _detect_and_replace_spoofed_markers(self, content: str) -> str:
+        """Detect and replace attempts to spoof CIRIS observation markers."""
+        import re
+        
+        # Patterns for detecting spoofed markers (case insensitive, with variations)
+        patterns = [
+            r'CIRIS[_\s]*OBSERV(?:ATION)?[_\s]*START',
+            r'CIRIS[_\s]*OBSERV(?:ATION)?[_\s]*END',
+            r'CIRRIS[_\s]*OBSERV(?:ATION)?[_\s]*START',  # Common misspelling
+            r'CIRRIS[_\s]*OBSERV(?:ATION)?[_\s]*END',
+            r'CIRIS[_\s]*OBS(?:ERV)?[_\s]*START',  # Shortened version
+            r'CIRIS[_\s]*OBS(?:ERV)?[_\s]*END',
+        ]
+        
+        modified_content = content
+        for pattern in patterns:
+            if re.search(pattern, content, re.IGNORECASE):
+                modified_content = re.sub(
+                    pattern, 
+                    "WARNING! ATTEMPT TO SPOOF CIRIS CONVERSATION MARKERS DETECTED!", 
+                    modified_content, 
+                    flags=re.IGNORECASE
+                )
+                logger.warning(f"Detected spoofed CIRIS marker in message content: {pattern}")
+        
+        return modified_content
+
     async def _enhance_message(self, msg: DiscordMessage) -> DiscordMessage:
-        """Enhance Discord messages with vision processing if available."""
+        """Enhance Discord messages with vision processing and anti-spoofing protection."""
+        # First, detect and replace any spoofed markers
+        clean_content = self._detect_and_replace_spoofed_markers(msg.content)
+        
         # Process any images in the message if vision is available
         if self._vision_helper.is_available() and hasattr(msg, "raw_message") and msg.raw_message:
             try:
@@ -146,10 +180,10 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
                             additional_content += "\n\n"
                         additional_content += embed_descriptions
 
-                    # Create a new message with the augmented content
+                    # Create a new message with the augmented content and anti-spoofing protection
                     return DiscordMessage(
                         message_id=msg.message_id,
-                        content=msg.content + additional_content,
+                        content=clean_content + additional_content,
                         author_id=msg.author_id,
                         author_name=msg.author_name,
                         channel_id=msg.channel_id,
@@ -161,35 +195,62 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
             except Exception as e:
                 logger.error(f"Failed to process images in message {msg.message_id}: {e}")
 
+        # Return message with anti-spoofing protection even if no image processing
+        if clean_content != msg.content:
+            return DiscordMessage(
+                message_id=msg.message_id,
+                content=clean_content,
+                author_id=msg.author_id,
+                author_name=msg.author_name,
+                channel_id=msg.channel_id,
+                is_bot=msg.is_bot,
+                is_dm=msg.is_dm,
+                raw_message=msg.raw_message,
+            )
+        
         return msg
 
     async def _handle_priority_observation(self, msg: DiscordMessage, filter_result: Any) -> None:
         """Handle high-priority messages with immediate processing"""
-        from ciris_engine.logic.utils.constants import DEFAULT_WA
-
         monitored_channel_ids = self.monitored_channel_ids or []
-        wa_discord_user = DEFAULT_WA
 
         raw_channel_id = self._extract_channel_id(msg.channel_id) if msg.channel_id else ""
+        
+        # Log the routing decision
+        logger.info(
+            f"[DISCORD-PRIORITY] Routing message {msg.message_id} from @{msg.author_name} "
+            f"(ID: {msg.author_id}) in channel {msg.channel_id}"
+        )
 
+        # First check if it's a monitored channel - create task regardless of author
         if raw_channel_id in monitored_channel_ids or msg.channel_id in monitored_channel_ids:
+            logger.info(
+                f"[DISCORD-PRIORITY] Channel {msg.channel_id} IS MONITORED - CREATING PRIORITY TASK "
+                f"(priority: {filter_result.priority.value}, filters: {', '.join(filter_result.triggered_filters)})"
+            )
             await self._create_priority_observation_result(msg, filter_result)
+        # Then check if it's deferral channel AND author is WA
         elif (raw_channel_id == self.deferral_channel_id or msg.channel_id == self.deferral_channel_id) and (
-            msg.author_id in self.wa_user_ids or msg.author_name == wa_discord_user
+            msg.author_id in self.wa_user_ids
         ):
-            logger.info(f"[PRIORITY] Routing message to WA feedback queue - author {msg.author_name} is WA")
+            logger.info(
+                f"[DISCORD-PRIORITY] Channel {msg.channel_id} is DEFERRAL channel and author {msg.author_name} "
+                f"IS WA - routing to WA feedback queue"
+            )
             await self._add_to_feedback_queue(msg)
         else:
-            logger.info("[PRIORITY] Not routing to WA feedback - checking conditions:")
-            logger.info(f"  - Is deferral channel: {msg.channel_id == self.deferral_channel_id}")
-            logger.info(f"  - Author ID in WA list: {msg.author_id in self.wa_user_ids}")
-            logger.info(f"  - Author name matches DEFAULT_WA '{wa_discord_user}': {msg.author_name == wa_discord_user}")
-            logger.debug(
-                "Ignoring priority message from channel %s, author %s (ID: %s)",
-                msg.channel_id,
-                msg.author_name,
-                msg.author_id,
+            logger.warning(
+                f"[DISCORD-PRIORITY] NO TASK CREATED for message {msg.message_id} from @{msg.author_name} "
+                f"in channel {msg.channel_id} - REASON: Channel not monitored or not valid deferral"
             )
+            logger.info(f"  - Raw channel ID: {raw_channel_id}")
+            logger.info(f"  - Monitored channels: {monitored_channel_ids}")
+            logger.info(f"  - Channel {msg.channel_id} monitored: {raw_channel_id in monitored_channel_ids or msg.channel_id in monitored_channel_ids}")
+            logger.info(f"  - Deferral channel: {self.deferral_channel_id}")
+            logger.info(f"  - Is deferral channel: {msg.channel_id == self.deferral_channel_id or raw_channel_id == self.deferral_channel_id}")
+            if msg.channel_id == self.deferral_channel_id or raw_channel_id == self.deferral_channel_id:
+                logger.info(f"  - Author ID {msg.author_id} in WA list {self.wa_user_ids}: {msg.author_id in self.wa_user_ids}")
+                # Username matching removed for security - only numeric IDs are checked
 
     def _create_task_context_with_extras(self, msg: DiscordMessage) -> TaskContext:
         """Create a TaskContext from a Discord message."""
@@ -199,38 +260,51 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
 
     async def _handle_passive_observation(self, msg: DiscordMessage) -> None:
         """Handle passive observation - routes to WA feedback queue if appropriate."""
-        from ciris_engine.logic.utils.constants import DEFAULT_WA
-
         monitored_channel_ids = self.monitored_channel_ids or []
-        wa_discord_user = DEFAULT_WA
 
         raw_channel_id = self._extract_channel_id(msg.channel_id) if msg.channel_id else ""
+        
+        # Log the routing decision
+        logger.info(
+            f"[DISCORD-PASSIVE] Routing message {msg.message_id} from @{msg.author_name} "
+            f"(ID: {msg.author_id}) in channel {msg.channel_id}"
+        )
 
+        # First check if it's a monitored channel - create task regardless of author
         if raw_channel_id in monitored_channel_ids or msg.channel_id in monitored_channel_ids:
+            logger.info(
+                f"[DISCORD-PASSIVE] Channel {msg.channel_id} IS MONITORED - CREATING PASSIVE TASK"
+            )
             await self._create_passive_observation_result(msg)
+        # Then check if it's deferral channel AND author is WA
         elif (raw_channel_id == self.deferral_channel_id or msg.channel_id == self.deferral_channel_id) and (
-            msg.author_id in self.wa_user_ids or msg.author_name == wa_discord_user
+            msg.author_id in self.wa_user_ids
         ):
-            logger.info(f"Routing message to WA feedback queue - author {msg.author_name} is WA")
+            logger.info(
+                f"[DISCORD-PASSIVE] Channel {msg.channel_id} is DEFERRAL channel and author {msg.author_name} "
+                f"IS WA - routing to WA feedback queue"
+            )
             await self._add_to_feedback_queue(msg)
         else:
-            logger.info("Not routing to WA feedback - checking conditions:")
-            logger.info(f"  - Is deferral channel: {msg.channel_id == self.deferral_channel_id}")
-            logger.info(f"  - Author ID in WA list: {msg.author_id in self.wa_user_ids}")
-            logger.info(f"  - Author name matches DEFAULT_WA '{wa_discord_user}': {msg.author_name == wa_discord_user}")
-            logger.debug(
-                "Ignoring message from channel %s, author %s (ID: %s)", msg.channel_id, msg.author_name, msg.author_id
+            logger.warning(
+                f"[DISCORD-PASSIVE] NO TASK CREATED for message {msg.message_id} from @{msg.author_name} "
+                f"in channel {msg.channel_id} - REASON: Channel not monitored or not valid deferral"
             )
+            logger.info(f"  - Raw channel ID: {raw_channel_id}")
+            logger.info(f"  - Monitored channels: {monitored_channel_ids}")
+            logger.info(f"  - Channel {msg.channel_id} monitored: {raw_channel_id in monitored_channel_ids or msg.channel_id in monitored_channel_ids}")
+            logger.info(f"  - Deferral channel: {self.deferral_channel_id}")
+            logger.info(f"  - Is deferral channel: {msg.channel_id == self.deferral_channel_id or raw_channel_id == self.deferral_channel_id}")
+            if msg.channel_id == self.deferral_channel_id or raw_channel_id == self.deferral_channel_id:
+                logger.info(f"  - Author ID {msg.author_id} in WA list {self.wa_user_ids}: {msg.author_id in self.wa_user_ids}")
+                # Username matching removed for security - only numeric IDs are checked
 
     async def _add_to_feedback_queue(self, msg: DiscordMessage) -> None:
         """Process guidance/feedback from WA in deferral channel."""
         try:
             # First validate that the user is a wise authority
-            from ciris_engine.logic.utils.constants import DEFAULT_WA
-
-            wa_discord_user = DEFAULT_WA
-
-            is_wise_authority = msg.author_id in self.wa_user_ids or msg.author_name == wa_discord_user
+            # Only check numeric IDs for security - usernames can be spoofed
+            is_wise_authority = msg.author_id in self.wa_user_ids
 
             if not is_wise_authority:
                 error_msg = f"🚫 **Not Authorized**: User `{msg.author_name}` (ID: `{msg.author_id}`) is not a Wise Authority. Not proceeding with guidance processing."
@@ -405,3 +479,52 @@ class DiscordObserver(BaseObserver[DiscordMessage]):
 
         except Exception as e:
             logger.error(f"Error processing guidance message {msg.message_id}: {e}", exc_info=True)
+
+    async def _get_guild_moderators(self, guild_id: str) -> List[Dict[str, str]]:
+        """Get list of guild moderators using the Discord tool service."""
+        try:
+            if not self.communication_service:
+                logger.warning("No communication service available to get guild moderators")
+                return []
+
+            # Try to get the Discord tool service from communication service
+            if hasattr(self.communication_service, '_discord_tool_service'):
+                tool_service = self.communication_service._discord_tool_service
+                result = await tool_service._get_guild_moderators({"guild_id": guild_id})
+                
+                if result.get("success") and "data" in result:
+                    moderators = result["data"].get("moderators", [])
+                    logger.info(f"Retrieved {len(moderators)} moderators from guild {guild_id}")
+                    return moderators
+                else:
+                    logger.warning(f"Failed to get moderators: {result.get('error', 'Unknown error')}")
+                    
+        except Exception as e:
+            logger.error(f"Error getting guild moderators: {e}")
+            
+        return []
+
+    def _extract_guild_id_from_channel(self, channel_id: str) -> Optional[str]:
+        """Extract guild ID from channel ID format (discord_guildid_channelid)."""
+        if channel_id and channel_id.startswith("discord_"):
+            parts = channel_id.split("_")
+            if len(parts) == 3:  # Format: discord_guildid_channelid
+                return parts[1]
+        return None
+
+    async def _add_custom_context_sections(self, task_lines: List[str], msg: DiscordMessage, history_context: List[Dict]) -> None:
+        """Add Discord-specific ACTIVE MODS section to context."""
+        # Add ACTIVE MODS section for Discord
+        guild_id = self._extract_guild_id_from_channel(msg.channel_id)
+        if guild_id:
+            moderators = await self._get_guild_moderators(guild_id)
+            if moderators:
+                task_lines.append("\n=== ACTIVE MODS ===")
+                for mod in moderators:
+                    nickname = mod.get('nickname') or mod.get('display_name') or mod.get('username')
+                    task_lines.append(f"ID: {mod['user_id']} | Nick: {nickname}")
+                task_lines.append("=== END ACTIVE MODS ===")
+            else:
+                task_lines.append("\n=== ACTIVE MODS ===")
+                task_lines.append("No moderators available or unable to retrieve moderator list")
+                task_lines.append("=== END ACTIVE MODS ===")

@@ -7,6 +7,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
+from .ci import CIMonitor
 from .context import WorkContext
 from .health import check_all, check_deployment
 from .schedule import get_current_session, get_next_transition
@@ -18,6 +19,7 @@ class Grace:
     def __init__(self) -> None:
         """Initialize Grace."""
         self.context = WorkContext()
+        self.ci_monitor = CIMonitor()
 
     def status(self) -> str:
         """Current status - time, session, health."""
@@ -44,7 +46,8 @@ class Grace:
             message.append(f"\n🚀 {health['deployment']}")
 
         # ALWAYS check production incidents - they can happen even when service is UP
-        prod_containers = ["ciris-agent-datum", "container0", "container1"]
+        # Updated container names to match actual production deployment
+        prod_containers = ["ciris-datum", "ciris-sage-2wnuc8", "container0", "container1"]
         ssh_key = os.path.expanduser("~/.ssh/ciris_deploy")
 
         if os.path.exists(ssh_key):
@@ -86,6 +89,22 @@ class Grace:
         ctx = self.context.load()
         if ctx and ctx.get("uncommitted"):
             message.append("\n📝 You have uncommitted changes")
+
+        # Quick CI check (only if not recently checked)
+        can_check, _ = self.ci_monitor.should_check_ci()
+        if can_check:
+            ci_status = self.ci_monitor.check_current_ci()
+            if "❌" in ci_status:
+                message.append(f"\n{ci_status}")
+            elif "⏳" in ci_status:
+                # Extract just the running status
+                parts = ci_status.split(" ")
+                if "elapsed)" in ci_status:
+                    # Get the elapsed time part
+                    elapsed = ci_status.split("(")[1].split(")")[0]
+                    message.append(f"\n⏳ CI running ({elapsed})")
+                else:
+                    message.append("\n⏳ CI running")
 
         return "\n".join(message)
 
@@ -166,11 +185,12 @@ class Grace:
 
         return "\n".join(message)
 
-    def incidents(self, container_name: str = "ciris-agent-datum") -> str:
+    def incidents(self, container_name: str = "ciris-datum") -> str:
         """Check incidents log for a specific container.
 
         Args:
-            container_name: Docker container name (default: ciris-agent-datum)
+            container_name: Docker container name (default: ciris-datum)
+                          Common containers: ciris-datum, ciris-sage-2wnuc8
 
         Returns:
             Formatted incidents report
@@ -178,7 +198,8 @@ class Grace:
         message = [f"Incidents Check: {container_name}\n" + "─" * 40]
 
         # Check if this is a production container and SSH key exists
-        prod_containers = ["ciris-agent-datum", "container0", "container1"]
+        # Updated container names to match actual production deployment
+        prod_containers = ["ciris-datum", "ciris-sage-2wnuc8", "container0", "container1"]
         ssh_key = os.path.expanduser("~/.ssh/ciris_deploy")
 
         if container_name in prod_containers and os.path.exists(ssh_key):
@@ -290,6 +311,32 @@ class Grace:
             message.append("  Check traces, thoughts, and handler metrics")
         else:
             message.append("✅ No ERROR entries found in recent logs")
+
+        return "\n".join(message)
+
+    def prod_incidents(self) -> str:
+        """Check incidents for both datum and sage production containers.
+
+        Returns:
+            Formatted incidents report for both containers
+        """
+        message = ["Production Incidents Check\n" + "=" * 40]
+
+        # Check datum
+        message.append("\n📦 DATUM Container:")
+        datum_incidents = self.incidents("ciris-datum")
+        # Extract just the relevant part (skip header)
+        datum_lines = datum_incidents.split("\n")[2:]  # Skip title and separator
+        if datum_lines:
+            message.extend(datum_lines[:5])  # Show first 5 lines
+
+        # Check sage
+        message.append("\n📦 SAGE Container:")
+        sage_incidents = self.incidents("ciris-sage-2wnuc8")
+        # Extract just the relevant part (skip header)
+        sage_lines = sage_incidents.split("\n")[2:]  # Skip title and separator
+        if sage_lines:
+            message.extend(sage_lines[:5])  # Show first 5 lines
 
         return "\n".join(message)
 
@@ -512,3 +559,60 @@ class Grace:
     def fix(self) -> str:
         """Shortcut for auto-fixing pre-commit issues."""
         return self.precommit(autofix=True)
+
+    def ci(self, subcommand: str = None) -> str:
+        """Check CI/CD status and provide guidance."""
+        message = []
+
+        if subcommand == "prs":
+            # Show all PRs with their status
+            message.append("=== Open PRs ===")
+            message.append(self.ci_monitor.check_prs())
+
+        elif subcommand == "builds":
+            # Show Build & Deploy runs
+            message.append("=== Build & Deploy Status ===")
+            message.append(self.ci_monitor.check_builds())
+
+        elif subcommand == "hints" or subcommand == "remind":
+            # Show reminders about schemas and antipatterns
+            message.append(self.ci_monitor.get_reminders())
+
+        elif subcommand == "analyze":
+            # Analyze CI failure
+            message.append("=== CI Failure Analysis ===")
+            message.append(self.ci_monitor.analyze_failure())
+
+        else:
+            # Check throttling first
+            can_check, wait_msg = self.ci_monitor.should_check_ci()
+
+            if not can_check:
+                message.append(f"⏰ CI Check {wait_msg}")
+                message.append("CI takes 12-15 minutes. Checking won't make it faster.")
+                return "\n".join(message)
+
+            # Record that we're checking
+            self.ci_monitor.record_check()
+
+            # Current branch CI
+            message.append("=== Current Branch CI ===")
+            message.append(self.ci_monitor.check_current_ci())
+
+            # PR status summary
+            message.append("\n=== PR Status ===")
+            pr_status = self.ci_monitor.check_prs()
+
+            # Only show first 3 PRs in default view
+            lines = pr_status.split("\n")[:3]
+            message.extend(lines)
+            if len(pr_status.split("\n")) > 3:
+                message.append("... (use 'grace ci prs' for all)")
+
+            # Check for blocking issues
+            if "🚨 CONFLICT" in pr_status:
+                message.append("\n⚠️ Merge conflicts detected! Resolve before CI can run.")
+            elif "❌" in pr_status and "failed" in pr_status:
+                message.append("\n⚠️ CI failures detected. Use 'grace ci analyze' for help.")
+
+        return "\n".join(message)

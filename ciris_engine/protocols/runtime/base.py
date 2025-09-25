@@ -11,12 +11,13 @@ from typing import TYPE_CHECKING, Any, Dict, List, Protocol
 if TYPE_CHECKING:
     from ciris_engine.schemas.dma.core import DMAContext, DMADecision
     from ciris_engine.schemas.handlers.schemas import HandlerContext, HandlerResult
-    from ciris_engine.schemas.runtime.adapter_management import AdapterConfig, AdapterStatus
+    from ciris_engine.schemas.runtime.adapter_management import AdapterConfig, RuntimeAdapterStatus
     from ciris_engine.schemas.runtime.enums import ServiceType
     from ciris_engine.schemas.runtime.models import Task, Thought
     from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
     from ciris_engine.schemas.services.graph_core import GraphNode
     from ciris_engine.schemas.services.operations import MemoryQuery
+    from ciris_engine.schemas.services.visibility import VisibilitySnapshot
 
 
 class ServiceProtocol(Protocol):
@@ -95,7 +96,7 @@ class VisibilityServiceProtocol(ServiceProtocol, Protocol):
     """Base for services that provide transparency and compliance."""
 
     @abstractmethod
-    async def get_visibility_data(self) -> dict:  # Service-specific visibility data
+    async def get_visibility_data(self) -> "VisibilitySnapshot":  # Service-specific visibility data
         """Get visibility/transparency data."""
         ...
 
@@ -133,7 +134,7 @@ class BaseAdapterProtocol(Protocol):
         ...
 
     @abstractmethod
-    def get_status(self) -> "AdapterStatus":
+    def get_status(self) -> "RuntimeAdapterStatus":
         """Get adapter status."""
         ...
 

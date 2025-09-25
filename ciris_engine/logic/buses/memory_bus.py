@@ -60,10 +60,17 @@ class MemoryBus(BaseBus[MemoryService]):
         service_registry: "ServiceRegistry",
         time_service: TimeServiceProtocol,
         audit_service: Optional[object] = None,
+        telemetry_service: Optional[object] = None,
     ):
         super().__init__(service_type=ServiceType.MEMORY, service_registry=service_registry)
         self._time_service = time_service
+        self._start_time = time_service.now() if time_service else None
         self._audit_service = audit_service
+
+        # Memory bus specific metrics
+        self._operation_count = 0
+        self._broadcast_count = 0
+        self._error_count = 0
 
     async def memorize(
         self, node: GraphNode, handler_name: Optional[str] = None, metadata: Optional[dict] = None
@@ -92,9 +99,12 @@ class MemoryBus(BaseBus[MemoryService]):
 
         try:
             result = await service.memorize(node)
+            # Increment operation counter on success
+            self._operation_count += 1
             # Protocol guarantees MemoryOpResult return
             return result
         except Exception as e:
+            self._error_count += 1
             logger.error(f"Failed to memorize node: {e}", exc_info=True)
             return MemoryOpResult(status=MemoryOpStatus.FAILED, reason=str(e), error=str(e))
 
@@ -119,8 +129,11 @@ class MemoryBus(BaseBus[MemoryService]):
 
         try:
             nodes = await service.recall(recall_query)
+            # Increment operation counter on success
+            self._operation_count += 1
             return nodes if nodes else []
         except Exception as e:
+            self._error_count += 1
             logger.error(f"Failed to recall nodes: {e}", exc_info=True)
             return []
 
@@ -149,9 +162,12 @@ class MemoryBus(BaseBus[MemoryService]):
 
         try:
             result = await service.forget(node)
+            # Increment operation counter on success
+            self._operation_count += 1
             # Protocol guarantees MemoryOpResult return
             return result
         except Exception as e:
+            self._error_count += 1
             logger.error(f"Failed to forget node: {e}", exc_info=True)
             return MemoryOpResult(status=MemoryOpStatus.FAILED, reason=str(e), error=str(e))
 
@@ -182,6 +198,9 @@ class MemoryBus(BaseBus[MemoryService]):
             search_filter = MemorySearchFilter(scope=graph_scope, limit=limit)
 
             nodes = await service.search(query, search_filter)
+
+            # Increment operation counter on success
+            self._operation_count += 1
 
             # Convert GraphNodes to MemorySearchResults
             results = []
@@ -222,6 +241,7 @@ class MemoryBus(BaseBus[MemoryService]):
 
             return results
         except Exception as e:
+            self._error_count += 1
             logger.error(f"Failed to search memories: {e}", exc_info=True)
             return []
 
@@ -236,8 +256,12 @@ class MemoryBus(BaseBus[MemoryService]):
             return []
 
         try:
-            return await service.search(query, filters)
+            result = await service.search(query, filters)
+            # Increment operation counter on success
+            self._operation_count += 1
+            return result
         except Exception as e:
+            self._error_count += 1
             logger.error(f"Failed to search graph nodes: {e}", exc_info=True)
             return []
 
@@ -260,8 +284,12 @@ class MemoryBus(BaseBus[MemoryService]):
             return []
 
         try:
-            return await service.recall_timeseries(scope, hours, correlation_types)
+            result = await service.recall_timeseries(scope, hours, correlation_types)
+            # Increment operation counter on success
+            self._operation_count += 1
+            return result
         except Exception as e:
+            self._error_count += 1
             logger.error(f"Failed to recall timeseries: {e}", exc_info=True)
             return []
 
@@ -283,8 +311,12 @@ class MemoryBus(BaseBus[MemoryService]):
             return MemoryOpResult(status=MemoryOpStatus.FAILED, reason="No memory service available")
 
         try:
-            return await service.memorize_metric(metric_name, value, tags, scope)
+            result = await service.memorize_metric(metric_name, value, tags, scope)
+            # Increment operation counter on success
+            self._operation_count += 1
+            return result
         except Exception as e:
+            self._error_count += 1
             logger.error(f"Failed to memorize metric: {e}", exc_info=True)
             return MemoryOpResult(status=MemoryOpStatus.FAILED, reason=str(e), error=str(e))
 
@@ -304,8 +336,12 @@ class MemoryBus(BaseBus[MemoryService]):
             return MemoryOpResult(status=MemoryOpStatus.FAILED, reason="No memory service available")
 
         try:
-            return await service.memorize_log(log_message, log_level, tags, scope)
+            result = await service.memorize_log(log_message, log_level, tags, scope)
+            # Increment operation counter on success
+            self._operation_count += 1
+            return result
         except Exception as e:
+            self._error_count += 1
             logger.error(f"Failed to memorize log: {e}", exc_info=True)
             return MemoryOpResult(status=MemoryOpStatus.FAILED, reason=str(e), error=str(e))
 
@@ -320,8 +356,12 @@ class MemoryBus(BaseBus[MemoryService]):
             return ""
 
         try:
-            return await service.export_identity_context()
+            result = await service.export_identity_context()
+            # Increment operation counter on success
+            self._operation_count += 1
+            return result
         except Exception as e:
+            self._error_count += 1
             logger.error(f"Failed to export identity context: {e}", exc_info=True)
             return ""
 
@@ -352,4 +392,150 @@ class MemoryBus(BaseBus[MemoryService]):
         """Process a memory message"""
         # For now, all memory operations are synchronous
         # This bus mainly exists for consistency and future async operations
+        # Increment broadcast counter when messages are processed
+        self._broadcast_count += 1
         logger.warning(f"Memory operations should be synchronous, got queued message: {type(message)}")
+
+    def _create_empty_telemetry(self) -> Dict[str, any]:
+        """Create empty telemetry response when no services available."""
+        return {
+            "service_name": "memory_bus",
+            "healthy": False,
+            "total_nodes": 0,
+            "query_count": 0,
+            "provider_count": 0,
+            "cache_hit_rate": 0.0,
+            "error": "No memory services available",
+        }
+
+    def _create_telemetry_tasks(self, services) -> List:
+        """Create telemetry collection tasks for all services."""
+        import asyncio
+
+        tasks = []
+        for service in services:
+            if hasattr(service, "get_telemetry"):
+                tasks.append(asyncio.create_task(service.get_telemetry()))
+        return tasks
+
+    def _aggregate_telemetry_result(self, telemetry: Dict, aggregated: Dict, cache_rates: List):
+        """Aggregate a single telemetry result into the combined metrics."""
+        if telemetry:
+            aggregated["providers"].append(telemetry.get("service_name", "unknown"))
+            aggregated["total_nodes"] += telemetry.get("total_nodes", 0)
+            aggregated["query_count"] += telemetry.get("query_count", 0)
+
+            if "cache_hit_rate" in telemetry:
+                cache_rates.append(telemetry["cache_hit_rate"])
+
+    async def collect_telemetry(self) -> Dict[str, any]:
+        """
+        Collect telemetry from all memory providers in parallel.
+
+        Returns aggregated metrics including:
+        - total_nodes: Total nodes across all providers
+        - query_count: Total queries processed
+        - provider_count: Number of active providers
+        - cache_hit_rate: Average cache hit rate
+        """
+        import asyncio
+
+        all_memory_services = self.service_registry.get_services_by_type(ServiceType.MEMORY)
+
+        if not all_memory_services:
+            return self._create_empty_telemetry()
+
+        # Create tasks to collect telemetry from all providers
+        tasks = self._create_telemetry_tasks(all_memory_services)
+
+        # Initialize aggregated metrics
+        aggregated = {
+            "service_name": "memory_bus",
+            "healthy": True,
+            "total_nodes": 0,
+            "query_count": 0,
+            "provider_count": len(all_memory_services),
+            "cache_hit_rate": 0.0,
+            "providers": [],
+        }
+
+        if not tasks:
+            return aggregated
+
+        # Collect results with timeout
+        done, pending = await asyncio.wait(tasks, timeout=2.0, return_when=asyncio.ALL_COMPLETED)
+
+        # Cancel timed-out tasks
+        for task in pending:
+            task.cancel()
+
+        # Aggregate results
+        cache_rates = []
+        for task in done:
+            try:
+                telemetry = task.result()
+                self._aggregate_telemetry_result(telemetry, aggregated, cache_rates)
+            except Exception as e:
+                logger.warning(f"Failed to collect telemetry from memory provider: {e}")
+
+        # Calculate average cache hit rate
+        if cache_rates:
+            aggregated["cache_hit_rate"] = sum(cache_rates) / len(cache_rates)
+
+        return aggregated
+
+    def _collect_metrics(self) -> Dict[str, float]:
+        """Collect base metrics for the memory bus."""
+        # Calculate uptime
+        uptime_seconds = 0.0
+        if hasattr(self, "_time_service") and self._time_service:
+            if hasattr(self, "_start_time") and self._start_time:
+                uptime_seconds = (self._time_service.now() - self._start_time).total_seconds()
+
+        return {
+            "memory_operations_total": float(self._operation_count),
+            "memory_errors_total": float(self._error_count),
+            "memory_broadcasts": float(self._broadcast_count),
+            "memory_uptime_seconds": uptime_seconds,
+        }
+
+    def get_metrics(self) -> Dict[str, float]:
+        """
+        Get all memory bus metrics including base, custom, and v1.4.3 specific.
+
+        Returns exactly these metrics from the 362 v1.4.3 set:
+        - memory_bus_operations: Total memory operations
+        - memory_bus_broadcasts: Broadcast messages sent
+        - memory_bus_errors: Bus errors encountered
+        - memory_bus_subscribers: Active subscriber count
+
+        Uses real values from bus state, not zeros.
+        """
+        # Get all base + custom metrics
+        metrics = self._collect_metrics()
+
+        # Get subscriber count (registered memory services)
+        memory_services = self.service_registry.get_services_by_type(ServiceType.MEMORY)
+        subscriber_count = len(memory_services) if memory_services else 0
+
+        # Total operations = our specific operation counter (all successful memory operations)
+        operations_count = self._operation_count
+
+        # Broadcast count - memory bus is mostly synchronous, so this tracks message queue usage
+        # Use our broadcast counter (currently tracking queue size for broadcast-like behavior)
+        broadcast_count = self._broadcast_count + self.get_queue_size()
+
+        # Error count from our specific error counter (memory operation failures)
+        error_count = self._error_count
+
+        # Add v1.4.3 specific metrics
+        metrics.update(
+            {
+                "memory_bus_operations": float(operations_count),
+                "memory_bus_broadcasts": float(broadcast_count),
+                "memory_bus_errors": float(error_count),
+                "memory_bus_subscribers": float(subscriber_count),
+            }
+        )
+
+        return metrics

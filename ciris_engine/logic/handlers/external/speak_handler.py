@@ -47,6 +47,7 @@ class SpeakHandler(BaseActionHandler):
         dispatch_context: DispatchContext,
     ) -> Optional[str]:
         thought_id = thought.thought_id
+        start_time = self.time_service.now()
 
         # Create trace correlation for handler execution
         self._create_trace_correlation(dispatch_context, HandlerActionType.SPEAK)
@@ -86,11 +87,16 @@ class SpeakHandler(BaseActionHandler):
                 await self._handle_error(HandlerActionType.SPEAK, dispatch_context, thought_id, fe)
                 raise FollowUpCreationError from fe
 
-        # Get channel ID - first check params, then fall back to thought/task context
+        # Get channel ID - first check params.channel_id, then params.channel_context, then fall back to thought/task context
         channel_id = None
 
-        # First, check if channel is specified in params
-        if params.channel_context:
+        # First, check if channel_id is directly provided in params (from LLM)
+        if params.channel_id:
+            channel_id = params.channel_id
+            logger.info(f"SPEAK: Using channel_id '{channel_id}' from params.channel_id")
+
+        # Second, check if channel is specified in params.channel_context
+        elif params.channel_context:
             channel_id = extract_channel_id(params.channel_context)
             if channel_id:
                 logger.info(f"SPEAK: Using channel_id '{channel_id}' from params.channel_context")
@@ -157,7 +163,7 @@ class SpeakHandler(BaseActionHandler):
         response_data = ServiceResponseData(
             success=success,
             result_summary=f"Message {'sent' if success else 'failed'} to channel {channel_id}",
-            execution_time_ms=100.0,  # TODO: Track actual execution time
+            execution_time_ms=(now - start_time).total_seconds() * 1000.0,
             response_timestamp=now,
         )
 

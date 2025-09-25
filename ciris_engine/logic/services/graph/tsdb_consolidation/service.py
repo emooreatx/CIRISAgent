@@ -8,7 +8,7 @@ into permanent summary records with proper edge connections.
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 from uuid import uuid4
 
 if TYPE_CHECKING:
@@ -16,8 +16,9 @@ if TYPE_CHECKING:
 
 from ciris_engine.constants import UTC_TIMEZONE_SUFFIX
 from ciris_engine.logic.buses.memory_bus import MemoryBus
-from ciris_engine.logic.services.graph.base import BaseGraphService
+from ciris_engine.logic.services.base_graph_service import BaseGraphService
 from ciris_engine.protocols.services.lifecycle.time import TimeServiceProtocol
+from ciris_engine.schemas.consent.core import ConsentStream
 from ciris_engine.schemas.runtime.enums import ServiceType
 from ciris_engine.schemas.services.core import ServiceCapabilities, ServiceStatus
 from ciris_engine.schemas.services.graph.consolidation import (
@@ -64,6 +65,7 @@ class TSDBConsolidationService(BaseGraphService):
         time_service: Optional[TimeServiceProtocol] = None,
         consolidation_interval_hours: int = 6,
         raw_retention_hours: int = 24,
+        db_path: Optional[str] = None,
     ) -> None:
         """
         Initialize the consolidation service.
@@ -73,14 +75,16 @@ class TSDBConsolidationService(BaseGraphService):
             time_service: Time service for consistent timestamps
             consolidation_interval_hours: How often to run (default: 6)
             raw_retention_hours: How long to keep raw data (default: 24)
+            db_path: Database path to use (if not provided, uses default)
         """
         super().__init__(memory_bus=memory_bus, time_service=time_service)
         self.service_name = "TSDBConsolidationService"
+        self.db_path = db_path
 
         # Initialize components
         self._period_manager = PeriodManager(consolidation_interval_hours)
-        self._query_manager = QueryManager(memory_bus)
-        self._edge_manager = EdgeManager()
+        self._query_manager = QueryManager(memory_bus, db_path=db_path)
+        self._edge_manager = EdgeManager(db_path=db_path)
 
         # Initialize all consolidators
         self._metrics_consolidator = MetricsConsolidator(memory_bus)
@@ -111,6 +115,17 @@ class TSDBConsolidationService(BaseGraphService):
         self._last_extensive_consolidation: Optional[datetime] = None
         self._last_profound_consolidation: Optional[datetime] = None
         self._start_time: Optional[datetime] = None
+
+        # Telemetry tracking variables
+        self._basic_consolidations = 0
+        self._extensive_consolidations = 0
+        self._profound_consolidations = 0
+        self._records_consolidated = 0
+        self._records_deleted = 0
+        self._compression_ratio = 1.0
+        self._last_consolidation_duration = 0.0
+        self._consolidation_errors = 0
+        self._start_time = None  # Will be set when service starts
 
     def _load_consolidation_config(self) -> None:
         """Load consolidation configuration from essential config."""
@@ -146,7 +161,7 @@ class TSDBConsolidationService(BaseGraphService):
             logger.warning("TSDBConsolidationService already running")
             return
 
-        super().start()
+        await super().start()
         self._running = True
         self._start_time = self._now()
 
@@ -194,7 +209,7 @@ class TSDBConsolidationService(BaseGraphService):
                 except asyncio.CancelledError:
                     pass  # NOSONAR - Expected when stopping the service in stop()
 
-        super().stop()
+        await super().stop()
         logger.info("TSDBConsolidationService stopped")
 
     async def _consolidation_loop(self) -> None:
@@ -508,6 +523,9 @@ class TSDBConsolidationService(BaseGraphService):
         # Get tasks completed in the period
         tasks = self._query_manager.query_tasks_in_period(period_start, period_end)
 
+        # 1.5. Handle consent expiry - anonymize expired TEMPORARY nodes
+        await self._handle_consent_expiry(nodes_by_type, period_end)
+
         # 2. Create summaries
 
         # Store converted correlation objects for reuse in edge creation
@@ -734,7 +752,7 @@ class TSDBConsolidationService(BaseGraphService):
         try:
             from ciris_engine.logic.persistence.db.core import get_db_connection
 
-            with get_db_connection() as conn:
+            with get_db_connection(db_path=self.db_path) as conn:
                 cursor = conn.cursor()
 
                 # Check for oldest TSDB data
@@ -784,7 +802,7 @@ class TSDBConsolidationService(BaseGraphService):
             # Connect to database
             from ciris_engine.logic.config import get_sqlite_db_full_path
 
-            db_path = get_sqlite_db_full_path()
+            db_path = self.db_path or get_sqlite_db_full_path()
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
 
@@ -1004,7 +1022,7 @@ class TSDBConsolidationService(BaseGraphService):
             # Use direct DB query since MemoryQuery doesn't support field conditions
             from ciris_engine.logic.persistence.db.core import get_db_connection
 
-            conn = get_db_connection()
+            conn = get_db_connection(db_path=self.db_path)
             cursor = conn.cursor()
 
             # Query for TSDB summaries with matching period
@@ -1047,7 +1065,7 @@ class TSDBConsolidationService(BaseGraphService):
             # Check if SUMMARIZES edges already exist
             from ciris_engine.logic.persistence.db.core import get_db_connection
 
-            with get_db_connection() as conn:
+            with get_db_connection(db_path=self.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute(
                     """
@@ -1160,7 +1178,7 @@ class TSDBConsolidationService(BaseGraphService):
             # Use direct DB query since MemoryQuery doesn't support field conditions
             from ciris_engine.logic.persistence.db.core import get_db_connection
 
-            conn = get_db_connection()
+            conn = get_db_connection(db_path=self.db_path)
             cursor = conn.cursor()
 
             # Query for TSDB summaries with matching period
@@ -1211,6 +1229,79 @@ class TSDBConsolidationService(BaseGraphService):
         """Get the service type."""
         return ServiceType.TELEMETRY
 
+    async def _handle_consent_expiry(self, nodes_by_type: Dict[str, TSDBNodeQueryResult], period_end: datetime) -> None:
+        """
+        Handle consent expiry by anonymizing expired TEMPORARY nodes.
+
+        When a TEMPORARY node expires (14 days), it gets renamed from:
+        - user_<id> -> temporary_user_<hash>
+
+        When transitioning to ANONYMOUS, it becomes:
+        - user_<id> -> anonymous_user_<hash>
+
+        Args:
+            nodes_by_type: All nodes in the period by type
+            period_end: End of the consolidation period
+        """
+        # Check user nodes for expiry
+        user_nodes = nodes_by_type.get(
+            "user", TSDBNodeQueryResult(nodes=[], period_start=period_end, period_end=period_end)
+        ).nodes
+
+        for node in user_nodes:
+            # Check if node has consent_stream and expires_at
+            if hasattr(node, "consent_stream") and hasattr(node, "expires_at"):
+                # Check if TEMPORARY and expired
+                if node.consent_stream == ConsentStream.TEMPORARY and node.expires_at:
+                    if period_end > node.expires_at:
+                        # Node has expired - anonymize it
+                        old_id = node.id
+
+                        # Generate anonymized ID based on hash of original ID
+                        import hashlib
+
+                        id_hash = hashlib.sha256(old_id.encode()).hexdigest()[:8]
+
+                        # Rename based on stream type
+                        if node.consent_stream == ConsentStream.TEMPORARY:
+                            new_id = f"temporary_user_{id_hash}"
+                        else:
+                            new_id = f"anonymous_user_{id_hash}"
+
+                        logger.info(f"Anonymizing expired node: {old_id} -> {new_id}")
+
+                        # Update the node ID
+                        node.id = new_id
+
+                        # Clear any PII from attributes if present
+                        if hasattr(node, "attributes") and isinstance(node.attributes, dict):
+                            # Remove PII fields
+                            pii_fields = ["email", "name", "phone", "address", "ip_address"]
+                            for field in pii_fields:
+                                if field in node.attributes:
+                                    del node.attributes[field]
+
+                            # Add anonymization metadata
+                            node.attributes["anonymized_at"] = period_end.isoformat()
+                            node.attributes["original_stream"] = node.consent_stream
+
+                        # Update in memory bus if available
+                        if self._memory_bus:
+                            try:
+                                # Update the node in the graph
+                                status = await self._memory_bus.update_node(node)
+                                if status.success:
+                                    logger.info(f"Successfully anonymized node {old_id}")
+                                else:
+                                    logger.warning(f"Failed to update anonymized node: {status.message}")
+                            except Exception as e:
+                                logger.error(f"Error updating anonymized node: {e}")
+
+    def _get_actions(self) -> List[str]:
+        """Get list of actions this service can handle."""
+        # Graph services typically don't handle actions through buses
+        return []
+
     async def _run_extensive_consolidation(self) -> None:
         """
         Run extensive consolidation - consolidates basic summaries from the past week.
@@ -1252,7 +1343,7 @@ class TSDBConsolidationService(BaseGraphService):
 
             from ciris_engine.logic.persistence.db.core import get_db_connection
 
-            with get_db_connection() as conn:
+            with get_db_connection(db_path=self.db_path) as conn:
                 cursor = conn.cursor()
 
                 # Get all summary types to consolidate
@@ -1629,7 +1720,7 @@ class TSDBConsolidationService(BaseGraphService):
                     # Check if it already has a TEMPORAL_PREV edge
                     from ciris_engine.logic.persistence.db.core import get_db_connection
 
-                    with get_db_connection() as conn:
+                    with get_db_connection(db_path=self.db_path) as conn:
                         cursor = conn.cursor()
                         cursor.execute(
                             """
@@ -1650,6 +1741,37 @@ class TSDBConsolidationService(BaseGraphService):
 
         except Exception as e:
             logger.error(f"Failed to create daily summary edges: {e}", exc_info=True)
+
+    async def get_metrics(self) -> Dict[str, float]:
+        """Get TSDB consolidation service metrics.
+
+        Returns exactly the 4 metrics from v1.4.3 API specification:
+        - tsdb_consolidations_total: Total consolidations performed
+        - tsdb_datapoints_processed: Total data points processed
+        - tsdb_storage_saved_mb: Storage saved by consolidation (MB)
+        - tsdb_uptime_seconds: Service uptime in seconds
+        """
+        # Calculate uptime
+        uptime_seconds = 0.0
+        if hasattr(self, "_start_time") and self._start_time:
+            uptime_seconds = (self._now() - self._start_time).total_seconds()
+
+        # Calculate total consolidations performed
+        total_consolidations = (
+            self._basic_consolidations + self._extensive_consolidations + self._profound_consolidations
+        )
+
+        # Calculate storage saved (estimate based on compression ratio and records processed)
+        # Each record averages ~2KB, storage saved = records_deleted * avg_size_kb / 1024
+        avg_record_size_kb = 2.0
+        storage_saved_mb = (self._records_deleted * avg_record_size_kb) / 1024.0
+
+        return {
+            "tsdb_consolidations_total": float(total_consolidations),
+            "tsdb_datapoints_processed": float(self._records_consolidated),
+            "tsdb_storage_saved_mb": storage_saved_mb,
+            "tsdb_uptime_seconds": uptime_seconds,
+        }
 
     def _run_profound_consolidation(self) -> None:
         """
@@ -1702,7 +1824,7 @@ class TSDBConsolidationService(BaseGraphService):
 
             from ciris_engine.logic.persistence.db.core import get_db_connection
 
-            with get_db_connection() as conn:
+            with get_db_connection(db_path=self.db_path) as conn:
                 cursor = conn.cursor()
 
                 # Get all extensive summaries from the calendar month

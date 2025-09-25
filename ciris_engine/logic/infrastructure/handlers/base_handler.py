@@ -219,43 +219,58 @@ class BaseActionHandler(ABC):
             exc_info=True,
         )
 
+        # Track error metric
+        if self.bus_manager and hasattr(self.bus_manager, "memory_bus"):
+            try:
+                await self.bus_manager.memory_bus.memorize_metric(
+                    metric_name="error.occurred",
+                    value=1.0,
+                    tags={
+                        "handler": self.__class__.__name__,
+                        "action_type": action_type.value,
+                        "error_type": type(error).__name__,
+                        "thought_id": thought_id,
+                    },
+                    timestamp=self.time_service.now() if self.time_service else datetime.now(),
+                )
+            except Exception as metric_error:
+                self.logger.debug(f"Failed to track error metric: {metric_error}")
+
         await self._audit_log(action_type, dispatch_context, outcome=f"error:{type(error).__name__}")
+
+    def _format_validation_errors(self, e: ValidationError, param_class: Type[T]) -> str:
+        """Format validation errors into a readable summary."""
+        error_msgs = []
+        for error in e.errors():
+            field = ".".join(str(x) for x in error["loc"])
+            msg = error["msg"]
+            error_msgs.append(f"{field}: {msg}")
+
+        error_summary = "; ".join(error_msgs[:MAX_VALIDATION_ERRORS_SHOWN])
+        if len(e.errors()) > MAX_VALIDATION_ERRORS_SHOWN:
+            error_summary += f" (and {len(e.errors()) - MAX_VALIDATION_ERRORS_SHOWN} more)"
+
+        return f"Invalid parameters for {param_class.__name__}: {error_summary}"
 
     def _validate_and_convert_params(self, params: Any, param_class: Type[T]) -> T:
         """Validate and convert parameters to the expected type."""
+        # Already the right type
         if isinstance(params, param_class):
             return params
 
+        # Convert dict to param_class
         if isinstance(params, dict):
             try:
                 return param_class.model_validate(params)
             except ValidationError as e:
-                # Extract just the error messages without the verbose Pydantic URLs
-                error_msgs = []
-                for error in e.errors():
-                    field = ".".join(str(x) for x in error["loc"])
-                    msg = error["msg"]
-                    error_msgs.append(f"{field}: {msg}")
-                error_summary = "; ".join(error_msgs[:MAX_VALIDATION_ERRORS_SHOWN])
-                if len(e.errors()) > MAX_VALIDATION_ERRORS_SHOWN:
-                    error_summary += f" (and {len(e.errors()) - MAX_VALIDATION_ERRORS_SHOWN} more)"
-                raise ValueError(f"Invalid parameters for {param_class.__name__}: {error_summary}")
+                raise ValueError(self._format_validation_errors(e, param_class))
 
-        # Try to convert BaseModel to dict first
+        # Convert BaseModel to param_class via dict
         if hasattr(params, "model_dump"):
             try:
                 return param_class.model_validate(params.model_dump())
             except ValidationError as e:
-                # Extract just the error messages without the verbose Pydantic URLs
-                error_msgs = []
-                for error in e.errors():
-                    field = ".".join(str(x) for x in error["loc"])
-                    msg = error["msg"]
-                    error_msgs.append(f"{field}: {msg}")
-                error_summary = "; ".join(error_msgs[:MAX_VALIDATION_ERRORS_SHOWN])
-                if len(e.errors()) > MAX_VALIDATION_ERRORS_SHOWN:
-                    error_summary += f" (and {len(e.errors()) - MAX_VALIDATION_ERRORS_SHOWN} more)"
-                raise ValueError(f"Invalid parameters for {param_class.__name__}: {error_summary}")
+                raise ValueError(self._format_validation_errors(e, param_class))
 
         raise TypeError(f"Expected {param_class.__name__} or dict, got {type(params).__name__}")
 

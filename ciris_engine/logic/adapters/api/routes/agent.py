@@ -8,7 +8,7 @@ import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -145,6 +145,187 @@ async def store_message_response(message_id: str, response: str) -> None:
 # Endpoints
 
 
+def _check_send_messages_permission(auth: AuthContext, request: Request) -> None:
+    """Check if user has SEND_MESSAGES permission and handle OAuth auto-request."""
+    if auth.has_permission(Permission.SEND_MESSAGES):
+        return
+
+    # Get auth service to check permission request status
+    auth_service = request.app.state.auth_service if hasattr(request.app.state, "auth_service") else None
+    user = auth_service.get_user(auth.user_id) if auth_service else None
+
+    # If user is an OAuth user without a permission request, automatically create one
+    if user and user.auth_type == "oauth" and user.permission_requested_at is None:
+        # Set permission request timestamp
+        user.permission_requested_at = datetime.now(timezone.utc)
+        # Store the updated user
+        auth_service._users[user.wa_id] = user
+
+        # Don't log potentially sensitive email addresses
+        logger.info(f"Auto-created permission request for OAuth user ID: {user.wa_id}")
+
+    # Build detailed error response
+    error_detail = {
+        "error": "insufficient_permissions",
+        "message": "You do not have permission to send messages to this agent.",
+        "discord_invite": "https://discord.gg/A3HVPMWd",
+        "can_request_permissions": user.permission_requested_at is None if user else True,
+        "permission_requested": user.permission_requested_at is not None if user else False,
+        "requested_at": user.permission_requested_at.isoformat() if user and user.permission_requested_at else None,
+    }
+
+    raise HTTPException(status_code=403, detail=error_detail)
+
+
+def _create_interaction_message(auth: AuthContext, body: InteractRequest) -> Tuple[str, str, IncomingMessage]:
+    """Create message ID, channel ID, and IncomingMessage for interaction."""
+    message_id = str(uuid.uuid4())
+    channel_id = f"api_{auth.user_id}"  # User-specific channel
+    
+    msg = IncomingMessage(
+        message_id=message_id,
+        author_id=auth.user_id,
+        author_name=auth.user_id,
+        content=body.message,
+        channel_id=channel_id,
+        timestamp=datetime.now(timezone.utc).isoformat(),
+    )
+    
+    return message_id, channel_id, msg
+
+
+async def _handle_consent_for_user(auth: AuthContext, channel_id: str, request: Request) -> str:
+    """Handle consent checking and creation for user, return consent notice if applicable."""
+    try:
+        from ciris_engine.logic.services.governance.consent import ConsentNotFoundError, ConsentService
+        from ciris_engine.schemas.consent.core import ConsentRequest, ConsentStream
+
+        # Get consent manager
+        if hasattr(request.app.state, "consent_manager") and request.app.state.consent_manager:
+            consent_manager = request.app.state.consent_manager
+        else:
+            from ciris_engine.logic.services.lifecycle.time import TimeService
+
+            time_service = TimeService()
+            consent_manager = ConsentService(time_service=time_service)
+            request.app.state.consent_manager = consent_manager
+
+        # Check if user has consent
+        try:
+            consent_status = await consent_manager.get_consent(auth.user_id)
+            return ""  # User already has consent
+        except ConsentNotFoundError:
+            # First interaction - create default TEMPORARY consent
+            consent_req = ConsentRequest(
+                user_id=auth.user_id,
+                stream=ConsentStream.TEMPORARY,
+                categories=[],
+                reason="Default TEMPORARY consent on first interaction",
+            )
+            consent_status = await consent_manager.grant_consent(consent_req, channel_id=channel_id)
+
+            # Return notice to add to response
+            return "\n\n📝 Privacy Notice: We forget about you in 14 days unless you say otherwise. Visit /v1/consent to manage your data preferences."
+
+    except Exception as e:
+        logger.warning(f"Could not check consent for user {auth.user_id}: {e}")
+        return ""
+
+
+def _get_runtime_processor(request: Request):
+    """Get runtime processor if available and valid."""
+    runtime = getattr(request.app.state, "runtime", None)
+    if not (runtime and hasattr(runtime, "agent_processor") and runtime.agent_processor):
+        return None
+    return runtime.agent_processor
+
+
+def _is_processor_paused(processor) -> bool:
+    """Check if processor is in paused state."""
+    return hasattr(processor, "_is_paused") and processor._is_paused
+
+
+async def _handle_paused_message(request: Request, msg: IncomingMessage) -> None:
+    """Route message to queue when processor is paused."""
+    if hasattr(request.app.state, "on_message"):
+        await request.app.state.on_message(msg)
+    else:
+        raise HTTPException(status_code=503, detail="Message handler not configured")
+
+
+def _get_processor_cognitive_state(processor) -> str:
+    """Get current cognitive state from processor with fallback."""
+    try:
+        if hasattr(processor, 'get_current_state'):
+            return processor.get_current_state()
+    except Exception:
+        pass
+    return "WORK"  # Default
+
+
+def _create_paused_response(message_id: str, cognitive_state: str, processing_time: int) -> SuccessResponse:
+    """Create response for paused processor state."""
+    return SuccessResponse(
+        data=InteractResponse(
+            message_id=message_id,
+            response="Processor paused - task added to queue. Resume processing to continue.",
+            state=cognitive_state,
+            processing_time_ms=processing_time,
+        )
+    )
+
+
+async def _check_processor_pause_status(request: Request, msg: IncomingMessage, message_id: str, start_time: datetime) -> Optional[SuccessResponse]:
+    """Check if processor is paused and handle accordingly. Returns response if paused, None if not paused."""
+    try:
+        processor = _get_runtime_processor(request)
+        if not processor or not _is_processor_paused(processor):
+            return None
+        
+        # Processor is paused - route message and prepare response
+        await _handle_paused_message(request, msg)
+        
+        # Clean up response tracking since we're returning immediately
+        _response_events.pop(message_id, None)
+        
+        # Calculate processing time and get state
+        processing_time = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
+        cognitive_state = _get_processor_cognitive_state(processor)
+        
+        return _create_paused_response(message_id, cognitive_state, processing_time)
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 503 for missing message handler)
+        raise
+    except Exception as e:
+        logger.debug(f"Could not check pause state: {e}")
+    
+    return None
+
+
+def _get_interaction_timeout(request: Request) -> float:
+    """Get interaction timeout from config or return default."""
+    timeout = 55.0  # default timeout for longer processing
+    if hasattr(request.app.state, "api_config"):
+        timeout = request.app.state.api_config.interaction_timeout
+    return timeout
+
+
+def _get_current_cognitive_state(request: Request) -> str:
+    """Get current cognitive state from runtime or return default."""
+    cognitive_state = "WORK"
+    runtime = getattr(request.app.state, "runtime", None)
+    if runtime and hasattr(runtime, "state_manager"):
+        cognitive_state = runtime.state_manager.current_state
+    return cognitive_state
+
+
+def _cleanup_interaction_tracking(message_id: str) -> None:
+    """Clean up interaction tracking for given message ID."""
+    _response_events.pop(message_id, None)
+    _message_responses.pop(message_id, None)
+
+
 @router.post("/interact", response_model=SuccessResponse[InteractResponse])
 async def interact(
     request: Request, body: InteractRequest, auth: AuthContext = Depends(require_observer)
@@ -157,52 +338,24 @@ async def interact(
 
     Requires: SEND_MESSAGES permission (ADMIN+ by default, or OBSERVER with explicit grant)
     """
-    # Check if user has permission to send messages
-    if not auth.has_permission(Permission.SEND_MESSAGES):
-        # Get auth service to check permission request status
-        # Note: We can't use dependency injection here, so we'll access it directly
-        auth_service = request.app.state.auth_service if hasattr(request.app.state, "auth_service") else None
-        user = auth_service.get_user(auth.user_id) if auth_service else None
+    # Check permissions
+    _check_send_messages_permission(auth, request)
 
-        # If user is an OAuth user without a permission request, automatically create one
-        if user and user.auth_type == "oauth" and user.permission_requested_at is None:
-            # Set permission request timestamp
-            user.permission_requested_at = datetime.now(timezone.utc)
-            # Store the updated user
-            auth_service._users[user.wa_id] = user
-
-            # Don't log potentially sensitive email addresses
-            logger.info(f"Auto-created permission request for OAuth user ID: {user.wa_id}")
-
-        # Build detailed error response
-        error_detail = {
-            "error": "insufficient_permissions",
-            "message": "You do not have permission to send messages to this agent.",
-            "discord_invite": "https://discord.gg/A3HVPMWd",
-            "can_request_permissions": user.permission_requested_at is None if user else True,
-            "permission_requested": user.permission_requested_at is not None if user else False,
-            "requested_at": user.permission_requested_at.isoformat() if user and user.permission_requested_at else None,
-        }
-
-        raise HTTPException(status_code=403, detail=error_detail)
-    # Create unique IDs
-    message_id = str(uuid.uuid4())
-    channel_id = f"api_{auth.user_id}"  # User-specific channel
+    # Create message and tracking
+    message_id, channel_id, msg = _create_interaction_message(auth, body)
     event = asyncio.Event()
     _response_events[message_id] = event
 
-    # Create message
-    msg = IncomingMessage(
-        message_id=message_id,
-        author_id=auth.user_id,
-        author_name=auth.user_id,
-        content=body.message,
-        channel_id=channel_id,
-        timestamp=datetime.now(timezone.utc).isoformat(),
-    )
+    # Handle consent for user
+    consent_notice = await _handle_consent_for_user(auth, channel_id, request)
 
     # Track timing
     start_time = datetime.now(timezone.utc)
+
+    # Check if processor is paused
+    pause_response = await _check_processor_pause_status(request, msg, message_id, start_time)
+    if pause_response:
+        return pause_response
 
     # Route message through adapter's handler
     if hasattr(request.app.state, "on_message"):
@@ -210,36 +363,28 @@ async def interact(
     else:
         raise HTTPException(status_code=503, detail="Message handler not configured")
 
-    # Get timeout from config or use default
-    timeout = 55.0  # default timeout for longer processing
-    if hasattr(request.app.state, "api_config"):
-        timeout = request.app.state.api_config.interaction_timeout
+    # Get timeout and wait for response
+    timeout = _get_interaction_timeout(request)
 
-    # Wait for response with timeout
     try:
         await asyncio.wait_for(event.wait(), timeout=timeout)
 
         # Get response
         response_content = _message_responses.get(message_id, "I'm processing your request. Please check back shortly.")
 
-        # Clean up
-        _response_events.pop(message_id, None)
-        _message_responses.pop(message_id, None)
+        # Add consent notice if this is first interaction
+        if consent_notice:
+            response_content += consent_notice
 
-        # Calculate processing time
-        end_time = datetime.now(timezone.utc)
-        processing_time_ms = int((end_time - start_time).total_seconds() * 1000)
+        # Clean up and calculate timing
+        _cleanup_interaction_tracking(message_id)
+        processing_time_ms = int((datetime.now(timezone.utc) - start_time).total_seconds() * 1000)
 
-        # Get current cognitive state
-        cognitive_state = "WORK"
-        runtime = getattr(request.app.state, "runtime", None)
-        if runtime and hasattr(runtime, "state_manager"):
-            cognitive_state = runtime.state_manager.current_state
-
+        # Build response
         response = InteractResponse(
             message_id=message_id,
             response=response_content,
-            state=cognitive_state,
+            state=_get_current_cognitive_state(request),
             processing_time_ms=processing_time_ms,
         )
 
@@ -247,8 +392,7 @@ async def interact(
 
     except asyncio.TimeoutError:
         # Clean up
-        _response_events.pop(message_id, None)
-        _message_responses.pop(message_id, None)
+        _cleanup_interaction_tracking(message_id)
 
         # Return a timeout response rather than error
         response = InteractResponse(
@@ -812,32 +956,57 @@ async def _get_channels_from_bootstrap_adapters(runtime) -> List[ChannelInfo]:
     return channels
 
 
-async def _get_channels_from_dynamic_adapters(runtime, request) -> List[ChannelInfo]:
-    """Get channels from dynamically loaded adapters."""
-    channels = []
-
-    # Get main runtime control service
+def _get_control_service(runtime, request):
+    """Get the runtime control service from app state or registry."""
+    # Try app state first
     control_service = getattr(request.app.state, "main_runtime_control_service", None)
+    if control_service:
+        return control_service
 
     # Fallback to service registry
-    if not control_service and runtime and hasattr(runtime, "service_registry") and runtime.service_registry:
-        from ciris_engine.schemas.runtime.enums import ServiceType
+    if not runtime or not hasattr(runtime, "service_registry") or not runtime.service_registry:
+        return None
 
-        providers = runtime.service_registry.get_services_by_type(ServiceType.RUNTIME_CONTROL)
-        if providers:
-            control_service = providers[0]
+    from ciris_engine.schemas.runtime.enums import ServiceType
 
-    if control_service and hasattr(control_service, "adapter_manager") and control_service.adapter_manager:
-        adapter_manager = control_service.adapter_manager
-        if hasattr(adapter_manager, "loaded_adapters"):
-            for adapter_id, instance in adapter_manager.loaded_adapters.items():
-                adapter_channels = await _get_channels_from_adapter(instance.adapter, instance.adapter_type)
-                # Filter out duplicates
-                for ch in adapter_channels:
-                    if not any(existing.channel_id == ch.channel_id for existing in channels):
-                        channels.append(ch)
+    providers = runtime.service_registry.get_services_by_type(ServiceType.RUNTIME_CONTROL)
+    return providers[0] if providers else None
+
+
+def _get_adapter_manager(control_service):
+    """Get adapter manager from control service."""
+    if not control_service:
+        return None
+    if not hasattr(control_service, "adapter_manager"):
+        return None
+    return control_service.adapter_manager
+
+
+async def _collect_unique_channels(adapter_manager) -> List[ChannelInfo]:
+    """Collect unique channels from loaded adapters."""
+    if not adapter_manager or not hasattr(adapter_manager, "loaded_adapters"):
+        return []
+
+    channels = []
+    seen_channel_ids = set()
+
+    for adapter_id, instance in adapter_manager.loaded_adapters.items():
+        adapter_channels = await _get_channels_from_adapter(instance.adapter, instance.adapter_type)
+
+        # Add only unique channels
+        for ch in adapter_channels:
+            if ch.channel_id not in seen_channel_ids:
+                channels.append(ch)
+                seen_channel_ids.add(ch.channel_id)
 
     return channels
+
+
+async def _get_channels_from_dynamic_adapters(runtime, request) -> List[ChannelInfo]:
+    """Get channels from dynamically loaded adapters."""
+    control_service = _get_control_service(runtime, request)
+    adapter_manager = _get_adapter_manager(control_service)
+    return await _collect_unique_channels(adapter_manager)
 
 
 def _add_default_api_channels(channels: List[ChannelInfo], request: Request, auth: AuthContext) -> None:

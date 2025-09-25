@@ -14,7 +14,7 @@ pip install ciris-sdk
 
 ## API Version
 
-This SDK targets the CIRIS v1 API specification. The v1 API represents a major simplification from v2, consolidating ~140 endpoints down to ~35 core endpoints while maintaining all essential functionality.
+This SDK targets the CIRIS v1 API specification. The v1 API provides 99 endpoints across 15 modules, including the powerful unified telemetry endpoint that consolidates multiple monitoring functions.
 
 ## Quick Start
 
@@ -83,6 +83,57 @@ print(f"Purpose: {identity.purpose}")
 print(f"Tools: {identity.tools}")
 print(f"Permissions: {identity.permissions}")
 ```
+
+## 🚀 NEW: Unified Telemetry Access
+
+The SDK now provides **easy access to ALL 436+ metrics** through the unified telemetry endpoint:
+
+### Get All Metrics with One Call
+```python
+# Get ALL metrics from 22 services
+all_metrics = await client.telemetry.get_all_metrics()
+print(f"System healthy: {all_metrics['system_healthy']}")
+print(f"LLM requests: {all_metrics['buses']['llm_bus']['request_count']}")
+
+# Access specific metrics by path
+cpu = await client.telemetry.get_metric_by_path(
+    "infrastructure.resource_monitor.cpu_percent"
+)
+print(f"CPU usage: {cpu}%")
+
+# Quick health check
+health = await client.telemetry.check_system_health()
+if not health['healthy']:
+    print(f"Alerts: {health['alerts']}")
+```
+
+### Flexible View Options
+```python
+# Executive summary
+summary = await client.telemetry.get_unified_telemetry()
+
+# Operational view with live data
+ops = await client.telemetry.get_unified_telemetry(
+    view="operational",
+    live=True  # Bypass cache
+)
+
+# Performance metrics only
+perf = await client.telemetry.get_unified_telemetry(view="performance")
+
+# Filter by category
+buses = await client.telemetry.get_unified_telemetry(
+    view="detailed",
+    category="buses"
+)
+
+# Export for Prometheus
+prometheus = await client.telemetry.get_unified_telemetry(
+    format="prometheus"
+)
+```
+
+See `examples/unified_telemetry_examples.py` for comprehensive examples.
 
 ## Authentication
 

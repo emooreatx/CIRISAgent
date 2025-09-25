@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 import bcrypt
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "tools"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "tools" / "ops"))
 from reset_admin_password import generate_secure_password, hash_password, update_admin_password, verify_password
 
 
@@ -25,12 +25,23 @@ class TestPasswordResetUtility:
         # Test default length
         password = generate_secure_password()
         assert len(password) == 16
-        assert any(c.isalpha() for c in password)
-        assert any(c.isdigit() for c in password)
+        assert any(c.isalpha() for c in password), "Password must contain at least one letter"
+        assert any(c.isdigit() for c in password), "Password must contain at least one digit"
+        assert any(
+            c in "!@#$%^&*-_+=[]{}|;:,.<>?" for c in password
+        ), "Password must contain at least one special character"
 
         # Test custom length
         password = generate_secure_password(24)
         assert len(password) == 24
+        assert any(c.isalpha() for c in password)
+        assert any(c.isdigit() for c in password)
+        assert any(c in "!@#$%^&*-_+=[]{}|;:,.<>?" for c in password)
+
+        # Test minimum length validation
+        with pytest.raises(ValueError) as exc_info:
+            generate_secure_password(2)  # Too short
+        assert "at least 3" in str(exc_info.value)
 
         # Test uniqueness
         password1 = generate_secure_password()

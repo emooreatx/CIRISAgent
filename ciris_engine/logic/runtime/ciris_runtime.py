@@ -43,6 +43,12 @@ class CIRISRuntime:
     Implements the RuntimeInterface protocol.
     """
 
+    def __new__(cls, *args, **kwargs):
+        """Custom __new__ to handle CI environment issues."""
+        # This fixes a pytest/CI issue where object.__new__ gets called incorrectly
+        instance = object.__new__(cls)
+        return instance
+
     def __init__(
         self,
         adapter_types: List[str],
@@ -67,6 +73,7 @@ class CIRISRuntime:
         self.adapter_configs = adapter_configs or {}
         self.adapters: List[BaseAdapterProtocol] = []
         self.modules_to_load = kwargs.get("modules", [])
+        self.debug = kwargs.get("debug", False)
 
         # CRITICAL: Check for mock LLM environment variable
         if os.environ.get("CIRIS_MOCK_LLM", "").lower() in ("true", "1", "yes", "on"):
@@ -317,28 +324,70 @@ class CIRISRuntime:
         logger.info("Initializing CIRIS Runtime...")
 
         try:
+            # CRITICAL: Ensure all directories exist with correct permissions BEFORE anything else
+            from ciris_engine.logic.utils.directory_setup import (
+                DirectorySetupError,
+                setup_application_directories,
+                validate_directories,
+            )
+
+            try:
+                # In production (when running in container), validate only
+                # In development, create directories if needed
+                import os
+
+                is_production = os.environ.get("CIRIS_ENV", "dev").lower() == "prod"
+
+                if is_production:
+                    logger.info("Production environment detected - validating directories...")
+                    validate_directories()
+                else:
+                    logger.info("Development environment - setting up directories...")
+                    setup_application_directories(essential_config=self.essential_config)
+
+            except DirectorySetupError as e:
+                logger.critical(f"DIRECTORY SETUP FAILED: {e}")
+                # This will already have printed clear error messages to stderr
+                # and potentially exited the process
+                raise RuntimeError(f"Cannot start: Directory setup failed - {e}")
+
             # First initialize infrastructure services to get the InitializationService instance
+            logger.info("[initialize] Initializing infrastructure services...")
             await self.service_initializer.initialize_infrastructure_services()
+            logger.info("[initialize] Infrastructure services initialized")
 
             # Get the initialization service from service_initializer
             init_manager = self.service_initializer.initialization_service
             if not init_manager:
                 raise RuntimeError("InitializationService not available from ServiceInitializer")
+            logger.info(f"[initialize] Got initialization service: {init_manager}")
 
             # Register all initialization steps with proper phases
+            logger.info("[initialize] Registering initialization steps...")
             self._register_initialization_steps(init_manager)
+            logger.info("[initialize] Steps registered")
 
             # Run the initialization sequence
-            await init_manager.initialize()
+            logger.info("[initialize] Running initialization sequence...")
+            init_result = await init_manager.initialize()
+            logger.info(f"[initialize] Initialization sequence result: {init_result}")
+
+            if not init_result:
+                raise RuntimeError("Initialization sequence failed - check logs for details")
 
             self._initialized = True
             agent_name = self.agent_identity.agent_id if self.agent_identity else "NO_IDENTITY"
             logger.info(f"CIRIS Runtime initialized successfully with identity '{agent_name}'")
 
+        except asyncio.TimeoutError as e:
+            logger.critical(f"Runtime initialization TIMED OUT: {e}", exc_info=True)
+            self._initialized = False
+            raise
         except Exception as e:
             logger.critical(f"Runtime initialization failed: {e}", exc_info=True)
             if "maintenance" in str(e).lower():
                 logger.critical("Database maintenance failure during initialization - system cannot start safely")
+            self._initialized = False
             raise
 
     async def _initialize_identity(self) -> None:
@@ -448,35 +497,37 @@ class CIRISRuntime:
     async def _initialize_infrastructure(self) -> None:  # NOSONAR: Part of async initialization chain
         """Initialize infrastructure services that all other services depend on."""
         # Infrastructure services already initialized in initialize() method
-        # This is now just a no-op placeholder for the initialization step
-        pass
 
-        # Now setup proper file logging with TimeService
-        from ciris_engine.logic.utils.logging_config import setup_basic_logging
+        # CRITICAL: File logging is REQUIRED for production
+        # FAIL FAST AND LOUD if we can't set it up
+        import os
 
-        if self.service_initializer.time_service:
-            # Check if we're in CLI interactive mode
-            is_cli_interactive = False
-            for adapter in self.adapters:
-                adapter_class_name = adapter.__class__.__name__
-                if (
-                    adapter_class_name == "CliPlatform"
-                    and hasattr(adapter, "cli_adapter")
-                    and hasattr(adapter.cli_adapter, "interactive")
-                ):
-                    is_cli_interactive = adapter.cli_adapter.interactive
-                    break
+        if not os.environ.get("PYTEST_CURRENT_TEST"):
+            from ciris_engine.logic.utils.logging_config import setup_basic_logging
 
-            # Disable console output for CLI interactive mode to avoid cluttering the interface
-            console_output = not is_cli_interactive
+            # Get TimeService from service initializer
+            time_service = self.service_initializer.time_service
+            if not time_service:
+                error_msg = "CRITICAL: TimeService not available - CANNOT INITIALIZE FILE LOGGING"
+                logger.critical(error_msg)
+                raise RuntimeError(error_msg)
 
-            logger.info("Setting up file logging with TimeService")
-            setup_basic_logging(
-                level=logging.DEBUG if logger.isEnabledFor(logging.DEBUG) else logging.INFO,
-                log_to_file=True,
-                console_output=console_output,
-                time_service=self.service_initializer.time_service,
-            )
+            try:
+                setup_basic_logging(
+                    level=logging.DEBUG if self.debug else logging.INFO,
+                    log_to_file=True,
+                    console_output=False,  # Already logging to console from main.py
+                    enable_incident_capture=True,
+                    time_service=time_service,
+                    log_dir="logs",
+                )
+                logger.info("[_initialize_infrastructure] File logging initialized successfully")
+            except Exception as e:
+                error_msg = f"CRITICAL: Failed to setup file logging: {e}"
+                logger.critical(error_msg)
+                raise RuntimeError(error_msg)
+        else:
+            logger.debug("[_initialize_infrastructure] Test mode detected, skipping file logging setup")
 
     async def _verify_infrastructure(self) -> bool:
         """Verify infrastructure services are operational."""
@@ -494,10 +545,10 @@ class CIRISRuntime:
 
     async def _init_database(self) -> None:
         """Initialize database and run migrations."""
-        # Pass the db path from our config
-        db_path = persistence.get_sqlite_db_full_path()
+        # Pass the db path from our config - MUST pass the config!
+        db_path = persistence.get_sqlite_db_full_path(self.essential_config)
         persistence.initialize_database(db_path)
-        persistence.run_migrations()
+        persistence.run_migrations(db_path)
 
         if not self.essential_config:
             # Use default essential config if none provided
@@ -507,8 +558,9 @@ class CIRISRuntime:
     async def _verify_database_integrity(self) -> bool:
         """Verify database integrity before proceeding."""
         try:
-            # Check core tables exist
-            conn = persistence.get_db_connection()
+            # Check core tables exist - pass the correct db path!
+            db_path = persistence.get_sqlite_db_full_path(self.essential_config)
+            conn = persistence.get_db_connection(db_path)
             cursor = conn.cursor()
 
             required_tables = ["tasks", "thoughts", "graph_nodes", "graph_edges"]
@@ -564,6 +616,16 @@ class CIRISRuntime:
             logger.info(f"Loading {len(self.modules_to_load)} external modules: {self.modules_to_load}")
             await self.service_initializer.load_modules(self.modules_to_load)
 
+        # Set runtime on audit service so it can create trace correlations
+        if self.audit_service:
+            self.audit_service._runtime = self
+            logger.debug("Set runtime reference on audit service for trace correlations")
+
+        # Set runtime on visibility service so it can access telemetry for traces
+        if self.visibility_service:
+            self.visibility_service._runtime = self
+            logger.debug("Set runtime reference on visibility service for trace retrieval")
+
         # Update runtime control service with runtime reference
         if self.runtime_control_service:
             if hasattr(self.runtime_control_service, "_set_runtime"):
@@ -571,6 +633,12 @@ class CIRISRuntime:
             else:
                 self.runtime_control_service.runtime = self
             logger.info("Updated runtime control service with runtime reference")
+
+        # Update telemetry service with runtime reference for aggregator
+        if self.telemetry_service:
+            if hasattr(self.telemetry_service, "_set_runtime"):
+                self.telemetry_service._set_runtime(self)
+                logger.info("Updated telemetry service with runtime reference for aggregator")
 
     async def _verify_core_services(self) -> bool:
         """Verify all core services are operational."""
@@ -856,11 +924,38 @@ class CIRISRuntime:
 
     async def _build_components(self) -> None:
         """Build all processing components."""
-        self.component_builder = ComponentBuilder(self)
-        self.agent_processor = self.component_builder.build_all_components()
+        logger.info("[_build_components] Starting component building...")
+        logger.info(f"[_build_components] llm_service: {self.llm_service}")
+        logger.info(f"[_build_components] service_registry: {self.service_registry}")
+        logger.info(f"[_build_components] service_initializer: {self.service_initializer}")
+
+        if self.service_initializer:
+            logger.info(f"[_build_components] service_initializer.llm_service: {self.service_initializer.llm_service}")
+            logger.info(
+                f"[_build_components] service_initializer.service_registry: {self.service_initializer.service_registry}"
+            )
+
+        try:
+            self.component_builder = ComponentBuilder(self)
+            logger.info("[_build_components] ComponentBuilder created successfully")
+
+            self.agent_processor = self.component_builder.build_all_components()
+            logger.info(f"[_build_components] agent_processor created: {self.agent_processor}")
+
+            # Set up thought tracking callback now that agent_processor exists
+            # This avoids the race condition where RuntimeControlService tried to access
+            # agent_processor during Phase 5 (SERVICES) before it was created in Phase 6 (COMPONENTS)
+            if self.runtime_control_service:
+                self.runtime_control_service.setup_thought_tracking()
+                logger.debug("Thought tracking callback set up after agent_processor creation")
+
+        except Exception as e:
+            logger.error(f"[_build_components] Failed to build components: {e}", exc_info=True)
+            raise
 
         # Register core services after components are built
         self._register_core_services()
+        logger.info("[_build_components] Component building completed")
 
     async def _start_adapter_connections(self) -> None:
         """Start adapter connections and wait for them to be ready."""
@@ -1476,6 +1571,9 @@ class CIRISRuntime:
 
         # Mark shutdown as truly complete
         self._shutdown_complete = True
+        # If there's a shutdown event, set it to signal completion
+        if hasattr(self, "_shutdown_event"):
+            self._shutdown_event.set()
         logger.debug("Shutdown method returning")
 
     async def _preserve_shutdown_consciousness(self) -> None:

@@ -8,19 +8,20 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import aiofiles
 
 from ciris_engine.logic.buses import BusManager
 from ciris_engine.logic.config.config_accessor import ConfigAccessor
-from ciris_engine.logic.persistence.maintenance import DatabaseMaintenanceService
+from ciris_engine.logic.persistence import get_sqlite_db_full_path
+from ciris_engine.logic.services.infrastructure.database_maintenance import DatabaseMaintenanceService
 from ciris_engine.logic.registries.base import Priority, ServiceRegistry
 
 # CoreToolService removed - SELF_HELP moved to memory per user request
 # BasicTelemetryCollector removed - using GraphTelemetryService instead
 from ciris_engine.logic.secrets.service import SecretsService
-from ciris_engine.logic.services.governance.filter import AdaptiveFilterService
+from ciris_engine.logic.services.governance.adaptive_filter import AdaptiveFilterService
 
 # Removed AuditSinkManager - audit is consolidated, no sink needed
 from ciris_engine.logic.services.governance.wise_authority import WiseAuthorityService
@@ -78,6 +79,7 @@ class ServiceInitializer:
         self.config_service: Optional[Any] = None  # Will be GraphConfigService
         self.self_observation_service: Optional[Any] = None  # Will be SelfObservationService
         self.visibility_service: Optional[Any] = None  # Will be VisibilityService
+        self.consent_service: Optional[Any] = None  # Will be ConsentService
         self.runtime_control_service: Optional[Any] = None  # Will be RuntimeControlService
 
         # Module management
@@ -85,12 +87,31 @@ class ServiceInitializer:
         self.loaded_modules: List[str] = []
         self._skip_llm_init: bool = False  # Set to True if MOCK LLM module detected
 
+        # Metrics tracking for v1.4.3
+        self._services_started_count: int = 0
+        self._initialization_errors: int = 0
+        self._dependencies_resolved: int = 0
+        self._startup_start_time: Optional[float] = None
+        self._startup_end_time: Optional[float] = None
+
     async def initialize_infrastructure_services(self) -> None:
         """Initialize infrastructure services that all other services depend on."""
+        # Track startup time
+        import time
+
+        if self._startup_start_time is None:
+            self._startup_start_time = time.time()
+
         # Initialize TimeService first - everyone needs time
-        self.time_service = TimeService()
-        await self.time_service.start()
-        logger.info("TimeService initialized")
+        try:
+            self.time_service = TimeService()
+            await self.time_service.start()
+            self._services_started_count += 1
+            logger.info("TimeService initialized")
+        except Exception as e:
+            self._initialization_errors += 1
+            logger.error(f"Failed to initialize TimeService: {e}")
+            raise
         assert self.time_service is not None  # For type checker
 
         # Note: TimeService will be registered in ServiceRegistry later
@@ -99,24 +120,26 @@ class ServiceInitializer:
         # Initialize ShutdownService
         self.shutdown_service = ShutdownService()
         await self.shutdown_service.start()
+        self._services_started_count += 1
         logger.info("ShutdownService initialized")
 
         # Initialize InitializationService with TimeService
         self.initialization_service = InitializationService(self.time_service)
         await self.initialization_service.start()
+        self._services_started_count += 1
         logger.info("InitializationService initialized")
 
         # Initialize ResourceMonitorService
-        from ciris_engine.logic.persistence import get_sqlite_db_full_path
         from ciris_engine.logic.services.infrastructure.resource_monitor import ResourceMonitorService
         from ciris_engine.schemas.services.resources_core import ResourceBudget
 
         # Create default resource budget
         budget = ResourceBudget()  # Uses defaults from schema
         self.resource_monitor_service = ResourceMonitorService(
-            budget=budget, db_path=get_sqlite_db_full_path(), time_service=self.time_service
+            budget=budget, db_path=get_sqlite_db_full_path(self.essential_config), time_service=self.time_service
         )
         await self.resource_monitor_service.start()
+        self._services_started_count += 1
         logger.info("ResourceMonitorService initialized")
 
     async def initialize_memory_service(self, config: Any) -> None:
@@ -125,11 +148,9 @@ class ServiceInitializer:
         import os
         from pathlib import Path
 
-        from ciris_engine.logic.persistence import get_sqlite_db_full_path
-
-        # Ensure .ciris_keys directory exists
-        keys_dir = Path(".ciris_keys")
-        keys_dir.mkdir(exist_ok=True)
+        # Use configurable secrets key path from essential config
+        keys_dir = Path(self.essential_config.security.secrets_key_path)
+        keys_dir.mkdir(parents=True, exist_ok=True)
 
         # Load or generate master key
         master_key_path = keys_dir / "secrets_master.key"
@@ -195,7 +216,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
                 await f.write(readme_content)
             logger.info("Created .ciris_keys/README.md")
 
-        db_path = get_sqlite_db_full_path()
+        db_path = get_sqlite_db_full_path(self.essential_config)
         secrets_db_path = db_path.replace(".db", "_secrets.db")
 
         if self.time_service is None:
@@ -205,6 +226,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
             db_path=secrets_db_path, time_service=self.time_service, master_key=master_key
         )
         await self.secrets_service.start()
+        self._services_started_count += 1
         logger.info("SecretsService initialized")
 
         # Create and register SecretsToolService
@@ -214,27 +236,47 @@ This directory contains critical cryptographic keys for the CIRIS system.
             secrets_service=self.secrets_service, time_service=self.time_service
         )
         await self.core_tool_service.start()
+        self._services_started_count += 1
         logger.info("SecretsToolService created and started")
 
-        # LocalGraphMemoryService uses SQLite by default
+        # LocalGraphMemoryService needs the correct db path from our config
+        db_path = get_sqlite_db_full_path(self.essential_config)
         self.memory_service = LocalGraphMemoryService(
-            time_service=self.time_service, secrets_service=self.secrets_service
+            db_path=db_path, time_service=self.time_service, secrets_service=self.secrets_service
         )
         self.memory_service.start()
+        self._services_started_count += 1
 
         logger.info("Memory service initialized")
 
         # Initialize GraphConfigService now that memory service is ready
+        from ciris_engine.logic.registries.base import Priority, get_global_registry
         from ciris_engine.logic.services.graph.config_service import GraphConfigService
+        from ciris_engine.schemas.runtime.enums import ServiceType
 
         if self.time_service is None:
             raise RuntimeError("TimeService must be initialized before GraphConfigService")
         self.config_service = GraphConfigService(self.memory_service, self.time_service)
         await self.config_service.start()
+        self._services_started_count += 1
         logger.info("GraphConfigService initialized")
+
+        # Register config service immediately so it's available for persistence operations
+        registry = get_global_registry()
+        # Store essential config on the service so db_paths can find it
+        self.config_service.essential_config = self.essential_config
+        registry.register_service(
+            service_type=ServiceType.CONFIG,
+            provider=self.config_service,
+            priority=Priority.HIGH,
+            capabilities=["get_config", "set_config", "list_configs"],
+            metadata={"backend": "graph", "type": "essential"},
+        )
+        logger.info("Config service registered early in ServiceRegistry for persistence access")
 
         # Create config accessor with graph service
         self.config_accessor = ConfigAccessor(self.config_service, self.essential_config)
+        self._dependencies_resolved += 1  # Graph config service dependency
 
         # Migrate essential config to graph
         await self._migrate_config_to_graph()
@@ -301,18 +343,24 @@ This directory contains critical cryptographic keys for the CIRIS system.
 
         if self.config_accessor is None:
             raise RuntimeError("ConfigAccessor must be initialized before AuthenticationService")
-        auth_db_path = await self.config_accessor.get_path("database.auth_db", Path("data/ciris_auth.db"))
+        # Use the same directory as main database, but different file
+        main_db_path = get_sqlite_db_full_path(self.essential_config)
+        auth_db_path = main_db_path.replace(".db", "_auth.db")
         self.auth_service = AuthenticationService(
-            db_path=str(auth_db_path), time_service=self.time_service, key_dir=None  # Will use default ~/.ciris/
+            db_path=auth_db_path, time_service=self.time_service, key_dir=None  # Will use default ~/.ciris/
         )
         await self.auth_service.start()
+        self._services_started_count += 1
         logger.info("AuthenticationService initialized")
 
         # Initialize WA authentication system with TimeService and AuthService
+        # Use the main database path - WiseAuthority needs access to tasks table
+        main_db_path = get_sqlite_db_full_path(self.essential_config)
         self.wa_auth_system = WiseAuthorityService(
-            time_service=self.time_service, auth_service=self.auth_service, db_path=None  # Will use default from config
+            time_service=self.time_service, auth_service=self.auth_service, db_path=main_db_path
         )
         await self.wa_auth_system.start()
+        self._services_started_count += 1
         logger.info("WA authentication system initialized")
 
     async def verify_security_services(self) -> bool:
@@ -344,7 +392,9 @@ This directory contains critical cryptographic keys for the CIRIS system.
         modules_to_load: Optional[List[str]] = None,
     ) -> None:
         """Initialize all remaining core services."""
-        self.service_registry = ServiceRegistry()
+        from ciris_engine.logic.registries.base import get_global_registry
+
+        self.service_registry = get_global_registry()
 
         # Register TimeService now that we have a registry
         if self.time_service:
@@ -355,6 +405,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
                 capabilities=["now", "format_timestamp", "parse_timestamp"],
                 metadata={"timezone": "UTC"},
             )
+            self._dependencies_resolved += 1  # Service registry dependency
             logger.info("TimeService registered in ServiceRegistry")
 
         # Pre-load module loader to check for MOCK modules BEFORE initializing services
@@ -397,6 +448,9 @@ This directory contains critical cryptographic keys for the CIRIS system.
         # Register previously initialized services in the registry
         # Register previously initialized services in the registry as per CLAUDE.md
 
+        # Config service was already registered early in initialize_memory_service
+        # to ensure it's available for persistence operations
+
         # Memory service was initialized in Phase 2, register it now
         if self.memory_service:
             self.service_registry.register_service(
@@ -416,6 +470,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
                 ],
                 metadata={"backend": "sqlite", "graph_type": "local"},
             )
+            self._dependencies_resolved += 1  # Memory service dependency
             logger.info("Memory service registered in ServiceRegistry")
 
         # WiseAuthority service was initialized in security phase, register it now
@@ -435,6 +490,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
                 ],
                 metadata={"type": "consolidated", "consensus": "single"},
             )
+            self._dependencies_resolved += 1  # WiseAuthority service dependency
             logger.info("WiseAuthority service registered in ServiceRegistry")
 
         # Create BusManager first (without telemetry service)
@@ -446,6 +502,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
             None,  # telemetry_service will be set later
             None,  # audit_service will be set later
         )
+        self._dependencies_resolved += 1  # BusManager dependency
 
         # Initialize telemetry service using GraphTelemetryService
         # This implements the "Graph Memory as Identity Architecture" patent
@@ -454,11 +511,20 @@ This directory contains critical cryptographic keys for the CIRIS system.
 
         assert self.bus_manager is not None
         assert self.time_service is not None
-        self.telemetry_service = GraphTelemetryService(
-            memory_bus=self.bus_manager.memory, time_service=self.time_service  # Now we have the memory bus
-        )
-        await self.telemetry_service.start()
-        logger.info("GraphTelemetryService initialized")
+        try:
+            self.telemetry_service = GraphTelemetryService(
+                memory_bus=self.bus_manager.memory, time_service=self.time_service  # Now we have the memory bus
+            )
+            # Set service registry so it can initialize the aggregator
+            if self.service_registry:
+                self.telemetry_service._set_service_registry(self.service_registry)
+            await self.telemetry_service.start()
+            self._services_started_count += 1
+            logger.info("GraphTelemetryService initialized")
+        except Exception as e:
+            self._initialization_errors += 1
+            logger.error(f"Failed to initialize GraphTelemetryService: {e}")
+            raise
 
         # Now set the telemetry service in bus manager and LLM bus
         self.bus_manager.telemetry_service = self.telemetry_service
@@ -483,6 +549,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
             config_service=self.config_service,  # Pass GraphConfigService
         )
         await self.adaptive_filter_service.start()
+        self._services_started_count += 1
 
         # GraphConfigService (initialized earlier) handles all configuration including agent config
         # No separate agent configuration service needed - see GraphConfigService documentation
@@ -496,10 +563,11 @@ This directory contains critical cryptographic keys for the CIRIS system.
         # Initialize task scheduler service
         from ciris_engine.logic.services.lifecycle.scheduler import TaskSchedulerService
 
-        self.task_scheduler_service = TaskSchedulerService(
-            db_path=getattr(config, "database_path", "data/ciris_engine.db"), time_service=self.time_service
-        )
+        # Get the correct db path from our essential config
+        db_path = get_sqlite_db_full_path(self.essential_config)
+        self.task_scheduler_service = TaskSchedulerService(db_path=db_path, time_service=self.time_service)
         await self.task_scheduler_service.start()
+        self._services_started_count += 1
         logger.info("Task scheduler service initialized")
 
         # Initialize TSDB consolidation service BEFORE maintenance
@@ -513,16 +581,30 @@ This directory contains critical cryptographic keys for the CIRIS system.
         config = self.essential_config
         graph_config = config.graph if hasattr(config, "graph") else None
 
+        # Get the correct db path from our essential config
+        db_path = get_sqlite_db_full_path(self.essential_config)
         self.tsdb_consolidation_service = TSDBConsolidationService(
             memory_bus=self.bus_manager.memory,  # Use memory bus, not direct service
             time_service=self.time_service,  # Pass time service
             consolidation_interval_hours=6,  # Fixed for calendar alignment
             raw_retention_hours=graph_config.tsdb_raw_retention_hours if graph_config else 24,
+            db_path=db_path,
         )
         await self.tsdb_consolidation_service.start()
+        self._services_started_count += 1
         logger.info(
             "TSDB consolidation service initialized - consolidating missed windows and starting periodic consolidation"
         )
+
+        # Register TSDBConsolidationService in registry
+        self.service_registry.register_service(
+            service_type=ServiceType.TSDB_CONSOLIDATION,
+            provider=self.tsdb_consolidation_service,
+            priority=Priority.NORMAL,
+            capabilities=["consolidate_data", "get_summaries"],
+            metadata={"consolidation_interval": "6h", "type": "tsdb"},
+        )
+        logger.info("TSDBConsolidationService registered in ServiceRegistry")
 
         # Initialize maintenance service AFTER consolidation
         archive_dir = getattr(config, "data_archive_dir", "data_archive")
@@ -536,10 +618,11 @@ This directory contains critical cryptographic keys for the CIRIS system.
             config_service=self.config_service,
         )
         await self.maintenance_service.start()
+        self._services_started_count += 1
         logger.info("Database maintenance service initialized and started")
 
         # Initialize self observation service
-        from ciris_engine.logic.services.adaptation.self_observation import SelfObservationService
+        from ciris_engine.logic.services.governance.self_observation import SelfObservationService
 
         assert self.time_service is not None
         assert self.bus_manager is not None
@@ -554,19 +637,35 @@ This directory contains critical cryptographic keys for the CIRIS system.
             self.self_observation_service._set_service_registry(self.service_registry)
         # Start the service for API mode (in other modes DREAM processor starts it)
         await self.self_observation_service.start()
+        self._services_started_count += 1
         logger.info("Self observation service initialized and started")
 
         # Initialize visibility service
-        from ciris_engine.logic.persistence import get_sqlite_db_full_path
         from ciris_engine.logic.services.governance.visibility import VisibilityService
 
         assert self.bus_manager is not None
         assert self.time_service is not None
         self.visibility_service = VisibilityService(
-            bus_manager=self.bus_manager, time_service=self.time_service, db_path=get_sqlite_db_full_path()
+            bus_manager=self.bus_manager,
+            time_service=self.time_service,
+            db_path=get_sqlite_db_full_path(self.essential_config),
         )
         await self.visibility_service.start()
+        self._services_started_count += 1
         logger.info("Visibility service initialized - providing reasoning transparency")
+
+        # Initialize consent service (Governance Service #5)
+        from ciris_engine.logic.services.governance.consent import ConsentService
+
+        assert self.time_service is not None
+        self.consent_service = ConsentService(
+            time_service=self.time_service,
+            memory_bus=None,  # Will use direct persistence
+            db_path=get_sqlite_db_full_path(self.essential_config),
+        )
+        await self.consent_service.start()
+        self._services_started_count += 1
+        logger.info("ConsentService initialized - managing user consent and decay protocol")
 
         # Initialize runtime control service
         from ciris_engine.logic.services.runtime.control_service import RuntimeControlService
@@ -580,7 +679,13 @@ This directory contains critical cryptographic keys for the CIRIS system.
             time_service=self.time_service,
         )
         await self.runtime_control_service.start()
+        self._services_started_count += 1
         logger.info("Runtime control service initialized - managing processor and adapters")
+
+        # Mark end of startup process
+        import time
+
+        self._startup_end_time = time.time()
 
     async def _initialize_llm_services(self, config: Any, modules_to_load: Optional[List[str]] = None) -> None:
         """Initialize LLM service(s) based on configuration.
@@ -617,6 +722,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
                 config.services.llm_model if config and hasattr(config, "services") and config.services else "llama3.2"
             ),
             api_key=api_key,
+            instructor_mode=os.environ.get("INSTRUCTOR_MODE", "JSON"),  # Allow override from environment
             timeout_seconds=(
                 config.services.llm_timeout if config and hasattr(config, "services") and config.services else 60
             ),
@@ -675,6 +781,7 @@ This directory contains critical cryptographic keys for the CIRIS system.
             base_url=base_url,
             model_name=model_name,
             api_key=api_key,
+            instructor_mode=os.environ.get("INSTRUCTOR_MODE", "JSON"),  # Allow override from environment
             timeout_seconds=(
                 config.services.llm_timeout if config and hasattr(config, "services") and config.services else 60
             ),
@@ -731,10 +838,12 @@ This directory contains critical cryptographic keys for the CIRIS system.
             key_path=str(audit_key_path),
             retention_days=retention_days,
         )
+        # Runtime will be set later when available
         # Set service registry so it can access memory bus
         if self.service_registry:
             graph_audit._set_service_registry(self.service_registry)
         await graph_audit.start()
+        self._services_started_count += 1
         self.audit_services.append(graph_audit)
         logger.info("Consolidated GraphAuditService started")
 
@@ -762,8 +871,9 @@ This directory contains critical cryptographic keys for the CIRIS system.
         self.incident_management_service = IncidentManagementService(
             memory_bus=self.bus_manager.memory, time_service=self.time_service
         )
-        self.incident_management_service.start()
-        logger.info("Incident management service initialized")
+        await self.incident_management_service.start()
+        self._services_started_count += 1
+        logger.info("Incident management service initialized and started")
 
     def verify_core_services(self) -> bool:
         """Verify all core services are operational."""
@@ -912,6 +1022,22 @@ This directory contains critical cryptographic keys for the CIRIS system.
             )
             logger.info("SecretsToolService registered in ServiceRegistry")
 
+        # Register ConsentService as a tool service (v1.4.6)
+        if self.consent_service:
+            self.service_registry.register_service(
+                service_type=ServiceType.TOOL,
+                provider=self.consent_service,
+                priority=Priority.HIGH,
+                capabilities=[
+                    "execute_tool",
+                    "get_available_tools",
+                    "upgrade_relationship",
+                    "degrade_relationship",
+                ],
+                metadata={"service_name": "ConsentService", "provider": "core"},
+            )
+            logger.info("ConsentService registered in ServiceRegistry as TOOL service")
+
         # Task scheduler is single-instance - NO ServiceRegistry needed
 
         # Incident management is single-instance - NO ServiceRegistry needed
@@ -948,3 +1074,25 @@ This directory contains critical cryptographic keys for the CIRIS system.
                 logger.debug(f"Migrated config: {section_name}")
 
         logger.info("Configuration migration complete")
+
+    def get_metrics(self) -> Dict[str, float]:
+        """Get initializer metrics from the v1.4.3 set.
+
+        Returns EXACTLY these metrics:
+        - initializer_services_started: Services started count
+        - initializer_startup_time_ms: Total startup time
+        - initializer_errors: Initialization errors
+        - initializer_dependencies_resolved: Dependencies resolved
+        """
+        # Calculate startup time in milliseconds
+        startup_time_ms = 0.0
+        if self._startup_start_time is not None and self._startup_end_time is not None:
+            duration_seconds = self._startup_end_time - self._startup_start_time
+            startup_time_ms = duration_seconds * 1000.0
+
+        return {
+            "initializer_services_started": float(self._services_started_count),
+            "initializer_startup_time_ms": startup_time_ms,
+            "initializer_errors": float(self._initialization_errors),
+            "initializer_dependencies_resolved": float(self._dependencies_resolved),
+        }

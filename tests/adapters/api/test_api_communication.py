@@ -108,7 +108,7 @@ class TestAPICommunicationMessageSending:
             assert communication_service._response_queue.qsize() == 3
 
             # Verify metrics were updated
-            assert communication_service._requests_handled == 3
+            assert communication_service._request_count == 3
 
     @pytest.mark.asyncio
     async def test_send_message_error_handling(self, communication_service, app_state):
@@ -271,7 +271,7 @@ class TestAPICommunicationMetadata:
         app_state.message_channel_map = {"api_127.0.0.1_8080": "msg-123"}
 
         # Mock notify function
-        with patch("ciris_engine.logic.adapters.api.routes.agent.notify_interact_response") as mock_notify:
+        with patch("ciris_engine.logic.adapters.api.routes.agent.store_message_response") as mock_notify:
             with patch("ciris_engine.logic.persistence"):
                 await communication_service.send_message(
                     channel_id="api_127.0.0.1_8080", content="Message with notification"

@@ -19,6 +19,7 @@ from .routes import (
     audit,
     auth,
     config,
+    consent,
     dsar,
     emergency,
     memory,
@@ -55,11 +56,18 @@ def create_app(runtime: Any = None, adapter_config: Any = None) -> FastAPI:
     Returns:
         Configured FastAPI application
     """
+    # Determine root_path for reverse proxy support
+    root_path = ""
+    if adapter_config and hasattr(adapter_config, "proxy_path") and adapter_config.proxy_path:
+        root_path = adapter_config.proxy_path
+        print(f"Configuring FastAPI with root_path='{root_path}' for reverse proxy support")
+    
     app = FastAPI(
         title="CIRIS API v1",
         description="Autonomous AI Agent Interaction and Observability API (Pre-Beta)",
         version="1.0.0",
         lifespan=lifespan,
+        root_path=root_path if root_path else None,  # This tells FastAPI it's behind a proxy at this path
     )
 
     # Add CORS middleware
@@ -98,6 +106,7 @@ def create_app(runtime: Any = None, adapter_config: Any = None) -> FastAPI:
         # === THE 21 CORE CIRIS SERVICES ===
         # Graph Services (6)
         app.state.memory_service = None
+        app.state.consent_manager = None  # Consent manager for Consensual Evolution Protocol
         app.state.config_service = None
         app.state.telemetry_service = None
         app.state.audit_service = None
@@ -128,7 +137,7 @@ def create_app(runtime: Any = None, adapter_config: Any = None) -> FastAPI:
         # Tool Services (1)
         app.state.secrets_tool_service = None
 
-        # === INFRASTRUCTURE COMPONENTS (not part of the 21 services) ===
+        # === INFRASTRUCTURE COMPONENTS (not part of the 22 services) ===
         app.state.service_registry = None
         app.state.agent_processor = None
         app.state.message_handler = None
@@ -140,14 +149,15 @@ def create_app(runtime: Any = None, adapter_config: Any = None) -> FastAPI:
     v1_routers = [
         agent.router,  # Agent interaction
         memory.router,  # Memory operations
+        system_extensions.router,  # Extended system operations (queue, services, processors) - MUST be before system.router
         system.router,  # System operations (includes health, time, resources, runtime)
-        system_extensions.router,  # Extended system operations (queue, services, processors)
         config.router,  # Configuration management
         telemetry.router,  # Telemetry & observability
         audit.router,  # Audit trail
         wa.router,  # Wise Authority
         auth.router,  # Authentication
         users.router,  # User management
+        consent.router,  # Consent management (Consensual Evolution Protocol)
         dsar.router,  # Data Subject Access Requests (GDPR compliance)
         transparency.router,  # Public transparency feed (no auth)
     ]

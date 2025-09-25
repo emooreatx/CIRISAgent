@@ -5,7 +5,7 @@ Communication message bus - handles all communication service operations
 import logging
 import uuid
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
 
 if TYPE_CHECKING:
     from ciris_engine.logic.registries.base import ServiceRegistry
@@ -46,9 +46,21 @@ class CommunicationBus(BaseBus[CommunicationService]):
     - fetch_messages
     """
 
-    def __init__(self, service_registry: "ServiceRegistry", time_service: TimeServiceProtocol):
+    def __init__(
+        self,
+        service_registry: "ServiceRegistry",
+        time_service: TimeServiceProtocol,
+        telemetry_service: Optional[Any] = None,
+    ):
         super().__init__(service_type=ServiceType.COMMUNICATION, service_registry=service_registry)
         self._time_service = time_service
+        self._start_time = time_service.now() if time_service else None
+
+        # Metrics tracking
+        self._messages_sent = 0
+        self._messages_received = 0
+        self._broadcasts = 0
+        self._errors = 0
 
     async def get_default_channel(self) -> Optional[str]:
         """Get home channel from highest priority communication adapter.
@@ -115,6 +127,7 @@ class CommunicationBus(BaseBus[CommunicationService]):
         success = await self._enqueue(message)
         if success:
             logger.debug(f"Queued send_message for channel {channel_id}")
+            self._messages_sent += 1
         return success
 
     async def send_message_sync(
@@ -173,6 +186,8 @@ class CommunicationBus(BaseBus[CommunicationService]):
 
         try:
             result = await service.send_message(resolved_channel_id, content)
+            if result:
+                self._messages_sent += 1
             return bool(result)
         except Exception as e:
             logger.error(f"Failed to send message: {e}", exc_info=True)
@@ -195,11 +210,25 @@ class CommunicationBus(BaseBus[CommunicationService]):
             if not messages:
                 return []
 
-            # Convert dict messages to FetchedMessage objects
+            # Convert messages to FetchedMessage objects
             fetched_messages = []
             for msg in messages:
-                # Messages are always dicts from adapters
-                fetched_messages.append(FetchedMessage(**msg))
+                # Handle both dict and FetchedMessage objects from adapters
+                if isinstance(msg, FetchedMessage):
+                    fetched_messages.append(msg)
+                elif isinstance(msg, dict):
+                    fetched_messages.append(FetchedMessage(**msg))
+                else:
+                    # Try to convert other message types to dict first
+                    try:
+                        msg_dict = msg.model_dump() if hasattr(msg, 'model_dump') else dict(msg)
+                        fetched_messages.append(FetchedMessage(**msg_dict))
+                    except Exception as e:
+                        logger.warning(f"Skipping message of type {type(msg)}: {e}")
+                        continue
+
+            # Track messages received
+            self._messages_received += len(fetched_messages)
             return fetched_messages
         except Exception as e:
             logger.error(f"Failed to fetch messages: {e}", exc_info=True)
@@ -270,5 +299,44 @@ class CommunicationBus(BaseBus[CommunicationService]):
 
         if success:
             logger.debug(f"Successfully sent message to {resolved_channel_id} " f"via {type(service).__name__}")
+            # Count broadcasts (messages sent to multiple recipients or channel-wide)
+            if not resolved_channel_id or resolved_channel_id.startswith(("discord_", "api_", "cli_")):
+                self._broadcasts += 1
         else:
             logger.warning(f"Failed to send message to {resolved_channel_id} " f"via {type(service).__name__}")
+
+    def _collect_metrics(self) -> dict:
+        """Collect base metrics for the communication bus."""
+        uptime_seconds = 0.0
+        if hasattr(self, "_time_service") and self._time_service:
+            # Calculate uptime if we have a start time
+            if hasattr(self, "_start_time") and self._start_time:
+                uptime_seconds = (self._time_service.now() - self._start_time).total_seconds()
+
+        return {
+            "communication_messages_sent": float(self._messages_sent),
+            "communication_messages_received": float(self._messages_received),
+            "communication_broadcasts": float(self._broadcasts),
+            "communication_errors": float(self._errors),
+            "communication_uptime_seconds": uptime_seconds,
+        }
+
+    def get_metrics(self) -> dict:
+        """Get all metrics including base, custom, and v1.4.3 specific."""
+        # Get all base + custom metrics
+        metrics = self._collect_metrics()
+
+        # Add v1.4.3 specific metrics
+        # Get active connections count from service registry
+        active_connections = len(self.service_registry.get_services_by_type(ServiceType.COMMUNICATION))
+
+        metrics.update(
+            {
+                "communication_bus_messages_sent": float(self._messages_sent),
+                "communication_bus_messages_received": float(self._messages_received),
+                "communication_bus_broadcasts": float(self._broadcasts),
+                "communication_bus_connections": float(active_connections),
+            }
+        )
+
+        return metrics

@@ -8,7 +8,7 @@ from fastapi import HTTPException, Request
 
 from ciris_engine.logic.adapters.api.dependencies.auth import get_auth_context
 from ciris_engine.logic.adapters.api.services.auth_service import APIAuthService
-from ciris_engine.schemas.api.auth import UserRole
+from ciris_engine.schemas.api.auth import ROLE_PERMISSIONS, Permission, UserRole
 from ciris_engine.schemas.runtime.api import APIRole
 
 
@@ -124,6 +124,10 @@ class TestServiceTokenAuthentication:
         assert Permission.VIEW_TELEMETRY in service_permissions
         assert Permission.VIEW_CONFIG in service_permissions
         assert Permission.VIEW_LOGS in service_permissions
+        assert Permission.VIEW_TOOLS in service_permissions
+
+        # Should have agent interaction for system administration
+        assert Permission.SEND_MESSAGES in service_permissions
 
         # Should NOT have sensitive permissions
         assert Permission.EMERGENCY_SHUTDOWN not in service_permissions
@@ -158,21 +162,11 @@ class TestServiceTokenAuthentication:
             assert auth_context.user_id == "service-account"
             assert auth_context.role == UserRole.SERVICE_ACCOUNT
 
-            # Test failed authentication (should still audit)
+            # Test failed authentication (should NOT audit to prevent spam)
             mock_audit_service.log_event.reset_mock()
 
             with pytest.raises(HTTPException):
                 await get_auth_context(mock_request, "Bearer service:wrong-token", auth_service)
 
-            # Verify audit was called for failure
-            assert mock_audit_service.log_event.called
-            call_args = mock_audit_service.log_event.call_args[0]
-
-            # Check event type
-            assert call_args[0] == "service_token_auth_failed"
-
-            # Check event data
-            event_data = call_args[1]
-            assert isinstance(event_data, AuditEventData)
-            assert event_data.outcome == "failure"
-            assert event_data.severity == "warning"
+            # Verify audit was NOT called for failure (changed behavior to prevent spam)
+            assert not mock_audit_service.log_event.called

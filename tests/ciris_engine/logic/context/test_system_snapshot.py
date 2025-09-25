@@ -10,16 +10,22 @@ from ciris_engine.schemas.adapters.tools import ToolInfo, ToolParameterSchema
 from ciris_engine.schemas.runtime.enums import TaskStatus
 from ciris_engine.schemas.runtime.models import Task, TaskContext
 from ciris_engine.schemas.runtime.system_context import SystemSnapshot
+from tests.fixtures.mocks import (
+    MockTelemetryService,
+    MockResourceMonitor,
+    MockMemoryService,
+    MockRuntime,
+    MockSecretsService,
+    MockServiceRegistry,
+    create_mock_thought,
+    create_mock_task
+)
 
 
 @pytest.fixture
 def mock_resource_monitor():
     """Create a mock resource monitor - REQUIRED parameter."""
-    monitor = Mock()
-    monitor.snapshot = Mock()
-    monitor.snapshot.critical = []
-    monitor.snapshot.healthy = True
-    return monitor
+    return MockResourceMonitor()
 
 
 @pytest.fixture
@@ -343,5 +349,5 @@ async def test_build_system_snapshot_with_version_info():
     assert re.match(
         r"^\d+\.\d+\.\d+(-\w+)?$", snapshot.agent_version
     ), f"Invalid version format: {snapshot.agent_version}"
-    assert snapshot.agent_codename == "Graceful Guardian"
+    assert snapshot.agent_codename == "Stable Foundation"
     # code_hash might be None in tests

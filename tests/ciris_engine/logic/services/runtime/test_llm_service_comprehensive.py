@@ -116,7 +116,7 @@ class TestOpenAICompatibleClient:
                         assert service.max_retries == 3
                         assert service.base_delay == 1.0
                         assert service.max_delay == 30.0
-                        assert service._max_cache_size == 100
+                        # Cache has been removed per policy
 
     def test_initialization_mock_llm_error(self, llm_config, mock_time_service):
         """Test that initialization fails when mock LLM is enabled."""
@@ -224,9 +224,8 @@ class TestOpenAICompatibleClient:
             }
         )
 
-        # Add some cache entries
-        llm_service._response_cache["key1"] = MagicMock()
-        llm_service._response_cache["key2"] = MagicMock()
+        # Set response times for metrics
+        llm_service._response_times = [100, 200, 150]
 
         metrics = llm_service._collect_custom_metrics()
 
@@ -239,9 +238,9 @@ class TestOpenAICompatibleClient:
         assert metrics["call_count"] == 100.0
         assert metrics["failure_count"] == 5.0
 
-        # Check cache metrics
-        assert metrics["cache_entries"] == 2.0
-        assert "cache_size_mb" in metrics
+        # Check response time metrics
+        assert "avg_response_time_ms" in metrics
+        assert metrics["avg_response_time_ms"] == 150.0  # average of [100, 200, 150]
 
         # Check model pricing
         assert metrics["model_cost_per_1k_tokens"] == 0.15  # gpt-4o-mini
@@ -256,20 +255,20 @@ class TestOpenAICompatibleClient:
         raw = '```json\n{"result": "test", "value": 42}\n```'
         result = llm_service._extract_json(raw)
         assert result.success is True
-        assert result.data["result"] == "test"
-        assert result.data["value"] == 42
+        assert result.data.result == "test"
+        assert result.data.value == 42
 
         # Test with plain JSON
         raw = '{"message": "hello"}'
         result = llm_service._extract_json(raw)
         assert result.success is True
-        assert result.data["message"] == "hello"
+        assert result.data.message == "hello"
 
         # Test with single quotes (should be converted)
         raw = "{'key': 'value'}"
         result = llm_service._extract_json(raw)
         assert result.success is True
-        assert result.data["key"] == "value"
+        assert result.data.key == "value"
 
         # Test with invalid JSON
         raw = "not json at all"
@@ -521,10 +520,15 @@ class TestOpenAICompatibleClient:
         """Test initialization with TOOLS instructor mode."""
         config = OpenAIConfig(api_key="test-key", instructor_mode="TOOLS")
 
-        with patch.dict(os.environ, {"MOCK_LLM": ""}, clear=False):
+        # Remove MOCK_LLM from environment to avoid RuntimeError
+        mock_env = {}
+        if "MOCK_LLM" in os.environ:
+            mock_env = {k: v for k, v in os.environ.items() if k != "MOCK_LLM"}
+        
+        with patch.dict(os.environ, mock_env, clear=True):
             with patch("sys.argv", []):
-                with patch("ciris_engine.logic.services.runtime.llm_service.AsyncOpenAI"):
-                    with patch("ciris_engine.logic.services.runtime.llm_service.instructor") as mock_instructor:
+                with patch("ciris_engine.logic.services.runtime.llm_service.service.AsyncOpenAI"):
+                    with patch("ciris_engine.logic.services.runtime.llm_service.service.instructor") as mock_instructor:
                         mock_instructor.Mode.TOOLS = "TOOLS"
                         mock_instructor.from_openai = MagicMock()
 
@@ -539,10 +543,15 @@ class TestOpenAICompatibleClient:
         """Test initialization with custom base URL."""
         config = OpenAIConfig(api_key="test-key", base_url="https://custom.openai.com/v1")
 
-        with patch.dict(os.environ, {"MOCK_LLM": ""}, clear=False):
+        # Remove MOCK_LLM from environment to avoid RuntimeError
+        mock_env = {}
+        if "MOCK_LLM" in os.environ:
+            mock_env = {k: v for k, v in os.environ.items() if k != "MOCK_LLM"}
+        
+        with patch.dict(os.environ, mock_env, clear=True):
             with patch("sys.argv", []):
-                with patch("ciris_engine.logic.services.runtime.llm_service.AsyncOpenAI") as mock_openai:
-                    with patch("ciris_engine.logic.services.runtime.llm_service.instructor"):
+                with patch("ciris_engine.logic.services.runtime.llm_service.service.AsyncOpenAI") as mock_openai:
+                    with patch("ciris_engine.logic.services.runtime.llm_service.service.instructor"):
                         service = OpenAICompatibleClient(config=config, time_service=mock_time_service)
 
                         # Verify base_url was passed to AsyncOpenAI
@@ -576,7 +585,7 @@ class TestOpenAICompatibleClient:
         raw = '{"test": "value"}'
         result = llm_service._extract_json_from_response(raw)
         assert result.success is True
-        assert result.data["test"] == "value"
+        assert result.data.test == "value"
 
 
 if __name__ == "__main__":
